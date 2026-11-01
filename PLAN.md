@@ -55,9 +55,9 @@ Anything after item 5 is cut first if days run out.
 ## Owner's tasks
 
 - Join the hackathon on Devpost (not confirmed yet). First submission by Nov 5 for the early check.
-- Anthropic API key into `.env.local`; a Supabase project (URL, anon key and service key into `.env.local`); `wrangler login` on this machine; Email Routing on the domain when asked; `git config user.name / user.email`.
+- Anthropic API key into `.env.local`; a Supabase project (URL, anon key and service key into `.env.local`); `wrangler login` on this machine; Email Routing on the domain when asked.
 - Answer the open questions in DECISIONS.md (O1, O2, O5, O8).
-- When asked: OK for the public GitHub repo and the Cloudflare deploy; record the video; submit.
+- When asked: OK to make the repo public and for the Cloudflare deploy; record the video; submit.
 
 ## Rules we keep
 

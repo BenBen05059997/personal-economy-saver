@@ -56,7 +56,7 @@ Last updated: Nov 1, 2026.
 | D19 | **How we build:** sample data first, then real sources. Sonnet subagents build, Opus subagents research, Claude (lead) writes contracts, monitors, reviews and assembles. Each stream owns its files. | Speed with no collisions; the owner asked for it. |
 | D20 | **Fictional only:** fictional companies and billers, no third-party trademarks or copyrighted music in the video, no real bills or personal data. | Devpost rules; privacy. |
 | D21 | **Accounts and keys are the owner's.** Claude never creates accounts or handles credentials. Keys go only into `economy-saver/.env.local` (ignored by git), never into chat. | Safety. |
-| D22 | **Commits only when the owner asks.** The public GitHub repo and the Cloudflare deploy need the owner's OK first. | Outward-facing actions. |
+| D22 | **Commits only when the owner asks.** The repo is private at https://github.com/BenBen05059997/personal-economy-saver (branch `main`, commits under the GitHub no-reply address); making it public and the Cloudflare deploy need the owner's OK first. `reference/`, browser profiles and every `.env` file except `.env.example` are ignored. | Outward-facing actions. |
 | D23 | **Current state only, everywhere.** No backup copies, no change logs, no "replaced" lists. This file holds current decisions; PLAN.md holds current work. Both are updated in the same turn things change. | The owner asked. |
 | D24 | **Not for Nov 12:** live bank or card connections, Gmail inbox scan, personalised investment advice, paying bills through PayPal, transfer advisor, miles optimisation, daily chat, what-if simulator, other regions' catalogues. | Scope for the date. |
 
