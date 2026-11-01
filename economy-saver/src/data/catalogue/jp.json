@@ -1,0 +1,1283 @@
+[
+  {
+    "id": "jp-consumption-tax-election",
+    "region": "JP",
+    "title": "Get the 10% back on your Japanese expenses",
+    "localName": "消費税課税事業者選択届出書",
+    "group": "tax",
+    "tier": "insider",
+    "knownBy": "tax accountants (税理士)",
+    "moments": [
+      "deadline_near",
+      "client_paid"
+    ],
+    "question": "消費税 免税事業者のままでいい?",
+    "fact": "Design work you do in Japan for a client abroad is a service to a non-resident, which the NTA treats as a 0%-rated export. So if you choose to be a consumption-tax payer you charge 0% and claim back the 10% you pay on Japanese expenses. Exempt freelancers can never recover it, and the form is due the day before the tax year starts: Dec 31, 2026 for 2027.",
+    "valueText": "Tax-inclusive taxable Japanese business spending × 10/110 = the consumption tax you paid on it, refunded each year you are elected (minus the extra bookkeeping).",
+    "timeToMoney": "Weeks after each year's consumption-tax return (due Mar 31)",
+    "risk": "low",
+    "effort": "evening",
+    "deadline": {
+      "label": "Election form due (covers 2027)",
+      "monthDay": "12-31",
+      "remindDaysBefore": 60
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check that most of your sales are to clients outside Japan, and keep the contract, invoice and address that show each client is a non-resident for 7 years.",
+      "List a year of business spending that carried 10% consumption tax (software, hardware, coworking, phone, travel). Home rent does not count.",
+      "File the 消費税課税事業者選択届出書 with your tax office by Dec 31 to cover 2027.",
+      "Keep a qualifying invoice for every purchase and file the consumption-tax return by Mar 31 each year."
+    ],
+    "traps": [
+      "You cannot withdraw the election for 2 years.",
+      "Buying a fixed asset of ¥1M or more (excluding tax) while elected extends the lock-in to 3 years and rules out 簡易課税.",
+      "Never choose 簡易課税 as an exporter: it gives no refund.",
+      "Sales to Japanese clients become taxable at 10%, so you would have to charge them the tax.",
+      "Export sales count toward the ¥10M taxable-sales test two years later; watch it.",
+      "Design work is not a 電気通信利用役務: the NTA says commissioning a work and receiving it online is an ordinary service (基本通達 5-8-3 note, cross-border Q&A), and a service to a non-resident is an export unless the client enjoys the benefit in Japan. Whether your own contract qualifies still depends on its terms: confirm with the 税務署 or a 税理士.",
+      "Whether PayPal's fees carry consumption tax you can credit is unconfirmed, so the refund estimate does not count on one."
+    ],
+    "exitNote": "Locked in for 2 years from the first elected year (3 if you buy a ¥1M+ asset). Put the withdrawal question to your 税務署 before the lock-in ends.",
+    "taxNote": "Under tax-inclusive accounting the refund counts as income.",
+    "maySay": "Explain the mechanism and estimate the refund from the user's own expense total. Prompt them to confirm with the 税務署 or a 税理士.",
+    "mustNotSay": "Do not classify a specific contract as export or out-of-scope, do not say the user should or must elect, and do not file for them (税理士法).",
+    "sources": [
+      {
+        "title": "NTA No.6551 輸出取引の免税 (non-resident services, 7-year records)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shohi/6551.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.6501 納税義務の免除 (¥10M test, election)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shohi/6501.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.6629 届出書 (due the day before the period starts)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shohi/6629.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.6601 消費税の申告期限 (individuals: Mar 31)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shohi/6601.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA 質疑応答 課税事業者選択の取りやめと簡易課税制度選択の制限",
+        "url": "https://www.nta.go.jp/law/shitsugi/shohi/22/11.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA 基本通達 5-8-3 (what is and is not 電気通信利用役務)",
+        "url": "https://www.nta.go.jp/law/tsutatsu/kihon/shohi/05/08.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA 国境を越えた役務の提供に係る消費税 Q&A (works commissioned online are not 電気通信利用役務)",
+        "url": "https://www.nta.go.jp/publication/pamph/pdf/cross-QA.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "消費税法施行令 17条2項7号 (services to non-residents)",
+        "url": "https://laws.e-gov.go.jp/law/363CO0000000360",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "jp-self-back",
+    "region": "JP",
+    "title": "Get paid for signing up yourself (self-back)",
+    "localName": "セルフバック",
+    "group": "quick_money",
+    "tier": "insider",
+    "knownBy": "affiliate bloggers and point hunters (ポイ活)",
+    "moments": [
+      "surplus_month"
+    ],
+    "question": "セルフバック やり方 自分で申し込む",
+    "fact": "Affiliate networks pay you the reward they would pay a blogger when you sign up for a card, bank account or service yourself. Each offer pays once per person, the money arrives in 2 to 4 months, and it is taxable income.",
+    "valueText": "Sum of the rewards on offers you have not used yet (A8's list on Nov 1, 2026: two cards ¥5,750 and ¥3,000, a bank account ¥10,000 = ¥18,750), minus the transfer fee (¥66 to ¥660), before tax.",
+    "timeToMoney": "2 to 4 months: the reward is confirmed first, then paid on the 15th (the earliest is the 15th of the second month after the month-end it is confirmed)",
+    "risk": "behavioural",
+    "effort": "evening",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": true,
+    "steps": [
+      "Register as a free member of an affiliate network (you need a bank account for payout).",
+      "Open the network's self-back page and read each offer's conditions (deposit, purchase, deadline).",
+      "Apply yourself in one browser session with cookies on. Never by phone or in a store, and never for family members.",
+      "Write down each offer's confirmation date and the first annual-fee date of any card.",
+      "Report the rewards on your 確定申告."
+    ],
+    "traps": [
+      "The reward is cancelled if you close the browser midway, block cookies, apply by phone or in a store, or withdraw or close the account before approval.",
+      "Same-household applications are refused, and A8 can suspend members who apply for services they do not plan to use.",
+      "Loan products appear as offers. A loan application stays on your credit file for 6 months, so skip them.",
+      "Each offer works once per person, so the pool runs out; after that point sites add roughly 0.5 to 2% on purchases you make anyway."
+    ],
+    "exitNote": "Cancel any card you will not use before its first annual fee is billed, but only after the reward is confirmed (closing early cancels it). Credit bureaus keep every application on file for 6 months: space card applications out and pause all of this before a loan or mortgage application.",
+    "taxNote": "Treat the rewards as taxable income. You file a return anyway, so the ¥200k no-filing rule for salary earners does not apply to you. Whether it is 雑所得 or 一時所得 is unsettled; ask a 税理士.",
+    "maySay": "Explain the mechanism, the payout timing and the one-time nature, and add up the user's own claimed rewards. Any link to a paid offer needs an 広告 label (景品表示法 stealth-marketing rule).",
+    "mustNotSay": "Do not name a product to sign up for, do not promise an amount, do not hide a commission, and do not tell one person how to classify the income for tax (税理士法).",
+    "sources": [
+      {
+        "title": "A8.net self-back offers (rewards shown Nov 1, 2026)",
+        "url": "https://support.a8.net/selfback/lp/index.php",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "A8.net self-back cautions",
+        "url": "https://support.a8.net/as/caution.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "A8.net payout methods (15th, transfer fee ¥66 to ¥660)",
+        "url": "https://support.a8.net/as/payment/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "CIC application record retention (6 months)",
+        "url": "https://www.cic.co.jp/faq/detail/1105.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.1900 (salary earners' ¥200k rule)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1900.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.1490 一時所得",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1490.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "jp-yotei-nozei-reduction",
+    "region": "JP",
+    "title": "Ask to pay less of your November tax instalment",
+    "localName": "予定納税の減額申請",
+    "group": "stop_the_leak",
+    "tier": "insider",
+    "knownBy": "tax accountants (税理士)",
+    "moments": [
+      "deadline_near"
+    ],
+    "question": "予定納税 減額",
+    "fact": "If last year's filed income tax was ¥150k or more, you prepay a third in July and a third in November, and the notice only tells you to pay. If this year's tax will be lower you can ask to pay less, but for the November instalment only from Nov 1 to Nov 15 (Nov 15, 2026 is a Sunday, so the NTA's weekend rule moves it to Mon Nov 16).",
+    "valueText": "One third of last year's income tax (the November instalment) is the most cash the request can keep with you; the real amount depends on your estimate for this year.",
+    "timeToMoney": "Immediate: the November instalment (due Nov 30) is lowered",
+    "risk": "low",
+    "effort": "evening",
+    "deadline": {
+      "label": "Reduction request for the November instalment (Nov 15 is a Sunday, so Nov 16)",
+      "date": "2026-11-16",
+      "remindDaysBefore": 14
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Find the 予定納税額の通知書 sent in June.",
+      "Estimate this year's income tax from your revenue, expenses and deductions. The 令和8年度 basic-deduction increase is not counted in this estimate; it is settled in the March return.",
+      "If it will be clearly lower than the notice's basis, file the 予定納税額の減額申請書 with your tax office, or on e-Tax, by Nov 16.",
+      "Keep the cash aside: any shortfall is settled in the March return."
+    ],
+    "traps": [
+      "The request must rest on a reasonable estimate, for example a drop in income, a closure, new deductions such as 共済 contributions, or a large medical bill.",
+      "If you underestimate you simply pay the balance in March; check the rules on delinquency charges.",
+      "If you do not file, the November instalment is due Nov 30.",
+      "For both instalments the cutoff is Jul 15."
+    ],
+    "taxNote": "No Japanese tax is withheld on US income, which is why freelancers usually meet 予定納税 in their second year. Plan cash for July and November.",
+    "maySay": "Information plus a calculator that shows the instalment and the user's own estimate.",
+    "mustNotSay": "Do not tell the user what their estimate for this year is, or file the request for them (税理士法).",
+    "sources": [
+      {
+        "title": "NTA No.2040 予定納税 (¥150k, thirds, Jul and Nov)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2040.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA 予定納税額の減額申請手続 (Nov 1 to Nov 15, weekend rule)",
+        "url": "https://www.nta.go.jp/taxes/tetsuzuki/shinsei/annai/shinkoku/annai/02.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true,
+    "valueKind": "timing",
+    "pinAt": []
+  },
+  {
+    "id": "jp-home-share",
+    "region": "JP",
+    "title": "Count your home's share of rent and utilities",
+    "localName": "家事按分",
+    "group": "tax",
+    "tier": "insider",
+    "knownBy": "tax accountants and experienced freelancers",
+    "moments": [
+      "bill_arrived"
+    ],
+    "question": "家賃 光熱費 経費 按分",
+    "fact": "If you work from home, the business share of rent, electricity, internet and phone is a business expense. At ¥6M of revenue about 36% of every yen you add comes back in tax and 国保, and you need a written, reasonable basis such as floor area or hours of use. A blue return lets you claim any clearly separable share; a white return only a cost whose main part (over half) is for work.",
+    "valueText": "Home costs × business share × your all-in saving per ¥1 of expense (所得税, 住民税, 国保 and 個人事業税).",
+    "timeToMoney": "Next 確定申告 and the 国保 assessment",
+    "risk": "low",
+    "effort": "evening",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Measure the room you work in, or log the hours you work at home.",
+      "Write down the basis (for example floor area ÷ total area) and keep the lease.",
+      "Apply the share to rent, electricity, internet and phone, and book it as an expense. On a white return only costs used mostly for work qualify; a 25% room share needs a blue return.",
+      "File it on your return; missed past years can be fixed with a 更正の請求."
+    ],
+    "traps": [
+      "The NTA allows only the part that is clearly separable as needed for the business, backed by records.",
+      "White filers face a stricter test in the law (施行令96条): the main part of the cost must be for work and the work part clearly separable. A 25% room share passes only on a blue return, which is why this value assumes the blue return in the 青色 row.",
+      "Claiming 100% of a home invites an audit.",
+      "Rent paid to a family member you live with is generally not deductible, and owned homes follow different rules."
+    ],
+    "taxNote": "The share is an expense on the return, so it lowers 所得税, 住民税 and 国保 but not the 青色 deduction.",
+    "maySay": "Show the formula and typical bases with the user's own numbers.",
+    "mustNotSay": "Do not say 'you can claim 40%' for a specific person: that is 税務相談 under the 税理士法. Do not decide the user's share.",
+    "sources": [
+      {
+        "title": "NTA No.2210 必要経費の知識 (家事関連費: only the clearly separable part)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2210.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "所得税法施行令 96条 家事関連費 (main-part test; blue-return rule)",
+        "url": "https://laws.e-gov.go.jp/law/340CO0000000096",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Setagaya 国民健康保険料 (rates behind the all-in saving)",
+        "url": "https://www.city.setagaya.lg.jp/02060/297.html",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "jp-payout-cost",
+    "region": "JP",
+    "title": "Know what each USD payout costs, and price it in",
+    "localName": "PayPal手数料と為替コストを見積に織り込む",
+    "group": "get_paid_better",
+    "tier": "insider",
+    "knownBy": "cross-border freelancers",
+    "moments": [
+      "client_paid"
+    ],
+    "question": "PayPal 手数料 高い 米ドル 円",
+    "fact": "A USD payout through PayPal Japan costs about 7%: 3.6% plus 0.5% plus $0.30 to receive, then 3% over the base rate to convert. It is hidden in the exchange rate, so most people never price it in.",
+    "valueText": "Yearly USD × (3.6% + 0.5%) + $0.30 per payment, then 3% on what is converted. Pricing it into your invoices keeps the whole amount.",
+    "timeToMoney": "From your next invoice",
+    "risk": "low",
+    "effort": "evening",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Read the cost of this payout: fees to receive, then the conversion markup.",
+      "Price it in: raise the USD price by about 7.5% so what lands in yen is your target.",
+      "Choose the invoice currency per client: USD with a price that covers the fees and a written re-pricing band, or yen.",
+      "Withdraw to your bank in bigger, less frequent amounts: ¥50,000 or more is free."
+    ],
+    "traps": [
+      "Withdrawals under ¥50,000 cost ¥250 each (the table's 'free' also assumes no currency conversion), and instant withdrawal costs 2% (minimum ¥500, maximum ¥2,000).",
+      "A refund received more than a day after the payment is converted at 4% over base.",
+      "PayPal lets a business account hold USD instead of converting on arrival (a payment setting), but a withdrawal to a Japanese bank is yen only, so a conversion at 3% over base happens then. This comes from PayPal's help pages, which could not be opened directly; check your own setting.",
+      "The fee page groups markets for cross-border rates, but for a Japan account it shows one +0.50% row, so the same add-on applies to US payers.",
+      "These are the standard business rates on PayPal's fee page; a custom rate or another product (such as invoicing, payouts or micropayments) can differ.",
+      "Check PayPal's user agreement before adding a separate surcharge line; building the cost into your rate is the safer route."
+    ],
+    "taxNote": "Book each USD invoice in yen at the TTM rate of the transaction date, and book PayPal's fee and the conversion loss as expenses. Under-recording them overstates income.",
+    "maySay": "Show the user's own fee total from PayPal's published table and the general ways to lower it (price in, invoice currency, bigger withdrawals). Show other payment routes only as options, with each provider's own published fees.",
+    "mustNotSay": "Never say or imply the user should leave PayPal. Do not name another provider for a referral, forecast exchange rates, or say 'convert now' or 'wait' (投資助言).",
+    "sources": [
+      {
+        "title": "PayPal Japan merchant fees (page dated 2026-01-22, still current Nov 1)",
+        "url": "https://www.paypal.com/jp/webapps/mpp/merchant-fees",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "PayPal Japan business fees",
+        "url": "https://www.paypal.com/jp/business/paypal-business-fees",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "PayPal Japan: manage currencies (help page)",
+        "url": "https://www.paypal.com/jp/webapps/mpp/support/currency-setting",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA 所得税基本通達 57の3 (外貨建取引の換算)",
+        "url": "https://www.nta.go.jp/law/tsutatsu/kihon/shotoku/11a/01.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false
+  },
+  {
+    "id": "jp-tax-pot",
+    "region": "JP",
+    "title": "Set aside the tax from each payout",
+    "localName": "納税資金の積立",
+    "group": "tax",
+    "tier": "baseline",
+    "knownBy": "anyone who has freelanced for a year",
+    "moments": [
+      "client_paid"
+    ],
+    "question": "フリーランス 税金 いくら 取っておく",
+    "fact": "About a quarter of every payout is already owed: 所得税, 住民税, 国保 and 国民年金 all arrive months later, and the 住民税 and 国保 bills land in June on last year's income.",
+    "valueText": "Payout in yen × your average tax-and-pension share (所得税, 住民税, 国保, 国民年金 and 個人事業税 over revenue). This is money protected, not money earned.",
+    "timeToMoney": "Immediate; it covers the July and November instalments, the June bills and the March return",
+    "risk": "none",
+    "effort": "minutes",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Book the yen value of the payout at the TTM rate of the day it landed (pick one method and keep it), and keep PayPal's receipt.",
+      "Move the set-aside amount to a separate yen pot.",
+      "Check the month against your buffer before spending the rest."
+    ],
+    "traps": [
+      "Do not count the tax pot as emergency money: tax bills arrive months after the income.",
+      "Do not invest the tax pot; a market drop at bill time is the classic freelancer disaster.",
+      "The share is an average for planning. Your real rate depends on expenses and deductions."
+    ],
+    "maySay": "Show the estimated share from the user's own numbers and the fact that each tax arrives later.",
+    "mustNotSay": "Do not state what one person's tax will be or how to classify it (税理士法); call it a planning estimate.",
+    "sources": [
+      {
+        "title": "Tokyo Bureau of Taxation 個人住民税",
+        "url": "https://www.tax.metro.tokyo.lg.jp/kazei/kojin_ju.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Tokyo Bureau of Taxation 個人事業税",
+        "url": "https://www.tax.metro.tokyo.lg.jp/kazei/kojin_ji.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Setagaya 国民健康保険料",
+        "url": "https://www.city.setagaya.lg.jp/02060/297.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.2260 所得税の税率",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2260.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "secondary",
+    "illustrative": true,
+    "valueKind": "protected",
+    "pinAt": [
+      "client_paid"
+    ]
+  },
+  {
+    "id": "jp-blue-return-65",
+    "region": "JP",
+    "title": "File blue, not white, and keep ¥650k more",
+    "localName": "青色申告特別控除65万円 (e-Tax)",
+    "group": "tax",
+    "tier": "insider",
+    "knownBy": "tax accountants and experienced freelancers",
+    "moments": [
+      "bill_arrived",
+      "life_event",
+      "deadline_near"
+    ],
+    "question": "青色申告 白色 どっち",
+    "fact": "A blue return filed on e-Tax takes ¥650k off your income, and unlike most deductions it also lowers your 国保 and 住民税. At ¥6M of revenue that is worth about ¥170k to ¥200k a year.",
+    "valueText": "Extra deduction × (所得税 band × 1.021 + 住民税 10% + 国保 rate), counted at the income left after the deduction.",
+    "timeToMoney": "Next 確定申告; the 国保 and 住民税 cut follows from June",
+    "risk": "none",
+    "effort": "weekend",
+    "deadline": {
+      "label": "青色申告承認申請書 due for the new year",
+      "monthDay": "03-15",
+      "remindDaysBefore": 60
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "File the 青色申告承認申請書 by Mar 15 of the year you want it (within 2 months of starting a business).",
+      "Set up double-entry accounting software and keep the books from Jan 1.",
+      "From 2027 (令和9年分) the ¥650k deduction needs double-entry books plus an on-time e-Tax filing. The ¥750k tier also needs an 優良な電子帳簿 (linked invoice data, edit history) from Jan 1, 2027.",
+      "File the return on e-Tax by Mar 15 of the next year. A late return gets only ¥100k."
+    ],
+    "traps": [
+      "Filing one day late drops the deduction from ¥650k to ¥100k, about ¥170k of tax at this income.",
+      "Uploading scanned images does not count as e-Tax.",
+      "If profit is below ¥650k the deduction is capped at the profit.",
+      "From 2027 a paper filing no longer earns ¥550k or ¥650k; what remains is the ¥100k deduction (our reading of the tax outline, not spelled out on an NTA leaflet).",
+      "It does not lower 個人事業税.",
+      "Not counted in the value: at this revenue the deduction can also bring 合計所得 under ¥4.89M, which lifts the 所得税 basic deduction from ¥670k to ¥1.04M for 2026 and 2027 (NTA No.1199)."
+    ],
+    "taxNote": "Book each USD invoice in yen at the TTM rate of the transaction date, and book PayPal fees as expenses.",
+    "maySay": "Show the deduction and an estimate from the user's own numbers. Linking to accounting software is fine as information.",
+    "mustNotSay": "Do not prepare the return for the user (税理士業務), and do not recommend a specific accounting product for a fee.",
+    "sources": [
+      {
+        "title": "NTA No.2072 青色申告特別控除",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2072.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA 令和8年4月 leaflet: 青色申告特別控除 from 令和9年分 (¥650k with e-Tax, ¥750k with 優良な電子帳簿)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/shinkoku/kojin_jigyo/0026004-012.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "財務省 令和8年度税制改正の大綱 (青色申告特別控除 見直し, p.25-26)",
+        "url": "https://www.mof.go.jp/tax_policy/tax_reform/outline/fy2026/20251226taikou.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA 青色申告承認申請手続",
+        "url": "https://www.nta.go.jp/taxes/tetsuzuki/shinsei/annai/shinkoku/annai/09.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.1199 基礎控除 (¥1.04M / ¥670k / ¥620k for 令和8-9年分)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1199.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false
+  },
+  {
+    "id": "jp-ideco",
+    "region": "JP",
+    "title": "Put up to ¥75,000 a month into iDeCo",
+    "localName": "iDeCo（個人型確定拠出年金）",
+    "group": "tax",
+    "tier": "baseline",
+    "knownBy": "anyone with a normal job",
+    "moments": [
+      "setup",
+      "life_event",
+      "deadline_near"
+    ],
+    "question": "iDeCo フリーランス 上限",
+    "fact": "Freelancers have the highest iDeCo cap of anyone, ¥75,000 a month from the December 2026 contribution (debited on Jan 26, 2027), and nobody enrols you automatically. Every yen is deducted from your income, and the money is locked until about age 60.",
+    "valueText": "Monthly room under the cap × 12 × the 所得税 and 住民税 you stop paying on it (counted band by band).",
+    "timeToMoney": "Tax saving at the next 確定申告 and the following 住民税; the money is locked until about 60",
+    "risk": "market",
+    "effort": "weekend",
+    "deadline": {
+      "label": "New ¥75,000 cap takes effect (Dec 2026 contribution, debited Jan 26)",
+      "date": "2026-12-01",
+      "remindDaysBefore": 30
+    },
+    "minFreeCash": 75000,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check that you pay 国民年金 in full; you cannot contribute while exempt (the iDeCo site lists full and partial exemption as ineligible).",
+      "Compare the account fees of providers on their published fee tables, and choose the amount you can keep paying.",
+      "Keep within the cap, which is shared with 国民年金基金 and 付加保険料.",
+      "Allow 1 to 2 months for the account to start; contributions count in the year they are debited."
+    ],
+    "traps": [
+      "The money is locked until about 60: do not put buffer money here.",
+      "Small account fees continue even if you stop contributing.",
+      "The deduction does not lower 国保, 個人事業税 or 合計所得, so it does not help with the ¥4.89M line.",
+      "Withdrawals are taxed as retirement or pension income.",
+      "Missing 国民年金 payments can make you ineligible, and deposit-only choices give the tax saving with no growth.",
+      "Over-contributing in a low-income year wastes the deduction."
+    ],
+    "maySay": "Show the cap, the deduction and a tax-saving estimate from the user's numbers, plus the lock-up fact. General categories only.",
+    "mustNotSay": "Do not recommend a provider or specific funds (DC運営管理 and 投資助言 are regulated).",
+    "sources": [
+      {
+        "title": "MHLW leaflet: iDeCo cap rises from December 2026 (令和8年12月)",
+        "url": "https://www.mhlw.go.jp/content/12500000/001620594.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.1135 小規模企業共済等掛金控除",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1135.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "iDeCo official: 2026 reform (in force 2026-12-01) and past changes",
+        "url": "https://www.ideco-koushiki.jp/library/2022kaisei/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "iDeCo official: who can join, debit on the 26th of the following month",
+        "url": "https://www.ideco-koushiki.jp/guide/structure.html",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false
+  },
+  {
+    "id": "jp-kyosai",
+    "region": "JP",
+    "title": "Small-business mutual aid: deductible and borrowable",
+    "localName": "小規模企業共済",
+    "group": "tax",
+    "tier": "insider",
+    "knownBy": "tax accountants and 商工会 members",
+    "moments": [
+      "surplus_month",
+      "windfall",
+      "life_event",
+      "deadline_near"
+    ],
+    "question": "小規模企業共済 メリット",
+    "fact": "A government retirement fund for the self-employed: ¥1,000 to ¥70,000 a month, all deductible, and you can borrow against it at 1.5% (0.9% for special loans). The name sounds like it is for companies, and it is sold through banks and the 商工会, not apps.",
+    "valueText": "Up to ¥840k a year deducted, counted on top of a maxed iDeCo so the two do not double count: the 所得税 and 住民税 you stop paying.",
+    "timeToMoney": "Tax saving the following spring; the payout comes when you close the business, or borrow earlier",
+    "risk": "low",
+    "effort": "evening",
+    "deadline": {
+      "label": "Prepay up to 12 months and deduct it this year",
+      "monthDay": "12-31",
+      "remindDaysBefore": 45
+    },
+    "minFreeCash": 70000,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Confirm you run a business as a sole proprietor (開業届 filed).",
+      "Apply through a bank or your local 商工会; 中小機構 checks eligibility.",
+      "Choose a monthly amount (¥1,000 to ¥70,000 in ¥500 steps) you can pay for years.",
+      "Prepaying up to 12 months before Dec 31 is also deductible this year."
+    ],
+    "traps": [
+      "Cancel within 12 months and you get nothing back.",
+      "Cancel voluntarily before 240 months (20 years) and you get less than you paid in.",
+      "Voluntary cancellation under age 65 is taxed as 一時所得.",
+      "Like iDeCo it does not lower 国保 or 事業税.",
+      "Twelve missed months can cancel it: lower the amount instead of cancelling when cash is tight.",
+      "Unpaid loans incur 14.6% late interest."
+    ],
+    "exitNote": "Do not commit more than you can pay for 20 years. Early exit before 240 months pays back less than you put in; lower the contribution instead of cancelling.",
+    "taxNote": "Contributions are deductible as 小規模企業共済等掛金控除. The payout is taxed lightly as retirement income when you close the business.",
+    "maySay": "Show the deduction maths and the cancellation table as 'here is what ¥X saves'.",
+    "mustNotSay": "Do not tell someone exactly how much to contribute (税理士 or FP territory), and do not call it a way to avoid tax.",
+    "sources": [
+      {
+        "title": "中小機構 小規模企業共済 掛金 (¥1,000 to ¥70,000; prepaying up to a year is deductible)",
+        "url": "https://kyosai-web.smrj.go.jp/customer/skyosai/installment/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "中小機構 小規模企業共済 デメリット (解約, 一時所得)",
+        "url": "https://skyosai.smrj.go.jp/skyosai-demerit/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "中小機構 貸付けの利率 FAQ (1.5%, 0.9%, 14.6% late interest; undated FAQ)",
+        "url": "https://kyosai-faq.smrj.go.jp/skyosai/index.php?action=faq&cat=37&id=190&artlang=ja",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.1135 小規模企業共済等掛金控除",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1135.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false
+  },
+  {
+    "id": "jp-furusato",
+    "region": "JP",
+    "title": "Hometown tax donation before Dec 31",
+    "localName": "ふるさと納税",
+    "group": "quick_money",
+    "tier": "baseline",
+    "knownBy": "anyone with a normal job",
+    "moments": [
+      "deadline_near",
+      "setup",
+      "windfall"
+    ],
+    "question": "ふるさと納税 いつまで",
+    "fact": "It counts by the card payment date, so January is too late. As a freelancer you claim it on your 確定申告, and the limit depends on your income after other deductions.",
+    "valueText": "Limit ≈ (住民税所得割 × 20%) ÷ (90% − 所得税 band × 1.021) + ¥2,000 (総務省's method); gifts worth about 30% of the donation (the legal ceiling on the town's cost), minus the ¥2,000 you pay.",
+    "timeToMoney": "Gifts in weeks; tax relief next spring and from June",
+    "risk": "low",
+    "effort": "evening",
+    "deadline": {
+      "label": "Last day to pay for this year",
+      "monthDay": "12-31",
+      "remindDaysBefore": 60
+    },
+    "minFreeCash": 80000,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Estimate this year's income, not last year's, and subtract planned iDeCo and 共済 deductions.",
+      "Work out the limit with a safety margin.",
+      "Donate and pay by card before Dec 31.",
+      "Claim it on your 確定申告; do not use the ワンストップ form, which is void once you file a return."
+    ],
+    "traps": [
+      "Donating above your limit is a real cost.",
+      "If you max iDeCo and 共済 the limit falls (about ¥39k in the research profile).",
+      "Medical expense deductions and losses also cut the limit.",
+      "Year-end exchange-rate swings move a USD-paid freelancer's limit; leave a margin.",
+      "The 30% ceiling on the gift's cost is in the 総務省 designation rules. A ban on portal points since Oct 2025 comes from news reports, not a page we could open (secondary)."
+    ],
+    "maySay": "Show the estimated limit from the user's numbers with a safety margin.",
+    "mustNotSay": "Do not recommend specific municipalities or gifts, and do not present the limit as exact.",
+    "sources": [
+      {
+        "title": "総務省 ふるさと納税 控除額の計算",
+        "url": "https://www.soumu.go.jp/main_sosiki/jichi_zeisei/czaisei/czaisei_seido/furusato/mechanism/deduction.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "総務省 ふるさと納税に係る指定制度 (返礼割合3割以下)",
+        "url": "https://www.soumu.go.jp/main_sosiki/jichi_zeisei/czaisei/czaisei_seido/furusato/topics/20190401.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.2260 所得税の税率",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2260.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false
+  },
+  {
+    "id": "jp-amended-return",
+    "region": "JP",
+    "title": "Claim back tax from past returns",
+    "localName": "更正の請求",
+    "group": "unclaimed_money",
+    "tier": "insider",
+    "knownBy": "tax accountants (税理士)",
+    "moments": [
+      "windfall",
+      "deadline_near"
+    ],
+    "question": "確定申告 やり直し 還付 5年",
+    "fact": "A filed return is not final: you can ask for a refund of overpaid tax for 5 years after its filing deadline (更正の請求), and it flows through to 住民税 and 国保. For the 2021 return that is until Mar 15, 2027; a refund return for a year you never filed for closes Dec 31, 2026. A common miss for USD-paid freelancers is PayPal fees and FX losses left out of earlier returns.",
+    "valueText": "Missed deductions per year × years still open × (所得税 band × 1.021 + 住民税 10%). The yearly missed amount is the research example, not your data.",
+    "timeToMoney": "Weeks to months",
+    "risk": "low",
+    "effort": "evening",
+    "deadline": {
+      "label": "2021 return: last day for a 更正の請求 (Mar 15, 2022 deadline + 5 years)",
+      "date": "2027-03-15",
+      "remindDaysBefore": 90
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "List the years you filed and what you may have left out (家事按分, PayPal fees, iDeCo, medical costs).",
+      "Gather the receipts and statements for each year.",
+      "File a 更正の請求 within 5 years of the original statutory deadline (Mar 15 for the 2021 return: Mar 15, 2027), or a 還付申告 if you never needed to file (5 years from Jan 1 of the following year: Dec 31, 2026 for 2021).",
+      "Allow time for the 住民税 and 国保 recalculation by your city."
+    ],
+    "traps": [
+      "It cannot add the 青色 ¥650k if you missed the e-Tax or filing deadline.",
+      "Choices made under either/or rules (such as セルフメディケーション) cannot be switched.",
+      "A claim cannot be filed if the final tax does not change.",
+      "The two windows differ: a 更正の請求 runs 5 years from the statutory filing deadline (2021 return: Mar 15, 2027), a first-time 還付申告 runs 5 years from Jan 1 after the tax year (2021: Dec 31, 2026). Check which one your return needs.",
+      "Refund agents who take a percentage are unnecessary."
+    ],
+    "maySay": "Point out possible missed items and the time limits.",
+    "mustNotSay": "Do not prepare the claim for the user (税理士業務), and do not promise a refund.",
+    "sources": [
+      {
+        "title": "NTA No.2026 更正の請求 (5 years from the statutory deadline)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2026.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.2030 還付申告 (5 years from Jan 1 of the following year)",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/2030.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "jp-jizokuka-subsidy",
+    "region": "JP",
+    "title": "Apply for a small-business subsidy by Dec 15",
+    "localName": "小規模事業者持続化補助金・デジタル化・AI導入補助金",
+    "group": "unclaimed_money",
+    "tier": "insider",
+    "knownBy": "subsidy consultants and 商工会 members",
+    "moments": [
+      "deadline_near",
+      "surplus_month"
+    ],
+    "question": "持続化補助金 個人事業主 申請",
+    "fact": "The government reimburses two thirds of what a sole proprietor spends on marketing, a website or similar, up to ¥500k, but you pay first and claim after, and approval is by screening (you can be turned down). Round 20 of the 持続化補助金 (商工会議所 areas) closes Dec 15, 2026 at 17:00; the デジタル化・AI導入補助金 (software, one half) closes Jan 7, 2027.",
+    "valueText": "Eligible spend × 2/3 (持続化補助金, cap ¥500k; website and system costs are limited to ¥300k of subsidy). The example spend is ¥300k, so ¥200k back if approved; it is a reimbursement, not a gain if you would not spend the money.",
+    "timeToMoney": "Months to a year: paid after the project and its report",
+    "risk": "low",
+    "effort": "weekend",
+    "deadline": {
+      "label": "持続化補助金 round 20 closes (17:00)",
+      "date": "2026-12-15",
+      "remindDaysBefore": 45
+    },
+    "minFreeCash": 300000,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Get a GビズIDプライム account (it takes time) and check you are a 小規模事業者 (services: 5 staff or fewer).",
+      "Ask your local 商工会議所 for the 事業支援計画書 (様式4) by Dec 4.",
+      "Write the business plan and the cost estimate, and apply on the 電子申請システム by Dec 15, 17:00.",
+      "Buy only after the grant is decided, then report and claim."
+    ],
+    "traps": [
+      "Approval is by screening: some applicants are turned down, so do not spend on the strength of an application.",
+      "Things bought before the grant decision generally do not qualify.",
+      "You need the money upfront.",
+      "Website and system costs are limited (subsidy up to ¥300k) and cannot be the only cost; software for a website or system goes under that heading.",
+      "Consultants charging success fees of 10 to 20% are common (anecdotal).",
+      "IT vendors who offer to refund your share are committing fraud.",
+      "This is the 商工会議所-area round; 商工会 areas use a separate site, so check which office covers your address."
+    ],
+    "maySay": "List programmes, deadlines and published rates.",
+    "mustNotSay": "Do not quote a 持続化 cap or rate not on the 公募要領, do not write applications for a fee (行政書士 work), and do not suggest any refund of the user's share.",
+    "sources": [
+      {
+        "title": "持続化補助金 round 20 official site (商工会議所地区, 公募要領 第8版)",
+        "url": "https://r6.jizokukahojokin.info/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "持続化補助金 第20回 公募要領 第8版 (cap ¥500k, rate 2/3, dates)",
+        "url": "https://r6.jizokukahojokin.info/doc/r6_koubover8_ip20.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "中小機構 J-Net21: 第20回公募 (Nov 5 to Dec 15, 17:00; 様式4 by Dec 4)",
+        "url": "https://j-net21.smrj.go.jp/snavi2/articles/183798",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "デジタル化・AI導入補助金 通常枠 (rate 1/2, 2/3 with low-wage staff)",
+        "url": "https://it-shien.smrj.go.jp/applicant/subsidy/normal/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "デジタル化・AI導入補助金 deadline notice (Jan 7, 2027, 17:00)",
+        "url": "https://it-shien.smrj.go.jp/news/40319",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "jp-nenkin-prepay",
+    "region": "JP",
+    "title": "Prepay two years of national pension",
+    "localName": "国民年金の2年前納",
+    "group": "stop_the_leak",
+    "tier": "insider",
+    "knownBy": "pension office regulars and money bloggers",
+    "moments": [
+      "deadline_near",
+      "surplus_month"
+    ],
+    "question": "国民年金 前納 割引",
+    "fact": "Paying 24 months up front by bank debit cost ¥417,150 for the April 2026 start, which was ¥17,370 less than paying monthly. The default is monthly slips and the discount is not advertised. A new pair starts each April; the latest amounts on the pension office's page are for FY2026 and FY2027.",
+    "valueText": "The latest published discount for a 2-year prepayment by 口座振替 (FY2026 + FY2027 premiums) is ¥17,370, about 4%. An April 2027 start covers FY2027 (¥18,290 a month) and FY2028, whose premium is not on the page yet, so expect a similar discount. Needs about ¥420k of cash on the day.",
+    "timeToMoney": "Immediate: the discount is built in",
+    "risk": "none",
+    "effort": "minutes",
+    "deadline": {
+      "label": "Apply for the April-start 2-year prepayment by the end of February",
+      "monthDay": "02-28",
+      "remindDaysBefore": 45
+    },
+    "minFreeCash": 417150,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check the 国民年金 premium you pay (FY2026: ¥17,920 a month; FY2027: ¥18,290).",
+      "Ask the 年金事務所 for the 2-year prepayment form (April start), choosing 口座振替 or card, or apply on マイナポータル.",
+      "Make sure the application reaches the pension office by the end of February for an April start.",
+      "Decide whether to deduct the whole payment in the year paid or spread it (check with the NTA)."
+    ],
+    "traps": [
+      "It ties up about ¥420k in April.",
+      "By card or cash the discount is ¥16,010; card points on public payments may be reduced (verify per card).",
+      "You cannot pay by card with a partial exemption.",
+      "The end-of-February deadline is on the pension office's notice for the April-start 2-year plan; a mid-year start covers fewer months and saves less.",
+      "If you join a company pension mid-period the unused part is refunded (verify)."
+    ],
+    "maySay": "Discount arithmetic with the user's numbers; official amounts.",
+    "mustNotSay": "Do not recommend a card or a bank for the payment.",
+    "sources": [
+      {
+        "title": "日本年金機構 国民年金保険料の前納",
+        "url": "https://www.nenkin.go.jp/service/kokunen/hokenryo/zenno.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "日本年金機構 2年前納 (¥417,150, ¥17,370, ¥16,010 by card)",
+        "url": "https://www.nenkin.go.jp/service/kokunen/hokenryo/ninenzenno.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "日本年金機構 お知らせ: 2年前納 (4月開始), apply by the end of February",
+        "url": "https://www.nenkin.go.jp/oshirase/taisetu/2024/202408/0801.html",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "jp-fuka-nenkin",
+    "region": "JP",
+    "title": "Add ¥400 a month to your national pension",
+    "localName": "付加年金",
+    "group": "insurance_benefits",
+    "tier": "insider",
+    "knownBy": "pension office regulars and money bloggers",
+    "moments": [
+      "life_event",
+      "surplus_month"
+    ],
+    "question": "付加年金 得 損",
+    "fact": "Pay an extra ¥400 a month and your pension rises by ¥200 a year for every month you paid, for life. It pays for itself after 2 years of pension, and the ¥400 is deductible.",
+    "valueText": "¥200 × 12 months = ¥2,400 a year of extra pension for life, for each year you pay ¥4,800.",
+    "timeToMoney": "Years: the pension starts at 65",
+    "risk": "none",
+    "effort": "minutes",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check that you pay the full 国民年金 premium and are not in 国民年金基金.",
+      "Apply at the 区役所 or 年金事務所; it starts from the month you apply.",
+      "Pay it on time every month."
+    ],
+    "traps": [
+      "It cannot be backdated, so start early.",
+      "It cannot be combined with 国民年金基金, and it stops if you get an exemption.",
+      "A late payment means that month does not count.",
+      "It uses ¥1,000 of iDeCo room because iDeCo goes in ¥1,000 steps.",
+      "It is not inflation-indexed."
+    ],
+    "maySay": "The formula and the payback with the user's numbers.",
+    "mustNotSay": "Do not say it is guaranteed to beat other options; it is information only.",
+    "sources": [
+      {
+        "title": "日本年金機構 付加保険料の納付",
+        "url": "https://www.nenkin.go.jp/service/kokunen/hokenryo/fukanofu.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "日本年金機構 付加保険料 FAQ",
+        "url": "https://www.nenkin.go.jp/section/faq/kokunen/seido/hokenryo/seidosetsumei/20140414.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "日本年金機構 付加年金 leaflet",
+        "url": "https://www.nenkin.go.jp/service/kokunen/kanyu/20140710-04.files/fuka.pdf",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false
+  },
+  {
+    "id": "jp-park-cash",
+    "region": "JP",
+    "title": "Move idle cash to a higher rate",
+    "localName": "高金利ネット銀行・個人向け国債",
+    "group": "invest_cash",
+    "tier": "baseline",
+    "knownBy": "anyone with a normal job",
+    "moments": [
+      "surplus_month",
+      "windfall",
+      "setup"
+    ],
+    "question": "普通預金 金利 どこが高い",
+    "fact": "Rates are no longer near zero: megabanks pay 0.5% from Nov 2, one online bank pays 1.20% on the first ¥1M (0.75% above it), and 個人向け国債 変動10年 pays 2.05% for the October issue (the rate resets twice a year). Money sitting in a PayPal balance is not in a savings account.",
+    "valueText": "Surplus × (blended rate − 0.5% megabank rate) × (1 − 20.315% tax). Modelled with the first ¥1M at 1.2% and the rest at 2.05% on money you can leave for a year; the 2.05% product is a different instrument from the 1.2% account and has a 1-year lock.",
+    "timeToMoney": "Days; interest monthly or twice a year",
+    "risk": "none",
+    "effort": "evening",
+    "minFreeCash": 100000,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Keep the buffer and tax pot first; only the surplus above them moves.",
+      "Compare published rates, caps and conditions for instant-access deposits.",
+      "For money you can leave for a year, compare the monthly 個人向け国債 offering.",
+      "Sweep in bigger, less frequent amounts: a PayPal withdrawal under ¥50,000 costs ¥250."
+    ],
+    "traps": [
+      "Headline rates often apply only up to a cap or with conditions.",
+      "個人向け国債 cannot be cashed in during year 1, and cashing in later costs about two coupons.",
+      "Campaign rates expire.",
+      "Deposit insurance covers yen deposits up to ¥10M of principal plus interest per bank per person."
+    ],
+    "maySay": "Published rates and the user's own interest arithmetic.",
+    "mustNotSay": "Do not name a 'best bank for you', solicit accounts for a fee (銀行代理業 or 金融サービス仲介業), or give investment advice.",
+    "sources": [
+      {
+        "title": "Aozora Bank savings rate (1.20% to ¥1M, 0.75% above; as of 2026-10-01)",
+        "url": "https://www.aozorabank.co.jp/bank/products/lp/special/index_mr.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "MOF 個人向け国債 current offering (変動10年 2.05%, as of 2026-10-30)",
+        "url": "https://www.mof.go.jp/jgbs/individual/kojinmuke/recruitment/index.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "MOF 変動10年 product terms",
+        "url": "https://www.mof.go.jp/jgbs/individual/kojinmuke/main/outline/hendou/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Impress Watch: megabanks to 0.5% from Nov 2 (news, secondary)",
+        "url": "https://www.watch.impress.co.jp/docs/news/2142489.html",
+        "asOf": "2026-09-20"
+      },
+      {
+        "title": "預金保険機構 保護の範囲 (¥10M per bank per person)",
+        "url": "https://www.dic.go.jp/yokinsha/page_000016.html",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "secondary",
+    "illustrative": false
+  },
+  {
+    "id": "jp-revolving-check",
+    "region": "JP",
+    "title": "Check your card for revolving payments",
+    "localName": "リボ払いの確認",
+    "group": "stop_the_leak",
+    "tier": "baseline",
+    "knownBy": "anyone with a normal job",
+    "moments": [
+      "statement_arrived"
+    ],
+    "question": "リボ払い いくら 利息",
+    "fact": "A small fixed monthly payment hides a balance that grows at 15 to 18% a year, and some cards switch purchases to revolving automatically. A ¥300,000 balance paid at ¥10,000 a month costs about ¥99,000 in interest at 17.64%.",
+    "valueText": "Revolving balance × 17.64% a year (the 楽天カード standard rate; its premium cards are 15.00%). 三井住友カード charges 18.0% to members who joined from Mar 31, 2026 (15.0% before), with a discount down to 9.8% for some.",
+    "timeToMoney": "Immediate: it stops the drain",
+    "risk": "none",
+    "effort": "minutes",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Open the statement and find the revolving or instalment balance and its rate.",
+      "Set the card's payment method to a single payment in the member site and switch off any automatic revolving.",
+      "Pay the balance down early with an extra lump payment.",
+      "Keep a yen buffer in the bank so irregular income does not push you to revolve."
+    ],
+    "traps": [
+      "A low fixed payment hides a growing balance.",
+      "Instalments chosen after purchase run at similar rates: 三井住友カード publishes 14.70% (3 payments) rising to about 17.9% (20 payments).",
+      "Points-for-revolving campaigns cost far more than the points.",
+      "Some cards are revolving-only; we could not confirm this on an issuer page, so check your own card."
+    ],
+    "maySay": "Show the user's own balance, rate and payoff time.",
+    "mustNotSay": "Never suggest revolving or minimum payments as a fix, and do not steer to a specific refinancing loan (貸金業法).",
+    "sources": [
+      {
+        "title": "楽天カード revolving simulator (15.00% to 17.64%)",
+        "url": "https://www.rakuten-card.co.jp/revo/simulation/20180910/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "三井住友カード revolving (18.0% new members, 15.0% earlier, instalment table)",
+        "url": "https://www.smbc-card.com/mem/revo/index.jsp",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "金融庁 多重債務 contacts",
+        "url": "https://www.fsa.go.jp/policy/kashikin/index.html",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false
+  },
+  {
+    "id": "jp-card-signup-bonus",
+    "region": "JP",
+    "title": "Take a card's own sign-up bonus once",
+    "localName": "クレカ入会キャンペーン＋ポイントサイト経由",
+    "group": "quick_money",
+    "tier": "insider",
+    "knownBy": "point hunters (ポイ活)",
+    "moments": [
+      "surplus_month"
+    ],
+    "question": "クレカ 入会特典 ポイントサイト",
+    "fact": "Issuers give new members points: one issuer's page shows 5,000 points for joining and using the card 3 times (with e-NAVI and bank-debit setup). Point sites pay a separate reward when you apply through them, but we could not confirm one today. The credit bureaus keep every application for 6 months.",
+    "valueText": "Issuer bonus of about ¥5,000 (5,000 points, conditions apply) for one annual-fee-free card, seen on the issuer's page on Nov 1, 2026. A point-site reward on top is not counted.",
+    "timeToMoney": "Weeks to 2 to 3 months",
+    "risk": "behavioural",
+    "effort": "evening",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": true,
+    "steps": [
+      "Pick an annual-fee-free card from the point site's list and read both the issuer's and the site's conditions.",
+      "Apply once, through the site, in one session.",
+      "Meet the spending condition with bills you already pay, such as 国民年金 or tax.",
+      "Pay the full balance every month."
+    ],
+    "traps": [
+      "CIC and JICC keep every application for 6 months; common guidance is no more than 1 to 2 cards a month, and a rejection means waiting 6 months.",
+      "Never take a points-for-revolving offer.",
+      "Use one reward route per card: a card already claimed through self-back cannot be claimed again through a point site, though the issuer's own bonus still applies.",
+      "Spending conditions tempt overspending.",
+      "Freelancers in their first year may find approval harder (anecdotal)."
+    ],
+    "exitNote": "Cancel before the first annual fee, once the reward is confirmed. Keep at least 6 months clear of any loan or mortgage application, and stay under 1 to 2 applications a month.",
+    "taxNote": "Treat point-site rewards as taxable income; the category is unsettled.",
+    "maySay": "List stated offers and the 6-month credit-file rule, and label anything paid with 広告.",
+    "mustNotSay": "Do not tell a user they will be approved, name a card to apply for, or act as a paid credit intermediary (割賦販売法, 金融サービス仲介業).",
+    "sources": [
+      {
+        "title": "楽天カード new member offer (5,000 points with 3 uses)",
+        "url": "https://www.rakuten-card.co.jp/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "CIC application record retention (6 months)",
+        "url": "https://www.cic.co.jp/confidence/posession.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "JICC registration periods (6 months)",
+        "url": "https://www.jicc.co.jp/credit_info/registration/",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "jp-nenkin-exemption",
+    "region": "JP",
+    "title": "Pause national pension when income is low",
+    "localName": "国民年金の免除・納付猶予",
+    "group": "insurance_benefits",
+    "tier": "insider",
+    "knownBy": "municipal pension desks and 社労士",
+    "moments": [
+      "life_event"
+    ],
+    "question": "国民年金 払えない 免除",
+    "fact": "Instead of leaving 国民年金 unpaid, you can apply for a full, three-quarter, half or quarter exemption. A full exemption still counts as half a paid month, and you can pay it back within 10 years.",
+    "valueText": "Full exemption saves the monthly premium (¥17,920 in FY2026), so about ¥215k a year of cash while income is low.",
+    "timeToMoney": "Weeks: the approval",
+    "risk": "low",
+    "effort": "minutes",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check last year's income against the full-exemption line, (dependants + 1) × ¥350k + ¥320k.",
+      "Apply online through マイナポータル or at the 区役所; after a business closure or job loss a special rule skips the income test.",
+      "Apply for each July-to-June year at the 区役所 or online; you can ask for the next year's review at the same time, and you can backdate up to 2 years and 1 month.",
+      "In a high-income year, consider paying the exempted months back (追納) for a deduction."
+    ],
+    "traps": [
+      "Partial exemption only counts if you pay the remaining part.",
+      "You cannot use iDeCo or 付加年金 while exempt (the iDeCo site lists exempt members as ineligible).",
+      "追納 surcharges apply from the 3rd fiscal year after the exemption.",
+      "A weak yen can raise your prior-year income above the line."
+    ],
+    "maySay": "Information and eligibility checks.",
+    "mustNotSay": "Do not tell a user they are eligible; the municipality decides.",
+    "sources": [
+      {
+        "title": "日本年金機構 免除・納付猶予 (income test (dependants + 1) × ¥350k + ¥320k)",
+        "url": "https://www.nenkin.go.jp/service/kokunen/menjo/20150428.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "日本年金機構 追納 (10 years; surcharge from the 3rd fiscal year)",
+        "url": "https://www.nenkin.go.jp/service/kokunen/menjo/20150331.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "iDeCo official: who can join",
+        "url": "https://www.ideco-koushiki.jp/guide/structure.html",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false
+  },
+  {
+    "id": "jp-ninin-keizoku",
+    "region": "JP",
+    "title": "Pick your health insurance within 20 days of leaving a job",
+    "localName": "任意継続被保険者 vs 国民健康保険",
+    "group": "insurance_benefits",
+    "tier": "insider",
+    "knownBy": "HR departments and 社労士 (people who have left a job before)",
+    "moments": [
+      "life_event"
+    ],
+    "question": "退職後 健康保険 任意継続 国保 どっちが安い",
+    "fact": "For two years after you leave a job you can keep your company's 協会けんぽ plan (任意継続) at twice the payslip premium, on a salary base capped at ¥320,000 a month. Or you join 国保, whose premium is built from last year's income, so it is often higher in the first year, unless your exit counts as involuntary: then last year's salary counts at 30%. You have 20 days from the day after you leave to choose 任意継続.",
+    "valueText": "任意継続: min(last 標準報酬月額, ¥320,000) × (9.85% health + 0.23% child-support, + 1.62% 介護 at 40 to 64; Tokyo, FY2026) × 12. 国保 (Setagaya FY2026): (salary − 給与所得控除 − ¥430,000) × 10.58% (+2.43% at 40 to 64) + ¥67,073 (+¥17,800), capped. The first-year saving is the gap between the two; the cheaper one is the one to pick.",
+    "timeToMoney": "From the first premium after you leave; 任意継続 premiums stay fixed for 2 years",
+    "risk": "low",
+    "effort": "evening",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check you were insured for at least 2 months in a row up to your last day.",
+      "Find your last 標準報酬月額 on your payslip and your 協会けんぽ 支部 (rates are by prefecture).",
+      "Ask your ward office for a 国保 quote from last year's income; if your exit was involuntary, bring the 離職票 or 受給資格者証 so the 30% rule is applied.",
+      "Compare the two yearly totals, adding dependants: 任意継続 charges nothing per person, 国保 charges a flat amount per head.",
+      "File the 任意継続 form with the 協会けんぽ 支部 within 20 days of the day after you leave (the next business day if day 20 is a weekend or holiday).",
+      "Pay every month on time, or prepay 6 or 12 months at a 4% yearly discount."
+    ],
+    "traps": [
+      "The 20-day window is strict: after it your only choices are 国保 or a family member's plan.",
+      "Missing a premium payment ends 任意継続, as does starting a new employer's plan.",
+      "任意継続 stays fixed for 2 years, but 国保 is recalculated every April from the previous year's income, so the gap can flip in year two.",
+      "The 30% rule needs a 特定受給資格者 or 特定理由離職者 code on your papers (dismissal, expired contract and similar). An ordinary resignation does not qualify.",
+      "A company 健保組合 has its own rates and cap; these numbers are for 協会けんぽ Tokyo and 国保 for Setagaya.",
+      "A family member's employer plan can cost nothing extra: compare it too."
+    ],
+    "exitNote": "You can leave 任意継続 by asking, but you cannot rejoin. Re-check each April when your 国保 premium is recalculated.",
+    "taxNote": "Both premiums are 社会保険料控除 for the year you pay them, so the comparison is on premiums alone.",
+    "maySay": "Show both premium estimates from the published rates and the user's own numbers, and the 20-day deadline.",
+    "mustNotSay": "Do not tell the user which to choose, do not decide whether their exit was involuntary, and do not file the form for them (社会保険労務士法).",
+    "sources": [
+      {
+        "title": "協会けんぽ 任意継続 (20 days, 2 months, 2 years, premium formula)",
+        "url": "https://www.kyoukaikenpo.or.jp/benefit/voluntary_continuation/index.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "協会けんぽ 令和8年度 任意継続の標準報酬月額の上限 ¥320,000",
+        "url": "https://www.kyoukaikenpo.or.jp/news/r07_dec/1259.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "協会けんぽ 東京支部 令和8年3月分からの保険料額表 (9.85%, 0.23%, 1.62%)",
+        "url": "https://www.kyoukaikenpo.or.jp/assets/R8_13tokyo.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Setagaya 国民健康保険料 令和8年度 (rates, caps, 賦課基準額)",
+        "url": "https://www.city.setagaya.lg.jp/02060/297.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.1410 給与所得控除",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1410.htm",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "MHLW 非自発的失業者の国保軽減 (給与所得を30/100で算定)",
+        "url": "https://www.mhlw.go.jp/stf/newpage_21517.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA No.1130 社会保険料控除",
+        "url": "https://www.nta.go.jp/taxes/shiraberu/taxanswer/shotoku/1130.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true,
+    "valueKind": "gain",
+    "pinAt": []
+  },
+  {
+    "id": "jp-saishushoku-teate",
+    "region": "JP",
+    "title": "Get 再就職手当 if you start a business on unemployment benefit",
+    "localName": "再就職手当 (自営開始)",
+    "group": "unclaimed_money",
+    "tier": "insider",
+    "knownBy": "ハローワーク counters and 社労士",
+    "moments": [
+      "life_event"
+    ],
+    "question": "失業保険 独立 開業 再就職手当 もらえる",
+    "fact": "If you are receiving 基本手当 (unemployment benefit) and start a business, Hello Work can pay you 60% or 70% of the benefit days you still had left, as a lump sum. You have to tell Hello Work when you start preparing, not after, because the benefit stops from that day.",
+    "valueText": "基本手当日額 × remaining benefit days × 70% (60% if between a third and two thirds of your days remain). 基本手当日額 = 賃金日額 (last 6 months' pay ÷ 180) × the official 80% to 50% rate, capped by age at ¥7,450 (under 30), ¥8,270 (30 to 44) or ¥9,110 (45 to 59) from Aug 1, 2026. The estimate assumes at least 90 benefit days with two thirds left (60 days).",
+    "timeToMoney": "After Hello Work reviews your business papers; the claim is due within 1 month of the day after you start",
+    "risk": "low",
+    "effort": "weekend",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Tell Hello Work (the benefits counter) before you begin preparing the business; benefit pauses from that day.",
+      "File the 開業届 with the 税務署 and keep the stamped copy.",
+      "Report your business start date to Hello Work, with the 開業届 copy.",
+      "Apply for 再就職手当 within 1 month of the day after your start date, with proof the business is real (contracts, invoices, receipts, bank records).",
+      "Hello Work checks that the business can run for over a year or hires an insured employee, then decides."
+    ],
+    "traps": [
+      "You need at least a third of your benefit days left on the day before you start preparing or start the business, and the 7-day waiting period must be over.",
+      "If you quit on your own and have a benefit restriction (給付制限), the business cannot start in its first month.",
+      "Preparing counts as starting: working for clients or setting up before you tell Hello Work can be treated as unreported work.",
+      "You cannot get it if you received 再就職手当 or 常用就職支度手当 in the last 3 years.",
+      "Hello Work decides whether the business looks stable; a refusal is possible.",
+      "Daily caps and rates change each August 1, and the 90-day floor is a minimum: your own 受給資格者証 shows your real days."
+    ],
+    "exitNote": "File within 1 month of the day after your start date; after that the claim lapses.",
+    "taxNote": "Unemployment benefits are not taxed (雇用保険法12条). Business income afterwards is: file the 開業届 and, within 2 months of starting, the 青色申告承認申請書.",
+    "maySay": "Explain the rule, the formula and a range from the user's own pay, and tell them to ask Hello Work first.",
+    "mustNotSay": "Do not tell anyone to quit or to time a start date to collect it, do not promise approval (the office decides), and do not file the claim for them.",
+    "sources": [
+      {
+        "title": "厚生労働省 雇用保険の基本手当日額の変更 (Aug 1, 2026: caps and formula)",
+        "url": "https://www.mhlw.go.jp/content/11607000/001729233.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "岡山労働局 自営開始を予定している方へ (steps, 1 month, papers)",
+        "url": "https://jsite.mhlw.go.jp/okayama-roudoukyoku/content/contents/002117538.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "大阪労働局 就職促進給付 (60% / 70%, requirements; its cap figures are out of date)",
+        "url": "https://jsite.mhlw.go.jp/osaka-roudoukyoku/hourei_seido_tetsuzuki/koyou_hoken/hourei_seido/situgyo/minasama/sokusin.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "ハローワーク 基本手当について (90 to 360 days)",
+        "url": "https://www.hellowork.mhlw.go.jp/insurance/insurance_basicbenefit.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NTA 質疑応答: 雇用保険法12条 失業等給付は非課税",
+        "url": "https://www.nta.go.jp/law/shitsugi/shotoku/01/09.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true,
+    "valueKind": "gain",
+    "pinAt": []
+  }
+]

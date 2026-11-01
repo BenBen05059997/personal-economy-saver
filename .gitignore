@@ -1,0 +1,23 @@
+# Secrets: never committed
+.env*
+!.env.example
+
+# Dependencies and builds
+node_modules/
+.next/
+out/
+build/
+coverage/
+.wrangler/
+.open-next/
+*.tsbuildinfo
+next-env.d.ts
+
+# Not ours or not source
+reference/
+prof*/
+
+# OS and logs
+.DS_Store
+*.log
+*.pem

@@ -1,0 +1,24 @@
+.page {
+  padding-block: 28px 56px;
+  min-width: 0;
+}
+.head {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+  max-width: 760px;
+}
+.head h1 {
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1.05;
+}
+.lede {
+  color: var(--muted);
+  font-size: 15px;
+  max-width: 64ch;
+}
+@media (max-width: 520px) {
+  .page {
+    padding-block: 20px 40px;
+  }
+}

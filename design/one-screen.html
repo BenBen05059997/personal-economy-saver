@@ -1,0 +1,816 @@
+<title>One Screen</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap">
+<style>
+/* Layout: prototype links | phone (390x844) | terminal panel. A passbook: rows, hairlines, one ink, one accent. */
+:root{
+  --page:#EFEEEA; --screen:#FBFAF8; --wash:#F2F0EB;
+  --ink:#1E1C19; --muted:#6B665E; --faint:#A59F95; --rule:#E3E0D9;
+  --accent:#2742C8; --accent-wash:#EDEFFB; --on-accent:#FFFFFF;
+  --red:#B3261E; --red-wash:#F7E3E0;
+  --green:#1D7A4C; --green-wash:#E2F1E8;
+  --sel:#E4E1D9; --bezel:#22201D; --scrim:rgba(30,28,25,.38); --shadow:rgba(30,28,25,.16);
+  --serif:'Newsreader','Iowan Old Style',Georgia,'Hiragino Mincho ProN','Yu Mincho',serif;
+  --sans:'Hanken Grotesk','Helvetica Neue','Hiragino Sans','Yu Gothic',Arial,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --page:#121110; --screen:#1B1A17; --wash:#24221F;
+  --ink:#EFECE5; --muted:#A39D92; --faint:#6E695F; --rule:#2F2D29;
+  --accent:#93A6FF; --accent-wash:#222744; --on-accent:#10131F;
+  --red:#FF8F86; --red-wash:#3A2220;
+  --green:#6FD09B; --green-wash:#1D3327;
+  --sel:#35322D; --bezel:#34312D; --scrim:rgba(0,0,0,.55); --shadow:rgba(0,0,0,.5);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --page:#121110; --screen:#1B1A17; --wash:#24221F;
+  --ink:#EFECE5; --muted:#A39D92; --faint:#6E695F; --rule:#2F2D29;
+  --accent:#93A6FF; --accent-wash:#222744; --on-accent:#10131F;
+  --red:#FF8F86; --red-wash:#3A2220;
+  --green:#6FD09B; --green-wash:#1D3327;
+  --sel:#35322D; --bezel:#34312D; --scrim:rgba(0,0,0,.55); --shadow:rgba(0,0,0,.5);
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--page);color:var(--ink);font:15px/1.45 var(--sans);
+  padding-block:32px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  -webkit-font-smoothing:antialiased}
+a{color:inherit}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.num,.tab{font-variant-numeric:tabular-nums}
+
+/* ---------- stage (outside the phone) ---------- */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,390px) minmax(0,1fr);gap:0 40px;max-width:1260px;margin:0 auto;align-items:start}
+.proto{justify-self:end;font-size:13px;color:var(--muted);padding-top:8px;min-width:0}
+.proto ul{list-style:none;margin:0 0 20px;padding:0;display:flex;flex-direction:column;gap:6px}
+.proto a{color:var(--muted)}
+.proto a[aria-current="true"]{color:var(--ink);text-decoration:none;font-weight:600}
+.proto .k{color:var(--faint);margin-right:6px}
+.proto .theme{font-size:12.5px}
+.proto .theme span{color:var(--faint)}
+.mid{min-width:0}
+.cap{margin:14px 0 0;text-align:center;font-size:13px;color:var(--muted)}
+.side{justify-self:start;min-width:0;width:100%;max-width:380px;padding-top:56px}
+
+/* ---------- phone ---------- */
+.phone{width:min(390px,100%);height:844px;margin:0 auto;border:9px solid var(--bezel);border-radius:54px;background:var(--bezel);overflow:hidden;position:relative;box-shadow:0 24px 50px -24px var(--shadow)}
+.screen{position:absolute;inset:0;background:var(--screen);border-radius:44px;overflow:hidden;display:flex;flex-direction:column}
+.status{flex:none;height:46px;padding:16px 28px 0;display:flex;justify-content:space-between;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.batt{width:24px;height:11px;border:1.5px solid var(--ink);border-radius:3.5px;position:relative;margin-top:3px}
+.batt::after{content:"";position:absolute;inset:1.5px 6px 1.5px 1.5px;background:var(--ink);border-radius:1px}
+.scroll{flex:1;min-height:0;overflow-y:auto;padding:4px 20px 130px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.homebar{position:absolute;left:50%;bottom:8px;width:124px;height:4.5px;border-radius:3px;background:var(--ink);transform:translateX(-50%);opacity:.85;z-index:20}
+
+.topline{display:flex;justify-content:space-between;align-items:baseline;font-size:13.5px;color:var(--muted);padding:6px 0 18px}
+.topline a{color:var(--muted)}
+
+/* sentence */
+.sentence{font:400 27px/1.22 var(--serif);font-optical-sizing:auto;letter-spacing:-.005em;margin:0;text-wrap:pretty}
+.sentence b{font-weight:500}
+.short{color:var(--red);font-weight:500}
+.safe{margin:20px 0 0}
+.safe .lbl{font-size:13.5px;color:var(--muted)}
+.safe .big{font:400 46px/1.05 var(--serif);letter-spacing:-.01em;margin:2px 0 4px;font-variant-numeric:tabular-nums lining-nums}
+.safe .inc{font-size:13px;color:var(--muted)}
+.how{color:var(--muted);margin-left:2px}
+.howtext{font-size:13px;color:var(--muted);margin:8px 0 0;max-width:34ch}
+
+/* runway */
+.runway{margin:18px -4px 6px}
+.runway svg{display:block;width:100%;height:auto;overflow:visible}
+.runway text{font:11.5px var(--sans);fill:var(--muted);font-variant-numeric:tabular-nums}
+.runway .lo{fill:var(--red);font-weight:600;font-size:12px}
+.runway .lo.ok{fill:var(--ink)}
+
+/* needs-you + action */
+.need{margin:14px -20px 0;padding:16px 20px 16px;background:var(--accent-wash);display:grid;grid-template-columns:46px minmax(0,1fr);gap:0 14px}
+.mail{width:46px;height:58px;border:1px solid var(--rule);background:var(--screen);border-radius:3px;padding:7px 6px;display:flex;flex-direction:column;gap:4px}
+.mail i{display:block;height:2.5px;background:var(--rule);border-radius:1px}
+.mail i:first-child{width:55%;background:var(--faint)}
+.mail i:nth-child(4){width:70%}
+.need h2,.act h2{font:500 16px/1.3 var(--sans);margin:0}
+.need .src{font-size:13px;color:var(--accent);margin:2px 0 0;font-weight:500}
+.btns{display:flex;align-items:center;gap:16px;margin-top:12px}
+.btn{height:42px;padding:0 20px;border-radius:10px;border:1.5px solid var(--accent);background:transparent;color:var(--accent);font-weight:600;font-size:15px;cursor:pointer}
+.btn.fill{background:var(--accent);color:var(--on-accent)}
+.btn.ink{background:var(--ink);border-color:var(--ink);color:var(--screen)}
+.btn.wide{width:100%}
+.link{background:none;border:0;padding:4px 0;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font-size:14px}
+.act{margin:22px 0 0;padding:0}
+.act p{margin:6px 0 0;color:var(--ink);font-size:15px;max-width:36ch}
+.act .more{display:inline-block;margin-top:10px;font-size:13.5px;color:var(--muted);text-decoration:none}
+.done-line{margin:14px -20px 0;padding:14px 20px;background:var(--accent-wash);font-size:14px}
+
+/* events */
+.list{margin-top:30px}
+.row{display:grid;grid-template-columns:46px minmax(0,1fr) auto;column-gap:12px;padding:13px 0;border-top:1px solid var(--rule)}
+.row .d{font-size:13px;color:var(--muted);padding-top:2px;font-variant-numeric:tabular-nums}
+.row .w{font-size:15px;line-height:1.35;min-width:0}
+.row .s{display:block;font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.4}
+.row .a{font-size:15px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.row .a small{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.row.past{color:var(--muted)}
+.row.past .w{color:var(--muted)}
+.row.quiet .w,.row.quiet .a{color:var(--muted)}
+.row.today{border-top:2px solid var(--ink)}
+.row.today .d b{display:block;color:var(--ink);font-weight:600}
+.row.hl{margin:0 -20px;padding-left:20px;padding-right:20px;background:var(--wash)}
+.u{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--faint);cursor:pointer}
+.cov{display:inline-block;margin-top:3px;padding:1px 8px 2px;border-radius:9px;background:var(--green-wash);color:var(--green);font-size:12px;font-weight:600;white-space:nowrap}
+.cov-t{color:var(--green);font-weight:600}
+.red{color:var(--red)}
+.red.s{font-weight:500}
+.tc{color:var(--accent);font-size:13px;font-weight:500}
+.paid{color:var(--green);font-weight:600}
+.row.last{border-bottom:1px solid var(--rule)}
+
+/* mic */
+.mic{position:absolute;left:0;right:0;bottom:0;z-index:5;background:var(--screen);border-top:1px solid var(--rule);padding:12px 20px 30px;display:flex;align-items:center;gap:14px;cursor:pointer}
+.mic .mb{flex:none;width:46px;height:46px;border-radius:50%;background:var(--ink);display:grid;place-items:center;border:0;padding:0}
+.mic .mb svg{width:20px;height:20px;stroke:var(--screen);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mic p{margin:0;font-size:13.5px;color:var(--muted);line-height:1.35}
+.screen[data-s="F"] .mic{z-index:9}
+.screen[data-s="F"] .mic .mb{box-shadow:0 0 0 5px var(--accent-wash),0 0 0 6px var(--accent);background:var(--accent)}
+.screen[data-s="F"] .mic .mb svg{stroke:var(--on-accent)}
+
+/* sheets */
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:6;border:0;padding:0;cursor:default}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;background:var(--screen);border-radius:22px 22px 0 0;box-shadow:0 -10px 30px -10px var(--shadow);max-height:88%;overflow-y:auto;padding:20px 20px 36px;scrollbar-width:none}
+.sheet::-webkit-scrollbar{display:none}
+.sheet.voice{bottom:92px;border-radius:22px;margin:0 10px;left:0;right:0;padding:20px 18px 18px;z-index:7}
+.sheet h2{font:400 24px/1.2 var(--serif);margin:0}
+.sheet .hd{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.sheet .lede{font-size:13.5px;color:var(--muted);margin:4px 0 14px}
+.opt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 16px;padding:14px 0;border-top:1px solid var(--rule)}
+.opt .n{font-size:15px;font-weight:500}
+.opt .s{display:block;font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.4;font-weight:400}
+.opt .c{font:400 19px/1.2 var(--serif);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums lining-nums}
+.opt.dim .n,.opt.dim .c{color:var(--muted)}
+.opt .rec{font-size:12.5px;color:var(--accent);font-weight:600}
+.opt .go{margin-top:10px}
+.opt .go .btn{height:36px;padding:0 16px;font-size:14px}
+.note{font-size:12.5px;color:var(--muted);margin:14px 0 0;border-top:1px solid var(--rule);padding-top:12px}
+.tr{font:italic 400 16px/1.35 var(--serif);color:var(--muted);margin:0 0 12px}
+.ans{font:400 22px/1.3 var(--serif);margin:0;text-wrap:pretty}
+
+/* approve + card pages */
+.back{display:inline-block;font-size:14px;color:var(--muted);padding:6px 0 14px;text-decoration:none}
+.page-t{font:400 30px/1.15 var(--serif);margin:0}
+.doc{margin-top:22px}
+.kv{display:grid;grid-template-columns:78px minmax(0,1fr);gap:0 12px;padding:11px 0;border-top:1px solid var(--rule);font-size:15px}
+.kv>span:first-child{color:var(--muted);font-size:13px;padding-top:2px}
+.kv.tot{align-items:baseline}
+.kv .amt{font:400 30px/1.1 var(--serif);font-variant-numeric:tabular-nums lining-nums}
+.kv .amt small{font:13px var(--sans);color:var(--muted);margin-left:6px}
+.msg{font:italic 400 16.5px/1.45 var(--serif);margin:0;color:var(--ink)}
+.out{margin:20px 0 18px;font:400 20px/1.3 var(--serif);text-wrap:pretty}
+.fine{font-size:13px;color:var(--muted);margin:14px 0 0}
+.sent{font-size:15px;margin:14px 0 0}
+.cbig{font:400 44px/1.05 var(--serif);margin:14px 0 2px;font-variant-numeric:tabular-nums lining-nums}
+.cbig small{font:400 18px var(--serif);color:var(--muted);margin-left:6px}
+.room{margin:26px 0 8px}
+.room .l{font-size:13.5px;color:var(--muted)}
+.room .n{font:400 34px/1.1 var(--serif);margin:2px 0;font-variant-numeric:tabular-nums lining-nums}
+.room .r{font-size:13.5px;color:var(--muted)}
+.sec{font:400 19px/1.2 var(--serif);margin:30px 0 8px}
+.row2{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;padding:11px 0;border-top:1px solid var(--rule);font-size:15px}
+.row2 .a{font-variant-numeric:tabular-nums}
+.row2.tot{font-weight:600}
+
+/* terminal panel */
+.term{margin:0}
+.term pre{margin:0;padding:18px 18px;background:var(--wash);border:1px solid var(--rule);border-radius:8px;font:400 12.5px/1.65 var(--mono);color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.term .dim{color:var(--muted)}
+.term figcaption{font-size:13px;color:var(--muted);margin-top:12px}
+
+
+/* ---------- desktop view: a normal web-app shell (1440x900) ---------- */
+.stage.v-desk{grid-template-columns:minmax(0,1fr);gap:20px;max-width:none}
+.v-desk .proto{justify-self:center;padding:0;text-align:center}
+.v-desk .proto ul{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:6px 16px;margin-bottom:12px}
+.v-desk .mid{width:1440px;max-width:none;justify-self:center}
+.dframe{width:1440px;height:900px;border:8px solid var(--bezel);border-radius:18px 18px 8px 8px;background:var(--bezel);overflow:hidden;position:relative;box-shadow:0 24px 50px -24px var(--shadow);font:14px/1.45 var(--sans)}
+.dscreen{position:absolute;inset:0;background:var(--screen);border-radius:10px 10px 0 0;display:grid;grid-template-columns:230px minmax(0,1fr);overflow:hidden}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.sb{background:var(--wash);border-right:1px solid var(--rule);display:flex;flex-direction:column;padding:14px 12px 12px;min-height:0}
+.brand{display:flex;align-items:center;gap:9px;padding:4px 8px 20px;font-weight:600;font-size:15px}
+.mark{width:20px;height:20px;border-radius:6px;background:var(--ink);color:var(--screen);display:grid;place-items:center;font:500 13px/1 var(--serif)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.ni{display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border-radius:8px;color:var(--ink);font:500 14px var(--sans);text-decoration:none;cursor:pointer;border:0;background:none;width:100%;text-align:left}
+.ni .ic{color:var(--muted)}
+.ni:hover{background:color-mix(in srgb,var(--sel) 55%,transparent)}
+.ni[aria-current="true"]{background:var(--sel);font-weight:600}
+.ni[aria-current="true"] .ic{color:var(--ink)}
+.bdg{margin-left:auto;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--on-accent);font:600 11.5px/18px var(--sans);text-align:center}
+.sbb{margin-top:auto;display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--rule);padding-top:10px}
+.me{display:flex;align-items:center;gap:10px;height:38px;padding:0 10px;font-weight:500}
+.av{width:24px;height:24px;border-radius:50%;background:var(--sel);display:grid;place-items:center;font-size:12px;font-weight:600}
+.dmain{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.tb{height:56px;flex:none;border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:14px;padding:0 24px;position:relative}
+.ask{flex:1;min-width:0;height:36px;display:flex;align-items:center;gap:10px;padding:0 12px;border:1px solid var(--rule);border-radius:8px;background:var(--wash);color:var(--muted);font:14px var(--sans);cursor:pointer;text-align:left}
+.ask span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ask.on{border-color:var(--accent);background:var(--screen);color:var(--ink);box-shadow:0 0 0 3px var(--accent-wash)}
+.ask.on .ic{color:var(--accent)}
+.dbtn{height:36px;padding:0 16px;border-radius:8px;border:1px solid var(--rule);background:var(--screen);color:var(--ink);font:500 14px var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+.dbtn:hover{background:var(--wash)}
+.dbtn.fill{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.dbtn.fill:hover{background:var(--accent)}
+.dbtn.ink{background:var(--ink);border-color:var(--ink);color:var(--screen)}
+.dbtn.ink:hover{background:var(--ink)}
+.dbtn.sm{height:30px;padding:0 12px;font-size:13px}
+.dbtn.acc{border-color:var(--accent);color:var(--accent);background:transparent}
+.menu{position:absolute;top:48px;right:24px;width:196px;border:1px solid var(--rule);border-radius:10px;background:var(--screen);padding:5px;z-index:40}
+.mi{display:block;width:100%;text-align:left;padding:8px 10px;border:0;background:none;border-radius:6px;font:14px var(--sans);cursor:pointer;color:var(--ink)}
+.mi:hover{background:var(--wash)}
+.dpage{flex:1;min-height:0;overflow-y:auto;padding:32px 40px 48px;scrollbar-width:thin}
+.dpage.shift{padding-right:468px}
+.wrap{max-width:1000px;margin:0 auto}
+.wrap.narrow{max-width:640px}
+.ddate{font-size:13px;color:var(--muted)}
+.dsent{font:400 32px/1.2 var(--serif);letter-spacing:-.005em;margin:6px 0 0;max-width:30em;text-wrap:pretty}
+.arow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:22px}
+.dopt{display:inline-block;margin-top:12px;font-size:13px;color:var(--muted);text-decoration:none}
+.paidl{margin:20px 0 0;font-size:14px}
+.dgrid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;margin-top:28px;align-items:start}
+.dcol{display:flex;flex-direction:column;gap:16px;min-width:0}
+.pn{border:1px solid var(--rule);border-radius:12px;padding:20px 22px;background:var(--screen)}
+.pn h2{font:500 13px/1.3 var(--sans);color:var(--muted);margin:0 0 12px;display:flex;justify-content:space-between;align-items:baseline}
+.pn h2 a{color:var(--muted);text-decoration:none;font-weight:400}
+.dlbl{font-size:13px;color:var(--muted)}
+.dbig{font:400 28px/1.15 var(--serif);font-variant-numeric:tabular-nums lining-nums;margin:2px 0 4px}
+.dnote{font-size:13px;color:var(--muted)}
+.drw{margin-top:14px}
+.drw svg{display:block;width:100%;height:auto;overflow:visible}
+.drw text{font:11.5px var(--sans);fill:var(--muted);font-variant-numeric:tabular-nums}
+.drw .lo{fill:var(--red);font-weight:600;font-size:12px}
+.drw .lo.ok{fill:var(--ink)}
+.pr{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 14px;padding:10px 0;border-top:1px solid var(--rule)}
+.pr.c3{grid-template-columns:44px minmax(0,1fr) auto}
+.pr .n{font-size:14px;min-width:0}
+.pr .s{display:block;font-size:12.5px;color:var(--muted);margin-top:1px}
+.pr .am{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:14px}
+.pr .am small{display:block;font-size:12px;color:var(--muted)}
+.pr .dd{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.pr.t3{grid-template-columns:minmax(0,1fr) auto auto}
+.pr.room .am{font:400 20px/1.2 var(--serif)}
+.ck{color:var(--green);font-weight:600}
+.dnone{font-size:14px;color:var(--muted);margin:0;padding:10px 0 2px;border-top:1px solid var(--rule)}
+.dh2{font:600 24px/1.25 var(--sans);margin:0}
+.dsub{font-size:13.5px;color:var(--muted);margin:4px 0 0}
+.sum{display:flex;gap:64px;margin:24px 0 24px;flex-wrap:wrap}
+.tw{border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+.tbl th{text-align:left;font-weight:500;font-size:12.5px;color:var(--muted);padding:10px 16px;border-bottom:1px solid var(--rule);white-space:nowrap}
+.tbl td{padding:11px 16px;border-bottom:1px solid var(--rule);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .r{text-align:right}
+.tbl .m{color:var(--muted)}
+.tbl .grp td{background:var(--wash);font-weight:600;font-size:13px;padding:8px 16px}
+.tbl .tot td{font-weight:600}
+.tbl tr.past td{color:var(--muted)}
+.tbl .acc{color:var(--accent);font-weight:500}
+.rp{position:absolute;top:68px;right:16px;bottom:16px;width:420px;border:1px solid var(--rule);border-radius:12px;background:var(--screen);padding:22px 24px 24px;overflow-y:auto;z-index:20;scrollbar-width:thin}
+.rp .hd{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.rp h2{font:600 17px/1.3 var(--sans);margin:0}
+.rp .lede{font-size:13.5px;color:var(--muted);margin:4px 0 12px}
+.rkv{display:grid;grid-template-columns:92px minmax(0,1fr);gap:0 12px;padding:11px 0;border-top:1px solid var(--rule);font-size:14px}
+.rkv>span:first-child{color:var(--muted);font-size:13px;padding-top:1px}
+.vp{position:absolute;top:60px;left:24px;width:min(720px,calc(100% - 48px));border:1px solid var(--rule);border-radius:12px;background:var(--screen);padding:18px 22px 20px;z-index:30}
+.vp .tr{margin-bottom:10px}
+.vp .ans{font-size:22px}
+.vp .btns{margin-top:16px}
+.dframe .opt{padding:13px 0}
+.dframe .term pre{font-size:12.5px}
+@media (max-width:700px){#views{display:none}}
+@media (max-width:1000px){
+  .stage{grid-template-columns:minmax(0,1fr);gap:20px}
+  .proto{justify-self:center;padding:0;text-align:center}
+  .proto ul{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:6px 16px;margin-bottom:12px}
+  .side{justify-self:center;padding-top:0;max-width:390px}
+}
+</style>
+
+<div class="stage">
+  <nav class="proto" aria-label="Prototype states">
+    <ul id="states">
+      <li><a href="#a" data-go="A"><span class="k">A</span>Home</a></li>
+      <li><a href="#b" data-go="B"><span class="k">B</span>Other options</a></li>
+      <li><a href="#c" data-go="C"><span class="k">C</span>Approve</a></li>
+      <li><a href="#d" data-go="D"><span class="k">D</span>Paid</a></li>
+      <li><a href="#e" data-go="E"><span class="k">E</span>Card B</a></li>
+      <li><a href="#f" data-go="F"><span class="k">F</span>Voice</a></li>
+      <li><a href="#g" data-go="G"><span class="k">G</span>From a terminal</a></li>
+      <li id="actli" hidden><a href="#act" data-go="ACT"><span class="k">+</span>Activity</a></li>
+    </ul>
+    <div class="theme" id="views"><span>View</span> <a href="#" data-view="phone">phone</a> · <a href="#" data-view="desk">desktop</a></div>
+    <div class="theme" style="margin-top:6px"><span>Theme</span> <a href="#" data-theme-set="light">light</a> · <a href="#" data-theme-set="dark">dark</a> · <a href="#" data-theme-set="">system</a></div>
+  </nav>
+
+  <div class="mid">
+    <div class="phone">
+      <div class="screen" id="screen" data-s="A">
+        <div class="status"><span>9:12</span><span class="batt" aria-hidden="true"></span></div>
+
+        <!-- HOME: A B D F G -->
+        <main class="scroll" data-in="A B D F G">
+          <div class="topline"><span>Sat Nov 14</span><a href="#" data-noop>Settings</a></div>
+
+          <p class="sentence" data-in="A B F G">You're fine if <span class="u">Acme</span> and <span class="u">Northwind</span> pay as usual. If they're late, you're <span class="short">¥18,780 short on the 27th</span>.</p>
+          <p class="sentence" data-in="D">You're fine for the next 30 days, even if everyone pays late. Lowest point <b>¥30,000</b> on the 27th.</p>
+
+          <div class="safe">
+            <div class="lbl">Safe to spend now</div>
+            <div class="big" data-in="A B F G">¥0</div>
+            <div class="big" data-in="D">¥30,000</div>
+            <div class="inc">includes ¥61,000 on Card B not yet billed · <a class="how" href="#" id="howlink">how?</a></div>
+            <p class="howtext" id="howtext" hidden>Worst case assumes Acme takes up to 19 days and Northwind up to 15, which are their slowest so far. Card B's ¥61,000 is counted before it is billed.</p>
+          </div>
+
+          <div class="runway" data-in="A B F G">
+            <svg id="rwA" viewBox="0 0 358 144" role="img" aria-label="Worst-case cash for the next 30 days dips to minus 18,780 yen on Nov 27"></svg>
+          </div>
+          <div class="runway" data-in="D">
+            <svg id="rwD" viewBox="0 0 358 144" role="img" aria-label="Worst-case cash for the next 30 days stays above zero, lowest 30,000 yen on Nov 27"></svg>
+          </div>
+
+          <div data-in="A B F G">
+            <section class="need" id="need">
+              <div class="mail" aria-label="Thumbnail of the email"><i></i><i></i><i></i><i></i><i></i></div>
+              <div>
+                <h2>Hikari Denki <span class="num">¥11,220</span>, due Nov 27</h2>
+                <p class="src">Electricity · read from your email</p>
+                <div class="btns"><button class="btn fill" id="confirm">Confirm</button><button class="link" id="notmine">Not mine</button></div>
+              </div>
+            </section>
+            <div class="done-line" id="doneline" hidden></div>
+
+            <section class="act">
+              <h2>Cover the 27th</h2>
+              <p>Invoice Beacon Studio $400 (≈¥60,000) for the finished milestone. Beacon usually pays in 2 days.</p>
+              <div class="btns" style="margin-top:12px"><button class="btn" data-go="C">Review</button></div>
+              <a href="#" class="more" data-go="B">Other options ›</a>
+            </section>
+          </div>
+
+          <div class="list">
+            <div class="row past"><span class="d">Nov 12</span><span class="w">Yamabiko Outdoor<span class="s"><a class="u" href="#" data-noop>Card A</a></span></span><span class="a">¥6,400</span></div>
+            <div class="row past"><span class="d">Nov 13</span><span class="w">Minato Fresh Market<span class="s"><a class="u" href="#" data-go="E">Card B</a></span></span><span class="a">¥1,400</span></div>
+
+            <div class="row today" data-in="A B F G"><span class="d">Nov 14<b>Today</b></span><span class="w">Hikari Denki, electricity<span class="s">¥11,220 due Nov 27</span></span><span class="a tc">to confirm</span></div>
+            <div class="row today hl" data-in="D"><span class="d">Nov 14<b>Today</b></span><span class="w">Beacon Studio paid $400<span class="s">¥59,100 after PayPal's fee <span class="paid">✓</span></span></span><span class="a paid">Paid</span></div>
+            <div class="row" data-in="D"><span class="d">Nov 14</span><span class="w">Hikari Denki, electricity<span class="s">¥11,220 due Nov 27</span></span><span class="a"></span></div>
+
+            <div class="row"><span class="d">Nov 15</span><span class="w"><a class="u" href="#" data-go="E">Card B</a> closes<span class="s">¥61,000 so far · paid Dec 10</span></span><span class="a">¥61,000</span></div>
+            <div class="row quiet"><span class="d">Nov 16</span><span class="w">予定納税 reduction form due<span class="s">Saves ¥97,100 if filed</span></span><span class="a">¥97,100</span></div>
+            <div class="row"><span class="d">Nov 18</span><span class="w">CloudBox Plus</span><span class="a">¥1,980<small><span class="cov">Covered ✓</span></small></span></div>
+            <div class="row"><span class="d">Nov 20</span><span class="w">Mobaile Tsushin</span><span class="a">¥4,800<small><span class="cov">Covered ✓</span></small></span></div>
+            <div class="row"><span class="d">Nov 22</span><span class="w"><span class="u">Acme Corp</span> pays $1,200<span class="s">≈¥180,000 · usual date; if late, Dec 3</span></span><span class="a">+¥180,000</span></div>
+            <div class="row"><span class="d">Nov 25</span><span class="w"><span class="u">Northwind</span> pays $800<span class="s">≈¥120,000 · usual; if late, Nov 29</span></span><span class="a">+¥120,000</span></div>
+            <div class="row"><span class="d">Nov 26</span><span class="w"><a class="u" href="#" data-noop>Card A</a> statement<span class="s">Paid from bank</span></span><span class="a">¥58,000<small><span class="cov">Covered ✓</span></small></span></div>
+            <div class="row"><span class="d">Nov 27</span><span class="w">Rent
+              <span class="s red" data-in="A B F G">Short by ¥18,780 if Acme and Northwind are late</span></span><span class="a">¥82,000<small data-in="D"><span class="cov">Covered ✓</span></small></span></div>
+            <div class="row"><span class="d">Nov 27</span><span class="w">Hikari Denki<span class="s" data-in="A B F G">After confirming</span></span><span class="a">¥11,220</span></div>
+            <div class="row last"><span class="d">Dec 10</span><span class="w"><a class="u" href="#" data-go="E">Card B</a> statement<span class="s">¥61,000 so far</span></span><span class="a">¥61,000<small><span class="cov">Covered ✓</span></small></span></div>
+          </div>
+        </main>
+
+        <!-- C: APPROVE -->
+        <section class="scroll" data-in="C">
+          <a class="back" href="#" data-go="A">‹ Home</a>
+          <h1 class="page-t">Invoice for Beacon Studio</h1>
+          <div class="doc">
+            <div class="kv"><span>To</span><span><span class="u">Beacon Studio</span></span></div>
+            <div class="kv"><span>For</span><span>Brand refresh, milestone 2</span></div>
+            <div class="kv"><span>Due</span><span>On receipt</span></div>
+            <div class="kv tot"><span>Amount</span><span class="amt">$400<small>≈¥60,000</small></span></div>
+            <div class="kv"><span>Note</span><span class="msg">Hi, milestone 2 of the brand refresh is finished. The invoice is attached, due on receipt. Thank you.</span></div>
+          </div>
+          <p class="out">Beacon usually pays in 2 days. The 27th becomes covered.</p>
+          <button class="btn fill wide" id="approve">Approve and send</button>
+          <div class="btns" style="justify-content:center;margin-top:6px"><button class="link">Edit</button></div>
+          <p class="sent" id="sentline" hidden>Sent to Beacon Studio through PayPal. It shows here when it is paid.</p>
+          <p class="fine">You approve, PayPal sends. Nothing goes without this tap.</p>
+        </section>
+
+        <!-- E: CARD B -->
+        <section class="scroll" data-in="E">
+          <a class="back" href="#" data-go="A">‹ Home</a>
+          <h1 class="page-t">Card B</h1>
+          <div class="cbig">¥61,000<small>so far</small></div>
+          <div class="inc" style="font-size:14px;color:var(--muted)">Closes tomorrow · paid Dec 10 from bank · <span class="cov">Covered ✓</span> by bank after Card A</div>
+
+          <div class="room">
+            <div class="l">Room on this card</div>
+            <div class="n">¥180,550</div>
+            <div class="r">before anything else is short</div>
+          </div>
+
+          <h2 class="sec">Charges this cycle</h2>
+          <div class="row2"><span>Minato Fresh Market <span style="color:var(--muted)">· Nov 13</span></span><span class="a">¥1,400</span></div>
+          <div class="row2"><span style="color:var(--muted)">Earlier in the cycle</span><span class="a">¥26,900</span></div>
+
+          <h2 class="sec">Taipei, Nov 14–15</h2>
+          <div class="row2"><span>Lantern Bay Hotel</span><span class="a">¥21,000</span></div>
+          <div class="row2"><span>Airport Rapid Rail</span><span class="a">¥1,600</span></div>
+          <div class="row2"><span>Ximen Noodle House</span><span class="a">¥3,800</span></div>
+          <div class="row2"><span>Lotus Lane Night Market</span><span class="a">¥1,200</span></div>
+          <div class="row2"><span>Riverside Museum</span><span class="a">¥600</span></div>
+          <div class="row2"><span>Jade Pavilion Souvenirs</span><span class="a">¥4,500</span></div>
+          <div class="row2 tot"><span>Trip total</span><span class="a">¥32,700</span></div>
+          <div class="row2" style="border-top:0;padding-top:0;color:var(--muted);font-size:14px"><span>Room after: ¥147,850</span><span></span></div>
+        </section>
+
+        <!-- B: OTHER OPTIONS -->
+        <button class="scrim" data-in="B" data-go="A" aria-label="Close"></button>
+        <section class="sheet" data-in="B" aria-label="Other options">
+          <div class="hd"><h2>Other options</h2><button class="link" data-go="A">Close</button></div>
+          <p class="lede">Short ¥18,780 on the 27th. Cheapest first.</p>
+          <div class="opt">
+            <div><span class="n">Invoice Beacon Studio $400</span><span class="s">¥0 extra · covers it</span><span class="rec">Recommended</span>
+              <div class="go"><button class="btn" data-go="C">Review</button></div></div>
+            <div class="c">¥0</div>
+          </div>
+          <div class="opt dim">
+            <div><span class="n">Nudge Acme</span><span class="s">Too early, not due until Nov 22</span></div>
+            <div class="c">¥0</div>
+          </div>
+          <div class="opt">
+            <div><span class="n">Bank card loan</span><span class="s">¥18,780 for 6 days at about 4–15% a year · reference rate, to verify</span></div>
+            <div class="c">about ¥12–¥46</div>
+          </div>
+          <div class="opt">
+            <div><span class="n">Card cash advance</span><span class="s">18% a year + ¥220 fee</span></div>
+            <div class="c">about ¥280</div>
+          </div>
+          <div class="opt">
+            <div><span class="n">2% early-pay discount to Acme</span></div>
+            <div class="c">¥3,600</div>
+          </div>
+          <p class="note">Costs are for 6 days until Acme's late case lands. A loan is never recommended while a ¥0 option covers it.</p>
+        </section>
+
+        <!-- F: VOICE -->
+        <button class="scrim" data-in="F" data-go="A" aria-label="Close"></button>
+        <section class="sheet voice" data-in="F" aria-label="Voice answer">
+          <p class="tr">Can I afford ¥4,000 for dinner tonight?</p>
+          <p class="ans">Not in cash, the 27th is already short. On Card B, yes: paid Dec 10, ¥176,550 of room left after.</p>
+          <div class="btns" id="voicebtns"><button class="btn fill" id="putcard">Put it on Card B</button><button class="link" data-go="A">Never mind</button></div>
+          <p class="sent" id="logged" hidden>Logged ¥4,000 on Card B.</p>
+        </section>
+
+        <!-- mic: A B D F G -->
+        <div class="mic" data-in="A B D F G" data-go-mic role="button" tabindex="0" aria-label="Ask or tell me">
+          <span class="mb"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg></span>
+          <p data-in="A B D G">Ask or tell me: 'Can I afford ¥4,000 tonight?'</p>
+          <p data-in="F">Listening…</p>
+        </div>
+        <div class="homebar"></div>
+      </div>
+    </div>
+    <div class="dframe" id="dframe" hidden>
+      <div class="dscreen">
+        <aside class="sb" aria-label="Main">
+          <div class="brand"><span class="mark">¥</span>Money</div>
+          <nav class="nav">
+            <a class="ni" href="#" data-go="A" data-nav="home"><svg class="ic" viewBox="0 0 16 16"><path d="M2.5 7.2 8 2.8l5.5 4.4V13h-11zM6.5 13V9.5h3V13"/></svg>Home</a>
+            <a class="ni" href="#" data-go="A" data-nav="check"><svg class="ic" viewBox="0 0 16 16"><path d="M2.5 9.5 4 3.5h8l1.5 6M2.5 9.5V13h11V9.5H10l-1 1.5H7l-1-1.5z"/></svg>To check<span class="bdg" id="badge">2</span></a>
+            <a class="ni" href="#" data-go="ACT" data-nav="act"><svg class="ic" viewBox="0 0 16 16"><path d="M3 4.5h10M3 8h10M3 11.5h10"/></svg>Activity</a>
+            <a class="ni" href="#" data-go="E" data-nav="cards"><svg class="ic" viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="1.5"/><path d="M2 6.8h12"/></svg>Cards</a>
+            <a class="ni" href="#" data-noop data-nav="clients"><svg class="ic" viewBox="0 0 16 16"><circle cx="6" cy="6" r="2.2"/><path d="M2 13c.3-2.4 2-3.6 4-3.6s3.7 1.2 4 3.6M10.5 4.2a2.2 2.2 0 0 1 0 3.6M12 9.6c1 .5 1.8 1.5 2 3.4"/></svg>Clients</a>
+          </nav>
+          <div class="sbb">
+            <a class="ni" href="#" data-noop><svg class="ic" viewBox="0 0 16 16"><path d="M3 5h10M3 11h10"/><circle cx="6" cy="5" r="1.6"/><circle cx="10.5" cy="11" r="1.6"/></svg>Settings</a>
+            <div class="me"><span class="av">B</span>Ben</div>
+          </div>
+        </aside>
+
+        <div class="dmain">
+          <div class="tb">
+            <button class="ask" id="ask" data-go="F" aria-label="Ask or say"><svg class="ic" viewBox="0 0 16 16"><rect x="6" y="2" width="4" height="7.5" rx="2"/><path d="M3.5 7.8a4.5 4.5 0 0 0 9 0M8 12.3V14"/></svg><span id="askph">Ask or say: Can I afford ¥4,000 tonight?</span><span id="asktx" hidden>Can I afford ¥4,000 for dinner tonight?</span></button>
+            <div id="addwrap"><button class="dbtn ink" id="addbtn" aria-haspopup="true"><svg class="ic" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>Add</button>
+              <div class="menu" id="menu" hidden>
+                <button class="mi">Forward a bill</button><button class="mi">Upload a receipt</button><button class="mi">New invoice</button>
+              </div>
+            </div>
+            <div class="vp" data-d="F">
+              <p class="tr">Can I afford ¥4,000 for dinner tonight?</p>
+              <p class="ans">Not in cash, the 27th is already short. On Card B, yes: paid Dec 10, ¥176,550 of room left after.</p>
+              <div class="btns" id="dvbtns"><button class="dbtn acc" id="dput">Put it on Card B</button><button class="link" data-go="A">Never mind</button></div>
+              <p class="sent" id="dlogged" hidden>Logged ¥4,000 on Card B.</p>
+            </div>
+          </div>
+
+          <!-- HOME: A B D F G -->
+          <div class="dpage" id="dpage">
+            <div class="wrap" data-d="A B D F G">
+              <div class="ddate">Sat Nov 14</div>
+              <h1 class="dsent" data-p="0">You're fine if <span class="u">Acme</span> and <span class="u">Northwind</span> pay as usual. If they're late, you're <span class="short">¥18,780 short on the 27th</span>.</h1>
+              <h1 class="dsent" data-p="1">You're fine for the next 30 days, even if everyone pays late. Lowest point ¥30,000 on the 27th.</h1>
+              <div data-p="0">
+                <div class="arow"><button class="dbtn fill" data-go="C">Invoice Beacon $400</button><button class="dbtn">Forward a bill</button><button class="dbtn">Upload a receipt</button></div>
+                <a class="dopt" href="#" data-go="B">Other options ›</a>
+              </div>
+              <p class="paidl" data-p="1"><b style="font-weight:600">Beacon Studio paid $400</b> · ¥59,100 after PayPal's fee <span class="ck">✓</span></p>
+
+              <div class="dgrid">
+                <div class="dcol">
+                  <section class="pn">
+                    <h2>Next 30 days, if clients pay late</h2>
+                    <div class="dlbl">Safe to spend now</div>
+                    <div class="dbig" data-p="0">¥0</div>
+                    <div class="dbig" data-p="1">¥30,000</div>
+                    <div class="dnote">includes ¥61,000 on Card B not yet billed</div>
+                    <div class="drw" data-p="0"><svg id="rwdA" viewBox="0 0 520 144" role="img" aria-label="Worst-case cash for the next 30 days dips to minus 18,780 yen on Nov 27"></svg></div>
+                    <div class="drw" data-p="1"><svg id="rwdD" viewBox="0 0 520 144" role="img" aria-label="Worst-case cash for the next 30 days stays above zero, lowest 30,000 yen on Nov 27"></svg></div>
+                  </section>
+                  <section class="pn">
+                    <h2>Cards <a href="#" data-go="E">All cards ›</a></h2>
+                    <div class="pr"><div class="n"><a class="u" href="#" data-noop>Card A</a><span class="s">Statement Nov 26</span></div><div class="am">¥58,000<small><span class="cov">Covered ✓</span></small></div></div>
+                    <div class="pr"><div class="n"><a class="u" href="#" data-go="E">Card B</a><span class="s">¥61,000 so far · paid Dec 10</span></div><div class="am">¥61,000<small><span class="cov">Covered ✓</span></small></div></div>
+                    <div class="pr room"><div class="n dlbl">Room on cards</div><div class="am">¥180,550</div></div>
+                  </section>
+                </div>
+                <div class="dcol">
+                  <section class="pn">
+                    <h2 id="tchead">To check · 2</h2>
+                    <div class="pr t3" data-c="h"><div class="n">Hikari Denki<span class="s">Electricity · due Nov 27 · read from your email</span></div><div class="am">¥11,220</div><button class="dbtn sm acc" data-confirm="h">Confirm</button></div>
+                    <div class="pr t3" data-c="m"><div class="n">Minato Fresh Market<span class="s"><a class="u" href="#" data-go="E">Card B</a> · Nov 13 · read from a card email</span></div><div class="am">¥1,400</div><button class="dbtn sm acc" data-confirm="m">Confirm</button></div>
+                    <p class="dnone" id="tcnone" hidden>Nothing to check.</p>
+                  </section>
+                  <section class="pn">
+                    <h2>Coming up <a href="#" data-go="ACT">All activity ›</a></h2>
+                    <div class="pr c3"><span class="dd">Nov 18</span><div class="n">CloudBox Plus</div><div class="am">¥1,980 <span class="ck">✓</span></div></div>
+                    <div class="pr c3"><span class="dd">Nov 20</span><div class="n">Mobaile Tsushin</div><div class="am">¥4,800 <span class="ck">✓</span></div></div>
+                    <div class="pr c3"><span class="dd">Nov 22</span><div class="n"><span class="u">Acme Corp</span> pays<span class="s">Usual date; if late, Dec 3</span></div><div class="am">+$1,200<small>≈¥180,000</small></div></div>
+                    <div class="pr c3"><span class="dd">Nov 25</span><div class="n"><span class="u">Northwind</span> pays<span class="s">Usual; if late, Nov 29</span></div><div class="am">+$800<small>≈¥120,000</small></div></div>
+                    <div class="pr c3"><span class="dd">Nov 27</span><div class="n">Rent<span class="s red" data-p="0">Short by ¥18,780 if clients are late</span></div><div class="am">¥82,000<small data-p="0"><span class="red">short</span></small><small data-p="1"><span class="ck">✓</span></small></div></div>
+                  </section>
+                </div>
+              </div>
+            </div>
+
+            <!-- C: APPROVE (its own page) -->
+            <div class="wrap narrow" data-d="C">
+              <a class="back" href="#" data-go="A">‹ Home</a>
+              <h1 class="dh2">Invoice for Beacon Studio</h1>
+              <div class="doc">
+                <div class="kv"><span>To</span><span><span class="u">Beacon Studio</span></span></div>
+                <div class="kv"><span>For</span><span>Brand refresh, milestone 2</span></div>
+                <div class="kv"><span>Due</span><span>On receipt</span></div>
+                <div class="kv tot"><span>Amount</span><span class="amt">$400<small>≈¥60,000</small></span></div>
+                <div class="kv"><span>Note</span><span class="msg">Hi, milestone 2 of the brand refresh is finished. The invoice is attached, due on receipt. Thank you.</span></div>
+              </div>
+              <p class="out">Beacon usually pays in 2 days. The 27th becomes covered.</p>
+              <div class="arow" style="margin-top:0"><button class="dbtn fill" id="dapprove">Approve and send</button><button class="link">Edit</button></div>
+              <p class="sent" id="dsent" hidden>Sent to Beacon Studio through PayPal. It shows here when it is paid.</p>
+              <p class="fine">You approve, PayPal sends. Nothing goes without this tap.</p>
+            </div>
+
+            <!-- E: CARDS -->
+            <div class="wrap" data-d="E">
+              <h1 class="dh2">Cards</h1>
+              <div class="sum">
+                <div><div class="dlbl">Card B</div><div class="dbig">¥61,000</div><div class="dnote">so far · paid Dec 10 · <span class="cov">Covered ✓</span></div></div>
+                <div><div class="dlbl">Room on this card</div><div class="dbig">¥180,550</div><div class="dnote">before anything else is short</div></div>
+              </div>
+              <div class="tw"><table class="tbl">
+                <thead><tr><th>Date</th><th>Merchant</th><th>Card</th><th>Place</th><th class="r">Amount</th></tr></thead>
+                <tbody>
+                  <tr class="past"><td>Nov 12</td><td>Yamabiko Outdoor</td><td>Card A</td><td>Tokyo</td><td class="r">¥6,400</td></tr>
+                  <tr class="past"><td>Nov 13</td><td>Minato Fresh Market</td><td>Card B</td><td>Tokyo</td><td class="r">¥1,400</td></tr>
+                  <tr><td class="m">Earlier</td><td class="m">Earlier in the cycle</td><td>Card B</td><td class="m">·</td><td class="r">¥26,900</td></tr>
+                  <tr class="grp"><td colspan="5">Taipei, Nov 14–15</td></tr>
+                  <tr><td></td><td>Lantern Bay Hotel</td><td>Card B</td><td>Taipei</td><td class="r">¥21,000</td></tr>
+                  <tr><td></td><td>Airport Rapid Rail</td><td>Card B</td><td>Taipei</td><td class="r">¥1,600</td></tr>
+                  <tr><td></td><td>Ximen Noodle House</td><td>Card B</td><td>Taipei</td><td class="r">¥3,800</td></tr>
+                  <tr><td></td><td>Lotus Lane Night Market</td><td>Card B</td><td>Taipei</td><td class="r">¥1,200</td></tr>
+                  <tr><td></td><td>Riverside Museum</td><td>Card B</td><td>Taipei</td><td class="r">¥600</td></tr>
+                  <tr><td></td><td>Jade Pavilion Souvenirs</td><td>Card B</td><td>Taipei</td><td class="r">¥4,500</td></tr>
+                  <tr class="tot"><td></td><td>Trip total · room after ¥147,850</td><td></td><td></td><td class="r">¥32,700</td></tr>
+                </tbody></table></div>
+            </div>
+
+            <!-- ACTIVITY -->
+            <div class="wrap" data-d="ACT">
+              <h1 class="dh2">Activity</h1>
+              <p class="dsub">Everything read from your email, card emails and PayPal, past and coming up.</p>
+              <div class="tw" style="margin-top:20px"><table class="tbl">
+                <thead><tr><th>Date</th><th>What</th><th>Source</th><th class="r">Amount</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr class="past"><td>Nov 12</td><td>Yamabiko Outdoor · Card A</td><td>Card email</td><td class="r">¥6,400</td><td>Charged</td></tr>
+                  <tr class="past"><td>Nov 13</td><td>Minato Fresh Market · Card B</td><td>Card email</td><td class="r">¥1,400</td><td><span data-stc="m" class="acc">To check</span></td></tr>
+                  <tr data-p="1"><td>Nov 14</td><td>Beacon Studio paid $400</td><td>PayPal</td><td class="r">+¥59,100</td><td><span class="ck">Paid ✓</span></td></tr>
+                  <tr><td>Nov 14</td><td>Hikari Denki, electricity</td><td>Email</td><td class="r">¥11,220</td><td><span data-stc="h" class="acc">To check</span></td></tr>
+                  <tr><td>Nov 15</td><td>Card B closes</td><td>Card email</td><td class="r">¥61,000</td><td>Paid Dec 10</td></tr>
+                  <tr><td>Nov 16</td><td>予定納税 reduction form due</td><td>Email</td><td class="r">¥97,100</td><td>Saves if filed</td></tr>
+                  <tr><td>Nov 18</td><td>CloudBox Plus</td><td>Email</td><td class="r">¥1,980</td><td><span class="cov">Covered ✓</span></td></tr>
+                  <tr><td>Nov 20</td><td>Mobaile Tsushin</td><td>Email</td><td class="r">¥4,800</td><td><span class="cov">Covered ✓</span></td></tr>
+                  <tr><td>Nov 22</td><td>Acme Corp pays $1,200</td><td>PayPal</td><td class="r">+$1,200</td><td>Expected · if late, Dec 3</td></tr>
+                  <tr><td>Nov 25</td><td>Northwind pays $800</td><td>PayPal</td><td class="r">+$800</td><td>Expected · if late, Nov 29</td></tr>
+                  <tr><td>Nov 26</td><td>Card A statement</td><td>Card email</td><td class="r">¥58,000</td><td><span class="cov">Covered ✓</span></td></tr>
+                  <tr><td>Nov 27</td><td>Rent</td><td>Email</td><td class="r">¥82,000</td><td><span data-p="0" class="red">Short by ¥18,780 if late</span><span data-p="1" class="cov">Covered ✓</span></td></tr>
+                  <tr><td>Nov 27</td><td>Hikari Denki</td><td>Email</td><td class="r">¥11,220</td><td><span data-stc="h2" class="m">After confirming</span></td></tr>
+                  <tr><td>Dec 10</td><td>Card B statement</td><td>Card email</td><td class="r">¥61,000</td><td><span class="cov">Covered ✓</span></td></tr>
+                </tbody></table></div>
+            </div>
+          </div>
+
+          <!-- RIGHT PANELS -->
+          <section class="rp" data-d="B" aria-label="Other options">
+            <div class="hd"><h2>Other options</h2><button class="link" data-go="A">Close</button></div>
+            <p class="lede">Short ¥18,780 on the 27th. Cheapest first.</p>
+            <div class="opt">
+              <div><span class="n">Invoice Beacon Studio $400</span><span class="s">¥0 extra · covers it</span><span class="rec">Recommended</span>
+                <div class="go"><button class="dbtn sm acc" data-go="C">Review</button></div></div>
+              <div class="c">¥0</div>
+            </div>
+            <div class="opt dim"><div><span class="n">Nudge Acme</span><span class="s">Too early, not due until Nov 22</span></div><div class="c">¥0</div></div>
+            <div class="opt"><div><span class="n">Bank card loan</span><span class="s">¥18,780 for 6 days at about 4–15% a year · reference rate, to verify</span></div><div class="c">about ¥12–¥46</div></div>
+            <div class="opt"><div><span class="n">Card cash advance</span><span class="s">18% a year + ¥220 fee</span></div><div class="c">about ¥280</div></div>
+            <div class="opt"><div><span class="n">2% early-pay discount to Acme</span></div><div class="c">¥3,600</div></div>
+            <p class="note">Costs are for 6 days until Acme's late case lands. A loan is never recommended while a ¥0 option covers it.</p>
+          </section>
+
+          <section class="rp" data-d="E" aria-label="Card B">
+            <div class="hd"><h2>Card B</h2><button class="link" data-go="A">Close</button></div>
+            <div class="dbig" style="margin-top:8px">¥61,000 <span class="dnote" style="font-family:var(--sans)">so far</span></div>
+            <div style="height:12px"></div>
+            <div class="rkv"><span>Closes</span><span>Tomorrow, Nov 15</span></div>
+            <div class="rkv"><span>Paid</span><span>Dec 10 from bank</span></div>
+            <div class="rkv"><span>Covered</span><span><span class="cov" style="margin:0 6px 0 0">Covered ✓</span>by bank after Card A</span></div>
+            <div class="rkv"><span>Room</span><span>¥180,550 before anything else is short</span></div>
+            <div class="rkv"><span>Taipei trip</span><span>¥32,700 · room after ¥147,850</span></div>
+          </section>
+
+          <section class="rp" data-d="G" aria-label="From a terminal">
+            <div class="hd"><h2>From a terminal</h2><button class="link" data-go="A">Close</button></div>
+            <figure class="term" style="margin-top:14px">
+<pre>$ claude "ask my money assistant: can I spend ¥4,000 tonight?"
+<span class="dim">money-assistant · can_i_spend(amount=4000, currency=JPY)</span>
+Not in cash: Nov 27 is ¥18,780 short if Acme and Northwind pay late.
+On Card B: yes. Paid Dec 10; ¥176,550 of room left after.</pre>
+              <figcaption>Same engine, same answer. Sending still needs your tap.</figcaption>
+            </figure>
+          </section>
+        </div>
+      </div>
+    </div>
+    <p class="cap" id="cap">Desktop is the same column, wider.</p>
+  </div>
+
+  <aside class="side" data-in="G">
+    <figure class="term">
+<pre>$ claude "ask my money assistant: can I spend ¥4,000 tonight?"
+<span class="dim">money-assistant · can_i_spend(amount=4000, currency=JPY)</span>
+Not in cash: Nov 27 is ¥18,780 short if Acme and Northwind pay late.
+On Card B: yes. Paid Dec 10; ¥176,550 of room left after.</pre>
+      <figcaption>Same engine, same answer. Sending still needs your tap.</figcaption>
+    </figure>
+  </aside>
+</div>
+
+<script>
+(function(){
+  var screen=document.getElementById('screen'),phone=document.querySelector('.phone'),D=document.getElementById('dframe');
+  var links=document.querySelectorAll('#states a');
+  var view=window.innerWidth>=1100?'desk':'phone',cur='A',paid=false,flags={h:false,m:false};
+  var stage=document.querySelector('.stage'),mid=document.querySelector('.mid'),cap=document.getElementById('cap'),actli=document.getElementById('actli');
+
+  function isDesk(){return view==='desk'&&window.innerWidth>=700}
+  function fit(){
+    var desk=isDesk();
+    stage.classList.toggle('v-desk',desk);
+    phone.hidden=desk;D.hidden=!desk;actli.hidden=!desk;
+    if(desk){var z=Math.min(1,(document.body.clientWidth-32)/1440);mid.style.zoom=z<1?z:''}else{mid.style.zoom=''}
+    cap.textContent=desk?'Desktop is the same app in a normal web-app shell.':'Desktop is the same column, wider.';
+    document.querySelectorAll('[data-view]').forEach(function(a){a.setAttribute('aria-current',a.getAttribute('data-view')===view?'true':'false')});
+  }
+
+  function showPhone(s){
+    document.querySelectorAll('.phone [data-in],.stage>.side[data-in]').forEach(function(el){
+      el.hidden=el.getAttribute('data-in').split(' ').indexOf(s)===-1;
+    });
+    screen.setAttribute('data-s',s);
+    document.querySelectorAll('.scroll,.sheet').forEach(function(el){el.scrollTop=0});
+  }
+
+  var navMap={A:'home',B:'home',C:'home',D:'home',F:'home',G:'home',E:'cards',ACT:'act'};
+  function showDesk(s){
+    D.querySelectorAll('[data-d],[data-p],[data-c]').forEach(function(el){
+      var ok=true,d=el.getAttribute('data-d'),p=el.getAttribute('data-p'),c=el.getAttribute('data-c');
+      if(d!==null&&d.split(' ').indexOf(s)===-1)ok=false;
+      if(p!==null&&((p==='1')!==paid))ok=false;
+      if(c!==null&&(paid||flags[c]))ok=false;
+      el.hidden=!ok;
+    });
+    var n=paid?0:(flags.h?0:1)+(flags.m?0:1);
+    var b=document.getElementById('badge');b.textContent=n;b.hidden=n===0;
+    document.getElementById('tchead').textContent=n?'To check · '+n:'To check';
+    document.getElementById('tcnone').hidden=n>0;
+    var okH=paid||flags.h,okM=paid||flags.m;
+    D.querySelectorAll('[data-stc]').forEach(function(el){
+      var k=el.getAttribute('data-stc');
+      if(k==='m'){el.textContent=okM?'Confirmed':'To check';el.className=okM?'m':'acc'}
+      if(k==='h'){el.textContent=okH?'Confirmed':'To check';el.className=okH?'m':'acc'}
+      if(k==='h2'){el.textContent=okH?'Confirmed':'After confirming'}
+    });
+    D.querySelectorAll('.ni[data-nav]').forEach(function(a){a.setAttribute('aria-current',a.getAttribute('data-nav')===navMap[s]?'true':'false')});
+    document.getElementById('dpage').classList.toggle('shift',s==='E');
+    var f=s==='F',ask=document.getElementById('ask');
+    ask.classList.toggle('on',f);
+    document.getElementById('askph').hidden=f;document.getElementById('asktx').hidden=!f;
+    document.getElementById('menu').hidden=true;
+    if(s!=='B'&&s!=='F'&&s!=='G')document.getElementById('dpage').scrollTop=0;
+  }
+
+  function show(s){
+    if(s==='ACT'&&!isDesk())s='A';
+    cur=s;fit();
+    if(s==='D')paid=true;else if('ABCFG'.indexOf(s)>-1)paid=false;
+    if(isDesk())showDesk(s);else showPhone(s);
+    links.forEach(function(a){a.setAttribute('aria-current',a.getAttribute('data-go')===s?'true':'false')});
+    try{history.replaceState(null,'','#'+s.toLowerCase())}catch(e){}
+  }
+  window.addEventListener('resize',function(){show(cur)});
+
+  document.addEventListener('click',function(e){
+    var t=e.target.closest('[data-go]');
+    if(t){e.preventDefault();show(t.getAttribute('data-go'));return}
+    var cf=e.target.closest('[data-confirm]');
+    if(cf){flags[cf.getAttribute('data-confirm')]=true;showDesk(cur);return}
+    if(e.target.closest('#addbtn')){var m=document.getElementById('menu');m.hidden=!m.hidden;return}
+    if(!e.target.closest('#addwrap'))document.getElementById('menu').hidden=true;
+    if(e.target.closest('.mi')){document.getElementById('menu').hidden=true}
+    if(e.target.closest('[data-go-mic]')){show('F');return}
+    var n=e.target.closest('[data-noop]'); if(n){e.preventDefault()}
+    var vw=e.target.closest('[data-view]');
+    if(vw){e.preventDefault();view=vw.getAttribute('data-view');show(cur);return}
+    var th=e.target.closest('[data-theme-set]');
+    if(th){e.preventDefault();var v=th.getAttribute('data-theme-set');
+      if(v)document.documentElement.setAttribute('data-theme',v);else document.documentElement.removeAttribute('data-theme')}
+  });
+
+  document.getElementById('howlink').addEventListener('click',function(e){
+    e.preventDefault();var h=document.getElementById('howtext');h.hidden=!h.hidden});
+
+  var need=document.getElementById('need'),line=document.getElementById('doneline');
+  document.getElementById('confirm').addEventListener('click',function(){
+    need.hidden=true;line.hidden=false;line.textContent='Hikari Denki ¥11,220 confirmed. It is counted on Nov 27.'});
+  document.getElementById('notmine').addEventListener('click',function(){
+    need.hidden=true;line.hidden=false;line.textContent='Hikari Denki left out. It is not counted.'});
+  document.getElementById('approve').addEventListener('click',function(){
+    document.getElementById('sentline').hidden=false});
+  document.getElementById('putcard').addEventListener('click',function(){
+    document.getElementById('voicebtns').hidden=true;document.getElementById('logged').hidden=false});
+  document.getElementById('dapprove').addEventListener('click',function(){
+    document.getElementById('dsent').hidden=false});
+  document.getElementById('dput').addEventListener('click',function(){
+    document.getElementById('dvbtns').hidden=true;document.getElementById('dlogged').hidden=false});
+
+  /* runway: stepped worst-case balance, 30 days from Nov 14, drawn to one scale */
+  var Z=100,K=0.26;
+  function draw(id,w,pts,lowDay,lowVal,label,isShort){
+    var X0=8,XW=w-16;
+    function X(d){return X0+d/30*XW}
+    function Y(v){return Z-v*K}
+    var svg=document.getElementById(id),d='M'+X(pts[0][0]).toFixed(1)+' '+Y(pts[0][1]).toFixed(1);
+    for(var i=1;i<pts.length;i++){d+=' H'+X(pts[i][0]).toFixed(1)+' V'+Y(pts[i][1]).toFixed(1)}
+    d+=' H'+X(30).toFixed(1);
+    var h='';
+    h+='<line x1="'+X0+'" x2="'+(X0+XW)+'" y1="'+Z+'" y2="'+Z+'" stroke="var(--rule)" stroke-width="1"/>';
+    h+='<text x="'+X0+'" y="'+(Z-5)+'" style="fill:var(--faint);font-size:10.5px">¥0</text>';
+    if(isShort){
+      h+='<rect x="'+X(13).toFixed(1)+'" y="'+Z+'" width="'+(X(15)-X(13)).toFixed(1)+'" height="'+(Y(lowVal)-Z).toFixed(1)+'" fill="var(--red-wash)"/>';
+    }
+    h+='<path d="'+d+'" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-linejoin="round"/>';
+    if(isShort){
+      h+='<path d="M'+X(13).toFixed(1)+' '+Y(lowVal).toFixed(1)+' H'+X(15).toFixed(1)+'" stroke="var(--red)" stroke-width="2.2" fill="none"/>';
+    }
+    var cx=X(lowDay),cy=Y(lowVal),col=isShort?'var(--red)':'var(--ink)';
+    h+='<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="4" fill="'+col+'" stroke="var(--screen)" stroke-width="1.5"/>';
+    h+='<text class="lo'+(isShort?'':' ok')+'" x="'+cx.toFixed(1)+'" y="'+(Z+(isShort?24:22))+'" text-anchor="middle">'+label+'</text>';
+    [[0,'Nov 14','start'],[13,'Nov 27','middle'],[30,'Dec 14','end']].forEach(function(t){
+      var x=X(t[0]);
+      h+='<line x1="'+x+'" x2="'+x+'" y1="'+(Z+27)+'" y2="'+(Z+31)+'" stroke="var(--faint)"/>';
+      h+='<text x="'+x+'" y="'+(Z+42)+'" text-anchor="'+t[2]+'" style="fill:var(--faint);font-size:11px">'+t[1]+'</text>';
+    });
+    svg.innerHTML=h;
+  }
+  var A=[[0,128],[4,126],[6,121],[12,63],[13,-18.78],[15,101],[19,281],[26,220]];
+  var Dp=[[0,187],[4,185],[6,180],[12,112],[13,30],[15,150],[19,330],[26,269]];
+  draw('rwA',358,A,13,-18.78,'−¥18,780 · Nov 27',true);
+  draw('rwD',358,Dp,13,30,'¥30,000 · Nov 27',false);
+  draw('rwdA',520,A,13,-18.78,'−¥18,780 · Nov 27',true);
+  draw('rwdD',520,Dp,13,30,'¥30,000 · Nov 27',false);
+
+  var h=(location.hash||'').replace('#','').toUpperCase();
+  if(h==='ACT'&&window.innerWidth>=700)view='desk';
+  show(['A','B','C','D','E','F','G','ACT'].indexOf(h)>-1?h:'A');
+})();
+</script>

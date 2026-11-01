@@ -1,0 +1,62 @@
+/* App frame: header on every tab, then the sidebar (wide screens) and the open tab. */
+.app {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  /* clip, not hidden: it rounds the corners without making a scroll container, so the sidebar can stick to the screen. */
+  overflow: clip;
+  min-width: 0;
+}
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+.side {
+  display: none;
+}
+.sideInner {
+  display: contents;
+}
+.content {
+  padding: 20px;
+  min-width: 0;
+  scroll-margin-top: 12px;
+  /* the bottom bar is fixed to the screen: keep the last card clear of it */
+  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+}
+@media (max-width: 520px) {
+  .content {
+    padding: 16px 14px calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+}
+@media (min-width: 980px) {
+  .body {
+    grid-template-columns: 208px minmax(0, 1fr);
+  }
+  .side {
+    display: block;
+    border-right: 1px solid var(--line);
+    background: color-mix(in srgb, var(--surface-2) 45%, var(--surface));
+  }
+  .sideInner {
+    position: sticky;
+    top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 14px;
+  }
+  .content {
+    padding: 22px 24px 28px;
+  }
+}
+.title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

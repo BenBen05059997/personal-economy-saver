@@ -1,0 +1,134 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<title>光電気 電気ご使用量のお知らせ 2026年10月分</title>
+<style>
+@page { size: 210mm 297mm; margin: 0 }
+* { box-sizing: border-box; margin: 0; padding: 0 }
+html, body { width: 794px; height: 1123px; background: #fff; font-family: 'Hiragino Kaku Gothic ProN','Hiragino Sans','ヒラギノ角ゴ ProN','Helvetica Neue',Arial,sans-serif; color: #222; font-size: 12px }
+.page { position: relative; width: 794px; height: 1123px; overflow: hidden; background: #fffefb }
+.band { height: 92px; background: linear-gradient(100deg,#f08a00,#f6b21a); color: #fff; padding: 16px 36px; display: flex; align-items: center; justify-content: space-between }
+.logo { display: flex; align-items: center; gap: 14px }
+.sun { width: 52px; height: 52px }
+.logo b { font-size: 26px; letter-spacing: 3px; display: block }
+.logo small { font-size: 10px; letter-spacing: 1px; opacity: .95 }
+.title { text-align: right }
+.title h1 { font-size: 21px; letter-spacing: 2px }
+.title p { font-size: 11px; margin-top: 4px }
+.stripe { height: 5px; background: #1b4f8a }
+.wrap { padding: 20px 36px 0 }
+.row { display: flex; gap: 20px }
+.cust { flex: 1.15; border: 1px solid #999; padding: 12px 14px; line-height: 1.7 }
+.cust .zip { font-size: 11px; color: #555 }
+.cust .nm { font-size: 18px; font-weight: 600; margin: 4px 0 }
+.cust dl { display: grid; grid-template-columns: 92px 1fr; font-size: 11px; margin-top: 8px; border-top: 1px dotted #aaa; padding-top: 6px }
+.cust dt { color: #666 }
+.amt { flex: 1; border: 3px solid #1b4f8a; background: #fff }
+.amt .hd { background: #1b4f8a; color: #fff; padding: 5px 12px; font-size: 12px; letter-spacing: 2px }
+.amt .big { padding: 10px 12px 2px; text-align: right; font-size: 40px; font-weight: 700; color: #111 }
+.amt .big small { font-size: 14px; font-weight: 400 }
+.amt .tax { text-align: right; font-size: 11px; padding: 0 12px 8px; color: #555 }
+.amt .due { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1b4f8a; padding: 8px 12px; background: #fff4d6 }
+.amt .due span { font-size: 11px }
+.amt .due b { font-size: 18px; color: #b3260e }
+.meta { margin-top: 12px; display: grid; grid-template-columns: 1.6fr 1fr 1fr; border: 1px solid #999 }
+.meta div { padding: 7px 12px; border-right: 1px solid #ccc }
+.meta div:last-child { border-right: 0 }
+.meta small { display: block; font-size: 10px; color: #666 }
+.meta b { font-size: 13px }
+h2 { font-size: 13px; margin: 12px 0 5px; padding-left: 8px; border-left: 5px solid #f08a00 }
+table { width: 100%; border-collapse: collapse }
+th, td { border: 1px solid #bbb; padding: 4px 10px; font-size: 12px; font-weight: 400 }
+th { background: #f3efe6; font-weight: 600; text-align: left }
+td.r, th.r { text-align: right }
+td.calc { color: #555; font-size: 11px }
+tr.sum td { background: #fff4d6; font-weight: 700; font-size: 13px }
+.usage { display: flex; gap: 20px; align-items: stretch }
+.usage table { flex: 1.2 }
+.chart { flex: 1; border: 1px solid #bbb; padding: 4px 10px; display: flex; align-items: flex-end; justify-content: space-around; background: #fff }
+.bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; width: 38px }
+.bar i { display: block; width: 22px; background: #b9c9de }
+.bar.cur i { background: #f08a00 }
+.bar .v { font-size: 9px; color: #444 }
+.bar .m { font-size: 10px; color: #444 }
+.note { font-size: 10px; color: #555; margin-top: 6px; line-height: 1.6 }
+.cut { position: absolute; left: 0; right: 0; top: 926px; border-top: 2px dashed #888; }
+.cut span { position: absolute; left: 36px; top: -9px; background: #fffefb; padding: 0 8px; font-size: 10px; color: #666 }
+.slip { position: absolute; left: 36px; right: 36px; top: 940px; height: 142px; border: 1px solid #999; background: #fff; padding: 8px 16px }
+.slip .t { display: flex; justify-content: space-between; font-size: 11px; color: #555 }
+.slip .t b { font-size: 15px; color: #111; letter-spacing: 1px }
+.slip .cols { display: flex; gap: 22px; margin-top: 6px; align-items: flex-end }
+.slip .k { font-size: 10px; color: #666 }
+.slip .vv { font-size: 15px; font-weight: 600 }
+.slip .bc { margin-top: 8px }
+.slip .num { font-family: 'Menlo','Courier New',monospace; font-size: 11px; letter-spacing: 2px; margin-top: 4px }
+.foot { position: absolute; bottom: 9px; left: 36px; right: 36px; text-align: center; font-size: 10px; color: #8a8a8a }
+.stamp { position: absolute; right: 48px; top: 112px; transform: rotate(8deg); border: 2px solid rgba(179,38,14,.6); color: rgba(179,38,14,.7); padding: 2px 8px; font-size: 11px; font-weight: 700; letter-spacing: 1px }
+</style></head><body><div class="page">
+<div class="band">
+  <div class="logo">
+    <svg class="sun" viewBox="0 0 52 52"><circle cx="26" cy="26" r="11" fill="#fff"/>
+    <rect x="24.5" y="2" width="3" height="9" rx="1.5" fill="#fff" transform="rotate(0 26 26)"/><rect x="24.5" y="2" width="3" height="9" rx="1.5" fill="#fff" transform="rotate(45 26 26)"/><rect x="24.5" y="2" width="3" height="9" rx="1.5" fill="#fff" transform="rotate(90 26 26)"/><rect x="24.5" y="2" width="3" height="9" rx="1.5" fill="#fff" transform="rotate(135 26 26)"/><rect x="24.5" y="2" width="3" height="9" rx="1.5" fill="#fff" transform="rotate(180 26 26)"/><rect x="24.5" y="2" width="3" height="9" rx="1.5" fill="#fff" transform="rotate(225 26 26)"/><rect x="24.5" y="2" width="3" height="9" rx="1.5" fill="#fff" transform="rotate(270 26 26)"/><rect x="24.5" y="2" width="3" height="9" rx="1.5" fill="#fff" transform="rotate(315 26 26)"/></svg>
+    <div><b>光電気</b><small>HIKARI DENKI CO., LTD.（架空の会社）</small></div>
+  </div>
+  <div class="title"><h1>電気ご使用量のお知らせ</h1><p>2026年10月分　ご請求書</p></div>
+</div>
+<div class="stripe"></div>
+<div class="wrap">
+  <div class="row">
+    <div class="cust">
+      <div class="zip">〒000-0000</div>
+      <div>東京都架空区サンプル町1丁目2番3号</div>
+      <div>サンプルハイツ305号室</div>
+      <div class="nm">サンプル　ベン　様</div>
+      <dl>
+        <dt>お客様番号</dt><dd>99-0000-1234</dd>
+        <dt>ご契約種別</dt><dd>従量電灯B（40A）</dd>
+        <dt>供給地点</dt><dd>東京都架空区サンプル町1-2-3</dd>
+        <dt>お問い合わせ</dt><dd>0120-000-000（架空）</dd>
+      </dl>
+    </div>
+    <div class="amt">
+      <div class="hd">ご請求金額（税込）</div>
+      <div class="big">¥11,220<small> 円</small></div>
+      <div class="tax">（うち消費税等 1,020円）　前月ご請求額 ¥10,020</div>
+      <div class="due"><span>支払期日</span><b>2026年11月27日（金）</b></div>
+    </div>
+  </div>
+  <div class="meta">
+    <div><small>ご使用期間</small><b>2026年9月29日〜10月29日（31日間）</b></div>
+    <div><small>検針日</small><b>2026年10月29日</b></div>
+    <div><small>請求書発行日</small><b>2026年11月1日</b></div>
+  </div>
+  <h2>ご使用量</h2>
+  <div class="usage">
+    <table>
+      <tr><th>区分</th><th class="r">ご使用量</th><th class="r">ご請求額（税込）</th></tr>
+      <tr><td>今回（10月分）</td><td class="r"><b>412kWh</b></td><td class="r"><b>11,220円</b></td></tr>
+      <tr><td>前月（9月分）</td><td class="r">371kWh</td><td class="r">10,020円</td></tr>
+      <tr><td>前年同月</td><td class="r">389kWh</td><td class="r">9,480円</td></tr>
+    </table>
+    <div class="chart"><div class="bar"><span class="v">318</span><i style="height:71px"></i><span class="m">5月</span></div><div class="bar"><span class="v">336</span><i style="height:75px"></i><span class="m">6月</span></div><div class="bar"><span class="v">360</span><i style="height:80px"></i><span class="m">7月</span></div><div class="bar"><span class="v">395</span><i style="height:88px"></i><span class="m">8月</span></div><div class="bar"><span class="v">371</span><i style="height:82px"></i><span class="m">9月</span></div><div class="bar cur"><span class="v">412</span><i style="height:92px"></i><span class="m">10月</span></div></div>
+  </div>
+  <h2>ご請求内訳（税込）</h2>
+  <table>
+    <tr><th>項目</th><th>計算内容</th><th class="r">金額</th></tr>
+    <tr><td>基本料金（40A）</td><td class="calc"></td><td class="r">1,247円</td></tr><tr><td>電力量料金 第1段階</td><td class="calc">120kWh × 15.00円</td><td class="r">1,800円</td></tr><tr><td>電力量料金 第2段階</td><td class="calc">180kWh × 19.01円</td><td class="r">3,422円</td></tr><tr><td>電力量料金 第3段階</td><td class="calc">112kWh × 23.70円</td><td class="r">2,654円</td></tr><tr><td>燃料費調整額</td><td class="calc">412kWh × 1.60円</td><td class="r">659円</td></tr><tr><td>再エネ賦課金</td><td class="calc">412kWh × 3.49円</td><td class="r">1,438円</td></tr>
+    <tr class="sum"><td colspan="2">ご請求金額　合計（税込）</td><td class="r">11,220円</td></tr>
+  </table>
+  <p class="note">※金額はすべて消費税等10%を含みます。※燃料費調整額・再エネ賦課金は国が定める単価により毎月見直されます。<br>
+  ※お支払いは下の払込票をコンビニエンスストアへ、またはマイページ（https://mypage.hikari-denki.example）から。</p>
+</div>
+<div class="cut"><span>✂ ここから切り取ってください　コンビニエンスストア払込票</span></div>
+<div class="slip">
+  <div class="t"><span>光電気株式会社（架空）　収納代行　払込票</span><b>¥11,220</b></div>
+  <div class="cols">
+    <div><div class="k">お客様番号</div><div class="vv">99-0000-1234</div></div>
+    <div><div class="k">ご請求月</div><div class="vv">2026年10月分</div></div>
+    <div><div class="k">支払期日</div><div class="vv" style="color:#b3260e">2026年11月27日</div></div>
+    <div><div class="k">払込金額（税込）</div><div class="vv">11,220円</div></div>
+  </div>
+  <div class="bc"><svg xmlns="http://www.w3.org/2000/svg" width="640" height="38" viewBox="0 0 640 38"><rect x="7" y="0" width="1" height="38" fill="#111"/><rect x="26" y="0" width="1" height="38" fill="#111"/><rect x="28" y="0" width="4" height="38" fill="#111"/><rect x="40" y="0" width="1" height="38" fill="#111"/><rect x="49" y="0" width="2" height="38" fill="#111"/><rect x="52" y="0" width="2" height="38" fill="#111"/><rect x="56" y="0" width="4" height="38" fill="#111"/><rect x="61" y="0" width="2" height="38" fill="#111"/><rect x="64" y="0" width="2" height="38" fill="#111"/><rect x="69" y="0" width="2" height="38" fill="#111"/><rect x="83" y="0" width="1" height="38" fill="#111"/><rect x="85" y="0" width="1" height="38" fill="#111"/><rect x="87" y="0" width="1" height="38" fill="#111"/><rect x="90" y="0" width="2" height="38" fill="#111"/><rect x="95" y="0" width="4" height="38" fill="#111"/><rect x="104" y="0" width="2" height="38" fill="#111"/><rect x="108" y="0" width="1" height="38" fill="#111"/><rect x="111" y="0" width="2" height="38" fill="#111"/><rect x="116" y="0" width="1" height="38" fill="#111"/><rect x="127" y="0" width="1" height="38" fill="#111"/><rect x="129" y="0" width="3" height="38" fill="#111"/><rect x="133" y="0" width="1" height="38" fill="#111"/><rect x="135" y="0" width="4" height="38" fill="#111"/><rect x="142" y="0" width="4" height="38" fill="#111"/><rect x="162" y="0" width="3" height="38" fill="#111"/><rect x="168" y="0" width="3" height="38" fill="#111"/><rect x="173" y="0" width="2" height="38" fill="#111"/><rect x="178" y="0" width="2" height="38" fill="#111"/><rect x="181" y="0" width="1" height="38" fill="#111"/><rect x="195" y="0" width="3" height="38" fill="#111"/><rect x="200" y="0" width="1" height="38" fill="#111"/><rect x="206" y="0" width="2" height="38" fill="#111"/><rect x="218" y="0" width="2" height="38" fill="#111"/><rect x="228" y="0" width="2" height="38" fill="#111"/><rect x="243" y="0" width="3" height="38" fill="#111"/><rect x="247" y="0" width="2" height="38" fill="#111"/><rect x="254" y="0" width="3" height="38" fill="#111"/><rect x="259" y="0" width="1" height="38" fill="#111"/><rect x="263" y="0" width="4" height="38" fill="#111"/><rect x="270" y="0" width="4" height="38" fill="#111"/><rect x="276" y="0" width="3" height="38" fill="#111"/><rect x="282" y="0" width="4" height="38" fill="#111"/><rect x="289" y="0" width="1" height="38" fill="#111"/><rect x="291" y="0" width="1" height="38" fill="#111"/><rect x="294" y="0" width="2" height="38" fill="#111"/><rect x="302" y="0" width="1" height="38" fill="#111"/><rect x="309" y="0" width="1" height="38" fill="#111"/><rect x="318" y="0" width="4" height="38" fill="#111"/><rect x="324" y="0" width="1" height="38" fill="#111"/><rect x="327" y="0" width="1" height="38" fill="#111"/><rect x="331" y="0" width="2" height="38" fill="#111"/><rect x="336" y="0" width="3" height="38" fill="#111"/><rect x="354" y="0" width="1" height="38" fill="#111"/><rect x="356" y="0" width="2" height="38" fill="#111"/><rect x="360" y="0" width="1" height="38" fill="#111"/><rect x="384" y="0" width="1" height="38" fill="#111"/><rect x="388" y="0" width="4" height="38" fill="#111"/><rect x="394" y="0" width="2" height="38" fill="#111"/><rect x="397" y="0" width="4" height="38" fill="#111"/><rect x="405" y="0" width="4" height="38" fill="#111"/><rect x="412" y="0" width="2" height="38" fill="#111"/><rect x="417" y="0" width="2" height="38" fill="#111"/><rect x="431" y="0" width="1" height="38" fill="#111"/><rect x="435" y="0" width="1" height="38" fill="#111"/><rect x="439" y="0" width="3" height="38" fill="#111"/><rect x="445" y="0" width="2" height="38" fill="#111"/><rect x="455" y="0" width="2" height="38" fill="#111"/><rect x="465" y="0" width="3" height="38" fill="#111"/><rect x="473" y="0" width="3" height="38" fill="#111"/><rect x="477" y="0" width="4" height="38" fill="#111"/><rect x="483" y="0" width="1" height="38" fill="#111"/><rect x="485" y="0" width="4" height="38" fill="#111"/><rect x="492" y="0" width="2" height="38" fill="#111"/><rect x="503" y="0" width="4" height="38" fill="#111"/><rect x="508" y="0" width="2" height="38" fill="#111"/><rect x="513" y="0" width="1" height="38" fill="#111"/><rect x="515" y="0" width="1" height="38" fill="#111"/><rect x="524" y="0" width="2" height="38" fill="#111"/><rect x="528" y="0" width="3" height="38" fill="#111"/><rect x="534" y="0" width="2" height="38" fill="#111"/><rect x="541" y="0" width="2" height="38" fill="#111"/><rect x="546" y="0" width="2" height="38" fill="#111"/><rect x="554" y="0" width="4" height="38" fill="#111"/><rect x="567" y="0" width="4" height="38" fill="#111"/><rect x="589" y="0" width="3" height="38" fill="#111"/><rect x="594" y="0" width="1" height="38" fill="#111"/><rect x="603" y="0" width="2" height="38" fill="#111"/><rect x="607" y="0" width="4" height="38" fill="#111"/><rect x="616" y="0" width="1" height="38" fill="#111"/><rect x="623" y="0" width="1" height="38" fill="#111"/><rect x="631" y="0" width="3" height="38" fill="#111"/><rect x="635" y="0" width="4" height="38" fill="#111"/></svg>
+  <div class="num">99 0000 1234 2026 1127 0011220 000 SAMPLE</div></div>
+</div>
+<div class="stamp">SAMPLE　架空</div>
+<div class="foot">この請求書はハッカソンのデモ用に作成した架空のものです。実在の企業・個人とは関係ありません。</div>
+</div></body></html>

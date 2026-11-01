@@ -1,0 +1,1028 @@
+[
+  {
+    "id": "us-ptc-cliff",
+    "region": "US",
+    "title": "Keep your health-insurance credit under the 400% line",
+    "localName": "Premium Tax Credit (PTC) and the 400% FPL cliff",
+    "group": "insurance_benefits",
+    "tier": "insider",
+    "knownBy": "CPAs, enrolment navigators and r/personalfinance regulars",
+    "moments": [
+      "deadline_near",
+      "life_event",
+      "windfall"
+    ],
+    "question": "Do I make too much to get any help paying for my marketplace plan?",
+    "fact": "For 2026 coverage a single person loses the credit completely above $62,600 of income (MAGI), which is 400% of the $15,650 poverty line. For 2027 coverage the line is $63,840 and the top rate rises from 9.96% to 10.22%. There is no phase-out, and pre-tax Solo 401(k) or HSA money counts against MAGI, so a few thousand dollars can decide whether you keep the credit.",
+    "valueText": "Credit at stake = benchmark silver premium minus 9.96% of your MAGI (2026 coverage; 10.22% for 2027), while MAGI is under the line. MAGI = net profit minus half of self-employment tax minus pre-tax retirement. The benchmark premium is an example until you look up your own.",
+    "timeToMoney": "monthly, as a lower premium (or at filing)",
+    "risk": "low",
+    "effort": "evening",
+    "deadline": {
+      "label": "Last day to pick a 2027 plan for cover starting Jan 1 (HealthCare.gov; open enrolment runs to Jan 15, 2027)",
+      "date": "2026-12-15",
+      "remindDaysBefore": 45
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Estimate next year's net profit, then subtract half of your self-employment tax and any pre-tax retirement or HSA money. That is your MAGI.",
+      "Look up the benchmark silver premium for your ZIP and age on HealthCare.gov or your state exchange.",
+      "Compare MAGI with the 400% line: $62,600 for a single person on 2026 coverage, $63,840 on 2027 coverage.",
+      "Enter your income estimate at enrolment, and update it mid-year if a big client changes it.",
+      "If you finish 2026 close to the line, check how far a pre-tax contribution would move you before Dec 31 (a brand-new Solo 401(k) may still take 2026 deferrals until Apr 15, 2027)."
+    ],
+    "traps": [
+      "From tax year 2026 an excess advance credit has to be repaid in full; the repayment caps are gone (IRS). One big December invoice can cost the whole credit.",
+      "The enhanced subsidies expired at the end of 2025 and were not restored for 2027 (KFF, Oct 30, 2026; the IRS's 2027 table is the original-law table with a 10.22% top rate).",
+      "The self-employed health-insurance deduction and the credit depend on each other (IRS Pub 974, Form 7206). Deduct the net premium, not the full premium.",
+      "Fake 'ACA' brokers sell short-term plans that do not qualify for the credit.",
+      "HealthCare.gov enrolment for 2027 runs Nov 1, 2026 to Jan 15, 2027; Dec 15 only decides whether cover starts Jan 1 or Feb 1. State-run exchanges may use different dates."
+    ],
+    "exitNote": "At filing the credit is reconciled against your real income. Any excess advance credit is repaid in full, with no cap from tax year 2026.",
+    "taxNote": "Pre-tax Solo 401(k), SEP and HSA money lowers MAGI. Roth money does not.",
+    "maySay": "Show the user's estimated MAGI, the distance to the 400% line and the credit at stake, using the official benchmark premium. Say it is information.",
+    "mustNotSay": "Do not choose or recommend a plan, insurer or broker for the user (state insurance licence). Do not promise a credit amount.",
+    "sources": [
+      {
+        "title": "IRS Rev. Proc. 2025-25: 2026 applicable percentage table (9.96% at 300% to 400% FPL)",
+        "url": "https://www.irs.gov/pub/irs-drop/rp-25-25.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS Rev. Proc. 2026-26: 2027 applicable percentage table (10.22% top rate)",
+        "url": "https://www.irs.gov/pub/irs-drop/rp-26-26.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS: questions and answers on the Premium Tax Credit (no repayment cap after 2025; prior-year poverty line)",
+        "url": "https://www.irs.gov/affordable-care-act/individuals-and-families/questions-and-answers-on-the-premium-tax-credit",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "HHS ASPE poverty guidelines ($15,960 for 2026; $15,650 for 2025, used for 2026 coverage)",
+        "url": "https://aspe.hhs.gov/topics/poverty-economic-mobility/poverty-guidelines",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "HealthCare.gov: dates and deadlines (open enrolment Nov 1 to Jan 15; Dec 15 for Jan 1 cover)",
+        "url": "https://www.healthcare.gov/quick-guide/dates-and-deadlines/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "KFF: 9 things to watch for the 2027 ACA open enrolment period (Oct 30, 2026)",
+        "url": "https://www.kff.org/affordable-care-act/9-things-to-watch-for-the-2027-aca-open-enrollment-period/",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true,
+    "valueKind": "protected",
+    "pinAt": []
+  },
+  {
+    "id": "us-solo-401k-or-sep",
+    "region": "US",
+    "title": "Open a Solo 401(k) or SEP, and pick Roth or pre-tax",
+    "localName": "Solo 401(k) vs SEP-IRA",
+    "group": "tax",
+    "tier": "insider",
+    "knownBy": "CPAs and r/personalfinance regulars (barely marketed to freelancers)",
+    "moments": [
+      "client_paid",
+      "surplus_month",
+      "windfall",
+      "deadline_near"
+    ],
+    "question": "I'm self-employed. Where does my retirement money go, and is it Roth or traditional?",
+    "fact": "A freelancer can put in far more than the $7,500 IRA limit: the 2026 Solo 401(k) takes $24,500 as 'employee' plus about 20% of net profit as 'employer', up to $72,000. At a 12% bracket the tax saved by pre-tax money is small, which is why Roth is worth weighing.",
+    "valueText": "Tax saved = pre-tax contribution x your marginal rate x 0.8 (the QBI deduction shrinks with it). The example contribution is $10,000; your room is $24,500 plus about 20% of net profit after half of self-employment tax.",
+    "timeToMoney": "at filing; the money is locked until 59 and a half, with exceptions",
+    "risk": "market",
+    "effort": "evening",
+    "deadline": {
+      "label": "Safest date to open the plan and elect deferrals (a brand-new Solo 401(k) may still take 2026 deferrals until Apr 15, 2027, IRS Pub 560; a SEP can be opened up to the return due date)",
+      "date": "2026-12-31",
+      "remindDaysBefore": 60
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Work out your room: $24,500 as employee plus about 20% of net profit after half of self-employment tax. A SEP allows only the 20% part.",
+      "Decide Roth or pre-tax for each dollar. Pre-tax saves tax now and lowers MAGI. Roth saves tax on the growth later.",
+      "Open the plan with a provider you choose, ideally before Dec 31, and set the deferral election.",
+      "Pay contributions from the savings pot, not the buffer or the tax set-aside.",
+      "File Form 5500-EZ once plan assets reach $250,000."
+    ],
+    "traps": [
+      "Contributions do not reduce self-employment tax.",
+      "The $24,500 employee limit is shared with any 401(k) from a W-2 job.",
+      "The 20% is calculated on profit after half of self-employment tax, not on revenue.",
+      "Provider fees and investment costs vary.",
+      "Timing differs by plan. A brand-new Solo 401(k) with you as the only participant can still take that year's deferrals until the return due date without extensions (Pub 560). Employer contributions and a SEP run to the return due date with extensions. A plan that already exists needs the deferral election by Dec 31."
+    ],
+    "exitNote": "Money is locked until 59 and a half, with exceptions. Roth contributions to an IRA can be withdrawn at any time; check the plan's own rules for Solo 401(k) Roth money.",
+    "taxNote": "Pre-tax contributions lower income tax and MAGI (see the health-insurance credit). Roth contributions give no deduction now.",
+    "maySay": "Show the user's contribution room and the tax effect of pre-tax against Roth on their own numbers, with the IRS limits. Say it is education.",
+    "mustNotSay": "Do not name a provider, fund or allocation, or say which option the user should pick (SEC and state adviser registration for personalised securities advice).",
+    "sources": [
+      {
+        "title": "IRS IR-2025-111: 401(k) limit $24,500 and IRA limit $7,500 for 2026",
+        "url": "https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS: 401(k) and profit-sharing plan limits ($24,500 deferral; $72,000 overall in 2026)",
+        "url": "https://www.irs.gov/retirement-plans/plan-participant-employee/retirement-topics-401k-and-profit-sharing-plan-contribution-limits",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS: SEP contribution limits ($72,000 for 2026)",
+        "url": "https://www.irs.gov/retirement-plans/plan-participant-employee/sep-contribution-limits-including-grandfathered-sarseps",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS: one-participant 401(k) plans (self-employed compensation; Form 5500-EZ at $250,000)",
+        "url": "https://www.irs.gov/retirement-plans/one-participant-401k-plans",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS Publication 560: set-up deadline for a sole proprietor's new 401(k); SEP and plan contribution dates",
+        "url": "https://www.irs.gov/publications/p560",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "us-qbi-deduction",
+    "region": "US",
+    "title": "Check you are getting the 20% business-income deduction",
+    "localName": "Qualified Business Income deduction (Section 199A)",
+    "group": "tax",
+    "tier": "insider",
+    "knownBy": "CPAs and tax-software users who file Schedule C correctly",
+    "moments": [
+      "life_event",
+      "deadline_near"
+    ],
+    "question": "Is there anything I can deduct besides my expenses?",
+    "fact": "You can deduct up to 20% of your business profit on top of the standard deduction. The IRS says the rule is now permanent, and from 2026 there is a $400 minimum if you have at least $1,000 of qualified income from a business you actively run. It only works if the income is filed as Schedule C business income, not 'other income'.",
+    "valueText": "Deduction = the smaller of 20% of qualified business income (profit minus half of SE tax) or 20% of taxable income before the deduction. Saving = deduction x your marginal rate.",
+    "timeToMoney": "at filing (or through lower estimated payments)",
+    "risk": "none",
+    "effort": "minutes",
+    "deadline": {
+      "label": "Return due; file the income as Schedule C",
+      "monthDay": "04-15",
+      "remindDaysBefore": 120
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Make sure all freelance income is reported on Schedule C, not as other income.",
+      "In tax software, check that Form 8995 appears with your return.",
+      "Remember the deduction cuts income tax only, not self-employment tax.",
+      "Re-run the estimate after any retirement contribution: it lowers qualified income too."
+    ],
+    "traps": [
+      "Income reported as 'other income' loses the deduction.",
+      "It does not reduce AGI, so it does not help the health-insurance credit or the Saver's Credit.",
+      "The $400 minimum needs at least $1,000 of qualified income from an active business (Rev. Proc. 2025-32); both amounts are indexed to inflation after 2026.",
+      "For clients abroad: the deduction covers income from a US trade or business. Work done while living in the US generally qualifies; this is not confirmed on an IRS page, so verify."
+    ],
+    "taxNote": "Lowers income tax only. Self-employment tax is unchanged.",
+    "maySay": "Explain the deduction and estimate it with the user's own profit. That is education.",
+    "mustNotSay": "Do not tell the user how to classify their income on a return, and do not prepare the return for pay without a PTIN.",
+    "sources": [
+      {
+        "title": "IRS Publication 505 (2026), What's New: QBI deduction permanent, $400 minimum",
+        "url": "https://www.irs.gov/publications/p505",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS Rev. Proc. 2025-32 (IRB 2025-45): section 199A(i) minimum deduction of $400 and $1,000 test",
+        "url": "https://www.irs.gov/irb/2025-45_IRB",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false
+  },
+  {
+    "id": "us-se-health-insurance-deduction",
+    "region": "US",
+    "title": "Deduct your own health insurance premiums",
+    "localName": "Self-employed health insurance deduction (Form 7206)",
+    "group": "tax",
+    "tier": "insider",
+    "knownBy": "CPAs and self-employed tax guides",
+    "moments": [
+      "deadline_near",
+      "life_event"
+    ],
+    "question": "Can I write off my health insurance if I pay for it myself?",
+    "fact": "Self-employed people deduct health, dental and qualifying long-term-care premiums above the line, without itemising. If you also get the marketplace credit, you deduct the premium net of the credit, not the full premium.",
+    "valueText": "Saving = premiums paid (net of any credit) x your marginal rate x 0.8. The $5,000 premium is the research's example; use your own.",
+    "timeToMoney": "at filing",
+    "risk": "none",
+    "effort": "minutes",
+    "deadline": {
+      "label": "Return due (Form 7206)",
+      "monthDay": "04-15",
+      "remindDaysBefore": 120
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Add up the premiums you paid for yourself, a spouse and children under 27 this year.",
+      "Subtract any advance premium credit you received.",
+      "Check you were not eligible for an employer plan (yours or a spouse's) in those months.",
+      "Enter the net amount on Form 7206 or in your tax software."
+    ],
+    "traps": [
+      "The deduction is capped at business profit.",
+      "It cannot be taken for months you could have joined a spouse's employer plan.",
+      "With the marketplace credit the calculation is circular (IRS Pub 974). Software handles it; a paper return does not.",
+      "People who deduct the full premium instead of the net double-count."
+    ],
+    "taxNote": "Lowers income tax and AGI, not self-employment tax.",
+    "maySay": "Explain the deduction and compute it from the premiums the user enters.",
+    "mustNotSay": "Do not tell the user which months qualify, or fill in their return (tax preparation for pay needs a PTIN).",
+    "sources": [
+      {
+        "title": "IRS: About Form 7206",
+        "url": "https://www.irs.gov/forms-pubs/about-form-7206",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS: Instructions for Form 7206 (employer-plan months, children under 27, Pub 974 for the credit)",
+        "url": "https://www.irs.gov/instructions/i7206",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Kiplinger: most overlooked deductions for the self-employed",
+        "url": "https://www.kiplinger.com/taxes/income-tax/603972/most-overlooked-tax-deductions-and-credits-self-employed",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "us-hsa-bronze-plan",
+    "region": "US",
+    "title": "Use an HSA now that bronze marketplace plans qualify",
+    "localName": "Health Savings Account (HSA)",
+    "group": "insurance_benefits",
+    "tier": "insider",
+    "knownBy": "CPAs, benefits navigators and r/personalfinance regulars",
+    "moments": [
+      "surplus_month",
+      "deadline_near",
+      "windfall"
+    ],
+    "question": "Is an HSA only for people with an employer plan?",
+    "fact": "From Jan 1, 2026, bronze and catastrophic marketplace plans count as HSA-eligible. A self-employed person can put in $4,400 (2026, self-only; $4,500 for 2027), deduct it, and let it grow tax-free for medical costs. It also lowers the income used for the health-insurance credit.",
+    "valueText": "Saving = contribution x your marginal rate x 0.8. The 2026 self-only limit is $4,400; the saving applies only if your plan is HSA-eligible.",
+    "timeToMoney": "at filing, then years",
+    "risk": "low",
+    "effort": "evening",
+    "deadline": {
+      "label": "2026 contributions allowed until",
+      "date": "2027-04-15",
+      "remindDaysBefore": 120
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check whether your plan is bronze or catastrophic (on the exchange, or the same plan bought off it) or another high-deductible plan (2026: deductible at least $1,700 and out-of-pocket maximum no more than $8,500, self-only).",
+      "Confirm you have no other disqualifying coverage.",
+      "Open an HSA with a provider you choose and contribute up to $4,400 for 2026 (plus $1,000 at 55 or older), by Apr 15, 2027.",
+      "Keep receipts for medical costs you pay out of pocket."
+    ],
+    "traps": [
+      "Self-employed people contribute directly, so there is no payroll tax saving.",
+      "Non-medical withdrawals before 65 cost income tax plus 20%.",
+      "Catastrophic plans are open only to people under 30 or with a hardship exemption (IRS Notice 2026-5); from age 30 on you need the exemption.",
+      "The limit follows the months you are HSA-eligible, unless the IRS last-month rule applies (Pub 969); a plan that was not bronze or high-deductible before 2026 does not count for earlier months.",
+      "California and New Jersey tax HSA contributions at state level.",
+      "Some HSA providers charge fees or pay almost nothing on cash."
+    ],
+    "taxNote": "Contributions are deductible, growth is tax-free, and withdrawals for medical costs are tax-free.",
+    "maySay": "Explain eligibility and compute the tax effect on the user's own numbers. Say it is education.",
+    "mustNotSay": "Do not recommend an HSA provider or investments inside it, and do not tell the user their plan qualifies (state insurance licence; check the plan documents).",
+    "sources": [
+      {
+        "title": "IRS Rev. Proc. 2025-19 (IRB 2025-21): 2026 HSA limits $4,400 / $8,750; HDHP $1,700 deductible, $8,500 out-of-pocket",
+        "url": "https://www.irs.gov/irb/2025-21_IRB",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS Rev. Proc. 2026-24: 2027 HSA limits $4,500 / $9,000",
+        "url": "https://www.irs.gov/pub/irs-drop/rp-26-24.pdf",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS Notice 2026-5 (IRB 2026-2): bronze and catastrophic plans treated as HDHPs from Jan 1, 2026",
+        "url": "https://www.irs.gov/irb/2026-02_IRB",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS Publication 969: HSA contribution deadline and 20% additional tax",
+        "url": "https://www.irs.gov/publications/p969",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "us-1099k-no-form-still-taxed",
+    "region": "US",
+    "title": "No 1099-K from PayPal does not mean no tax",
+    "localName": "Form 1099-K and backup withholding",
+    "group": "get_paid_better",
+    "tier": "insider",
+    "knownBy": "CPAs and r/tax regulars",
+    "moments": [
+      "client_paid",
+      "life_event"
+    ],
+    "question": "PayPal says it won't send me a 1099. Do I still report this?",
+    "fact": "PayPal files a 1099-K only above $20,000 and more than 200 transactions, so many freelancers get no form at all. All the income is taxable either way, and if PayPal does not have a correct tax ID it can hold back 24% of payments (and then must send a 1099-K whatever the total).",
+    "valueText": "Cost of a missing tax ID = 24% of each payment held back until you file. The value shown is the interest forgone on that held cash at 4.0% until the April deadline.",
+    "timeToMoney": "immediate",
+    "risk": "none",
+    "effort": "minutes",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check that PayPal's tax information page has your correct SSN or EIN.",
+      "Keep a running total of what clients pay you, whether or not a form arrives.",
+      "If you get a 1099-K, reconcile it on Schedule C. It shows gross amounts, including fees and refunds.",
+      "Give a W-9 to US clients who ask for one; a free EIN keeps your SSN off those forms."
+    ],
+    "traps": [
+      "Do not receive business income as 'friends and family'. It is still taxable and breaks PayPal's terms.",
+      "Some states set lower 1099-K thresholds: PayPal lists $600 for Maryland, Massachusetts, Vermont and Virginia, and over $1,000 with four payments for Illinois. Texas is not on the list.",
+      "Direct-pay clients issue a 1099-NEC only from $2,000 (2026 payments), also not a limit on what is taxable.",
+      "Older articles and some pages still show the $600 federal threshold; the 2025 law restored $20,000 and 200 transactions, and PayPal's page now says so."
+    ],
+    "taxNote": "All business income is taxable whether or not a form is issued.",
+    "maySay": "Explain the thresholds and reconcile the user's own PayPal payments with their records.",
+    "mustNotSay": "Do not tell the user what to report or how to classify a payment on their return.",
+    "sources": [
+      {
+        "title": "IRS: Understanding your Form 1099-K ($20,000 and 200 transactions; report income with or without a form)",
+        "url": "https://www.irs.gov/businesses/understanding-your-form-1099-k",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "PayPal help: will PayPal report my sales to the IRS (thresholds, 24% backup withholding, state thresholds)",
+        "url": "https://www.paypal.com/us/cshelp/article/will-paypal-report-my-sales-to-the-irs-help543",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS Topic 307: backup withholding at 24% for a missing or wrong tax ID",
+        "url": "https://www.irs.gov/taxtopics/tc307",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS: am I required to file a Form 1099 (1099-NEC threshold $2,000 from 2026)",
+        "url": "https://www.irs.gov/businesses/small-businesses-self-employed/am-i-required-to-file-a-form-1099-or-other-information-return",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "us-bank-signup-bonus",
+    "region": "US",
+    "title": "Bank and brokerage sign-up bonuses, with the exit date",
+    "group": "quick_money",
+    "tier": "insider",
+    "knownBy": "bank-bonus hunters (r/churning, Doctor of Credit)",
+    "moments": [
+      "surplus_month"
+    ],
+    "question": "Is that 'easy $3,500 checking bonus' real?",
+    "fact": "Banks pay new customers $100 to $900 for opening an account and meeting a condition, usually a direct deposit or a balance held for 30 to 90 days. Each bonus is taxable, and leaving early can cost fees or the bonus back.",
+    "valueText": "Net = bonus minus monthly fees minus lost interest, then minus income tax at your rate. The figure shown is one typical bonus, $300, the middle of 20 bonuses in one published 2025 tally (range $100 to $900). That tally is one enthusiast's, not an average.",
+    "timeToMoney": "weeks to about 4 months",
+    "risk": "low",
+    "effort": "ongoing",
+    "minFreeCash": 5000,
+    "freezeWhenLoanPending": true,
+    "steps": [
+      "Read the offer terms yourself: the deposit needed, the days to hold it, the monthly fee and how to waive it.",
+      "Check you have not held an account at that bank recently, and whether the bank pulls ChexSystems.",
+      "Put the date you may close the account, and the date the bonus must post, in your calendar.",
+      "Keep the 1099-INT or 1099-MISC for your return."
+    ],
+    "traps": [
+      "Bonuses are taxable income (1099-INT or 1099-MISC).",
+      "Monthly fees can eat the bonus if the waiver is missed. One large bank's checking account lists a $15 fee, waived with $500 of electronic deposits or a minimum balance.",
+      "Early-closure fees and holding periods vary by offer (reports range from 90 days to 12 months and from $15 to $50); read the account agreement. Clawbacks happen: one 2026 brokerage transfer offer can reclaim part of the bonus if you withdraw within five years.",
+      "PayPal payouts to a bank are often coded as transfers, not payroll direct deposit, so they may not count (anecdotal). A client paying by ACH may.",
+      "Savings-account bonuses need a large balance parked for 30 to 90 days; most checking bonuses need a direct deposit or a set number of transactions.",
+      "Scam version: a 'bonus' that asks for your login, or a check you must deposit and send on."
+    ],
+    "exitNote": "Do not close the account before the holding period ends, usually 90 to 180 days. Close it only after the bonus has posted and the fee-free months are done.",
+    "taxNote": "Taxed as income, reported on 1099-INT or 1099-MISC.",
+    "maySay": "List the offer terms the user can verify and compute the net value at their own tax rate.",
+    "mustNotSay": "Do not name a bank or send the user to one for a referral payment without a clear label (FTC endorsement rules; CFPB steering).",
+    "sources": [
+      {
+        "title": "Financial Panther: 2025 bank account bonus earnings (20 bonuses, $100 to $900, median $300)",
+        "url": "https://financialpanther.com/back-with-the-bank-bonuses-my-2025-bank-account-bonus-earnings/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Travel with Grant: about $2,755 from 12 accounts paid in 2024, $2,030 more pending",
+        "url": "https://travelwithgrant.boardingarea.com/?p=30372",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Chase Total Checking: fee and waiver rules",
+        "url": "https://www.chase.com/personal/checking/total-checking",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Robinhood: 2026 ACAT transfer match terms (five-year chargeback)",
+        "url": "https://robinhood.com/us/en/support/articles/2026-Hood-Month-ACAT-Match/",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "anecdotal",
+    "illustrative": true
+  },
+  {
+    "id": "us-card-signup-bonus",
+    "region": "US",
+    "title": "Card sign-up bonuses, only if you pay in full",
+    "group": "quick_money",
+    "tier": "insider",
+    "knownBy": "points and miles hobbyists (r/churning)",
+    "moments": [
+      "surplus_month",
+      "statement_arrived"
+    ],
+    "question": "Is it worth opening a credit card just for the bonus?",
+    "fact": "Card sites report offers of 50,000 to 100,000 points (or $200 to $1,000 cash) for spending a set amount in the first three months. A hard inquiry usually costs fewer than five points on a credit score, but a single month of interest at 22% erases the bonus.",
+    "valueText": "Net = bonus value minus annual fee minus any interest. The example is a 75,000-point offer at 1 cent a point, less a $95 annual fee.",
+    "timeToMoney": "1 to 4 months",
+    "risk": "behavioural",
+    "effort": "evening",
+    "minFreeCash": 5000,
+    "freezeWhenLoanPending": true,
+    "steps": [
+      "Check you can reach the minimum spend with bills you already pay, without buying anything extra.",
+      "Read the issuer's rules on how often you can earn the bonus (some issuers decline anyone with 5 or more new cards in 24 months).",
+      "Set autopay for the full statement balance, not the minimum.",
+      "Put the date the annual fee posts in your calendar and decide before it does."
+    ],
+    "traps": [
+      "Never carry a balance. Interest at 22% wipes out the bonus.",
+      "Do not apply within 6 to 12 months of a mortgage, car loan or apartment application.",
+      "Missing the minimum spend by $1 means no bonus.",
+      "Offer size and issuer rules change often and are not all published.",
+      "Foreign-transaction fees (often 3%) apply on some cards."
+    ],
+    "exitNote": "Decide before the annual fee posts, usually after 12 months: keep, ask for a waiver, or downgrade or close the card.",
+    "taxNote": "Card rewards on personal spending are generally treated as rebates, not income. A bonus with no spending requirement can produce a 1099 (r/churning wiki; verify).",
+    "maySay": "Explain how bonuses, inquiries and fees work and show the net value given the user's own spending.",
+    "mustNotSay": "Do not tell the user to apply for a specific card or issuer. That is credit marketing and needs disclosure.",
+    "sources": [
+      {
+        "title": "myFICO: credit checks and inquiries (under five points for most people)",
+        "url": "https://www.myfico.com/crediteducation/CreditChecks.aspx",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "The Points Party: Sapphire Preferred bonus eligibility, updated Oct 19, 2026 (75,000-point offer, $95 fee)",
+        "url": "https://thepointsparty.com/articles/chase-sapphire-preferred-bonus-eligibility",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "The Points Guy: Sapphire bonus eligibility and the 5/24 rule, Oct 30, 2026",
+        "url": "https://thepointsguy.com/credit-cards/chase-sapphire-preferred-bonus-eligibility/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Federal Reserve G.19: 22.36% average APR on accounts charged interest",
+        "url": "https://www.federalreserve.gov/releases/g19/current/default.htm",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "secondary",
+    "illustrative": true
+  },
+  {
+    "id": "us-unclaimed-refunds-and-property",
+    "region": "US",
+    "title": "Check for refunds the IRS and states are holding for you",
+    "localName": "Unclaimed refunds and unclaimed property",
+    "group": "unclaimed_money",
+    "tier": "insider",
+    "knownBy": "state unclaimed-property offices and consumer-finance reporters",
+    "moments": [
+      "deadline_near",
+      "life_event"
+    ],
+    "question": "I didn't earn much in my first freelance year. Did I miss a refund?",
+    "fact": "You have three years to claim a refund. Tax year 2023 refunds expire on Apr 15, 2027, and there is no penalty for filing late when you are owed money. Separately, states hold forgotten bank balances, final paychecks and deposits until they are claimed, and searching and claiming is free.",
+    "valueText": "Refund = tax withheld plus refundable credits minus tax owed, per unfiled year. The figure shown is the IRS median unclaimed refund for tax year 2022 (the IRS has not published one for 2023). State unclaimed property is not valued: there is no per-person figure.",
+    "timeToMoney": "weeks (e-file) to months (paper or a state claim)",
+    "risk": "none",
+    "effort": "evening",
+    "deadline": {
+      "label": "Tax year 2023 refunds expire",
+      "date": "2027-04-15",
+      "remindDaysBefore": 180
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "List the years you did not file or only part-filed, especially a part-year of W-2 work with tax withheld.",
+      "File the missing 2023 return before Apr 15, 2027.",
+      "Search MissingMoney.com and the unclaimed-property site of every state you have lived or worked in.",
+      "For an old savings bond, TreasuryDirect's Treasury Hunt search ended on Sep 30, 2025; its page points to the claim forms."
+    ],
+    "traps": [
+      "Refunds can be held if later years are also unfiled, and offset against federal or state debts.",
+      "If net self-employment earnings were $400 or more, a return was required, and you may owe instead of being owed.",
+      "'Finders' charge a share of what they find (reports say 10% to 35%, not confirmed on a primary page) for something that is free to claim yourself.",
+      "Scam version: a text or email saying you have unclaimed funds if you pay a fee."
+    ],
+    "taxNote": "A refund is not income. Interest the IRS pays on it is.",
+    "maySay": "Prompt the user to check, link the official IRS and state search tools, and show the median as context.",
+    "mustNotSay": "Do not file a return or a claim for the user without their approval, and do not promise an amount.",
+    "sources": [
+      {
+        "title": "IRS IR-2026-37: $1.2 billion in unclaimed 2022 refunds, median $686, three-year rule",
+        "url": "https://www.irs.gov/newsroom/time-is-running-out-to-claim-12-billion-in-refunds-for-tax-year-2022-taxpayers-face-april-15-deadline",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS: time you can claim a credit or refund",
+        "url": "https://www.irs.gov/filing/time-you-can-claim-a-credit-or-refund",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "NAUPA: state unclaimed property (free search, links to every state)",
+        "url": "https://unclaimed.org/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "MissingMoney.com (NAUPA's free multi-state search)",
+        "url": "https://www.missingmoney.com/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "TreasuryDirect: Treasury Hunt (tool ended Sep 30, 2025)",
+        "url": "https://www.treasurydirect.gov/savings-bonds/treasury-hunt/",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "us-free-file",
+    "region": "US",
+    "title": "File your taxes free from the IRS site, not the ads",
+    "localName": "IRS Free File",
+    "group": "stop_the_leak",
+    "tier": "insider",
+    "knownBy": "r/personalfinance regulars and IRS Free File users",
+    "moments": [
+      "deadline_near",
+      "life_event"
+    ],
+    "question": "Why does the 'free' tax software want $100 for my freelance income?",
+    "fact": "Commercial software pushes many freelancers into paid tiers for Schedule C. IRS Free File guided software covered income up to $89,000 in the 2026 season, but you must start from IRS.gov to get the free version. The IRS's Free File page is closed until January 2027 and now shows $95,000. IRS Direct File was not offered for the 2026 season.",
+    "valueText": "Fees avoided = the price of the paid Schedule C tier. The figure is the low end of the research's anecdotal $120 to $200 range.",
+    "timeToMoney": "immediate",
+    "risk": "none",
+    "effort": "minutes",
+    "deadline": {
+      "label": "2026 returns due",
+      "date": "2027-04-15",
+      "remindDaysBefore": 100
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check your AGI against the Free File cap ($89,000 in the 2026 season; the IRS page now shows $95,000) when the 2027 season opens in January.",
+      "Start from IRS.gov/FreeFile, not from a search ad.",
+      "Check that the partner you pick supports Schedule C.",
+      "Decline refund-transfer add-ons that cost about $40 or more."
+    ],
+    "traps": [
+      "Each Free File partner has its own limits (age, state), and some do not support Schedule C.",
+      "Free File Fillable Forms have no income limit but give no guidance.",
+      "The cap for the 2027 season is not confirmed: the IRS shows $95,000 on a closed page. The volunteer-site (VITA) limits are from secondary sources.",
+      "Refund advances and transfers add fees.",
+      "The $120 to $200 price of a paid Schedule C tier is anecdotal; software vendors show prices only after you start a return."
+    ],
+    "maySay": "Inform and link to IRS.gov/FreeFile with the income cap and the user's own AGI.",
+    "mustNotSay": "Do not recommend a particular Free File partner or take a referral payment without a clear label.",
+    "sources": [
+      {
+        "title": "IRS: 2026 filing season opens with free filing options ($89,000 AGI limit in 2025 income)",
+        "url": "https://www.irs.gov/newsroom/2026-tax-filing-season-opens-with-several-free-filing-options-available",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS: Free File (closed until January 2027; shows $95,000, Fillable Forms for any income)",
+        "url": "https://www.irs.gov/filing/irs-free-file-do-your-taxes-for-free",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Taxpayer Advocate Service: filing season resources (Direct File ends for the 2026 season)",
+        "url": "https://www.taxpayeradvocate.irs.gov/get-help/filing-returns/filing-season-resources/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "Kiplinger: a free tax filing option just disappeared (Direct File)",
+        "url": "https://www.kiplinger.com/taxes/a-free-tax-filing-option-just-disappeared",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "secondary",
+    "illustrative": true
+  },
+  {
+    "id": "us-estimated-tax-quarterly",
+    "region": "US",
+    "title": "Pay estimated tax each quarter and skip the penalty",
+    "localName": "Estimated tax, safe harbor and the underpayment penalty",
+    "group": "tax",
+    "tier": "baseline",
+    "knownBy": "anyone who has freelanced for a year",
+    "moments": [
+      "deadline_near",
+      "life_event",
+      "setup"
+    ],
+    "question": "Do I really have to pay tax before April?",
+    "fact": "The IRS wants tax paid during the year in four payments (Apr 15, Jun 15, Sep 15 and Jan 15). The penalty rate is 7% a year (Q4 2026), and you avoid the penalty completely by paying the smaller of 90% of this year's tax or 100% of last year's tax (110% if last year's AGI was over $150,000).",
+    "valueText": "Penalty avoided = a quarter of your estimated yearly federal tax x 7% x the days each payment still ahead would be late if paid on Apr 15, 2027 instead. Payments already past are not counted: they are either paid or already accruing the penalty.",
+    "timeToMoney": "immediate (a cost avoided)",
+    "risk": "none",
+    "effort": "minutes",
+    "deadline": {
+      "label": "Q4 2026 estimated payment due",
+      "date": "2027-01-15",
+      "remindDaysBefore": 75
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Take last year's total tax from your return, or 90% of this year's estimate. Use whichever is smaller.",
+      "Divide by four and pay each quarter through IRS Direct Pay or EFTPS.",
+      "Put Apr 15, Jun 15, Sep 15 and Jan 15 in your calendar.",
+      "If your income is lumpy, ask whether the annualized income method (Form 2210 Schedule AI) fits."
+    ],
+    "traps": [
+      "The rate is reset every quarter (7% in Q1 2026, 6% in Q2, 7% in Q3 and Q4; Q1 2027 not announced yet).",
+      "If you file your 2026 return by Jan 31, 2027 and pay what you owe, the Jan 15 payment is not needed (Pub 505).",
+      "The 110% rule for higher earners is in Pub 505 (2026): it applies if your 2025 AGI was over $150,000.",
+      "Scam version: calls or texts demanding immediate payment by gift card.",
+      "Your state may have its own estimated-tax rules."
+    ],
+    "maySay": "Compute the user's safe-harbor amount and remind them of the dates.",
+    "mustNotSay": "Do not pay the IRS for the user without approval, and do not say a figure is exactly what they owe.",
+    "sources": [
+      {
+        "title": "IRS: estimated taxes",
+        "url": "https://www.irs.gov/businesses/small-businesses-self-employed/estimated-taxes",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS Publication 505 (2026): due dates, safe harbors, 110% rule, January 31 rule",
+        "url": "https://www.irs.gov/publications/p505",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS IR-2026-98: Q4 2026 underpayment rate 7%",
+        "url": "https://www.irs.gov/newsroom/interest-rates-remain-the-same-for-the-fourth-quarter-of-2026",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS: quarterly interest rates (2026: 7%, 6%, 7%, 7%)",
+        "url": "https://www.irs.gov/payments/quarterly-interest-rates",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true,
+    "valueKind": "protected",
+    "pinAt": []
+  },
+  {
+    "id": "us-tax-set-aside",
+    "region": "US",
+    "title": "Set aside tax from every payment, in its own pot",
+    "group": "tax",
+    "tier": "baseline",
+    "knownBy": "anyone who has freelanced for a year",
+    "moments": [
+      "client_paid"
+    ],
+    "question": "A client just paid me. How much of this is mine to spend?",
+    "fact": "Freelancers pay both halves of Social Security and Medicare (15.3% on 92.35% of profit) on top of income tax, and nothing is withheld. Guides say to set aside 25% to 30% of each payment; the tax pot is not emergency money.",
+    "valueText": "Set aside = payment x 25% (the low end of the 25% to 30% guide; your federal estimate is shown for comparison). The value shown is the 7% penalty you avoid by having the cash when the quarter's payment is due.",
+    "timeToMoney": "immediate",
+    "risk": "none",
+    "effort": "minutes",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Move the set-aside amount to a separate savings pot the moment the payment lands.",
+      "Pay the quarter's estimate from that pot on its due date.",
+      "Keep the pot apart from the emergency buffer.",
+      "Top it up if a month brings an unusually large payment."
+    ],
+    "traps": [
+      "New freelancers forget self-employment tax and face a surprise bill.",
+      "The 25% to 30% range is a community guide, not an official rate. Your own estimate comes from your profit.",
+      "Counting the tax pot as emergency money."
+    ],
+    "maySay": "Show the user's own estimated set-aside and the share of this payment.",
+    "mustNotSay": "Do not move the money without the user's approval.",
+    "sources": [
+      {
+        "title": "IRS Topic 554: self-employment tax",
+        "url": "https://www.irs.gov/taxtopics/tc554",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "SSA: contribution and benefit base ($184,500 for 2026; $192,300 for 2027)",
+        "url": "https://www.ssa.gov/oact/cola/cbb.html",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS: estimated taxes",
+        "url": "https://www.irs.gov/businesses/small-businesses-self-employed/estimated-taxes",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "secondary",
+    "illustrative": true,
+    "valueKind": "protected",
+    "pinAt": [
+      "client_paid"
+    ]
+  },
+  {
+    "id": "us-roth-ira-prior-year",
+    "region": "US",
+    "title": "Fund last year's Roth IRA until April 15",
+    "localName": "Roth IRA",
+    "group": "tax",
+    "tier": "baseline",
+    "knownBy": "anyone who has read the r/personalfinance flowchart",
+    "moments": [
+      "surplus_month",
+      "windfall",
+      "deadline_near",
+      "setup"
+    ],
+    "question": "Can I still put money into a Roth IRA for this year?",
+    "fact": "Contributions for a tax year are allowed from Jan 1 until Apr 15 of the next year. In 2026 the limit is $7,500, you can withdraw your contributions at any time, and growth is tax-free. At your income the Saver's Credit does not apply.",
+    "valueText": "Shown: tax avoided on one year's growth = contribution x an assumed 7% growth x your marginal rate. Over 40 years the research's example grows $7,500 to about $112,000 with no tax on withdrawal.",
+    "timeToMoney": "years",
+    "risk": "market",
+    "effort": "evening",
+    "deadline": {
+      "label": "2026 Roth IRA contribution deadline",
+      "monthDay": "04-15",
+      "remindDaysBefore": 120
+    },
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check that you have earned income at least equal to what you put in.",
+      "Check your income is below the Roth phase-out ($153,000 to $168,000 for a single filer in 2026).",
+      "Open the account with a provider you choose and tell them which tax year the contribution is for.",
+      "Keep the buffer and tax pot separate from this money."
+    ],
+    "traps": [
+      "Excess contributions carry a 6% yearly excise tax.",
+      "A self-employment loss can reduce what you may contribute.",
+      "The 7% growth rate is an assumption, not a forecast.",
+      "Limits and phase-outs change every year."
+    ],
+    "taxNote": "Roth money is taxed now at your bracket and comes out tax-free later.",
+    "maySay": "Explain the rules and show the user's own limit, deadline and tax effect. Say it is education.",
+    "mustNotSay": "Do not name a provider or fund, or say how much of their money to put in (SEC and state adviser registration).",
+    "sources": [
+      {
+        "title": "IRS IR-2025-111: 2026 IRA limit $7,500 and Roth phase-out $153,000 to $168,000",
+        "url": "https://www.irs.gov/newsroom/401k-limit-increases-to-24500-for-2026-ira-limit-increases-to-7500",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "IRS Publication 590-A: contribution deadline, 6% excess tax, Roth income limits",
+        "url": "https://www.irs.gov/publications/p590a",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": true
+  },
+  {
+    "id": "us-hysa-cash",
+    "region": "US",
+    "title": "Move idle cash out of PayPal and a 0.38% account",
+    "localName": "High-yield savings",
+    "group": "invest_cash",
+    "tier": "baseline",
+    "knownBy": "anyone who reads personal-finance basics",
+    "moments": [
+      "surplus_month",
+      "windfall",
+      "setup"
+    ],
+    "question": "Do I have too much in savings?",
+    "fact": "The FDIC national average savings rate is 0.38% (Oct 19, 2026), while the best online accounts listed on Oct 26 paid 4.27% to 4.40%. PayPal says its balance is not a bank deposit and not FDIC insured; funds are eligible for pass-through insurance only with certain products such as Direct Deposit, so cash left there is neither clearly insured nor earning 4%.",
+    "valueText": "Extra interest = cash above one month of essentials x (4.0% minus 0.38%), if it sits at the national average now. 4.0% is a cautious rate; replace both rates with the ones you really earn.",
+    "timeToMoney": "monthly",
+    "risk": "none",
+    "effort": "evening",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Check the rate you earn today and whether the account is FDIC-insured.",
+      "Keep one month of essentials in checking and move the rest.",
+      "Keep the tax pot and the emergency buffer in separate, labelled accounts.",
+      "Check the rate every few months. Teaser rates drop."
+    ],
+    "traps": [
+      "Teaser rates drop, and some '4%+' rates need direct deposit or a balance cap.",
+      "Check the bank is an FDIC member, not just a fintech app (the 2024 Synapse failure froze customers' money).",
+      "Interest is taxable income.",
+      "Treasury yields on Oct 30, 2026: 3.98% (4 weeks), 4.25% (26 weeks), 4.36% (52 weeks). I bonds issued Nov 2026 to Apr 2027 pay 5.51% for the first six months, then reset; they lock for 12 months, lose three months of interest if cashed before five years, and are limited to $10,000 a year each.",
+      "Comparison sites with paid placement need a disclosure."
+    ],
+    "taxNote": "Interest is taxable. Treasury bills and I bonds are exempt from state and local income tax; that matters only in states with an income tax (Texas has none).",
+    "maySay": "Show the national average against a rate the user types in, and the interest difference on their own balance.",
+    "mustNotSay": "Do not name a bank or product, or send the user to one for a referral payment without a clear label.",
+    "sources": [
+      {
+        "title": "FDIC: national rates and rate caps (Oct 19, 2026)",
+        "url": "https://www.fdic.gov/national-rates-and-rate-caps",
+        "asOf": "2026-10-19"
+      },
+      {
+        "title": "The College Investor: high-yield savings rates, Oct 26, 2026 (top rates 4.27% to 4.40%)",
+        "url": "https://thecollegeinvestor.com/91098/best-high-yield-savings-rates-for-october-26-2026/",
+        "asOf": "2026-10-26"
+      },
+      {
+        "title": "PayPal Balance terms: not FDIC insured; pass-through insurance with Direct Deposit",
+        "url": "https://www.paypal.com/us/legalhub/paypal/pp-balance-tnc",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "US Treasury: daily bill rates, October 2026",
+        "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_bill_rates&field_tdr_date_value_month=202610",
+        "asOf": "2026-10-30"
+      },
+      {
+        "title": "TreasuryDirect: I bond rates (5.51% for Nov 2026 to Apr 2027)",
+        "url": "https://www.treasurydirect.gov/savings-bonds/i-bonds/i-bonds-interest-rates/",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "secondary",
+    "illustrative": true
+  },
+  {
+    "id": "us-card-interest",
+    "region": "US",
+    "title": "See what your card balance costs you each year",
+    "localName": "Credit card interest",
+    "group": "stop_the_leak",
+    "tier": "baseline",
+    "knownBy": "anyone with a card statement",
+    "moments": [
+      "statement_arrived"
+    ],
+    "question": "I have a card balance. How do I get out?",
+    "fact": "Cards that charge interest averaged 22.36% APR in Aug 2026, so a $5,000 balance costs about $1,118 a year. Paying it off earns that rate with no risk, which beats every move except keeping the health-insurance credit.",
+    "valueText": "Interest per year = balance x 22.36% (the Fed's average APR on accounts charged interest).",
+    "timeToMoney": "immediate",
+    "risk": "none",
+    "effort": "evening",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "List each card's balance and APR from the statement.",
+      "Pay the highest APR first, or the smallest balance first if momentum helps. Both work.",
+      "Set autopay for at least the minimum so you never pay a late fee.",
+      "Do not use a card to cover a late invoice."
+    ],
+    "traps": [
+      "Paying only the minimum keeps you in debt for years.",
+      "Balance-transfer cards revert to a high APR, and the transfer fee is typically 3% to 5%.",
+      "Deferred-interest store cards charge all the back interest if not paid by the deadline.",
+      "A debt-settlement company cannot collect its fees before it settles your debt (FTC); upfront fees are a red flag."
+    ],
+    "maySay": "Show the user's interest cost and payoff timeline. Avalanche against snowball is education.",
+    "mustNotSay": "Do not recommend a balance-transfer card or a lender, and do not suggest an insider move while a balance is carried.",
+    "sources": [
+      {
+        "title": "Federal Reserve G.19 consumer credit (Oct 7, 2026): 22.36% for Aug 2026",
+        "url": "https://www.federalreserve.gov/releases/g19/current/default.htm",
+        "asOf": "2026-10-07"
+      },
+      {
+        "title": "FTC: how to get out of debt (settlement firms cannot take fees first)",
+        "url": "https://consumer.ftc.gov/articles/how-get-out-debt",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false
+  },
+  {
+    "id": "us-medical-bill-check",
+    "region": "US",
+    "title": "Check a medical bill before you pay it",
+    "localName": "Insurer's explanation of benefits, itemised bill and debt validation",
+    "group": "insurance_benefits",
+    "tier": "baseline",
+    "knownBy": "patient advocates, hospital billing staff and r/personalfinance regulars",
+    "moments": [
+      "bill_arrived"
+    ],
+    "question": "Is this medical bill right, and do I have to pay it now?",
+    "fact": "A medical bill is not always what you owe. Your insurer's explanation of benefits (which is not a bill) shows what your share should be, you can ask the provider for an itemised bill, and if a collector gets involved you have 30 days from the validation notice to dispute in writing, which makes them stop until they verify the debt.",
+    "valueText": "Not a saving. The figure shown is the amount on this bill: the money worth checking before you pay. It is protected, not counted in Found for you.",
+    "timeToMoney": "days for a billing check; a collector must pause while it verifies",
+    "risk": "none",
+    "effort": "evening",
+    "minFreeCash": 0,
+    "freezeWhenLoanPending": false,
+    "steps": [
+      "Compare the bill with your insurer's explanation of benefits. The EOB says 'this is not a bill', and its 'your share' amount should match what the provider charges.",
+      "Ask the provider's billing department for a detailed bill that lists each service and its cost. Check for the same service billed twice, especially if more than one provider treated you.",
+      "If you used insurance and the amounts differ, call your insurer: it may be able to fix the error with the provider.",
+      "If a collector contacts you, do not ignore it. Ask for the validation notice and dispute in writing within the 30 days it states; the collector must then stop until it sends verification. Keep copies and send by certified mail.",
+      "If you cannot afford the amount, ask the provider about financial assistance (nonprofit hospitals must offer it) or a payment arrangement before paying a collector.",
+      "Pay the part that checks out, by the due date."
+    ],
+    "traps": [
+      "An EOB is not a bill. The provider's own bill can arrive later and differ from it.",
+      "Only a written dispute inside the validation window pauses collection; a phone call alone does not.",
+      "The No Surprises Act dispute (patient-provider dispute resolution) is only for people not using insurance who had a good faith estimate, a bill dated in the last 120 days and a charge at least $400 above the estimate; it costs $25.",
+      "The CFPB's 2025 rule to keep medical debt off credit reports was vacated on Jul 11, 2025, so a medical collection can still appear on a credit report. A collector may not report a debt before it has contacted you.",
+      "Anyone charging an upfront fee to keep a medical bill off your credit report or to 'resolve' it is a warning sign (CFPB)."
+    ],
+    "maySay": "Show the user's own bill and the checks in order: EOB match, itemised bill, and the validation notice with its 30-day window, with the CFPB and CMS pages behind a tap. Say it is information.",
+    "mustNotSay": "Do not tell the user a charge is wrong or that they do not owe it, do not write a legal threat, and do not contact the provider or the collector without the user's approval (FDCPA; not legal advice).",
+    "sources": [
+      {
+        "title": "CMS: check your medical bill for errors (itemised bill, EOB, records, double billing), page updated Oct 6, 2026",
+        "url": "https://www.cms.gov/initiatives/your-patient-rights/medical-bill-rights/get-help/guides-resources/check-your-bill-errors",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "CFPB: what can I do if a debt collector contacts me about a debt I don't think I owe (validation notice, 30 days)",
+        "url": "https://www.consumerfinance.gov/ask-cfpb/what-can-i-do-if-a-debt-collector-contacts-me-about-a-debt-i-already-paid-or-dont-think-i-owe-en-1403/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "CMS: dispute a medical bill ($400 over a good faith estimate, 120 days, $25 fee)",
+        "url": "https://www.cms.gov/initiatives/your-patient-rights/medical-bill-rights/get-help/dispute-bill",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "CFPB (archived, Apr 2022): know your rights on medical bills and collections",
+        "url": "https://www.consumerfinance.gov/archive/blog/know-your-rights-and-protections-when-it-comes-to-medical-bills-and-collections/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "CFPB: medical debt credit reporting rule, vacated Jul 11, 2025",
+        "url": "https://www.consumerfinance.gov/rules-policy/final-rules/prohibition-on-creditors-and-consumer-reporting-agencies-concerning-medical-information-regulation-v/",
+        "asOf": "2026-11-01"
+      },
+      {
+        "title": "CFPB Regulation F 1006.30: a collector may not report a debt before contacting the consumer",
+        "url": "https://www.consumerfinance.gov/rules-policy/regulations/1006/30/",
+        "asOf": "2026-11-01"
+      }
+    ],
+    "confidence": "verified_primary",
+    "illustrative": false,
+    "valueKind": "protected",
+    "pinAt": [
+      "bill_arrived"
+    ]
+  }
+]
