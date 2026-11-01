@@ -1,0 +1,252 @@
+// The household-scoped data layer. Every function takes the household id first and throws without one,
+// and every query filters on it, so a route cannot read another household's rows by forgetting a clause.
+
+import { and, count, desc, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+import { Currency } from "@/lib/catalogue/types";
+import { addDays } from "@/lib/money/runway";
+import type { Bill, Card, Charge, Client, ClosedStatement, Invoice, MoneyState } from "@/lib/money/types";
+import { convertMinor, fromMinor, fromRateMicro, toMinor } from "./money";
+import * as s from "./schema";
+
+// Both the postgres.js client and PGlite (tests) fit this.
+export type Db = PgDatabase<PgQueryResultHKT, typeof s>;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function requireHousehold(householdId: string | null | undefined): string {
+  if (!householdId || !UUID.test(householdId)) throw new Error("A household id is required");
+  return householdId;
+}
+
+// A closed cycle is at most a month, so charges older than this cannot belong to an open cycle.
+const CHARGE_LOOKBACK_DAYS = 62;
+// Invoices paid this recently stay in the state (for the Activity view); older paid ones only feed days to pay.
+const PAID_KEEP_DAYS = 7;
+
+/** Reads the household's rows and returns the MoneyState the engine consumes. `today` is the household's own date. */
+export async function loadMoneyState(db: Db, householdId: string, today: string): Promise<MoneyState> {
+  const hid = requireHousehold(householdId);
+
+  const [household] = await db.select().from(s.households).where(eq(s.households.id, hid));
+  if (!household) throw new Error("Household not found");
+  const home = Currency.parse(household.homeCurrency);
+
+  let fxPerUsd = 1;
+  if (home !== "USD") {
+    const [rate] = await db
+      .select()
+      .from(s.fxRates)
+      .where(and(eq(s.fxRates.base, "USD"), eq(s.fxRates.quote, home), lte(s.fxRates.date, today)))
+      .orderBy(desc(s.fxRates.date))
+      .limit(1);
+    if (!rate) throw new Error(`No USD/${home} rate on or before ${today}`);
+    fxPerUsd = fromRateMicro(rate.rateMicro);
+  }
+  // Rows may be in another currency (a USD balance, say); the engine wants the home currency throughout.
+  const inHome = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, home, fxPerUsd), home);
+  const inUsd = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, "USD", fxPerUsd), "USD");
+
+  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows] = await Promise.all([
+    db.select().from(s.paypalConnections).where(eq(s.paypalConnections.householdId, hid)),
+    db.select().from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(s.bills.due, s.bills.biller),
+    db.select().from(s.cards).where(eq(s.cards.householdId, hid)).orderBy(s.cards.createdAt, s.cards.label),
+    db
+      .select()
+      .from(s.charges)
+      .where(and(eq(s.charges.householdId, hid), gte(s.charges.date, addDays(today, -CHARGE_LOOKBACK_DAYS))))
+      .orderBy(s.charges.date, s.charges.merchant),
+    db
+      .select()
+      .from(s.cardStatements)
+      .where(and(eq(s.cardStatements.householdId, hid), isNull(s.cardStatements.paidOn)))
+      .orderBy(s.cardStatements.dueOn),
+    db.select().from(s.clients).where(eq(s.clients.householdId, hid)).orderBy(s.clients.createdAt, s.clients.name),
+    db.select().from(s.invoices).where(eq(s.invoices.householdId, hid)).orderBy(s.invoices.sentOn, s.invoices.createdAt),
+  ]);
+
+  const paypalMinor = connections.reduce((sum, c) => sum + convertMinor(c.balanceMinor, c.balanceCurrency, home, fxPerUsd), 0);
+
+  const bills: Bill[] = billRows.map((b) => ({
+    id: b.id,
+    biller: b.biller,
+    amount: inHome(b.amountMinor, b.currency),
+    due: b.due,
+    category: b.category,
+    status: b.status,
+    ...(b.previousAmountMinor !== null && { previousAmount: inHome(b.previousAmountMinor, b.currency) }),
+  }));
+
+  const cards: Card[] = cardRows.map((c) => ({
+    id: c.id,
+    label: c.label,
+    closingDay: c.closingDay,
+    dueDay: c.dueDay,
+    ...(c.limitMinor !== null && { limit: inHome(c.limitMinor, c.currency) }),
+    revolving: c.revolving,
+  }));
+
+  const charges: Charge[] = chargeRows.map((c) => ({
+    id: c.id,
+    cardId: c.cardId,
+    merchant: c.merchant,
+    amount: inHome(c.amountMinor, c.currency),
+    ...(c.originalAmountMinor !== null && c.originalCurrency !== null && {
+      original: { amount: fromMinor(c.originalAmountMinor, c.originalCurrency), currency: c.originalCurrency },
+    }),
+    date: c.date,
+    source: c.source,
+    status: c.status,
+    ...(c.place !== null && { place: c.place }),
+  }));
+
+  const statements: ClosedStatement[] = statementRows.map((st) => ({
+    cardId: st.cardId,
+    amount: inHome(st.amountMinor, st.currency),
+    closedOn: st.closedOn,
+    dueOn: st.dueOn,
+  }));
+
+  // Days to pay comes from paid invoices, oldest first.
+  const daysToPay = new Map<string, number[]>();
+  for (const i of invoiceRows) {
+    if (i.status !== "paid" || !i.sentOn || !i.paidOn) continue;
+    const days = Math.round((Date.parse(i.paidOn) - Date.parse(i.sentOn)) / 86_400_000);
+    daysToPay.set(i.clientId, [...(daysToPay.get(i.clientId) ?? []), days]);
+  }
+  const clients: Client[] = clientRows.map((c) => ({
+    id: c.id,
+    name: c.name,
+    email: c.email,
+    termsDays: c.termsDays,
+    daysToPay: daysToPay.get(c.id) ?? [],
+  }));
+
+  const keepPaidFrom = addDays(today, -PAID_KEEP_DAYS);
+  const invoices: Invoice[] = invoiceRows
+    .filter((i) => i.status !== "paid" || (i.paidOn !== null && i.paidOn >= keepPaidFrom))
+    .map((i) => ({
+      id: i.id,
+      clientId: i.clientId,
+      ...(i.number !== null && { number: i.number }),
+      item: i.item,
+      amountUsd: inUsd(i.amountMinor, i.currency),
+      status: i.status,
+      ...(i.sentOn !== null && { sentOn: i.sentOn }),
+      ...(i.dueOn !== null && { dueOn: i.dueOn }),
+      ...(i.note !== null && { note: i.note }),
+    }));
+
+  return {
+    today,
+    homeCurrency: home,
+    fxPerUsd,
+    paypal: fromMinor(paypalMinor, home),
+    bank: fromMinor(household.bankBalanceMinor, home),
+    bills,
+    cards,
+    charges,
+    statements,
+    clients,
+    invoices,
+  };
+}
+
+// ---------------------------------------------------------------- events (D35)
+
+export type NewEvent = {
+  kind: string;
+  title: string;
+  body?: string;
+  amount?: { value: number; currency: string };
+  ref?: { type: string; id: string };
+  notify?: boolean;
+  occurredAt?: Date;
+};
+
+export async function recordEvent(db: Db, householdId: string, e: NewEvent): Promise<string> {
+  const hid = requireHousehold(householdId);
+  const [row] = await db
+    .insert(s.events)
+    .values({
+      householdId: hid,
+      kind: e.kind,
+      title: e.title,
+      body: e.body ?? null,
+      amountMinor: e.amount ? toMinor(e.amount.value, e.amount.currency) : null,
+      currency: e.amount?.currency ?? null,
+      refType: e.ref?.type ?? null,
+      refId: e.ref?.id ?? null,
+      notify: e.notify ?? false,
+      ...(e.occurredAt && { occurredAt: e.occurredAt }),
+    })
+    .returning({ id: s.events.id });
+  return row.id;
+}
+
+/** Newest first. `since` returns only events that happened after it (the 5-second poll). */
+export async function listEvents(db: Db, householdId: string, since?: Date, limit = 100) {
+  const hid = requireHousehold(householdId);
+  return db
+    .select()
+    .from(s.events)
+    .where(and(eq(s.events.householdId, hid), since ? gt(s.events.occurredAt, since) : undefined))
+    .orderBy(desc(s.events.occurredAt))
+    .limit(limit);
+}
+
+export async function unreadCount(db: Db, householdId: string): Promise<number> {
+  const hid = requireHousehold(householdId);
+  const [row] = await db
+    .select({ n: count() })
+    .from(s.events)
+    .where(and(eq(s.events.householdId, hid), eq(s.events.notify, true), isNull(s.events.readAt)));
+  return row.n;
+}
+
+/** Marks the given events read, or every unread notification when no ids are given. Returns how many changed. */
+export async function markRead(db: Db, householdId: string, ids?: string[]): Promise<number> {
+  const hid = requireHousehold(householdId);
+  if (ids && ids.length === 0) return 0;
+  const rows = await db
+    .update(s.events)
+    .set({ readAt: sql`now()` })
+    .where(
+      and(
+        eq(s.events.householdId, hid),
+        eq(s.events.notify, true),
+        isNull(s.events.readAt),
+        ids ? inArray(s.events.id, ids) : undefined,
+      ),
+    )
+    .returning({ id: s.events.id });
+  return rows.length;
+}
+
+// ---------------------------------------------------------------- webhooks (D15, D31)
+
+/**
+ * Stores a delivery once. Returns false when PayPal's event id was already seen, so the caller skips it.
+ * The household is null when the event matches none of ours; it is still recorded so a redelivery is caught.
+ */
+export async function recordWebhookDelivery(
+  db: Db,
+  householdId: string | null,
+  d: { paypalEventId: string; eventType: string; verified: boolean; payload: unknown },
+): Promise<boolean> {
+  const hid = householdId === null ? null : requireHousehold(householdId);
+  const rows = await db
+    .insert(s.webhookDeliveries)
+    .values({ householdId: hid, paypalEventId: d.paypalEventId, eventType: d.eventType, verified: d.verified, payload: d.payload })
+    .onConflictDoNothing({ target: s.webhookDeliveries.paypalEventId })
+    .returning({ id: s.webhookDeliveries.id });
+  return rows.length === 1;
+}
+
+// ---------------------------------------------------------------- delete my household
+
+/** Everything cascades from the households row. */
+export async function deleteHousehold(db: Db, householdId: string): Promise<void> {
+  const hid = requireHousehold(householdId);
+  await db.delete(s.households).where(eq(s.households.id, hid));
+}

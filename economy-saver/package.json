@@ -8,23 +8,38 @@
     "start": "next start",
     "lint": "eslint",
     "smoke": "tsx scripts/smoke-test.ts",
-    "webhook:register": "tsx scripts/register-webhook.ts"
+    "webhook:register": "tsx scripts/register-webhook.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:test": "tsx --tsconfig ./tsconfig.json scripts/db-test.ts",
+    "cf:build": "opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview --port 8787",
+    "cf:size": "opennextjs-cloudflare build && wrangler deploy --dry-run --outdir .wrangler/dryout",
+    "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@paypal/agent-toolkit": "^1.11.0",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.118.0",
+    "drizzle-orm": "^0.45.4",
     "next": "16.4.3",
+    "postgres": "^4.0.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14",
+    "@opennextjs/cloudflare": "^1.20.15",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "tsx": "^4.23.15",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.156.0"
   }
 }

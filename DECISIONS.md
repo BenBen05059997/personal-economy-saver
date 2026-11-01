@@ -76,7 +76,7 @@ Last updated: Nov 1, 2026.
 | ID | What | Blocked on |
 |---|---|---|
 | V1 | Sending an invoice to the US client and receiving the `INVOICING.INVOICE.PAID` webhook (needs the deployed URL) | Cloudflare deploy (owner's OK) |
-| V6 | The OpenNext Cloudflare adapter runs Next 16.4 with `cacheComponents`; Drizzle reaches Supabase from a Worker through the pooler (or Hyperdrive) | The deploy spike (D32) |
+| V6 | Drizzle (postgres.js, `prepare: false`) reaches Supabase from a Worker through the transaction pooler; the Worker stays under 3 MiB gzip once the data layer, supabase-js and the Anthropic SDK are imported (1.09 MiB now, 1.88 MiB with the PayPal toolkit) | The owner's Supabase project |
 | V3 | PayPal Japan withdrawal to a Japanese bank: fees, minimums, timing (for the runway's PayPal → bank step) | — |
 | V4 | US card cash-advance terms in the dollar test fixture (28% a year plus a 5% fee are placeholders) | — |
 | V5 | Japan borrowing reference rates for the options list: bank カードローン, card キャッシング, 緊急小口資金 (0%), with sources | — |
@@ -92,3 +92,5 @@ Last updated: Nov 1, 2026.
 | Japan catalogue figures re-checked on primary pages; design work for foreign clients is a 0%-rated export; 予定納税 reduction deadline is Nov 16, 2026 | Nov 1 |
 | US catalogue figures re-checked on primary pages (2026 brackets, HSA, retirement limits, marketplace credit, estimated-tax dates, 1099-K); open enrolment runs Nov 1, 2026 to Jan 15, 2027 | Nov 1 |
 | The screen on sample data: build, lint, desktop and phone, Ben ↔ Maya switch, no console errors | Nov 1 |
+| The app runs on Workers locally (OpenNext 1.20, workerd): `cacheComponents` and `partialPrefetching` kept, with the read-only static-assets incremental cache (the default dummy cache hangs the prerendered page); the PayPal toolkit bundles and reaches the sandbox; health 200, home 200, an unsigned webhook 400, `/api/cron` 401 without its bearer, the daily Cron Trigger calls it and gets 200 | Nov 1 |
+| Database schema (17 tables, Drizzle, one migration) on PGlite: Ben's household loads back as the same `MoneyState` and gives the same engine answers (¥18,780 short on Nov 27); days to pay derived from paid invoices; households isolated, including cross-household card and client references; duplicate webhook event ids rejected; money columns integer only; RLS on with no policies on every table; deleting a household cascades | Nov 1 |

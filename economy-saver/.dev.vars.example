@@ -1,0 +1,16 @@
+# Local `opennextjs-cloudflare preview` / `wrangler dev` read economy-saver/.dev.vars.
+# Create it with: cp .env.local .dev.vars   (never commit .dev.vars)
+# In production set each of these with `wrangler secret put NAME`.
+PAYPAL_ENVIRONMENT=
+PAYPAL_CLIENT_ID=
+PAYPAL_CLIENT_SECRET=
+PAYPAL_WEBHOOK_ID=
+SANDBOX_CLIENT_EMAIL=
+ANTHROPIC_API_KEY=
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+DATABASE_URL=
+APP_ENCRYPTION_KEY=
+# Bearer token the Cron Trigger sends to /api/cron. Generate with: openssl rand -base64 32
+CRON_SECRET=

@@ -26,7 +26,7 @@ It answers three questions with the user's real numbers:
 
 | # | Item | State |
 |---|---|---|
-| 0 | **Backend foundation** (D31–D33): Supabase schema and seed through Drizzle, the deploy spike of health and webhook on Cloudflare Workers, Email Routing, BYOK settings | Not started; the screen rebuild sits on these tables, so it comes first |
+| 0 | **Backend foundation** (D31–D37): Supabase schema and seed through Drizzle, the deploy spike of health and webhook on Cloudflare Workers, Email Routing, BYOK settings | Schema, data layer, seed and migration done and tested on PGlite (`npm run db:test`); the app builds and runs on Workers locally with the daily cron (`npm run cf:preview`). Left: migrate and seed the real Supabase, move webhook events from memory to Postgres, deploy, Email Routing, BYOK settings. Waits on the owner's Supabase keys and `wrangler login` |
 | 1 | **The one-sentence screen** (D25): mockup first, then rebuilt on the existing maths | Mockup published: https://claude.ai/artifact/D34WYjT1ELFgoVShxsn5va (file `design/one-screen.html`, phone and desktop views, screenshots beside it). Phone view approved by the owner; both views approved by the owner Nov 1; rebuild waits on item 0 |
 | 2 | **The PayPal loop running for real on Cloudflare:** nudge a late client or invoice finished work → approve → PayPal sends → client pays in the sandbox → verified webhook → the sentence changes | Smoke test 7/7 locally. Needs item 0, then the owner's OK for the public repo and the deploy |
 | 3 | **The reader:** forwarded bill, card-use email, receipt photo, each with a confirmation row showing the source next to what was read | Sample files in `economy-saver/samples/bills/`; not started |

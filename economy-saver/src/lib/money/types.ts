@@ -54,7 +54,7 @@ export type Charge = {
   amount: number; // home currency, as the issuer will bill it
   original?: { amount: number; currency: string }; // when paid in another currency
   date: string; // YYYY-MM-DD
-  source: "card_email" | "receipt";
+  source: "card_email" | "receipt" | "voice" | "manual";
   status: "confirmed" | "pending"; // pending = read by AI, waiting for the user to confirm
   place?: string; // city, when travelling
 };
