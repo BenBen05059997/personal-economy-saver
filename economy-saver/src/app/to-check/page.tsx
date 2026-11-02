@@ -1,0 +1,17 @@
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { CheckView } from "@/components/household/CheckView";
+import { loadWorkspace, WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
+import { currentHouseholdId } from "@/lib/session";
+
+async function CheckList() {
+  const hid = await currentHouseholdId();
+  if (!hid) redirect("/");
+  const workspace = await loadWorkspace(hid);
+  return <WorkspaceFrame workspace={workspace} section="check">
+    <CheckView state={workspace.state} inbox={workspace.inbox} />
+  </WorkspaceFrame>;
+}
+export default function Page() {
+  return <Suspense fallback={<main aria-busy="true">Opening To check…</main>}><CheckList /></Suspense>;
+}

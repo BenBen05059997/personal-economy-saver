@@ -2,7 +2,7 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/db-test.ts
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
-import { getTableName, is, sql } from "drizzle-orm";
+import { and, eq, getTableName, is, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
@@ -10,7 +10,16 @@ import type { db as clientDb } from "@/db/client";
 import { deleteHousehold, listEvents, loadMoneyState, markRead, recordWebhookDelivery, unreadCount, type Db } from "@/db/household";
 import { convertMinor, fromMinor, toMinor } from "@/db/money";
 import * as schema from "@/db/schema";
+import { randomUUID } from "node:crypto";
+import { accountHousehold, deleteOwnedHousehold, finishSetup, householdClock, setupForm } from "@/db/account";
+import { runDaily } from "@/db/daily";
+import { parseReferenceRate } from "@/db/reference-rate";
+import { confirmPending } from "@/db/confirm";
+import { homeSentence } from "@/lib/money/sentence";
+import { findDemoHousehold, resetDemoHousehold } from "@/db/demo";
 import { seedBen } from "@/db/seed";
+import { eventFeed, publicEvent } from "@/db/event-feed";
+import { applyVerifiedDelivery, recentDeliveries } from "@/lib/events";
 import { benMoney } from "@/lib/sample/ben";
 import { ladder, low, paybackFor, roomOnCard, safeToSpend, series, dueItems, timeline } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
@@ -100,7 +109,7 @@ async function main() {
     assert.equal(hs.length, 2);
     assert.equal(hs.find((h) => h.id === a)?.isDemo, true);
     assert.equal(hs.find((h) => h.id === b)?.isDemo, false);
-    assert.equal((await db.select().from(schema.fxRates)).length, 1, "one shared fx row for 2026-11-14");
+    for (const hid of [a, b]) assert.equal((await rows(db, schema.fxRates, hid)).length, 1, "one household reference rate");
   });
 
   for (const [label, hid] of [["A (demo)", a], ["B (copy)", b]] as const) {
@@ -187,6 +196,79 @@ async function main() {
     );
   });
 
+  await check("verified paid webhook: one delivery, one paid transition, one household notification on replay", async () => {
+    const paypalId = "INV2-FICTIONAL";
+    const [sent] = await db.select().from(schema.invoices)
+      .where(and(eq(schema.invoices.householdId, a), eq(schema.invoices.status, "sent"))).limit(1);
+    const target = and(eq(schema.invoices.householdId, a), eq(schema.invoices.id, sent.id));
+    await db.update(schema.invoices).set({ paypalInvoiceId: paypalId }).where(target);
+    const event = {
+      id: "WH-TEST-PAID",
+      event_type: "INVOICING.INVOICE.PAID",
+      create_time: "2026-11-14T16:00:00Z",
+      resource: { id: paypalId, status: "PAID" },
+    };
+
+    await applyVerifiedDelivery(db, { ...event, id: "WH-TEST-PARTIAL", resource: { id: paypalId, status: "PARTIALLY_PAID" } });
+    assert.equal((await db.select().from(schema.invoices).where(target))[0].status, "sent");
+
+    // A failure after writing the receipt must allow PayPal to retry the whole transaction.
+    await assert.rejects(applyVerifiedDelivery(db, { ...event, create_time: undefined }), /create_time/);
+    assert.ok(!(await recentDeliveries(db, a)).some((e) => e.id === event.id));
+    await applyVerifiedDelivery(db, event);
+    await applyVerifiedDelivery(db, event);
+    const [invoice] = await db.select().from(schema.invoices).where(target);
+    assert.equal(invoice.status, "paid");
+    assert.equal(invoice.paidOn, "2026-11-15", "paid date uses Tokyo, not UTC");
+    const deliveries = (await recentDeliveries(db, a)).filter((d) => d.id === event.id);
+    assert.equal(deliveries.length, 1);
+    assert.ok(!("payload" in deliveries[0]));
+    const paid = (await listEvents(db, a)).filter((e) => e.kind === "invoice_paid");
+    assert.equal(paid.length, 1);
+    assert.equal(paid[0].notify, true);
+    assert.equal(paid[0].refId, sent.id);
+    assert.equal(paid[0].amountMinor, sent.amountMinor);
+    assert.equal((await listEvents(db, b)).filter((e) => e.kind === "invoice_paid").length, 0);
+    assert.equal((await recentDeliveries(db, b)).length, 0);
+  });
+
+  await check("verified delivery for an unknown invoice is deduplicated without notifying any household", async () => {
+    const event = { id: "WH-UNMATCHED", event_type: "INVOICING.INVOICE.PAID", resource: { id: "INV2-UNKNOWN", status: "PAID" } };
+    await applyVerifiedDelivery(db, event);
+    await applyVerifiedDelivery(db, event);
+    const deliveries = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, event.id));
+    assert.equal(deliveries.length, 1);
+    assert.equal(deliveries[0].householdId, null);
+    assert.ok(!(await recentDeliveries(db, a)).some((d) => d.id === event.id));
+  });
+
+  await check("bell and poll state use only my household, including queued documents, sent invoices and read markers", async () => {
+    const visitor = await seedBen(db, { isDemo: true });
+    const invoiceFilter = and(eq(schema.invoices.householdId, visitor), eq(schema.invoices.status, "sent"));
+    const feed = await eventFeed(db, visitor);
+    assert.equal(feed.inFlight, true);
+    assert.equal(feed.total, 2);
+    assert.equal(feed.unread, 1);
+    assert.equal(feed.notifications.length, 1);
+    await db.update(schema.invoices).set({ status: "draft" }).where(invoiceFilter);
+    assert.equal((await eventFeed(db, visitor)).inFlight, false);
+    const [doc] = await db.insert(schema.documents).values({
+      householdId: visitor, storagePath: visitor + "/fictional-receipt", mime: "image/png", kind: "upload", status: "queued",
+    }).returning({ id: schema.documents.id });
+    assert.equal((await eventFeed(db, visitor)).inFlight, true);
+    await db.update(schema.documents).set({ status: "read" }).where(and(eq(schema.documents.householdId, visitor), eq(schema.documents.id, doc.id)));
+    assert.equal((await eventFeed(db, visitor)).inFlight, false);
+    assert.equal(await markRead(db, b, [feed.notifications[0].id]), 0);
+    assert.equal((await eventFeed(db, visitor)).unread, 1);
+    assert.equal(await markRead(db, visitor, [feed.notifications[0].id]), 1);
+    assert.equal((await eventFeed(db, visitor)).unread, 0);
+    assert.equal((await eventFeed(db, visitor)).notifications.length, 0);
+    assert.ok(!(await listEvents(db, visitor)).map(publicEvent).some(row => JSON.stringify(row).includes(visitor)));
+    // This synthetic metadata row never had a Storage object.
+    await db.delete(schema.documents).where(and(eq(schema.documents.householdId, visitor), eq(schema.documents.id, doc.id)));
+    await deleteHousehold(db, visitor);
+  });
+
   await check("a card from another household cannot be referenced", async () => {
     const [cardOfA] = await db.select().from(schema.cards).where(sql`${schema.cards.householdId} = ${a}`);
     await assert.rejects(
@@ -224,24 +306,99 @@ async function main() {
 
   await check("row level security is on for every table, with no policies", async () => {
     const tables = allTables().map((t) => getTableConfig(t).name);
-    assert.equal(tables.length, 17);
+    assert.equal(tables.length, 18);
     const on = (await pg.query<{ relname: string }>(`select relname from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace and relrowsecurity`)).rows.map((r) => r.relname);
     assert.deepStrictEqual(on.sort(), tables.sort());
     assert.equal((await pg.query(`select 1 from pg_policies`)).rows.length, 0);
   });
 
-  await check("every table but households and fx_rates has household_id (not null except webhook_deliveries, cascade, indexed)", async () => {
+  await check("every table but households has household_id (not null except webhook_deliveries, cascade, indexed)", async () => {
     const tables = allTables();
     for (const t of tables) {
       const cfg = getTableConfig(t);
-      if (cfg.name === "households" || cfg.name === "fx_rates") continue;
+      if (cfg.name === "households") continue;
       const col = cfg.columns.find((c) => c.name === "household_id");
       if (cfg.name === "webhook_deliveries") assert.ok(col && !col.notNull, "webhook_deliveries.household_id nullable");
       else assert.ok(col?.notNull, `${cfg.name}.household_id not null`);
       const fk = cfg.foreignKeys.find((f) => f.reference().columns.some((c) => c.name === "household_id") && f.reference().foreignTable === schema.households);
       assert.equal(fk?.onDelete, "cascade", `${cfg.name} cascade`);
-      assert.ok(cfg.indexes.some((i) => i.config.columns.some((c) => (c as { name?: string }).name === "household_id")), `${cfg.name} index`);
+      assert.ok(cfg.primaryKeys.some(key => key.columns[0].name === "household_id") || cfg.indexes.some((i) => i.config.columns.some((c) => (c as { name?: string }).name === "household_id")), `${cfg.name} index`);
     }
+  });
+
+  await check("Home reads ¥18,780 short, then ¥30,000 short after confirming Hikari exactly once", async () => {
+    const demo = await seedBen(db, { isDemo: true });
+    const initial = await loadMoneyState(db, demo, today);
+    const bill = initial.bills.find(row => row.biller === "Hikari Denki")!;
+    assert.deepEqual(homeSentence(initial), {
+      lead: "You're fine if Acme and Northwind pay as usual. If they're late, you're",
+      emphasis: "¥18,780 short on the 27th.",
+    });
+    assert.equal(await confirmPending(db, b, "bill", bill.id), false);
+    assert.equal(await confirmPending(db, demo, "bill", bill.id), true);
+    assert.equal(await confirmPending(db, demo, "bill", bill.id), false);
+    assert.equal(homeSentence(await loadMoneyState(db, demo, today)).emphasis, "¥30,000 short on the 27th.");
+    assert.equal((await listEvents(db, demo)).filter(e => e.kind === "bill_confirmed").length, 1);
+  });
+
+  await check("first sign-in upgrades only the requesting demo, with real balances and an idempotent membership", async () => {
+    const fromDemo = await seedBen(db, { isDemo: true });
+    const uid = randomUUID();
+    const setup = setupForm.parse({
+      name: "Kiko", currency: "USD", timeZone: "Asia/Tokyo", bank: "-12.37",
+      card: "Card C", limit: "501.10", closingDay: "15", dueDay: "10",
+    });
+    assert.equal(await accountHousehold(db, uid), null);
+    await Promise.all([finishSetup(db, uid, setup, fromDemo), finishSetup(db, uid, setup, fromDemo)]);
+    assert.equal(await findDemoHousehold(db, fromDemo), null);
+    assert.equal(await findDemoHousehold(db, uid), null);
+    assert.equal(await accountHousehold(db, uid), uid);
+    const state = await loadMoneyState(db, uid, today);
+    assert.equal(state.cards.length, 1);
+    assert.equal(state.cards[0].limit, 501.10);
+    assert.equal(state.bank, -12.37);
+    assert.equal(state.invoices.length + state.bills.length + state.charges.length, 0);
+    assert.equal((await householdClock(db, uid, new Date("2026-11-02T16:00:00Z"))).today, "2026-11-03");
+    assert.equal((await householdClock(db, a, new Date("2026-11-02T16:00:00Z"))).today, "2026-11-14");
+    assert.equal(await deleteOwnedHousehold(db, a), false);
+    assert.equal(await deleteOwnedHousehold(db, randomUUID()), false);
+    assert.equal(await deleteOwnedHousehold(db, uid), true);
+    assert.equal(await accountHousehold(db, uid), null);
+    assert.equal(await findDemoHousehold(db, a), a);
+  });
+
+  await check("anonymous sessions isolate visitors and only reset their own demo household", async () => {
+    const first = await seedBen(db, { isDemo: true });
+    const second = await seedBen(db, { isDemo: true });
+    assert.notEqual(first, second);
+    assert.equal(await findDemoHousehold(db, first), first);
+    assert.equal(await findDemoHousehold(db, b), null);
+    assert.equal(await findDemoHousehold(db, "invalid"), null);
+    assert.equal(await resetDemoHousehold(db, b), null);
+    const fresh = await resetDemoHousehold(db, first);
+    assert.ok(fresh && fresh !== first && fresh !== second);
+    assert.equal(await findDemoHousehold(db, first), null);
+    assert.equal(await resetDemoHousehold(db, first), null);
+    assert.equal(await findDemoHousehold(db, second), second);
+    assert.deepEqual(normalise(await loadMoneyState(db, fresh, today)), normalise(benMoney));
+  });
+
+  await check("published FX dates, scoped snapshots, and one daily statement and notification on retry", async () => {
+    assert.deepEqual(parseReferenceRate("<Cube time='2026-11-13'><Cube currency='USD' rate='2'/><Cube currency='JPY' rate='320'/></Cube>"),
+      { date: "2026-11-13", rateMicro: 160000000 });
+    const demo = await seedBen(db, { isDemo: true });
+    const [card] = await db.select().from(schema.cards).where(and(eq(schema.cards.householdId, demo), eq(schema.cards.label, "Card B")));
+    await db.update(schema.cards).set({closingDay: 14}).where(and(eq(schema.cards.householdId, demo), eq(schema.cards.id, card.id)));
+    await db.update(schema.fxRates).set({rateMicro: 160000000}).where(eq(schema.fxRates.householdId, demo));
+    assert.equal((await loadMoneyState(db, a, today)).fxPerUsd, 150);
+    const before = series(await loadMoneyState(db, demo, today), "worst");
+    await runDaily(db, demo);
+    await runDaily(db, demo);
+    assert.deepEqual(series(await loadMoneyState(db, demo, today), "worst"), before);
+    assert.equal((await listEvents(db, demo)).filter(row => row.kind === "daily_reminder" && row.notify).length, 1);
+    const statements = await db.select().from(schema.cardStatements).where(and(eq(schema.cardStatements.householdId, demo), eq(schema.cardStatements.cardId, card.id)));
+    assert.equal(statements.length, 1);
+    assert.equal(statements[0].amountMinor, 61000);
   });
 
   await check("deleting a household removes everything of it and nothing of the other", async () => {

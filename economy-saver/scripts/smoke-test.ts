@@ -17,16 +17,10 @@ function report(ok: boolean, name: string, detail = "") {
   console.log(`${ok ? "✓" : "✗"} ${name}${detail ? ` - ${detail}` : ""}`);
 }
 
-// Never prints more than message, status and debug id, so secrets cannot leak.
+// Raw errors and API bodies can contain account data or request credentials.
 function describeError(error: unknown): string {
-  if (error instanceof Error) {
-    const e = error as Error & { status?: number; debugId?: string };
-    const parts = [error.message];
-    if (e.status !== undefined) parts.push(`status ${e.status}`);
-    if (e.debugId) parts.push(`debug id ${e.debugId}`);
-    return parts.join(" | ");
-  }
-  return String(error);
+  const status = error instanceof Error && "status" in error && typeof error.status === "number" ? error.status : null;
+  return status ? `PayPal check failed (HTTP ${status}).` : "PayPal check failed.";
 }
 
 // Runs one check; returns its result, or undefined if it failed.
@@ -64,14 +58,14 @@ async function main() {
     report(true, "Environment", "PAYPAL_ENVIRONMENT=SANDBOX, client id and secret present");
   } catch (error) {
     report(false, "Environment");
-    console.log(`\n${describeError(error)}`);
+    console.log(error instanceof Error ? error.message : "Invalid PayPal configuration.");
     console.log("Hint: copy .env.example to .env.local and fill it in.");
     summary();
     return;
   }
 
   const { getAccessToken, paypalFetch } = await import("@/lib/paypal/client");
-  const { runTool } = await import("@/lib/paypal/toolkit");
+  const { runTool, deleteSmokeDraft } = await import("@/lib/paypal/toolkit");
 
   // b. Sandbox token
   await check("Sandbox token", async () => {
@@ -82,12 +76,9 @@ async function main() {
   // c. Balance
   try {
     const data = await paypalFetch<Obj>("/v1/reporting/balances");
-    const lines = ((data?.balances ?? []) as Obj[]).map(
-      (b) => `${b.available_balance?.value ?? b.total_balance?.value ?? "?"} ${b.currency ?? ""}`.trim(),
-    );
-    report(true, "Balance", lines.length ? `available ${lines.join(", ")}` : "call worked but no balances were returned");
+    report(true, "Balance", Array.isArray(data.balances) ? "balance report received" : "report received");
   } catch (error) {
-    report(false, "Balance", `${describeError(error)} (the forecast can fall back to a typed-in balance)`);
+    report(false, "Balance", describeError(error));
   }
 
   // d. Create a draft invoice
@@ -103,8 +94,8 @@ async function main() {
         note: "Smoke test draft from Personal Economy Saver. Safe to delete.",
       });
       const id = extractInvoiceId(result);
-      if (!id) throw new Error(`Created, but could not find an invoice id in the response: ${JSON.stringify(result).slice(0, 200)}`);
-      return { value: id, detail: `invoice id ${id}` };
+      if (!id) throw new Error("Draft response missing its invoice id");
+      return { value: id, detail: "draft created" };
     });
   }
 
@@ -113,24 +104,19 @@ async function main() {
     await check("Read invoice back", async () => {
       const inv = await runTool<Obj>("get_invoice", { invoice_id: invoiceId });
       const status = inv.status ?? "unknown";
-      const currency = inv.detail?.currency_code ?? inv.amount?.currency_code ?? "?";
-      const total = inv.amount?.value ?? inv.amounts?.total?.value ?? "?";
-      const invoicerEmail = inv.invoicer?.email_address ?? "not returned";
-      const country = inv.invoicer?.address?.country_code ?? "not returned";
-      const detail =
-        `status ${status}${status === "DRAFT" ? "" : " (expected DRAFT)"}, ${currency} ${total}, ` +
-        `invoicer ${invoicerEmail}, invoicer country ${country}`;
+      if (status !== "DRAFT") throw new Error("Unexpected invoice state");
+      const detail = "draft status verified";
       return { value: inv, detail };
     });
   }
 
   // f. Clean up
   if (invoiceId && keep) {
-    console.log(`- Cleanup skipped (--keep). Draft invoice ${invoiceId} is still in the sandbox.`);
+    console.log("Cleanup skipped (--keep). A draft remains in the sandbox.");
   } else if (invoiceId) {
     await check("Delete draft invoice", async () => {
-      await runTool("delete_invoice", { invoice_id: invoiceId });
-      return { value: true, detail: `deleted ${invoiceId}` };
+      await deleteSmokeDraft(invoiceId!);
+      return { value: true, detail: "draft deleted" };
     });
   }
 
@@ -142,10 +128,6 @@ async function main() {
       report(true, "Webhooks", "none registered yet. After deploying, run: npm run webhook:register -- https://<your-app>");
     } else {
       report(true, "Webhooks", `${hooks.length} registered`);
-      for (const hook of hooks) {
-        const events = ((hook.event_types ?? []) as Obj[]).map((e) => e.name).join(", ");
-        console.log(`    ${hook.id}  ${hook.url}  [${events}]`);
-      }
       if (settings.PAYPAL_WEBHOOK_ID) {
         const match = hooks.some((h) => h.id === settings.PAYPAL_WEBHOOK_ID);
         console.log(`    PAYPAL_WEBHOOK_ID ${match ? "matches a registered webhook" : "does NOT match any registered webhook"}`);

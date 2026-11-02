@@ -4,7 +4,7 @@ import { getAccessToken, PayPalError } from "@/lib/paypal/client";
 // Tools the AI agent may call on its own. None of them sends anything to anyone:
 // create_invoice only makes a draft.
 const AGENT_ACTIONS = {
-  invoices: { create: true, list: true, get: true, search: true, generateInvoiceNumber: true, delete: true },
+  invoices: { create: true, list: true, get: true, search: true, generateInvoiceNumber: true },
 };
 
 // Tools the server calls only after the user taps Approve on a confirmation card.
@@ -12,9 +12,6 @@ const APPROVED_ACTIONS = {
   invoices: {
     send: true,
     sendReminder: true,
-    setupReminders: true,
-    createConditionalRules: true,
-    recordPayment: true,
   },
 };
 
@@ -37,8 +34,17 @@ export const approvedTools = () => toolsFor(APPROVED_ACTIONS);
 
 // Runs one toolkit tool by name: validates the arguments with the toolkit's own schema
 // (run() does not), executes it against the sandbox, and turns error payloads into exceptions.
-export async function runTool<T = unknown>(method: string, args: unknown): Promise<T> {
-  const tool = toolsFor(ALL_ACTIONS).find((t) => t.method === method);
+export async function runTool<T = unknown>(method: string, args: unknown, requestId?: string): Promise<T> {
+  return executeTool<T>(toolsFor(ALL_ACTIONS), method, args, requestId);
+}
+
+/** Only the sandbox smoke test cleans up the draft it just created. */
+export function deleteSmokeDraft(invoiceId: string) {
+  return executeTool(toolsFor({ invoices: { delete: true } }), "delete_invoice", { invoice_id: invoiceId });
+}
+
+async function executeTool<T>(tools: ToolkitTool[], method: string, args: unknown, requestId?: string): Promise<T> {
+  const tool = tools.find((t) => t.method === method);
   if (!tool) throw new PayPalError(`Tool ${method} is not enabled in this app`);
 
   const parsed = tool.parameters.safeParse(args ?? {});
@@ -46,7 +52,7 @@ export async function runTool<T = unknown>(method: string, args: unknown): Promi
     throw new PayPalError(`Invalid arguments for ${method}`, 400, undefined, parsed.error.issues);
   }
 
-  const api = new PayPalAPI(await getAccessToken(), CONTEXT);
+  const api = new PayPalAPI(await getAccessToken(), { ...CONTEXT, request_id: requestId });
   const result = JSON.parse(await api.run(method, parsed.data));
   if (result?.ok === false || result?.error) {
     const message = result.message ?? result.error?.message ?? `${method} failed`;

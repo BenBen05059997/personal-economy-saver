@@ -1,7 +1,9 @@
 import { connection } from "next/server";
 
-// Daily job, called by the Cloudflare Cron Trigger (see worker.ts). Stub for now: the Supabase
-// keep-alive ping and reminders land here later.
+import { z } from "zod";
+import { db } from "@/db/client";
+import { runDaily } from "@/db/daily";
+
 function authorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false; // No secret configured: refuse everything.
@@ -16,5 +18,10 @@ function authorized(request: Request): boolean {
 export async function GET(request: Request) {
   await connection();
   if (!authorized(request)) return Response.json({ ok: false }, { status: 401 });
-  return Response.json({ ok: true, at: new Date().toISOString() });
+  const configured = process.env.CRON_HOUSEHOLD_IDS?.trim();
+  if (!configured) return Response.json({ error: "CRON_HOUSEHOLD_IDS is not set" }, { status: 503 });
+  const ids = z.array(z.string().uuid()).safeParse(configured.split(",").map(id => id.trim()));
+  if (!ids.success) return Response.json({ error: "CRON_HOUSEHOLD_IDS must contain household UUIDs" }, { status: 503 });
+  for (const id of new Set(ids.data)) await runDaily(db(), id);
+  return Response.json({ ok: true });
 }

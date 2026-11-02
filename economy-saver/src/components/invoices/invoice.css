@@ -1,0 +1,10 @@
+.invoice-review { max-width: 640px; margin: 0 auto; }
+.invoice-review h1 { margin: var(--space-4) 0 var(--space-6); }
+.invoice-details { margin: 0 0 var(--space-6); }
+.invoice-details .ui-row { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: baseline; gap: var(--space-3); }
+.invoice-details dt { font-size: 13px; color: var(--muted); }
+.invoice-details dd { margin: 0; overflow-wrap: anywhere; }
+.invoice-amount { font: 400 30px/1.1 var(--serif); }
+.invoice-amount small { margin-left: var(--space-2); font: 14px/1.4 var(--sans); color: var(--muted); }
+.invoice-review form p { margin-top: var(--space-3); }
+.invoice-status { font-weight: 500; }

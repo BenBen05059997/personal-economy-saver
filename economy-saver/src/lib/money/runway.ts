@@ -119,6 +119,7 @@ export function statementItems(state: MoneyState): StatementItem[] {
       byClose.set(close, (byClose.get(close) ?? 0) + c.amount);
     }
     for (const [closesOn, amount] of byClose) {
+      if (state.statements.some(item => item.cardId === card.id && item.closedOn === closesOn)) continue;
       out.push({ cardId: card.id, label: `${card.label} statement`, amount, closesOn, dueOn: dueDateFor(card, closesOn), open: true });
     }
   }
@@ -144,7 +145,7 @@ export type Arrival = {
   worstOn: string;
 };
 
-function medianLow(xs: number[]): number {
+export function medianLow(xs: number[]): number {
   const s = [...xs].sort((a, b) => a - b);
   return s[Math.floor((s.length - 1) / 2)];
 }

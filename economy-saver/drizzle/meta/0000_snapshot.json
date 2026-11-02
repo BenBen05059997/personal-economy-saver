@@ -1,5 +1,5 @@
 {
-  "id": "77f4c7b8-21c7-4051-b085-7801d6bd5aca",
+  "id": "1cb8d0b6-5866-4650-9920-9f31ea88855d",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1146,9 +1146,9 @@
           "notNull": true,
           "default": false
         },
-        "ai_key_encrypted": {
-          "name": "ai_key_encrypted",
-          "type": "text",
+        "ai_key_secret_id": {
+          "name": "ai_key_secret_id",
+          "type": "uuid",
           "primaryKey": false,
           "notNull": false
         },

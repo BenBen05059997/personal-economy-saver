@@ -8,7 +8,7 @@ import { toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
 
 export type SeedOptions = {
-  isDemo?: boolean; // true for the shared demo household; Try-it copies leave it false
+  isDemo?: boolean; // true for demo households, including every Try-it copy
   name?: string;
 };
 
@@ -23,12 +23,6 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
   const home = m.homeCurrency;
 
   return db.transaction(async (tx) => {
-    // One shared daily reference rate; a second seed finds it already there.
-    await tx
-      .insert(s.fxRates)
-      .values({ date: m.today, base: "USD", quote: home, rateMicro: toRateMicro(m.fxPerUsd) })
-      .onConflictDoNothing();
-
     const [household] = await tx
       .insert(s.households)
       .values({
@@ -40,6 +34,9 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
       })
       .returning({ id: s.households.id });
     const hid = household.id;
+    await tx.insert(s.fxRates).values({
+      householdId: hid, date: m.today, base: "USD", quote: home, rateMicro: toRateMicro(m.fxPerUsd),
+    });
 
     const [member] = await tx.insert(s.members).values({ householdId: hid, displayName: "Ben", role: "owner" }).returning({ id: s.members.id });
 

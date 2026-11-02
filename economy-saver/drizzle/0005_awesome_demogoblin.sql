@@ -1,0 +1,9 @@
+ALTER TABLE "documents" ADD CONSTRAINT "documents_household_id_uq" UNIQUE("household_id","id");--> statement-breakpoint
+ALTER TABLE "members" ADD CONSTRAINT "members_household_id_uq" UNIQUE("household_id","id");--> statement-breakpoint
+ALTER TABLE "bills" ADD CONSTRAINT "bills_member_household_fk" FOREIGN KEY ("household_id","member_id") REFERENCES "public"."members"("household_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bills" ADD CONSTRAINT "bills_document_household_fk" FOREIGN KEY ("household_id","document_id") REFERENCES "public"."documents"("household_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cards" ADD CONSTRAINT "cards_member_household_fk" FOREIGN KEY ("household_id","member_id") REFERENCES "public"."members"("household_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "charges" ADD CONSTRAINT "charges_document_household_fk" FOREIGN KEY ("household_id","document_id") REFERENCES "public"."documents"("household_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "paypal_connections" ADD CONSTRAINT "paypal_member_household_fk" FOREIGN KEY ("household_id","member_id") REFERENCES "public"."members"("household_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "readings" ADD CONSTRAINT "readings_document_household_fk" FOREIGN KEY ("household_id","document_id") REFERENCES "public"."documents"("household_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "users" ADD CONSTRAINT "users_member_household_fk" FOREIGN KEY ("household_id","member_id") REFERENCES "public"."members"("household_id","id") ON DELETE cascade ON UPDATE no action;

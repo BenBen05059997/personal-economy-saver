@@ -1,5 +1,5 @@
 // Registers this app's webhook endpoint with the PayPal sandbox.
-// Usage: npm run webhook:register -- https://your-app.onrender.com
+// Usage: npm run webhook:register -- https://your-worker.example
 import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
 
@@ -23,33 +23,29 @@ function fail(message: string): never {
 function webhookUrlFromArgs(): string {
   const args = process.argv.slice(2);
   if (args.length !== 1) {
-    fail("Usage: npm run webhook:register -- https://your-app.onrender.com");
+    fail("Usage: npm run webhook:register -- https://your-worker.example");
   }
 
   let base: URL;
   try {
     base = new URL(args[0]);
   } catch {
-    return fail(`"${args[0]}" is not a valid URL. Usage: npm run webhook:register -- https://your-app.onrender.com`);
+    return fail(`Invalid URL. Usage: npm run webhook:register -- https://your-worker.example`);
   }
   if (base.protocol !== "https:") {
     fail("PayPal only accepts https webhook URLs. If this is local, deploy first or use an https tunnel such as ngrok.");
   }
   const host = base.hostname;
   if (host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".localhost")) {
-    fail("PayPal cannot reach localhost. Deploy first (for example to Render), or use an https tunnel such as ngrok.");
+    fail("PayPal cannot reach localhost. Use the owner-approved Worker URL.");
   }
 
   return `${base.origin}${base.pathname.replace(/\/+$/, "")}/api/paypal/webhook`;
 }
 
 function describeError(error: unknown): string {
-  if (!(error instanceof Error)) return String(error);
-  const e = error as Error & { status?: number; debugId?: string };
-  const parts = [error.message];
-  if (e.status !== undefined) parts.push(`status ${e.status}`);
-  if (e.debugId) parts.push(`debug id ${e.debugId}`);
-  return parts.join(" | ");
+  const status = error instanceof Error && "status" in error && typeof error.status === "number" ? error.status : null;
+  return status ? `PayPal request failed (HTTP ${status}).` : "PayPal request failed.";
 }
 
 async function main() {
@@ -63,7 +59,7 @@ async function main() {
   }
   const { paypalFetch } = await import("@/lib/paypal/client");
 
-  console.log(`Registering ${url} with the PayPal sandbox...`);
+  console.log("Registering the approved endpoint with the PayPal sandbox.");
 
   let id: string | undefined;
   try {
@@ -85,7 +81,7 @@ async function main() {
   }
 
   if (!id) fail("PayPal did not return a webhook id.");
-  console.log(`\nAdd this to .env.local and to Render's environment: PAYPAL_WEBHOOK_ID=${id}`);
+  console.log("In the PayPal sandbox dashboard, copy the webhook ID privately into PAYPAL_WEBHOOK_ID in local and Worker settings.");
 }
 
 main().catch((error) => fail(`Unexpected error: ${describeError(error)}`));

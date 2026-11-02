@@ -1,0 +1,50 @@
+:root {
+  color-scheme: light dark;
+  --page: light-dark(#efeeea, #121110);
+  --screen: light-dark(#fbfaf8, #1b1a17);
+  --wash: light-dark(#f2f0eb, #24221f);
+  --ink: light-dark(#1e1c19, #efece5);
+  --muted: light-dark(#6b665e, #a39d92);
+  --faint: light-dark(#a59f95, #6e695f);
+  --rule: light-dark(#e3e0d9, #2f2d29);
+  --accent: light-dark(#2742c8, #93a6ff);
+  --accent-wash: light-dark(#edeffb, #222744);
+  --on-accent: light-dark(#fff, #10131f);
+  --red: light-dark(#b3261e, #ff8f86);
+  --red-wash: light-dark(#f7e3e0, #3a2220);
+  --green: light-dark(#1d7a4c, #6fd09b);
+  --green-wash: light-dark(#e2f1e8, #1d3327);
+  --sel: light-dark(#e4e1d9, #35322d);
+  --serif: "Newsreader", Georgia, "Yu Mincho", serif;
+  --sans: "Hanken Grotesk", "Helvetica Neue", "Hiragino Sans", Arial, sans-serif;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --control-height: 36px;
+  --sidebar-width: 230px;
+  --detail-width: 420px;
+  --content-width: 1000px;
+  --topbar-height: 56px;
+  --mono: ui-monospace, Menlo, monospace;
+  --bg: var(--screen);
+  --surface: var(--screen);
+  --surface-2: var(--wash);
+  --fg: var(--ink);
+  --line: var(--rule);
+  --display: var(--serif);
+  --body: var(--sans);
+  --accent-ink: var(--on-accent);
+  --accent-soft: var(--accent-wash);
+  --crit: var(--red);
+  --crit-soft: var(--red-wash);
+  --good: var(--green);
+  --good-soft: var(--green-wash);
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }

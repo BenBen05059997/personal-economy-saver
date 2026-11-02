@@ -2,6 +2,9 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "personal-economy-saver",
   "main": "worker.ts",
+  "minify": true,
+  // Also protect direct Wrangler dev/build commands against OpenNext’s dotenv export.
+  "build": { "command": "node scripts/worker-runtime-env.mjs" },
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {

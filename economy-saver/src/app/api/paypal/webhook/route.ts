@@ -1,31 +1,20 @@
-import { connection } from "next/server";
-import { recordEvent, recentEvents } from "@/lib/events";
+import { db } from "@/db/client";
+import { env } from "@/lib/env";
+import { applyVerifiedDelivery, recentDeliveries } from "@/lib/events";
 import { verifyWebhook } from "@/lib/paypal/webhook";
+import { currentHouseholdId } from "@/lib/session";
 
-// Webhook deliveries. Verified against PayPal sandbox before anything is trusted.
 export async function POST(request: Request) {
-  const rawBody = await request.text();
-  const result = await verifyWebhook(rawBody, request.headers);
-
-  recordEvent({
-    id: result.event?.id ?? "unknown",
-    type: result.event?.event_type ?? "unknown",
-    verified: result.verified,
-    reason: result.verified ? undefined : result.reason,
-    resourceId: result.event?.resource?.id,
-    receivedAt: new Date().toISOString(),
-  });
-  console.log(
-    `[webhook] ${result.event?.event_type ?? "unknown"} ${result.event?.id ?? "-"} ` +
-      (result.verified ? "verified" : `rejected: ${result.reason}`),
-  );
-
-  if (result.verified) return Response.json({ received: true });
-  return Response.json({ received: false, reason: result.reason }, { status: 400 });
+  const result = await verifyWebhook(await request.text(), request.headers);
+  if (!result.verified) return Response.json({ received: false, reason: result.reason }, { status: 400 });
+  await applyVerifiedDelivery(db(), result.event);
+  return Response.json({ received: true });
 }
 
-// Lists recent deliveries (sandbox only, no secrets) so we can watch them arrive.
+// Sandbox diagnostics: only the caller's deliveries, without any raw PayPal payload.
 export async function GET() {
-  await connection();
-  return Response.json({ events: recentEvents() });
+  env();
+  const hid = await currentHouseholdId();
+  if (!hid) return Response.json({ error: "Household session required" }, { status: 401 });
+  return Response.json({ events: await recentDeliveries(db(), hid) }, { headers: { "Cache-Control": "private, no-store" } });
 }

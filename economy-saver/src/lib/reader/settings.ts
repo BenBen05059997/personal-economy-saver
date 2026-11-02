@@ -1,0 +1,30 @@
+export class ReaderError extends Error {}
+
+export function readerSetting(name: string) {
+  const value = process.env[name]?.trim();
+  if (!value) throw new ReaderError(`${name} is not set`);
+  return value;
+}
+
+export const MAX_DOCUMENT_BYTES = 6 * 1024 * 1024;
+
+export async function limitedBody(request: Request, limit: number): Promise<ArrayBuffer> {
+  const reader = request.body?.getReader();
+  if (!reader) throw new ReaderError("A document is required.");
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.length;
+    if (length > limit) {
+      await reader.cancel();
+      throw new ReaderError("Document exceeds the 6 MiB limit.");
+    }
+    chunks.push(value);
+  }
+  const data = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) { data.set(chunk, offset); offset += chunk.length; }
+  return data.buffer;
+}

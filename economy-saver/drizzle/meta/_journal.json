@@ -5,8 +5,57 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793542967007,
+      "when": 1793543920917,
       "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793624641138,
+      "tag": "0001_invoice_reminder",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793624725351,
+      "tag": "0002_household_rates",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793624954881,
+      "tag": "0003_reader",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793624975087,
+      "tag": "0004_request_buckets",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793625122967,
+      "tag": "0005_awesome_demogoblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793625672874,
+      "tag": "0006_paypal_freshness",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793625940720,
+      "tag": "0007_closed_invoice",
       "breakpoints": true
     }
   ]

@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Load the toolkit (and its axios / MCP SDK dependencies) from node_modules instead of bundling it.
-  serverExternalPackages: ["@paypal/agent-toolkit"],
+  // Let OpenNext bundle these SDKs once for the Worker, across all server routes.
+  serverExternalPackages: ["@paypal/agent-toolkit", "@supabase/supabase-js", "@supabase/ssr", "drizzle-orm", "postgres", "zod"],
   cacheComponents: true,
   partialPrefetching: true,
 };

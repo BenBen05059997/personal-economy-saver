@@ -142,7 +142,7 @@ CREATE TABLE "households" (
 	"home_currency" char(3) NOT NULL,
 	"bank_balance_minor" bigint DEFAULT 0 NOT NULL,
 	"is_demo" boolean DEFAULT false NOT NULL,
-	"ai_key_encrypted" text,
+	"ai_key_secret_id" uuid,
 	"ai_key_hint" text,
 	"ai_reads_today" integer DEFAULT 0 NOT NULL,
 	"ai_reads_day" date,

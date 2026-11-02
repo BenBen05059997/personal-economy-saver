@@ -1,0 +1,244 @@
+.money-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  min-height: 100dvh;
+  color: var(--ink);
+  background: var(--screen);
+  font: 14px/1.45 var(--sans);
+}
+.shell-icon { width: 16px; height: 16px; flex: none; }
+.shell-sidebar, .shell-nav-popover {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 12px 12px;
+  border-right: 1px solid var(--rule);
+  background: var(--wash);
+}
+.shell-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100dvh;
+  overflow: auto;
+}
+.shell-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px 20px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 15px;
+}
+.shell-brand span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--screen);
+  font: 500 13px/1 var(--serif);
+}
+.shell-links { display: flex; flex-direction: column; gap: 2px; }
+.shell-links a, .shell-footer a, .shell-person {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+}
+.shell-links a:hover, .shell-footer a:hover, .shell-popover a:hover {
+  background: color-mix(in srgb, var(--sel) 55%, transparent);
+}
+.shell-links a[aria-current="page"] {
+  background: var(--sel);
+  font-weight: 600;
+}
+.shell-links .shell-icon, .shell-footer .shell-icon { color: var(--muted); }
+.shell-links [aria-current="page"] .shell-icon { color: var(--ink); }
+.shell-badge {
+  min-width: 18px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 600 11.5px/18px var(--sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.shell-footer {
+  display: grid;
+  gap: 2px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+.shell-person { min-height: 38px; overflow-wrap: anywhere; }
+.shell-person span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--sel);
+  font: 600 12px/1 var(--sans);
+}
+.shell-workspace { min-width: 0; }
+.shell-bar {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: var(--topbar-height);
+  padding: 0 24px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--screen);
+}
+.shell-bar button, .shell-phone-ask, .shell-nav-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+}
+.shell-bar .shell-ask {
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 1px solid var(--rule);
+  background: var(--wash);
+  color: var(--muted);
+  text-align: left;
+}
+.shell-ask span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shell-bar .shell-add {
+  padding: 0 16px;
+  background: var(--ink);
+  color: var(--screen);
+  font-weight: 500;
+}
+.shell-bell { margin-left: auto; }
+.shell-bell:hover, .shell-nav-close:hover { background: var(--wash); }
+.shell-bar .shell-mobile-toggle, .shell-mobile-brand, .shell-phone-ask { display: none; }
+.shell-main {
+  min-width: 0;
+  padding: 32px 40px 48px;
+}
+.shell-main [id] { scroll-margin-top: 72px; }
+.shell-content { width: 100%; max-width: var(--content-width); margin: 0 auto; }
+.shell-skip {
+  position: fixed;
+  z-index: 10;
+  top: 4px;
+  left: 4px;
+  transform: translateY(-160%);
+  padding: 8px 14px;
+  background: var(--ink);
+  color: var(--screen);
+}
+.shell-skip:focus { transform: translateY(0); }
+.shell-popover, .shell-nav-popover { color: var(--ink); font: 14px/1.45 var(--sans); }
+.shell-popover {
+  position: fixed;
+  inset: 49px 24px auto auto;
+  width: min(244px, calc(100vw - 32px));
+  margin: 0;
+  padding: 5px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--screen);
+  box-shadow: 0 6px 20px #0001;
+}
+.shell-popover h2 { margin: 8px 10px; font: 600 15px/1.4 var(--sans); }
+.shell-popover p { margin: 4px 10px; color: var(--muted); }
+.shell-popover a { display: block; padding: 8px 10px; border-radius: 6px; text-decoration: none; }
+.shell-ask-menu { left: 254px; right: auto; width: 330px; }
+.shell-notifications { right: 110px; }
+.shell-nav-popover {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: min(280px, 90vw);
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  border: 0;
+  border-right: 1px solid var(--rule);
+}
+.shell-nav-popover::backdrop { background: #0005; }
+.shell-nav-popover:not(:popover-open) { display: none; }
+.shell-nav-close { position: absolute; top: 10px; right: 10px; }
+
+@media (max-width: 760px) {
+  .money-shell { display: block; font-size: 15px; }
+  .shell-sidebar, .shell-bar .shell-ask { display: none; }
+  .shell-bar {
+    height: 52px;
+    gap: 6px;
+    padding: 0 max(12px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
+  }
+  .shell-bar .shell-mobile-toggle { display: inline-flex; width: 44px; height: 44px; }
+  .shell-mobile-brand { display: inline; font-weight: 600; text-decoration: none; }
+  .shell-bell { min-height: 44px; }
+  .shell-bar .shell-add { height: 36px; padding: 0 12px; }
+  .shell-main { padding: 18px max(20px, env(safe-area-inset-right)) 96px max(20px, env(safe-area-inset-left)); }
+  .shell-phone-ask {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 3;
+    display: flex;
+    justify-content: flex-start;
+    gap: 14px;
+    width: 100%;
+    height: auto;
+    padding: 10px 20px max(10px, env(safe-area-inset-bottom));
+    border-radius: 0;
+    border-top: 1px solid var(--rule);
+    background: var(--screen);
+    color: var(--muted);
+    font-size: 13.5px;
+    text-align: left;
+  }
+  .shell-phone-ask > span {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--screen);
+  }
+  .shell-phone-ask .shell-icon { width: 21px; height: 21px; }
+  .shell-links a, .shell-footer a { min-height: 44px; }
+  .shell-popover { inset: 46px 12px auto auto; }
+  .shell-ask-menu { inset: auto 12px calc(68px + env(safe-area-inset-bottom)) 12px; width: auto; }
+  .shell-popover a { min-height: 44px; }
+}
+.shell-notifications { width: min(360px, calc(100vw - 24px)); max-height: min(500px, 80dvh); overflow-y: auto; }
+.shell-notification-list { list-style: none; margin: 10px 0; padding: 0 10px; }
+.shell-notification-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); }
+.shell-notification-list small { display: block; color: var(--muted); }
+.shell-notification-list button, .shell-read-all { min-height: 30px; flex: none; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--screen); color: var(--accent); cursor: pointer; }
+.shell-read-all { margin: 0 10px; }
+
+.shell-ask-menu form { padding: 0 var(--space-3) var(--space-3); }

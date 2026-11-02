@@ -30,7 +30,8 @@ export type Invoice = {
   number?: string;
   item: string;
   amountUsd: number;
-  status: "unbilled" | "draft" | "sent" | "paid";
+  status: "unbilled" | "draft" | "sent" | "paid" | "closed";
+  paypalStatus?: string;
   sentOn?: string;
   dueOn?: string;
   note?: string;

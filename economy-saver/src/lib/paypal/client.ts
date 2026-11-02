@@ -27,6 +27,7 @@ export async function getAccessToken(): Promise<string> {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: "grant_type=client_credentials",
+    signal: AbortSignal.timeout(8000),
     cache: "no-store",
   });
   const body = await res.json().catch(() => ({}));

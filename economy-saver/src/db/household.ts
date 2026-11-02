@@ -8,6 +8,8 @@ import { addDays } from "@/lib/money/runway";
 import type { Bill, Card, Charge, Client, ClosedStatement, Invoice, MoneyState } from "@/lib/money/types";
 import { convertMinor, fromMinor, fromRateMicro, toMinor } from "./money";
 import * as s from "./schema";
+import { deleteHouseholdKey } from "./ai-key";
+import { removeHouseholdDocuments } from "./document-cleanup";
 
 // Both the postgres.js client and PGlite (tests) fit this.
 export type Db = PgDatabase<PgQueryResultHKT, typeof s>;
@@ -17,6 +19,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function requireHousehold(householdId: string | null | undefined): string {
   if (!householdId || !UUID.test(householdId)) throw new Error("A household id is required");
   return householdId;
+}
+
+export async function householdOwnerName(db: Db, householdId: string): Promise<string> {
+  const [owner] = await db.select({ name: s.members.displayName }).from(s.members)
+    .where(and(eq(s.members.householdId, requireHousehold(householdId)), eq(s.members.role, "owner")));
+  if (!owner) throw new Error("Household owner not found");
+  return owner.name;
 }
 
 // A closed cycle is at most a month, so charges older than this cannot belong to an open cycle.
@@ -37,7 +46,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string)
     const [rate] = await db
       .select()
       .from(s.fxRates)
-      .where(and(eq(s.fxRates.base, "USD"), eq(s.fxRates.quote, home), lte(s.fxRates.date, today)))
+      .where(and(eq(s.fxRates.householdId, hid), eq(s.fxRates.base, "USD"), eq(s.fxRates.quote, home), lte(s.fxRates.date, today)))
       .orderBy(desc(s.fxRates.date))
       .limit(1);
     if (!rate) throw new Error(`No USD/${home} rate on or before ${today}`);
@@ -132,6 +141,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string)
       item: i.item,
       amountUsd: inUsd(i.amountMinor, i.currency),
       status: i.status,
+      ...(i.paypalStatus && { paypalStatus: i.paypalStatus }),
       ...(i.sentOn !== null && { sentOn: i.sentOn }),
       ...(i.dueOn !== null && { dueOn: i.dueOn }),
       ...(i.note !== null && { note: i.note }),
@@ -166,6 +176,14 @@ export type NewEvent = {
 
 export async function recordEvent(db: Db, householdId: string, e: NewEvent): Promise<string> {
   const hid = requireHousehold(householdId);
+  let notify = e.notify === true;
+  if (notify && e.kind !== "invoice_paid") {
+    const today = sql`timezone(${s.households.timeZone}, now())::date`;
+    const claimed = await db.update(s.households).set({ notificationDay: today }).where(and(
+      eq(s.households.id, hid), sql`${s.households.notificationDay} is distinct from ${today}`,
+    )).returning({ id: s.households.id });
+    notify = claimed.length > 0;
+  }
   const [row] = await db
     .insert(s.events)
     .values({
@@ -177,7 +195,7 @@ export async function recordEvent(db: Db, householdId: string, e: NewEvent): Pro
       currency: e.amount?.currency ?? null,
       refType: e.ref?.type ?? null,
       refId: e.ref?.id ?? null,
-      notify: e.notify ?? false,
+      notify,
       ...(e.occurredAt && { occurredAt: e.occurredAt }),
     })
     .returning({ id: s.events.id });
@@ -185,14 +203,14 @@ export async function recordEvent(db: Db, householdId: string, e: NewEvent): Pro
 }
 
 /** Newest first. `since` returns only events that happened after it (the 5-second poll). */
-export async function listEvents(db: Db, householdId: string, since?: Date, limit = 100) {
+export async function listEvents(db: Db, householdId: string, since?: Date, limit = 100, offset = 0) {
   const hid = requireHousehold(householdId);
   return db
     .select()
     .from(s.events)
     .where(and(eq(s.events.householdId, hid), since ? gt(s.events.occurredAt, since) : undefined))
-    .orderBy(desc(s.events.occurredAt))
-    .limit(limit);
+    .orderBy(desc(s.events.occurredAt), desc(s.events.id))
+    .limit(limit).offset(offset);
 }
 
 export async function unreadCount(db: Db, householdId: string): Promise<number> {
@@ -248,5 +266,11 @@ export async function recordWebhookDelivery(
 /** Everything cascades from the households row. */
 export async function deleteHousehold(db: Db, householdId: string): Promise<void> {
   const hid = requireHousehold(householdId);
-  await db.delete(s.households).where(eq(s.households.id, hid));
+  await db.transaction(async tx => {
+    const [household] = await tx.select({ id: s.households.id }).from(s.households).where(eq(s.households.id, hid)).for("update");
+    if (!household) return;
+    await deleteHouseholdKey(tx, hid);
+    await removeHouseholdDocuments(tx, hid);
+    await tx.delete(s.households).where(eq(s.households.id, hid));
+  });
 }

@@ -1,0 +1,34 @@
+.directory { display: grid; gap: var(--space-6); }
+.directory.detail-open { grid-template-columns: minmax(0, 1fr) minmax(270px, var(--detail-width)); align-items: start; }
+.directory-list { min-width: 0; }
+.directory-list > .ui-hint { margin-bottom: var(--space-5); }
+.directory .ui-row { align-items: center; }
+.directory-link { text-decoration: none; overflow-wrap: anywhere; }
+.directory-link[aria-current="page"], .directory-link:hover { background: var(--wash); }
+.directory-list .directory-link { padding-inline: var(--space-2); }
+.directory-list .directory-link > :last-child, .directory-detail dd { text-align: right; }
+.directory small { display: block; margin-top: var(--space-1); font-size: 13px; color: var(--muted); }
+.directory-detail { position: sticky; top: calc(var(--topbar-height) + var(--space-4)); padding: var(--space-5); border-left: 1px solid var(--rule); max-height: calc(100dvh - var(--topbar-height) - var(--space-8)); overflow-y: auto; }
+.directory-detail header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-5); }
+.directory-detail h2 { font: 400 26px/1.2 var(--serif); margin: 0; }
+.directory-detail header a { color: var(--muted); }
+.directory-detail h3 { margin: var(--space-5) 0 var(--space-1); font: 500 16px var(--sans); }
+.directory-detail dl { margin: var(--space-4) 0; }
+.directory-detail dt { color: var(--muted); }
+.directory-detail dd { margin: 0; }
+.directory-big { font: 400 32px/1.2 var(--serif); }
+.directory-empty { padding-block: var(--space-4); }
+.household-table { width: 100%; border-collapse: collapse; text-align: left; }
+.household-table th { font-size: 13px; color: var(--muted); font-weight: 500; }
+.household-table :is(td, th) { padding: var(--space-3) var(--space-2); border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+.household-table .amount { text-align: right; white-space: nowrap; }
+.household-pages { display: flex; justify-content: space-between; margin-top: var(--space-4); }
+@media (max-width: 960px) {
+  .directory.detail-open { display: block; }
+  .directory.detail-open .directory-list { display: none; }
+  .directory-detail { padding: 0; border: 0; position: static; max-height: none; }
+}
+@media (max-width: 760px) {
+  .household-table .event-kind { display: none; }
+  .household-table :is(td, th) { padding-inline: var(--space-1); }
+}

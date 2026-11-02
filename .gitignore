@@ -12,6 +12,7 @@ build/
 coverage/
 .wrangler/
 .open-next/
+/economy-saver/.pglite/
 *.tsbuildinfo
 next-env.d.ts
 

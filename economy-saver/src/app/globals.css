@@ -1,145 +1,36 @@
-/* Design tokens from the approved concept screen. Dark first: money at night. */
-:root {
-  color-scheme: dark;
-  --bg: #0d131e;
-  --surface: #141c2a;
-  --surface-2: #1a2435;
-  --line: #27324a;
-  --fg: #e7ecf4;
-  --muted: #8f9bb1;
-  --faint: #5f6b82;
-  --accent: #8fa5ff;
-  --accent-ink: #0d131e;
-  --accent-soft: rgba(143, 165, 255, 0.14);
-  --s-exp: #6a86f0;
-  --s-worst: #c08429;
-  --good: #47c28f;
-  --good-soft: rgba(71, 194, 143, 0.14);
-  --crit: #ff7070;
-  --crit-soft: rgba(255, 112, 112, 0.15);
-  --warn: #e3b04b;
-  --note-bg: #2b2513;
-  --note-fg: #efd48c;
-  --slip: #f4f1e8;
-  --slip-ink: #2a2a2a;
-  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 20px 50px -30px rgba(0, 0, 0, 0.8);
-  /* --display, --body and --mono are set on <html> by next/font in layout.tsx. */
+@import "../styles/tokens.css";
+@import "../styles/controls.css";
+
+/* Latin variable fonts from Fontsource 5.3.0. The OFL licenses accompany the files. */
+@font-face {
+  font-family: "Newsreader";
+  src: url("/fonts/newsreader-latin.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanken Grotesk";
+  src: url("/fonts/hanken-grotesk-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --bg: #edf0f6;
-    --surface: #ffffff;
-    --surface-2: #f4f6fa;
-    --line: #dce2ec;
-    --fg: #121a2a;
-    --muted: #586580;
-    --faint: #8893a7;
-    --accent: #3a57e0;
-    --accent-ink: #ffffff;
-    --accent-soft: rgba(58, 87, 224, 0.1);
-    --s-exp: #3d5bea;
-    --s-worst: #b7791f;
-    --good: #1c8a57;
-    --good-soft: rgba(28, 138, 87, 0.1);
-    --crit: #d23f3f;
-    --crit-soft: rgba(210, 63, 63, 0.1);
-    --warn: #9c6c12;
-    --note-bg: #fff4d2;
-    --note-fg: #5e4500;
-    --slip: #fbfaf6;
-    --shadow: 0 1px 2px rgba(18, 26, 42, 0.05), 0 18px 40px -28px rgba(18, 26, 42, 0.35);
-  }
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
-
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font-family: var(--body), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  background: var(--screen);
+  color: var(--ink);
+  font: 15px/1.45 var(--sans);
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
-
-h1,
-h2,
-h3 {
-  font-family: var(--display), ui-sans-serif, system-ui, sans-serif;
-  font-weight: 700;
-  margin: 0;
-  text-wrap: balance;
-  letter-spacing: -0.01em;
-}
-
-p {
-  margin: 0;
-}
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-}
-
-button {
-  cursor: pointer;
-}
-
-code {
-  font-family: var(--mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-
-/* Helpers */
-.num {
-  font-variant-numeric: tabular-nums;
-}
-
-.mono {
-  font-family: var(--mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-}
-
-.eyebrow {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-/* 16px side gutter at phone width, never less, plus the notch insets. */
-.wrap {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-}
+a { color: inherit; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+h1, h2, h3, p { margin: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.num { font-variant-numeric: tabular-nums; }
+.mono, code { font-family: var(--mono); }

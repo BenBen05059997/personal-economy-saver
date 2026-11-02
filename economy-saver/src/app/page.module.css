@@ -1,24 +1,10 @@
-.page {
-  padding-block: 28px 56px;
-  min-width: 0;
+.landing {
+  max-width: 630px;
+  margin: 0 auto;
+  padding: clamp(64px, 17vh, 180px) 28px;
 }
-.head {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 20px;
-  max-width: 760px;
-}
-.head h1 {
-  font-size: clamp(26px, 4vw, 38px);
-  line-height: 1.05;
-}
-.lede {
-  color: var(--muted);
-  font-size: 15px;
-  max-width: 64ch;
-}
-@media (max-width: 520px) {
-  .page {
-    padding-block: 20px 40px;
-  }
-}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.brand span { background: var(--ink); color: var(--screen); border-radius: 7px; padding: 2px 9px; }
+.landing h1 { font: 400 clamp(40px, 6vw, 62px)/1.06 var(--serif); margin: 40px 0 16px; }
+.landing h1 + p { color: var(--muted); max-width: 42ch; }
+.landing button { margin-top: 26px; padding: 10px 25px; border: 0; border-radius: 6px; background: var(--accent); color: var(--on-accent); }

@@ -1,4 +1,4 @@
-// The tables behind D31. Every row except `households` and `fx_rates` carries `household_id`
+// The tables behind D31. Every row except `households` carries `household_id`
 // (cascade, so deleting a household removes everything) and an index on it.
 //
 // Money is a bigint count of minor units (see money.ts) next to a `currency` char(3); never numeric or float.
@@ -38,7 +38,7 @@ const householdId = () =>
     .references(() => households.id, { onDelete: "cascade" });
 
 export const memberRole = pgEnum("member_role", ["owner", "member"]);
-export const invoiceStatus = pgEnum("invoice_status", ["unbilled", "draft", "sent", "paid"]);
+export const invoiceStatus = pgEnum("invoice_status", ["unbilled", "draft", "sent", "paid", "closed"]);
 export const confirmStatus = pgEnum("confirm_status", ["confirmed", "pending"]);
 export const chargeSource = pgEnum("charge_source", ["card_email", "receipt", "voice", "manual"]);
 export const documentKind = pgEnum("document_kind", ["upload", "email"]);
@@ -53,24 +53,28 @@ export const households = pgTable("households", {
   homeCurrency: char("home_currency", { length: 3 }).notNull(),
   bankBalanceMinor: minor("bank_balance_minor").notNull().default(0), // typed in by the user
   isDemo: boolean("is_demo").notNull().default(false),
-  aiKeyEncrypted: text("ai_key_encrypted"),
+  forwardingLocalpart: text("forwarding_localpart"),
+  runwayShort: boolean("runway_short"),
+  notificationDay: date("notification_day", { mode: "string" }),
+  aiKeySecretId: uuid("ai_key_secret_id"), // the user's own key lives in Supabase Vault (D33); this is its id
   aiKeyHint: text("ai_key_hint"), // prefix…suffix only
   aiReadsToday: integer("ai_reads_today").notNull().default(0),
   aiReadsDay: date("ai_reads_day", { mode: "string" }),
   createdAt: createdAt(),
 }).enableRLS();
 
-// Daily reference rates, shared by all households: how many `quote` per 1 `base`.
+// Daily reference rates for each household: how many `quote` per 1 `base`.
 export const fxRates = pgTable(
   "fx_rates",
   {
+    householdId: householdId(),
     date: date("date", { mode: "string" }).notNull(),
     base: char("base", { length: 3 }).notNull(),
     quote: char("quote", { length: 3 }).notNull(),
     rateMicro: bigint("rate_micro", { mode: "number" }).notNull(),
     createdAt: createdAt(),
   },
-  (t) => [primaryKey({ columns: [t.date, t.base, t.quote] })],
+  (t) => [primaryKey({ columns: [t.householdId, t.date, t.base, t.quote] })],
 ).enableRLS();
 
 export const members = pgTable(
@@ -83,7 +87,7 @@ export const members = pgTable(
     authUserId: uuid("auth_user_id"), // Supabase auth user, once the member has logged in
     createdAt: createdAt(),
   },
-  (t) => [index("members_household_idx").on(t.householdId)],
+  (t) => [index("members_household_idx").on(t.householdId), unique("members_household_id_uq").on(t.householdId, t.id)],
 ).enableRLS();
 
 // Maps a Supabase auth user to the household and member they act as.
@@ -98,7 +102,7 @@ export const users = pgTable(
     authUserId: uuid("auth_user_id").notNull().unique(),
     createdAt: createdAt(),
   },
-  (t) => [index("users_household_idx").on(t.householdId)],
+  (t) => [index("users_household_idx").on(t.householdId), foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "users_member_household_fk" }).onDelete("cascade")],
 ).enableRLS();
 
 export const paypalConnections = pgTable(
@@ -111,6 +115,11 @@ export const paypalConnections = pgTable(
       .references(() => members.id, { onDelete: "cascade" }),
     environment: text("environment").notNull().default("SANDBOX"),
     merchantId: text("merchant_id"),
+    refreshAttemptedAt: timestamp("refresh_attempted_at", { withTimezone: true }),
+    refreshError: text("refresh_error"),
+    balanceAsOf: timestamp("balance_as_of", { withTimezone: true }),
+    latestCreditAt: timestamp("latest_credit_at", { withTimezone: true }),
+    balanceFxRateMicro: bigint("balance_fx_rate_micro", { mode: "number" }),
     balanceMinor: minor("balance_minor").notNull().default(0),
     balanceCurrency: char("balance_currency", { length: 3 }).notNull(),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }), // D37: pulled on open, at most every 5 minutes
@@ -119,6 +128,7 @@ export const paypalConnections = pgTable(
   (t) => [
     index("paypal_connections_household_idx").on(t.householdId),
     unique("paypal_connections_member_uq").on(t.memberId),
+    foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "paypal_member_household_fk" }).onDelete("cascade"),
     check("paypal_connections_sandbox_only", sql`${t.environment} = 'SANDBOX'`), // D14
   ],
 ).enableRLS();
@@ -154,7 +164,11 @@ export const invoices = pgTable(
     dueOn: date("due_on", { mode: "string" }),
     paidOn: date("paid_on", { mode: "string" }),
     paypalInvoiceId: text("paypal_invoice_id").unique(),
+    paypalStatus: text("paypal_status"),
+    paypalFetchedAt: timestamp("paypal_fetched_at", { withTimezone: true }),
     approveKey: uuid("approve_key").notNull().defaultRandom().unique(), // D37: idempotency key for Approve
+    reminderAttemptedAt: timestamp("reminder_attempted_at", { withTimezone: true }),
+    remindedAt: timestamp("reminded_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [
@@ -175,9 +189,10 @@ export const documents = pgTable(
     mime: text("mime").notNull(),
     status: documentStatus("status").notNull().default("queued"),
     error: text("error"),
+    processingAt: timestamp("processing_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index("documents_household_idx").on(t.householdId)],
+  (t) => [index("documents_household_idx").on(t.householdId), unique("documents_household_id_uq").on(t.householdId, t.id)],
 ).enableRLS();
 
 export const cards = pgTable(
@@ -197,6 +212,7 @@ export const cards = pgTable(
   (t) => [
     index("cards_household_idx").on(t.householdId),
     unique("cards_household_id_uq").on(t.householdId, t.id),
+    foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "cards_member_household_fk" }),
     check("cards_days_valid", sql`${t.closingDay} between 1 and 31 and ${t.dueDay} between 1 and 31`),
   ],
 ).enableRLS();
@@ -216,6 +232,7 @@ export const cardStatements = pgTable(
   },
   (t) => [
     index("card_statements_household_idx").on(t.householdId),
+    unique("card_statements_cycle_uq").on(t.householdId, t.cardId, t.closedOn),
     foreignKey({ columns: [t.householdId, t.cardId], foreignColumns: [cards.householdId, cards.id], name: "card_statements_card_fk" }).onDelete("cascade"),
   ],
 ).enableRLS();
@@ -243,6 +260,7 @@ export const charges = pgTable(
     index("charges_household_idx").on(t.householdId),
     index("charges_card_date_idx").on(t.cardId, t.date),
     foreignKey({ columns: [t.householdId, t.cardId], foreignColumns: [cards.householdId, cards.id], name: "charges_card_fk" }).onDelete("cascade"),
+    foreignKey({ columns: [t.householdId, t.documentId], foreignColumns: [documents.householdId, documents.id], name: "charges_document_household_fk" }),
     check("charges_original_pair", sql`(${t.originalAmountMinor} is null) = (${t.originalCurrency} is null)`),
   ],
 ).enableRLS();
@@ -260,10 +278,13 @@ export const bills = pgTable(
     category: text("category").notNull(),
     status: confirmStatus("status").notNull().default("confirmed"),
     previousAmountMinor: minor("previous_amount_minor"),
+    fxRateMicro: bigint("fx_rate_micro", { mode: "number" }),
     documentId: uuid("document_id").references(() => documents.id, { onDelete: "set null" }),
     createdAt: createdAt(),
   },
-  (t) => [index("bills_household_idx").on(t.householdId), index("bills_due_idx").on(t.householdId, t.due)],
+  (t) => [index("bills_household_idx").on(t.householdId), index("bills_due_idx").on(t.householdId, t.due),
+    foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "bills_member_household_fk" }),
+    foreignKey({ columns: [t.householdId, t.documentId], foreignColumns: [documents.householdId, documents.id], name: "bills_document_household_fk" })],
 ).enableRLS();
 
 export const readings = pgTable(
@@ -280,7 +301,8 @@ export const readings = pgTable(
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
-  (t) => [index("readings_household_idx").on(t.householdId)],
+  (t) => [index("readings_household_idx").on(t.householdId),
+    foreignKey({ columns: [t.householdId, t.documentId], foreignColumns: [documents.householdId, documents.id], name: "readings_document_household_fk" }).onDelete("cascade")],
 ).enableRLS();
 
 // A correction keyed by biller, applied before the next reading is shown (D36).
@@ -293,7 +315,7 @@ export const rules = pgTable(
     patch: jsonb("patch").notNull(),
     createdAt: createdAt(),
   },
-  (t) => [index("rules_household_idx").on(t.householdId)],
+  (t) => [index("rules_household_idx").on(t.householdId), unique("rules_household_biller_uq").on(t.householdId, t.matchBiller)],
 ).enableRLS();
 
 // Everything that happened. This table is the Activity page and feeds the bell (D35).
@@ -354,3 +376,11 @@ export const apiTokens = pgTable(
   },
   (t) => [index("api_tokens_household_idx").on(t.householdId)],
 ).enableRLS();
+
+// One bounded counter per household and purpose. Each window reuses its row.
+export const requestBuckets = pgTable("request_buckets", {
+  householdId: householdId(),
+  purpose: text("purpose").notNull(),
+  window: timestamp("window", { withTimezone: true }).notNull(),
+  count: integer("count").notNull(),
+}, t => [primaryKey({ columns: [t.householdId, t.purpose] })]).enableRLS();

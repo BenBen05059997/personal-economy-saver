@@ -1,18 +1,18 @@
-import { AppShell } from "@/components/app/AppShell";
-import styles from "./page.module.css";
+import { Suspense } from "react";
+import { Landing } from "@/components/auth/Landing";
+import { HomeView } from "@/components/home/HomeView";
+import { loadWorkspace, WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
+import { currentHouseholdId } from "@/lib/session";
 
-// The whole screen is client-side state on sample data, so the page itself is static.
+async function SessionHome() {
+  const id = await currentHouseholdId();
+  if (!id) return <Landing />;
+  const workspace = await loadWorkspace(id, true);
+  return <WorkspaceFrame workspace={workspace} section="home"><HomeView state={workspace.state} inbox={workspace.inbox} notice={workspace.freshness?.stale} />
+    {workspace.freshness?.asOf && <p className="ui-hint">PayPal balance as of {workspace.freshness.asOf.toLocaleString("en-US", { timeZone: workspace.timeZone })}.</p>}
+  </WorkspaceFrame>;
+}
+
 export default function Home() {
-  return (
-    <main className={`wrap ${styles.page}`}>
-      <header className={styles.head}>
-        <span className="eyebrow">Sandbox only · sample data</span>
-        <h1>Personal Economy Saver</h1>
-        <p className={styles.lede}>
-          Reads your bills, watches your PayPal income, tells you the cheapest money move when you need it, and acts through PayPal when you approve. Every number here is a sample.
-        </p>
-      </header>
-      <AppShell />
-    </main>
-  );
+  return <Suspense fallback={<main aria-busy="true">Opening your household…</main>}><SessionHome /></Suspense>;
 }

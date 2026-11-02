@@ -1,0 +1,1 @@
+export const closedInvoiceStates = ["CANCELLED", "AUTO_CANCELLED", "REFUNDED", "MARKED_AS_REFUNDED", "REFUNDED_EXTERNAL"];
