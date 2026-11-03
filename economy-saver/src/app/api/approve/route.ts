@@ -6,12 +6,12 @@ import { loadMoneyState } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { env } from "@/lib/env";
 import { runTool } from "@/lib/paypal/toolkit";
-import { currentHouseholdId, sameOrigin } from "@/lib/session";
+import { redirectTo } from "@/lib/door";
+import { householdRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return new Response("Same-origin request required", { status: 403 });
-  const householdId = await currentHouseholdId();
-  if (!householdId) return new Response("Household session required", { status: 401 });
+  const householdId = await householdRequest(request);
+  if (householdId instanceof Response) return householdId;
   if (!await consumeRequest(db(), householdId, "approve", 10)) return new Response("Approval limit reached. Try again in a minute.", { status: 429, headers: { "Retry-After": "60" } });
   const form = await request.formData();
   const input = z.object({ approve_key: z.string().uuid(), action: z.enum(["send", "remind"]) }).safeParse(Object.fromEntries(form));
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   try {
     const id = await approveInvoice({ db: connection, householdId, today, usdRate: state.fxPerUsd,
       approveKey: input.data.approve_key, recipient, tool: runTool }, input.data.action);
-    return new Response(null, { status: 303, headers: { Location: `/invoices/${id}`, "Cache-Control": "no-store" } });
+    return redirectTo(`/invoices/${id}`);
   } catch (error) {
     if (error instanceof ApprovalError) return new Response(error.message, { status: error.status });
     return new Response(input.data.action === "remind"

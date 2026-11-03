@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { dayLabel, formatter, usd } from "@/lib/money/format";
 import { cycle, medianLow, paybackFor, project, roomOnCard } from "@/lib/money/runway";
 import type { Card, Client, MoneyState } from "@/lib/money/types";
+import { AddClientForm } from "./AddClientForm";
 import "./household.css";
 
 function Detail({ title, close, children }: { title: string; close: string; children: ReactNode }) {
@@ -59,7 +60,7 @@ function ClientPanel({ state, client }: { state: MoneyState; client: Client }) {
   </Detail>;
 }
 
-export function Directory({ state, section, selected }: { state: MoneyState; section: "cards" | "clients"; selected?: string }) {
+export function Directory({ state, section, selected, newClientId }: { state: MoneyState; section: "cards" | "clients"; selected?: string; newClientId: string }) {
   const card = section === "cards" && selected ? state.cards.find(row => row.id === selected) : undefined;
   const client = section === "clients" && selected ? state.clients.find(row => row.id === selected) : undefined;
   if (selected && !card && !client) notFound();
@@ -82,6 +83,7 @@ export function Directory({ state, section, selected }: { state: MoneyState; sec
         </Link>;
       })}
       {(isCards ? state.cards : state.clients).length === 0 && <p className="directory-empty">No {section} yet.</p>}
+      {!isCards && <AddClientForm id={newClientId} />}
     </div>
     {card && <CardPanel state={state} card={card} />}
     {client && <ClientPanel state={state} client={client} />}

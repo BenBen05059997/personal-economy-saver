@@ -4,9 +4,12 @@ import { toCheck } from "@/lib/money/to-check";
 import { ReaderReview } from "@/components/reader/ReaderReview";
 import type { ReaderInbox } from "@/db/reader-inbox";
 import "@/components/reader/reader.css";
+import { AddEntry, type EntryIds } from "./AddEntry";
 import { ConfirmButton } from "./ConfirmButton";
 
-export function CheckView({ state, inbox }: { state: MoneyState; inbox: ReaderInbox }) {
+export function CheckView({ state, inbox, people, entryIds }: {
+  state: MoneyState; inbox: ReaderInbox; people: { id: string; name: string }[]; entryIds: EntryIds;
+}) {
   const rows = toCheck(state);
   const format = formatter(state.homeCurrency);
   return <>
@@ -18,5 +21,7 @@ export function CheckView({ state, inbox }: { state: MoneyState; inbox: ReaderIn
       <ConfirmButton kind={row.kind} id={row.id} title={row.title} onCheckPage />
     </div>)}
     <ReaderReview state={state} inbox={inbox} />
+    <AddEntry ids={entryIds} returnTo="/to-check" today={state.today} currency={state.homeCurrency} people={people}
+      cards={state.cards.map(card => ({ id: card.id, label: card.label }))} categories={[...new Set(state.bills.map(bill => bill.category))]} />
   </>;
 }

@@ -2,6 +2,7 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
+import { canImportPayPal } from "@/db/paypal-import";
 import { loadSettings } from "@/db/settings";
 import { listMcpTokens } from "@/db/mcp-tokens";
 import { McpTokens } from "@/components/mcp/McpTokens";
@@ -14,11 +15,11 @@ import { currentHouseholdId } from "@/lib/session";
 async function Settings() {
   const hid = await currentHouseholdId();
   if (!hid) redirect("/");
-  const [workspace, data, tokens] = await db().transaction(tx => Promise.all([
-    loadNavigationData(tx, hid), loadSettings(tx, hid), listMcpTokens(tx, hid),
+  const [workspace, data, tokens, canImport] = await db().transaction(tx => Promise.all([
+    loadNavigationData(tx, hid), loadSettings(tx, hid), listMcpTokens(tx, hid), canImportPayPal(tx, hid),
   ]), { isolationLevel: "repeatable read", accessMode: "read only" });
   return <WorkspaceFrame workspace={workspace} section="settings"><div className="settings-page">
-    <SettingsView data={data} /><ForwardingSettings householdId={hid} /><McpTokens tokens={tokens} />
+    <SettingsView data={data} canImportPayPal={canImport} /><ForwardingSettings householdId={hid} /><McpTokens tokens={tokens} />
   </div></WorkspaceFrame>;
 }
 export default function Page() {

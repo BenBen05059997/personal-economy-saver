@@ -21,6 +21,7 @@ export function AskPanel() {
   const requestId = useRef("");
   const [text, setText] = useState("");
   const [answer, setAnswer] = useState("");
+  const [links, setLinks] = useState<{ label: string; href: string }[]>([]);
   const [source, setSource] = useState<"manual" | "voice">("manual");
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
@@ -55,28 +56,32 @@ export function AskPanel() {
     if (!text.trim() || busy) return;
     setBusy(true);
     setAnswer("");
+    setLinks([]);
     requestId.current ||= crypto.randomUUID();
     try {
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: requestId.current, text, source }) });
-      if (!response.ok) { setAnswer(response.status === 429 ? "Ask again in a minute." : "Couldn’t check your household. Try again."); return; }
-      const result = await response.json() as { answer: string; pending: boolean };
+      // A 503 carries a fixed message written for this box, such as a missing key or a spent daily allowance.
+      if (!response.ok) { setAnswer(response.status === 429 ? "Ask again in a minute." : response.status === 503 ? await response.text() : "Couldn’t check your household. Try again."); return; }
+      const result = await response.json() as { answer: string; pending: boolean; links: { label: string; href: string }[] };
       setAnswer(result.answer);
+      setLinks(result.links);
       if (result.pending) router.refresh();
     } catch { setAnswer("Couldn’t reach your household. Try again."); }
     finally { setBusy(false); }
   }
 
   return <section id="shell-questions" ref={panel} popover="auto" className="shell-popover shell-ask-menu">
-    <h2>Ask or log a purchase</h2>
+    <h2>Ask about your money</h2>
     <form onSubmit={ask}>
-      <label className="ui-field">Your question or purchase
-        <textarea maxLength={320} rows={3} value={text} required placeholder="Can I afford ¥4,000 tonight?"
+      <label className="ui-field">Your question
+        <textarea maxLength={320} rows={3} value={text} required placeholder="What’s due this week? Can I afford ¥4,000 tonight?"
           onChange={event => { setText(event.target.value); setSource("manual"); requestId.current = ""; }} />
       </label>
       <button type="button" className="ui-button" disabled={busy} onClick={listening ? () => recognizer.current?.abort() : speak}>{listening ? "Stop listening" : "Use microphone"}</button>{" "}
-      <button className="ui-button primary" disabled={busy || listening}>{busy ? "Checking…" : "Ask or log"}</button>
+      <button className="ui-button primary" disabled={busy || listening}>{busy ? "Checking…" : "Ask"}</button>
     </form>
-    <p role="status">{answer || "Try “I paid ¥3,800 at the noodle place on Card B.”"}</p>
+    <p role="status">{busy ? "Checking your numbers…" : answer || "Ask in your own words: what’s due, whether you can afford something, or to draft an invoice."}</p>
+    {links.map(link => <a key={link.href} className="ui-button primary" href={link.href}>{link.label}</a>)}
   </section>;
 }

@@ -6,9 +6,10 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
-import { AiKeyError, deleteHouseholdKey, readerKey, saveHouseholdKey } from "@/db/ai-key";
+import { AiKeyError, deleteHouseholdKey, aiKey, saveHouseholdKey } from "@/db/ai-key";
 import { seedBen } from "@/db/seed";
-import { amountMinor, loadSettings, settingsInput, updateSettings } from "@/db/settings";
+import { parseMinor } from "@/db/money";
+import { loadSettings, settingsInput, updateSettings } from "@/db/settings";
 import { deleteHousehold, loadMoneyState } from "@/db/household";
 import { resetDemoHousehold } from "@/db/demo";
 import { runDaily } from "@/db/daily";
@@ -56,25 +57,25 @@ async function main() {
     process.env.ANTHROPIC_DAILY_READ_LIMIT = "2";
     await check("default calls reserve quota atomically and reset at the household local midnight", async () => {
       const before = new Date("2026-11-02T14:59:59Z"), after = new Date("2026-11-02T15:00:00Z");
-      const calls = await Promise.allSettled([readerKey(db, a, before), readerKey(db, a, before), readerKey(db, a, before)]);
+      const calls = await Promise.allSettled([aiKey(db, a, before), aiKey(db, a, before), aiKey(db, a, before)]);
       assert.equal(calls.filter(call => call.status === "fulfilled").length, 2);
       assert.equal(calls.filter(call => call.status === "rejected").length, 1);
-      await readerKey(db, a, after);
+      await aiKey(db, a, after);
       const settings = await loadSettings(db, a);
       assert.equal(settings.household.aiReadsDay, "2026-11-03"); assert.equal(settings.household.aiReadsToday, 1);
-      await readerKey(db, b, before);
+      await aiKey(db, b, before);
       delete process.env.ANTHROPIC_API_KEY;
-      await assert.rejects(readerKey(db, a, after), /ANTHROPIC_API_KEY is not set/);
+      await assert.rejects(aiKey(db, a, after), /ANTHROPIC_API_KEY is not set/);
       process.env.ANTHROPIC_API_KEY = fictional;
     });
     await check("own key creates, replaces and deletes atomically without consuming the default allowance", async () => {
       await saveHouseholdKey(db, a, fictional);
-      assert.equal(await readerKey(db, a), fictional);
+      assert.equal(await aiKey(db, a), fictional);
       const settings = await loadSettings(db, a);
       assert.equal(settings.household.aiKeyHint, "sk-ant-…aaaa");
       assert.equal(settings.household.aiReadsToday, 1);
       await saveHouseholdKey(db, a, another);
-      assert.equal(await readerKey(db, a), another);
+      assert.equal(await aiKey(db, a), another);
       await db.transaction(tx => deleteHouseholdKey(tx, a));
       assert.equal((await loadSettings(db, a)).household.aiKeyHint, null);
       const count = await pg.query<{ n: number }>("select count(*)::integer as n from vault.secrets");
@@ -84,15 +85,15 @@ async function main() {
       await saveHouseholdKey(db, b, fictional);
       const [source] = await db.select().from(schema.households).where(eq(schema.households.id, b));
       await db.update(schema.households).set({ aiKeySecretId: source.aiKeySecretId }).where(eq(schema.households.id, a));
-      await assert.rejects(readerKey(db, a), AiKeyError);
+      await assert.rejects(aiKey(db, a), AiKeyError);
       await assert.rejects(saveHouseholdKey(db, a, another), AiKeyError);
       await assert.rejects(db.transaction(tx => deleteHouseholdKey(tx, a)), AiKeyError);
-      assert.equal(await readerKey(db, b), fictional);
+      assert.equal(await aiKey(db, b), fictional);
       await db.update(schema.households).set({ aiKeySecretId: null }).where(eq(schema.households.id, a));
     });
     await check("bank amounts preserve cents and member/card/bill writes stay in the household", async () => {
-      assert.equal(amountMinor("-12.37", "USD"), -1237); assert.equal(amountMinor("0.01", "USD"), 1);
-      assert.throws(() => amountMinor("0.01", "JPY")); assert.throws(() => amountMinor("1.234", "USD"));
+      assert.equal(parseMinor("-12.37", "USD"), -1237); assert.equal(parseMinor("0.01", "USD"), 1);
+      assert.throws(() => parseMinor("0.01", "JPY")); assert.throws(() => parseMinor("1.234", "USD"));
       const settingsA = await loadSettings(db, a), settingsB = await loadSettings(db, b);
       await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Fictional household", bank: "23456" }));
       assert.equal((await loadSettings(db, a)).household.bank, 23456);
@@ -156,7 +157,7 @@ async function main() {
     await check("household delete and demo reset clean only their own Vault secret", async () => {
       await saveHouseholdKey(db, a, another);
       await resetDemoHousehold(db, a);
-      assert.equal(await readerKey(db, b), fictional);
+      assert.equal(await aiKey(db, b), fictional);
       const upgrade = await seedBen(db, { isDemo: true });
       await saveHouseholdKey(db, upgrade, fictional);
       await finishSetup(db, randomUUID(), setupForm.parse({ name: "Fictional owner", currency: "USD", timeZone: "Asia/Tokyo", bank: "12.37", card: "Card C", closingDay: 15, dueDay: 10, limit: "" }), upgrade);
@@ -182,7 +183,7 @@ async function main() {
       try {
         await assert.rejects(deleteHousehold(db, b));
         // Storage failure rolls back the Vault deletion and preserves the retry pointer.
-        assert.equal(await readerKey(db, b), fictional);
+        assert.equal(await aiKey(db, b), fictional);
         assert.equal((await db.select().from(schema.documents).where(eq(schema.documents.householdId, b))).length, 1);
         fail = false;
         await deleteHousehold(db, b);

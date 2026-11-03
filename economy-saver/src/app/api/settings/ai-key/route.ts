@@ -1,11 +1,11 @@
 import { db } from "@/db/client";
 import { AiKeyError, deleteHouseholdKey, saveHouseholdKey } from "@/db/ai-key";
-import { currentHouseholdId, sameOrigin } from "@/lib/session";
+import { NO_STORE } from "@/lib/door";
+import { householdRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return new Response("Same-origin request required", { status: 403 });
-  const hid = await currentHouseholdId();
-  if (!hid) return new Response("Household session required", { status: 401 });
+  const hid = await householdRequest(request);
+  if (hid instanceof Response) return hid;
   const form = await smallForm(request, 4096);
   if (!form) return new Response("Key request is too large", { status: 413 });
   try {
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       if (typeof key !== "string") return new Response("An Anthropic API key is required", { status: 400 });
       await saveHouseholdKey(db(), hid, key.trim());
     }
-    return new Response("AI key settings saved", { headers: { "Cache-Control": "private, no-store" } });
+    return new Response("AI key settings saved", { headers: NO_STORE });
   } catch (error) {
     return new Response(error instanceof AiKeyError ? error.message : "AI key settings could not be saved", { status: 400 });
   }

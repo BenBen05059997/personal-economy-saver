@@ -6,7 +6,7 @@ import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { Currency } from "@/lib/catalogue/types";
 import { addDays } from "@/lib/money/runway";
 import type { Bill, Card, Charge, Client, ClosedStatement, Invoice, MoneyState } from "@/lib/money/types";
-import { convertMinor, fromMinor, fromRateMicro, toMinor } from "./money";
+import { convertMinor, fromMinor, fromRateMicro, toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
@@ -33,6 +33,20 @@ export const CHARGE_LOOKBACK_DAYS = 62;
 // Invoices paid this recently stay in the state (for the Activity view); older paid ones only feed days to pay.
 const PAID_KEEP_DAYS = 7;
 
+/** The household's latest USD rate on or before `today`, scaled by 1e6 (exactly 1e6 when the home currency is USD). */
+export async function usdRateMicro(db: Db, householdId: string, home: string, today: string): Promise<number> {
+  const hid = requireHousehold(householdId);
+  if (home === "USD") return toRateMicro(1);
+  const [rate] = await db
+    .select()
+    .from(s.fxRates)
+    .where(and(eq(s.fxRates.householdId, hid), eq(s.fxRates.base, "USD"), eq(s.fxRates.quote, home), lte(s.fxRates.date, today)))
+    .orderBy(desc(s.fxRates.date))
+    .limit(1);
+  if (!rate) throw new Error(`No USD/${home} rate on or before ${today}`);
+  return rate.rateMicro;
+}
+
 /** Reads the household's rows and returns the MoneyState the engine consumes. `today` is the household's own date. */
 export async function loadMoneyState(db: Db, householdId: string, today: string, snapshot?: typeof s.households.$inferSelect): Promise<MoneyState> {
   const hid = requireHousehold(householdId);
@@ -41,17 +55,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
   if (!household) throw new Error("Household not found");
   const home = Currency.parse(household.homeCurrency);
 
-  let fxPerUsd = 1;
-  if (home !== "USD") {
-    const [rate] = await db
-      .select()
-      .from(s.fxRates)
-      .where(and(eq(s.fxRates.householdId, hid), eq(s.fxRates.base, "USD"), eq(s.fxRates.quote, home), lte(s.fxRates.date, today)))
-      .orderBy(desc(s.fxRates.date))
-      .limit(1);
-    if (!rate) throw new Error(`No USD/${home} rate on or before ${today}`);
-    fxPerUsd = fromRateMicro(rate.rateMicro);
-  }
+  const fxPerUsd = fromRateMicro(await usdRateMicro(db, hid, home, today));
   // Rows may be in another currency (a USD balance, say); the engine wants the home currency throughout.
   const inHome = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, home, fxPerUsd), home);
   const inUsd = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, "USD", fxPerUsd), "USD");

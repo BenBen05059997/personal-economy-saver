@@ -1,15 +1,24 @@
+import { AiKeyError } from "@/db/ai-key";
 import { answerQuestion, askInput } from "@/db/ask";
 import { db } from "@/db/client";
 import { consumeRequest } from "@/db/rate-limit";
-import { currentHouseholdId, sameOrigin } from "@/lib/session";
+import { AgentError } from "@/lib/agent/run";
+import { NO_STORE, text } from "@/lib/door";
+import { householdRequest } from "@/lib/session";
+import { MissingAuthSetting } from "@/lib/supabase-auth";
 
 export async function POST(request: Request) {
-  if (!sameOrigin(request)) return new Response("Same-origin request required", { status: 403 });
-  const hid = await currentHouseholdId();
-  if (!hid) return new Response("Household session required", { status: 401 });
+  const hid = await householdRequest(request);
+  if (hid instanceof Response) return hid;
   const data = askInput.safeParse(await request.json().catch(() => null));
   if (!data.success) return new Response("Enter a question of up to 320 characters.", { status: 400 });
   const connection = db();
-  if (!await consumeRequest(connection, hid, "ask")) return new Response("Ask again in a minute.", { status: 429, headers: { "Retry-After": "60" } });
-  return Response.json(await answerQuestion(connection, hid, data.data), { headers: { "Cache-Control": "private, no-store" } });
+  if (!await consumeRequest(connection, hid, "ask")) return text("Ask again in a minute.", 429, { "Retry-After": "60" });
+  try {
+    return Response.json(await answerQuestion(connection, hid, data.data), { headers: NO_STORE });
+  } catch (error) {
+    // These messages are fixed text or setting names, never secrets, so the person can read them.
+    const known = error instanceof AgentError || error instanceof AiKeyError || error instanceof MissingAuthSetting;
+    return text(known ? error.message : "Couldn't answer right now. Try again.", 503);
+  }
 }

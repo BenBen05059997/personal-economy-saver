@@ -1,10 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { type Db, requireHousehold, recordEvent } from "./household";
+import { InputError } from "./input-error";
+import { parseMinor } from "./money";
 import { bills, cards, households, members } from "./schema";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 
-export class SettingsError extends Error {}
+export class SettingsError extends InputError {}
 const name = z.string().trim().min(1).max(80);
 const amount = z.string().max(16).regex(/^-?\d+(\.\d{1,2})?$/);
 const memberId = z.union([z.string().uuid(), z.literal("")]);
@@ -16,14 +18,6 @@ export const settingsInput = z.discriminatedUnion("kind", [
     limit: z.union([amount, z.literal("")]) }),
   z.object({ kind: z.literal("bill-owner"), id: z.string().uuid(), memberId }),
 ]);
-
-export function amountMinor(raw: string, currency: string) {
-  if (!amount.safeParse(raw).success || currency === "JPY" && raw.includes(".")) throw new SettingsError("Enter a valid amount; yen must be whole numbers");
-  const [whole, cents = ""] = raw.split(".");
-  const result = Number(currency === "JPY" ? whole : whole + cents.padEnd(2, "0"));
-  if (!Number.isSafeInteger(result)) throw new SettingsError("Amount exceeds the supported range");
-  return result;
-}
 
 export async function loadSettings(db: Db, householdId: string) {
   const hid = requireHousehold(householdId);
@@ -53,11 +47,11 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
     }
     let changed = true;
     if (data.kind === "household") {
-      await tx.update(households).set({ name: data.name, bankBalanceMinor: amountMinor(data.bank, household.currency) }).where(eq(households.id, hid));
+      await tx.update(households).set({ name: data.name, bankBalanceMinor: parseMinor(data.bank, household.currency) }).where(eq(households.id, hid));
     } else if (data.kind === "member") {
       changed = (await tx.update(members).set({ displayName: data.name }).where(and(eq(members.householdId, hid), eq(members.id, data.id))).returning({ id: members.id })).length === 1;
     } else if (data.kind === "card") {
-      const limitMinor = data.limit ? amountMinor(data.limit, household.currency) : null;
+      const limitMinor = data.limit ? parseMinor(data.limit, household.currency) : null;
       if (limitMinor !== null && limitMinor < 0) throw new SettingsError("Credit limit cannot be negative");
       const values = { label: data.label, memberId: data.memberId || null, closingDay: data.closingDay, dueDay: data.dueDay, limitMinor };
       if (data.id) {

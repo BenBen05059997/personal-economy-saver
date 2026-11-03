@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { clockForHousehold } from "./account";
-import { bills, charges, households, readings } from "./schema";
+import { bills, charges, households, members, readings } from "./schema";
 import { readerInbox } from "./reader-inbox";
 import type { refreshPayPal } from "./paypal-refresh";
 import { observeRunway } from "./runway-events";
@@ -36,10 +36,11 @@ export async function loadWorkspaceData(tx: Db, hid: string, home = false,
   const [household] = await (home ? query.for("update") : query);
   if (!household) throw new Error("Household not found");
   const { today, timeZone } = clockForHousehold(household);
-  const [state, name, inbox] = await Promise.all([
+  const [state, name, inbox, people] = await Promise.all([
     loadMoneyState(tx, hid, today, household), householdOwnerName(tx, hid), readerInbox(tx, hid),
+    tx.select({ id: members.id, name: members.displayName }).from(members).where(eq(members.householdId, hid)).orderBy(members.createdAt),
   ]);
   if (home) await observeRunway(tx, hid, state, household);
   const feed = await eventFeed(tx, hid);
-  return { state, name, feed, timeZone, inbox, freshness, pending: toCheck(state).length + inbox.readings.length };
+  return { state, people, name, feed, timeZone, inbox, freshness, pending: toCheck(state).length + inbox.readings.length };
 }

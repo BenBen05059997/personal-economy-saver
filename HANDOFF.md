@@ -30,6 +30,7 @@ research/                                background research; read only when a d
 submission/                              Devpost text and rehearsal script drafts
 economy-saver/                           the app
   src/lib/money/                         the engine (runway.ts: series, low, safeToSpend, roomOnCard, ladder, timeline…), sentence, ask, options, to-check (pure, tested; don't change maths casually)
+  src/lib/agent/, src/lib/anthropic.ts   the in-app agent (one tool catalogue shared with MCP, the runner) and the one way the app calls Claude
   src/lib/paypal/                        sandbox REST client, toolkit wrapper (draft/send split, 20 s timeout), webhook signature check
   src/lib/events.ts                      applies a verified webhook delivery to the database
   src/lib/reader/, src/lib/mcp/          reader (extraction, forwarding, storage) and the MCP server
@@ -37,7 +38,7 @@ economy-saver/                           the app
   src/db/                                Drizzle schema (18 tables), client, household-scoped data layer, rate limits, money helpers, seeds
   drizzle/                               eight ordered migrations (0000–0007)
   scripts/                               PGlite test suites, frontend-check.mjs (HTTP suites), seed, vault-check, smoke test
-  src/app/                               pages and API routes (health, paypal/webhook, cron, try, auth, approve, ask, upload, inbound, confirm, mcp, events, settings…)
+  src/app/                               pages and API routes (health, paypal/webhook, paypal/import, cron, try, auth, approve, ask, clients, bills, charges, invoices, upload, inbound, confirm, mcp, events, settings…)
   worker.ts, wrangler.jsonc, open-next.config.ts   Cloudflare Workers build (OpenNext) with the daily Cron Trigger
 ```
 
@@ -48,25 +49,28 @@ economy-saver/                           the app
 | Dev server | `npm run dev -- -p 3123` |
 | Type check | `npx tsc --noEmit -p .` |
 | Lint | `npm run lint` |
-| Database tests (no credentials; six suites) | `npm run db:test` |
+| Database tests (no credentials; nine suites: db, approve, mcp, reader, settings, agent, refresh, doors, import) | `npm run db:test` |
 | Regenerate migration after schema edits | `npm run db:generate` (then commit the SQL with the schema) |
 | Apply migrations / seed one demo household / Vault probe (owner's database) | `npm run db:migrate` / `npm run db:seed` / `npm run db:vault-check` |
 | HTTP suites against a running dev server | `node scripts/frontend-check.mjs --run\|--extra\|--guards http://127.0.0.1:3123` |
 | Workers build + local preview | `npm run cf:preview` (port 8787; uses `.dev.vars`) |
-| Worker size | `npm run cf:size` (free plan limit 3 MiB gzip; now ~2.4 MiB) |
+| Worker size | `npm run cf:size` (free plan limit 3 MiB gzip; now ~2.6 MiB) |
 | PayPal sandbox smoke test | `npm run smoke` |
 
 Before calling any task done: `tsc`, `lint` and `db:test` pass, and the screen has been opened in a browser at phone width (375px) and desktop width.
 
 ## State on Nov 3
 
-- Supabase is in Tokyo (`ap-northeast-1`, transaction pooler port 6543). All 8 migrations are applied, one demo household is seeded, Vault create/read/delete passes, and the public key reads no rows from `households`. Warm `next dev` pages take 0.4–1.2 s; timings are in `PLAN.md`. All three HTTP suites pass (22 + 12 + 11 checks), as do `tsc`, lint and `npm run db:test` (six suites).
+- Supabase is in Tokyo (`ap-northeast-1`, transaction pooler port 6543). All 8 migrations are applied, one demo household is seeded, Vault create/read/delete passes, and the public key reads no rows from `households`. Warm `next dev` pages take 0.4–1.2 s; timings are in `PLAN.md`.
+- Checks: `tsc` and lint are clean. `npm run db:test` runs nine PGlite suites and passes. HTTP suites against dev: `--run` 22 pass (its Ask check accepts the 503 missing-setting error and prints a NOTE), `--extra` and `--guards` 0 failures. Worker build is 2652.52 KiB gzip (~2.6 MiB; limit 3 MiB).
+- Built and verified in the browser at 375px and desktop (FN1, D39): add client, add bill, log card charge, and mark an invoice paid outside PayPal. Home and To check share one "Add a bill or charge" form. "Paid outside PayPal" is `status = paid` with no `paypal_invoice_id`; no migration was needed. Suite `npm run db:doors-test` (13 checks).
+- Built and tested, not run live: PayPal history import (`/api/paypal/import`; only the non-demo household equal to `PAYPAL_BALANCE_HOUSEHOLD_ID` may import; suite `npm run db:import-test`, 6 checks) and the in-app agent (FN2, D40: `/api/ask` runs Claude with tools over the engine, one catalogue shared with MCP, reads and drafts only; suite `scripts/agent-test.ts`, 13 checks). Without the Anthropic settings the Ask panel shows the clear error "ANTHROPIC_TEXT_MODEL is not set".
 - Security fixes from an independent review are in the working tree (D12, D37): rate limits on Try it, drafts and approvals; a 20 s PayPal toolkit timeout; sign-in links return to the required `APP_URL`; the webhook route gives anonymous callers no rejection reason; the AI-key route caps its body at 4 KiB; USD forecasts round to cents; lint enforces the send split.
 - Git: branch `main` has an unpushed commit `81a58f0` plus uncommitted work (later changes and these fixes). Nothing is pushed beyond `d2f6486`. Commit only when the owner asks.
 
-Open on the owner's side (see PLAN phases A, B, E): create the private Storage bucket `household-documents` on the Tokyo project; set its Authentication → URL Configuration (Site URL and redirect URL `http://127.0.0.1:3123`, later the deployed URL); pause or delete the old Frankfurt project; `wrangler login`; the Anthropic key and forwarding domain; register the PayPal webhook after the first deploy.
+Open on the owner's side (see PLAN phases A, B, E): sign in once at `/login` to verify the magic link (V9), and add the deployed URL to the Tokyo project's redirect URLs after the first deploy; `wrangler login`; add `ANTHROPIC_API_KEY`, `ANTHROPIC_TEXT_MODEL`, `ANTHROPIC_DOCUMENT_MODEL` and `ANTHROPIC_DAILY_READ_LIMIT` to `.env.local` (a live Ask and a live document read wait on them); set `PAYPAL_BALANCE_HOUSEHOLD_ID` (a live PayPal import waits on it); the forwarding domain; register the PayPal webhook after the first deploy.
 
-Open on the build side: Worker preview on Tokyo (rerun the suites against `npm run cf:preview` and add its timings to `PLAN.md`); then the hosted checks that need the owner (magic link, real sandbox send and paid webhook, live Claude read, Email Routing, MCP token against the configured app). Write code for anything blocked so it reads its setting and stops with a clear error (rule 10).
+Open on the build side: the UI/UX stage (findings are in `PLAN.md`), then phase J; then the hosted checks that need the owner (magic link, real sandbox send and paid webhook, live Claude ask and read, Email Routing, MCP token against the configured app). Write code for anything blocked so it reads its setting and stops with a clear error (rule 10).
 
 ## How to continue
 
@@ -83,6 +87,7 @@ Work from the unchecked boxes in `PLAN.md`. Stop and ask the owner only at these
 - The Workers free plan allows 10 ms CPU per request: no server-side image/PDF processing; send files to Claude as uploaded (D32).
 - `scripts/*.ts` run with `npx tsx --tsconfig ./tsconfig.json …` so `@/` paths resolve.
 - `APP_URL` is a required setting (`.env.example`, `.dev.vars.example`): `http://127.0.0.1:3123` for `npm run dev -- -p 3123`, `http://localhost:8787` for the Worker preview. It must also be in the Tokyo project's Authentication redirect URLs.
-- The Tokyo project has no `household-documents` bucket yet; uploads and forwarded mail fail until the owner creates it as a private bucket.
 - Pages are fast only in-region: keep Supabase in Tokyo (D31). A distant region adds about 0.3 s per query.
+- `next.config.ts` sets `allowedDevOrigins: ["127.0.0.1"]`. Without it `next dev` blocks its dev resources for the 127.0.0.1 origin that `APP_URL` and the HTTP suites use, and pages never hydrate (buttons do nothing).
+- When an agent drives the Claude desktop app's browser pane while the pane is hidden, the page is throttled and can sit on Suspense fallbacks ("Opening …"); take a screenshot or wait, it is not an app bug. Stale open tabs that keep reloading can exhaust the 3-connection DB pool.
 - The Claude preview config in `.claude/launch.json` runs the app on port 3123 and the mockup on 3125; you can ignore it.

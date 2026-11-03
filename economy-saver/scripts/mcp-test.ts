@@ -14,7 +14,6 @@ import { seedBen } from "@/db/seed";
 import * as s from "@/db/schema";
 import { issueMcpToken, listMcpTokens, revokeMcpToken } from "@/db/mcp-tokens";
 import { consumeRequest } from "@/db/rate-limit";
-import { answerQuestion } from "@/db/ask";
 import { mcpRequest } from "@/lib/mcp/server";
 
 let stage = "database setup";
@@ -57,7 +56,7 @@ async function main() {
     await client.connect(transport);
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["can_i_spend", "draft_invoice", "list_clients_and_cards", "whats_due", "where_am_i"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "can_i_spend", "draft_invoice", "list_clients_and_cards", "list_invoices", "log_charge", "options_when_short", "timeline", "whats_due", "where_am_i"]);
     stage = "tool execution";
     const outlook = await client.callTool({ name: "where_am_i", arguments: {} });
     assert.match(JSON.stringify(outlook.content), /18,780 short/);
@@ -86,25 +85,11 @@ async function main() {
       assert.ok(!(await readClient.listTools()).tools.some(t => t.name === "draft_invoice"));
     } finally { await readClient.close(); }
 
-    stage = "voice logging and rate limits";
-    const entry = { id: crypto.randomUUID(), source: "voice" as const, text: "I paid ¥3,800 at the noodle place on Card B." };
-    assert.equal((await answerQuestion(db, hid, entry)).pending, true);
-    await answerQuestion(db, hid, entry);
-    const [charge] = await db.select().from(s.charges).where(and(eq(s.charges.householdId, hid), eq(s.charges.id, entry.id)));
-    assert.equal(charge.amountMinor, 3800);
-    assert.equal(charge.status, "pending");
-    assert.equal(charge.source, "voice");
-    assert.equal((await answerQuestion(db, hid, { ...entry, text: "I paid -¥3,800 at X on Card B." })).pending, false);
-    for (const text of ["Can I afford EUR 400?", "Can I afford 400 euros?", "Can I afford dinner on Card 2?", "Can I afford ¥4,000 on Card Z?"]) {
-      const res = await answerQuestion(db, hid, { ...entry, text });
-      assert.equal(res.pending, false);
-      assert.match(res.answer, /card name|positive purchase amount/);
-    }
-    assert.equal((await answerQuestion(db, hid, { ...entry, text: "Send the invoice now." })).pending, false);
+    stage = "rate limits";
     const results = await Promise.all([consumeRequest(db, hid, "ask", 1), consumeRequest(db, hid, "ask", 1)]);
     assert.equal(results.filter(Boolean).length, 1);
     assert.equal(await consumeRequest(db, other, "ask", 1), true);
-    console.log("Scope, revocation, Origin, per-household rate limits and pending voice charges passed.");
+    console.log("Scope, revocation, Origin and per-household rate limits passed.");
   } finally {
     await client.close();
     if (http.listening) await new Promise<void>(resolve => http.close(() => resolve()));

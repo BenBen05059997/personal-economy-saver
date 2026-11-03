@@ -1,12 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { z } from "zod";
 import { householdDate } from "@/db/account";
 import { loadMoneyState, type Db } from "@/db/household";
-import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
 import { authenticateMcpToken } from "@/db/mcp-tokens";
 import { consumeRequest } from "@/db/rate-limit";
-import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
+import { tools } from "@/lib/agent/tools";
 
 const result = (text: string) => ({ content: [{ type: "text" as const, text }] });
 async function answer(read: () => Promise<string>) {
@@ -33,31 +31,11 @@ export async function mcpRequest(request: Request, connection: () => Db) {
   const { householdId: hid, scopes } = caller;
   const server = new McpServer({ name: "personal-economy-saver", version: "1.0.0" });
   const state = async () => loadMoneyState(db, hid, await householdDate(db, hid));
-  if (scopes.includes("read")) {
-    server.registerTool("where_am_i", { description: "Read the household’s 30-day outlook.", inputSchema: {} },
-      () => answer(async () => statusAnswer(await state())));
-    server.registerTool("whats_due", { description: "Read the next confirmed bill or card statement.", inputSchema: {} },
-      () => answer(async () => dueAnswer(await state())));
-    server.registerTool("can_i_spend", { description: "Check a purchase in home-currency minor units: yen or USD cents.",
-      inputSchema: { amount_minor: z.number().int().positive().safe(), card_id: z.string().uuid().optional() } },
-      params => answer(async () => {
-        const data = await state();
-        if (params.card_id && !data.cards.some(c => c.id === params.card_id)) throw new Error("Unknown card");
-        return spendAnswer(data, params.amount_minor, params.card_id);
-      }));
-    server.registerTool("list_clients_and_cards", { description: "List client and card names and IDs for this household.", inputSchema: {} },
-      () => answer(async () => {
-        const data = await state();
-        return JSON.stringify({ clients: data.clients.map(c => ({ id: c.id, name: c.name })), cards: data.cards.map(c => ({ id: c.id, label: c.label })) });
-      }));
-  }
-  if (scopes.includes("draft")) {
-    server.registerTool("draft_invoice", { description: "Save a local USD invoice draft for review. Reuse the same draft UUID when retrying.",
-      inputSchema: draftInput.shape },
-      params => answer(async () => {
-        const id = await saveInvoiceDraft(db, hid, params);
-        return `Review the draft at ${new URL("/invoices/" + id, endpoint).href}.`;
-      }));
+  const ctx = { db, householdId: hid, state, appUrl: endpoint };
+  for (const tool of tools) {
+    if (!scopes.includes(tool.scope)) continue;
+    server.registerTool(tool.name, { description: tool.description, inputSchema: tool.input.shape },
+      params => answer(() => tool.run(ctx, params as never)));
   }
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   try {

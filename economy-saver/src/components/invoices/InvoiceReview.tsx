@@ -17,6 +17,7 @@ export function InvoiceReview({ review, state }: { review: Review; state: MoneyS
   const homeAmount = convertMinor(invoice.amountMinor, currency, state.homeCurrency,
     invoice.fxRateMicro === null ? state.fxPerUsd : fromRateMicro(invoice.fxRateMicro));
   const due = invoice.dueOn ? dayLabel(invoice.dueOn) : "On receipt";
+  const paidOutside = !invoice.paypalInvoiceId && (draft || invoice.status === "sent");
   const label = draft ? "Approve and send" : "Approve reminder";
   return <article className="invoice-review">
     <Link prefetch={false} href="/" className="ui-hint">← Home</Link>
@@ -42,5 +43,10 @@ export function InvoiceReview({ review, state }: { review: Review; state: MoneyS
         : late && !invoice.paypalInvoiceId ? "No sandbox invoice is linked for a reminder."
         : "Invoice sent. Awaiting payment."}
     </p>}
+    {paidOutside && <form method="post" action="/api/invoices/paid" className="invoice-paid-outside">
+      <input type="hidden" name="id" value={invoice.id} />
+      <button className="ui-button">Mark paid outside PayPal</button>
+      <p className="ui-hint">Use this if {client} paid you another way. It adds {minorMoney(homeAmount, state.homeCurrency)} to your bank balance.</p>
+    </form>}
   </article>;
 }

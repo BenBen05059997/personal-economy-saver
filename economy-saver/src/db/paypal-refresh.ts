@@ -4,8 +4,7 @@ import { closedInvoiceStates } from "@/lib/paypal/status";
 import { env } from "@/lib/env";
 import { paypalFetch } from "@/lib/paypal/client";
 import { type Db, requireHousehold } from "./household";
-import { convertMinor, fromRateMicro } from "./money";
-import { amountMinor } from "./settings";
+import { convertMinor, fromRateMicro, parseMinor } from "./money";
 import { fxRates, households, invoices, members, paypalConnections } from "./schema";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 
@@ -19,8 +18,8 @@ const balanceReport = z.object({
 });
 type BalanceReport = z.infer<typeof balanceReport>;
 type InvoiceReport = z.infer<typeof remoteInvoice>;
-type ReadRemote = (path: string, signal: AbortSignal) => Promise<unknown>;
-const sandboxRead: ReadRemote = (path, signal) => paypalFetch(path, { signal });
+export type ReadRemote = (path: string, signal: AbortSignal) => Promise<unknown>;
+export const sandboxRead: ReadRemote = (path, signal) => paypalFetch(path, { signal });
 const waitingPayment = ["PAID", "PARTIALLY_PAID", "PAYMENT_PENDING", "PAID_EXTERNAL", "MARKED_AS_PAID"];
 const COOLDOWN_MS = 5 * 60_000;
 class FreshnessError extends Error {}
@@ -32,7 +31,7 @@ async function readBalance(db: Db, hid: string, report: BalanceReport, currency:
     if (Number(money.value) === 0) continue;
     if (!["JPY", "USD"].includes(money.currency_code)) throw new FreshnessError("PayPal reports an unsupported balance currency.");
     const raw = money.currency_code === "JPY" ? money.value.replace(/\.0{1,2}$/, "") : money.value;
-    const amount = amountMinor(raw, money.currency_code);
+    const amount = parseMinor(raw, money.currency_code);
     if (money.currency_code === currency) total += amount;
     else {
       const [rate] = await db.select({ rate: fxRates.rateMicro }).from(fxRates)

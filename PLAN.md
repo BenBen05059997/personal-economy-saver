@@ -29,9 +29,9 @@ Tick a box the moment it is true. Owner = Ben; Codex = implementation and verifi
 ### A. Setup, Nov 2 morning (owner, about 30 minutes)
 - [ ] Join the hackathon on Devpost
 - [x] Supabase project created in Tokyo (`ap-northeast-1`); both API keys accepted and the transaction pooler on port 6543 reachable using the settings in `economy-saver/.env.local`
-- [ ] Create the private Storage bucket `household-documents` on the Tokyo project (the reader cannot store files without it)
-- [ ] Tokyo project → Authentication → URL Configuration: Site URL and redirect URL `http://127.0.0.1:3123` (later the deployed URL)
-- [ ] Pause or delete the old Frankfurt Supabase project
+- [x] Create the private Storage bucket `household-documents` on the Tokyo project
+- [x] Tokyo project → Authentication → URL Configuration: Site URL and redirect URL `http://127.0.0.1:3123` (add the deployed URL after the first deploy)
+- [x] Pause or delete the old Frankfurt Supabase project
 - [ ] `npx wrangler login` run from `economy-saver`
 - [ ] Anthropic API key in `.env.local` (if not already)
 - [ ] Tell Claude the domain on Cloudflare for the forwarding address (name only)
@@ -71,7 +71,7 @@ Tick a box the moment it is true. Owner = Ben; Codex = implementation and verifi
 5. [x] Mark a notification read. Verify its badge clears and returning focus preserves the open page.
 6. [x] Navigate to Cards, Clients, and Activity. Open an item and use Back.
 7. [x] Check the loading state at desktop and 375px widths, including reduced motion, then use the phone navigation.
-8. [x] Run TypeScript, lint and `npm run db:test` (all six suites). Close all browser windows opened for this test.
+8. [x] Run TypeScript, lint and `npm run db:test` (all nine suites). Close all browser windows opened for this test.
 9. [x] Compare the navigation badge with the full To check list, including old and future charges, confirmed entries, pending readings and a second household. Check that Settings remains accessible without a dated FX rate while money screens still require it.
 10. [x] Open Activity, Settings and Upload at desktop and 375px in Chrome. The private test window was closed afterward. Chrome timings are not re-measured on Tokyo; HTTP timings are in the tables below.
 11. [x] On dev, open Upload, To check and Options, reject an empty upload, submit a fictional invoice draft twice, and verify its item, amount and single Activity event.
@@ -87,7 +87,7 @@ Tick a box the moment it is true. Owner = Ben; Codex = implementation and verifi
 - [x] **Fresh demos performed redundant work.** Seed inserts now run in dependency order within one transaction. Home reuses its household row and runway lock, and checks an idle demo's PayPal state in one scoped query without claiming a refresh lease.
 - [x] **Activity, Settings and Upload read only what navigation needs.** These pages read the household clock, owner, event feed and three scoped pending counts: 5 statements for the JPY demo. Warm timings on Tokyo are in the table below.
 - [x] **Money and navigation regressions checked.** Hikari confirmation produced a single Activity event, including on retry. Card detail and Back, Clients, notification read, typed Ask, isolated reset, and loading at desktop and phone widths were exercised. Invoice review was read-only.
-- [ ] **Hosted integration.** Magic-link delivery (needs the Tokyo Authentication URL Configuration), the private `household-documents` bucket, real sandbox invoice delivery/payment/webhook, live AI extraction and email forwarding still require their owner-managed steps. Those are separate from the local frontend checks.
+- [ ] **Hosted integration.** Magic-link delivery (needs the Tokyo Authentication URL Configuration), real sandbox invoice delivery/payment/webhook, live AI extraction and email forwarding still require their owner-managed steps. Those are separate from the local frontend checks.
 
 **Action timings (Nov 3, `next dev` → Supabase Tokyo).** All 22 core checks passed. Each figure is a warm single elapsed HTTP request through the complete response body on the same demo household, excluding browser rendering; a range is the spread over repeated runs. An action returning a redirect and its destination page are separate rows. The first Home is the first visit in a fresh session, not a cold server start. Chrome separately verified rendered Home and Settings.
 
@@ -155,7 +155,7 @@ From the app directory, run `node scripts/frontend-check.mjs --run http://127.0.
 
 ### E. The reader, Nov 6–7 (Claude; owner flips Email Routing)
 - [x] Photo/PDF intake, private Storage, background Claude extraction, To check, confirmation and correction rules implemented. Tested against PGlite and local provider responses (D36)
-- [ ] Verify private Supabase Storage on the Tokyo project: needs the bucket `household-documents` created as private first (V8)
+- [x] Verify private Supabase Storage on the Tokyo project: a test object was stored, refused to the publishable key and its public URL, then removed
 - [ ] Verify a real Claude document read with the owner’s Anthropic settings
 - [x] Worker email handler and authenticated inbound route implemented. The reader parses forwarded MIME messages, checks the recipient capability and uses the household’s rules
 - [ ] Owner enables Email Routing on their domain and verifies delivery through the live Worker
@@ -176,7 +176,7 @@ From the app directory, run `node scripts/frontend-check.mjs --run http://127.0.
 - [ ] Verify Claude calls with the default key and a household key. The configured app still needs the owner's Anthropic settings.
 
 ### I. Final, Nov 11–12 (both)
-- [x] Independent security review of the build and its fixes (D12, D37): secrets scan, sandbox guard, household scoping, origin checks, rate limits, toolkit timeout, `APP_URL`, webhook replies, AI-key body cap and lint-enforced send split. `tsc`, lint, `npm run db:test` (all six suites) and the three HTTP suites pass
+- [x] Independent security review of the build and its fixes (D12, D37): secrets scan, sandbox guard, household scoping, origin checks, rate limits, toolkit timeout, `APP_URL`, webhook replies, AI-key body cap and lint-enforced send split. `tsc`, lint, `npm run db:test` (all nine suites) and the three HTTP suites pass
 - [ ] Owner verifies hosted settings and live sandbox behavior before public submission
 - [ ] Final video 2:40–2:55 recorded on a Try it household (owner records)
 - [x] README and Devpost rewritten as private current-state drafts; final submission copy awaits owner review and live verification
@@ -184,12 +184,83 @@ From the app directory, run `node scripts/frontend-check.mjs --run http://127.0.
 
 If days run out, cut from the bottom: H first, then G, then MCP in F. Never cut B, C or D.
 
+### Functionality stage (D38: after foundation, before UI/UX)
+Three doors, then the agent. One database function per job, called by both the form and the agent tool (D39).
+
+**FN1. Data in by hand (D39)**
+- [x] Add a client: form on `/clients` (name, email, terms days) → `POST /api/clients` → `src/db/clients.ts` → event. A new client appeared with its page (browser, 375px and desktop)
+- [x] Add a bill by hand: one "Add a bill or charge" form on Home and To check (biller, amount, due, category, owner; Due defaults to the household's date) → `POST /api/bills` → `src/db/bills.ts` (confirmed, source manual) → event. A ¥5,000 bill moved the shortfall from ¥18,780 to ¥23,780
+- [x] Log a charge by hand: same form, kind charge (merchant, amount, date, card) → `POST /api/charges` → `src/db/charges.ts` through the statement-charge lock → event. A ¥3,800 Card B charge raised Card B unbilled from ¥61,000 to ¥64,800
+- [x] Mark an invoice paid outside PayPal: button on the invoice review page → `POST /api/invoices/paid` → `paid_on`, bank balance credited at the stored FX rate, Activity row; refuses PayPal-linked invoices, which keep D15 (only the webhook marks them paid). A $250 invoice credited ¥37,500 and the sentence went from ¥23,780 short to covered with a ¥13,720 low
+- [x] No migration: "paid outside PayPal" is derived from `status = paid` with no `paypal_invoice_id`; migrations stay at eight (0000–0007)
+- [x] `npm run db:doors-test` (PGlite, 13 checks) covers the four doors
+- [x] Import from PayPal: `POST /api/paypal/import` → read-only invoice listing in `src/lib/paypal/invoices.ts` (not `runTool`) → `src/db/paypal-import.ts`. Only the non-demo household equal to `PAYPAL_BALANCE_HOUSEHOLD_ID` may import; it reads sandbox merchant invoices (up to 5 pages), maps statuses, matches clients by email, is idempotent on `paypal_invoice_id` and credits no balance for already-paid invoices. Panel in Settings only. `npm run db:import-test` (6 checks); Settings shows no PayPal history panel for a Try it household
+- [ ] Run one live import: waits on the owner setting `PAYPAL_BALANCE_HOUSEHOLD_ID` in `.env.local`
+
+**FN2. The agent (D40)**
+- [x] `src/lib/agent/tools.ts`: one tool catalogue over the engine. Read: `where_am_i`, `whats_due`, `can_i_spend`, `list_clients_and_cards`, `timeline`, `options_when_short`, `list_invoices`. Draft: `draft_invoice`, `add_bill`, `log_charge`; the last two put a pending row in To check and return an "Open To check" link. Writes create pending rows or drafts only
+- [x] `src/lib/mcp/server.ts` and `/api/ask` use that one catalogue
+- [x] `src/lib/agent/run.ts` and `src/lib/anthropic.ts`: Claude through `@anthropic-ai/sdk` 1.4.0 with tools, at most 4 tool turns, 20 s budget, no retries, no fallback models; text model from `ANTHROPIC_TEXT_MODEL`; the document reader uses the same SDK with structured outputs
+- [x] `/api/ask` runs the agent; the regex interpreter is gone, a missing setting returns the clear error (the Ask panel shows "ANTHROPIC_TEXT_MODEL is not set" when settings are absent)
+- [x] Ask UI shows the answer and the one link when a tool made a pending row or a draft; the agent never sends
+- [x] `scripts/agent-test.ts` (PGlite, fake transport, 13 checks)
+- [ ] Verify one real ask and one real document read on dev, then on the Worker: waits on the owner adding `ANTHROPIC_API_KEY`, `ANTHROPIC_TEXT_MODEL`, `ANTHROPIC_DOCUMENT_MODEL` and `ANTHROPIC_DAILY_READ_LIMIT` to `.env.local`
+
+**FN3. Live verifications already listed elsewhere:** Anthropic key (phase A), magic link (V9), first deploy and webhook (phase B), live read and Email Routing (phase E). The journeys below are run on dev first and again on the Worker after each of those lands.
+
+### User journeys (D38)
+Each is run on a fresh Try it household at phone (375px) and desktop width; expected result and time are recorded in the table under "Running now" when they are measured.
+- [ ] U1 Try it → Home sentence with a date and a client name, ≤ 1.5 s
+- [ ] U2 Upload the card-statement sample → "Document ready to read" at once → To check row ≤ 30 s → confirm → the sentence or safe to spend changes
+- [ ] U3 Forward the 国保 sample by email → same as U2 (needs Email Routing)
+- [ ] U4 Say or type "I paid ¥3,800 at the noodle place on Card B" → pending charge in To check → confirm → Card B's room changes (the typed charge form is verified; the Ask path waits on the live Anthropic settings)
+- [x] U5 Add a bill by hand → appears in Coming up and in the runway (¥5,000 bill moved the shortfall from ¥18,780 to ¥23,780; 375px and desktop)
+- [ ] U6 New invoice → review → Approve → "Sent" in Activity ≤ 2 s → (live) webhook → "Paid" and the sentence flips
+- [ ] U7 (waits on the live Anthropic settings) Ask "can I afford ¥4,000 tonight", "what's due", "where am I", and one free-form question → one or two sentences each, numbers equal to Home's, ≤ 8 s
+- [ ] U8 (waits on the owner's `MCP_TOKEN_KEY`) Settings → make an MCP token → `where_am_i` and `draft_invoice` from an MCP client → the draft opens in the app
+- [ ] U9 Sign in by magic link → onboarding (name, timezone, bank balance, one card) → own sentence; a Try it household is upgraded, not lost
+- [ ] U10 Delete my data → everything gone, including the Vault key and Storage objects; Reset on a Try it household restores Ben
+
+### Build plan for the functionality stage (D38)
+Order follows the dependencies; a Sonnet subagent builds each item from a written contract, Haiku runs suites, timings and ticks boxes; the lead writes contracts and reviews (D19).
+- [ ] Nov 4: FN1 add client, add bill, log charge, mark paid outside (one form component, four routes, db modules, no migration); `tsc`, lint, `db:test`, suites; U1, U4, U5 ticked on dev
+- [ ] Nov 5: early Devpost submission on what exists (owner); FN2 tool catalogue and MCP re-registration (no visible change)
+- [ ] Nov 6–7: FN2 runner, fake transport, `/api/ask` swap, Ask UI, `agent-test`; U7 on dev with the owner's key
+- [ ] Nov 8: FN1 PayPal import against the simulated transport; U2, U6, U8, U9, U10 on dev
+- [ ] Nov 8–10: UI/UX stage (the phase that holds the design review and screens), then rerun U1–U10 on the Worker after the first deploy
+- [ ] Nov 10–11: phase J items marked before Nov 12
+- [ ] Nov 12: final video on a Try it household; submission
+
+### UI/UX stage (D38: after functionality)
+Findings from browser checks of the doors and the agent; the design review and screens join this list.
+- [ ] Form text inputs have no accessible names (screen readers announce unnamed textboxes)
+- [ ] Activity's date column wraps mid-word ("No v 3") at 375px
+- [ ] The demo household's clock is Nov 14 but new events are stamped with the real date, so fresh Activity rows sort below seeded ones and show a different date than "Paid Nov 14" on the invoice
+- [ ] Return in the Ask textarea adds a newline rather than asking: decide whether Enter should submit
+- [ ] Dev only: the Next dev "N" badge overlaps the microphone button
+
+### J. Foundation and security hardening (last stage, D38)
+- [ ] Tenant-isolation test in `db:test`: two seeded households, every read function in `src/db`, zero rows cross over
+- [ ] Demo sweeper in the daily job: delete demo households older than N days and their Storage objects through `document-cleanup`
+- [ ] App-wide daily AI budget (one global `request_buckets` row) in addition to the per-household cap
+- [ ] Per-IP limits on `/api/try` and `/api/auth/link` (Cloudflare rate-limiting rule or an IP-keyed bucket)
+- [ ] Confirm the upload size cap on `/api/upload` and count Storage bytes per household
+- [ ] Operator log: one structured line per request (`cf-ray`, route, household UUID, outcome code, duration), no content; `cf-ray` shown on error pages
+- [ ] Retention for raw documents in the bucket (N days after confirmation, plus per-document delete) and `webhook_deliveries.payload` trimmed to what the app uses
+- [ ] Migration-order rule in HANDOFF (expand before use, contract after; the running Worker must keep working)
+- [ ] Manual encrypted database dump before demo day (owner)
+- [ ] Privacy page: what is stored, where (Tokyo), who processes it (Supabase, Cloudflare, Anthropic in the US, PayPal), how long, how to delete; one line on clients' data and on Try it data living behind a cookie
+- [ ] Export my data as JSON
+- [ ] After Nov 12: app database role with RLS policies on `app.household_id`; separate production Supabase project; hourly cron by local time; secret rotation procedure; Pro-plan backups
+
 ## What exists now
 
+- Typed-in doors (FN1): add client, add bill, log card charge and mark an invoice paid outside PayPal work end to end in the browser; PayPal history import is built and tested, not yet run live.
+- In-app agent (FN2): `/api/ask` runs Claude with tools over the engine; the same catalogue serves MCP. Tested with a fake transport; no live call yet.
 - Home reads the cookie-selected household, computes its 30-day sentence, runway, cards and upcoming payments, and confirms pending items in Postgres. The old five-tab screen, sample reducer and persona switch are removed.
 - PayPal plumbing: sandbox guard, token and REST client, toolkit split (agent drafts, server sends), verified webhook route, smoke test.
 - Backend foundation (D31–D37): All eight migrations are applied on the Supabase project in Tokyo. The 18-table schema, household-scoped data layer, Ben seed and Vault probe are in place. Cloudflare Workers build through OpenNext with the daily Cron Trigger. Try it creates a separate seeded household with a protected cookie and a demo-only reset. Verified webhook deliveries persist in Postgres.
-- Reader: private document intake, MIME email routing code, asynchronous extraction, editable readings, recurring label/category/card corrections and household file cleanup. Upload and To check open at phone and desktop widths. The private Storage bucket `household-documents` does not exist yet on the Tokyo project, so uploads and forwarded mail cannot store files until the owner creates it. Live AI and Email Routing checks await the owner’s settings.
+- Reader: private document intake, MIME email routing code, asynchronous extraction, editable readings, recurring label/category/card corrections and household file cleanup. Upload and To check open at phone and desktop widths. Files go to the private Storage bucket `household-documents` on the Tokyo project. Live AI and Email Routing checks await the owner’s settings.
 - Catalogue engine with Japan (20 moves) and US (16 moves), both checked on primary pages Nov 1; now secondary.
 - Sample bills, a card-statement email, a 国保 slip and Maya's US bill.
 - Private current-state Devpost and rehearsal script drafts, plus the silent 24-second local rehearsal video. The rehearsal's external PayPal transport is simulated.

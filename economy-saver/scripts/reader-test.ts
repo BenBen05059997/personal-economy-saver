@@ -8,6 +8,7 @@ import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { loadMoneyState } from "@/db/household";
 import { readDocument, storeDocument } from "@/db/reader-job";
+import { extractDocument } from "@/lib/reader/extract";
 import { reviewReading } from "@/db/readings";
 import { readerInbox } from "@/db/reader-inbox";
 import { removeHouseholdDocuments } from "@/db/document-cleanup";
@@ -36,6 +37,7 @@ async function test() {
     let isPublic = false;
     let calls = 0;
     let empty = false;
+    let stop = "end_turn";
     let expectedMime = "application/pdf";
     let extracted = { kind: "bill", name: "Harbor Lights", amountMinor: 11200, currency: "JPY", category: "Power", date: "2026-11-27", cardId: null as string | null };
     globalThis.fetch = async (input, init) => {
@@ -43,14 +45,16 @@ async function test() {
       const url = new URL(request.url);
       if (url.host === "api.anthropic.com") {
         assert.equal(url.pathname, "/v1/messages");
-        assert.equal(request.headers.get("x-api-key"), "fictional-test-value");
+        assert.equal(request.headers.get("authorization"), "Bearer fictional-test-value");
         const body = await request.json();
         assert.equal(body.model, expectedMime === "message/rfc822" ? "fixture-text" : "fixture-document");
-        assert.equal(body.tool_choice.name, "record_readings");
+        assert.equal(body.tool_choice, undefined);
+        assert.equal(body.output_config.format.type, "json_schema");
         if (expectedMime === "message/rfc822") assert.ok(body.messages[0].content.some((v: { text?: string }) => v.text?.includes("Minato kiosk")));
         else assert.equal(body.messages[0].content[0].source.media_type, expectedMime);
         calls++;
-        return Response.json({ content: [{ type: "tool_use", name: "record_readings", input: { items: empty ? [] : [extracted] } }] });
+        return Response.json({ id: "msg_fixture", type: "message", role: "assistant", model: body.model, stop_reason: stop, stop_sequence: null,
+          content: [{ type: "text", text: JSON.stringify({ items: empty ? [] : [extracted] }) }], usage: { input_tokens: 1, output_tokens: 1 } });
       }
       assert.equal(url.host, "storage.example");
       if (url.pathname.includes("/bucket/")) return Response.json({ name: "fictional-documents", public: isPublic });
@@ -134,6 +138,13 @@ async function test() {
     assert.equal(finished.status, "read");
     assert.equal((await readerInbox(db, a)).jobs.length, 0);
     console.log("✓ A nonfinancial email finishes with nothing to confirm");
+
+    for (const [reason, message] of [["refusal", "AI reader declined to read this document."], ["max_tokens", "Document has too many records to read in one request."]]) {
+      stop = reason;
+      await assert.rejects(extractDocument(file("Subject: x\r\n\r\nMinato kiosk"), expectedMime, { today: "2026-11-14", currency: "JPY", cards: [] }, async () => "fictional-test-value"), { message });
+    }
+    stop = "end_turn";
+    console.log("✓ A refusal or a cut-off answer fails with a clear message");
 
     isPublic = true;
     await assert.rejects(storeDocument(db, b, "upload", "application/pdf", file("%PDF-B")), /private bucket/);

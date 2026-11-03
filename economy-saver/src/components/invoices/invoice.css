@@ -8,3 +8,4 @@
 .invoice-amount small { margin-left: var(--space-2); font: 14px/1.4 var(--sans); color: var(--muted); }
 .invoice-review form p { margin-top: var(--space-3); }
 .invoice-status { font-weight: 500; }
+.invoice-paid-outside { margin-top: var(--space-5); }

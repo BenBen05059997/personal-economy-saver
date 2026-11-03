@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { parseAmountMinor } from "./money";
 import { recordEvent, requireHousehold, type Db } from "./household";
 import { clients, invoices } from "./schema";
 
@@ -7,16 +8,14 @@ export const draftInput = z.object({
   id: z.string().uuid(),
   clientId: z.string().uuid(),
   item: z.string().trim().min(1).max(200),
-  amount: z.string().trim().regex(/^\d{1,9}(?:\.\d{1,2})?$/),
+  amount: z.string().trim().min(1).max(20),
   note: z.string().trim().max(3900).default(""),
 });
 
 export async function saveInvoiceDraft(db: Db, householdId: string, input: z.infer<typeof draftInput>) {
   const data = draftInput.parse(input);
   const hid = requireHousehold(householdId);
-  const [dollars, cents = ""] = data.amount.split(".");
-  const amountMinor = Number(dollars) * 100 + Number(cents.padEnd(2, "0"));
-  if (!amountMinor) throw new Error("Invoice amount must be positive");
+  const amountMinor = parseAmountMinor(data.amount, "USD");
   return db.transaction(async tx => {
     const [client] = await tx.select({ name: clients.name }).from(clients)
       .where(and(eq(clients.householdId, hid), eq(clients.id, data.clientId)));

@@ -237,8 +237,14 @@ await step("read", "confirm-single-event", async () => {
   const data = await events();
   expect(data.events.filter(event => event.kind === "bill_confirmed" && event.refId === bill).length === 1, "confirm-event-count");
 });
+// Ask goes to the agent (D40). Without the owner's AI settings it must stop with the missing setting's name (rule 10);
+// with them it must answer from the engine's numbers.
 await step("action", "typed-ask-read-only", async () => {
   const result = await request("/api/ask", { method: "POST", json: { id: randomUUID(), text: "Where do I stand?", source: "manual" } });
+  if (result.response.status === 503 && /^ANTHROPIC_[A-Z_]+ is not set$/.test(result.body)) {
+    console.log(`NOTE typed-ask-read-only: ${result.body}; the live answer is not checked`);
+    return;
+  }
   expect(result.response.status === 200, "ask-status");
   const answer = JSON.parse(result.body);
   expect(answer.pending === false && typeof answer.answer === "string" && /30,000/.test(answer.answer), "ask-result");

@@ -7,10 +7,12 @@ import { fundingOptions } from "@/lib/money/options";
 import { toCheck } from "@/lib/money/to-check";
 import { homeSentence } from "@/lib/money/sentence";
 import { RunwayChart } from "./RunwayChart";
+import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
 import "./home.css";
 
 type Props = { state: MoneyState };
+type People = { id: string; name: string }[];
 
 function Actions({ state }: Props) {
   const options = fundingOptions(state);
@@ -81,7 +83,7 @@ function Cards({ state }: Props) {
   </section>;
 }
 
-function ComingUp({ state }: Props) {
+function ComingUp({ state, people, entryIds }: Props & { people: People; entryIds: EntryIds }) {
   const format = formatter(state.homeCurrency);
   const usual = timeline(state, "expected");
   const late = series(state, "worst");
@@ -110,10 +112,12 @@ function ComingUp({ state }: Props) {
     {rows.length === 0 && <p className="home-empty">Nothing due in the next 30 days.</p>}
     {rows.slice(0, shown)}
     {rows.length > shown && <details><summary>Later in the month · {rows.length - shown} more</summary>{rows.slice(shown)}</details>}
+    <AddEntry ids={entryIds} returnTo="/" today={state.today} currency={state.homeCurrency} people={people}
+      cards={state.cards.map(card => ({ id: card.id, label: card.label }))} categories={[...new Set(state.bills.map(bill => bill.category))]} />
   </section>;
 }
 
-export function HomeView({ state, inbox, notice }: Props & { inbox: ReaderInbox; notice?: string | null }) {
+export function HomeView({ state, inbox, notice, people, entryIds }: Props & { inbox: ReaderInbox; notice?: string | null; people: People; entryIds: EntryIds }) {
   const sentence = homeSentence(state);
   const safe = safeToSpend(state, 0);
   const lead = sentence.lead.split(/([,\s]+)/).map((word, index) => {
@@ -130,7 +134,7 @@ export function HomeView({ state, inbox, notice }: Props & { inbox: ReaderInbox;
     <Actions state={state} />
     <div className="home-panels">
       <div className="home-column"><Next30Days state={state} /><Cards state={state} /></div>
-      <div className="home-column"><ToCheck state={state} inbox={inbox} /><ComingUp state={state} /></div>
+      <div className="home-column"><ToCheck state={state} inbox={inbox} /><ComingUp state={state} people={people} entryIds={entryIds} /></div>
     </div>
   </article>;
 }

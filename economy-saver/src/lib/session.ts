@@ -18,6 +18,12 @@ export async function currentHouseholdId(): Promise<string | null> {
   return findDemoHousehold(db(), id);
 }
 
+/** The guard for household-scoped mutating routes: the household id, or the 403/401 response to return as is. */
+export async function householdRequest(request: Request): Promise<string | Response> {
+  if (!sameOrigin(request)) return new Response("Same-origin request required", { status: 403 });
+  return await currentHouseholdId() ?? new Response("Household session required", { status: 401 });
+}
+
 export function demoResponse(id: string) {
   const response = new NextResponse(null, { status: 303, headers: { Location: "/" } });
   response.headers.set("Cache-Control", "private, no-store");

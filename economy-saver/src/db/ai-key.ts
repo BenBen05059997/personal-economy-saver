@@ -18,7 +18,7 @@ async function lockedHousehold(db: Db, hid: string) {
 }
 
 /** Call immediately before EACH provider invocation, including retries. Never log the return value. */
-export async function readerKey(db: Db, householdId: string, now = new Date()): Promise<string> {
+export async function aiKey(db: Db, householdId: string, now = new Date()): Promise<string> {
   const hid = requireHousehold(householdId);
   try {
     return await db.transaction(async tx => {

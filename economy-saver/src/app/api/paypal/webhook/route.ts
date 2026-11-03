@@ -2,6 +2,7 @@ import { db } from "@/db/client";
 import { env } from "@/lib/env";
 import { applyVerifiedDelivery, recentDeliveries } from "@/lib/events";
 import { verifyWebhook } from "@/lib/paypal/webhook";
+import { NO_STORE } from "@/lib/door";
 import { currentHouseholdId } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -20,5 +21,5 @@ export async function GET() {
   env();
   const hid = await currentHouseholdId();
   if (!hid) return Response.json({ error: "Household session required" }, { status: 401 });
-  return Response.json({ events: await recentDeliveries(db(), hid) }, { headers: { "Cache-Control": "private, no-store" } });
+  return Response.json({ events: await recentDeliveries(db(), hid) }, { headers: NO_STORE });
 }

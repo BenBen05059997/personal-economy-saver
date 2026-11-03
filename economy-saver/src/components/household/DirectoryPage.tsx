@@ -13,7 +13,7 @@ async function DirectoryContent({ section, params }: Props) {
   const { selection } = await params;
   if (selection && selection.length !== 1) notFound();
   const workspace = await loadWorkspace(hid);
-  return <WorkspaceFrame workspace={workspace} section={section}><Directory state={workspace.state} section={section} selected={selection?.[0]} /></WorkspaceFrame>;
+  return <WorkspaceFrame workspace={workspace} section={section}><Directory state={workspace.state} section={section} selected={selection?.[0]} newClientId={crypto.randomUUID()} /></WorkspaceFrame>;
 }
 
 export function DirectoryPage(props: Props) {

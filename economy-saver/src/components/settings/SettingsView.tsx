@@ -21,7 +21,7 @@ function CardFields({ data, card }: { data: SettingsData; card?: SettingsData["c
     <button className="ui-button">{card ? "Save card" : "Add card"}</button></>;
 }
 
-export function SettingsView({ data }: { data: SettingsData }) {
+export function SettingsView({ data, canImportPayPal = false }: { data: SettingsData; canImportPayPal?: boolean }) {
   const { household, people, cards, bills } = data;
   return <div className="settings-page"><header><p className="ui-hint">YOUR HOUSEHOLD</p><h1 className="ui-title">Settings</h1><p className="ui-hint">Keep your balances, cards and bill ownership up to date.</p></header>
     <section className="ui-panel"><h2>Household & bank</h2>
@@ -45,6 +45,10 @@ export function SettingsView({ data }: { data: SettingsData }) {
         <SettingsForm><input type="hidden" name="kind" value="bill-owner" /><input type="hidden" name="id" value={bill.id} />
           <Person people={people} selected={bill.memberId} shared /><button className="ui-button">Save bill owner</button></SettingsForm></details>) : <p className="ui-hint">Your bills appear here after you confirm a reading.</p>}
     </section>
+    {canImportPayPal && <section className="ui-panel" id="paypal-import"><h2>PayPal history</h2>
+      <p className="ui-hint">Add the clients and invoices from your PayPal sandbox account. This only reads from PayPal and never changes your balance.</p>
+      <form method="post" action="/api/paypal/import"><button className="ui-button">Import clients and invoices from PayPal</button></form>
+    </section>}
     <section className="ui-panel" id="ai-key"><h2>Your AI key</h2>
       <p className="ui-hint">{household.aiKeyHint ? `Saved key: ${household.aiKeyHint}. Model calls use your Anthropic account.` : "Using the app’s default key, with a daily household allowance. Add your own Anthropic key to use your account."}</p>
       {!household.aiKeyHint && <p className="ui-hint">{household.aiReadsDay ? `${household.aiReadsToday} default calls recorded on ${household.aiReadsDay}.` : "No default calls recorded."} The allowance resets at midnight in {household.timeZone}.</p>}
