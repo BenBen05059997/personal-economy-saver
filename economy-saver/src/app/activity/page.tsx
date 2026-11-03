@@ -1,10 +1,11 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { listEvents } from "@/db/household";
 import { publicEvent } from "@/db/event-feed";
 import { ActivityView } from "@/components/household/ActivityView";
-import { loadWorkspace, WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
+import { loadNavigation, WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
 import { currentHouseholdId } from "@/lib/session";
 
 type Props = { searchParams: Promise<{ page?: string | string[] }> };
@@ -17,7 +18,7 @@ async function Activity({ searchParams }: Props) {
   if (typeof page !== "string" || !/^[1-9]\d{0,5}$/.test(page)) notFound();
   const index = Number(page);
   const [workspace, rows] = await Promise.all([
-    loadWorkspace(hid), listEvents(db(), hid, undefined, pageSize + 1, (index - 1) * pageSize),
+    loadNavigation(hid), listEvents(db(), hid, undefined, pageSize + 1, (index - 1) * pageSize),
   ]);
   if (index > 1 && rows.length === 0) notFound();
   return <WorkspaceFrame workspace={workspace} section="activity">
@@ -25,5 +26,5 @@ async function Activity({ searchParams }: Props) {
   </WorkspaceFrame>;
 }
 export default function Page(props: Props) {
-  return <Suspense fallback={<main aria-busy="true">Opening Activity…</main>}><Activity {...props} /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening Activity…" />}><Activity {...props} /></Suspense>;
 }

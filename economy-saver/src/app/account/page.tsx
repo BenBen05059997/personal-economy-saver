@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
@@ -26,5 +27,5 @@ async function Account() {
   </AccountFrame>;
 }
 export default function AccountPage() {
-  return <Suspense fallback={<main aria-busy="true">Opening account…</main>}><Account /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening account…" />}><Account /></Suspense>;
 }

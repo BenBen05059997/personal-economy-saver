@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { Landing } from "@/components/auth/Landing";
 import { HomeView } from "@/components/home/HomeView";
@@ -14,5 +15,5 @@ async function SessionHome() {
 }
 
 export default function Home() {
-  return <Suspense fallback={<main aria-busy="true">Opening your household…</main>}><SessionHome /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening your household…" />}><SessionHome /></Suspense>;
 }

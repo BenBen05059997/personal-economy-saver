@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, isNotNull, isNull, lt, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import { closedInvoiceStates } from "@/lib/paypal/status";
 import { env } from "@/lib/env";
@@ -51,12 +51,22 @@ async function readBalance(db: Db, hid: string, report: BalanceReport, currency:
 export async function refreshPayPal(db: Db, id: string, read: ReadRemote = sandboxRead, now = new Date()) {
   const hid = requireHousehold(id);
   const [connection] = await db.select({ id: paypalConnections.id, demo: households.isDemo, stale: paypalConnections.refreshError,
-    asOf: paypalConnections.balanceAsOf }).from(paypalConnections)
+    asOf: paypalConnections.balanceAsOf,
+    tracked: exists(db.select({ id: invoices.id }).from(invoices).where(and(
+      eq(invoices.householdId, hid), inArray(invoices.status, ["draft", "sent"]), isNotNull(invoices.paypalInvoiceId),
+    ))),
+  }).from(paypalConnections)
     .innerJoin(members, and(eq(members.id, paypalConnections.memberId), eq(members.householdId, hid)))
     .innerJoin(households, eq(households.id, paypalConnections.householdId))
     .where(and(eq(paypalConnections.householdId, hid), eq(members.role, "owner")));
   if (!connection) return { stale: "Household PayPal connection is missing.", asOf: null };
   const where = and(eq(paypalConnections.householdId, hid), eq(paypalConnections.id, connection.id));
+  // A demo without associated open PayPal invoices has nothing to refresh.
+  // Leave the attempt clock untouched so a newly sent invoice can refresh immediately.
+  if (connection.demo && !connection.tracked) {
+    if (connection.stale !== null) await db.update(paypalConnections).set({ refreshError: null }).where(where);
+    return { stale: null, asOf: connection.asOf };
+  }
   const lease = await db.update(paypalConnections).set({ refreshAttemptedAt: now, refreshError: "Refreshing PayPal. Showing stored household data." })
     .where(and(where, or(isNull(paypalConnections.refreshAttemptedAt), lt(paypalConnections.refreshAttemptedAt, new Date(now.getTime() - COOLDOWN_MS)))))
     .returning({ id: paypalConnections.id });
@@ -90,6 +100,13 @@ export async function refreshPayPal(db: Db, id: string, read: ReadRemote = sandb
     const awaiting = snapshots.some(({ data }) => waitingPayment.includes(data.status));
     if (awaiting) stale = "A PayPal payment needs verification. Showing the last verified household balance.";
     const report = balanceEnabled && !awaiting ? balanceReport.parse(await read("/v1/reporting/balances", signal)) : null;
+    // No provider data means no money change. Home observes its rendered state;
+    // refreshing an untouched demo needs neither a household lock nor two engine loads.
+    if (!snapshots.length && !report) {
+      const [current] = await db.update(paypalConnections).set({ refreshError: stale })
+        .where(ownsLease).returning({ asOf: paypalConnections.balanceAsOf });
+      return current ? { stale, asOf: current.asOf } : { stale: "PayPal refresh superseded.", asOf: connection.asOf };
+    }
     return await db.transaction(async tx => {
       await beginMoneyChange(tx, hid);
       const [current] = await tx.select().from(paypalConnections).where(ownsLease).for("update");

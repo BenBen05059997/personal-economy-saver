@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
@@ -18,5 +19,5 @@ async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
 }
 
 export default function Page({ params }: { params: Promise<{ id: string }> }) {
-  return <Suspense fallback={<p aria-busy="true">Opening invoice…</p>}><InvoicePage params={params} /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening invoice…" />}><InvoicePage params={params} /></Suspense>;
 }

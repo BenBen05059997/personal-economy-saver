@@ -23,6 +23,8 @@ import { applyVerifiedDelivery, recentDeliveries } from "@/lib/events";
 import { benMoney } from "@/lib/sample/ben";
 import { ladder, low, paybackFor, roomOnCard, safeToSpend, series, dueItems, timeline } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
+import { loadNavigationData, loadWorkspaceData } from "@/db/workspace";
+import { addDays } from "@/lib/money/runway";
 
 // Compile-time check that the postgres.js instance fits the same Db type PGlite does.
 type _ClientFitsDb = ReturnType<typeof clientDb> extends Db ? true : never;
@@ -136,6 +138,51 @@ async function main() {
     });
   }
 
+  await check("navigation matches full workspace counts at the charge boundary and isolates households", async () => {
+    const hid = await seedBen(db, { isDemo: true });
+    const other = await seedBen(db, { isDemo: true });
+    const beforeOther = await loadNavigationData(db, other);
+    const [card] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid));
+    await db.insert(schema.charges).values([
+      { date: addDays(today, -63), status: "pending" as const },
+      { date: addDays(today, -62), status: "pending" as const },
+      { date: addDays(today, 20), status: "pending" as const },
+      { date: today, status: "confirmed" as const },
+    ].map(row => ({ householdId: hid, cardId: card.id, merchant: "Fictional test shop",
+      amountMinor: 100, currency: "JPY", source: "manual" as const, ...row })));
+    await db.insert(schema.bills).values({ householdId: hid, biller: "Fictional test utility",
+      amountMinor: 100, currency: "JPY", due: addDays(today, -90), category: "utilities", status: "pending" });
+    const [document] = await db.insert(schema.documents).values({ householdId: hid, kind: "upload",
+      storagePath: `${hid}/fictional-test`, mime: "application/pdf", status: "failed" }).returning();
+    const proposed = { kind: "bill", name: "Fictional test utility", date: today, amountMinor: 100,
+      currency: "JPY", category: "utilities", cardId: null };
+    await db.insert(schema.readings).values([
+      { householdId: hid, documentId: document.id, extracted: { proposed }, target: "bill", status: "to_check" },
+      { householdId: hid, documentId: document.id, extracted: { proposed }, target: "bill", status: "confirmed" },
+    ]);
+    const full = await loadWorkspaceData(db, hid);
+    const narrow = await db.transaction(tx => loadNavigationData(tx, hid),
+      { isolationLevel: "repeatable read", accessMode: "read only" });
+    assert.deepEqual(narrow, { name: full.name, feed: full.feed, pending: full.pending, timeZone: full.timeZone });
+    assert.equal(narrow.pending, beforeOther.pending + 4, "two recent pending charges, one bill and one reading count");
+    assert.deepEqual(await loadNavigationData(db, other), beforeOther);
+    await db.delete(schema.fxRates).where(eq(schema.fxRates.householdId, hid));
+    assert.deepEqual(await loadNavigationData(db, hid), narrow, "navigation does not need an FX snapshot");
+    await assert.rejects(loadWorkspaceData(db, hid), /No USD\/JPY rate/);
+    await db.delete(schema.households).where(eq(schema.households.id, hid));
+    await db.delete(schema.households).where(eq(schema.households.id, other));
+  });
+
+  await check("navigation requires a valid household and its owner", async () => {
+    await assert.rejects(loadNavigationData(db, randomUUID()), /Household not found/);
+    for (const bad of ["", "not-a-uuid", null, undefined] as unknown as string[]) {
+      await assert.rejects(loadNavigationData(db, bad), /household id is required/);
+    }
+    const [household] = await db.insert(schema.households).values({ name: "Fictional empty household", homeCurrency: "JPY" }).returning();
+    await assert.rejects(loadNavigationData(db, household.id), /Household owner not found/);
+    await db.delete(schema.households).where(eq(schema.households.id, household.id));
+  });
+
   await check("the worst case is the known ¥18,780 short on Nov 27 before Hikari", async () => {
     const state = await loadMoneyState(db, a, today);
     const confirmed = { ...state, bills: state.bills.filter((x) => x.status === "confirmed") };
@@ -242,19 +289,36 @@ async function main() {
     assert.ok(!(await recentDeliveries(db, a)).some((d) => d.id === event.id));
   });
 
-  await check("bell and poll state use only my household, including queued documents, sent invoices and read markers", async () => {
+  await check("bell polling stays idle for seed invoices and tracks only my PayPal invoices, reader jobs and read markers", async () => {
     const visitor = await seedBen(db, { isDemo: true });
-    const invoiceFilter = and(eq(schema.invoices.householdId, visitor), eq(schema.invoices.status, "sent"));
+    const otherVisitor = await seedBen(db, { isDemo: true });
+    const [otherInvoice] = await db.select({ id: schema.invoices.id }).from(schema.invoices)
+      .where(and(eq(schema.invoices.householdId, otherVisitor), eq(schema.invoices.status, "sent"))).limit(1);
+    await db.update(schema.invoices).set({ paypalInvoiceId: "INV2-OTHER-VISITOR" })
+      .where(and(eq(schema.invoices.householdId, otherVisitor), eq(schema.invoices.id, otherInvoice.id)));
+    assert.equal((await eventFeed(db, otherVisitor)).inFlight, true);
+    assert.equal((await eventFeed(db, visitor)).inFlight, false, "another household's invoice must not trigger polling");
+    const [otherDoc] = await db.insert(schema.documents).values({
+      householdId: otherVisitor, storagePath: otherVisitor + "/fictional-receipt", mime: "image/png", kind: "upload", status: "queued",
+    }).returning({ id: schema.documents.id });
     const feed = await eventFeed(db, visitor);
-    assert.equal(feed.inFlight, true);
+    assert.equal(feed.inFlight, false, "fictional seed invoices cannot receive a webhook");
+    assert.equal((await eventFeed(db, otherVisitor)).inFlight, true);
     assert.equal(feed.total, 2);
     assert.equal(feed.unread, 1);
     assert.equal(feed.notifications.length, 1);
-    await db.update(schema.invoices).set({ status: "draft" }).where(invoiceFilter);
+    const [invoice] = await db.select({ id: schema.invoices.id }).from(schema.invoices)
+      .where(and(eq(schema.invoices.householdId, visitor), eq(schema.invoices.status, "sent"))).limit(1);
+    const invoiceFilter = and(eq(schema.invoices.householdId, visitor), eq(schema.invoices.id, invoice.id));
+    await db.update(schema.invoices).set({ paypalInvoiceId: "INV2-TRACKED-VISITOR" }).where(invoiceFilter);
+    assert.equal((await eventFeed(db, visitor)).inFlight, true);
+    await db.update(schema.invoices).set({ status: "paid", paidOn: today }).where(invoiceFilter);
     assert.equal((await eventFeed(db, visitor)).inFlight, false);
     const [doc] = await db.insert(schema.documents).values({
       householdId: visitor, storagePath: visitor + "/fictional-receipt", mime: "image/png", kind: "upload", status: "queued",
     }).returning({ id: schema.documents.id });
+    assert.equal((await eventFeed(db, visitor)).inFlight, true);
+    await db.update(schema.documents).set({ status: "reading" }).where(and(eq(schema.documents.householdId, visitor), eq(schema.documents.id, doc.id)));
     assert.equal((await eventFeed(db, visitor)).inFlight, true);
     await db.update(schema.documents).set({ status: "read" }).where(and(eq(schema.documents.householdId, visitor), eq(schema.documents.id, doc.id)));
     assert.equal((await eventFeed(db, visitor)).inFlight, false);
@@ -266,7 +330,9 @@ async function main() {
     assert.ok(!(await listEvents(db, visitor)).map(publicEvent).some(row => JSON.stringify(row).includes(visitor)));
     // This synthetic metadata row never had a Storage object.
     await db.delete(schema.documents).where(and(eq(schema.documents.householdId, visitor), eq(schema.documents.id, doc.id)));
+    await db.delete(schema.documents).where(and(eq(schema.documents.householdId, otherVisitor), eq(schema.documents.id, otherDoc.id)));
     await deleteHousehold(db, visitor);
+    await deleteHousehold(db, otherVisitor);
   });
 
   await check("a card from another household cannot be referenced", async () => {

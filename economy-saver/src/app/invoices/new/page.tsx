@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { DraftForm } from "@/components/invoices/DraftForm";
 import { redirect } from "next/navigation";
@@ -14,5 +15,5 @@ async function Draft() {
 }
 
 export default function Page() {
-  return <Suspense fallback={<p aria-busy="true">Opening new invoice…</p>}><Draft /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening new invoice…" />}><Draft /></Suspense>;
 }

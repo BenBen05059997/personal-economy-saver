@@ -34,30 +34,35 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
       })
       .returning({ id: s.households.id });
     const hid = household.id;
-    await tx.insert(s.fxRates).values({
-      householdId: hid, date: m.today, base: "USD", quote: home, rateMicro: toRateMicro(m.fxPerUsd),
-    });
-
-    const [member] = await tx.insert(s.members).values({ householdId: hid, displayName: "Ben", role: "owner" }).returning({ id: s.members.id });
-
-    // The PayPal balance sits on the member's connection (sandbox only).
-    await tx.insert(s.paypalConnections).values({
-      householdId: hid,
-      memberId: member.id,
-      environment: "SANDBOX",
-      balanceMinor: toMinor(m.paypal, home),
-      balanceCurrency: home,
-      fetchedAt: new Date(`${m.today}T00:00:00+09:00`),
-    });
-
-    const clientIds = new Map<string, string>();
-    for (const c of m.clients) {
-      const [row] = await tx
-        .insert(s.clients)
-        .values({ householdId: hid, name: c.name, email: c.email, termsDays: c.termsDays })
-        .returning({ id: s.clients.id });
-      clientIds.set(c.id, row.id);
-    }
+    // Queue independent inserts together on the transaction's single connection.
+    // Each wave finishes before rows that reference it are inserted.
+    const member = { id: crypto.randomUUID() };
+    const clientIds = new Map(m.clients.map(c => [c.id, crypto.randomUUID()]));
+    const cardIds = new Map(m.cards.map(c => [c.id, crypto.randomUUID()]));
+    const [, , , billRows] = await Promise.all([
+      tx.insert(s.fxRates).values({
+        householdId: hid, date: m.today, base: "USD", quote: home, rateMicro: toRateMicro(m.fxPerUsd),
+      }),
+      tx.insert(s.members).values({ id: member.id, householdId: hid, displayName: "Ben", role: "owner" }),
+      tx.insert(s.clients).values(m.clients.map(c => ({
+        id: clientIds.get(c.id)!, householdId: hid, name: c.name, email: c.email, termsDays: c.termsDays,
+      }))),
+      tx
+        .insert(s.bills)
+        .values(
+          m.bills.map((b) => ({
+            householdId: hid,
+            biller: b.biller,
+            amountMinor: toMinor(b.amount, home),
+            currency: home,
+            due: b.due,
+            category: b.category,
+            status: b.status,
+            previousAmountMinor: b.previousAmount === undefined ? null : toMinor(b.previousAmount, home),
+          })),
+        )
+        .returning({ id: s.bills.id, biller: s.bills.biller, status: s.bills.status, amountMinor: s.bills.amountMinor }),
+    ]);
 
     const history: (typeof s.invoices.$inferInsert)[] = [];
     for (const c of m.clients) {
@@ -78,88 +83,11 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
         });
       });
     }
-    if (history.length) await tx.insert(s.invoices).values(history);
-
-    await tx.insert(s.invoices).values(
-      m.invoices.map((i) => ({
-        householdId: hid,
-        clientId: clientIds.get(i.clientId)!,
-        status: i.status,
-        number: i.number ?? null,
-        item: i.item,
-        note: i.note ?? null,
-        amountMinor: toMinor(i.amountUsd, "USD"),
-        currency: "USD",
-        sentOn: i.sentOn ?? null,
-        dueOn: i.dueOn ?? null,
-      })),
-    );
-
-    const cardIds = new Map<string, string>();
-    for (const c of m.cards) {
-      const [row] = await tx
-        .insert(s.cards)
-        .values({
-          householdId: hid,
-          memberId: member.id,
-          label: c.label,
-          closingDay: c.closingDay,
-          dueDay: c.dueDay,
-          limitMinor: c.limit === undefined ? null : toMinor(c.limit, home),
-          currency: home,
-          revolving: c.revolving,
-        })
-        .returning({ id: s.cards.id });
-      cardIds.set(c.id, row.id);
-    }
-
-    await tx.insert(s.cardStatements).values(
-      m.statements.map((st) => ({
-        householdId: hid,
-        cardId: cardIds.get(st.cardId)!,
-        amountMinor: toMinor(st.amount, home),
-        currency: home,
-        closedOn: st.closedOn,
-        dueOn: st.dueOn,
-      })),
-    );
-
-    await tx.insert(s.charges).values(
-      m.charges.map((c) => ({
-        householdId: hid,
-        cardId: cardIds.get(c.cardId)!,
-        merchant: c.merchant,
-        amountMinor: toMinor(c.amount, home),
-        currency: home,
-        originalAmountMinor: c.original ? toMinor(c.original.amount, c.original.currency) : null,
-        originalCurrency: c.original?.currency ?? null,
-        date: c.date,
-        source: c.source,
-        status: c.status,
-        place: c.place ?? null,
-      })),
-    );
-
-    const billRows = await tx
-      .insert(s.bills)
-      .values(
-        m.bills.map((b) => ({
-          householdId: hid,
-          biller: b.biller,
-          amountMinor: toMinor(b.amount, home),
-          currency: home,
-          due: b.due,
-          category: b.category,
-          status: b.status,
-          previousAmountMinor: b.previousAmount === undefined ? null : toMinor(b.previousAmount, home),
-        })),
-      )
-      .returning({ id: s.bills.id, biller: s.bills.biller, status: s.bills.status, amountMinor: s.bills.amountMinor });
 
     // A little Activity so the page is not empty: the pending bill is what the To check row points at.
     const pending = billRows.find((b) => b.status === "pending");
     const at = (iso: string) => new Date(`${iso}+09:00`);
-    await tx.insert(s.events).values([
+    const eventInsert = tx.insert(s.events).values([
       {
         householdId: hid,
         kind: "invoice_sent",
@@ -183,6 +111,72 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
             },
           ]
         : []),
+    ]);
+
+    await Promise.all([
+      tx.insert(s.paypalConnections).values({
+        householdId: hid,
+        memberId: member.id,
+        environment: "SANDBOX",
+        balanceMinor: toMinor(m.paypal, home),
+        balanceCurrency: home,
+        fetchedAt: new Date(`${m.today}T00:00:00+09:00`),
+      }),
+      tx.insert(s.cards).values(m.cards.map(c => ({
+        id: cardIds.get(c.id)!,
+        householdId: hid,
+        memberId: member.id,
+        label: c.label,
+        closingDay: c.closingDay,
+        dueDay: c.dueDay,
+        limitMinor: c.limit === undefined ? null : toMinor(c.limit, home),
+        currency: home,
+        revolving: c.revolving,
+      }))),
+      tx.insert(s.invoices).values([
+        ...history,
+        ...m.invoices.map((i) => ({
+          householdId: hid,
+          clientId: clientIds.get(i.clientId)!,
+          status: i.status,
+          number: i.number ?? null,
+          item: i.item,
+          note: i.note ?? null,
+          amountMinor: toMinor(i.amountUsd, "USD"),
+          currency: "USD",
+          sentOn: i.sentOn ?? null,
+          dueOn: i.dueOn ?? null,
+        })),
+      ]),
+      eventInsert,
+    ]);
+
+    await Promise.all([
+      tx.insert(s.cardStatements).values(
+        m.statements.map((st) => ({
+          householdId: hid,
+          cardId: cardIds.get(st.cardId)!,
+          amountMinor: toMinor(st.amount, home),
+          currency: home,
+          closedOn: st.closedOn,
+          dueOn: st.dueOn,
+        })),
+      ),
+      tx.insert(s.charges).values(
+        m.charges.map((c) => ({
+          householdId: hid,
+          cardId: cardIds.get(c.cardId)!,
+          merchant: c.merchant,
+          amountMinor: toMinor(c.amount, home),
+          currency: home,
+          originalAmountMinor: c.original ? toMinor(c.original.amount, c.original.currency) : null,
+          originalCurrency: c.original?.currency ?? null,
+          date: c.date,
+          source: c.source,
+          status: c.status,
+          place: c.place ?? null,
+        })),
+      ),
     ]);
 
     return hid;

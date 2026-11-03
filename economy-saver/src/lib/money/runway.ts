@@ -168,7 +168,7 @@ export function project(state: MoneyState, invoice: Invoice, sentOn: string = in
     clientName: client?.name ?? "Client",
     number: invoice.number,
     amountUsd: invoice.amountUsd,
-    amountHome: Math.round(invoice.amountUsd * state.fxPerUsd),
+    amountHome: roundHome(state, invoice.amountUsd * state.fxPerUsd),
     sentOn,
     expectedOn,
     worstOn,
@@ -586,4 +586,9 @@ export function context(state: MoneyState, profile: Profile, moment: Moment, eve
     bufferTarget: profile.bufferMonths * profile.monthlyEssentials,
     ...(event ? { event } : {}),
   };
+}
+
+/** Rounds to the home currency's smallest unit: whole yen, or cents for a USD household. */
+function roundHome(state: MoneyState, amount: number): number {
+  return state.homeCurrency === "JPY" ? Math.round(amount) : Math.round(amount * 100) / 100;
 }

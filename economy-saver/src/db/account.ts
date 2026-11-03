@@ -8,13 +8,17 @@ import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
 
 export async function householdClock(db: Db, id: string, now = new Date()) {
-  const [household] = await db.select({ demo: households.isDemo, zone: households.timeZone })
+  const [household] = await db.select({ isDemo: households.isDemo, timeZone: households.timeZone })
     .from(households).where(eq(households.id, requireHousehold(id)));
   if (!household) throw new Error("Household no longer exists");
-  const today = household.demo ? DEMO_DATE : new Intl.DateTimeFormat("en-CA", {
-    timeZone: household.zone, year: "numeric", month: "2-digit", day: "2-digit",
+  return clockForHousehold(household, now);
+}
+
+export function clockForHousehold(household: Pick<typeof households.$inferSelect, "isDemo" | "timeZone">, now = new Date()) {
+  const today = household.isDemo ? DEMO_DATE : new Intl.DateTimeFormat("en-CA", {
+    timeZone: household.timeZone, year: "numeric", month: "2-digit", day: "2-digit",
   }).format(now);
-  return { today, timeZone: household.zone, isDemo: household.demo };
+  return { today, timeZone: household.timeZone, isDemo: household.isDemo };
 }
 
 export async function householdDate(db: Db, id: string, now?: Date) {

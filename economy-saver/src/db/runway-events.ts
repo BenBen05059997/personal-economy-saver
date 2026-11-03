@@ -20,9 +20,11 @@ export async function beginMoneyChange(db: Db, id: string) {
 }
 
 /** Run in the same transaction as the money change. The first observation establishes the baseline. */
-export async function observeRunway(db: Db, id: string, state?: MoneyState) {
+export async function observeRunway(db: Db, id: string, state?: MoneyState, lockedHousehold?: Pick<typeof households.$inferSelect, "id" | "runwayShort">) {
   const hid = requireHousehold(id);
-  const previous = await lockRunway(db, hid);
+  // Supplied only by callers holding this household's FOR UPDATE lock in this transaction.
+  if (lockedHousehold && lockedHousehold.id !== hid) throw new Error("Locked household does not match household id");
+  const previous = lockedHousehold ? lockedHousehold.runwayShort : await lockRunway(db, hid);
   const money = state ?? await loadMoneyState(db, hid, (await householdClock(db, hid)).today);
   const short = low(series(money, "worst")).amount < 0;
   if (short === previous) return;

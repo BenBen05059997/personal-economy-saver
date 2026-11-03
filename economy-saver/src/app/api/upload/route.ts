@@ -1,7 +1,8 @@
 import { after } from "next/server";
 import { db } from "@/db/client";
 import { consumeRequest } from "@/db/rate-limit";
-import { readDocument, storeDocument } from "@/db/reader-job";
+import { storeDocument } from "@/db/reader-job";
+import { readDocumentInBackground } from "@/db/reader-background";
 import { matchesFileType, uploadMime } from "@/lib/reader/extract";
 import { limitedBody, MAX_DOCUMENT_BYTES, ReaderError } from "@/lib/reader/settings";
 import { currentHouseholdId, sameOrigin } from "@/lib/session";
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const original = await file.arrayBuffer();
     if (!matchesFileType(original, file.type)) throw new ReaderError("File contents do not match the selected file type.");
     const doc = await storeDocument(db(), hid, "upload", file.type, original);
-    after(() => readDocument(db(), hid, doc));
+    after(() => readDocumentInBackground(hid, doc));
     return new Response(null, { status: 303, headers: { Location: "/to-check" } });
   } catch (error) {
     return new Response(error instanceof ReaderError ? error.message : "Upload failed.", { status: 400 });

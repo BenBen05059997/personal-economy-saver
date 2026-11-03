@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { CheckView } from "@/components/household/CheckView";
@@ -13,5 +14,5 @@ async function CheckList() {
   </WorkspaceFrame>;
 }
 export default function Page() {
-  return <Suspense fallback={<main aria-busy="true">Opening To check…</main>}><CheckList /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening To check…" />}><CheckList /></Suspense>;
 }

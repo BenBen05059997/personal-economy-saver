@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { loadWorkspace, WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
@@ -16,5 +17,5 @@ async function DirectoryContent({ section, params }: Props) {
 }
 
 export function DirectoryPage(props: Props) {
-  return <Suspense fallback={<main aria-busy="true">Opening {props.section}…</main>}><DirectoryContent {...props} /></Suspense>;
+  return <Suspense fallback={<LoadingState label={"Opening " + props.section + "…"} />}><DirectoryContent {...props} /></Suspense>;
 }

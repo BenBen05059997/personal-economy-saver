@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { accountHousehold } from "@/db/account";
@@ -12,5 +13,5 @@ async function Setup() {
   return <SetupForm />;
 }
 export default function OnboardingPage() {
-  return <Suspense fallback={<main aria-busy="true">Opening setup…</main>}><Setup /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening setup…" />}><Setup /></Suspense>;
 }

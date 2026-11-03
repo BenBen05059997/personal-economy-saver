@@ -10,6 +10,7 @@ import { refreshPayPal } from "@/db/paypal-refresh";
 import { observeRunway } from "@/db/runway-events";
 import { listEvents, loadMoneyState, recordEvent } from "@/db/household";
 import { updateSettings } from "@/db/settings";
+import { clockForHousehold, householdClock } from "@/db/account";
 import { applyVerifiedDelivery } from "@/lib/events";
 
 async function test() {
@@ -18,13 +19,44 @@ async function test() {
   process.env.PAYPAL_CLIENT_SECRET = "fictional-test-secret";
   const pg = new PGlite();
   try {
-    const db = drizzle(pg, { schema: s });
+    const queries: string[] = [];
+    const db = drizzle(pg, { schema: s, logger: { logQuery(query) { queries.push(query); } } });
     await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true }), owner = await seedBen(db), other = await seedBen(db);
     for (const hid of [owner, other]) await db.insert(s.fxRates).values({ householdId: hid, base:"USD", quote:"JPY", date:"2020-01-01", rateMicro:150000000 });
     const now = new Date("2026-11-03T04:00:00Z");
     const later = (mins: number) => new Date(now.getTime() + mins * 60000);
     const conn = async (hid: string) => (await db.select().from(s.paypalConnections).where(eq(s.paypalConnections.householdId, hid)))[0];
+    const untouched = await seedBen(db, { isDemo: true });
+    const untouchedBalance = (await conn(untouched)).balanceMinor;
+    queries.length = 0;
+    const noRead = async (): Promise<never> => { throw new Error("Untouched demos must not call PayPal"); };
+    assert.deepEqual(await refreshPayPal(db, untouched, noRead, now), { stale: null, asOf: null });
+    assert.equal(queries.length, 1, "untouched demo only checks its connection and scoped tracked invoice existence");
+    assert.ok(!queries.some(query => /for update|from "(?:bills|cards|charges|fx_rates)"/i.test(query)), "no runway locks or money-state loads without provider data");
+    assert.equal((await conn(untouched)).balanceMinor, untouchedBalance);
+    const [untouchedHousehold] = await db.select().from(s.households).where(eq(s.households.id, untouched));
+    assert.equal(untouchedHousehold.runwayShort, null, "Home establishes the first rendered runway baseline");
+    assert.deepEqual(await refreshPayPal(db, untouched, noRead, later(3)), { stale: null, asOf: null });
+    assert.equal((await conn(untouched)).refreshAttemptedAt, null, "idle demo leaves lease available for its first real invoice");
+    await db.update(s.paypalConnections).set({ refreshError: "Previous provider failure" }).where(eq(s.paypalConnections.householdId, untouched));
+    assert.deepEqual(await refreshPayPal(db, untouched, noRead, later(4)), { stale: null, asOf: null });
+    assert.equal((await conn(untouched)).refreshError, null, "idle demo clears obsolete provider errors");
+    console.log("✓ Untouched demo refresh uses one read, skips money-state loads and provider calls, preserves balances and its first invoice lease");
+    await db.transaction(async tx => {
+      const [household] = await tx.select().from(s.households).where(eq(s.households.id, untouched)).for("update");
+      assert.deepEqual(clockForHousehold(household), await householdClock(tx, untouched));
+      queries.length = 0;
+      const money = await loadMoneyState(tx, untouched, clockForHousehold(household).today, household);
+      await observeRunway(tx, untouched, money, household);
+      assert.equal(queries.length, 9, "workspace reuses its household for eight money queries and one baseline update");
+      assert.ok(!queries.some(query => /from "households"|for update/i.test(query)), "no repeated household reads or locks");
+      assert.equal(money.bank, 67000);
+      await assert.rejects(loadMoneyState(tx, a, money.today, household), /does not match/);
+      await assert.rejects(observeRunway(tx, a, money, household), /does not match/);
+    });
+    assert.equal((await db.select().from(s.households).where(eq(s.households.id, untouched)))[0].runwayShort, true);
+    console.log("✓ Workspace shares one household snapshot for clock, money and locked runway observation; cross-household snapshots fail");
     async function giveId(hid: string, remote: string, number: string) {
       const [invoice] = await db.update(s.invoices).set({ paypalInvoiceId: remote, fxRateMicro:150000000 })
         .where(and(eq(s.invoices.householdId,hid),eq(s.invoices.number,number))).returning();

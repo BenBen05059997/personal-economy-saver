@@ -53,10 +53,21 @@ async function executeTool<T>(tools: ToolkitTool[], method: string, args: unknow
   }
 
   const api = new PayPalAPI(await getAccessToken(), { ...CONTEXT, request_id: requestId });
-  const result = JSON.parse(await api.run(method, parsed.data));
+  const result = JSON.parse(await withTimeout(api.run(method, parsed.data), method));
   if (result?.ok === false || result?.error) {
     const message = result.message ?? result.error?.message ?? `${method} failed`;
     throw new PayPalError(message, result.status, undefined, result);
   }
   return result as T;
+}
+
+// The toolkit's run() takes no abort signal. Approval holds row locks while it waits, so a hung call is cut off
+// here; the transaction then rolls back, and the PayPal-Request-Id makes a retry safe.
+const PAYPAL_TIMEOUT_MS = 20_000;
+function withTimeout<T>(call: Promise<T>, method: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new PayPalError(`PayPal did not answer ${method} within ${PAYPAL_TIMEOUT_MS / 1000} s`, 504)), PAYPAL_TIMEOUT_MS);
+  });
+  return Promise.race([call, timeout]).finally(() => clearTimeout(timer));
 }

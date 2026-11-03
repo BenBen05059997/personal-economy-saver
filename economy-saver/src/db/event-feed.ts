@@ -17,7 +17,7 @@ export async function eventFeed(db: Db, householdId: string) {
     db.select({
       total: count(), latest: max(events.occurredAt),
       unread: sql<number>`count(*) filter (where ${events.notify} and ${events.readAt} is null)`.mapWith(Number),
-      inFlight: sql<boolean>`exists (select 1 from ${invoices} where ${invoices.householdId} = ${hid} and ${invoices.status} = 'sent')
+      inFlight: sql<boolean>`exists (select 1 from ${invoices} where ${invoices.householdId} = ${hid} and ${invoices.status} = 'sent' and ${invoices.paypalInvoiceId} is not null)
         or exists (select 1 from ${documents} where ${documents.householdId} = ${hid} and ${documents.status} in ('queued', 'reading'))`,
     }).from(events).where(eq(events.householdId, hid)),
     db.select({ id: events.id, title: events.title, body: events.body }).from(events)

@@ -2,7 +2,7 @@
 
 A money assistant for freelancers paid across borders. The current example follows a fictional Tokyo designer whose clients pay in US dollars. Home calculates a 30-day runway from household records, highlights what needs checking, and links to an invoice review page. A user must approve before the server can send an invoice through PayPal Sandbox.
 
-This is a private hackathon project in development. The code and local tests are available; the live Supabase/Worker connection and a real sandbox send-to-webhook round trip have not been verified. No public app or repository link is available.
+This is a private hackathon project in development. Next.js dev renders a fictional household from the Supabase project in Tokyo (`ap-northeast-1`); the local Worker on Tokyo is pending. The first public deployment and the PayPal sandbox send-to-webhook check are pending.
 
 ## What is implemented
 
@@ -12,6 +12,7 @@ This is a private hackathon project in development. The code and local tests are
 - A Try it household flow, email/passwordless auth integration, per-household document intake, and confirmation before a reading changes money records.
 - PayPal sandbox REST and Agent Toolkit integration. Draft/read tools are separate from the server approval path. Verified webhook deliveries are idempotent.
 - MCP over Streamable HTTP. Household tools read and draft; sending remains an app approval action.
+- Rate limits on Try it (60 new demo households an hour app-wide), drafts (20 a minute per household), approvals (10 a minute) and Ask; PayPal toolkit calls time out after 20 s.
 - A daily Cron route with explicit household allowlist (`CRON_HOUSEHOLD_IDS`).
 - Isolated PGlite scripts for schema/seed/engine, approval and webhook behavior, MCP protocol, and reader flows. These are local tests and do not establish that hosted services are configured.
 
@@ -19,7 +20,7 @@ This is a private hackathon project in development. The code and local tests are
 
 - The application accepts only `PAYPAL_ENVIRONMENT=SANDBOX`; PayPal requests use `https://api-m.sandbox.paypal.com`.
 - The server checks webhook signatures before applying a delivery. Only the verified webhook path records an invoice as paid.
-- No credentials are needed for the PGlite test scripts. Keep actual settings in ignored local environment files or the owner's private service configuration. Never paste secrets into chat, screenshots, or this repository.
+- No credentials are needed for the PGlite test scripts. Keep actual settings in ignored local environment files or the owner's private service configuration. Never paste secrets into chat, screenshots, or this repository. Lint allows only `src/app/api/approve/route.ts` to import the send-capable PayPal tool functions.
 - Fictional seed records only. The recorded local rehearsal labels the external PayPal delivery as simulated. No live payment flow has been recorded.
 - Deployment, account setup, and any public release are owner-managed steps and are not part of local setup here.
 
@@ -39,9 +40,9 @@ This is a private hackathon project in development. The code and local tests are
 
 2. Copy `.env.example` to `.env.local` and fill only the settings required for the feature being used. The app fails clearly if a required setting is missing; there is no local database fallback. Keep `PAYPAL_ENVIRONMENT=SANDBOX`.
 
-   Database-backed app routes need `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `DATABASE_URL`. Use the Supabase transaction pooler connection string on port 6543 for Worker compatibility. PayPal actions additionally need `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and `SANDBOX_CLIENT_EMAIL`. A webhook needs the private sandbox `PAYPAL_WEBHOOK_ID` after the owner has registered it.
+   Database-backed app routes need `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `DATABASE_URL`. `APP_URL` is required too: sign-in links return to it (never to the request's Origin header), and it must be listed under the project's Authentication → URL Configuration. Locally it is `http://127.0.0.1:3123`; in the Worker preview it is `http://localhost:8787`. Use the Supabase transaction pooler connection string on port 6543 for Worker compatibility. PayPal actions additionally need `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and `SANDBOX_CLIENT_EMAIL`. A webhook needs the private sandbox `PAYPAL_WEBHOOK_ID` after the owner has registered it.
 
-   The default AI reader needs `ANTHROPIC_API_KEY` and a positive `ANTHROPIC_DAILY_READ_LIMIT`. Document extraction also needs `ANTHROPIC_DOCUMENT_MODEL`, `ANTHROPIC_TEXT_MODEL`, and `SUPABASE_DOCUMENT_BUCKET` naming a private Storage bucket. Forwarded email requires the owner's routing settings (`FORWARDING_DOMAIN`, `INBOUND_ADDRESS_KEY`, and `INBOUND_WORKER_SECRET`). The Cron route requires `CRON_SECRET` and `CRON_HOUSEHOLD_IDS`, a comma-separated list of household UUIDs; each run loads only those households. Refreshing the stored balance for a non-demo PayPal connection also requires `PAYPAL_BALANCE_HOUSEHOLD_ID` to select its household.
+   The default AI reader needs `ANTHROPIC_API_KEY` and a positive `ANTHROPIC_DAILY_READ_LIMIT`. Document extraction also needs `ANTHROPIC_DOCUMENT_MODEL`, `ANTHROPIC_TEXT_MODEL`, and `SUPABASE_DOCUMENT_BUCKET` naming a private Storage bucket (`household-documents`, created by the owner; it does not exist yet on the Tokyo project). Forwarded email requires the owner's routing settings (`FORWARDING_DOMAIN`, `INBOUND_ADDRESS_KEY`, and `INBOUND_WORKER_SECRET`). The Cron route requires `CRON_SECRET` and `CRON_HOUSEHOLD_IDS`, a comma-separated list of household UUIDs; each run loads only those households. Refreshing the stored balance for a non-demo PayPal connection also requires `PAYPAL_BALANCE_HOUSEHOLD_ID` to select its household.
 
    For local Cloudflare preview, copy the needed local settings to ignored `.dev.vars`. Worker values such as PayPal, database, Cron, MCP, forwarding and reader settings are runtime bindings: the build does not package values from `.env.local`; local preview reads `.dev.vars`, and deployed Workers receive owner-managed runtime secrets/vars. The build hook checks its pinned OpenNext version and emits empty generated project-env exports so build-machine dotenv values are not embedded.
 
@@ -76,6 +77,8 @@ npm run lint
 ```
 
 The approval tests use a simulated PayPal transport. They cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. Live sandbox smoke checks are separate and require configured sandbox credentials; do not interpret a local test pass as a live transaction.
+
+With the app running locally and Supabase configured, `node scripts/frontend-check.mjs --run http://127.0.0.1:3123` times the core household workflows. Use `--extra` for Upload, Options and invoice draft retries, or `--guards` for integration rejection paths. The workflow checks create fictional demo households. Results and timings are in [PLAN.md](../PLAN.md).
 
 ## PayPal sandbox setup
 

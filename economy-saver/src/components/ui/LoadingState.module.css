@@ -1,0 +1,20 @@
+.page {
+  width: min(100%, var(--content-width));
+  margin: 0 auto;
+  padding: clamp(64px, 17vh, 180px) var(--space-6);
+  color: var(--muted);
+}
+.indicator { display: inline-flex; align-items: center; gap: var(--space-3); }
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: turn 850ms linear infinite;
+}
+.page .spinner { color: var(--accent); }
+@keyframes turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

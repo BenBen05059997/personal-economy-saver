@@ -14,6 +14,17 @@ export function authCookieOptions(opts: CookieOptions) {
 }
 
 export class MissingAuthSetting extends Error {}
+
+/** The app's own address, from settings rather than a request header, so a sign-in link can't be pointed elsewhere. */
+export function appUrl(): URL {
+  const value = process.env.APP_URL?.trim();
+  if (!value) throw new MissingAuthSetting("APP_URL is not set");
+  try {
+    return new URL(value);
+  } catch {
+    throw new MissingAuthSetting("APP_URL is not a valid URL");
+  }
+}
 export function supabaseAuth(cookies: CookieMethodsServer) {
   const url = process.env.SUPABASE_URL?.trim();
   const key = process.env.SUPABASE_ANON_KEY?.trim();

@@ -5,6 +5,18 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // Sending to PayPal happens in one place (D12): only the approve route may import the send-capable runner.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/app/api/approve/route.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { paths: [{
+        name: "@/lib/paypal/toolkit",
+        importNames: ["runTool", "deleteSmokeDraft"],
+        message: "Only src/app/api/approve/route.ts may send to PayPal (D12).",
+      }] }],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

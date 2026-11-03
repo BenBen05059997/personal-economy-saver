@@ -17,6 +17,8 @@ import { fundingOptions } from "@/lib/money/options";
 import { usd } from "@/lib/money/format";
 import { reviewReading } from "@/db/readings";
 import { finishSetup, setupForm } from "@/db/account";
+import { loadNavigationData } from "@/db/workspace";
+import { listMcpTokens } from "@/db/mcp-tokens";
 
 async function main() {
   const pg = new PGlite();
@@ -37,6 +39,17 @@ async function main() {
       create function vault.update_secret(secret_id uuid, value text, label text) returns void language sql as $$
         update vault.secrets set decrypted_secret=value,name=label where id=secret_id $$;`);
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
+    await check("Settings loads navigation, settings and token list in one household-scoped read transaction", async () => {
+      const [workspace, settings, tokens] = await db.transaction(tx => Promise.all([
+        loadNavigationData(tx, a), loadSettings(tx, a), listMcpTokens(tx, a),
+      ]), { isolationLevel: "repeatable read", accessMode: "read only" });
+      assert.equal(workspace.name, "Ben");
+      assert.equal(workspace.pending, 1);
+      assert.equal(settings.household.bank, 67_000);
+      assert.ok(settings.cards.length > 0);
+      assert.deepEqual(tokens, []);
+      assert.ok(settings.cards.every(card => card.householdId === a));
+    });
     const fictional = "sk-ant-fictional-" + "a".repeat(40);
     const another = "sk-ant-fictional-" + "b".repeat(40);
     process.env.ANTHROPIC_API_KEY = fictional;
@@ -180,7 +193,7 @@ async function main() {
       const count = await pg.query<{ n: number }>("select count(*)::integer as n from vault.secrets");
       assert.equal(count.rows[0].n, 0);
     });
-    console.log(`${passed}/${passed} settings and AI-key contract checks passed. Live Vault encryption remains owner-gated.`);
+    console.log(`${passed}/${passed} settings and AI-key contract checks passed.`);
   } finally {
     if (previousKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = previousKey;
     if (previousLimit === undefined) delete process.env.ANTHROPIC_DAILY_READ_LIMIT; else process.env.ANTHROPIC_DAILY_READ_LIMIT = previousLimit;

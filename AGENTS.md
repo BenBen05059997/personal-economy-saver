@@ -1,6 +1,6 @@
 # Agent instructions
 
-Start with [HANDOFF.md](HANDOFF.md): the product, the hard rules, the codebase map, and the ordered task list. Then work from the checklist in [PLAN.md](PLAN.md).
+Start with [HANDOFF.md](HANDOFF.md): the product, the hard rules, the codebase map and current state. Then work from the checklist in [PLAN.md](PLAN.md).
 
 The rules that matter most, in short: PayPal sandbox only; never print or commit secret values; never create accounts, log in or deploy; commit only when the owner asks; every database query scoped by `household_id`; no fallbacks (one database, one way to do each thing, a clear error when a setting is missing); fictional data only; update `PLAN.md` and `DECISIONS.md` in place, with no backup copies or changelogs; never touch `reference/`.
 

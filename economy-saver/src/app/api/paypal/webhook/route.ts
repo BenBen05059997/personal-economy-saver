@@ -6,7 +6,11 @@ import { currentHouseholdId } from "@/lib/session";
 
 export async function POST(request: Request) {
   const result = await verifyWebhook(await request.text(), request.headers);
-  if (!result.verified) return Response.json({ received: false, reason: result.reason }, { status: 400 });
+  if (!result.verified) {
+    // The reason stays in the server log; an anonymous caller learns nothing about our settings.
+    console.warn(`[webhook] rejected: ${result.reason}`);
+    return Response.json({ received: false }, { status: 400 });
+  }
   await applyVerifiedDelivery(db(), result.event);
   return Response.json({ received: true });
 }

@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { AccountFrame } from "@/components/auth/AccountFrame";
@@ -18,5 +19,5 @@ async function Login({ searchParams }: PageProps<"/login">) {
   </AccountFrame>;
 }
 export default function LoginPage(props: PageProps<"/login">) {
-  return <Suspense fallback={<main aria-busy="true">Opening sign in…</main>}><Login {...props} /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening sign in…" />}><Login {...props} /></Suspense>;
 }

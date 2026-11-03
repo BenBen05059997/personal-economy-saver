@@ -3,6 +3,7 @@ import { ApprovalError, approveInvoice } from "@/db/approval";
 import { householdDate } from "@/db/account";
 import { db } from "@/db/client";
 import { loadMoneyState } from "@/db/household";
+import { consumeRequest } from "@/db/rate-limit";
 import { env } from "@/lib/env";
 import { runTool } from "@/lib/paypal/toolkit";
 import { currentHouseholdId, sameOrigin } from "@/lib/session";
@@ -11,6 +12,7 @@ export async function POST(request: Request) {
   if (!sameOrigin(request)) return new Response("Same-origin request required", { status: 403 });
   const householdId = await currentHouseholdId();
   if (!householdId) return new Response("Household session required", { status: 401 });
+  if (!await consumeRequest(db(), householdId, "approve", 10)) return new Response("Approval limit reached. Try again in a minute.", { status: 429, headers: { "Retry-After": "60" } });
   const form = await request.formData();
   const input = z.object({ approve_key: z.string().uuid(), action: z.enum(["send", "remind"]) }).safeParse(Object.fromEntries(form));
   if (!input.success) return new Response("Invalid approval", { status: 400 });

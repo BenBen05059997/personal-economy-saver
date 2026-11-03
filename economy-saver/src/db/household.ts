@@ -29,15 +29,15 @@ export async function householdOwnerName(db: Db, householdId: string): Promise<s
 }
 
 // A closed cycle is at most a month, so charges older than this cannot belong to an open cycle.
-const CHARGE_LOOKBACK_DAYS = 62;
+export const CHARGE_LOOKBACK_DAYS = 62;
 // Invoices paid this recently stay in the state (for the Activity view); older paid ones only feed days to pay.
 const PAID_KEEP_DAYS = 7;
 
 /** Reads the household's rows and returns the MoneyState the engine consumes. `today` is the household's own date. */
-export async function loadMoneyState(db: Db, householdId: string, today: string): Promise<MoneyState> {
+export async function loadMoneyState(db: Db, householdId: string, today: string, snapshot?: typeof s.households.$inferSelect): Promise<MoneyState> {
   const hid = requireHousehold(householdId);
-
-  const [household] = await db.select().from(s.households).where(eq(s.households.id, hid));
+  if (snapshot && snapshot.id !== hid) throw new Error("Household snapshot does not match household id");
+  const household = snapshot ?? (await db.select().from(s.households).where(eq(s.households.id, hid)))[0];
   if (!household) throw new Error("Household not found");
   const home = Currency.parse(household.homeCurrency);
 

@@ -1,3 +1,4 @@
+import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { OptionsView } from "@/components/settings/OptionsView";
@@ -11,5 +12,5 @@ async function Options() {
   return <WorkspaceFrame workspace={workspace} section="options"><OptionsView state={workspace.state} /></WorkspaceFrame>;
 }
 export default function Page() {
-  return <Suspense fallback={<main aria-busy="true">Opening options…</main>}><Options /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening options…" />}><Options /></Suspense>;
 }
