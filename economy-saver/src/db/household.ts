@@ -35,10 +35,10 @@ export const CHARGE_LOOKBACK_DAYS = 62;
 // Invoices paid this recently stay in the state (for the Activity view); older paid ones only feed days to pay.
 const PAID_KEEP_DAYS = 7;
 
-/** The household's latest USD rate on or before `today`, scaled by 1e6 (exactly 1e6 when the home currency is USD). */
-export async function usdRateMicro(db: Db, householdId: string, home: string, today: string): Promise<number> {
+/** The household's latest USD rate on or before `today`, scaled by 1e6, and the day it is from (exactly 1e6 and no day when the home currency is USD). */
+export async function usdRate(db: Db, householdId: string, home: string, today: string): Promise<{ rateMicro: number; date: string | null }> {
   const hid = requireHousehold(householdId);
-  if (home === "USD") return toRateMicro(1);
+  if (home === "USD") return { rateMicro: toRateMicro(1), date: null };
   const [rate] = await db
     .select()
     .from(s.fxRates)
@@ -46,7 +46,17 @@ export async function usdRateMicro(db: Db, householdId: string, home: string, to
     .orderBy(desc(s.fxRates.date))
     .limit(1);
   if (!rate) throw new Error(`No USD/${home} rate on or before ${today}`);
-  return rate.rateMicro;
+  return { rateMicro: rate.rateMicro, date: rate.date };
+}
+
+/** The household's latest USD rate on or before `today`, scaled by 1e6 (exactly 1e6 when the home currency is USD). */
+export async function usdRateMicro(db: Db, householdId: string, home: string, today: string): Promise<number> {
+  return (await usdRate(db, householdId, home, today)).rateMicro;
+}
+
+/** The household's PayPal connection balances added up in the home currency (the engine's `paypal`, in minor units). */
+export function paypalTotalMinor(connections: { balanceMinor: number; balanceCurrency: string }[], home: string, fxPerUsd: number): number {
+  return connections.reduce((sum, c) => sum + convertMinor(c.balanceMinor, c.balanceCurrency, home, fxPerUsd), 0);
 }
 
 /** Reads the household's rows and returns the MoneyState the engine consumes. `today` is the household's own date. */
@@ -82,7 +92,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     db.select().from(s.pots).where(eq(s.pots.householdId, hid)).orderBy(s.pots.createdAt, s.pots.name, s.pots.id),
   ]);
 
-  const paypalMinor = connections.reduce((sum, c) => sum + convertMinor(c.balanceMinor, c.balanceCurrency, home, fxPerUsd), 0);
+  const paypalMinor = paypalTotalMinor(connections, home, fxPerUsd);
 
   const storedBills: Bill[] = billRows.map((b) => ({
     id: b.id,

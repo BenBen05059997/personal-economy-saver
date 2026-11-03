@@ -11,6 +11,7 @@ import { billInput, insertBill } from "@/db/bills";
 import { chargeInput, insertCharge } from "@/db/charges";
 import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
 import { potInput, savePot } from "@/db/pots";
+import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { toMinor } from "@/db/money";
 import { clients, invoices } from "@/db/schema";
 import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
@@ -50,6 +51,8 @@ function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
 }
 
 const none = z.object({});
+/** The most recent rows of each long list that the agent's snapshot carries (the export has them all). */
+export const SNAPSHOT_TOOL_WINDOW = 100;
 const SCENARIOS = { as_usual: "expected", late: "worst" } as const;
 
 export const tools: Tool[] = [
@@ -132,6 +135,11 @@ export const tools: Tool[] = [
         .where(eq(invoices.householdId, hid)).orderBy(desc(invoices.createdAt)).limit(50);
       return JSON.stringify(rows);
     },
+  }),
+  defineTool({
+    name: "household_snapshot", scope: "read", input: z.object({}).strict(),
+    description: `The whole household as one JSON document (schema version 1): household, members, cards, statements, charges, stored bills (a monthly bill appears once, with repeatDay), clients, invoices, pots, bank balance updates and document references. Money is integer minor units next to a currency; dates are ISO strings. Use it as context for the household as a whole, to find ids and see what exists. It is not an answer: what the household can spend, what is due and how short it would be come from the engine tools (where_am_i, whats_due, can_i_spend, timeline). Rows with status pending are waiting in To check and count for nothing yet. Each of bills, charges, statements, invoices, balanceUpdates and documents holds at most its ${SNAPSHOT_TOOL_WINDOW} most recent rows, oldest first; truncated says which lists were cut. No audit-trail events and no secrets are included.`,
+    run: async ctx => JSON.stringify(await loadHouseholdSnapshot(ctx.db, ctx.householdId, { events: false, recent: SNAPSHOT_TOOL_WINDOW })),
   }),
   defineTool({
     name: "plan_for", scope: "read",

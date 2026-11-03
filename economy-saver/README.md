@@ -13,6 +13,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - Typed-in data: clients, bills, card charges, and invoices marked paid outside PayPal.
 - Document intake (upload and forwarded email) with confirmation before a reading changes money records.
 - An in-app agent: `/api/ask` runs Claude with tools over the engine (reads and drafts only). The same tool catalogue serves MCP.
+- One versioned household schema: Settings has Export my data (a JSON download with the household's events), the `household_snapshot` read tool gives the agent and MCP the same picture without events, and `schema/household.v1.json` is generated from the same definition.
 - PayPal sandbox REST and Agent Toolkit integration, with the draft/read tools separate from the server approval path; verified webhook deliveries are idempotent; a read-only import of sandbox invoice history.
 - Rate limits on Try it, Ask, drafts, approvals, uploads and imports; PayPal toolkit calls time out after 20 s.
 - A daily Cron route with an explicit household list (`CRON_HOUSEHOLD_IDS`).
@@ -73,7 +74,8 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all nine suites: db, approve, mcp, reader, settings, agent, refresh, doors, import
+npm run db:test      # all eleven suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, pots, snapshot
+npm run schema       # rewrites schema/household.v1.json from the zod definition (db:test fails when it is stale)
 npx tsc --noEmit -p .
 npm run lint
 ```
@@ -102,11 +104,13 @@ src/components/          UI by area: shell, home, household, invoices, reader, s
 src/db/                  schema, household-scoped queries, seeds, rate limits
 src/lib/money/           pure runway, sentence and options logic
 src/lib/agent/           the tool catalogue and the Claude runner
+src/lib/schema/          the one household schema (zod) and its JSON Schema generator
+schema/                  household.v1.json, the committed JSON Schema
 src/lib/paypal/          sandbox client, toolkit, invoice listing and webhook verification
 src/lib/mcp/             Streamable HTTP server
 src/lib/reader/          extraction, forwarding, storage
 scripts/                 isolated tests and explicit owner-operated checks
-drizzle/                 ordered schema migrations (0000–0009)
+drizzle/                 ordered schema migrations (0000–0010)
 samples/bills/           fictional sample bills for the reader
 ```
 

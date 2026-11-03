@@ -17,6 +17,7 @@ import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { dueAnswer } from "@/lib/money/ask";
 import { savePot } from "@/db/pots";
 import { planFor, planLine } from "@/lib/money/plan";
+import { HouseholdSnapshot } from "@/lib/schema/household";
 
 type Block = Record<string, unknown>;
 const text = (value: string): Block => ({ type: "text", text: value });
@@ -96,6 +97,24 @@ async function main() {
       assert.equal(result1.tool_use_id, "toolu_1");
       assert.equal(result1.content, dueAnswer(aState));
       assert.ok(!result1.is_error);
+    });
+
+    await check("household_snapshot through the transport: the whole household of the asker, without events, valid against the schema", async () => {
+      const { fetch, bodies } = transport([
+        () => reply("tool_use", [toolUse("toolu_snap", "household_snapshot", {})]),
+        () => reply("end_turn", [text("You have three clients.")]),
+      ]);
+      assert.equal((await ask(a, "What do I have set up?", fetch)).answer, "You have three clients.");
+      const [result1] = toolResults(bodies[1]);
+      assert.ok(!result1.is_error);
+      const snapshot = HouseholdSnapshot.parse(JSON.parse(result1.content));
+      assert.equal(snapshot.household.id, a);
+      assert.equal(snapshot.clients.length, aState.clients.length);
+      assert.ok(!("events" in snapshot));
+      assert.ok(!result1.content.includes("ZZ Secret Client"));
+      const definition = bodies[0].tools.find(t => t.name === "household_snapshot")!;
+      assert.deepEqual(definition.input_schema.properties, {});
+      assert.equal(definition.input_schema.additionalProperties, false);
     });
 
     await check("tool schemas are strict: every property required, nullable instead of optional, no extra properties", async () => {

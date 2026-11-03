@@ -1,0 +1,1016 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HouseholdSnapshot",
+  "description": "A whole household at one moment: version 1 of the Personal Economy Saver household schema.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "An instant, ISO 8601 in UTC."
+    },
+    "household": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "homeCurrency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 code, for example JPY or USD."
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "IANA time zone name."
+        },
+        "today": {
+          "type": "string",
+          "format": "date",
+          "description": "The household's own date, including a demo household's scenario date."
+        },
+        "isDemo": {
+          "type": "boolean"
+        },
+        "bankBalanceMinor": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The bank balance the user typed in, in `homeCurrency`."
+        },
+        "paypalBalanceMinor": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The household's PayPal connection balances added up and converted to `homeCurrency` at `usdRateMicro`; 0 with no connection. Total cash is this plus `bankBalanceMinor`, before money set aside in pots."
+        },
+        "usdRateMicro": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Home currency per 1 USD scaled by 1e6, the rate the household's money state uses today (1000000 when `homeCurrency` is USD)."
+        },
+        "usdRateDate": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date",
+              "description": "A calendar day, YYYY-MM-DD."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The day `usdRateMicro` is from; null when `homeCurrency` is USD."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "homeCurrency",
+        "timeZone",
+        "today",
+        "isDemo",
+        "bankBalanceMinor",
+        "paypalBalanceMinor",
+        "usdRateMicro",
+        "usdRateDate"
+      ],
+      "additionalProperties": false
+    },
+    "members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "member"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "role"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "cards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "memberId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whose card; null = a household card."
+          },
+          "label": {
+            "type": "string"
+          },
+          "closingDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 31,
+            "description": "Day of the month the statement closes; 31 = month end."
+          },
+          "dueDay": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 31,
+            "description": "Day of the following month the statement is paid from the bank."
+          },
+          "limitMinor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "revolving": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "memberId",
+          "label",
+          "closingDay",
+          "dueDay",
+          "limitMinor",
+          "currency",
+          "revolving"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "statements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cardId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountMinor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "closedOn": {
+            "type": "string",
+            "format": "date",
+            "description": "A calendar day, YYYY-MM-DD."
+          },
+          "dueOn": {
+            "type": "string",
+            "format": "date",
+            "description": "A calendar day, YYYY-MM-DD."
+          },
+          "paidOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A calendar day, YYYY-MM-DD."
+          }
+        },
+        "required": [
+          "id",
+          "cardId",
+          "amountMinor",
+          "currency",
+          "closedOn",
+          "dueOn",
+          "paidOn"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "charges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cardId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "merchant": {
+            "type": "string"
+          },
+          "amountMinor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "As the card issuer bills it, in `currency`."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "originalAmountMinor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When paid in another currency: the amount in `originalCurrency`."
+          },
+          "originalCurrency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$",
+                "description": "ISO 4217 code, for example JPY or USD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "fxRateMicro": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "A calendar day, YYYY-MM-DD."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "card_email",
+              "receipt",
+              "voice",
+              "manual"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "pending"
+            ],
+            "description": "pending = waiting in To check; it counts for nothing until the user confirms it."
+          },
+          "place": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "documentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "cardId",
+          "merchant",
+          "amountMinor",
+          "currency",
+          "originalAmountMinor",
+          "originalCurrency",
+          "fxRateMicro",
+          "date",
+          "source",
+          "status",
+          "place",
+          "documentId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "bills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "memberId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whose bill; null = shared."
+          },
+          "biller": {
+            "type": "string"
+          },
+          "amountMinor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "due": {
+            "type": "string",
+            "format": "date",
+            "description": "The stored due date. A monthly bill is one row here, not one per month."
+          },
+          "category": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "pending"
+            ],
+            "description": "pending = waiting in To check; it counts for nothing until the user confirms it."
+          },
+          "previousAmountMinor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+          },
+          "fxRateMicro": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency."
+          },
+          "repeatDay": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 31
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Day of the month a monthly bill falls due; null = one-off."
+          },
+          "documentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "memberId",
+          "biller",
+          "amountMinor",
+          "currency",
+          "due",
+          "category",
+          "status",
+          "previousAmountMinor",
+          "fxRateMicro",
+          "repeatDay",
+          "documentId"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Stored rows. A monthly bill appears once, with `repeatDay`; occurrences are not expanded."
+    },
+    "clients": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "termsDays": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Payment terms in days; 0 = due on receipt."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "termsDays"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "invoices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "clientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unbilled",
+              "draft",
+              "sent",
+              "paid",
+              "closed"
+            ]
+          },
+          "number": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "item": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amountMinor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "fxRateMicro": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the payout was converted to the home currency."
+          },
+          "sentOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A calendar day, YYYY-MM-DD."
+          },
+          "dueOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A calendar day, YYYY-MM-DD."
+          },
+          "paidOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A calendar day, YYYY-MM-DD."
+          },
+          "paypalInvoiceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "null = typed in or marked paid outside PayPal."
+          },
+          "paypalStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "remindedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "An instant, ISO 8601 in UTC."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An instant, ISO 8601 in UTC."
+          }
+        },
+        "required": [
+          "id",
+          "clientId",
+          "status",
+          "number",
+          "item",
+          "note",
+          "amountMinor",
+          "currency",
+          "fxRateMicro",
+          "sentOn",
+          "dueOn",
+          "paidOn",
+          "paypalInvoiceId",
+          "paypalStatus",
+          "remindedAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "memberId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whose pot; null = shared."
+          },
+          "name": {
+            "type": "string"
+          },
+          "targetMinor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+          },
+          "targetDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A calendar day, YYYY-MM-DD."
+          },
+          "savedMinor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Set aside and not spendable once the pot is confirmed."
+          },
+          "fillBp": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Share of each client payment added to the pot, in basis points (2500 = 25%)."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "pending"
+            ],
+            "description": "pending = waiting in To check; it counts for nothing until the user confirms it."
+          }
+        },
+        "required": [
+          "id",
+          "memberId",
+          "name",
+          "targetMinor",
+          "targetDate",
+          "savedMinor",
+          "fillBp",
+          "currency",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "balanceUpdates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amountMinor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "The new bank balance this update sets."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "pending"
+            ],
+            "description": "confirmed = a balance the user set (history); pending = waiting in To check, the bank balance does not change until it is confirmed."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "An instant, ISO 8601 in UTC."
+          }
+        },
+        "required": [
+          "id",
+          "amountMinor",
+          "currency",
+          "status",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Bank balances set (confirmed) and waiting in To check (pending). Pending bills, charges and pots carry `status` in their own lists."
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "upload",
+              "email"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "reading",
+              "read",
+              "failed"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "An instant, ISO 8601 in UTC."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "description": "References only."
+    },
+    "truncated": {
+      "type": "object",
+      "properties": {
+        "bills": {
+          "type": "boolean"
+        },
+        "charges": {
+          "type": "boolean"
+        },
+        "statements": {
+          "type": "boolean"
+        },
+        "invoices": {
+          "type": "boolean"
+        },
+        "balanceUpdates": {
+          "type": "boolean"
+        },
+        "documents": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "bills",
+        "charges",
+        "statements",
+        "invoices",
+        "balanceUpdates",
+        "documents"
+      ],
+      "additionalProperties": false,
+      "description": "true = that list holds only its most recent rows because the reader asked for a window; the export is never truncated."
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "amountMinor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$",
+                "description": "ISO 4217 code, for example JPY or USD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "refType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "refId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notify": {
+            "type": "boolean"
+          },
+          "readAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "An instant, ISO 8601 in UTC."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An instant, ISO 8601 in UTC."
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "An instant, ISO 8601 in UTC."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "body",
+          "amountMinor",
+          "currency",
+          "refType",
+          "refId",
+          "notify",
+          "readAt",
+          "occurredAt"
+        ],
+        "additionalProperties": false
+      },
+      "description": "The household's audit trail, newest first. Only in the export."
+    }
+  },
+  "required": [
+    "version",
+    "generatedAt",
+    "household",
+    "members",
+    "cards",
+    "statements",
+    "charges",
+    "bills",
+    "clients",
+    "invoices",
+    "pots",
+    "balanceUpdates",
+    "documents",
+    "truncated"
+  ],
+  "additionalProperties": false
+}
