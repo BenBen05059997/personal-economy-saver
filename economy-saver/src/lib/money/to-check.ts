@@ -1,3 +1,4 @@
+import { categoryLabel, shareLabel } from "./categories";
 import { dayLabel, minorMoney } from "./format";
 import { monthYear } from "./plan";
 import { pendingCharges } from "./runway";
@@ -19,14 +20,14 @@ export function toCheck(state: MoneyState) {
     })),
     ...state.bills.filter(bill => bill.status === "pending").map(bill => ({
       kind: "bill" as const, id: bill.id, amount: bill.amount, title: bill.biller,
-      detail: `${bill.category} · due ${dayLabel(bill.due)}${bill.repeatDay === undefined ? "" : " · every month"}${bill.paidBy === undefined ? "" : ` · shared, paid by ${payer(bill.paidBy)}`}`,
+      detail: `${categoryLabel(bill.category)} · ${shareLabel(bill.businessBp)} · due ${dayLabel(bill.due)}${bill.repeatDay === undefined ? "" : " · every month"}${bill.paidBy === undefined ? "" : ` · shared, paid by ${payer(bill.paidBy)}`}`,
     })),
     ...pendingCharges(state).map(charge => {
       const card = state.cards.find(card => card.id === charge.cardId);
       if (!card) throw new Error("Card for pending charge was not found");
       const source = { card_email: "Card email", receipt: "Receipt", voice: "Voice", manual: "Manual entry" };
       return { kind: "charge" as const, id: charge.id, title: charge.merchant, amount: charge.amount,
-        detail: `${card.label} · ${dayLabel(charge.date)} · ${source[charge.source]}${charge.shared ? " · shared" : ""}` };
+        detail: `${card.label} · ${dayLabel(charge.date)} · ${categoryLabel(charge.category)} · ${shareLabel(charge.businessBp)} · ${source[charge.source]}${charge.shared ? " · shared" : ""}` };
     }),
   ];
 }

@@ -29,6 +29,9 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { CATEGORY_KEYS } from "../lib/money/categories";
+
+const categoryList = sql.raw(CATEGORY_KEYS.map(key => `'${key}'`).join(", "));
 const minor = (name: string) => bigint(name, { mode: "number" });
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const id = () => uuid("id").primaryKey().defaultRandom();
@@ -253,6 +256,8 @@ export const charges = pgTable(
     originalCurrency: char("original_currency", { length: 3 }),
     fxRateMicro: bigint("fx_rate_micro", { mode: "number" }), // original -> billed, when they differ
     shared: boolean("shared").notNull().default(false), // D45: split between the members; the card's owner paid it
+    category: text("category").notNull().default("other"), // D46: a key from lib/money/categories.ts
+    businessBp: integer("business_bp").notNull().default(0), // D46: business share in basis points; 0 = personal, 10000 = business
     date: date("date", { mode: "string" }).notNull(),
     source: chargeSource("source").notNull(),
     status: confirmStatus("status").notNull().default("confirmed"),
@@ -266,6 +271,8 @@ export const charges = pgTable(
     foreignKey({ columns: [t.householdId, t.cardId], foreignColumns: [cards.householdId, cards.id], name: "charges_card_fk" }).onDelete("cascade"),
     foreignKey({ columns: [t.householdId, t.documentId], foreignColumns: [documents.householdId, documents.id], name: "charges_document_household_fk" }),
     check("charges_original_pair", sql`(${t.originalAmountMinor} is null) = (${t.originalCurrency} is null)`),
+    check("charges_category_valid", sql`${t.category} in (${categoryList})`),
+    check("charges_business_valid", sql`${t.businessBp} between 0 and 10000`),
   ],
 ).enableRLS();
 
@@ -280,7 +287,8 @@ export const bills = pgTable(
     amountMinor: minor("amount_minor").notNull(),
     currency: char("currency", { length: 3 }).notNull(),
     due: date("due", { mode: "string" }).notNull(),
-    category: text("category").notNull(),
+    category: text("category").notNull(), // D46: a key from lib/money/categories.ts
+    businessBp: integer("business_bp").notNull().default(0), // D46: business share in basis points; 0 = personal, 10000 = business
     status: confirmStatus("status").notNull().default("confirmed"),
     previousAmountMinor: minor("previous_amount_minor"),
     fxRateMicro: bigint("fx_rate_micro", { mode: "number" }),
@@ -290,6 +298,8 @@ export const bills = pgTable(
   },
   (t) => [index("bills_household_idx").on(t.householdId), index("bills_due_idx").on(t.householdId, t.due),
     check("bills_repeat_day_valid", sql`${t.repeatDay} is null or ${t.repeatDay} between 1 and 31`),
+    check("bills_category_valid", sql`${t.category} in (${categoryList})`),
+    check("bills_business_valid", sql`${t.businessBp} between 0 and 10000`),
     foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "bills_member_household_fk" }),
     foreignKey({ columns: [t.householdId, t.paidByMemberId], foreignColumns: [members.householdId, members.id], name: "bills_paid_by_household_fk" }),
     check("bills_paid_by_shared_only", sql`${t.paidByMemberId} is null or ${t.memberId} is null`),

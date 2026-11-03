@@ -7,6 +7,7 @@
 // are camelCase. Nothing here is a secret or a pointer to one: no AI key or its Vault id, no auth user ids, no MCP
 // token data, no webhook payloads, no storage paths or file bytes.
 import { z } from "zod";
+import { CategoryKeySchema } from "@/lib/money/categories";
 
 export const SNAPSHOT_VERSION = 1;
 
@@ -16,6 +17,8 @@ const moment = z.string().datetime().describe("An instant, ISO 8601 in UTC.");
 const currency = z.string().regex(/^[A-Z]{3}$/).describe("ISO 4217 code, for example JPY or USD.");
 const minor = z.number().int().safe().describe("Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out.");
 const rateMicro = z.number().int().safe().describe("An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency.");
+const category = CategoryKeySchema.describe("One of the thirteen fixed categories; the key, not the label.");
+const businessBp = z.number().int().min(0).max(10_000).describe("The business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). Categories and shares move no money.");
 const status = z.enum(["confirmed", "pending"]).describe("pending = waiting in To check; it counts for nothing until the user confirms it.");
 
 const Member = z.object({
@@ -60,6 +63,8 @@ const Charge = z.object({
   status,
   place: z.string().nullable(),
   shared: z.boolean().describe("true = split between the members by their shares; the owner of the card paid it."),
+  category,
+  businessBp,
   documentId: id.nullable(),
 }).strict();
 
@@ -71,7 +76,8 @@ const Bill = z.object({
   amountMinor: minor,
   currency,
   due: day.describe("The stored due date. A monthly bill is one row here, not one per month."),
-  category: z.string(),
+  category,
+  businessBp,
   status,
   previousAmountMinor: minor.nullable(),
   fxRateMicro: rateMicro.nullable(),

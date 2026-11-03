@@ -85,6 +85,13 @@
       "when": 1793695974294,
       "tag": "0011_gigantic_stone_men",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793717517838,
+      "tag": "0012_small_ben_parker",
+      "breakpoints": true
     }
   ]
 }

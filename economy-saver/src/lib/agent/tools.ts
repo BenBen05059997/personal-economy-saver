@@ -17,6 +17,9 @@ import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { toMinor } from "@/db/money";
 import { clients, invoices } from "@/db/schema";
 import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
+import { BusinessBp, CATEGORY_KEYS, CategoryKeySchema, categoryLabel } from "@/lib/money/categories";
+import { guessCategory } from "@/lib/money/categorise";
+import { monthByCategory, monthText } from "@/lib/money/month";
 import { fundingOptions } from "@/lib/money/options";
 import { planFor, planLine } from "@/lib/money/plan";
 import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
@@ -55,10 +58,26 @@ function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
 
 const none = z.object({});
 // D45: the agent names people, not ids. `shared` and `paidBy` replace the form's member ids.
-const addBillInput = billInput.omit({ paidByMemberId: true }).extend({
+const categoryField = CategoryKeySchema.nullable().default(null)
+  .describe(`One of: ${CATEGORY_KEYS.join(", ")}. null when the user did not say; the app then proposes one from the name and the user confirms it in To check.`);
+const businessField = BusinessBp.nullable().default(null)
+  .describe("The business share in basis points: 0 personal, 10000 business, 3000 for 30% business. null = personal.");
+const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true }).extend({
+  category: categoryField,
+  business_bp: businessField,
   shared: z.boolean().nullable().default(null),
   paidBy: z.string().trim().min(1).max(80).nullable().default(null),
 });
+const logChargeInput = chargeInput.omit({ category: true, businessBp: true }).extend({ category: categoryField, business_bp: businessField });
+
+/** The category a tool saves: the one given, or the keyword table's guess from the name; and the sentence that tells the agent which. */
+function categoryFor(name: string, given: z.infer<typeof categoryField>): { category: z.infer<typeof CategoryKeySchema>; note: string } {
+  if (given !== null) return { category: given, note: `Category: ${categoryLabel(given)}.` };
+  const guess = guessCategory(name);
+  return { category: guess.category, note: guess.sure
+    ? `No category was given, so it was guessed from the name: ${categoryLabel(guess.category)}. The user can change it in To check.`
+    : `No category was given and the name matched none, so it is ${categoryLabel(guess.category)}. The user can choose one in To check.` };
+}
 /** The most recent rows of each long list that the agent's snapshot carries (the export has them all). */
 export const SNAPSHOT_TOOL_WINDOW = 100;
 const SCENARIOS = { as_usual: "expected", late: "worst" } as const;
@@ -197,6 +216,14 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
+    name: "month_by_category", scope: "read", input: none,
+    description: "Where the current calendar month goes: confirmed bills (a monthly bill once) and card charges in the home currency, grouped by category, each split into its business and personal part, with the items under each. Quote it to the user as it is; it is built in code. Information only: categories and business shares move no money and do not change what is safe to spend.",
+    run: async ctx => {
+      const state = await ctx.state();
+      return monthText(monthByCategory(state, state.today));
+    },
+  }),
+  defineTool({
     name: "draft_invoice", scope: "draft", input: draftInput,
     description: "Save a local USD invoice draft for the user to review; nothing is sent. amount is dollars, like 18.52. id is a new UUID; reuse the same id when retrying. client_id comes from list_clients_and_cards.",
     run: async (ctx, input) => {
@@ -208,9 +235,9 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bill", scope: "draft", input: addBillInput,
-    description: "Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800). due is YYYY-MM-DD. memberId is null for a household bill. monthly is true when the bill repeats every month on the due date's day (rent, phone, insurance, a subscription), false for a one-off; it only starts repeating once the user confirms it. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. id is a new UUID; reuse the same id when retrying.",
+    description: `Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800). due is YYYY-MM-DD. memberId is null for a household bill. monthly is true when the bill repeats every month on the due date's day (rent, phone, insurance, a subscription), false for a one-off; it only starts repeating once the user confirms it. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the name and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
     run: async (ctx, input) => {
-      const { shared, paidBy, ...bill } = input;
+      const { shared, paidBy, category: given, business_bp, ...bill } = input;
       let paidByMemberId: string | null = null;
       if (paidBy !== null && !shared) throw new InputError("paidBy names who pays a shared bill; set shared to true");
       if (shared) {
@@ -219,18 +246,21 @@ export const tools: Tool[] = [
         if (await memberCount(ctx.db, ctx.householdId) < 2) throw new InputError("Splitting a bill needs a second person; add one in Settings, People");
         paidByMemberId = (await memberByName(ctx.db, ctx.householdId, paidBy)).id;
       }
-      await insertBill(ctx.db, ctx.householdId, { ...bill, paidByMemberId }, "pending");
+      const { category, note } = categoryFor(bill.biller, given);
+      await insertBill(ctx.db, ctx.householdId, { ...bill, category, businessBp: business_bp ?? 0, paidByMemberId }, "pending");
       ctx.onPending?.();
-      return `${input.biller} is waiting in To check for the user to confirm.`;
+      return `${input.biller} is waiting in To check for the user to confirm. ${note}`;
     },
   }),
   defineTool({
-    name: "log_charge", scope: "draft", input: chargeInput,
-    description: "Log a card purchase the user tells you about. It waits in To check until the user confirms it. amount is a plain number in the household's home currency. date is YYYY-MM-DD (today if the user does not say). card_id comes from list_clients_and_cards. shared is true when the purchase is split between the household's people (needs two or more people and a card that belongs to one of them, who paid); false otherwise. id is a new UUID; reuse the same id when retrying.",
+    name: "log_charge", scope: "draft", input: logChargeInput,
+    description: `Log a card purchase the user tells you about. It waits in To check until the user confirms it. amount is a plain number in the household's home currency. date is YYYY-MM-DD (today if the user does not say). card_id comes from list_clients_and_cards. shared is true when the purchase is split between the household's people (needs two or more people and a card that belongs to one of them, who paid); false otherwise. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the merchant and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
     run: async (ctx, input) => {
-      await insertCharge(ctx.db, ctx.householdId, input, "pending", ctx.source ?? "manual");
+      const { category: given, business_bp, ...charge } = input;
+      const { category, note } = categoryFor(charge.merchant, given);
+      await insertCharge(ctx.db, ctx.householdId, { ...charge, category, businessBp: business_bp ?? 0 }, "pending", ctx.source ?? "manual");
       ctx.onPending?.();
-      return `${input.merchant} is waiting in To check for the user to confirm.`;
+      return `${input.merchant} is waiting in To check for the user to confirm. ${note}`;
     },
   }),
   defineTool({

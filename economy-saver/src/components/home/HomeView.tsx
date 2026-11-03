@@ -150,7 +150,7 @@ function ComingUp({ state, people, entryIds }: Props & { people: People; entryId
     {rows.slice(0, shown)}
     {rows.length > shown && <details><summary>Later in the month · {rows.length - shown} more</summary>{rows.slice(shown)}</details>}
     <AddEntry ids={entryIds} returnTo="/" today={state.today} currency={state.homeCurrency} people={people}
-      cards={state.cards.map(card => ({ id: card.id, label: card.label }))} categories={[...new Set(state.bills.map(bill => bill.category))]} />
+      cards={state.cards.map(card => ({ id: card.id, label: card.label }))} />
   </section>;
 }
 

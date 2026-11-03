@@ -32,13 +32,13 @@ export function occurrenceDates(due: string, repeatDay: number, today: string, t
 
 /**
  * Turns stored bills into the bills the engine reads. A confirmed bill with a repeat day becomes one bill per
- * occurrence, each with the id `<id>@<date>` so keys stay unique and `repeatDay` marking it as monthly. Anything
+ * occurrence, each with the id `<id>@<date>` so keys stay unique, `repeatDay` marking it as monthly and `startsOn` the stored due date. Anything
  * else (one-off, or pending: it never repeats until confirmed) passes through unchanged.
  */
 export function expandBills(bills: Bill[], today: string, through: string): Bill[] {
   const expanded = bills.flatMap((bill): Bill[] => {
     if (bill.repeatDay === undefined || bill.status !== "confirmed") return [bill];
-    return occurrenceDates(bill.due, bill.repeatDay, today, through).map(due => ({ ...bill, id: `${bill.id}@${due}`, due }));
+    return occurrenceDates(bill.due, bill.repeatDay, today, through).map(due => ({ ...bill, id: `${bill.id}@${due}`, due, startsOn: bill.due }));
   });
   // The order the database gives stored bills: due date, then biller.
   return expanded.sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : a.biller < b.biller ? -1 : a.biller > b.biller ? 1 : 0));

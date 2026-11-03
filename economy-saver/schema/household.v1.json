@@ -368,6 +368,31 @@
             "type": "boolean",
             "description": "true = split between the members by their shares; the owner of the card paid it."
           },
+          "category": {
+            "type": "string",
+            "enum": [
+              "housing",
+              "utilities",
+              "phone_internet",
+              "subscriptions",
+              "food",
+              "transport",
+              "health",
+              "insurance",
+              "family_shared",
+              "government_tax",
+              "business_tools",
+              "debt",
+              "other"
+            ],
+            "description": "One of the thirteen fixed categories; the key, not the label."
+          },
+          "businessBp": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "The business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). Categories and shares move no money."
+          },
           "documentId": {
             "anyOf": [
               {
@@ -394,6 +419,8 @@
           "status",
           "place",
           "shared",
+          "category",
+          "businessBp",
           "documentId"
         ],
         "additionalProperties": false
@@ -452,7 +479,29 @@
             "description": "The stored due date. A monthly bill is one row here, not one per month."
           },
           "category": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "housing",
+              "utilities",
+              "phone_internet",
+              "subscriptions",
+              "food",
+              "transport",
+              "health",
+              "insurance",
+              "family_shared",
+              "government_tax",
+              "business_tools",
+              "debt",
+              "other"
+            ],
+            "description": "One of the thirteen fixed categories; the key, not the label."
+          },
+          "businessBp": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "The business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). Categories and shares move no money."
           },
           "status": {
             "type": "string",
@@ -524,6 +573,7 @@
           "currency",
           "due",
           "category",
+          "businessBp",
           "status",
           "previousAmountMinor",
           "fxRateMicro",

@@ -5,6 +5,7 @@ import { recordEvent, requireHousehold, type Db } from "./household";
 import { fromMinor, parseAmountMinor } from "./money";
 import { observeRunway } from "./runway-events";
 import { memberCount } from "./people";
+import { BusinessBp, CategoryKeySchema } from "@/lib/money/categories";
 import { bills, households, members } from "./schema";
 
 export const billInput = z.object({
@@ -12,7 +13,8 @@ export const billInput = z.object({
   biller: z.string().trim().min(1).max(160),
   amount: z.string().trim(),
   due: z.string().date(),
-  category: z.string().trim().min(1).max(100),
+  category: CategoryKeySchema, // D46: a key from lib/money/categories.ts
+  businessBp: BusinessBp.default(0), // D46: business share in basis points
   memberId: z.string().uuid().nullable().default(null), // null = shared
   paidByMemberId: z.string().uuid().nullable().default(null), // D45: who pays a shared bill, for every occurrence; needs memberId null and two or more members
   monthly: z.boolean().default(false), // true: repeats every month on the due date's day (D41)
@@ -49,7 +51,7 @@ export async function insertBill(db: Db, householdId: string, input: z.infer<typ
     const [existing] = await tx.select().from(bills).where(and(eq(bills.householdId, hid), eq(bills.id, data.id)));
     if (existing) {
       if (existing.biller !== data.biller || existing.amountMinor !== amountMinor || existing.due !== data.due
-        || existing.category !== data.category || existing.memberId !== data.memberId || existing.repeatDay !== repeatDay
+        || existing.category !== data.category || existing.businessBp !== data.businessBp || existing.memberId !== data.memberId || existing.repeatDay !== repeatDay
         || existing.paidByMemberId !== data.paidByMemberId) {
         throw new InputError("This bill identifier is already in use");
       }
@@ -58,7 +60,7 @@ export async function insertBill(db: Db, householdId: string, input: z.infer<typ
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     await tx.insert(bills).values({
       id: data.id, householdId: hid, memberId: data.memberId, paidByMemberId: data.paidByMemberId, biller: data.biller, amountMinor,
-      currency: household.currency, due: data.due, category: data.category, status, repeatDay,
+      currency: household.currency, due: data.due, category: data.category, businessBp: data.businessBp, status, repeatDay,
     });
     if (status === "pending") {
       await recordEvent(tx, hid, { kind: "to_check", title: `${data.biller} bill to check`, ref: { type: "bill", id: data.id }, notify: true });

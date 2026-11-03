@@ -39,7 +39,7 @@ async function test() {
     let empty = false;
     let stop = "end_turn";
     let expectedMime = "application/pdf";
-    let extracted = { kind: "bill", name: "Harbor Lights", amountMinor: 11200, currency: "JPY", category: "Power", date: "2026-11-27", cardId: null as string | null };
+    let extracted = { kind: "bill", name: "Harbor Lights", amountMinor: 11200, currency: "JPY", category: "other", date: "2026-11-27", cardId: null as string | null };
     globalThis.fetch = async (input, init) => {
       const request = new Request(input, init);
       const url = new URL(request.url);
@@ -90,7 +90,7 @@ async function test() {
     assert.equal((await loadMoneyState(db, a, "2026-11-14")).bills.length, bills);
     assert.deepEqual(await readerInbox(db, b), { readings: [], jobs: [] });
     assert.equal(await reviewReading(db, b, first.id, first.value), false);
-    const corrected = { ...first.value, name: "Harbor Energy", category: "Electricity", amountMinor: 11220 };
+    const corrected = { ...first.value, name: "Harbor Energy", category: "utilities" as const, amountMinor: 11220 };
     assert.equal(await reviewReading(db, a, first.id, corrected), true);
     assert.equal(await reviewReading(db, a, first.id, corrected), false);
     assert.equal((await loadMoneyState(db, a, "2026-11-14")).bills.length, bills + 1);
@@ -98,7 +98,7 @@ async function test() {
     const second = await storeDocument(db, a, "upload", expectedMime, file("%PDF-1.7 fictional second month"));
     await readDocument(db, a, second);
     const again = (await readerInbox(db, a)).readings[0];
-    assert.equal(again.value.category, "Electricity");
+    assert.equal(again.value.category, "utilities");
     assert.equal(again.value.name, "Harbor Energy");
     assert.equal(again.value.amountMinor, 9000);
     assert.equal(await reviewReading(db, a, again.id, null), true);

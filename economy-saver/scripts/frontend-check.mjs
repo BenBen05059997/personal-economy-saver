@@ -211,6 +211,7 @@ await step("page", "home-warm", () => page("/", /18,780/));
 await step("page", "cards", () => page("/cards", /Card B/));
 await step("page", "clients", () => page("/clients", /Beacon/));
 await step("page", "plan", () => page("/plan", /Add a pot/));
+await step("page", "plan-where-the-month-goes", () => page("/plan", /Where the month goes[\s\S]*Housing ¥82,000/));
 await step("page", "activity", () => page("/activity", /Hikari Denki/));
 await step("page", "seeded-invoice-review-read-only", async () => {
   const id = home?.match(/href="\/invoices\/([0-9a-f-]{36})"/i)?.[1]
@@ -236,6 +237,12 @@ for (const label of ["confirm-hikari", "confirm-hikari-retry"]) {
   });
 }
 await step("page", "home-after-confirm-30000", () => page("/", /30,000/));
+await step("page", "plan-utilities-after-confirm", () => page("/plan", /Utilities ¥11,220/));
+// A category outside the thirteen keys is refused before anything is saved (needs a session: the guards suite sends none).
+await step("guard", "bill-with-unknown-category-refused", async () => {
+  const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional vet", amount: "4000", due: "2026-11-20", category: "pets", businessShare: "personal" } });
+  expect(result.response.status === 400 && result.body === "Choose a category from the list.", "bad-category-result");
+});
 await step("read", "confirm-single-event", async () => {
   expect(bill, "seed-bill");
   const data = await events();

@@ -392,7 +392,7 @@ async function main() {
       const [out] = toolResults(owes.bodies[1]);
       assert.ok(!out.is_error);
       assert.equal(JSON.parse(out.content).summary, "Nobody owes anyone anything.");
-      const bill = (paidBy: string) => toolUse("a", "add_bill", { id: crypto.randomUUID(), biller: "Fictional rent", amount: "80000", due: "2026-11-27", category: "Housing", memberId: null, monthly: true, shared: true, paidBy });
+      const bill = (paidBy: string) => toolUse("a", "add_bill", { id: crypto.randomUUID(), biller: "Fictional rent", amount: "80000", due: "2026-11-27", category: "housing", memberId: null, monthly: true, shared: true, paidBy });
       const unknown = transport([() => reply("tool_use", [bill("Nobody")]), () => reply("end_turn", [text("I could not find that person.")])]);
       const refused = await ask(c, "Add rent paid by Nobody.", unknown.fetch);
       assert.equal(refused.pending, false);

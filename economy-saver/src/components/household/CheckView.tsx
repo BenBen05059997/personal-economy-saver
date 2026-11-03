@@ -22,6 +22,6 @@ export function CheckView({ state, inbox, people, entryIds }: {
     </div>)}
     <ReaderReview state={state} inbox={inbox} />
     <AddEntry ids={entryIds} returnTo="/to-check" today={state.today} currency={state.homeCurrency} people={people}
-      cards={state.cards.map(card => ({ id: card.id, label: card.label }))} categories={[...new Set(state.bills.map(bill => bill.category))]} />
+      cards={state.cards.map(card => ({ id: card.id, label: card.label }))} />
   </>;
 }

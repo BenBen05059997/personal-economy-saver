@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import PostalMime from "postal-mime";
 import { z } from "zod";
 import { anthropicClient } from "@/lib/anthropic";
+import { BusinessBp, CATEGORY_KEYS, CategoryKeySchema } from "@/lib/money/categories";
 import { ReaderError, readerSetting } from "./settings";
 
 export const extractSchema = z.object({
@@ -10,7 +11,8 @@ export const extractSchema = z.object({
   date: z.string().date().nullable(),
   amountMinor: z.number().int().positive().safe().nullable(),
   currency: z.enum(["USD", "JPY"]).nullable(),
-  category: z.string().trim().max(100).nullable(),
+  category: CategoryKeySchema.nullable(),
+  businessBp: BusinessBp.nullable().default(null), // the reader never proposes a share; the user or a stored rule sets it
   cardId: z.string().uuid().nullable(),
 }).strict();
 export type Extracted = z.infer<typeof extractSchema>;
@@ -61,7 +63,7 @@ const outputSchema = {
         date: nullable({ type: "string" }, "YYYY-MM-DD, due date for bills or transaction date for charges."),
         amountMinor: nullable({ type: "integer" }, "Total billed in integer cents for USD, whole yen for JPY."),
         currency: nullable({ type: "string", enum: ["USD", "JPY"] }),
-        category: nullable({ type: "string" }),
+        category: nullable({ type: "string", enum: [...CATEGORY_KEYS] }, "Only when the kind of bill or purchase is clear."),
         cardId: nullable({ type: "string" }, "Known card UUID only when identified in the document."),
       },
     } },

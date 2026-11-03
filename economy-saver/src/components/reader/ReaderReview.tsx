@@ -1,6 +1,7 @@
 import type { ReaderInbox } from "@/db/reader-inbox";
 import type { MoneyState } from "@/lib/money/types";
 import type { Extracted } from "@/lib/reader/extract";
+import { CategoryFields } from "@/components/household/CategoryFields";
 
 function majorText(entry: Extracted) {
   if (entry.amountMinor === null || !entry.currency) return "";
@@ -24,7 +25,7 @@ export function ReaderReview({ inbox, state }: { inbox: ReaderInbox; state: Mone
           <label className="ui-field">Amount<input name="amount" inputMode="decimal" defaultValue={majorText(value)} required/></label>
           <label className="ui-field">Currency<select name="currency" required defaultValue={value.currency ?? ""}><option value="">Choose currency</option><option>JPY</option><option>USD</option></select></label>
           <label className="ui-field">Due or charge date<input name="date" type="date" required defaultValue={value.date ?? ""}/></label>
-          <label className="ui-field">Bill category<input name="category" defaultValue={value.category ?? ""} maxLength={100}/></label>
+          <CategoryFields name={value.name ?? ""} defaultCategory={value.category} defaultBp={value.businessBp ?? 0} />
           <label className="ui-field">Card for a charge<select name="cardId" defaultValue={value.cardId ?? ""}><option value="">Choose card</option>{state.cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
         </div>
         <div className="reader-buttons"><button className="ui-button primary" name="decision" value="confirm">Confirm reading</button><button className="ui-button" name="decision" value="reject" formNoValidate>Dismiss</button></div>

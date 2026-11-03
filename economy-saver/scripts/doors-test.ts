@@ -43,9 +43,9 @@ async function main() {
     const events = (hid: string, kind: string) => db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, kind)));
     const bank = async (hid: string) => (await first(db.select().from(schema.households).where(eq(schema.households.id, hid)))).bankBalanceMinor;
     const bill = (over: Partial<ReturnType<typeof billInput.parse>> = {}) =>
-      billInput.parse({ id: randomUUID(), biller: "Fictional landlord", amount: "3800", due: "2026-11-25", category: "rent", ...over });
+      billInput.parse({ id: randomUUID(), biller: "Fictional landlord", amount: "3800", due: "2026-11-25", category: "housing", ...over });
     const charge = (over: Record<string, unknown> = {}) =>
-      ({ id: randomUUID(), cardId: cardA.id, merchant: "Fictional bakery", amount: "540", date: TODAY, ...over });
+      ({ id: randomUUID(), cardId: cardA.id, merchant: "Fictional bakery", amount: "540", date: TODAY, category: "food", ...over });
 
     await check("parseAmountMinor accepts plain numbers and rejects everything else", async () => {
       assert.equal(parseAmountMinor("3800", "JPY"), 3800);
@@ -301,11 +301,11 @@ async function main() {
       const once = bill({ biller: "Fictional once" });
       await insertBill(db, a, once, "confirmed");
       assert.equal(await stored(once.id), null);
-      assert.equal(billInput.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-09", category: "x" }).monthly, false, "monthly defaults to off");
+      assert.equal(billInput.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-09", category: "other" }).monthly, false, "monthly defaults to off");
       await assert.rejects(insertBill(db, a, { ...form, monthly: false }, "confirmed"), InputError, "the same id with a different repeat is refused");
       assert.equal(await insertBill(db, a, form, "confirmed"), form.id);
-      await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "Bad", amountMinor: 1, currency: "JPY", due: "2026-11-20", category: "x", repeatDay: 32 }));
-      await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "Bad", amountMinor: 1, currency: "JPY", due: "2026-11-20", category: "x", repeatDay: 0 }));
+      await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "Bad", amountMinor: 1, currency: "JPY", due: "2026-11-20", category: "other", repeatDay: 32 }));
+      await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "Bad", amountMinor: 1, currency: "JPY", due: "2026-11-20", category: "other", repeatDay: 0 }));
     });
 
     await check("another household's monthly bill never appears", async () => {

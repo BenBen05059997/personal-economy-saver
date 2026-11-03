@@ -8,7 +8,7 @@ import { ReaderError } from "@/lib/reader/settings";
 import { syncClosedStatementCharge } from "./statement-charge";
 
 const ruleKey = (entry: Extracted) => entry.name ? entry.kind + ":" + entry.name.normalize("NFKC").trim().toLowerCase() : null;
-const patchSchema = extractSchema.pick({ name: true, kind: true, category: true, cardId: true }).partial();
+const patchSchema = extractSchema.pick({ name: true, kind: true, category: true, businessBp: true, cardId: true }).partial();
 
 /** Called inside the transaction which finishes a document. Nothing here changes the runway. */
 export async function proposeReadings(db: Db, id: string, documentId: string, items: Extracted[]) {
@@ -53,28 +53,30 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
       amount = convertMinor(amountMinor, currency, row.currency, fromRateMicro(fx));
     }
     const amounts = { householdId: hid, documentId: row.documentId, amountMinor: amount, currency: row.currency, fxRateMicro: fx };
+    if (!value.category) throw new ReaderError("Choose a category.");
+    const category = { category: value.category, businessBp: value.businessBp ?? 0 };
     let targetId: string;
     if (value.kind === "charge") {
       if (!value.cardId) throw new ReaderError("Select the card used for this charge.");
       const [card] = await tx.select({ id: cards.id }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, value.cardId)));
       if (!card) throw new ReaderError("Choose a card in this household.");
       const [charge] = await tx.insert(charges).values({
-        ...amounts, cardId: card.id, date, merchant: name, status: "confirmed", source: row.source === "email" ? "card_email" : "receipt",
+        ...amounts, ...category, cardId: card.id, date, merchant: name, status: "confirmed", source: row.source === "email" ? "card_email" : "receipt",
         originalAmountMinor: fx === null ? null : amountMinor, originalCurrency: fx === null ? null : currency,
       }).returning({ id: charges.id });
       targetId = charge.id;
       await syncClosedStatementCharge(tx, hid, charge.id);
     } else {
-      if (!value.category) throw new ReaderError("Enter a bill category.");
       const [bill] = await tx.insert(bills).values({
-        ...amounts, due: date, biller: name, category: value.category, status: "confirmed",
+        ...amounts, ...category, due: date, biller: name, status: "confirmed",
       }).returning({ id: bills.id });
       targetId = bill.id;
     }
     const saved = row.data as { original: Extracted; proposed: Extracted };
     const original = extractSchema.parse(saved.original), proposed = extractSchema.parse(saved.proposed);
     // Only stable corrections recur. A different amount or date changes this document only.
-    const patch = Object.fromEntries((["name", "kind", "category", "cardId"] as const).filter(k => proposed[k] !== value[k]).map(k => [k, value[k]]));
+    const was = { ...proposed, businessBp: proposed.businessBp ?? 0 }, now = { ...value, businessBp: value.businessBp ?? 0 };
+    const patch = Object.fromEntries((["name", "kind", "category", "businessBp", "cardId"] as const).filter(k => was[k] !== now[k]).map(k => [k, now[k]]));
     const key = ruleKey(original);
     if (key && Object.keys(patch).length) {
       await tx.insert(rules).values({ householdId: hid, matchBiller: key, patch }).onConflictDoUpdate({

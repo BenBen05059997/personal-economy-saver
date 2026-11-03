@@ -59,11 +59,11 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
       cap(tx.select({
         id: s.charges.id, cardId: s.charges.cardId, merchant: s.charges.merchant, amountMinor: s.charges.amountMinor, currency: s.charges.currency,
         originalAmountMinor: s.charges.originalAmountMinor, originalCurrency: s.charges.originalCurrency, fxRateMicro: s.charges.fxRateMicro,
-        date: s.charges.date, shared: s.charges.shared, source: s.charges.source, status: s.charges.status, place: s.charges.place, documentId: s.charges.documentId,
+        date: s.charges.date, shared: s.charges.shared, category: s.charges.category, businessBp: s.charges.businessBp, source: s.charges.source, status: s.charges.status, place: s.charges.place, documentId: s.charges.documentId,
       }).from(s.charges).where(eq(s.charges.householdId, hid)).orderBy(desc(s.charges.date), desc(s.charges.createdAt), desc(s.charges.id)).$dynamic()),
       cap(tx.select({
         id: s.bills.id, memberId: s.bills.memberId, paidByMemberId: s.bills.paidByMemberId, biller: s.bills.biller, amountMinor: s.bills.amountMinor, currency: s.bills.currency,
-        due: s.bills.due, category: s.bills.category, status: s.bills.status, previousAmountMinor: s.bills.previousAmountMinor,
+        due: s.bills.due, category: s.bills.category, businessBp: s.bills.businessBp, status: s.bills.status, previousAmountMinor: s.bills.previousAmountMinor,
         fxRateMicro: s.bills.fxRateMicro, repeatDay: s.bills.repeatDay, documentId: s.bills.documentId,
       }).from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(desc(s.bills.due), desc(s.bills.createdAt), desc(s.bills.id)).$dynamic()),
       tx.select({ id: s.clients.id, name: s.clients.name, email: s.clients.email, termsDays: s.clients.termsDays }).from(s.clients)

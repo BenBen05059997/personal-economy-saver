@@ -5,6 +5,7 @@ import { recordEvent, requireHousehold, type Db } from "./household";
 import { fromMinor, parseAmountMinor } from "./money";
 import { observeRunway } from "./runway-events";
 import { memberCount } from "./people";
+import { BusinessBp, CategoryKeySchema } from "@/lib/money/categories";
 import { cards, charges, households, members } from "./schema";
 import { syncClosedStatementCharge } from "./statement-charge";
 
@@ -14,6 +15,8 @@ export const chargeInput = z.object({
   merchant: z.string().trim().min(1).max(160),
   amount: z.string().trim(),
   date: z.string().date(),
+  category: CategoryKeySchema, // D46: a key from lib/money/categories.ts
+  businessBp: BusinessBp.default(0), // D46: business share in basis points
   shared: z.boolean().default(false), // D45: split between the members; the card's owner paid it
 });
 
@@ -48,7 +51,8 @@ export async function insertCharge(
     const amountMinor = parseAmountMinor(data.amount, card.currency);
     const [existing] = await tx.select().from(charges).where(and(eq(charges.householdId, hid), eq(charges.id, data.id)));
     if (existing) {
-      if (existing.cardId !== data.cardId || existing.merchant !== data.merchant || existing.amountMinor !== amountMinor || existing.date !== data.date || existing.shared !== data.shared) {
+      if (existing.cardId !== data.cardId || existing.merchant !== data.merchant || existing.amountMinor !== amountMinor || existing.date !== data.date || existing.shared !== data.shared
+        || existing.category !== data.category || existing.businessBp !== data.businessBp) {
         throw new InputError("This charge identifier is already in use");
       }
       return data.id;
@@ -56,7 +60,7 @@ export async function insertCharge(
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     await tx.insert(charges).values({
       id: data.id, householdId: hid, cardId: data.cardId, merchant: data.merchant, amountMinor, currency: card.currency,
-      date: data.date, shared: data.shared, source, status,
+      date: data.date, shared: data.shared, category: data.category, businessBp: data.businessBp, source, status,
     });
     if (status === "pending") {
       await recordEvent(tx, hid, { kind: "to_check", title: `${data.merchant} charge to check`, ref: { type: "charge", id: data.id }, notify: true });

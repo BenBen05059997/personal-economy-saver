@@ -5,16 +5,19 @@
 // 1 USD; exactly 1 when the home currency is USD) wherever it meets a balance or a bill.
 
 import type { Currency } from "@/lib/catalogue/types";
+import type { CategoryKey } from "./categories";
 
 export type Bill = {
   id: string;
   biller: string;
   amount: number;
   due: string; // YYYY-MM-DD
-  category: string;
+  category: CategoryKey; // D46: moves no money; only the month view reads it
+  businessBp: number; // D46: business share in basis points (0 personal, 10000 business)
   status: "confirmed" | "pending"; // pending = read by AI, waiting for the user to confirm
   previousAmount?: number;
   repeatDay?: number; // monthly bill (D41): the day of the month it falls due; the engine sees one Bill per occurrence
+  startsOn?: string; // set on each occurrence of a monthly bill: the stored due date, where the series starts (the month view needs the occurrences before today)
   paidBy?: string; // shared bill (D45): the member who pays it; the engine ignores it
 };
 
@@ -58,6 +61,8 @@ export type Charge = {
   amount: number; // home currency, as the issuer will bill it
   original?: { amount: number; currency: string }; // when paid in another currency
   date: string; // YYYY-MM-DD
+  category: CategoryKey; // D46
+  businessBp: number; // D46
   source: "card_email" | "receipt" | "voice" | "manual";
   status: "confirmed" | "pending"; // pending = read by AI, waiting for the user to confirm
   place?: string; // city, when travelling

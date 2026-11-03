@@ -4,6 +4,7 @@
 import { and, count, desc, eq, gt, gte, inArray, isNull, isNotNull, lte, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { Currency } from "@/lib/catalogue/types";
+import { CategoryKeySchema as CategoryKey } from "@/lib/money/categories";
 import { expandBills } from "@/lib/money/repeat";
 import { countingFrom } from "@/lib/money/split";
 import { addDays, planWindow } from "@/lib/money/runway";
@@ -136,7 +137,8 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     biller: b.biller,
     amount: inHome(b.amountMinor, b.currency),
     due: b.due,
-    category: b.category,
+    category: CategoryKey.parse(b.category),
+    businessBp: b.businessBp,
     status: b.status,
     ...(b.previousAmountMinor !== null && { previousAmount: inHome(b.previousAmountMinor, b.currency) }),
     ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
@@ -162,6 +164,8 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
       original: { amount: fromMinor(c.originalAmountMinor, c.originalCurrency), currency: c.originalCurrency },
     }),
     date: c.date,
+    category: CategoryKey.parse(c.category),
+    businessBp: c.businessBp,
     source: c.source,
     status: c.status,
     ...(c.place !== null && { place: c.place }),

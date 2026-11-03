@@ -48,15 +48,15 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 ## C. Typing things in
 
 - C1. Bank balance: Update → ¥100,000 → Save → "You're fine for the next 30 days, even if clients pay late. Lowest point ¥14,220 on the 27th."; Activity shows "Bank balance set to ¥100,000 (was ¥67,000)". Set it back to ¥67,000.
-- C2. Add a bill (¥5,000, due Nov 25) → it appears in Coming up and the shortfall moves from ¥18,780 to ¥23,780. Later checks assume it is not there: start a fresh household, or add ¥5,000 to the shortfalls below.
+- C2. Add a bill: type the biller "Fictional power" → the Category select picks Utilities by itself; type "Zebra Supplies" instead → it shows "Choose a category" and the form will not submit until you pick one. Choose Personal / Business / Mixed under Business share (Mixed asks for a percent). Add a bill (¥5,000, due Nov 25, category Other, Personal) → it appears in Coming up and the shortfall moves from ¥18,780 to ¥23,780. Later checks assume it is not there: start a fresh household, or add ¥5,000 to the shortfalls below.
 - C3. Add a monthly bill → Coming up shows "Every month"; Settings lists it.
-- C4. Card charge ¥3,800 on Card B → Card B owed now rises to ¥64,800 and limit left falls to ¥235,200; the sentence and the low point do not move (Card B is billed after the window).
+- C4. Card charge ¥3,800 on Card B (merchant "Noodle shop", category Food, Personal) → Card B owed now rises to ¥64,800 and limit left falls to ¥235,200; the sentence and the low point do not move (Card B is billed after the window).
 - C5. Add a client → it appears on Clients and in the new-invoice list.
 - C6. A form with a missing or wrong field shows a clear message and saves nothing.
 
 ## D. To check
 
-- D1. Confirm Hikari Denki → it leaves To check, Coming up shows it as a bill, the shortfall becomes ¥30,000 on the 27th, and the To check count drops to 0.
+- D1. The Hikari Denki row reads "Utilities · 30% business · due Nov 27". Confirm it → it leaves To check, Coming up shows it as a bill, the shortfall becomes ¥30,000 on the 27th, and the To check count drops to 0.
 - D2. Needs the Anthropic settings: an item the agent drafted (a bill, charge, bank balance or pot) waits here with its details and changes nothing until Confirm.
 
 ## E. Getting paid
@@ -131,3 +131,24 @@ Home, To check, Activity, Cards, Clients, Plan, Options, Settings, Upload, New i
 - L4. Desktop: the sidebar, top bar (Ask, bell, Add) and panels line up; Settings uses two columns.
 - L5. Loading states ("Opening …") give way to the page within a second or two on a visible tab.
 - L6. The browser console shows no errors on any page.
+
+## M. Categories and the month view
+
+Demo date Nov 14. Run M1 to M3 on a fresh Try it household that has had none of C2 to C4 (they add a bill and a charge to November).
+
+- M1. Plan shows "Where the month goes · November" and the line "Business ¥32,830 of ¥152,230 this month", then these rows in this order (a row opens to its items):
+
+| Row | Total | Split | Items |
+|---|---|---|---|
+| Housing | ¥82,000 | business ¥24,600 · personal ¥57,400 | Rent, Nov 27 |
+| Phone & internet | ¥4,800 | business ¥2,400 · personal ¥2,400 | Mobaile Tsushin, Nov 20 |
+| Subscriptions | ¥1,980 | just the total (all business) | CloudBox Plus, Nov 18 |
+| Food | ¥10,700 | just the total (all personal) | Minato Fresh Market Nov 8 ¥7,420 and Nov 13 ¥1,400; Kissa Midori café Nov 12 ¥1,880 |
+| Business tools | ¥3,850 | just the total | Sora Cloud Hosting, Nov 4 |
+| Other | ¥48,900 | just the total | Kumo Goods Online Nov 2 ¥24,300; Tsuki Electronics Nov 9 ¥18,200; Yamabiko Outdoor Nov 12 ¥6,400 |
+
+  No Utilities row yet and no October charges (Metro Line, Page & Lantern Books, the October Minato and Kissa Midori charges). Every number on Home, Cards and Plan's room line is the same as in "Expected numbers".
+- M2. Confirm Hikari Denki in To check → Plan gains Utilities ¥11,220 (business ¥3,366 · personal ¥7,854) after Housing, and the business line becomes "Business ¥36,196 of ¥163,450 this month". The Home shortfall becomes ¥30,000 (D1) and Plan's room line falls from ¥92,220 to ¥81,000 (the bill now counts); the other category rows do not move.
+- M3. On To check, Add a bill or charge → Card charge: "Minato Fresh Market" ¥2,000 on Card B → the form pre-selects Food; choose Mixed and 25 → Plan's Food row becomes ¥12,700 (business ¥500 · personal ¥12,200), its items list shows the new charge with "25% business", and Card B owed now rises to ¥63,000.
+- M4. Add a bill named "Zebra Supplies" (the table does not know it) → no category is pre-selected and the form will not submit without one. Needs the Anthropic settings: "add a bill for the vet, ¥4,000" → the To check row shows a category and a share, and the answer says whether the category was guessed.
+- M5. At 375px each category row is at least 44px tall and opens and closes with a tap; nothing scrolls sideways; light and dark both read clearly.

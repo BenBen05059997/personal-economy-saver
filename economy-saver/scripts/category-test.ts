@@ -1,0 +1,343 @@
+// Categories and the business share (D46): the category list and keyword table, the month view's maths, the migration of
+// the old free-text categories, the forms' and tools' validation, the snapshot and household scope. PGlite, no credentials.
+// Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/category-test.ts
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { PGlite } from "@electric-sql/pglite";
+import { eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/pglite";
+import { migrate } from "drizzle-orm/pglite/migrator";
+import * as schema from "@/db/schema";
+import { householdDate } from "@/db/account";
+import { billInput, insertBill } from "@/db/bills";
+import { chargeInput, insertCharge } from "@/db/charges";
+import { confirmPending } from "@/db/confirm";
+import { loadMoneyState } from "@/db/household";
+import { seedBen } from "@/db/seed";
+import { loadHouseholdSnapshot } from "@/db/snapshot";
+import { toolInputSchema, tools, type ToolContext } from "@/lib/agent/tools";
+import { cardSummary } from "@/components/home/card-summary";
+import { BusinessBp, CATEGORIES, CATEGORY_KEYS, businessBpFromForm, businessPart, categoryLabel, CategoryKeySchema, shareLabel } from "@/lib/money/categories";
+import { guessCategory } from "@/lib/money/categorise";
+import { businessLine, monthByCategory, monthText, splitLine } from "@/lib/money/month";
+import { expandBills } from "@/lib/money/repeat";
+import { addDays, safeToSpend } from "@/lib/money/runway";
+import { monthlyRoom } from "@/lib/money/plan";
+import { homeSentence } from "@/lib/money/sentence";
+import { toCheck } from "@/lib/money/to-check";
+import type { Bill, Charge, MoneyState } from "@/lib/money/types";
+import { benMoney, benStoredBills } from "@/lib/sample/ben";
+import { HouseholdSnapshot } from "@/lib/schema/household";
+
+const summary = (state: MoneyState) => monthByCategory(state, state.today).categories.map(c =>
+  [c.category, c.totalMinor, c.businessMinor, c.personalMinor] as const);
+
+async function main() {
+  const pg = new PGlite();
+  const db = drizzle(pg, { schema });
+  let passed = 0;
+  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  try {
+    // ------------------------------------------------------------ the list and the keyword table
+    await check("the list: thirteen keys with their labels in order; the zod enum takes exactly those", () => {
+      assert.deepEqual(CATEGORY_KEYS, ["housing", "utilities", "phone_internet", "subscriptions", "food", "transport", "health", "insurance", "family_shared", "government_tax", "business_tools", "debt", "other"]);
+      assert.deepEqual(CATEGORIES.map(c => c.label), ["Housing", "Utilities", "Phone & internet", "Subscriptions", "Food", "Transport", "Health", "Insurance", "Family & shared", "Government & tax", "Business tools", "Debt", "Other"]);
+      for (const key of CATEGORY_KEYS) assert.equal(CategoryKeySchema.safeParse(key).success, true);
+      for (const bad of ["pets", "Housing", "", " housing", "phone", null, undefined, 3]) assert.equal(CategoryKeySchema.safeParse(bad).success, false, String(bad));
+      assert.equal(CategoryKeySchema.safeParse("pets").error!.issues[0].message, "Choose a category from the list.");
+      assert.equal(categoryLabel("phone_internet"), "Phone & internet");
+    });
+
+    await check("the business share: basis points 0 to 10000, business plus personal always add up, the form's three choices", () => {
+      for (const bad of [-1, 10_001, 1.5, NaN, "3000"]) assert.equal(BusinessBp.safeParse(bad).success, false, String(bad));
+      for (const ok of [0, 1, 3000, 10_000]) assert.equal(BusinessBp.safeParse(ok).success, true);
+      let seed = 11;
+      const next = () => (seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648);
+      for (let i = 0; i < 500; i++) {
+        const amount = next() % 3_000_000, bp = next() % 10_001, business = businessPart(amount, bp);
+        assert.ok(business >= 0 && business <= amount && Math.abs(business - amount * bp / 10_000) <= 0.5, `${amount} at ${bp}`);
+      }
+      assert.equal(businessPart(82_000, 3000), 24_600);
+      assert.equal(businessPart(5, 5000), 3, "round half up");
+      assert.deepEqual([null, "personal", "business", "mixed"].map(c => businessBpFromForm(c, "30")), [0, 0, 10_000, 3000]);
+      assert.deepEqual(["12.5", "0", "100", "33.33", " 30 "].map(p => businessBpFromForm("mixed", p)), [1250, 0, 10_000, 3333, 3000]);
+      for (const bad of ["101", "-5", "abc", "", "1.234", "30%"]) assert.equal(businessBpFromForm("mixed", bad), null, bad);
+      assert.equal(businessBpFromForm("everything", "30"), null);
+      assert.deepEqual([0, 10_000, 3000, 1250].map(shareLabel), ["Personal", "Business", "30% business", "12.5% business"]);
+    });
+
+    await check("the keyword table: every biller and merchant in Ben's sample, with the expected category and sureness", () => {
+      const expected: [string, string, boolean][] = [
+        ["Rent", "housing", true], ["Hikari Denki", "utilities", true], ["Mobaile Tsushin", "phone_internet", true],
+        ["CloudBox Plus", "subscriptions", true], ["Sora Cloud Hosting", "business_tools", true],
+        ["Minato Fresh Market", "food", true], ["Kissa Midori café", "food", true], ["Metro Line commuter pass", "transport", true],
+        ["Page & Lantern Books", "other", false], ["Tsuki Electronics", "other", false], ["Yamabiko Outdoor", "other", false], ["Kumo Goods Online", "other", false],
+      ];
+      for (const [name, category, sure] of expected) assert.deepEqual(guessCategory(name), { category, sure }, name);
+      const names = new Set([...benStoredBills.map(b => b.biller), ...benMoney.charges.map(c => c.merchant)]);
+      assert.deepEqual([...names].filter(n => !expected.some(e => e[0] === n)), [], "every sample name is covered by this test");
+    });
+
+    await check("the keyword table: common international names, case and plurals, and unknown names", () => {
+      const cases: [string, string][] = [
+        ["Monthly mortgage", "housing"], ["Electric company", "utilities"], ["Fictional power", "utilities"], ["Green Energy Co", "utilities"], ["City WATER bureau", "utilities"], ["Gas", "utilities"], ["Mobile plan", "phone_internet"],
+        ["Fibre internet", "phone_internet"], ["Netflix", "subscriptions"], ["Spotify Premium", "subscriptions"], ["Corner grocery", "food"], ["Farmers Market", "food"],
+        ["Café Luna", "food"], ["Uber trip", "transport"], ["Taxi", "transport"], ["Night pharmacy", "health"], ["Dental clinic", "health"],
+        ["Car insurance", "insurance"], ["Property tax", "government_tax"], ["Adobe", "business_tools"], ["GitHub", "business_tools"], ["Web hosting", "business_tools"],
+        ["Student loan", "debt"], ["Loan repayment", "debt"], ["家賃", "housing"], ["電気代", "utilities"], ["携帯料金", "phone_internet"],
+      ];
+      for (const [name, category] of cases) assert.deepEqual(guessCategory(name), { category, sure: true }, name);
+      for (const name of ["", "   ", "Zebra Supplies", "Marketing agency", "Business class seat", "Brenton Ltd"]) assert.deepEqual(guessCategory(name), { category: "other", sure: false }, `"${name}" matches nothing`);
+    });
+
+    // ------------------------------------------------------------ the month view, pure
+    await check("Ben on Nov 14 (pure): six categories, their business parts, October charges and the pending Hikari bill left out", () => {
+      const view = monthByCategory(benMoney, benMoney.today);
+      assert.deepEqual([view.month, view.name, view.currency], ["2026-11", "November", "JPY"]);
+      assert.deepEqual(summary(benMoney), [
+        ["housing", 82_000, 24_600, 57_400], ["phone_internet", 4_800, 2_400, 2_400], ["subscriptions", 1_980, 1_980, 0],
+        ["food", 10_700, 0, 10_700], ["business_tools", 3_850, 3_850, 0], ["other", 48_900, 0, 48_900],
+      ]);
+      assert.deepEqual([view.totalMinor, view.businessMinor, view.personalMinor], [152_230, 32_830, 119_400]);
+      assert.equal(businessLine(view), "Business ¥32,830 of ¥152,230 this month");
+      const food = view.categories.find(c => c.category === "food")!;
+      assert.deepEqual(food.items.map(i => [i.label, i.date, i.amountMinor]), [["Minato Fresh Market", "2026-11-08", 7_420], ["Kissa Midori café", "2026-11-12", 1_880], ["Minato Fresh Market", "2026-11-13", 1_400]]);
+      assert.equal(view.categories.find(c => c.category === "housing")!.items[0].date, "2026-11-27");
+      assert.equal(splitLine(view, view.categories[0]), "business ¥24,600 · personal ¥57,400");
+      assert.equal(splitLine(view, view.categories.find(c => c.category === "food")!), null);
+      assert.equal(splitLine(view, view.categories.find(c => c.category === "subscriptions")!), null);
+      assert.ok(!view.categories.some(c => c.category === "utilities" || c.category === "transport"), "no Utilities while Hikari is pending, no Transport (October)");
+      assert.match(monthText(view), /^November: ¥152,230 in total\. Business ¥32,830 of ¥152,230 this month\.\nHousing ¥82,000 \(business ¥24,600 · personal ¥57,400\): Rent Nov 27 ¥82,000 at 30% business\.\n/);
+    });
+
+    await check("month maths: a mixed share rounds per item and the parts add up; every category total is the sum of its items", () => {
+      const charge = (over: Partial<Charge>): Charge => ({ id: randomUUID(), cardId: "card-a", merchant: "M", amount: 1, date: "2026-11-05", category: "other", businessBp: 0, source: "manual", status: "confirmed", ...over });
+      const state: MoneyState = { ...benMoney, bills: [], charges: [
+        charge({ merchant: "A", amount: 1_001, businessBp: 3333, category: "food" }), charge({ merchant: "B", amount: 1_001, businessBp: 3333, category: "food" }),
+        charge({ merchant: "C", amount: 5, businessBp: 5000, category: "food" }), charge({ merchant: "D", amount: 7, businessBp: 10_000, category: "debt" }),
+      ] };
+      const view = monthByCategory(state, state.today);
+      const food = view.categories[0], debt = view.categories[1];
+      assert.deepEqual([food.category, food.totalMinor, food.businessMinor, food.personalMinor], ["food", 2_007, 334 + 334 + 3, 2_007 - 671]);
+      assert.deepEqual([debt.category, debt.totalMinor, debt.businessMinor, debt.personalMinor], ["debt", 7, 7, 0]);
+      for (const c of view.categories) {
+        assert.equal(c.totalMinor, c.items.reduce((s, i) => s + i.amountMinor, 0));
+        assert.equal(c.businessMinor + c.personalMinor, c.totalMinor);
+      }
+      assert.equal(view.businessMinor + view.personalMinor, view.totalMinor);
+      assert.deepEqual(monthByCategory({ ...state, charges: [] }, state.today).categories, []);
+      assert.match(monthText(monthByCategory({ ...state, charges: [] }, state.today)), /nothing confirmed yet/);
+    });
+
+    await check("month maths: a monthly bill counts once, at its occurrence, even when that day has passed; pending bills and charges, other months and statements stay out", () => {
+      const stored: Bill[] = [
+        { id: "early", biller: "Early monthly", amount: 1_000, due: "2026-08-03", category: "subscriptions", businessBp: 0, status: "confirmed", repeatDay: 3 },
+        { id: "later", biller: "Later monthly", amount: 2_000, due: "2026-09-20", category: "utilities", businessBp: 5000, status: "confirmed", repeatDay: 20 },
+        { id: "future", biller: "Starts in December", amount: 3_000, due: "2026-12-05", category: "debt", businessBp: 0, status: "confirmed", repeatDay: 5 },
+        { id: "oneoff", biller: "One-off in month", amount: 4_000, due: "2026-11-30", category: "health", businessBp: 0, status: "confirmed" },
+        { id: "oldoff", biller: "One-off in October", amount: 5_000, due: "2026-10-30", category: "health", businessBp: 0, status: "confirmed" },
+        { id: "pending", biller: "Pending monthly", amount: 6_000, due: "2026-11-25", category: "debt", businessBp: 0, status: "pending", repeatDay: 25 },
+      ];
+      const today = benMoney.today;
+      const charge = (merchant: string, date: string, status: Charge["status"]): Charge => ({ id: merchant, cardId: "card-a", merchant, amount: 100, date, category: "food", businessBp: 0, source: "manual", status });
+      const state: MoneyState = { ...benMoney, bills: expandBills(stored, today, addDays(today, 59)),
+        charges: [charge("In November", "2026-11-01", "confirmed"), charge("Pending one", "2026-11-14", "pending"), charge("October", "2026-10-31", "confirmed"), charge("December", "2026-12-01", "confirmed")] };
+      assert.ok(!state.bills.some(b => b.id.startsWith("early@2026-11")), "the engine's list has dropped the passed Nov 3 occurrence");
+      const view = monthByCategory(state, today);
+      assert.deepEqual(view.categories.map(c => [c.category, c.items.map(i => [i.label, i.date])]), [
+        ["utilities", [["Later monthly", "2026-11-20"]]], ["subscriptions", [["Early monthly", "2026-11-03"]]], ["food", [["In November", "2026-11-01"]]], ["health", [["One-off in month", "2026-11-30"]]],
+      ]);
+      assert.deepEqual([view.totalMinor, view.businessMinor], [1_000 + 2_000 + 100 + 4_000, 1_000]);
+      assert.equal(state.statements.length, 1, "a closed statement exists in the state and is not read");
+      // The same series in December and in a month that does not have day 31.
+      const dec = monthByCategory({ ...state, today: "2026-12-14" }, "2026-12-14");
+      assert.deepEqual(dec.categories.map(c => c.items.map(i => i.label)).flat().sort(), ["December", "Early monthly", "Later monthly", "Starts in December"]);
+      const short = expandBills([{ ...stored[0], id: "thirty-one", due: "2026-01-31", repeatDay: 31 }], "2026-02-10", "2026-03-31");
+      assert.deepEqual(monthByCategory({ ...benMoney, today: "2026-02-10", bills: short, charges: [] }, "2026-02-10").categories[0].items.map(i => i.date), ["2026-02-28"]);
+    });
+
+    await check("US household: cents, not dollars", () => {
+      const usd: MoneyState = { ...benMoney, homeCurrency: "USD", fxPerUsd: 1, bills: [{ ...benMoney.bills[0], amount: 19.99, due: "2026-11-18", businessBp: 5000 }], charges: [] };
+      const view = monthByCategory(usd, usd.today);
+      assert.deepEqual([view.currency, view.totalMinor, view.businessMinor, view.personalMinor], ["USD", 1_999, 1_000, 999]);
+      assert.equal(businessLine(view), "Business $10 of $19.99 this month");
+    });
+
+    // ------------------------------------------------------------ the database
+    await migrate(db, { migrationsFolder: "./drizzle" });
+    const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
+    const stateOf = async (hid: string) => loadMoneyState(db, hid, await householdDate(db, hid));
+
+    await check("a seeded Try it household shows the same month as the sample; the runway numbers are the demo's", async () => {
+      const state = await stateOf(a);
+      assert.deepEqual(summary(state), summary(benMoney));
+      assert.equal(homeSentence(state).emphasis, "¥18,780 short on the 27th.");
+      assert.equal(safeToSpend(state, 0).amount, 0);
+      const [cardA, cardB] = ["Card A", "Card B"].map(label => cardSummary(state, state.cards.find(c => c.label === label)!.id));
+      assert.deepEqual([cardA.owed, cardA.limitLeft, cardB.owed, cardB.limitLeft], [86_450, 413_550, 61_000, 239_000]);
+      assert.equal(monthlyRoom(state), 92_220);
+      const rows = await db.select().from(schema.bills).where(eq(schema.bills.householdId, a));
+      assert.deepEqual(rows.map(r => [r.biller, r.category, r.businessBp]).sort(), [["CloudBox Plus", "subscriptions", 10_000], ["Hikari Denki", "utilities", 3000], ["Mobaile Tsushin", "phone_internet", 5000], ["Rent", "housing", 3000]]);
+    });
+
+    await check("confirming Hikari Denki from To check adds Utilities ¥11,220 at 30% and changes nothing else in the month", async () => {
+      const before = await stateOf(a);
+      const row = toCheck(before).find(r => r.kind === "bill")!;
+      assert.equal(row.detail, "Utilities · 30% business · due Nov 27");
+      assert.equal(await confirmPending(db, a, "bill", row.id), true);
+      const after = await stateOf(a);
+      const utilities = monthByCategory(after, after.today).categories.find(c => c.category === "utilities")!;
+      assert.deepEqual([utilities.totalMinor, utilities.businessMinor, utilities.personalMinor, utilities.items.map(i => [i.label, i.date])], [11_220, 3_366, 7_854, [["Hikari Denki", "2026-11-27"]]]);
+      assert.deepEqual(summary(after).map(r => r[0]), ["housing", "utilities", "phone_internet", "subscriptions", "food", "business_tools", "other"], "categories.ts order");
+      const view = monthByCategory(after, after.today);
+      assert.deepEqual([view.totalMinor, view.businessMinor], [163_450, 36_196]);
+      assert.equal(homeSentence(after).emphasis, "¥30,000 short on the 27th.", "the runway moved because the bill counts, not because of its category");
+    });
+
+    await check("the migration: the four old free-text values map to keys, anything else to other; charges default to other; shares default to 0", async () => {
+      const old = new PGlite();
+      try {
+        const files = readdirSync("./drizzle").filter(f => /^\d{4}_.*\.sql$/.test(f)).sort();
+        const last = files.pop()!;
+        assert.match(last, /^0012_/);
+        const statements = (file: string) => readFileSync(`./drizzle/${file}`, "utf8").split("--> statement-breakpoint").map(s => s.trim()).filter(Boolean);
+        for (const file of files) for (const statement of statements(file)) await old.exec(statement);
+        const household = (await old.query<{ id: string }>("insert into households (name, home_currency) values ('Old', 'JPY') returning id")).rows[0].id;
+        const values = ["Housing", "Phone", "Subscriptions", "Utilities · Electricity", "Food", "rent", "", "housing"];
+        for (const [i, category] of values.entries()) {
+          await old.query("insert into bills (household_id, biller, amount_minor, currency, due, category) values ($1, $2, 100, 'JPY', '2026-11-27', $3)", [household, `Old ${i}`, category]);
+        }
+        const card = (await old.query<{ id: string }>("insert into cards (household_id, label, closing_day, due_day, currency) values ($1, 'Old card', 31, 26, 'JPY') returning id", [household])).rows[0].id;
+        await old.query("insert into charges (household_id, card_id, merchant, amount_minor, currency, date, source) values ($1, $2, 'Old shop', 100, 'JPY', '2026-11-05', 'manual')", [household, card]);
+        for (const statement of statements(last)) await old.exec(statement);
+        const mapped = (await old.query<{ biller: string; category: string; business_bp: number }>("select biller, category, business_bp from bills order by biller")).rows;
+        assert.deepEqual(mapped.map(r => r.category), ["housing", "phone_internet", "subscriptions", "utilities", "other", "other", "other", "other"]);
+        assert.ok(mapped.every(r => r.business_bp === 0));
+        assert.deepEqual((await old.query<{ category: string; business_bp: number }>("select category, business_bp from charges")).rows, [{ category: "other", business_bp: 0 }]);
+      } finally {
+        await old.close();
+      }
+    });
+
+    await check("a wrong key or a share outside 0 to 10000 is refused by the input schema, the data layer and the database", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const card = (await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)))[0];
+      assert.equal(billInput.safeParse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets" }).success, false);
+      assert.equal(billInput.safeParse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "other", businessBp: 10_001 }).success, false);
+      assert.equal(billInput.safeParse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20" }).success, false, "a bill needs a category");
+      assert.equal(billInput.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "other" }).businessBp, 0, "the share defaults to personal");
+      assert.equal(chargeInput.safeParse({ id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "pets" }).success, false);
+      await assert.rejects(insertBill(db, hid, { id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", businessBp: 0, memberId: null, paidByMemberId: null, monthly: false } as never, "confirmed"));
+      await assert.rejects(insertCharge(db, hid, { id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "other", businessBp: -1, shared: false } as never, "confirmed", "manual"));
+      const row = { householdId: hid, biller: "Raw", amountMinor: 1, currency: "JPY", due: "2026-11-20" };
+      await assert.rejects(db.insert(schema.bills).values({ ...row, category: "pets" }), "bills_category_valid");
+      await assert.rejects(db.insert(schema.bills).values({ ...row, category: "Housing" }), "keys only, not labels");
+      await assert.rejects(db.insert(schema.bills).values({ ...row, category: "other", businessBp: 10_001 }), "bills_business_valid");
+      const charge = { householdId: hid, cardId: card.id, merchant: "Raw", amountMinor: 1, currency: "JPY", date: "2026-11-14", source: "manual" as const };
+      await assert.rejects(db.insert(schema.charges).values({ ...charge, category: "pets" }), "charges_category_valid");
+      await assert.rejects(db.insert(schema.charges).values({ ...charge, businessBp: -1 }), "charges_business_valid");
+      assert.equal((await db.insert(schema.charges).values(charge).returning())[0].category, "other", "a charge without a category is Other");
+    });
+
+    await check("typed-in bills and charges keep their category and share, are idempotent on them, and a different one under the same id is refused", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const card = (await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)))[0];
+      const rent = billInput.parse({ id: randomUUID(), biller: "Fictional studio", amount: "50000", due: "2026-11-25", category: "housing", businessBp: 4000, monthly: true });
+      await insertBill(db, hid, rent, "confirmed");
+      await insertBill(db, hid, rent, "confirmed");
+      await assert.rejects(insertBill(db, hid, { ...rent, businessBp: 5000 }, "confirmed"), /already in use/);
+      await assert.rejects(insertBill(db, hid, { ...rent, category: "other" }, "confirmed"), /already in use/);
+      const lunch = chargeInput.parse({ id: randomUUID(), cardId: card.id, merchant: "Fictional bento", amount: "900", date: "2026-11-14", category: "food", businessBp: 10_000 });
+      await insertCharge(db, hid, lunch, "confirmed", "manual");
+      await insertCharge(db, hid, lunch, "confirmed", "manual");
+      await assert.rejects(insertCharge(db, hid, { ...lunch, category: "other" }, "confirmed", "manual"), /already in use/);
+      const state = await stateOf(hid);
+      const view = monthByCategory(state, state.today);
+      assert.deepEqual(view.categories.find(c => c.category === "housing")!.items.map(i => [i.label, i.amountMinor, i.businessBp]).sort(), [["Fictional studio", 50_000, 4000], ["Rent", 82_000, 3000]]);
+      assert.deepEqual(view.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional bento"), { label: "Fictional bento", date: "2026-11-14", amountMinor: 900, businessBp: 10_000 });
+      assert.equal(view.categories.find(c => c.category === "food")!.items.filter(i => i.label === "Fictional bento").length, 1);
+    });
+
+    // ------------------------------------------------------------ the agent and MCP tools
+    await check("tools: add_bill and log_charge take category and business_bp, guess from the name when none is given and say so, and keep both through To check", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const ctx: ToolContext = { db, householdId: hid, state: () => stateOf(hid), appUrl: new URL("http://127.0.0.1:3123") };
+      const tool = (name: string) => tools.find(t => t.name === name)!;
+      const run = (name: string, input: unknown) => tool(name).run(ctx, tool(name).input.parse(input) as never);
+      const card = (await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)))[0];
+      for (const name of ["add_bill", "log_charge"]) {
+        const schemaOf = toolInputSchema(tool(name)) as unknown as { required: string[]; properties: Record<string, { anyOf: { enum?: string[]; type: string }[]; description?: string }> };
+        assert.ok(schemaOf.required.includes("category") && schemaOf.required.includes("business_bp"), `${name} lists both`);
+        assert.ok(CATEGORY_KEYS.every(key => schemaOf.properties.category.description!.includes(key)), `${name}'s category field lists the thirteen keys`);
+        assert.ok(CATEGORY_KEYS.every(key => tool(name).description.includes(key)), `${name} names every key in its description`);
+        assert.equal(tool(name).scope, "draft");
+      }
+      assert.throws(() => tool("add_bill").input.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", memberId: null, monthly: false, shared: null, paidBy: null }));
+      assert.throws(() => tool("log_charge").input.parse({ id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "other", business_bp: 10_001 }));
+
+      const given = randomUUID(), guessed = randomUUID(), unsure = randomUUID();
+      const bill = (id: string, biller: string, extra: object) => ({ id, biller, amount: "3000", due: "2026-11-25", memberId: null, monthly: false, shared: null, paidBy: null, category: null, business_bp: null, ...extra });
+      assert.equal(await run("add_bill", bill(given, "Fictional gym", { category: "health", business_bp: 2500 })), "Fictional gym is waiting in To check for the user to confirm. Category: Health.");
+      assert.equal(await run("add_bill", bill(guessed, "Fictional electric co", {})), "Fictional electric co is waiting in To check for the user to confirm. No category was given, so it was guessed from the name: Utilities. The user can change it in To check.");
+      assert.match(await run("add_bill", bill(unsure, "Zebra Supplies", {})), /No category was given and the name matched none, so it is Other\. The user can choose one in To check\.$/);
+      const rows = Object.fromEntries((await db.select().from(schema.bills).where(eq(schema.bills.householdId, hid))).map(r => [r.id, r]));
+      assert.deepEqual([given, guessed, unsure].map(id => [rows[id].status, rows[id].category, rows[id].businessBp]), [["pending", "health", 2500], ["pending", "utilities", 0], ["pending", "other", 0]]);
+
+      const chargeId = randomUUID(), guessedCharge = randomUUID();
+      const log = (id: string, merchant: string, extra: object) => ({ id, cardId: card.id, merchant, amount: "1200", date: "2026-11-14", category: null, business_bp: null, ...extra });
+      assert.match(await run("log_charge", log(chargeId, "Fictional ramen shop", { business_bp: 10_000 })), /^Fictional ramen shop is waiting in To check for the user to confirm\. No category was given, so it was guessed from the name: Food\./);
+      assert.match(await run("log_charge", log(guessedCharge, "Zebra Supplies", { category: "business_tools" })), /Category: Business tools\.$/);
+      const charges = Object.fromEntries((await db.select().from(schema.charges).where(eq(schema.charges.householdId, hid))).map(r => [r.id, r]));
+      assert.deepEqual([charges[chargeId], charges[guessedCharge]].map(r => [r.status, r.category, r.businessBp]), [["pending", "food", 10_000], ["pending", "business_tools", 0]]);
+
+      let state = await stateOf(hid);
+      const pendingRows = toCheck(state);
+      assert.equal(pendingRows.find(r => r.id === given)!.detail, "Health · 25% business · due Nov 25");
+      assert.equal(pendingRows.find(r => r.id === chargeId)!.detail, `${card.label} · Nov 14 · Food · Business · Manual entry`);
+      const before = monthByCategory(state, state.today);
+      assert.ok(!before.categories.some(c => c.category === "health"), "pending rows are not in the month");
+      assert.equal(await confirmPending(db, hid, "bill", given), true);
+      assert.equal(await confirmPending(db, hid, "charge", chargeId), true);
+      state = await stateOf(hid);
+      const after = monthByCategory(state, state.today);
+      assert.deepEqual(after.categories.find(c => c.category === "health")!.items, [{ label: "Fictional gym", date: "2026-11-25", amountMinor: 3000, businessBp: 2500 }]);
+      assert.equal(after.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional ramen shop")!.businessBp, 10_000);
+
+      const text = await run("month_by_category", {});
+      assert.equal(text, monthText(after));
+      assert.match(text, /Health ¥3,000 \(business ¥750 · personal ¥2,250\): Fictional gym Nov 25 ¥3,000 at 25% business\./);
+      assert.equal(tool("month_by_category").scope, "read");
+    });
+
+    // ------------------------------------------------------------ the snapshot and household scope
+    await check("the snapshot carries category on charges and bills and businessBp on both, and refuses a bad key", async () => {
+      const snap = await loadHouseholdSnapshot(db, b, { events: false });
+      assert.deepEqual(snap.bills.map(x => [x.biller, x.category, x.businessBp]).sort(), [["CloudBox Plus", "subscriptions", 10_000], ["Hikari Denki", "utilities", 3000], ["Mobaile Tsushin", "phone_internet", 5000], ["Rent", "housing", 3000]]);
+      assert.deepEqual(snap.charges.find(x => x.merchant === "Sora Cloud Hosting"), { ...snap.charges.find(x => x.merchant === "Sora Cloud Hosting")!, category: "business_tools", businessBp: 10_000 });
+      assert.equal(snap.charges.find(x => x.merchant === "Tsuki Electronics")!.category, "other");
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, bills: [{ ...snap.bills[0], category: "pets" }] }));
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, charges: [{ ...snap.charges[0], businessBp: 10_001 }] }));
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, charges: [{ ...snap.charges[0], category: undefined }] }));
+    });
+
+    await check("household scope: one household's items, categories and shares never appear in another's month", async () => {
+      const one = await seedBen(db, { isDemo: true }), two = await seedBen(db, { isDemo: true });
+      const card = (await db.select().from(schema.cards).where(eq(schema.cards.householdId, one)))[0];
+      await insertCharge(db, one, chargeInput.parse({ id: randomUUID(), cardId: card.id, merchant: "ZZ Only In One", amount: "777", date: "2026-11-14", category: "debt", businessBp: 10_000 }), "confirmed", "manual");
+      const stateOne = await stateOf(one), stateTwo = await stateOf(two);
+      assert.ok(monthByCategory(stateOne, stateOne.today).categories.some(c => c.category === "debt" && c.items[0].label === "ZZ Only In One"));
+      assert.deepEqual(summary(stateTwo), summary(benMoney), "the other household still has exactly Ben's month");
+      assert.ok(!JSON.stringify(await loadHouseholdSnapshot(db, two, { events: false })).includes("ZZ Only In One"));
+    });
+
+    console.log(`Category checks passed (${passed}).`);
+  } finally {
+    await pg.close();
+  }
+}
+
+main().catch(error => {
+  console.error("Category tests failed", error);
+  process.exit(1);
+});
