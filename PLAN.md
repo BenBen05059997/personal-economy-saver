@@ -174,6 +174,7 @@ One database function per job, called by both the form and the agent tool (D39).
 The hand checks in a real browser are [BROWSER-CHECKS.md](BROWSER-CHECKS.md): what to do on each screen and the number it should show. Run them on dev first and again on the Worker after the first deploy; failures become boxes here.
 - [x] Full run on dev at 375px and 1440px, light and dark (sections A–L, skipping the "Needs …" checks), by two Sonnet runs on fresh Try it households: every money number matched; the failures are Stage 9 below
 - [ ] Full run on the Worker after the first deploy
+- [ ] Voice (K5) by the owner in their own Chrome or Safari with a microphone, in English and Japanese (the desktop app's browser pane blocks the microphone)
 - [ ] The "Needs …" checks once their settings exist: magic link (A5), agent drafts (D2, K3, K4), PayPal send and webhook (E4), MCP (I5), delete my data (I7), the reader (J2, J3)
 - [ ] Measured times go in the timings table above: Try it to Home ≤ 1.5 s (A2), a To check row ≤ 30 s after upload (J2), Sent in Activity ≤ 2 s (E4), an answer ≤ 8 s (K3)
 

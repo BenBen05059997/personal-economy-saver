@@ -112,7 +112,14 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 - K2. Enter sends; Shift+Enter adds a line; Japanese input (IME) does not send mid-word.
 - K3. Needs the Anthropic settings: "can I afford ¥4,000 tonight", "what's due", "where am I", "who owes whom" and one free-form question each get one or two sentences in ≤ 8 s, with numbers equal to Home's.
 - K4. Needs the Anthropic settings: "I paid ¥3,800 at the noodle place on Card B" → a pending charge in To check; confirming it matches C4.
-- K5. The microphone, where the browser supports speech, fills the Ask box.
+- K5. Voice, in your own Chrome or Safari with a microphone (the desktop app's browser pane blocks it):
+  - Open Ask → Use microphone → the browser asks for the microphone once; allow it. The button reads "Stop listening".
+  - Say "What's due this week?" → the button returns to "Use microphone", the words appear in the Ask box, and nothing is sent until Enter or Ask.
+  - With the browser set to Japanese, say 「今週の支払いは？」 → the Japanese words appear in the box.
+  - Stop listening part-way, or close the Ask panel → listening stops and nothing is sent.
+  - Block the microphone and try again → "Speech wasn't captured. Try again or type below.", and typing still works.
+  - In Firefox → "This browser doesn't offer speech recognition. Type your question below."
+  - Needs the Anthropic settings: a spoken "I paid ¥3,800 at the noodle place on Card B", then Ask → the same pending charge as K4.
 
 ## L. Every screen, both widths, light and dark
 

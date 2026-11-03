@@ -39,7 +39,8 @@ export function AskPanel() {
     if (!Speech) { setAnswer("This browser doesn’t offer speech recognition. Type your question below."); return; }
     const recognition = new Speech();
     recognizer.current = recognition;
-    recognition.lang = "en-US";
+    // Listen in the browser's own language, so a Japanese browser hears Japanese.
+    recognition.lang = navigator.language;
     recognition.interimResults = false;
     recognition.onresult = event => {
       const transcript = event.results[0]?.[0]?.transcript;
