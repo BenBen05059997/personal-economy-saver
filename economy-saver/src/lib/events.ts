@@ -1,9 +1,10 @@
 import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
-import { type Db, recordEvent, recordWebhookDelivery, requireHousehold } from "@/db/household";
+import { type Db, recordEvent, recordWebhookDelivery, requireHousehold, usdRateMicro } from "@/db/household";
 import { beginMoneyChange, lockRunway, observeRunway } from "@/db/runway-events";
-import { DEMO_DATE } from "@/db/demo";
+import { DEMO_DATE } from "@/db/clock";
 import { convertMinor, fromMinor, fromRateMicro } from "@/db/money";
-import { fxRates, households, invoices, members, paypalConnections, webhookDeliveries } from "@/db/schema";
+import { fillPots } from "@/db/pots";
+import { clients, fxRates, households, invoices, members, paypalConnections, webhookDeliveries } from "@/db/schema";
 import type { PayPalWebhookEvent } from "@/lib/paypal/webhook";
 
 /** The signature has already been verified. Receipt, invoice transition and notification commit together. */
@@ -13,7 +14,7 @@ export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): 
     const invoiceId = event.event_type.startsWith("INVOICING.INVOICE.") ? resource?.id : undefined;
     // PayPal sends its globally unique invoice id, not our household id. Resolve only its owning household.
     const [owner] = invoiceId
-      ? await tx.select({ householdId: invoices.householdId, timeZone: households.timeZone, demo: households.isDemo }).from(invoices)
+      ? await tx.select({ householdId: invoices.householdId, timeZone: households.timeZone, demo: households.isDemo, home: households.homeCurrency }).from(invoices)
           .innerJoin(households, eq(households.id, invoices.householdId))
           .where(eq(invoices.paypalInvoiceId, invoiceId))
       : [];
@@ -77,6 +78,15 @@ export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): 
         ref: { type: "invoice", id: paid.id },
         notify: true, occurredAt: effective,
       });
+      // D43: a payment that credits the balance also fills the pots that have a rule; the credit is counted in the home currency.
+      if (increment > 0) {
+        const homeCredit = connection.currency === owner.home ? increment
+          : convertMinor(increment, connection.currency, owner.home, fromRateMicro(await usdRateMicro(tx, owner.householdId, owner.home, paid.businessDate!)));
+        const [client] = await tx.select({ name: clients.name }).from(invoices)
+          .innerJoin(clients, and(eq(clients.householdId, invoices.householdId), eq(clients.id, invoices.clientId)))
+          .where(and(eq(invoices.householdId, owner.householdId), eq(invoices.id, paid.id)));
+        await fillPots(tx, owner.householdId, homeCredit, `${client.name}'s payment`);
+      }
       await observeRunway(tx, owner.householdId);
     }
   });

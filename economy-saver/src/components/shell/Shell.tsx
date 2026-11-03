@@ -13,6 +13,7 @@ const iconPaths = {
   activity: "M3 4.5h10 M3 8h10 M3 11.5h10",
   cards: "M3.5 3.5h9a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11V5a1.5 1.5 0 0 1 1.5-1.5z M2 6.8h12",
   clients: "M8.2 6A2.2 2.2 0 1 1 3.8 6a2.2 2.2 0 0 1 4.4 0z M2 13c.3-2.4 2-3.6 4-3.6s3.7 1.2 4 3.6 M10.5 4.2a2.2 2.2 0 0 1 0 3.6 M12 9.6c1 .5 1.8 1.5 2 3.4",
+  plan: "M3 12.5V9 M7 12.5V5.5 M11 12.5V3 M2.5 12.5h11",
   settings: "M3 5h2 M8 5h5 M3 11h6 M12 11h1 M8 5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z M12 11a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z",
   mic: "M6 4a2 2 0 0 1 4 0v3.5a2 2 0 0 1-4 0z M3.5 7.8a4.5 4.5 0 0 0 9 0 M8 12.3V14",
   plus: "M8 3v10 M3 8h10",
@@ -30,6 +31,7 @@ const destinations = [
   { icon: "activity", label: "Activity", href: "/activity" },
   { icon: "cards", label: "Cards", href: "/cards" },
   { icon: "clients", label: "Clients", href: "/clients" },
+  { icon: "plan", label: "Plan", href: "/plan" },
 ] as const;
 
 export type Section = typeof destinations[number]["icon"] | "settings" | "invoices" | "options" | "upload";

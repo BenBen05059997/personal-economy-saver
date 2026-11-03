@@ -3,13 +3,17 @@ import { and, eq } from "drizzle-orm";
 import { type Db, recordEvent, requireHousehold } from "./household";
 import { bills, charges, households } from "./schema";
 import { fromMinor } from "./money";
+import { confirmBalanceUpdate } from "./bank-balance";
+import { confirmPot } from "./pots";
 import { syncClosedStatementCharge } from "./statement-charge";
 
-export async function confirmPending(db: Db, householdId: string, kind: "bill" | "charge", id: string) {
+export async function confirmPending(db: Db, householdId: string, kind: "bill" | "charge" | "balance" | "pot", id: string) {
   const hid = requireHousehold(householdId);
   return db.transaction(async tx => {
     const [household] = await tx.select({ id: households.id, previous: households.runwayShort }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) return false;
+    if (kind === "balance") return confirmBalanceUpdate(tx, hid, id);
+    if (kind === "pot") return confirmPot(tx, hid, id);
     const table = kind === "bill" ? bills : charges;
     const pending = and(eq(table.householdId, hid), eq(table.id, id), eq(table.status, "pending"));
     if (household.previous === null) {

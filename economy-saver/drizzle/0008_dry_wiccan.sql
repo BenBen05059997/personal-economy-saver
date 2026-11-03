@@ -1,0 +1,2 @@
+ALTER TABLE "bills" ADD COLUMN "repeat_day" integer;--> statement-breakpoint
+ALTER TABLE "bills" ADD CONSTRAINT "bills_repeat_day_valid" CHECK ("bills"."repeat_day" is null or "bills"."repeat_day" between 1 and 31);

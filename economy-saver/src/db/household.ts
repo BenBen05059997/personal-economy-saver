@@ -4,12 +4,14 @@
 import { and, count, desc, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { Currency } from "@/lib/catalogue/types";
-import { addDays } from "@/lib/money/runway";
-import type { Bill, Card, Charge, Client, ClosedStatement, Invoice, MoneyState } from "@/lib/money/types";
+import { expandBills } from "@/lib/money/repeat";
+import { addDays, planWindow } from "@/lib/money/runway";
+import type { Bill, Card, Charge, Client, ClosedStatement, Invoice, MoneyState, Pot } from "@/lib/money/types";
 import { convertMinor, fromMinor, fromRateMicro, toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
+import { householdMoment } from "./clock";
 
 // Both the postgres.js client and PGlite (tests) fit this.
 export type Db = PgDatabase<PgQueryResultHKT, typeof s>;
@@ -60,7 +62,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
   const inHome = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, home, fxPerUsd), home);
   const inUsd = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, "USD", fxPerUsd), "USD");
 
-  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows] = await Promise.all([
+  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows, balanceRows, potRows] = await Promise.all([
     db.select().from(s.paypalConnections).where(eq(s.paypalConnections.householdId, hid)),
     db.select().from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(s.bills.due, s.bills.biller),
     db.select().from(s.cards).where(eq(s.cards.householdId, hid)).orderBy(s.cards.createdAt, s.cards.label),
@@ -76,11 +78,13 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
       .orderBy(s.cardStatements.dueOn),
     db.select().from(s.clients).where(eq(s.clients.householdId, hid)).orderBy(s.clients.createdAt, s.clients.name),
     db.select().from(s.invoices).where(eq(s.invoices.householdId, hid)).orderBy(s.invoices.sentOn, s.invoices.createdAt),
+    db.select().from(s.balanceUpdates).where(and(eq(s.balanceUpdates.householdId, hid), eq(s.balanceUpdates.status, "pending"))).orderBy(s.balanceUpdates.createdAt, s.balanceUpdates.id),
+    db.select().from(s.pots).where(eq(s.pots.householdId, hid)).orderBy(s.pots.createdAt, s.pots.name, s.pots.id),
   ]);
 
   const paypalMinor = connections.reduce((sum, c) => sum + convertMinor(c.balanceMinor, c.balanceCurrency, home, fxPerUsd), 0);
 
-  const bills: Bill[] = billRows.map((b) => ({
+  const storedBills: Bill[] = billRows.map((b) => ({
     id: b.id,
     biller: b.biller,
     amount: inHome(b.amountMinor, b.currency),
@@ -88,6 +92,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     category: b.category,
     status: b.status,
     ...(b.previousAmountMinor !== null && { previousAmount: inHome(b.previousAmountMinor, b.currency) }),
+    ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
   }));
 
   const cards: Card[] = cardRows.map((c) => ({
@@ -151,19 +156,35 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
       ...(i.note !== null && { note: i.note }),
     }));
 
-  return {
+  const toPot = (p: typeof potRows[number]): Pot => ({
+    id: p.id,
+    name: p.name,
+    saved: inHome(p.savedMinor, p.currency),
+    ...(p.targetMinor !== null && { target: inHome(p.targetMinor, p.currency) }),
+    ...(p.targetDate !== null && { targetDate: p.targetDate }),
+    ...(p.fillBp !== null && { fillPct: p.fillBp / 100 }),
+  });
+
+  const state: MoneyState = {
     today,
     homeCurrency: home,
     fxPerUsd,
     paypal: fromMinor(paypalMinor, home),
     bank: fromMinor(household.bankBalanceMinor, home),
-    bills,
+    bills: [],
     cards,
     charges,
     statements,
     clients,
     invoices,
+    pots: potRows.filter((p) => p.status === "confirmed").map(toPot),
+    pendingPots: potRows.filter((p) => p.status === "pending").map(toPot),
+    balanceUpdates: balanceRows.map((u) => ({ id: u.id, amount: inHome(u.amountMinor, u.currency) })),
   };
+  // D41: monthly bills become their occurrences up to the last day the engine looks at. planWindow reads only cards,
+  // charges and statements, so it can be computed before any bill is in the state.
+  state.bills = expandBills(storedBills, today, addDays(today, planWindow(state) - 1));
+  return state;
 }
 
 // ---------------------------------------------------------------- events (D35)
@@ -188,6 +209,12 @@ export async function recordEvent(db: Db, householdId: string, e: NewEvent): Pro
     )).returning({ id: s.households.id });
     notify = claimed.length > 0;
   }
+  // D34: a demo household's events carry its clock, so Activity dates and sorts with the scenario. An explicit
+  // occurredAt (a provider's timestamp, D37) is kept as given; a real household keeps the database's now().
+  const [household] = await db.select({ isDemo: s.households.isDemo, timeZone: s.households.timeZone })
+    .from(s.households).where(eq(s.households.id, hid));
+  if (!household) throw new Error("Household no longer exists");
+  const occurredAt = e.occurredAt ?? (household.isDemo ? householdMoment(household) : undefined);
   const [row] = await db
     .insert(s.events)
     .values({
@@ -200,7 +227,7 @@ export async function recordEvent(db: Db, householdId: string, e: NewEvent): Pro
       refType: e.ref?.type ?? null,
       refId: e.ref?.id ?? null,
       notify,
-      ...(e.occurredAt && { occurredAt: e.occurredAt }),
+      ...(occurredAt && { occurredAt }),
     })
     .returning({ id: s.events.id });
   return row.id;

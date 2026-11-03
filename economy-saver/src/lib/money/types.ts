@@ -14,6 +14,7 @@ export type Bill = {
   category: string;
   status: "confirmed" | "pending"; // pending = read by AI, waiting for the user to confirm
   previousAmount?: number;
+  repeatDay?: number; // monthly bill (D41): the day of the month it falls due; the engine sees one Bill per occurrence
 };
 
 export type Client = {
@@ -68,6 +69,16 @@ export type ClosedStatement = {
   dueOn: string;
 };
 
+// Money set aside with a reason (D43). `saved` is not spendable. `fillPct` is the share of each client payment added to it.
+export type Pot = {
+  id: string;
+  name: string;
+  saved: number; // home currency
+  target?: number; // home currency
+  targetDate?: string; // YYYY-MM-DD
+  fillPct?: number; // 25 = a quarter of each client payment
+};
+
 export type MoneyState = {
   today: string;
   homeCurrency: Currency;
@@ -80,4 +91,7 @@ export type MoneyState = {
   statements: ClosedStatement[];
   clients: Client[];
   invoices: Invoice[];
+  pots: Pot[]; // confirmed pots: their saved money is taken off the cash the runway starts from
+  pendingPots: Pot[]; // pots waiting in To check; they count for nothing until confirmed
+  balanceUpdates: { id: string; amount: number }[]; // new bank balances waiting in To check (D42), home currency
 };

@@ -2,11 +2,13 @@ import type { ReaderInbox } from "@/db/reader-inbox";
 import Link from "next/link";
 import type { MoneyState } from "@/lib/money/types";
 import { dayLabel, formatter, usd } from "@/lib/money/format";
-import { addDays, arrivals, daysBetween, paybackFor, roomOnCard, safeToSpend, series, statementItems, timeline } from "@/lib/money/runway";
+import { addDays, arrivals, daysBetween, safeToSpend, series, statementItems, timeline } from "@/lib/money/runway";
 import { fundingOptions } from "@/lib/money/options";
+import { potSummary } from "@/lib/money/plan";
 import { toCheck } from "@/lib/money/to-check";
 import { homeSentence } from "@/lib/money/sentence";
 import { RunwayChart } from "./RunwayChart";
+import { cardSummary } from "./card-summary";
 import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
 import "./home.css";
@@ -31,7 +33,23 @@ function Actions({ state }: Props) {
   </div>;
 }
 
-function Next30Days({ state }: Props) {
+/** D42: the bank balance in one line. Update reveals one field; the id is minted per render so a double submit saves once. */
+function BankBalance({ state, balanceId }: Props & { balanceId: string }) {
+  const format = formatter(state.homeCurrency);
+  const jpy = state.homeCurrency === "JPY";
+  return <details className="home-balance">
+    <summary><span>Bank balance <b>{format(state.bank)}</b></span><span className="home-balance-edit">Update</span></summary>
+    <form method="post" action="/api/bank-balance">
+      <input type="hidden" name="id" value={balanceId} />
+      <input type="hidden" name="returnTo" value="/" />
+      <input name="amount" aria-label={`New bank balance (${state.homeCurrency})`} placeholder="New balance" inputMode={jpy ? "numeric" : "decimal"} required maxLength={16}
+        pattern={jpy ? "-?[0-9]+" : "-?[0-9]+(\\.[0-9]{1,2})?"} />
+      <button className="home-confirm">Save</button>
+    </form>
+  </details>;
+}
+
+function Next30Days({ state, balanceId }: Props & { balanceId: string }) {
   const format = formatter(state.homeCurrency);
   // Only the amount is displayed. The essentials threshold affects the optional spending verdict.
   const safe = safeToSpend(state, 0);
@@ -43,6 +61,8 @@ function Next30Days({ state }: Props) {
     <p className="home-label">Safe to spend now</p>
     <div className="home-amount">{format(safe.amount)}</div>
     <p className="home-note">{unbilled.length ? `Includes ${unbilled.join(" and ")} not yet billed` : "No unbilled card spend due in the next 30 days."}</p>
+    <BankBalance state={state} balanceId={balanceId} />
+    {state.pots.length > 0 && <ul className="home-pots">{state.pots.map((pot) => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}
     <RunwayChart balances={series(state, "worst")} format={format} />
   </section>;
 }
@@ -56,7 +76,7 @@ function ToCheck({ state, inbox }: Props & { inbox: ReaderInbox }) {
     {inbox.readings.map(r => <div key={r.id} className="home-row"><span>{r.value.name || "Document"}</span><Link href={`/to-check#reading-${r.id}`}>Review</Link></div>)}
     {rows.map((row) => <div key={row.id} className="home-row home-check-row">
       <div>{row.title}<small>{row.detail}</small></div>
-      <div className="home-number">{formatter(state.homeCurrency)(row.amount)}</div>
+      <div className="home-number">{row.amount !== null && formatter(state.homeCurrency)(row.amount)}</div>
       <ConfirmButton kind={row.kind} id={row.id} title={row.title} />
     </div>)}
   </section>;
@@ -68,16 +88,13 @@ function Cards({ state }: Props) {
     <h2>Cards <Link prefetch={false} href="/cards">All cards ›</Link></h2>
     {state.cards.length === 0 && <p className="home-empty">No cards added.</p>}
     {state.cards.map((card) => {
-      const next = paybackFor(state, card.id);
-      return <div key={card.id} className="home-row">
-        <div>
-          <Link prefetch={false} href={`/cards/${card.id}`}>{card.label}</Link>
-          <small>{next ? `${next.open ? "So far · due" : "Statement due"} ${dayLabel(next.dueOn)}` : "No statement due"}</small>
-          <small>{format(roomOnCard(state, card.id).room)} room on this card</small>
-        </div>
-        {next && <div className="home-number">{format(next.amount)}
-          <small>{next.source === "short" ? <span className="home-short">Short {format(-next.worstBalance)}</span> : <span className="home-covered">Covered ✓</span>}</small>
-        </div>}
+      const { owed, limitLeft, next, shortBy } = cardSummary(state, card.id);
+      return <div key={card.id} className="home-row home-card-row">
+        <Link prefetch={false} href={`/cards/${card.id}`}>{card.label}</Link>
+        <div className="home-number">{format(owed)}<small>owed now</small></div>
+        {limitLeft !== undefined && <small className="home-card-limit">{format(Math.max(0, limitLeft))} limit left</small>}
+        <small className="home-card-next">{next ? `${next.open ? "So far" : "Statement"} ${format(next.amount)} · due ${dayLabel(next.dueOn)}` : "No statement due"}</small>
+        {next && <small className="home-card-status">{shortBy > 0 ? <span className="home-short">Short {format(shortBy)}</span> : <span className="home-covered">Covered ✓</span>}</small>}
       </div>;
     })}
   </section>;
@@ -88,6 +105,7 @@ function ComingUp({ state, people, entryIds }: Props & { people: People; entryId
   const usual = timeline(state, "expected");
   const late = series(state, "worst");
   const incoming = new Map(arrivals(state).map((item) => [`${item.invoiceId}-expected`, item]));
+  const monthly = new Set(state.bills.filter((bill) => bill.repeatDay !== undefined).map((bill) => bill.id)); // an event's id is its bill's id
   const rows = usual.map((event) => {
       const payment = incoming.get(event.id);
       const i = daysBetween(state.today, event.date);
@@ -98,6 +116,7 @@ function ComingUp({ state, people, entryIds }: Props & { people: People; entryId
           {payment ? <small>Usual date · if late, {dayLabel(payment.worstOn)}</small>
             : event.pending ? <small>Awaiting confirmation</small>
             : short && <small className="home-short">Short by {format(-late[i])} if clients pay late</small>}
+          {monthly.has(event.id) && <small>Every month</small>}
         </div>
         <div className="home-number">{payment ? `+${usd(payment.amountUsd)}` : format(Math.abs(event.amount))}
           {payment && state.homeCurrency !== "USD" && <small>≈{format(payment.amountHome)}</small>}
@@ -117,7 +136,7 @@ function ComingUp({ state, people, entryIds }: Props & { people: People; entryId
   </section>;
 }
 
-export function HomeView({ state, inbox, notice, people, entryIds }: Props & { inbox: ReaderInbox; notice?: string | null; people: People; entryIds: EntryIds }) {
+export function HomeView({ state, inbox, notice, people, entryIds, balanceId }: Props & { inbox: ReaderInbox; notice?: string | null; people: People; entryIds: EntryIds; balanceId: string }) {
   const sentence = homeSentence(state);
   const safe = safeToSpend(state, 0);
   const lead = sentence.lead.split(/([,\s]+)/).map((word, index) => {
@@ -133,7 +152,7 @@ export function HomeView({ state, inbox, notice, people, entryIds }: Props & { i
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} />
     <div className="home-panels">
-      <div className="home-column"><Next30Days state={state} /><Cards state={state} /></div>
+      <div className="home-column"><Next30Days state={state} balanceId={balanceId} /><Cards state={state} /></div>
       <div className="home-column"><ToCheck state={state} inbox={inbox} /><ComingUp state={state} people={people} entryIds={entryIds} /></div>
     </div>
   </article>;

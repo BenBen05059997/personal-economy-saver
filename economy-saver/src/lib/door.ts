@@ -16,9 +16,9 @@ export function text(message: string, status: number, headers: Record<string, st
   return new Response(message, { status, headers: { ...NO_STORE, ...headers } });
 }
 
-/** Only the two pages that offer the form are valid return targets. */
+/** Only the pages that offer a form are valid return targets. */
 export function returnPath(value: FormDataEntryValue | null) {
-  return value === "/to-check" ? "/to-check" : "/";
+  return value === "/to-check" || value === "/plan" ? value : "/";
 }
 
 /** Plain-text failure: a request problem is 400 with its user-facing message, anything else is 503 with no detail. */

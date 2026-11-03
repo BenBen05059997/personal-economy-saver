@@ -6,8 +6,6 @@ import { seedBen } from "./seed";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
 
-export const DEMO_DATE = "2026-11-14";
-
 export async function findDemoHousehold(db: Db, id: string): Promise<string | null> {
   if (!z.string().uuid().safeParse(id).success) return null;
   const [demo] = await db.select({ id: households.id }).from(households)

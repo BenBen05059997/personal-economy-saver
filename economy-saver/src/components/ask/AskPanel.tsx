@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 
 type Recognition = {
@@ -71,11 +71,19 @@ export function AskPanel() {
     finally { setBusy(false); }
   }
 
+  // Enter asks, Shift+Enter is a newline, and Enter that confirms an IME candidate (Japanese input) never asks.
+  function enterAsks(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    if (text.trim() && !busy && !listening) event.currentTarget.form?.requestSubmit();
+  }
+
   return <section id="shell-questions" ref={panel} popover="auto" className="shell-popover shell-ask-menu">
     <h2>Ask about your money</h2>
     <form onSubmit={ask}>
       <label className="ui-field">Your question
         <textarea maxLength={320} rows={3} value={text} required placeholder="What’s due this week? Can I afford ¥4,000 tonight?"
+          onKeyDown={enterAsks}
           onChange={event => { setText(event.target.value); setSource("manual"); requestId.current = ""; }} />
       </label>
       <button type="button" className="ui-button" disabled={busy} onClick={listening ? () => recognizer.current?.abort() : speak}>{listening ? "Stop listening" : "Use microphone"}</button>{" "}

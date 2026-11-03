@@ -56,10 +56,12 @@ async function main() {
     await client.connect(transport);
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "can_i_spend", "draft_invoice", "list_clients_and_cards", "list_invoices", "log_charge", "options_when_short", "timeline", "whats_due", "where_am_i"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_pot", "can_i_spend", "draft_invoice", "list_clients_and_cards", "list_invoices", "log_charge", "options_when_short", "plan_for", "timeline", "update_bank_balance", "whats_due", "where_am_i"]);
     stage = "tool execution";
     const outlook = await client.callTool({ name: "where_am_i", arguments: {} });
     assert.match(JSON.stringify(outlook.content), /18,780 short/);
+    const plan = JSON.parse(((await client.callTool({ name: "plan_for", arguments: { target_minor: 1_200_000, target_date: "2027-03-31" } })).content as { text: string }[])[0].text);
+    assert.equal(plan.monthlyNeededMinor, 300_000);
     console.log("MCP handshake and tools/list succeeded. Ben’s outlook includes a ¥18,780 shortfall.");
     const spend = await client.callTool({ name: "can_i_spend", arguments: { amount_minor: 4000 } });
     assert.match(JSON.stringify(spend.content), /Hold off on cash/);
@@ -82,7 +84,7 @@ async function main() {
     const readClient = new Client({ name: "read-test", version: "1.0.0" });
     try {
       await readClient.connect(new StreamableHTTPClientTransport(endpoint, { requestInit: { headers: { Authorization: "Bearer " + readOnly } } }));
-      assert.ok(!(await readClient.listTools()).tools.some(t => t.name === "draft_invoice"));
+      assert.ok(!(await readClient.listTools()).tools.some(t => t.name === "draft_invoice" || t.name === "update_bank_balance" || t.name === "add_pot"));
     } finally { await readClient.close(); }
 
     stage = "rate limits";

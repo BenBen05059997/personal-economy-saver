@@ -44,7 +44,7 @@ export async function runDaily(db: Db, id: string, now = new Date()) {
     const [existing] = await tx.select({ id: events.id }).from(events)
       .where(and(eq(events.householdId, hid), eq(events.kind, "daily_reminder"), eq(events.title, title))).limit(1);
     if (notes.length && !existing) {
-      await recordEvent(tx, hid, { kind: "daily_reminder", title, body: notes.join(" "), notify: true, occurredAt: now });
+      await recordEvent(tx, hid, { kind: "daily_reminder", title, body: notes.join(" "), notify: true });
     }
     await observeRunway(tx, hid);
     return { ok: true };

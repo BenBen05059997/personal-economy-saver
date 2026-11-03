@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
-import { clockForHousehold } from "./account";
-import { bills, charges, households, members, readings } from "./schema";
+import { clockForHousehold } from "./clock";
+import { balanceUpdates, bills, charges, households, members, pots, readings } from "./schema";
 import { readerInbox } from "./reader-inbox";
 import type { refreshPayPal } from "./paypal-refresh";
 import { observeRunway } from "./runway-events";
@@ -23,6 +23,8 @@ export async function loadNavigationData(tx: Db, householdId: string) {
       (select count(*) from ${bills} where ${bills.householdId} = ${hid} and ${bills.status} = 'pending')
       + (select count(*) from ${charges} where ${charges.householdId} = ${hid} and ${charges.status} = 'pending'
         and ${charges.date} >= ${addDays(today, -CHARGE_LOOKBACK_DAYS)})
+      + (select count(*) from ${balanceUpdates} where ${balanceUpdates.householdId} = ${hid} and ${balanceUpdates.status} = 'pending')
+      + (select count(*) from ${pots} where ${pots.householdId} = ${hid} and ${pots.status} = 'pending')
       + (select count(*) from ${readings} where ${readings.householdId} = ${hid} and ${readings.status} = 'to_check')
     `.mapWith(Number) }).from(households).where(eq(households.id, hid)),
   ]);

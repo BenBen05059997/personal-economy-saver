@@ -1,5 +1,7 @@
 import type { Profile } from "@/lib/catalogue/types";
-import type { Charge, MoneyState } from "@/lib/money/types";
+import { expandBills } from "@/lib/money/repeat";
+import { addDays, planWindow } from "@/lib/money/runway";
+import type { Bill, Charge, MoneyState } from "@/lib/money/types";
 
 // Sample persona for the demo. Fictional people and companies only.
 // Numbers match the concept artifact (cards included: Card A's closed statement and Card B's open cycle
@@ -32,26 +34,32 @@ export const benProfile: Profile = {
   consumptionTaxElected: false,
 };
 
+// The bills as they are stored (and seeded): Ben's subscription, phone and rent repeat every month (D41);
+// the electricity bill is a one-off waiting in To check.
+export const benStoredBills: Bill[] = [
+  { id: "b-cloudbox", biller: "CloudBox Plus", amount: 1_980, due: "2026-11-18", category: "Subscriptions", repeatDay: 18 },
+  { id: "b-mobaile", biller: "Mobaile Tsushin", amount: 4_800, due: "2026-11-20", category: "Phone", repeatDay: 20 },
+  { id: "b-rent", biller: "Rent", amount: 82_000, due: "2026-11-27", category: "Housing", repeatDay: 27 },
+  {
+    id: "b-hikari",
+    biller: "Hikari Denki",
+    amount: 11_220,
+    due: "2026-11-27",
+    category: "Utilities · Electricity",
+    status: "pending" as const,
+    previousAmount: 10_020,
+  },
+].map((b) => ({ status: "confirmed" as const, ...b }));
+
+const benToday = "2026-11-14";
+
 export const benMoney: MoneyState = {
-  today: "2026-11-14",
+  today: benToday,
   homeCurrency: "JPY",
   fxPerUsd: 150,
   paypal: 61_000,
   bank: 67_000,
-  bills: [
-    { id: "b-cloudbox", biller: "CloudBox Plus", amount: 1_980, due: "2026-11-18", category: "Subscriptions" },
-    { id: "b-mobaile", biller: "Mobaile Tsushin", amount: 4_800, due: "2026-11-20", category: "Phone" },
-    { id: "b-rent", biller: "Rent", amount: 82_000, due: "2026-11-27", category: "Housing" },
-    {
-      id: "b-hikari",
-      biller: "Hikari Denki",
-      amount: 11_220,
-      due: "2026-11-27",
-      category: "Utilities · Electricity",
-      status: "pending" as const,
-      previousAmount: 10_020,
-    },
-  ].map((b) => ({ status: "confirmed" as const, ...b })),
+  bills: [], // set below: the stored bills expanded into their occurrences
   // Card A closes at month end and is paid on the 26th of the next month: the October statement is closed
   // (due Nov 26) and November's charges so far fall into the statement due Dec 26, past the 30-day window.
   // Card B closes on the 15th and is paid on the 10th of the next month: the cycle that closes Nov 15
@@ -79,9 +87,15 @@ export const benMoney: MoneyState = {
     { id: "c-northwind", name: "Northwind", email: "billing@northwind.example", termsDays: 7, daysToPay: [10, 13, 12, 11, 16] },
     { id: "c-acme", name: "Acme Corp", email: "ap@acme.example", termsDays: 10, daysToPay: [12, 14, 13, 25, 16] },
   ],
+  pots: [], // D43: Ben has no pots, so every demo number stays as it is
+  pendingPots: [],
+  balanceUpdates: [],
   invoices: [
     { id: "i-1042", clientId: "c-acme", number: "1042", item: "Product illustrations, batch 3", amountUsd: 1_200, status: "sent", sentOn: "2026-11-08", dueOn: "2026-11-18" },
     { id: "i-1038", clientId: "c-northwind", number: "1038", item: "Landing page visuals", amountUsd: 800, status: "sent", sentOn: "2026-11-13", dueOn: "2026-11-20" },
     { id: "i-beacon-m2", clientId: "c-beacon", item: "Brand refresh, milestone 2", amountUsd: 400, status: "unbilled", note: "Thanks! Milestone 2 files are in the shared folder." },
   ],
 };
+
+// The engine reads occurrences up to the end of the plan window, which depends on cards and charges only.
+benMoney.bills = expandBills(benStoredBills, benToday, addDays(benToday, planWindow(benMoney) - 1));

@@ -29,7 +29,7 @@ design/one-screen.html                   the approved clickable mockup (phone an
 research/                                background research; read only when a decision points at it
 submission/                              Devpost text and video script drafts
 economy-saver/                           the app
-  src/lib/money/                         the engine (runway.ts: series, low, safeToSpend, roomOnCard, ladder, timeline…), sentence, ask, options, to-check (pure, tested; don't change maths casually)
+  src/lib/money/                         the engine (runway.ts: availableCash, series, low, safeToSpend, roomOnCard, ladder, timeline…), plan (monthlyRoom, planFor for pots), repeat (monthly bills into occurrences), sentence, ask, options, to-check (pure, tested; don't change maths casually)
   src/lib/agent/, src/lib/anthropic.ts   the in-app agent (one tool catalogue shared with MCP, the runner) and the one way the app calls Claude
   src/lib/catalogue/, src/data/catalogue/  the wealth-move catalogue engine and its Japan and US data (secondary, D6)
   src/lib/paypal/                        sandbox REST client, toolkit wrapper (draft/send split, 20 s timeout), invoice listing, webhook signature check
@@ -37,9 +37,9 @@ economy-saver/                           the app
   src/lib/reader/, src/lib/mcp/          reader (extraction, forwarding, storage) and the MCP server
   src/lib/session.ts, src/lib/door.ts    route helpers: household guard `householdRequest` (same-origin + session), shared response helpers
   src/lib/sample/ben.ts                  Ben's sample data (also the seed's source)
-  src/db/                                Drizzle schema (18 tables), client, household-scoped data layer, rate limits, money helpers, seeds
+  src/db/                                Drizzle schema (20 tables), client, household-scoped data layer, rate limits, money helpers, seeds
   src/components/                        UI by area (shell, home, household, invoices, reader, settings, ask…)
-  drizzle/                               eight ordered migrations (0000–0007)
+  drizzle/                               eleven ordered migrations (0000–0010)
   scripts/                               PGlite test suites, frontend-check.mjs (HTTP suites), seed, vault-check, smoke test
   src/app/                               pages and API routes (the route list is in ARCHITECTURE.md)
   worker.ts, wrangler.jsonc, open-next.config.ts   Cloudflare Workers build (OpenNext) with the daily Cron Trigger and the Email Worker handler
@@ -52,7 +52,7 @@ economy-saver/                           the app
 | Dev server | `npm run dev -- -p 3123` |
 | Type check | `npx tsc --noEmit -p .` |
 | Lint | `npm run lint` |
-| Database tests (no credentials; nine suites: db, approve, mcp, reader, settings, agent, refresh, doors, import) | `npm run db:test` |
+| Database tests (no credentials; ten suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, pots) | `npm run db:test` |
 | Regenerate migration after schema edits | `npm run db:generate` (then commit the SQL with the schema) |
 | Apply migrations / seed one demo household / Vault probe (owner's database) | `npm run db:migrate` / `npm run db:seed` / `npm run db:vault-check` |
 | HTTP suites against a running dev server | `node scripts/frontend-check.mjs --run\|--extra\|--guards http://127.0.0.1:3123` |
@@ -64,8 +64,8 @@ Before calling any task done: `tsc`, `lint` and `db:test` pass, and the screen h
 
 ## State on Nov 3
 
-- Supabase is in Tokyo (`ap-northeast-1`, transaction pooler port 6543). All 8 migrations are applied, one demo household is seeded, Vault create/read/delete passes, and the public key reads no rows from `households`. Warm `next dev` pages take 0.4–1.2 s; timings are in `PLAN.md`.
-- `tsc`, lint and `npm run db:test` (nine suites) pass. The HTTP suites pass on dev and on the local Worker preview against Tokyo. Worker build: 2,652 KiB gzip (limit 3 MiB).
+- Supabase is in Tokyo (`ap-northeast-1`, transaction pooler port 6543). All eleven migrations (0000–0010) are applied, one demo household is seeded (Try it households copy the current seed, so they get Ben's repeating rent, phone and subscription), Vault create/read/delete passes, and the public key reads no rows from `households`. Warm `next dev` pages take 0.4–1.2 s; timings are in `PLAN.md`.
+- `tsc`, lint and `npm run db:test` (ten suites) pass. The HTTP suites pass on dev and on the local Worker preview against Tokyo. Worker build: 2,652 KiB gzip (limit 3 MiB).
 - Typed-in doors (D39) work in the browser at 375px and desktop: add client, add bill, log card charge, mark an invoice paid outside PayPal (`status = paid` with no `paypal_invoice_id`). Home and To check share one "Add a bill or charge" form.
 - Built and tested, not run live: the PayPal history import (`/api/paypal/import`; only the non-demo household equal to `PAYPAL_BALANCE_HOUSEHOLD_ID` may import) and the in-app agent (D40: `/api/ask` runs Claude with tools over the engine, reads and drafts only). Without the Anthropic settings the Ask panel shows the clear error "ANTHROPIC_TEXT_MODEL is not set".
 - Not yet verified live: a Claude call, a PayPal sandbox send with its signed paid webhook, a magic link, Email Routing, an MCP token against the configured app.
@@ -90,6 +90,7 @@ Work from the unchecked boxes in `PLAN.md`. Stop and ask the owner only at these
 - `scripts/*.ts` run with `npx tsx --tsconfig ./tsconfig.json …` so `@/` paths resolve.
 - `APP_URL` is a required setting (`.env.example`, `.dev.vars.example`): `http://127.0.0.1:3123` for `npm run dev -- -p 3123`, `http://localhost:8787` for the Worker preview. It must also be in the Tokyo project's Authentication redirect URLs.
 - Pages are fast only in-region: keep Supabase in Tokyo (D31). A distant region adds about 0.3 s per query.
+- After a schema change, restart `next dev`: a running dev server can keep an old build of an API route's `src/db` module, so a new column is read on pages but silently not written by the route.
 - `next.config.ts` sets `allowedDevOrigins: ["127.0.0.1"]`. Without it `next dev` blocks its dev resources for the 127.0.0.1 origin that `APP_URL` and the HTTP suites use, and pages never hydrate (buttons do nothing).
 - When an agent drives the Claude desktop app's browser pane while the pane is hidden, the page is throttled and can sit on Suspense fallbacks ("Opening …"); take a screenshot or wait, it is not an app bug. Stale open tabs that keep reloading can exhaust the 3-connection DB pool.
 - `.claude/launch.json` starts the app on port 3123 and the design mockup on port 3125.

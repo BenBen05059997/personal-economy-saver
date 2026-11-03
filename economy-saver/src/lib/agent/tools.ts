@@ -6,13 +6,16 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { transformJSONSchema } from "@anthropic-ai/sdk/lib/transform-json-schema";
 import { z } from "zod";
 import { requireHousehold, type Db } from "@/db/household";
+import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
 import { chargeInput, insertCharge } from "@/db/charges";
 import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
+import { potInput, savePot } from "@/db/pots";
 import { toMinor } from "@/db/money";
 import { clients, invoices } from "@/db/schema";
 import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
 import { fundingOptions } from "@/lib/money/options";
+import { planFor, planLine } from "@/lib/money/plan";
 import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
 
@@ -131,6 +134,37 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
+    name: "plan_for", scope: "read",
+    input: z.object({
+      target_minor: z.number().int().positive().safe().nullish(),
+      target_date: z.string().date().nullish(),
+      monthly_minor: z.number().int().positive().safe().nullish(),
+      pot_id: z.string().uuid().nullish(),
+    }),
+    description: "Plan saving for something: how much to set aside each month to reach a target by a date, the date the target is reached at a monthly pace, and whether the next 30 days leave enough room. target_minor is the amount to reach, in home-currency minor units (whole yen for JPY, cents for USD). target_date (YYYY-MM-DD) asks for the monthly amount needed by then. monthly_minor tests a pace you were given; without it the pace is what the next 30 days leave over if clients pay as usual. pot_id (from the pots the user has) plans for an existing pot: its saved amount counts, and its target and date are used when you give none. Quote summary to the user as it is; it is built in code. Information only; use add_pot to put a pot in To check.",
+    run: async (ctx, input) => {
+      const state = await ctx.state();
+      const pot = input.pot_id ? state.pots.find(p => p.id === input.pot_id) : undefined;
+      if (input.pot_id && !pot) throw new Error("Unknown pot");
+      const minor = (amount: number) => toMinor(amount, state.homeCurrency);
+      const unit = (n: number) => n / (state.homeCurrency === "USD" ? 100 : 1);
+      const target = input.target_minor != null ? unit(input.target_minor) : pot?.target;
+      if (target === undefined) throw new Error("A target amount is required");
+      const targetDate = input.target_date ?? pot?.targetDate;
+      const monthly = input.monthly_minor != null ? unit(input.monthly_minor) : undefined;
+      const request = { target, saved: pot?.saved ?? 0, ...(targetDate && { targetDate }), ...(monthly !== undefined && { monthly }) };
+      const plan = planFor(request, state);
+      return JSON.stringify({
+        summary: planLine(request, plan, state), currency: state.homeCurrency,
+        targetMinor: minor(target), savedMinor: minor(request.saved), neededMinor: minor(plan.needed), monthlyRoomMinor: minor(plan.monthlyRoom),
+        ...(plan.months !== undefined && { months: plan.months }),
+        ...(plan.monthlyNeeded !== undefined && { monthlyNeededMinor: minor(plan.monthlyNeeded) }),
+        ...(plan.fits !== undefined && { fits: plan.fits }),
+        ...(plan.pace !== undefined && { paceMinor: minor(plan.pace), monthsAtPace: plan.monthsAtPace, reachedOn: plan.reachedOn }),
+      });
+    },
+  }),
+  defineTool({
     name: "draft_invoice", scope: "draft", input: draftInput,
     description: "Save a local USD invoice draft for the user to review; nothing is sent. amount is dollars, like 18.52. id is a new UUID; reuse the same id when retrying. client_id comes from list_clients_and_cards.",
     run: async (ctx, input) => {
@@ -142,7 +176,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bill", scope: "draft", input: billInput,
-    description: "Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800). due is YYYY-MM-DD. member_id is null for a shared bill. id is a new UUID; reuse the same id when retrying.",
+    description: "Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800). due is YYYY-MM-DD. member_id is null for a shared bill. monthly is true when the bill repeats every month on the due date's day (rent, phone, insurance, a subscription), false for a one-off; it only starts repeating once the user confirms it. id is a new UUID; reuse the same id when retrying.",
     run: async (ctx, input) => {
       await insertBill(ctx.db, ctx.householdId, input, "pending");
       ctx.onPending?.();
@@ -156,6 +190,24 @@ export const tools: Tool[] = [
       await insertCharge(ctx.db, ctx.householdId, input, "pending", ctx.source ?? "manual");
       ctx.onPending?.();
       return `${input.merchant} is waiting in To check for the user to confirm.`;
+    },
+  }),
+  defineTool({
+    name: "add_pot", scope: "draft", input: potInput.pick({ id: true, name: true, target: true, targetDate: true, fillPct: true }),
+    description: "Suggest a pot, money set aside with a reason, only when the user talks about saving for something or a payment just landed and they ask what to do. It waits in To check until the user confirms it; money in a pot is not safe to spend once confirmed. name is the reason (Car, Trip, Tax). target is a plain number in the household's home currency, or null. targetDate is YYYY-MM-DD, or null. fillPct is the share of each client payment to set aside, such as 25 for 25 percent, or null. id is a new UUID; reuse the same id when retrying.",
+    run: async (ctx, input) => {
+      await savePot(ctx.db, ctx.householdId, { ...input, saved: "0", memberId: null }, "pending");
+      ctx.onPending?.();
+      return `The ${input.name} pot is waiting in To check for the user to confirm.`;
+    },
+  }),
+  defineTool({
+    name: "update_bank_balance", scope: "draft", input: bankBalanceInput,
+    description: "Update the household's bank balance to the amount the user tells you. It waits in To check until the user confirms it; the balance does not change yet. amount is the new balance as a plain number in the household's home currency (182000 for ¥182,000; a negative number if overdrawn). id is a new UUID; reuse the same id when retrying.",
+    run: async (ctx, input) => {
+      await setBankBalance(ctx.db, ctx.householdId, input, "pending");
+      ctx.onPending?.();
+      return "The new bank balance is waiting in To check for the user to confirm.";
     },
   }),
 ];

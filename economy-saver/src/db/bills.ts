@@ -13,11 +13,13 @@ export const billInput = z.object({
   due: z.string().date(),
   category: z.string().trim().min(1).max(100),
   memberId: z.string().uuid().nullable().default(null),
+  monthly: z.boolean().default(false), // true: repeats every month on the due date's day (D41)
 });
 
 /**
  * Adds a bill in the household's home currency. "confirmed" counts in the forecast at once (forms);
- * "pending" waits in To check until `confirmPending` (the agent). Idempotent on `id`: the same id with the same
+ * "pending" waits in To check until `confirmPending` (the agent). `monthly` stores the due date's day of the month as
+ * `repeat_day`; the bill expands into occurrences only once confirmed (D41). Idempotent on `id`: the same id with the same
  * fields returns it again without a second event, different fields throw.
  */
 export async function insertBill(db: Db, householdId: string, input: z.infer<typeof billInput>, status: "confirmed" | "pending"): Promise<string> {
@@ -32,10 +34,11 @@ export async function insertBill(db: Db, householdId: string, input: z.infer<typ
       const [member] = await tx.select({ id: members.id }).from(members).where(and(eq(members.householdId, hid), eq(members.id, data.memberId)));
       if (!member) throw new InputError("Choose a member of this household");
     }
+    const repeatDay = data.monthly ? Number(data.due.slice(8, 10)) : null;
     const [existing] = await tx.select().from(bills).where(and(eq(bills.householdId, hid), eq(bills.id, data.id)));
     if (existing) {
       if (existing.biller !== data.biller || existing.amountMinor !== amountMinor || existing.due !== data.due
-        || existing.category !== data.category || existing.memberId !== data.memberId) {
+        || existing.category !== data.category || existing.memberId !== data.memberId || existing.repeatDay !== repeatDay) {
         throw new InputError("This bill identifier is already in use");
       }
       return data.id;
@@ -43,7 +46,7 @@ export async function insertBill(db: Db, householdId: string, input: z.infer<typ
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     await tx.insert(bills).values({
       id: data.id, householdId: hid, memberId: data.memberId, biller: data.biller, amountMinor,
-      currency: household.currency, due: data.due, category: data.category, status,
+      currency: household.currency, due: data.due, category: data.category, status, repeatDay,
     });
     if (status === "pending") {
       await recordEvent(tx, hid, { kind: "to_check", title: `${data.biller} bill to check`, ref: { type: "bill", id: data.id }, notify: true });

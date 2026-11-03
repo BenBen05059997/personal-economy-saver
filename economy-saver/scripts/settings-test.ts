@@ -97,6 +97,14 @@ async function main() {
       const settingsA = await loadSettings(db, a), settingsB = await loadSettings(db, b);
       await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Fictional household", bank: "23456" }));
       assert.equal((await loadSettings(db, a)).household.bank, 23456);
+      const bankEvents = async () => (await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), eq(schema.events.kind, "bank_balance")))).length;
+      const written = await bankEvents();
+      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Renamed household", bank: "23456" }));
+      assert.equal(await bankEvents(), written, "a rename with the same balance goes through setBankBalance only when the balance changes");
+      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Renamed household", bank: "-100" }));
+      assert.equal((await loadSettings(db, a)).household.bank, -100);
+      assert.equal(await bankEvents(), written + 1, "Settings changes the balance through setBankBalance (old and new in an event)");
+      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Fictional household", bank: "23456" }));
       await assert.rejects(updateSettings(db, a, settingsInput.parse({ kind: "member", id: settingsB.people[0].id, name: "Wrong household" })));
       await assert.rejects(updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: settingsA.bills[0].id, memberId: settingsB.people[0].id })));
       await updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: settingsA.bills[0].id, memberId: settingsA.people[0].id }));

@@ -207,6 +207,7 @@ const home = await step("page", "home-first-session", () => page("/", /18,780/))
 await step("page", "home-warm", () => page("/", /18,780/));
 await step("page", "cards", () => page("/cards", /Card B/));
 await step("page", "clients", () => page("/clients", /Beacon/));
+await step("page", "plan", () => page("/plan", /Add a pot/));
 await step("page", "activity", () => page("/activity", /Hikari Denki/));
 await step("page", "seeded-invoice-review-read-only", async () => {
   const id = home?.match(/href="\/invoices\/([0-9a-f-]{36})"/i)?.[1]

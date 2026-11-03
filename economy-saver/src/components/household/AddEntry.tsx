@@ -31,6 +31,7 @@ export function AddEntry({ ids, returnTo, today, currency, people, cards, catego
       <label className="ui-field">Biller<input name="biller" maxLength={160} required /></label>
       {amount}
       <label className="ui-field">Due<input name="due" type="date" defaultValue={today} required /></label>
+      <label className="add-entry-repeat"><input name="monthly" type="checkbox" /> Every month, on this day</label>
       <label className="ui-field">Category<input name="category" list="add-entry-categories" maxLength={100} required />
         <datalist id="add-entry-categories">{categories.map(name => <option key={name} value={name} />)}</datalist></label>
       <label className="ui-field">Whose<select name="memberId" defaultValue="">

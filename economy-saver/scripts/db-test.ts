@@ -7,7 +7,8 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import type { db as clientDb } from "@/db/client";
-import { deleteHousehold, listEvents, loadMoneyState, markRead, recordWebhookDelivery, unreadCount, type Db } from "@/db/household";
+import { deleteHousehold, listEvents, loadMoneyState, markRead, recordEvent, recordWebhookDelivery, unreadCount, type Db } from "@/db/household";
+import { householdMoment } from "@/db/clock";
 import { convertMinor, fromMinor, toMinor } from "@/db/money";
 import * as schema from "@/db/schema";
 import { randomUUID } from "node:crypto";
@@ -20,8 +21,9 @@ import { findDemoHousehold, resetDemoHousehold } from "@/db/demo";
 import { seedBen } from "@/db/seed";
 import { eventFeed, publicEvent } from "@/db/event-feed";
 import { applyVerifiedDelivery, recentDeliveries } from "@/lib/events";
-import { benMoney } from "@/lib/sample/ben";
-import { ladder, low, paybackFor, roomOnCard, safeToSpend, series, dueItems, timeline } from "@/lib/money/runway";
+import { benMoney, benStoredBills } from "@/lib/sample/ben";
+import { expandBills } from "@/lib/money/repeat";
+import { ladder, low, paybackFor, planWindow, roomOnCard, safeToSpend, series, dueItems, timeline } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
 import { loadNavigationData, loadWorkspaceData } from "@/db/workspace";
 import { addDays } from "@/lib/money/runway";
@@ -189,6 +191,22 @@ async function main() {
     const lw = low(series(confirmed, "worst"));
     assert.equal(lw.amount, -18_780);
     assert.equal(lw.date, "2026-11-27");
+  });
+
+  await check("the sample's repeating bills expand across the plan window and the engine counts them (pure, no database)", () => {
+    const window = planWindow({ ...benMoney, bills: [] });
+    assert.equal(window, 43, "Card A's later statement sets the window");
+    const end = addDays(benMoney.today, window - 1);
+    assert.deepEqual(benMoney.bills.map((x) => `${x.biller} ${x.due}`).sort(),
+      ["CloudBox Plus 2026-11-18", "CloudBox Plus 2026-12-18", "Hikari Denki 2026-11-27", "Mobaile Tsushin 2026-11-20", "Mobaile Tsushin 2026-12-20", "Rent 2026-11-27"]);
+    assert.deepEqual(expandBills(benStoredBills, benMoney.today, end), benMoney.bills);
+    assert.equal(benMoney.bills.find((x) => x.biller === "Hikari Denki")?.repeatDay, undefined);
+    // Without the repeats, only the Nov occurrences exist: the two Dec bills are what lowers the cards' room.
+    const oneOff = { ...benMoney, bills: benMoney.bills.filter((x) => x.due < "2026-12-01") };
+    const [cardA] = benMoney.cards;
+    assert.equal(roomOnCard(oneOff, cardA.id).room - roomOnCard(benMoney, cardA.id).room, 1_980 + 4_800);
+    assert.equal(roomOnCard(benMoney, cardA.id).room, 173_770);
+    assert.deepEqual(low(series(oneOff, "worst")), low(series(benMoney, "worst")), "the 30-day low is unchanged");
   });
 
   await check("households do not see each other's rows", async () => {
@@ -372,7 +390,7 @@ async function main() {
 
   await check("row level security is on for every table, with no policies", async () => {
     const tables = allTables().map((t) => getTableConfig(t).name);
-    assert.equal(tables.length, 18);
+    assert.equal(tables.length, 20);
     const on = (await pg.query<{ relname: string }>(`select relname from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace and relrowsecurity`)).rows.map((r) => r.relname);
     assert.deepStrictEqual(on.sort(), tables.sort());
     assert.equal((await pg.query(`select 1 from pg_policies`)).rows.length, 0);
@@ -465,6 +483,45 @@ async function main() {
     const statements = await db.select().from(schema.cardStatements).where(and(eq(schema.cardStatements.householdId, demo), eq(schema.cardStatements.cardId, card.id)));
     assert.equal(statements.length, 1);
     assert.equal(statements[0].amountMinor, 61000);
+  });
+
+  await check("events: a demo household stamps new events on its clock, a real one on real time (D34)", async () => {
+    // The moment is the demo date at the current time of day in the household's zone; the zone's offset is the one on that date.
+    const tokyo = { isDemo: true, timeZone: "Asia/Tokyo" };
+    assert.equal(householdMoment(tokyo, new Date("2026-11-03T05:30:15.250Z")).toISOString(), "2026-11-14T05:30:15.250Z");
+    assert.equal(householdMoment({ isDemo: true, timeZone: "America/New_York" }, new Date("2026-07-01T12:00:00Z")).toISOString(), "2026-11-14T13:00:00.000Z");
+    const real = new Date("2026-11-03T05:30:15Z");
+    assert.equal(householdMoment({ isDemo: false, timeZone: "Asia/Tokyo" }, real), real);
+
+    const demo = await seedBen(db, { isDemo: true });
+    const real2 = await seedBen(db);
+    const seeded = await listEvents(db, demo);
+    const feedBefore = await eventFeed(db, demo);
+    await recordEvent(db, demo, { kind: "bank_balance_set", title: "Bank balance set to ¥100,000 (was ¥67,000)" });
+    await recordEvent(db, real2, { kind: "bank_balance_set", title: "Bank balance set" });
+    const [fresh, ...older] = await listEvents(db, demo);
+    assert.equal(fresh.title, "Bank balance set to ¥100,000 (was ¥67,000)", "newest demo event sorts above the seeded ones, whatever the time of day");
+    assert.deepEqual(older.map(e => e.id), seeded.map(e => e.id));
+    const tokyoDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+    assert.equal(tokyoDay(fresh.occurredAt), "2026-11-14");
+    const secondOfDay = (d: Date) => { const [h, m, s] = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Tokyo", hourCycle: "h23", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(d).split(":").map(Number); return h * 3600 + m * 60 + s; };
+    const apart = Math.abs(secondOfDay(fresh.occurredAt) - secondOfDay(new Date()));
+    assert.ok(Math.min(apart, 86_400 - apart) < 60, "keeps the real time of day");
+    const realRow = (await listEvents(db, real2)).find(e => e.title === "Bank balance set")!;
+    assert.ok(Math.abs(realRow.occurredAt.getTime() - Date.now()) < 60_000, "a real household stamps real time");
+    assert.equal(tokyoDay(realRow.occurredAt), tokyoDay(new Date()));
+
+    // An explicit timestamp (a provider's, D37) is kept as given.
+    const provider = new Date("2026-11-03T01:02:03Z");
+    await recordEvent(db, demo, { kind: "invoice_paid", title: "Paid", occurredAt: provider });
+    assert.ok((await listEvents(db, demo)).some(e => e.occurredAt.getTime() === provider.getTime()));
+
+    // The poll's cursor is the household's latest event time from the server, so the feed sees a new demo event
+    // as a new total and a later cursor, and the since query returns exactly the new event.
+    const feedAfter = await eventFeed(db, demo);
+    assert.equal(feedAfter.total, feedBefore.total + 2);
+    assert.ok(feedAfter.since! > feedBefore.since!);
+    assert.deepEqual((await listEvents(db, demo, new Date(feedBefore.since!))).map(e => e.id), [fresh.id]);
   });
 
   await check("deleting a household removes everything of it and nothing of the other", async () => {

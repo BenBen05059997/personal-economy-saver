@@ -15,6 +15,8 @@ import { seedBen } from "@/db/seed";
 import { AgentError, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { dueAnswer } from "@/lib/money/ask";
+import { savePot } from "@/db/pots";
+import { planFor, planLine } from "@/lib/money/plan";
 
 type Block = Record<string, unknown>;
 const text = (value: string): Block => ({ type: "text", text: value });
@@ -106,11 +108,14 @@ async function main() {
       }
       const spend = toolInputSchema(tools.find(t => t.name === "can_i_spend")!) as { properties: { card_id: { anyOf: { type: string }[] } } };
       assert.ok(spend.properties.card_id.anyOf.some(v => v.type === "null"));
+      const addBill = toolInputSchema(tools.find(t => t.name === "add_bill")!) as { properties: { monthly: { type: string } } };
+      assert.equal(addBill.properties.monthly.type, "boolean");
     });
 
     await check("tools only see the asking household: no other household's data in any tool output", async () => {
       const names = tools.filter(t => t.scope === "read").map(t => t.name);
-      const calls = [...names.map((name, i) => toolUse(`r${i}`, name, name === "timeline" ? { scenario: "late" } : name === "can_i_spend" ? { amount_minor: 4000, card_id: null } : {})),
+      const calls = [...names.map((name, i) => toolUse(`r${i}`, name, name === "timeline" ? { scenario: "late" } : name === "can_i_spend" ? { amount_minor: 4000, card_id: null }
+        : name === "plan_for" ? { target_minor: 1_200_000, target_date: "2027-03-31", monthly_minor: null, pot_id: null } : {})),
         toolUse("spend-b-card", "can_i_spend", { amount_minor: 4000, card_id: bState.cards[0].id }),
         toolUse("draft-b-client", "draft_invoice", { id: crypto.randomUUID(), clientId: bState.clients[0].id, item: "Poster", amount: "10.00", note: "" })];
       const { fetch, bodies } = transport([() => reply("tool_use", calls), () => reply("end_turn", [text("Done.")])]);
@@ -226,7 +231,7 @@ async function main() {
     await check("log_charge and add_bill leave pending rows in To check for the asking household only, and a retry adds nothing", async () => {
       const chargeId = crypto.randomUUID(), billId = crypto.randomUUID();
       const charge = { id: chargeId, cardId: aState.cards[0].id, merchant: "Noodle place", amount: "3800", date: aState.today };
-      const bill = { id: billId, biller: "Hikari Water", amount: "4200", due: aState.today, category: "utilities", memberId: null };
+      const bill = { id: billId, biller: "Hikari Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, monthly: true };
       const script = () => transport([
         () => reply("tool_use", [toolUse("c", "log_charge", charge), toolUse("b", "add_bill", bill)]),
         () => reply("end_turn", [text("Both are waiting in To check.")]),
@@ -240,6 +245,7 @@ async function main() {
       assert.equal(row.amountMinor, 3800);
       const [pendingBill] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.id, billId)));
       assert.equal(pendingBill.status, "pending");
+      assert.equal(pendingBill.repeatDay, Number(aState.today.slice(8, 10)), "monthly: true stores the due date's day");
       await ask(a, "Same again.", script().fetch);
       assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, chargeId))).length, 1);
       assert.equal((await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), eq(schema.events.refId, chargeId)))).length, 1);
@@ -250,6 +256,105 @@ async function main() {
       const refused = await ask(a, "Log it on that card.", crossCard.fetch);
       assert.equal(refused.pending, false);
       assert.equal(toolResults(crossCard.bodies[1])[0].is_error, true);
+    });
+
+    await check("update_bank_balance leaves a pending update in To check, not a new balance, and a retry adds nothing", async () => {
+      const tool = tools.find(t => t.name === "update_bank_balance")!;
+      assert.equal(tool.scope, "draft");
+      const schemaOf = toolInputSchema(tool) as unknown as { required: string[]; additionalProperties: boolean };
+      assert.deepEqual([...schemaOf.required].sort(), ["amount", "id"]);
+      assert.equal(schemaOf.additionalProperties, false);
+      const updateId = crypto.randomUUID();
+      const script = () => transport([
+        () => reply("tool_use", [toolUse("u", "update_bank_balance", { id: updateId, amount: "182000" })]),
+        () => reply("end_turn", [text("It is waiting in To check.")]),
+      ]);
+      const bankOf = async (hid: string) => (await db.select().from(schema.households).where(eq(schema.households.id, hid)))[0].bankBalanceMinor;
+      const [bankA, bankB] = [await bankOf(a), await bankOf(b)];
+      const first = script();
+      const result = await ask(a, "My bank balance is ¥182,000 now.", first.fetch);
+      assert.equal(result.pending, true);
+      assert.deepEqual(result.links, [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }]);
+      const rows = await db.select().from(schema.balanceUpdates).where(eq(schema.balanceUpdates.id, updateId));
+      assert.deepEqual(rows.map(r => [r.householdId, r.status, r.amountMinor, r.currency]), [[a, "pending", 182_000, "JPY"]]);
+      assert.equal(await bankOf(a), bankA, "the agent never changes the balance itself");
+      assert.equal(await bankOf(b), bankB);
+      assert.ok(!toolResults(first.bodies[1])[0].is_error);
+      await ask(a, "Same again.", script().fetch);
+      assert.equal((await db.select().from(schema.balanceUpdates).where(eq(schema.balanceUpdates.id, updateId))).length, 1);
+      const other = transport([
+        () => reply("tool_use", [toolUse("x", "update_bank_balance", { id: updateId, amount: "1" })]),
+        () => reply("end_turn", [text("Done.")]),
+      ]);
+      const refused = await ask(b, "Set it.", other.fetch);
+      assert.equal(refused.pending, false);
+      assert.equal(toolResults(other.bodies[1])[0].is_error, true, "an id held by another household is refused");
+    });
+
+    await check("plan_for is a read tool: its summary is built in code and its numbers come from the engine; add_pot leaves a pending pot", async () => {
+      const planTool = tools.find(t => t.name === "plan_for")!, addTool = tools.find(t => t.name === "add_pot")!;
+      assert.equal(planTool.scope, "read");
+      assert.equal(addTool.scope, "draft");
+      assert.deepEqual([...(toolInputSchema(planTool) as unknown as { required: string[] }).required].sort(), ["monthly_minor", "pot_id", "target_date", "target_minor"]);
+      assert.deepEqual([...(toolInputSchema(addTool) as unknown as { required: string[] }).required].sort(), ["fillPct", "id", "name", "target", "targetDate"]);
+      const request = { target: 1_200_000, saved: 0, targetDate: "2027-03-31" };
+      const plan = transport([
+        () => reply("tool_use", [toolUse("p", "plan_for", { target_minor: 1_200_000, target_date: "2027-03-31", monthly_minor: null, pot_id: null })]),
+        () => reply("end_turn", [text("It takes about ¥300,000 a month.")]),
+      ]);
+      const asked = await ask(a, "Can I save ¥1,200,000 for a car by March 2027?", plan.fetch);
+      assert.deepEqual(asked, { answer: "It takes about ¥300,000 a month.", links: [], pending: false });
+      const [out] = toolResults(plan.bodies[1]);
+      assert.ok(!out.is_error);
+      const result = JSON.parse(out.content);
+      assert.equal(result.summary, planLine(request, planFor(request, aState), aState));
+      assert.deepEqual([result.currency, result.neededMinor, result.months, result.monthlyNeededMinor, result.fits, result.monthlyRoomMinor], ["JPY", 1_200_000, 4, 300_000, false, 92_220]);
+      assert.ok(Object.values(result).every(v => typeof v !== "number" || Number.isInteger(v)));
+      assert.ok(plan.bodies[0].system.includes("never unprompted"), "the prompt says when to offer a pot");
+
+      const potId = crypto.randomUUID();
+      await savePot(db, a, { id: potId, name: "Car", target: "1200000", targetDate: "2027-03-31", saved: "200000", fillPct: null, memberId: null }, "confirmed");
+      const existing = transport([
+        () => reply("tool_use", [toolUse("e", "plan_for", { target_minor: null, target_date: null, monthly_minor: 100_000, pot_id: potId })]),
+        () => reply("end_turn", [text("ok")]),
+      ]);
+      await ask(a, "How is the car pot going?", existing.fetch);
+      const mine = JSON.parse(toolResults(existing.bodies[1])[0].content);
+      assert.deepEqual([mine.savedMinor, mine.targetMinor, mine.neededMinor, mine.monthlyNeededMinor, mine.paceMinor, mine.monthsAtPace], [200_000, 1_200_000, 1_000_000, 250_000, 100_000, 10]);
+      const foreign = transport([
+        () => reply("tool_use", [toolUse("f", "plan_for", { target_minor: null, target_date: null, monthly_minor: null, pot_id: potId })]),
+        () => reply("end_turn", [text("ok")]),
+      ]);
+      await ask(b, "Plan it.", foreign.fetch);
+      assert.equal(toolResults(foreign.bodies[1])[0].is_error, true, "another household's pot id is unknown");
+      const noTarget = transport([
+        () => reply("tool_use", [toolUse("n", "plan_for", { target_minor: null, target_date: null, monthly_minor: null, pot_id: null })]),
+        () => reply("end_turn", [text("ok")]),
+      ]);
+      await ask(a, "Plan.", noTarget.fetch);
+      assert.equal(toolResults(noTarget.bodies[1])[0].is_error, true);
+
+      const trip = crypto.randomUUID();
+      const script = () => transport([
+        () => reply("tool_use", [toolUse("t", "add_pot", { id: trip, name: "Trip", target: "300000", targetDate: "2027-05-31", fillPct: null })]),
+        () => reply("end_turn", [text("It is waiting in To check.")]),
+      ]);
+      const first = script();
+      const added = await ask(a, "I want to save ¥300,000 for a trip by May.", first.fetch);
+      assert.equal(added.pending, true);
+      assert.deepEqual(added.links, [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }]);
+      const rows = await db.select().from(schema.pots).where(eq(schema.pots.id, trip));
+      assert.deepEqual(rows.map(r => [r.householdId, r.status, r.name, r.targetMinor, r.targetDate, r.savedMinor, r.fillBp]), [[a, "pending", "Trip", 300_000, "2027-05-31", 0, null]]);
+      assert.deepEqual((await stateOf(a)).pots.map(p => p.name), ["Car"], "a pending pot does not count");
+      await ask(a, "Same again.", script().fetch);
+      assert.equal((await db.select().from(schema.pots).where(eq(schema.pots.id, trip))).length, 1);
+      const other = transport([
+        () => reply("tool_use", [toolUse("x", "add_pot", { id: trip, name: "Other", target: null, targetDate: null, fillPct: null })]),
+        () => reply("end_turn", [text("Done.")]),
+      ]);
+      const refused = await ask(b, "Set it.", other.fetch);
+      assert.equal(refused.pending, false);
+      assert.equal(toolResults(other.bodies[1])[0].is_error, true, "an id held by another household is refused");
     });
 
     await check("no agent source can reach the send-capable PayPal runner", async () => {

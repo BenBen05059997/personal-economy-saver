@@ -1,5 +1,5 @@
 export function ConfirmButton({ kind, id, title, onCheckPage = false }: {
-  kind: "bill" | "charge"; id: string; title: string; onCheckPage?: boolean;
+  kind: "bill" | "charge" | "balance" | "pot"; id: string; title: string; onCheckPage?: boolean;
 }) {
   return <form method="post" action="/api/confirm">
     <input type="hidden" name="kind" value={kind} />

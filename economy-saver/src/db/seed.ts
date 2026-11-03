@@ -1,7 +1,7 @@
 // Seeds a household with Ben's data: the demo household and every "Try it" copy (D34). Each call makes a fresh one.
 // Fictional people and companies only.
 
-import { benMoney } from "@/lib/sample/ben";
+import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import { addDays } from "@/lib/money/runway";
 import type { Db } from "./household";
 import { toMinor, toRateMicro } from "./money";
@@ -50,7 +50,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
       tx
         .insert(s.bills)
         .values(
-          m.bills.map((b) => ({
+          benStoredBills.map((b) => ({
             householdId: hid,
             biller: b.biller,
             amountMinor: toMinor(b.amount, home),
@@ -59,6 +59,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
             category: b.category,
             status: b.status,
             previousAmountMinor: b.previousAmount === undefined ? null : toMinor(b.previousAmount, home),
+            repeatDay: b.repeatDay ?? null,
           })),
         )
         .returning({ id: s.bills.id, biller: s.bills.biller, status: s.bills.status, amountMinor: s.bills.amountMinor }),
@@ -107,7 +108,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
               refType: "bill",
               refId: pending.id,
               notify: true,
-              occurredAt: at("2026-11-14T08:30:00"),
+              occurredAt: at("2026-11-14T00:05:00"),
             },
           ]
         : []),

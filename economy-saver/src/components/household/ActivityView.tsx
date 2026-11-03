@@ -10,9 +10,9 @@ export function ActivityView({ rows, index, hasOlder, timeZone }: {
   return <>
     <h1 className="ui-title">Activity</h1>
     {!rows.length ? <p>No activity yet.</p> : <table className="household-table">
-      <thead><tr><th>Date</th><th>What happened</th><th className="event-kind">Type</th><th className="amount">Amount</th></tr></thead>
+      <thead><tr><th className="date">Date</th><th>What happened</th><th className="event-kind">Type</th><th className="amount">Amount</th></tr></thead>
       <tbody>{rows.map(row => <tr key={row.id}>
-        <td><time dateTime={row.occurredAt}>{new Date(row.occurredAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: timeZone })}</time></td>
+        <td className="date"><time dateTime={row.occurredAt}>{new Date(row.occurredAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: timeZone })}</time></td>
         <td>{row.title}{row.body && <p className="ui-hint">{row.body}</p>}</td>
         <td className="event-kind">{row.kind.replaceAll("_", " ")}</td>
         <td className="amount num">{row.amountMinor !== null && row.currency ? minorMoney(row.amountMinor, Currency.parse(row.currency)) : "—"}</td>

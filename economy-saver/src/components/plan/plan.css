@@ -1,0 +1,12 @@
+.plan-room { margin: 0 0 var(--space-2); font: 400 18px/1.4 var(--serif); }
+.plan-pot { border-bottom: 1px solid var(--rule); }
+.plan-pot .ui-row { border-bottom: 0; align-items: flex-start; }
+.plan-pot .ui-row > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.plan-pot .ui-row p { margin: var(--space-1) 0 0; }
+.plan-pot .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.plan-pot .num small { display: block; font-size: 13px; color: var(--muted); }
+.plan-line { font-size: 14px; }
+.plan-actions { display: flex; flex-wrap: wrap; gap: var(--space-5); padding-bottom: var(--space-3); }
+.plan-edit summary { cursor: pointer; font: 500 14px var(--sans); color: var(--accent); }
+.plan-edit[open] { flex-basis: 100%; }
+.plan-edit form { max-width: 28rem; margin-top: var(--space-3); }

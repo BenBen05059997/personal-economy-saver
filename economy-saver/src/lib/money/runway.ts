@@ -5,7 +5,8 @@
 // - An invoice that is `sent` arrives on sentOn + median(daysToPay) (expected) or
 //   sentOn + max(daysToPay) (worst), never before tomorrow. The median of an even list is the lower middle value.
 // - Paid invoices are not arrivals: paying moves the money into the PayPal balance.
-// - Pending bills and pending charges (read by the AI, not yet confirmed) are left out of the series.
+// - Pending bills, pending charges and pending pots (read by the AI, not yet confirmed) are left out of the series.
+// - The series starts from availableCash: bank + PayPal less the money in confirmed pots (D43).
 // - A closed card statement is an out-flow on its due date. The open cycle of each card (confirmed
 //   charges after the last close, up to the next closing day) is an out-flow on the due date of the
 //   statement it will become: dueDay of the month after the one it closes in.
@@ -126,6 +127,21 @@ export function statementItems(state: MoneyState): StatementItem[] {
   return out.sort((a, b) => (a.dueOn < b.dueOn ? -1 : a.dueOn > b.dueOn ? 1 : a.cardId < b.cardId ? -1 : 1));
 }
 
+// ---------------------------------------------------------------- cash
+
+/** Money set aside in confirmed pots (D43). */
+export function moneyInPots(state: MoneyState): number {
+  return roundHome(state, state.pots.reduce((sum, pot) => sum + pot.saved, 0));
+}
+
+/**
+ * The cash every number starts from: bank + PayPal less the money in pots. Money in a pot is not spendable, so the
+ * series, the low point, safe to spend, room on a card, the sentence and the options all begin here and agree.
+ */
+export function availableCash(state: MoneyState): number {
+  return state.paypal + state.bank - moneyInPots(state);
+}
+
 // ---------------------------------------------------------------- series
 
 /** End-of-day balances in the home currency, one per day from `today`. Carries its start date so `low` can name the day. */
@@ -196,7 +212,7 @@ export function series(state: MoneyState, kind: SeriesKind, days = 30): Series {
     if (i >= 0 && i < days) delta[i] += a.amountHome;
   }
   const out: Series = [];
-  let bal = state.paypal + state.bank;
+  let bal = availableCash(state);
   for (let i = 0; i < days; i++) {
     bal += delta[i];
     out.push(bal);
@@ -510,7 +526,7 @@ export function timeline(state: MoneyState, kind: SeriesKind, days = 30): Timeli
   }
   const rank = { arrival: 0, statement: 1, bill: 2 } as const;
   drafts.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : rank[x.kind] - rank[y.kind]));
-  let bal = state.paypal + state.bank;
+  let bal = availableCash(state);
   return drafts.map((d) => {
     if (!d.pending) bal += d.amount;
     const i = daysBetween(state.today, d.date);
@@ -534,7 +550,7 @@ export function safeToSpend(state: MoneyState, monthlyEssentials: number, days =
   const amount = Math.max(0, lw.amount);
   const verdict = lw.amount < 0 ? "hold" : amount < monthlyEssentials ? "easy" : "go";
   const lateClients = [...new Set(arrivals(state).filter((a) => a.worstOn > lw.date).map((a) => short(a.clientName)))];
-  return { amount, low: lw, verdict, cash: state.paypal + state.bank, shortBy: Math.max(0, -lw.amount), lateClients };
+  return { amount, low: lw, verdict, cash: availableCash(state), shortBy: Math.max(0, -lw.amount), lateClients };
 }
 
 // ---------------------------------------------------------------- what pays a card back
@@ -581,7 +597,7 @@ export function context(state: MoneyState, profile: Profile, moment: Moment, eve
   return {
     today: state.today,
     moment,
-    cashToday: state.paypal + state.bank,
+    cashToday: availableCash(state),
     worstLow: low(series(state, "worst")).amount,
     bufferTarget: profile.bufferMonths * profile.monthlyEssentials,
     ...(event ? { event } : {}),

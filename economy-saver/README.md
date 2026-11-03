@@ -106,7 +106,7 @@ src/lib/paypal/          sandbox client, toolkit, invoice listing and webhook ve
 src/lib/mcp/             Streamable HTTP server
 src/lib/reader/          extraction, forwarding, storage
 scripts/                 isolated tests and explicit owner-operated checks
-drizzle/                 ordered schema migrations (0000–0007)
+drizzle/                 ordered schema migrations (0000–0009)
 samples/bills/           fictional sample bills for the reader
 ```
 

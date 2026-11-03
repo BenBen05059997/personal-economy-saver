@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { fetchReferenceRate, storeReferenceRate } from "./reference-rate";
-import { DEMO_DATE } from "./demo";
+import { clockForHousehold } from "./clock";
 import { type Db, requireHousehold } from "./household";
 import { cards, households, members, paypalConnections, users } from "./schema";
 import { deleteHouseholdKey } from "./ai-key";
@@ -12,13 +12,6 @@ export async function householdClock(db: Db, id: string, now = new Date()) {
     .from(households).where(eq(households.id, requireHousehold(id)));
   if (!household) throw new Error("Household no longer exists");
   return clockForHousehold(household, now);
-}
-
-export function clockForHousehold(household: Pick<typeof households.$inferSelect, "isDemo" | "timeZone">, now = new Date()) {
-  const today = household.isDemo ? DEMO_DATE : new Intl.DateTimeFormat("en-CA", {
-    timeZone: household.timeZone, year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(now);
-  return { today, timeZone: household.timeZone, isDemo: household.isDemo };
 }
 
 export async function householdDate(db: Db, id: string, now?: Date) {

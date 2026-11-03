@@ -280,11 +280,54 @@ export const bills = pgTable(
     previousAmountMinor: minor("previous_amount_minor"),
     fxRateMicro: bigint("fx_rate_micro", { mode: "number" }),
     documentId: uuid("document_id").references(() => documents.id, { onDelete: "set null" }),
+    repeatDay: integer("repeat_day"), // D41: day of the month a monthly bill repeats on; null = one-off
     createdAt: createdAt(),
   },
   (t) => [index("bills_household_idx").on(t.householdId), index("bills_due_idx").on(t.householdId, t.due),
+    check("bills_repeat_day_valid", sql`${t.repeatDay} is null or ${t.repeatDay} between 1 and 31`),
     foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "bills_member_household_fk" }),
     foreignKey({ columns: [t.householdId, t.documentId], foreignColumns: [documents.householdId, documents.id], name: "bills_document_household_fk" })],
+).enableRLS();
+
+// D42: a new bank balance. "confirmed" rows are the history of balances set; a "pending" row (from the agent or MCP)
+// waits in To check and changes `households.bank_balance_minor` only when confirmed.
+export const balanceUpdates = pgTable(
+  "balance_updates",
+  {
+    id: id(),
+    householdId: householdId(),
+    amountMinor: minor("amount_minor").notNull(), // the new balance; may be negative
+    currency: char("currency", { length: 3 }).notNull(),
+    status: confirmStatus("status").notNull().default("confirmed"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("balance_updates_household_idx").on(t.householdId), unique("balance_updates_household_id_uq").on(t.householdId, t.id)],
+).enableRLS();
+
+// D43: a pot is money set aside with a reason. `saved_minor` is not spendable (the engine starts the runway from
+// cash less every confirmed pot). `fill_bp` is the share of each client payment added to it, in basis points
+// (2500 = 25%). A "pending" pot (from the agent or MCP) waits in To check and counts for nothing until confirmed.
+export const pots = pgTable(
+  "pots",
+  {
+    id: id(),
+    householdId: householdId(),
+    memberId: uuid("member_id").references(() => members.id, { onDelete: "set null" }), // null = shared
+    name: text("name").notNull(),
+    targetMinor: minor("target_minor"),
+    targetDate: date("target_date", { mode: "string" }),
+    savedMinor: minor("saved_minor").notNull().default(0),
+    fillBp: integer("fill_bp"),
+    currency: char("currency", { length: 3 }).notNull(),
+    status: confirmStatus("status").notNull().default("confirmed"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("pots_household_idx").on(t.householdId), unique("pots_household_id_uq").on(t.householdId, t.id),
+    check("pots_name_valid", sql`char_length(${t.name}) between 1 and 60`),
+    check("pots_target_positive", sql`${t.targetMinor} is null or ${t.targetMinor} > 0`),
+    check("pots_saved_valid", sql`${t.savedMinor} >= 0`),
+    check("pots_fill_valid", sql`${t.fillBp} is null or ${t.fillBp} between 1 and 10000`),
+    foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "pots_member_household_fk" })],
 ).enableRLS();
 
 export const readings = pgTable(

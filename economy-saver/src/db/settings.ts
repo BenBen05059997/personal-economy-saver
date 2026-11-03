@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { setBankBalance } from "./bank-balance";
 import { type Db, requireHousehold, recordEvent } from "./household";
 import { InputError } from "./input-error";
 import { parseMinor } from "./money";
@@ -38,7 +39,7 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
   const hid = requireHousehold(householdId);
   const data = settingsInput.parse(input);
   await db.transaction(async tx => {
-    const [household] = await tx.select({ currency: households.homeCurrency }).from(households).where(eq(households.id, hid)).for("update");
+    const [household] = await tx.select({ currency: households.homeCurrency, bank: households.bankBalanceMinor }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new SettingsError("Household no longer exists");
     await beginMoneyChange(tx, hid);
     if ("memberId" in data && data.memberId) {
@@ -47,7 +48,9 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
     }
     let changed = true;
     if (data.kind === "household") {
-      await tx.update(households).set({ name: data.name, bankBalanceMinor: parseMinor(data.bank, household.currency) }).where(eq(households.id, hid));
+      await tx.update(households).set({ name: data.name }).where(eq(households.id, hid));
+      // D42: the one way to set the balance
+      if (parseMinor(data.bank, household.currency) !== household.bank) await setBankBalance(tx, hid, { id: crypto.randomUUID(), amount: data.bank }, "confirmed");
     } else if (data.kind === "member") {
       changed = (await tx.update(members).set({ displayName: data.name }).where(and(eq(members.householdId, hid), eq(members.id, data.id))).returning({ id: members.id })).length === 1;
     } else if (data.kind === "card") {
