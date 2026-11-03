@@ -10,6 +10,16 @@ Researched Oct 31, 2026 by three parallel research agents. Raw files:
 
 Every claim in the files carries a source, a year and a "checked" date, and is tagged measured / community / secondary.
 
+Researched Nov 3, 2026 by four more agents, on what people everywhere (not only Japan) want taken off them, beyond tax; the lead's synthesis is [money-chores-worldwide.md](money-chores-worldwide.md):
+
+| File | What it covers | Lines |
+|---|---|---|
+| [money-chores-worldwide.md](money-chores-worldwide.md) | The synthesis: the jobs all four lists agree on, what did not win anywhere, what it changes in the product | 52 |
+| [money-calendar-worldwide.md](money-calendar-worldwide.md) | When people do money things in 14 countries: pay cycles, rent day, 13th-month pay, festival seasons, renewal and government-payment dates | 138 |
+| [money-chores-people-hate.md](money-chores-people-hate.md) | Subscriptions, loyalty penalties, late fees, splitting, remittances, rate resets, unclaimed money, with regulator figures | 132 |
+| [money-apps-by-region.md](money-apps-by-region.md) | What apps in each region are used for (UK/EU, Americas, India/SE Asia, Africa, cross-border), with Oct–Nov 2026 App Store reviews | 132 |
+| [paypal-earners.md](paypal-earners.md) | PayPal earners worldwide: holds, spread, late clients, country access, yearly letters, under-used PayPal features, and which PayPal APIs expose the data | 141 |
+
 ## The ten findings that decide the design
 
 1. **Help at the decision is what survives; lessons fade.** Financial education explains about 0.1% of behaviour and is near zero after 20 months (Fernandes, Lynch & Netemeyer 2014). The authors' own recommendation is one fact at the moment it matters.
