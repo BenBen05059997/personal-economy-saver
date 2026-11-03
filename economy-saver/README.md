@@ -8,16 +8,17 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 
 - A Next.js 16 app with household-scoped Postgres/Drizzle data and a fictional Ben seed.
 - A deterministic runway and sentence from stored bills, cards, charges, invoices, FX rates and client payment history.
-- Screens: Home, invoice review, To check, Activity, Cards, Clients, Options, Settings, Upload and document review.
+- Screens: Home, invoice review, To check, Activity, Cards, Clients, Plan, Options, Settings, Upload and document review.
 - A Try it household flow and passwordless email sign-in.
-- Typed-in data: clients, bills, card charges, and invoices marked paid outside PayPal.
+- Typed-in data: clients, bills (optionally repeating monthly), card charges, a one-line bank balance, and invoices marked paid outside PayPal.
+- Pots on the Plan page: money set aside for a reason, taken off the cash every runway number starts from, optionally filled by a percentage of each client payment.
 - Document intake (upload and forwarded email) with confirmation before a reading changes money records.
 - An in-app agent: `/api/ask` runs Claude with tools over the engine (reads and drafts only). The same tool catalogue serves MCP.
 - One versioned household schema: Settings has Export my data (a JSON download with the household's events), the `household_snapshot` read tool gives the agent and MCP the same picture without events, and `schema/household.v1.json` is generated from the same definition.
 - PayPal sandbox REST and Agent Toolkit integration, with the draft/read tools separate from the server approval path; verified webhook deliveries are idempotent; a read-only import of sandbox invoice history.
-- Rate limits on Try it, Ask, drafts, approvals, uploads and imports; PayPal toolkit calls time out after 20 s.
+- Rate limits on Try it, Ask, MCP, drafts, approvals, uploads, document reads, imports and exports; PayPal toolkit calls time out after 20 s.
 - A daily Cron route with an explicit household list (`CRON_HOUSEHOLD_IDS`).
-- Isolated PGlite test suites for schema/seed/engine, approval and webhook behaviour, MCP, reader, settings, agent, PayPal refresh, typed-in data and import. They do not show that hosted services are configured.
+- Isolated PGlite test suites for schema/seed/engine, approval and webhook behaviour, MCP, reader, settings, agent, PayPal refresh, typed-in data, import, pots and the household snapshot. They do not show that hosted services are configured.
 
 ## Safety
 
@@ -80,7 +81,7 @@ npx tsc --noEmit -p .
 npm run lint
 ```
 
-Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction.
+Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:pots-test`, `db:snapshot-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction.
 
 With the app running and Supabase configured, `node scripts/frontend-check.mjs --run http://127.0.0.1:3123` times the core household workflows. `--extra` covers Upload, Options and invoice draft retries; `--guards` covers integration rejection paths. They create fictional Try it households. Results and timings are in [PLAN.md](../PLAN.md).
 
@@ -92,25 +93,27 @@ Use only an owner-configured PayPal Developer Sandbox app and sandbox recipients
 
 ## Ask, voice and MCP
 
-The Ask panel accepts typed text and, where the browser supports it, speech. The agent answers from the runway engine and can only read or draft: a spoken or typed bill, card charge or invoice waits for confirmation (in To check, or on the invoice review page). Without the Anthropic settings Ask shows a clear missing-setting error.
+The Ask panel accepts typed text and, where the browser supports it, speech. The agent answers from the runway engine and can only read or draft: a spoken or typed bill, card charge, bank balance update, pot or invoice waits for confirmation (in To check, or on the invoice review page). Without the Anthropic settings Ask shows a clear missing-setting error.
 
-To issue household-scoped MCP tokens, set `MCP_TOKEN_KEY`, then use Settings. Connect a Streamable HTTP MCP client to `/api/mcp` with the token as a Bearer credential. The token supports household reads and invoice drafts; approval and sending stay in the app. `npm run mcp:demo` runs a finite protocol demonstration on loopback with an isolated PGlite household and an in-memory key.
+To issue household-scoped MCP tokens, set `MCP_TOKEN_KEY`, then use Settings. Connect a Streamable HTTP MCP client to `/api/mcp` with the token as a Bearer credential. The token supports household reads and drafts (the same tools as the agent); approval and sending stay in the app. `npm run mcp:demo` runs a finite protocol demonstration on loopback with an isolated PGlite household and an in-memory key.
 
 ## Project map
 
 ```text
 src/app/                 pages and API routes
-src/components/          UI by area: shell, home, household, invoices, reader, settings, ask, auth, mcp
+src/components/          UI by area: shell, home, household, plan, invoices, reader, settings, ask, auth, mcp, ui
 src/db/                  schema, household-scoped queries, seeds, rate limits
-src/lib/money/           pure runway, sentence and options logic
+src/lib/money/           pure runway, plans, repeating bills, sentence and options logic
 src/lib/agent/           the tool catalogue and the Claude runner
 src/lib/schema/          the one household schema (zod) and its JSON Schema generator
 schema/                  household.v1.json, the committed JSON Schema
 src/lib/paypal/          sandbox client, toolkit, invoice listing and webhook verification
 src/lib/mcp/             Streamable HTTP server
+src/lib/catalogue/       the wealth-move catalogue engine (words and sources in src/data/catalogue/)
 src/lib/reader/          extraction, forwarding, storage
 scripts/                 isolated tests and explicit owner-operated checks
 drizzle/                 ordered schema migrations (0000–0010)
+worker.ts                Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
 samples/bills/           fictional sample bills for the reader
 ```
 
