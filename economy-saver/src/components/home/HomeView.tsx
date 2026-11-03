@@ -1,12 +1,14 @@
 import type { ReaderInbox } from "@/db/reader-inbox";
 import Link from "next/link";
+import { AmountInput } from "@/components/ui/CheckedInput";
 import type { MoneyState } from "@/lib/money/types";
 import { dayLabel, formatter, usd } from "@/lib/money/format";
-import { addDays, arrivals, daysBetween, safeToSpend, series, statementItems, timeline } from "@/lib/money/runway";
+import { addDays, arrivals, daysBetween, low, safeToSpend, series, statementItems, timeline } from "@/lib/money/runway";
 import { fundingOptions } from "@/lib/money/options";
 import { potSummary } from "@/lib/money/plan";
 import { toCheck } from "@/lib/money/to-check";
 import { homeSentence } from "@/lib/money/sentence";
+import { splitBalance, transferLine } from "@/lib/money/split";
 import { RunwayChart } from "./RunwayChart";
 import { cardSummary } from "./card-summary";
 import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
@@ -36,14 +38,12 @@ function Actions({ state }: Props) {
 /** D42: the bank balance in one line. Update reveals one field; the id is minted per render so a double submit saves once. */
 function BankBalance({ state, balanceId }: Props & { balanceId: string }) {
   const format = formatter(state.homeCurrency);
-  const jpy = state.homeCurrency === "JPY";
   return <details className="home-balance">
     <summary><span>Bank balance <b>{format(state.bank)}</b></span><span className="home-balance-edit">Update</span></summary>
     <form method="post" action="/api/bank-balance">
       <input type="hidden" name="id" value={balanceId} />
       <input type="hidden" name="returnTo" value="/" />
-      <input name="amount" aria-label={`New bank balance (${state.homeCurrency})`} placeholder="New balance" inputMode={jpy ? "numeric" : "decimal"} required maxLength={16}
-        pattern={jpy ? "-?[0-9]+" : "-?[0-9]+(\\.[0-9]{1,2})?"} />
+      <AmountInput name="amount" aria-label={`New bank balance (${state.homeCurrency})`} placeholder="New balance" currency={state.homeCurrency} signed required />
       <button className="home-confirm">Save</button>
     </form>
   </details>;
@@ -100,6 +100,21 @@ function Cards({ state }: Props) {
   </section>;
 }
 
+/** D45: who owes whom, one line per transfer, only for a household of two or more. Mark settled records them all; the sentence does not move. */
+function SharedCosts({ state }: Props) {
+  if (state.split.members.length < 2) return null;
+  const { transfers } = splitBalance(state.split, state.today);
+  return <section id="shared-costs" className="home-panel home-split">
+    <h2>Shared costs</h2>
+    {transfers.length === 0 && <p className="home-empty">Nobody owes anyone anything.</p>}
+    {transfers.map(transfer => <div key={transfer.fromId + transfer.toId} className="home-row"><div>{transferLine(transfer, state.homeCurrency)}</div></div>)}
+    {transfers.length > 0 && <form method="post" action="/api/settle" className="home-settle">
+      <input type="hidden" name="returnTo" value="/" />
+      <button className="home-confirm">Mark settled</button>
+    </form>}
+  </section>;
+}
+
 function ComingUp({ state, people, entryIds }: Props & { people: People; entryIds: EntryIds }) {
   const format = formatter(state.homeCurrency);
   const usual = timeline(state, "expected");
@@ -124,8 +139,11 @@ function ComingUp({ state, people, entryIds }: Props & { people: People; entryId
         </div>
       </div>;
     });
-  const firstShort = usual.findIndex((event) => !event.pending && late[daysBetween(state.today, event.date)] < 0);
-  const shown = Math.max(5, firstShort + 1);
+  // The rows that say "Short by …" (not a client's payment, not a pending bill) and the low point's own row are never folded away.
+  const carriesShortfall = (event: (typeof usual)[number]) => !incoming.has(event.id) && !event.pending && late[daysBetween(state.today, event.date)] < 0;
+  const lowDay = low(late).dayIndex;
+  const lowRow = usual.map((event, index) => carriesShortfall(event) && daysBetween(state.today, event.date) === lowDay ? index : -1).reduce((a, b) => Math.max(a, b), -1);
+  const shown = Math.max(5, usual.findIndex(carriesShortfall) + 1, lowRow + 1);
   return <section id="coming-up" className="home-panel home-upcoming">
     <h2>Coming up <Link prefetch={false} href="/activity">All activity ›</Link></h2>
     {rows.length === 0 && <p className="home-empty">Nothing due in the next 30 days.</p>}
@@ -152,7 +170,7 @@ export function HomeView({ state, inbox, notice, people, entryIds, balanceId }: 
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} />
     <div className="home-panels">
-      <div className="home-column"><Next30Days state={state} balanceId={balanceId} /><Cards state={state} /></div>
+      <div className="home-column"><Next30Days state={state} balanceId={balanceId} /><Cards state={state} /><SharedCosts state={state} /></div>
       <div className="home-column"><ToCheck state={state} inbox={inbox} /><ComingUp state={state} people={people} entryIds={entryIds} /></div>
     </div>
   </article>;

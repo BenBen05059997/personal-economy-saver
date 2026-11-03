@@ -20,7 +20,7 @@ export function InvoiceReview({ review, state }: { review: Review; state: MoneyS
   const paidOutside = !invoice.paypalInvoiceId && (draft || invoice.status === "sent");
   const label = draft ? "Approve and send" : "Approve reminder";
   return <article className="invoice-review">
-    <Link prefetch={false} href="/" className="ui-hint">← Home</Link>
+    <Link prefetch={false} href="/" className="ui-hint ui-back">← Home</Link>
     <h1 className="ui-title">{draft ? "Review invoice" : reminder ? "Review reminder" : "Invoice"}</h1>
     <dl className="invoice-details">
       <div className="ui-row"><dt>To</dt><dd>{client}</dd></div>

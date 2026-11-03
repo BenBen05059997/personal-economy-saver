@@ -155,6 +155,8 @@ if (args[0] === "--guards") {
     ["mcp-issue-without-household", "/api/mcp/tokens", { method: "POST" }, 401],
     ["ai-key-without-household", "/api/settings/ai-key", { method: "POST" }, 401],
     ["export-without-household", "/api/export", { method: "POST" }, 401],
+    ["people-without-household", "/api/people", { method: "POST" }, 401],
+    ["settle-without-household", "/api/settle", { method: "POST" }, 401],
     ["cron-without-bearer", "/api/cron", {}, 401],
   ];
   for (const [label, path, options, status, location] of checks) {

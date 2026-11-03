@@ -95,7 +95,7 @@ async function main() {
       assert.equal(snap.version, 1);
       assert.deepEqual(snap.household, { id: a, name: "Ben", homeCurrency: "JPY", timeZone: "Asia/Tokyo", today: DEMO_DATE, isDemo: true,
         bankBalanceMinor: snap.household.bankBalanceMinor, paypalBalanceMinor: snap.household.paypalBalanceMinor,
-        usdRateMicro: snap.household.usdRateMicro, usdRateDate: snap.household.usdRateDate });
+        usdRateMicro: snap.household.usdRateMicro, usdRateDate: snap.household.usdRateDate, splitSince: null });
       assert.ok(Number.isInteger(snap.household.bankBalanceMinor));
       assert.equal(snap.members.length, 1);
       assert.equal(snap.members[0].displayName, "Ben");

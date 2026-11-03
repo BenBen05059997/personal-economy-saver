@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   const form = await request.formData();
-  const data = chargeInput.safeParse(Object.fromEntries(form));
+  const data = chargeInput.safeParse({ ...Object.fromEntries(form), shared: form.get("shared") === "on" });
   if (!data.success) return badFields();
   try {
     await insertCharge(db(), hid, data.data, "confirmed", "manual");

@@ -9,16 +9,37 @@ function feedChanged(current: EventFeed, previous: EventFeed) {
     || current.inFlight !== previous.inFlight || current.since !== previous.since;
 }
 
+type FeedCheck = { expired: true } | { expired?: false; feed: EventFeed };
+let inFlight: Promise<FeedCheck> | null = null;
+let lastStart = 0;
+
+/**
+ * The one feed request of the page. Every mounted shell, focus and visibility event and every 5 s tick goes through here:
+ * while a request is out they all wait on it, and a new one starts no sooner than a second after the last.
+ */
+function checkFeed(since: string | null): Promise<FeedCheck> | null {
+  if (inFlight) return inFlight;
+  if (Date.now() - lastStart < 1000) return null;
+  lastStart = Date.now();
+  const query = since ? `?since=${encodeURIComponent(since)}` : "";
+  inFlight = fetch(`/api/events${query}`, { signal: AbortSignal.timeout(15_000), cache: "no-store" })
+    .then(async (response): Promise<FeedCheck> => {
+      if (response.status === 401) return { expired: true };
+      if (!response.ok) throw new Error();
+      return { feed: (await response.json() as { feed: EventFeed }).feed };
+    })
+    .finally(() => { inFlight = null; });
+  return inFlight;
+}
+
 export function useEventFeed(feed: EventFeed, pollPage: boolean) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [marking, setMarking] = useState(false);
   const [refreshPending, startRefresh] = useTransition();
   const refreshing = useRef(false);
-  const checking = useRef(false);
   const markPending = useRef(false);
   const expired = useRef(false);
-  const lastCheck = useRef(0);
 
   useEffect(() => {
     if (!refreshPending) refreshing.current = false;
@@ -38,30 +59,21 @@ export function useEventFeed(feed: EventFeed, pollPage: boolean) {
   }, [refresh]);
 
   useEffect(() => {
-    const controller = new AbortController();
+    let stopped = false;
     async function poll() {
-      // Focus and visibility often arrive together. Keep checks and route refreshes serial.
-      if (checking.current || markPending.current || refreshing.current || expired.current || document.hidden
-        || Date.now() - lastCheck.current < 1000) return;
-      checking.current = true;
-      lastCheck.current = Date.now();
+      // Focus and visibility often arrive together; they share one request, and so does a refresh in progress.
+      if (markPending.current || refreshing.current || expired.current || document.hidden) return;
+      const request = checkFeed(feed.since);
+      if (!request) return;
       try {
-        const query = feed.since ? `?since=${encodeURIComponent(feed.since)}` : "";
-        const response = await fetch(`/api/events${query}`, {
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]), cache: "no-store",
-        });
-        if (controller.signal.aborted) return;
-        if (response.status === 401) { expire(); return; }
-        if (!response.ok) throw new Error();
-        const { feed: current }: { feed: EventFeed } = await response.json();
-        if (controller.signal.aborted || markPending.current || expired.current) return;
+        const result = await request;
+        if (stopped || markPending.current || expired.current) return;
+        if (result.expired) { expire(); return; }
         // Count catches delayed webhooks whose occurrence date precedes the cursor.
-        if (feedChanged(current, feed)) refresh();
+        if (feedChanged(result.feed, feed)) refresh();
         setError("");
       } catch {
-        if (!controller.signal.aborted && !expired.current) setError("Couldn’t refresh activity. Check your connection.");
-      } finally {
-        checking.current = false;
+        if (!stopped && !expired.current) setError("Couldn’t refresh activity. Check your connection.");
       }
     }
     const focus = () => { void poll(); };
@@ -69,7 +81,7 @@ export function useEventFeed(feed: EventFeed, pollPage: boolean) {
     document.addEventListener("visibilitychange", focus);
     const timer = pollPage && feed.inFlight ? window.setInterval(focus, 5000) : undefined;
     return () => {
-      controller.abort();
+      stopped = true;
       window.removeEventListener("focus", focus);
       document.removeEventListener("visibilitychange", focus);
       window.clearInterval(timer);

@@ -30,7 +30,7 @@ Home leads with a dated sentence computed from the household's stored rows by th
 
 ## Status
 
-The app is in a private repository. Automated suites run on isolated test databases with simulated PayPal and Claude responses: seed and engine, household isolation, bill confirmation, invoice approval and idempotent retries, webhook replay handling and the balance credit (a $400 payment adds ¥60,000 at the seeded ¥150 per dollar), the reader, the agent, the typed-in doors, pots, the household export and the PayPal import. The app also renders Ben's household from a Supabase project in Tokyo, in local dev and in a local Cloudflare Worker.
+The app is in a private repository. Automated suites run on isolated test databases with simulated PayPal and Claude responses: seed and engine, household isolation, bill confirmation, invoice approval and idempotent retries, webhook replay handling and the balance credit (a $400 payment adds ¥60,000 at the seeded ¥150 per dollar), the reader, the agent, the typed-in doors, pots, the household split, the household export and the PayPal import. The app also renders Ben's household from a Supabase project in Tokyo, in local dev and in a local Cloudflare Worker.
 
 Not yet verified live, and not claimed above as working live: a Claude call from the running app, a real PayPal Sandbox send with its signed paid webhook, magic-link sign-in, and email forwarding. No public repository or live URL exists and nothing has been submitted.
 

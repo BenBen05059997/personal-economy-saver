@@ -48,3 +48,7 @@
 }
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }
+/* Phone: every tap target reaches 44px (L2). Controls take the token; fields, summaries and back links are in controls.css. */
+@media (max-width: 760px) {
+  :root { --control-height: 44px; }
+}

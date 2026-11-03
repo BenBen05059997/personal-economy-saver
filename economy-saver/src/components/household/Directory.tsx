@@ -4,12 +4,13 @@ import { notFound } from "next/navigation";
 import { dayLabel, formatter, usd } from "@/lib/money/format";
 import { cycle, medianLow, paybackFor, project, roomOnCard } from "@/lib/money/runway";
 import type { Card, Client, MoneyState } from "@/lib/money/types";
+import { cardSummary } from "@/components/home/card-summary";
 import { AddClientForm } from "./AddClientForm";
 import "./household.css";
 
 function Detail({ title, close, children }: { title: string; close: string; children: ReactNode }) {
   return <aside className="directory-detail" aria-label={title}>
-    <header><h2>{title}</h2><Link href={close}>Close</Link></header>
+    <header><h2>{title}</h2><Link className="ui-back" href={close}>Close</Link></header>
     {children}
   </aside>;
 }
@@ -29,7 +30,8 @@ function CardPanel({ state, card }: { state: MoneyState; card: Card }) {
       <div className="ui-row"><dt>Closes</dt><dd>{dayLabel(current.closesOn)}</dd></div>
       <div className="ui-row"><dt>Next statement</dt><dd>{next ? `${format(next.amount)} · due ${dayLabel(next.dueOn)}` : "None due"}</dd></div>
       {next && <div className="ui-row"><dt>Coverage</dt><dd>{next.source === "short" ? `Short ${format(-next.worstBalance)}` : next.source === "bank" ? "Covered by cash on hand" : `Covered by payments from ${next.arrivals.map(a => a.clientName).join(", ")}`}</dd></div>}
-      <div className="ui-row"><dt>Room on this card</dt><dd>{format(room.room)}</dd></div>
+      {room.limitLeft !== undefined && <div className="ui-row"><dt>Limit left</dt><dd>{format(Math.max(0, room.limitLeft))}</dd></div>}
+      <div className="ui-row"><dt>Can still go on this card and leave every bill through {dayLabel(room.through)} covered</dt><dd>{format(room.room)}</dd></div>
       {[...trips].map(([place, total]) => <div className="ui-row" key={place}><dt>{place} this cycle</dt><dd>{format(total)}</dd></div>)}
     </dl>
     <h3>Recent charges</h3>
@@ -71,15 +73,19 @@ export function Directory({ state, section, selected, newClientId }: { state: Mo
       <h1 className="ui-title">{isCards ? "Cards" : "Clients"}</h1>
       <p className="ui-hint">{isCards ? "Statements, charges and what will cover them." : "Work to invoice, payments due and how soon clients usually pay."}</p>
       {isCards ? state.cards.map(item => {
-        const next = paybackFor(state, item.id);
-        return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={`/cards/${item.id}`} aria-current={item.id === selected ? "page" : undefined}>
-          <div>{item.label}<small>{next ? `Due ${dayLabel(next.dueOn)}` : "No statement due"}</small></div>
-          <div>{next && <>{format(next.amount)}<small>{next.source === "short" ? "Short if clients pay late" : "Covered ✓"}</small></>}</div>
+        const { owed, limitLeft, next, shortBy } = cardSummary(state, item.id);
+        const owner = state.split.members.length > 1 ? state.split.members.find(member => member.id === item.ownerId)?.name ?? "Household" : null;
+        return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={`/cards/${item.id}`} aria-label={item.label} aria-current={item.id === selected ? "page" : undefined}>
+          <div>{item.label}{owner && <small>{owner}</small>}
+            <small>{next ? `${next.open ? "So far" : "Statement"} ${format(next.amount)} · due ${dayLabel(next.dueOn)}` : "No statement due"}</small>
+            {limitLeft !== undefined && <small>{format(Math.max(0, limitLeft))} limit left</small>}</div>
+          <div>{format(owed)}<small>owed now</small>
+            {next && <small>{shortBy > 0 ? <span className="directory-short">Short {format(shortBy)}</span> : <span className="directory-covered">Covered ✓</span>}</small>}</div>
         </Link>;
       }) : state.clients.map(item => {
-        const open = state.invoices.filter(i => i.clientId === item.id && i.status === "sent");
-        return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={`/clients/${item.id}`} aria-current={item.id === selected ? "page" : undefined}>
-          <div>{item.name}<small>{item.email}</small></div><div>{usd(open.reduce((sum, i) => sum + i.amountUsd, 0))}<small>Outstanding</small></div>
+        const outstanding = state.invoices.filter(i => i.clientId === item.id && i.status === "sent").reduce((sum, i) => sum + i.amountUsd, 0);
+        return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={`/clients/${item.id}`} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>
+          <div>{item.name}<small>{item.email}</small></div><div>{outstanding > 0 ? <>{usd(outstanding)}<small>Outstanding</small></> : <small>Nothing outstanding</small>}</div>
         </Link>;
       })}
       {(isCards ? state.cards : state.clients).length === 0 && <p className="directory-empty">No {section} yet.</p>}

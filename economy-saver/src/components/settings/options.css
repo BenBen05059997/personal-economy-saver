@@ -1,6 +1,7 @@
 .options-page { max-width: 850px; display: grid; gap: var(--space-5); }
 .options-page .ui-title { margin: 4px 0 8px; }
 .options-lead { font: 400 25px/1.3 var(--serif); margin-bottom: 8px; }
+.options-page :is(.options-lead, p, .option-row details) { max-width: 70ch; }
 .options-list { list-style: none; display: grid; gap: var(--space-4); padding: 0; margin: 0; }
 .option-row { display: grid; gap: var(--space-3); }
 .option-heading { display: flex; justify-content: space-between; gap: var(--space-4); align-items: start; }
@@ -14,3 +15,8 @@
 .option-row details a { font-size: 13px; }
 .options-context { display: grid; gap: var(--space-2); background: var(--wash); }
 @media(max-width:480px) { .option-cost { font-size: 24px; } .option-row { padding: var(--space-4); } }
+/* Phone: the reference links reach 44px to tap without changing how they look; an invisible ::after grows the hit area. */
+@media (max-width: 760px) {
+  .option-row details a { position: relative; }
+  .option-row details a::after { content: ""; position: absolute; inset: -14px -4px; }
+}

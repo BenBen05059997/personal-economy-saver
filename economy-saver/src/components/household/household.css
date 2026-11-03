@@ -7,6 +7,8 @@
 .directory-link[aria-current="page"], .directory-link:hover { background: var(--wash); }
 .directory-list .directory-link { padding-inline: var(--space-2); }
 .directory-list .directory-link > :last-child, .directory-detail dd { text-align: right; }
+.directory-list .directory-link > :first-child { min-width: 0; }
+.directory-list .directory-link > :last-child { flex: none; white-space: nowrap; }
 .directory small { display: block; margin-top: var(--space-1); font-size: 13px; color: var(--muted); }
 .directory-detail { position: sticky; top: calc(var(--topbar-height) + var(--space-4)); padding: var(--space-5); border-left: 1px solid var(--rule); max-height: calc(100dvh - var(--topbar-height) - var(--space-8)); overflow-y: auto; }
 .directory-detail header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-5); }
@@ -16,6 +18,8 @@
 .directory-detail dl { margin: var(--space-4) 0; }
 .directory-detail dt { color: var(--muted); }
 .directory-detail dd { margin: 0; }
+.directory-short { color: var(--red); }
+.directory-covered { display: inline-block; padding: 1px 8px 2px; border-radius: 9px; background: var(--green-wash); color: var(--green); font-size: 12px; font-weight: 600; }
 .directory-big { font: 400 32px/1.2 var(--serif); }
 .directory-empty { padding-block: var(--space-4); }
 .household-table { width: 100%; border-collapse: collapse; text-align: left; }

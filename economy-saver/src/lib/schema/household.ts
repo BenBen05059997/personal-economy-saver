@@ -22,6 +22,7 @@ const Member = z.object({
   id,
   displayName: z.string(),
   role: z.enum(["owner", "member"]),
+  shareBp: z.number().int().min(0).max(10_000).describe("Share of the household's shared bills and charges, in basis points (4000 = 40%). The members' shares total 10000."),
 }).strict();
 
 const Card = z.object({
@@ -58,12 +59,14 @@ const Charge = z.object({
   source: z.enum(["card_email", "receipt", "voice", "manual"]),
   status,
   place: z.string().nullable(),
+  shared: z.boolean().describe("true = split between the members by their shares; the owner of the card paid it."),
   documentId: id.nullable(),
 }).strict();
 
 const Bill = z.object({
   id,
   memberId: id.nullable().describe("Whose bill; null = shared."),
+  paidByMemberId: id.nullable().describe("Who pays a shared bill, every month for a monthly one; the bill is split between the members only when this is set. Null otherwise."),
   biller: z.string(),
   amountMinor: minor,
   currency,
@@ -111,6 +114,17 @@ const Pot = z.object({
   fillBp: z.number().int().min(1).max(10_000).nullable().describe("Share of each client payment added to the pot, in basis points (2500 = 25%)."),
   currency,
   status,
+}).strict();
+
+const Settlement = z.object({
+  id,
+  fromMemberId: id.describe("Who paid."),
+  toMemberId: id.describe("Who received."),
+  amountMinor: minor.describe("In `currency`, always more than zero."),
+  currency,
+  through: day.describe("Shared items dated on or before this day were settled, except those dated this day and created after `settledAt`; the next balance counts the rest."),
+  settledAt: moment.describe("When the settlement was recorded."),
+  createdAt: moment,
 }).strict();
 
 const BalanceUpdate = z.object({
@@ -166,6 +180,7 @@ export const HouseholdSnapshot = z.object({
     paypalBalanceMinor: minor.describe("The household's PayPal connection balances added up and converted to `homeCurrency` at `usdRateMicro`; 0 with no connection. Total cash is this plus `bankBalanceMinor`, before money set aside in pots."),
     usdRateMicro: z.number().int().positive().safe().describe("Home currency per 1 USD scaled by 1e6, the rate the household's money state uses today (1000000 when `homeCurrency` is USD)."),
     usdRateDate: day.nullable().describe("The day `usdRateMicro` is from; null when `homeCurrency` is USD."),
+    splitSince: day.nullable().describe("The day the household got its second member and shared costs began to be split; null while it has one member."),
   }).strict(),
   members: z.array(Member),
   cards: z.array(Card),
@@ -175,6 +190,7 @@ export const HouseholdSnapshot = z.object({
   clients: z.array(Client),
   invoices: z.array(Invoice),
   pots: z.array(Pot),
+  settlements: z.array(Settlement).describe("Every transfer recorded by Mark settled, oldest first."),
   balanceUpdates: z.array(BalanceUpdate).describe("Bank balances set (confirmed) and waiting in To check (pending). Pending bills, charges and pots carry `status` in their own lists."),
   documents: z.array(Document).describe("References only."),
   truncated: Truncated,
@@ -190,6 +206,7 @@ export type SnapshotBill = z.infer<typeof Bill>;
 export type SnapshotClient = z.infer<typeof Client>;
 export type SnapshotInvoice = z.infer<typeof Invoice>;
 export type SnapshotPot = z.infer<typeof Pot>;
+export type SnapshotSettlement = z.infer<typeof Settlement>;
 export type SnapshotBalanceUpdate = z.infer<typeof BalanceUpdate>;
 export type SnapshotDocument = z.infer<typeof Document>;
 export type SnapshotEvent = z.infer<typeof Event>;

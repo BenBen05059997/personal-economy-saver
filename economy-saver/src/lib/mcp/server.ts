@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { householdDate } from "@/db/account";
 import { loadMoneyState, type Db } from "@/db/household";
+import { InputError } from "@/db/input-error";
 import { authenticateMcpToken } from "@/db/mcp-tokens";
 import { consumeRequest } from "@/db/rate-limit";
 import { tools } from "@/lib/agent/tools";
@@ -9,7 +10,7 @@ import { tools } from "@/lib/agent/tools";
 const result = (text: string) => ({ content: [{ type: "text" as const, text }] });
 async function answer(read: () => Promise<string>) {
   try { return result(await read()); }
-  catch { return { ...result("Could not complete this request for the household."), isError: true }; }
+  catch (failure) { return { ...result(failure instanceof InputError ? failure.message : "Could not complete this request for the household."), isError: true }; }
 }
 
 // A separate stateless SDK server is constructed per authenticated request. No cookie, global household or merchant toolkit.

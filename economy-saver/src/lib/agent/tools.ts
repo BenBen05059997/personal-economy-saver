@@ -9,7 +9,9 @@ import { requireHousehold, type Db } from "@/db/household";
 import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
 import { chargeInput, insertCharge } from "@/db/charges";
+import { InputError } from "@/db/input-error";
 import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
+import { memberByName, memberCount } from "@/db/people";
 import { potInput, savePot } from "@/db/pots";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { toMinor } from "@/db/money";
@@ -18,6 +20,7 @@ import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
 import { fundingOptions } from "@/lib/money/options";
 import { planFor, planLine } from "@/lib/money/plan";
 import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
+import { splitBalance, splitSummary } from "@/lib/money/split";
 import type { MoneyState } from "@/lib/money/types";
 
 export type ToolContext = {
@@ -51,6 +54,11 @@ function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
 }
 
 const none = z.object({});
+// D45: the agent names people, not ids. `shared` and `paidBy` replace the form's member ids.
+const addBillInput = billInput.omit({ paidByMemberId: true }).extend({
+  shared: z.boolean().nullable().default(null),
+  paidBy: z.string().trim().min(1).max(80).nullable().default(null),
+});
 /** The most recent rows of each long list that the agent's snapshot carries (the export has them all). */
 export const SNAPSHOT_TOOL_WINDOW = 100;
 const SCENARIOS = { as_usual: "expected", late: "worst" } as const;
@@ -138,7 +146,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "household_snapshot", scope: "read", input: z.object({}).strict(),
-    description: `The whole household as one JSON document (schema version 1): household, members, cards, statements, charges, stored bills (a monthly bill appears once, with repeatDay), clients, invoices, pots, bank balance updates and document references. Money is integer minor units next to a currency; dates are ISO strings. Use it as context for the household as a whole, to find ids and see what exists. It is not an answer: what the household can spend, what is due and how short it would be come from the engine tools (where_am_i, whats_due, can_i_spend, timeline). Rows with status pending are waiting in To check and count for nothing yet. Each of bills, charges, statements, invoices, balanceUpdates and documents holds at most its ${SNAPSHOT_TOOL_WINDOW} most recent rows, oldest first; truncated says which lists were cut. No audit-trail events and no secrets are included.`,
+    description: `The whole household as one JSON document (schema version 1): household, members (with their shares of shared costs), cards, statements, charges, stored bills (a monthly bill appears once, with repeatDay), clients, invoices, pots, settlements, bank balance updates and document references. Money is integer minor units next to a currency; dates are ISO strings. Use it as context for the household as a whole, to find ids and see what exists. It is not an answer: what the household can spend, what is due and how short it would be come from the engine tools (where_am_i, whats_due, can_i_spend, timeline). Rows with status pending are waiting in To check and count for nothing yet. Each of bills, charges, statements, invoices, balanceUpdates and documents holds at most its ${SNAPSHOT_TOOL_WINDOW} most recent rows, oldest first; truncated says which lists were cut. No audit-trail events and no secrets are included.`,
     run: async ctx => JSON.stringify(await loadHouseholdSnapshot(ctx.db, ctx.householdId, { events: false, recent: SNAPSHOT_TOOL_WINDOW })),
   }),
   defineTool({
@@ -173,6 +181,22 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
+    name: "who_owes_whom", scope: "read", input: none,
+    description: "Who owes whom for the household's shared bills and card charges since the last settlement, split by each person's share: the fewest payments that bring everyone to zero, and what each person has paid and owes. Quote summary to the user as it is; it is built in code. Information only; the user taps Mark settled in the app.",
+    run: async ctx => {
+      const state = await ctx.state();
+      const balance = splitBalance(state.split, state.today);
+      return JSON.stringify({
+        summary: splitSummary(state.split, balance, state.homeCurrency), currency: state.homeCurrency,
+        split: state.split.members.length > 1, since: state.split.since, settledThrough: state.split.settledThrough, items: balance.items,
+        transfers: balance.transfers.map(t => ({ from: t.fromName, to: t.toName, amountMinor: t.amountMinor })),
+        members: balance.members.map((m, i) => ({
+          name: m.name, shareBp: state.split.members[i].shareBp, paidMinor: m.paidMinor, shareMinor: m.shareMinor, netMinor: m.netMinor,
+        })),
+      });
+    },
+  }),
+  defineTool({
     name: "draft_invoice", scope: "draft", input: draftInput,
     description: "Save a local USD invoice draft for the user to review; nothing is sent. amount is dollars, like 18.52. id is a new UUID; reuse the same id when retrying. client_id comes from list_clients_and_cards.",
     run: async (ctx, input) => {
@@ -183,17 +207,26 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "add_bill", scope: "draft", input: billInput,
-    description: "Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800). due is YYYY-MM-DD. member_id is null for a shared bill. monthly is true when the bill repeats every month on the due date's day (rent, phone, insurance, a subscription), false for a one-off; it only starts repeating once the user confirms it. id is a new UUID; reuse the same id when retrying.",
+    name: "add_bill", scope: "draft", input: addBillInput,
+    description: "Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800). due is YYYY-MM-DD. memberId is null for a household bill. monthly is true when the bill repeats every month on the due date's day (rent, phone, insurance, a subscription), false for a one-off; it only starts repeating once the user confirms it. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. id is a new UUID; reuse the same id when retrying.",
     run: async (ctx, input) => {
-      await insertBill(ctx.db, ctx.householdId, input, "pending");
+      const { shared, paidBy, ...bill } = input;
+      let paidByMemberId: string | null = null;
+      if (paidBy !== null && !shared) throw new InputError("paidBy names who pays a shared bill; set shared to true");
+      if (shared) {
+        if (bill.memberId !== null) throw new InputError("A shared bill belongs to nobody in particular; leave memberId empty");
+        if (paidBy === null) throw new InputError("Say who pays a shared bill (paidBy)");
+        if (await memberCount(ctx.db, ctx.householdId) < 2) throw new InputError("Splitting a bill needs a second person; add one in Settings, People");
+        paidByMemberId = (await memberByName(ctx.db, ctx.householdId, paidBy)).id;
+      }
+      await insertBill(ctx.db, ctx.householdId, { ...bill, paidByMemberId }, "pending");
       ctx.onPending?.();
       return `${input.biller} is waiting in To check for the user to confirm.`;
     },
   }),
   defineTool({
     name: "log_charge", scope: "draft", input: chargeInput,
-    description: "Log a card purchase the user tells you about. It waits in To check until the user confirms it. amount is a plain number in the household's home currency. date is YYYY-MM-DD (today if the user does not say). card_id comes from list_clients_and_cards. id is a new UUID; reuse the same id when retrying.",
+    description: "Log a card purchase the user tells you about. It waits in To check until the user confirms it. amount is a plain number in the household's home currency. date is YYYY-MM-DD (today if the user does not say). card_id comes from list_clients_and_cards. shared is true when the purchase is split between the household's people (needs two or more people and a card that belongs to one of them, who paid); false otherwise. id is a new UUID; reuse the same id when retrying.",
     run: async (ctx, input) => {
       await insertCharge(ctx.db, ctx.householdId, input, "pending", ctx.source ?? "manual");
       ctx.onPending?.();

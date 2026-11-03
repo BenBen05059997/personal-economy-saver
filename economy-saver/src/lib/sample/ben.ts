@@ -65,8 +65,8 @@ export const benMoney: MoneyState = {
   // Card B closes on the 15th and is paid on the 10th of the next month: the cycle that closes Nov 15
   // holds ¥61,000 so far, due Dec 10. Neither card is on リボ.
   cards: [
-    { id: "card-a", label: "Card A", closingDay: 31, dueDay: 26, limit: 500_000, revolving: false },
-    { id: "card-b", label: "Card B", closingDay: 15, dueDay: 10, limit: 300_000, revolving: false },
+    { id: "card-a", label: "Card A", closingDay: 31, dueDay: 26, limit: 500_000, revolving: false, ownerId: "m-ben" },
+    { id: "card-b", label: "Card B", closingDay: 15, dueDay: 10, limit: 300_000, revolving: false, ownerId: "m-ben" },
   ],
   statements: [{ cardId: "card-a", amount: 58_000, closedOn: "2026-10-31", dueOn: "2026-11-26" }],
   charges: ([
@@ -89,6 +89,7 @@ export const benMoney: MoneyState = {
   ],
   pots: [], // D43: Ben has no pots, so every demo number stays as it is
   pendingPots: [],
+  split: { members: [{ id: "m-ben", name: "Ben", shareBp: 10_000 }], since: null, settledThrough: null, settledAt: null, bills: [], charges: [] },
   balanceUpdates: [],
   invoices: [
     { id: "i-1042", clientId: "c-acme", number: "1042", item: "Product illustrations, batch 3", amountUsd: 1_200, status: "sent", sentOn: "2026-11-08", dueOn: "2026-11-18" },

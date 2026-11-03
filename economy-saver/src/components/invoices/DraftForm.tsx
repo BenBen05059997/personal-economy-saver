@@ -1,4 +1,5 @@
 import type { Client } from "@/lib/money/types";
+import { AmountInput } from "@/components/ui/CheckedInput";
 
 export function DraftForm({ clients, id }: { clients: Client[]; id: string }) {
   return <>
@@ -8,7 +9,7 @@ export function DraftForm({ clients, id }: { clients: Client[]; id: string }) {
       <label className="ui-field">To<select name="clientId" required>{clients.map(client =>
         <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
       <label className="ui-field">For<input name="item" maxLength={200} required /></label>
-      <label className="ui-field">Amount (USD)<input inputMode="decimal" name="amount" required pattern="[0-9]+(\.[0-9]{1,2})?" /></label>
+      <label className="ui-field">Amount (USD)<AmountInput name="amount" currency="USD" required /></label>
       <label className="ui-field">Note<textarea name="note" maxLength={3900} /></label>
       <button className="ui-button primary">Review draft</button>
     </form> : <p>Add a client before creating an invoice.</p>}

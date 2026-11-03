@@ -56,12 +56,14 @@ async function main() {
     await client.connect(transport);
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_pot", "can_i_spend", "draft_invoice", "household_snapshot", "list_clients_and_cards", "list_invoices", "log_charge", "options_when_short", "plan_for", "timeline", "update_bank_balance", "whats_due", "where_am_i"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_pot", "can_i_spend", "draft_invoice", "household_snapshot", "list_clients_and_cards", "list_invoices", "log_charge", "options_when_short", "plan_for", "timeline", "update_bank_balance", "whats_due", "where_am_i", "who_owes_whom"]);
     stage = "tool execution";
     const outlook = await client.callTool({ name: "where_am_i", arguments: {} });
     assert.match(JSON.stringify(outlook.content), /18,780 short/);
     const plan = JSON.parse(((await client.callTool({ name: "plan_for", arguments: { target_minor: 1_200_000, target_date: "2027-03-31" } })).content as { text: string }[])[0].text);
     assert.equal(plan.monthlyNeededMinor, 300_000);
+    const owes = JSON.parse(((await client.callTool({ name: "who_owes_whom", arguments: {} })).content as { text: string }[])[0].text);
+    assert.deepEqual([owes.summary, owes.transfers, owes.split], ["Only one person is in this household, so there is nothing to split.", [], false]);
     const snapshotCall = await client.callTool({ name: "household_snapshot", arguments: {} });
     assert.ok(!snapshotCall.isError);
     const snapshot = JSON.parse((snapshotCall.content as { text: string }[])[0].text);

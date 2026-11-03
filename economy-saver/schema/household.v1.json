@@ -71,6 +71,19 @@
             }
           ],
           "description": "The day `usdRateMicro` is from; null when `homeCurrency` is USD."
+        },
+        "splitSince": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date",
+              "description": "A calendar day, YYYY-MM-DD."
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The day the household got its second member and shared costs began to be split; null while it has one member."
         }
       },
       "required": [
@@ -83,7 +96,8 @@
         "bankBalanceMinor",
         "paypalBalanceMinor",
         "usdRateMicro",
-        "usdRateDate"
+        "usdRateDate",
+        "splitSince"
       ],
       "additionalProperties": false
     },
@@ -105,12 +119,19 @@
               "owner",
               "member"
             ]
+          },
+          "shareBp": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000,
+            "description": "Share of the household's shared bills and charges, in basis points (4000 = 40%). The members' shares total 10000."
           }
         },
         "required": [
           "id",
           "displayName",
-          "role"
+          "role",
+          "shareBp"
         ],
         "additionalProperties": false
       }
@@ -343,6 +364,10 @@
               "null"
             ]
           },
+          "shared": {
+            "type": "boolean",
+            "description": "true = split between the members by their shares; the owner of the card paid it."
+          },
           "documentId": {
             "anyOf": [
               {
@@ -368,6 +393,7 @@
           "source",
           "status",
           "place",
+          "shared",
           "documentId"
         ],
         "additionalProperties": false
@@ -393,6 +419,18 @@
               }
             ],
             "description": "Whose bill; null = shared."
+          },
+          "paidByMemberId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who pays a shared bill, every month for a monthly one; the bill is split between the members only when this is set. Null otherwise."
           },
           "biller": {
             "type": "string"
@@ -480,6 +518,7 @@
         "required": [
           "id",
           "memberId",
+          "paidByMemberId",
           "biller",
           "amountMinor",
           "currency",
@@ -772,6 +811,66 @@
         "additionalProperties": false
       }
     },
+    "settlements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fromMemberId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Who paid."
+          },
+          "toMemberId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Who received."
+          },
+          "amountMinor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "In `currency`, always more than zero."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "through": {
+            "type": "string",
+            "format": "date",
+            "description": "Shared items dated on or before this day were settled, except those dated this day and created after `settledAt`; the next balance counts the rest."
+          },
+          "settledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the settlement was recorded."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "An instant, ISO 8601 in UTC."
+          }
+        },
+        "required": [
+          "id",
+          "fromMemberId",
+          "toMemberId",
+          "amountMinor",
+          "currency",
+          "through",
+          "settledAt",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Every transfer recorded by Mark settled, oldest first."
+    },
     "balanceUpdates": {
       "type": "array",
       "items": {
@@ -1008,6 +1107,7 @@
     "clients",
     "invoices",
     "pots",
+    "settlements",
     "balanceUpdates",
     "documents",
     "truncated"

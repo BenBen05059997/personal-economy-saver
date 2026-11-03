@@ -9,16 +9,17 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - A Next.js 16 app with household-scoped Postgres/Drizzle data and a fictional Ben seed.
 - A deterministic runway and sentence from stored bills, cards, charges, invoices, FX rates and client payment history.
 - Screens: Home, invoice review, To check, Activity, Cards, Clients, Plan, Options, Settings, Upload and document review.
-- A Try it household flow and passwordless email sign-in.
+- A Try it household flow (with Reset to Ben's starting numbers in Settings) and passwordless email sign-in.
 - Typed-in data: clients, bills (optionally repeating monthly), card charges, a one-line bank balance, and invoices marked paid outside PayPal.
 - Pots on the Plan page: money set aside for a reason, taken off the cash every runway number starts from, optionally filled by a percentage of each client payment.
+- A household split: Settings → People sets each person's share, a bill or card charge can be shared, and Home shows who owes whom with Mark settled. It appears only with two or more people and does not change the runway.
 - Document intake (upload and forwarded email) with confirmation before a reading changes money records.
 - An in-app agent: `/api/ask` runs Claude with tools over the engine (reads and drafts only). The same tool catalogue serves MCP.
 - One versioned household schema: Settings has Export my data (a JSON download with the household's events), the `household_snapshot` read tool gives the agent and MCP the same picture without events, and `schema/household.v1.json` is generated from the same definition.
 - PayPal sandbox REST and Agent Toolkit integration, with the draft/read tools separate from the server approval path; verified webhook deliveries are idempotent; a read-only import of sandbox invoice history.
 - Rate limits on Try it, Ask, MCP, drafts, approvals, uploads, document reads, imports and exports; PayPal toolkit calls time out after 20 s.
 - A daily Cron route with an explicit household list (`CRON_HOUSEHOLD_IDS`).
-- Isolated PGlite test suites for schema/seed/engine, approval and webhook behaviour, MCP, reader, settings, agent, PayPal refresh, typed-in data, import, pots and the household snapshot. They do not show that hosted services are configured.
+- Isolated PGlite test suites for schema/seed/engine, approval and webhook behaviour, MCP, reader, settings, agent, PayPal refresh, typed-in data, import, pots, the household snapshot and the household split. They do not show that hosted services are configured.
 
 ## Safety
 
@@ -75,13 +76,13 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all eleven suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, pots, snapshot
+npm run db:test      # all twelve suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, pots, snapshot, split
 npm run schema       # rewrites schema/household.v1.json from the zod definition (db:test fails when it is stale)
 npx tsc --noEmit -p .
 npm run lint
 ```
 
-Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:pots-test`, `db:snapshot-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction.
+Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
 
 With the app running and Supabase configured, `node scripts/frontend-check.mjs --run http://127.0.0.1:3123` times the core household workflows. `--extra` covers Upload, Options and invoice draft retries; `--guards` covers integration rejection paths. They create fictional Try it households. Results and timings are in [PLAN.md](../PLAN.md).
 
@@ -112,7 +113,7 @@ src/lib/mcp/             Streamable HTTP server
 src/lib/catalogue/       the wealth-move catalogue engine (words and sources in src/data/catalogue/)
 src/lib/reader/          extraction, forwarding, storage
 scripts/                 isolated tests and explicit owner-operated checks
-drizzle/                 ordered schema migrations (0000–0010)
+drizzle/                 ordered schema migrations (0000–0011)
 worker.ts                Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
 samples/bills/           fictional sample bills for the reader
 ```

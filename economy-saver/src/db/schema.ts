@@ -56,6 +56,7 @@ export const households = pgTable("households", {
   forwardingLocalpart: text("forwarding_localpart"),
   runwayShort: boolean("runway_short"),
   notificationDay: date("notification_day", { mode: "string" }),
+  splitSince: date("split_since", { mode: "string" }), // D45: the day the household got its second member; null while it has one
   aiKeySecretId: uuid("ai_key_secret_id"), // the user's own key lives in Supabase Vault (D33); this is its id
   aiKeyHint: text("ai_key_hint"), // prefix…suffix only
   aiReadsToday: integer("ai_reads_today").notNull().default(0),
@@ -85,9 +86,11 @@ export const members = pgTable(
     displayName: text("display_name").notNull(),
     role: memberRole("role").notNull().default("member"),
     authUserId: uuid("auth_user_id"), // Supabase auth user, once the member has logged in
+    shareBp: integer("share_bp").notNull(), // D45: share of shared costs in basis points; a household's members total 10,000 (checked in code)
     createdAt: createdAt(),
   },
-  (t) => [index("members_household_idx").on(t.householdId), unique("members_household_id_uq").on(t.householdId, t.id)],
+  (t) => [index("members_household_idx").on(t.householdId), unique("members_household_id_uq").on(t.householdId, t.id),
+    check("members_share_valid", sql`${t.shareBp} between 0 and 10000`)],
 ).enableRLS();
 
 // Maps a Supabase auth user to the household and member they act as.
@@ -249,6 +252,7 @@ export const charges = pgTable(
     originalAmountMinor: minor("original_amount_minor"), // when paid in another currency
     originalCurrency: char("original_currency", { length: 3 }),
     fxRateMicro: bigint("fx_rate_micro", { mode: "number" }), // original -> billed, when they differ
+    shared: boolean("shared").notNull().default(false), // D45: split between the members; the card's owner paid it
     date: date("date", { mode: "string" }).notNull(),
     source: chargeSource("source").notNull(),
     status: confirmStatus("status").notNull().default("confirmed"),
@@ -271,6 +275,7 @@ export const bills = pgTable(
     id: id(),
     householdId: householdId(),
     memberId: uuid("member_id").references(() => members.id, { onDelete: "set null" }), // null = shared
+    paidByMemberId: uuid("paid_by_member_id"), // D45: who pays a shared bill (every occurrence); only with member_id null
     biller: text("biller").notNull(),
     amountMinor: minor("amount_minor").notNull(),
     currency: char("currency", { length: 3 }).notNull(),
@@ -286,6 +291,8 @@ export const bills = pgTable(
   (t) => [index("bills_household_idx").on(t.householdId), index("bills_due_idx").on(t.householdId, t.due),
     check("bills_repeat_day_valid", sql`${t.repeatDay} is null or ${t.repeatDay} between 1 and 31`),
     foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "bills_member_household_fk" }),
+    foreignKey({ columns: [t.householdId, t.paidByMemberId], foreignColumns: [members.householdId, members.id], name: "bills_paid_by_household_fk" }),
+    check("bills_paid_by_shared_only", sql`${t.paidByMemberId} is null or ${t.memberId} is null`),
     foreignKey({ columns: [t.householdId, t.documentId], foreignColumns: [documents.householdId, documents.id], name: "bills_document_household_fk" })],
 ).enableRLS();
 
@@ -328,6 +335,28 @@ export const pots = pgTable(
     check("pots_saved_valid", sql`${t.savedMinor} >= 0`),
     check("pots_fill_valid", sql`${t.fillBp} is null or ${t.fillBp} between 1 and 10000`),
     foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "pots_member_household_fk" })],
+).enableRLS();
+
+// D45: one row per transfer recorded by "Mark settled". `through` is the household's date when it was settled; the next
+// balance counts only shared items dated after the latest `through`, plus items dated `through` that were created after `settled_at`.
+export const settlements = pgTable(
+  "settlements",
+  {
+    id: id(),
+    householdId: householdId(),
+    fromMemberId: uuid("from_member_id").notNull(), // who paid
+    toMemberId: uuid("to_member_id").notNull(), // who received
+    amountMinor: minor("amount_minor").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    through: date("through", { mode: "string" }).notNull(),
+    settledAt: timestamp("settled_at", { withTimezone: true }).notNull().defaultNow(), // database clock, like created_at: an item dated `through` counts again only if it was created after this
+    createdAt: createdAt(),
+  },
+  (t) => [index("settlements_household_idx").on(t.householdId, t.through),
+    check("settlements_amount_positive", sql`${t.amountMinor} > 0`),
+    check("settlements_different_members", sql`${t.fromMemberId} <> ${t.toMemberId}`),
+    foreignKey({ columns: [t.householdId, t.fromMemberId], foreignColumns: [members.householdId, members.id], name: "settlements_from_household_fk" }),
+    foreignKey({ columns: [t.householdId, t.toMemberId], foreignColumns: [members.householdId, members.id], name: "settlements_to_household_fk" })],
 ).enableRLS();
 
 export const readings = pgTable(

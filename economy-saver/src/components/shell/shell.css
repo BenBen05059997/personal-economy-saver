@@ -197,9 +197,9 @@
     padding: 0 max(12px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
   }
   .shell-bar .shell-mobile-toggle { display: inline-flex; width: 44px; height: 44px; }
-  .shell-mobile-brand { display: inline; font-weight: 600; text-decoration: none; }
+  .shell-mobile-brand { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; text-decoration: none; }
   .shell-bell { min-height: 44px; }
-  .shell-bar .shell-add { height: 36px; padding: 0 12px; }
+  .shell-bar .shell-add { height: 44px; padding: 0 12px; }
   .shell-main { padding: 18px max(20px, env(safe-area-inset-right)) 96px max(20px, env(safe-area-inset-left)); }
   .shell-phone-ask {
     position: fixed;

@@ -49,6 +49,7 @@ async function check(name: string, fn: () => void | Promise<void>) {
 // The database mints its own uuids, so ids are rewritten to natural keys and arrays sorted before comparing.
 function normalise(state: MoneyState): MoneyState {
   const cardLabel = new Map(state.cards.map((c) => [c.id, c.label]));
+  const memberName = new Map(state.split.members.map((m) => [m.id, m.name]));
   const clientName = new Map(state.clients.map((c) => [c.id, c.name]));
   const billId = (b: { biller: string }) => `bill:${b.biller}`;
   const invoiceId = (i: { clientId: string; item: string }) => `inv:${clientName.get(i.clientId)}:${i.item}`;
@@ -56,7 +57,7 @@ function normalise(state: MoneyState): MoneyState {
   return {
     ...state,
     bills: state.bills.map((b) => ({ ...b, id: billId(b) })).sort(by((b) => b.due + b.biller)),
-    cards: state.cards.map((c) => ({ ...c, id: `card:${c.label}` })).sort(by((c) => c.label)),
+    cards: state.cards.map((c) => ({ ...c, id: `card:${c.label}`, ...(c.ownerId && { ownerId: `member:${memberName.get(c.ownerId)}` }) })).sort(by((c) => c.label)),
     charges: state.charges
       .map((c) => ({ ...c, id: `ch:${cardLabel.get(c.cardId)}:${c.merchant}:${c.date}`, cardId: `card:${cardLabel.get(c.cardId)}` }))
       .sort(by((c) => c.date + c.id)),
@@ -67,6 +68,7 @@ function normalise(state: MoneyState): MoneyState {
     invoices: state.invoices
       .map((i) => ({ ...i, id: invoiceId(i), clientId: `client:${clientName.get(i.clientId)}` }))
       .sort(by((i) => i.id)),
+    split: { ...state.split, members: state.split.members.map((m) => ({ ...m, id: `member:${m.name}` })) },
   };
 }
 
@@ -390,7 +392,7 @@ async function main() {
 
   await check("row level security is on for every table, with no policies", async () => {
     const tables = allTables().map((t) => getTableConfig(t).name);
-    assert.equal(tables.length, 20);
+    assert.equal(tables.length, 21);
     const on = (await pg.query<{ relname: string }>(`select relname from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace and relrowsecurity`)).rows.map((r) => r.relname);
     assert.deepStrictEqual(on.sort(), tables.sort());
     assert.equal((await pg.query(`select 1 from pg_policies`)).rows.length, 0);

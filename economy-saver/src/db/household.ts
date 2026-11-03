@@ -1,12 +1,13 @@
 // The household-scoped data layer. Every function takes the household id first and throws without one,
 // and every query filters on it, so a route cannot read another household's rows by forgetting a clause.
 
-import { and, count, desc, eq, gt, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, gte, inArray, isNull, isNotNull, lte, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { Currency } from "@/lib/catalogue/types";
 import { expandBills } from "@/lib/money/repeat";
+import { countingFrom } from "@/lib/money/split";
 import { addDays, planWindow } from "@/lib/money/runway";
-import type { Bill, Card, Charge, Client, ClosedStatement, Invoice, MoneyState, Pot } from "@/lib/money/types";
+import type { Bill, Card, Charge, Client, ClosedStatement, Invoice, MoneyState, Pot, SplitState } from "@/lib/money/types";
 import { convertMinor, fromMinor, fromRateMicro, toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
 import { deleteHouseholdKey } from "./ai-key";
@@ -59,6 +60,40 @@ export function paypalTotalMinor(connections: { balanceMinor: number; balanceCur
   return connections.reduce((sum, c) => sum + convertMinor(c.balanceMinor, c.balanceCurrency, home, fxPerUsd), 0);
 }
 
+/**
+ * The inputs of "who owes whom" (D45), in whole minor units of the home currency: the members with their shares, the day the
+ * split began, the latest settlement's through date and the confirmed shared bills and charges that can still count. Only
+ * charges from the first counting day on are read; a monthly bill is one stored row. A household with one member has none.
+ */
+export async function loadSplitState(
+  db: Db, householdId: string, splitSince: string | null, today: string, toHome: (minor: number, currency: string) => number,
+): Promise<SplitState> {
+  const hid = requireHousehold(householdId);
+  const [memberRows, [latest]] = await Promise.all([
+    db.select({ id: s.members.id, name: s.members.displayName, shareBp: s.members.shareBp }).from(s.members)
+      .where(eq(s.members.householdId, hid)).orderBy(sql`(${s.members.role} = 'owner') desc`, s.members.createdAt, s.members.id),
+    db.select({ through: s.settlements.through, settledAt: s.settlements.settledAt }).from(s.settlements).where(eq(s.settlements.householdId, hid))
+      .orderBy(desc(s.settlements.through), desc(s.settlements.settledAt)).limit(1),
+  ]);
+  const split: SplitState = { members: memberRows, since: splitSince, settledThrough: latest?.through ?? null, settledAt: latest?.settledAt.toISOString() ?? null, bills: [], charges: [] };
+  const from = countingFrom(split);
+  if (from === null) return split;
+  const [billRows, chargeRows] = await Promise.all([
+    db.select().from(s.bills).where(and(eq(s.bills.householdId, hid), eq(s.bills.status, "confirmed"), isNull(s.bills.memberId), isNotNull(s.bills.paidByMemberId)))
+      .orderBy(s.bills.due, s.bills.biller, s.bills.id),
+    db.select({ charge: s.charges, payer: s.cards.memberId }).from(s.charges)
+      .innerJoin(s.cards, and(eq(s.cards.householdId, s.charges.householdId), eq(s.cards.id, s.charges.cardId)))
+      .where(and(eq(s.charges.householdId, hid), eq(s.charges.status, "confirmed"), eq(s.charges.shared, true), gte(s.charges.date, from), lte(s.charges.date, today)))
+      .orderBy(s.charges.date, s.charges.merchant, s.charges.id),
+  ]);
+  split.bills = billRows.map(b => ({ id: b.id, biller: b.biller, amountMinor: toHome(b.amountMinor, b.currency), due: b.due, repeatDay: b.repeatDay, paidBy: b.paidByMemberId!, createdAt: b.createdAt.toISOString() }));
+  split.charges = chargeRows.map(({ charge: c, payer }) => {
+    if (payer === null) throw new Error(`The shared charge ${c.merchant} is on a card that belongs to no member`);
+    return { id: c.id, merchant: c.merchant, amountMinor: toHome(c.amountMinor, c.currency), date: c.date, paidBy: payer, createdAt: c.createdAt.toISOString() };
+  });
+  return split;
+}
+
 /** Reads the household's rows and returns the MoneyState the engine consumes. `today` is the household's own date. */
 export async function loadMoneyState(db: Db, householdId: string, today: string, snapshot?: typeof s.households.$inferSelect): Promise<MoneyState> {
   const hid = requireHousehold(householdId);
@@ -71,8 +106,9 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
   // Rows may be in another currency (a USD balance, say); the engine wants the home currency throughout.
   const inHome = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, home, fxPerUsd), home);
   const inUsd = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, "USD", fxPerUsd), "USD");
+  const toHome = (minor: number, currency: string) => convertMinor(minor, currency, home, fxPerUsd);
 
-  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows, balanceRows, potRows] = await Promise.all([
+  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows, balanceRows, potRows, split] = await Promise.all([
     db.select().from(s.paypalConnections).where(eq(s.paypalConnections.householdId, hid)),
     db.select().from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(s.bills.due, s.bills.biller),
     db.select().from(s.cards).where(eq(s.cards.householdId, hid)).orderBy(s.cards.createdAt, s.cards.label),
@@ -90,6 +126,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     db.select().from(s.invoices).where(eq(s.invoices.householdId, hid)).orderBy(s.invoices.sentOn, s.invoices.createdAt),
     db.select().from(s.balanceUpdates).where(and(eq(s.balanceUpdates.householdId, hid), eq(s.balanceUpdates.status, "pending"))).orderBy(s.balanceUpdates.createdAt, s.balanceUpdates.id),
     db.select().from(s.pots).where(eq(s.pots.householdId, hid)).orderBy(s.pots.createdAt, s.pots.name, s.pots.id),
+    loadSplitState(db, hid, household.splitSince, today, toHome),
   ]);
 
   const paypalMinor = paypalTotalMinor(connections, home, fxPerUsd);
@@ -103,6 +140,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     status: b.status,
     ...(b.previousAmountMinor !== null && { previousAmount: inHome(b.previousAmountMinor, b.currency) }),
     ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
+    ...(b.paidByMemberId !== null && { paidBy: b.paidByMemberId }),
   }));
 
   const cards: Card[] = cardRows.map((c) => ({
@@ -112,6 +150,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     dueDay: c.dueDay,
     ...(c.limitMinor !== null && { limit: inHome(c.limitMinor, c.currency) }),
     revolving: c.revolving,
+    ...(c.memberId !== null && { ownerId: c.memberId }),
   }));
 
   const charges: Charge[] = chargeRows.map((c) => ({
@@ -126,6 +165,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     source: c.source,
     status: c.status,
     ...(c.place !== null && { place: c.place }),
+    ...(c.shared && { shared: true as const }),
   }));
 
   const statements: ClosedStatement[] = statementRows.map((st) => ({
@@ -190,6 +230,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     pots: potRows.filter((p) => p.status === "confirmed").map(toPot),
     pendingPots: potRows.filter((p) => p.status === "pending").map(toPot),
     balanceUpdates: balanceRows.map((u) => ({ id: u.id, amount: inHome(u.amountMinor, u.currency) })),
+    split,
   };
   // D41: monthly bills become their occurrences up to the last day the engine looks at. planWindow reads only cards,
   // charges and statements, so it can be computed before any bill is in the state.

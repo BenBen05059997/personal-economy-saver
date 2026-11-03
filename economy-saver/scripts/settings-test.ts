@@ -9,6 +9,7 @@ import * as schema from "@/db/schema";
 import { AiKeyError, deleteHouseholdKey, aiKey, saveHouseholdKey } from "@/db/ai-key";
 import { seedBen } from "@/db/seed";
 import { parseMinor } from "@/db/money";
+import { savePeople } from "@/db/people";
 import { loadSettings, settingsInput, updateSettings } from "@/db/settings";
 import { deleteHousehold, loadMoneyState } from "@/db/household";
 import { resetDemoHousehold } from "@/db/demo";
@@ -105,19 +106,35 @@ async function main() {
       assert.equal((await loadSettings(db, a)).household.bank, -100);
       assert.equal(await bankEvents(), written + 1, "Settings changes the balance through setBankBalance (old and new in an event)");
       await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Fictional household", bank: "23456" }));
-      await assert.rejects(updateSettings(db, a, settingsInput.parse({ kind: "member", id: settingsB.people[0].id, name: "Wrong household" })));
+      await assert.rejects(savePeople(db, a, { people: [{ id: settingsB.people[0].id, name: "Wrong household" }] }));
       await assert.rejects(updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: settingsA.bills[0].id, memberId: settingsB.people[0].id })));
       await updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: settingsA.bills[0].id, memberId: settingsA.people[0].id }));
       assert.equal((await loadSettings(db, a)).bills[0].memberId, settingsA.people[0].id);
       await assert.rejects(db.update(schema.cards).set({ memberId: settingsB.people[0].id }).where(and(eq(schema.cards.householdId, a), eq(schema.cards.id, settingsA.cards[0].id))));
       await assert.rejects(db.insert(schema.bills).values({ householdId: a, memberId: settingsB.people[0].id, biller: "Invalid", amountMinor: 1, currency: "JPY", due: "2026-11-20", category: "other", status: "pending" }));
       await assert.rejects(db.insert(schema.users).values({ householdId: a, memberId: settingsB.people[0].id, authUserId: randomUUID() }));
-      const [person] = await db.insert(schema.members).values({ householdId: a, displayName: "Fictional partner" }).returning();
+      const [person] = await db.insert(schema.members).values({ householdId: a, displayName: "Fictional partner", shareBp: 0 }).returning();
       await updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: settingsA.bills[0].id, memberId: person.id }));
       await db.update(schema.cards).set({ memberId: person.id }).where(and(eq(schema.cards.householdId, a), eq(schema.cards.id, settingsA.cards[0].id)));
       await db.delete(schema.members).where(and(eq(schema.members.householdId, a), eq(schema.members.id, person.id)));
       const afterDelete = await loadSettings(db, a);
       assert.equal(afterDelete.bills[0].memberId, null); assert.equal(afterDelete.cards[0].memberId, null);
+    });
+    await check("Activity says what a settings change was: a rename, a card added, a card edited, nothing when nothing changed", async () => {
+      const titles = async () => (await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), eq(schema.events.kind, "settings_updated"))).orderBy(schema.events.occurredAt, schema.events.id)).map(e => e.title);
+      const before = (await titles()).length;
+      const [household] = await db.select().from(schema.households).where(eq(schema.households.id, a));
+      const bank = String(household.bankBalanceMinor);
+      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Renamed in Activity", bank }));
+      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Renamed in Activity", bank }));
+      await updateSettings(db, a, settingsInput.parse({ kind: "card", id: "", label: "Card C", memberId: "", closingDay: 5, dueDay: 25, limit: "" }));
+      const card = (await loadSettings(db, a)).cards.find(c => c.label === "Card C")!;
+      const form = { kind: "card", id: card.id, label: "Card C", memberId: "", closingDay: 5, dueDay: 25, limit: "" };
+      await updateSettings(db, a, settingsInput.parse({ ...form, dueDay: 27 }));
+      await updateSettings(db, a, settingsInput.parse({ ...form, dueDay: 27, limit: "100000" }));
+      assert.deepEqual((await titles()).slice(before), [
+        "Household renamed to Renamed in Activity", "Card C added", "Card C: due day 25 → 27", "Card C: limit no limit → ¥100,000",
+      ]);
     });
     await check("document ownership constraints reject cross-household reading, charge and bill references", async () => {
       const [doc] = await db.insert(schema.documents).values({ householdId: b, kind: "upload", storagePath: b + "/fictional", mime: "image/png" }).returning();

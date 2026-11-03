@@ -16,6 +16,7 @@ import { AgentError, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { dueAnswer } from "@/lib/money/ask";
 import { savePot } from "@/db/pots";
+import { addMember } from "@/db/people";
 import { planFor, planLine } from "@/lib/money/plan";
 import { HouseholdSnapshot } from "@/lib/schema/household";
 
@@ -374,6 +375,33 @@ async function main() {
       const refused = await ask(b, "Set it.", other.fetch);
       assert.equal(refused.pending, false);
       assert.equal(toolResults(other.bodies[1])[0].is_error, true, "an id held by another household is refused");
+    });
+
+    await check("who_owes_whom is a read tool that answers from the split; add_bill takes a payer by name and an unknown name comes back as a clear tool error", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      await addMember(db, c, { name: "Aki" });
+      const split = tools.find(t => t.name === "who_owes_whom")!, addBill = tools.find(t => t.name === "add_bill")!;
+      assert.equal(split.scope, "read");
+      const required = (toolInputSchema(addBill) as unknown as { required: string[] }).required;
+      assert.ok(required.includes("shared") && required.includes("paidBy"), "strict schema: nullable, so required");
+      const owes = transport([
+        () => reply("tool_use", [toolUse("w", "who_owes_whom", {})]),
+        () => reply("end_turn", [text("Nobody owes anyone.")]),
+      ]);
+      assert.equal((await ask(c, "Who owes whom?", owes.fetch)).answer, "Nobody owes anyone.");
+      const [out] = toolResults(owes.bodies[1]);
+      assert.ok(!out.is_error);
+      assert.equal(JSON.parse(out.content).summary, "Nobody owes anyone anything.");
+      const bill = (paidBy: string) => toolUse("a", "add_bill", { id: crypto.randomUUID(), biller: "Fictional rent", amount: "80000", due: "2026-11-27", category: "Housing", memberId: null, monthly: true, shared: true, paidBy });
+      const unknown = transport([() => reply("tool_use", [bill("Nobody")]), () => reply("end_turn", [text("I could not find that person.")])]);
+      const refused = await ask(c, "Add rent paid by Nobody.", unknown.fetch);
+      assert.equal(refused.pending, false);
+      const [error] = toolResults(unknown.bodies[1]);
+      assert.deepEqual([error.is_error, error.content], [true, "Nobody called Nobody is in this household"]);
+      const known = transport([() => reply("tool_use", [bill("aki")]), () => reply("end_turn", [text("Rent is in To check.")])]);
+      assert.equal((await ask(c, "Add rent paid by Aki.", known.fetch)).pending, true);
+      const [saved] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.biller, "Fictional rent")));
+      assert.deepEqual([saved.status, saved.memberId === null, saved.paidByMemberId !== null], ["pending", true, true]);
     });
 
     await check("no agent source can reach the send-capable PayPal runner", async () => {

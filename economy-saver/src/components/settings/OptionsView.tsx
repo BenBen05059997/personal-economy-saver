@@ -10,7 +10,7 @@ export function OptionsView({ state }: { state: MoneyState }) {
   const pick = options.rows.find(row => row.pick);
   return <div className="options-page"><header><p className="ui-hint">NEXT 30 DAYS</p><h1 className="ui-title">Your options</h1>
     {options.gap ? <p className="options-lead">Cover <span className="num">{money(options.gap)}</span> by {dayLabel(options.date)}.</p> : <p className="options-lead">Your next 30 days are covered in the late-payment forecast.</p>}
-    <p className="ui-hint">{pick ? `Start with the projected ${money(0)} financing-cost option below. Payment timing is still an estimate.` : options.gap ? "No option has confirmed funding and timing. Check the amount and deadline before relying on it." : "There is no shortfall to finance."}</p>
+    <p className="ui-hint">{pick ? "The cheapest fix comes first. Payment dates are estimates." : options.gap ? "No option has confirmed funding and timing. Check the amount and deadline before relying on it." : "There is no shortfall to finance."}</p>
   </header>
   {options.gap > 0 && <><section className="ui-panel options-context"><h2>Compare total extra cost</h2>
     <p>Lowest extra cost first. Credit examples borrow at the gap date and repay in full {options.days} days later, on {dayLabel(options.repayOn)}.</p>

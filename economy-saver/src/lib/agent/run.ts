@@ -3,6 +3,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { householdDate } from "@/db/account";
 import { loadMoneyState, requireHousehold, type Db } from "@/db/household";
+import { InputError } from "@/db/input-error";
 import { anthropicClient } from "@/lib/anthropic";
 import type { MoneyState } from "@/lib/money/types";
 import { tools, toolInputSchema, type ToolContext } from "./tools";
@@ -115,7 +116,8 @@ async function callTool(ctx: ToolContext, block: Anthropic.ToolUseBlock): Promis
   if (!input.success) return error("Invalid input for this tool.");
   try {
     return { type: "tool_result", tool_use_id: block.id, content: await tool.run(ctx, input.data as never) };
-  } catch {
-    return error("This tool could not complete the request.");
+  } catch (failure) {
+    // An InputError is written for the user (an unknown member name, a missing second person): the model may relay it.
+    return error(failure instanceof InputError ? failure.message : "This tool could not complete the request.");
   }
 }

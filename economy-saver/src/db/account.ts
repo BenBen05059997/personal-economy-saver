@@ -66,7 +66,7 @@ export async function finishSetup(db: Db, verifiedUid: string, data: z.infer<typ
     }
     if (reference) await storeReferenceRate(tx, id, reference);
     const [owner] = await tx.insert(members).values({
-      householdId: id, displayName: data.name, role: "owner", authUserId: verifiedUid,
+      householdId: id, displayName: data.name, role: "owner", shareBp: 10_000, authUserId: verifiedUid,
     }).returning({ id: members.id });
     await tx.insert(users).values({ householdId: id, memberId: owner.id, authUserId: verifiedUid });
     await tx.insert(cards).values({

@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   const form = await request.formData();
-  const data = billInput.safeParse({ ...Object.fromEntries(form), memberId: form.get("memberId") || null, monthly: form.get("monthly") === "on" });
+  const data = billInput.safeParse({ ...Object.fromEntries(form), memberId: form.get("memberId") || null, paidByMemberId: form.get("paidByMemberId") || null, monthly: form.get("monthly") === "on" });
   if (!data.success) return badFields();
   try {
     await insertBill(db(), hid, data.data, "confirmed");

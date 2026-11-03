@@ -43,7 +43,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
       tx.insert(s.fxRates).values({
         householdId: hid, date: m.today, base: "USD", quote: home, rateMicro: toRateMicro(m.fxPerUsd),
       }),
-      tx.insert(s.members).values({ id: member.id, householdId: hid, displayName: "Ben", role: "owner" }),
+      tx.insert(s.members).values({ id: member.id, householdId: hid, displayName: "Ben", role: "owner", shareBp: 10_000 }),
       tx.insert(s.clients).values(m.clients.map(c => ({
         id: clientIds.get(c.id)!, householdId: hid, name: c.name, email: c.email, termsDays: c.termsDays,
       }))),

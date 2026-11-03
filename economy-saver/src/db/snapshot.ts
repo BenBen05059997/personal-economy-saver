@@ -37,16 +37,16 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
   return db.transaction(async tx => {
     const [household] = await tx.select({
       id: s.households.id, name: s.households.name, homeCurrency: s.households.homeCurrency, timeZone: s.households.timeZone,
-      isDemo: s.households.isDemo, bankBalanceMinor: s.households.bankBalanceMinor,
+      isDemo: s.households.isDemo, bankBalanceMinor: s.households.bankBalanceMinor, splitSince: s.households.splitSince,
     }).from(s.households).where(eq(s.households.id, hid));
     if (!household) throw new Error("Household not found");
 
     const today = clockForHousehold(household, now).today;
     const rate = await usdRate(tx, hid, household.homeCurrency, today);
-    const [paypalRows, members, cards, statements, charges, bills, clients, invoices, pots, balanceUpdates, documents, events] = await Promise.all([
+    const [paypalRows, members, cards, statements, charges, bills, clients, invoices, pots, settlements, balanceUpdates, documents, events] = await Promise.all([
       tx.select({ balanceMinor: s.paypalConnections.balanceMinor, balanceCurrency: s.paypalConnections.balanceCurrency }).from(s.paypalConnections)
         .where(eq(s.paypalConnections.householdId, hid)),
-      tx.select({ id: s.members.id, displayName: s.members.displayName, role: s.members.role }).from(s.members)
+      tx.select({ id: s.members.id, displayName: s.members.displayName, role: s.members.role, shareBp: s.members.shareBp }).from(s.members)
         .where(eq(s.members.householdId, hid)).orderBy(s.members.createdAt, s.members.id),
       tx.select({
         id: s.cards.id, memberId: s.cards.memberId, label: s.cards.label, closingDay: s.cards.closingDay, dueDay: s.cards.dueDay,
@@ -59,10 +59,10 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
       cap(tx.select({
         id: s.charges.id, cardId: s.charges.cardId, merchant: s.charges.merchant, amountMinor: s.charges.amountMinor, currency: s.charges.currency,
         originalAmountMinor: s.charges.originalAmountMinor, originalCurrency: s.charges.originalCurrency, fxRateMicro: s.charges.fxRateMicro,
-        date: s.charges.date, source: s.charges.source, status: s.charges.status, place: s.charges.place, documentId: s.charges.documentId,
+        date: s.charges.date, shared: s.charges.shared, source: s.charges.source, status: s.charges.status, place: s.charges.place, documentId: s.charges.documentId,
       }).from(s.charges).where(eq(s.charges.householdId, hid)).orderBy(desc(s.charges.date), desc(s.charges.createdAt), desc(s.charges.id)).$dynamic()),
       cap(tx.select({
-        id: s.bills.id, memberId: s.bills.memberId, biller: s.bills.biller, amountMinor: s.bills.amountMinor, currency: s.bills.currency,
+        id: s.bills.id, memberId: s.bills.memberId, paidByMemberId: s.bills.paidByMemberId, biller: s.bills.biller, amountMinor: s.bills.amountMinor, currency: s.bills.currency,
         due: s.bills.due, category: s.bills.category, status: s.bills.status, previousAmountMinor: s.bills.previousAmountMinor,
         fxRateMicro: s.bills.fxRateMicro, repeatDay: s.bills.repeatDay, documentId: s.bills.documentId,
       }).from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(desc(s.bills.due), desc(s.bills.createdAt), desc(s.bills.id)).$dynamic()),
@@ -78,6 +78,10 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
         id: s.pots.id, memberId: s.pots.memberId, name: s.pots.name, targetMinor: s.pots.targetMinor, targetDate: s.pots.targetDate,
         savedMinor: s.pots.savedMinor, fillBp: s.pots.fillBp, currency: s.pots.currency, status: s.pots.status,
       }).from(s.pots).where(eq(s.pots.householdId, hid)).orderBy(s.pots.createdAt, s.pots.id),
+      tx.select({
+        id: s.settlements.id, fromMemberId: s.settlements.fromMemberId, toMemberId: s.settlements.toMemberId, amountMinor: s.settlements.amountMinor,
+        currency: s.settlements.currency, through: s.settlements.through, settledAt: s.settlements.settledAt, createdAt: s.settlements.createdAt,
+      }).from(s.settlements).where(eq(s.settlements.householdId, hid)).orderBy(s.settlements.createdAt, s.settlements.id),
       cap(tx.select({
         id: s.balanceUpdates.id, amountMinor: s.balanceUpdates.amountMinor, currency: s.balanceUpdates.currency,
         status: s.balanceUpdates.status, createdAt: s.balanceUpdates.createdAt,
@@ -102,11 +106,12 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
         id: household.id, name: household.name, homeCurrency: household.homeCurrency, timeZone: household.timeZone,
         today, isDemo: household.isDemo, bankBalanceMinor: household.bankBalanceMinor,
         paypalBalanceMinor: paypalTotalMinor(paypalRows, household.homeCurrency, fromRateMicro(rate.rateMicro)),
-        usdRateMicro: rate.rateMicro, usdRateDate: rate.date,
+        usdRateMicro: rate.rateMicro, usdRateDate: rate.date, splitSince: household.splitSince,
       },
       members, cards, statements: st.rows, charges: ch.rows, bills: bi.rows, clients,
       invoices: inv.rows.map(i => ({ ...i, remindedAt: isoOrNull(i.remindedAt) })),
       pots,
+      settlements: settlements.map(x => ({ ...x, settledAt: iso(x.settledAt), createdAt: iso(x.createdAt) })),
       balanceUpdates: bu.rows.map(u => ({ ...u, createdAt: iso(u.createdAt) })),
       documents: doc.rows.map(d => ({ ...d, createdAt: iso(d.createdAt) })),
       truncated: { bills: bi.cut, charges: ch.cut, statements: st.cut, invoices: inv.cut, balanceUpdates: bu.cut, documents: doc.cut },

@@ -7,3 +7,14 @@
 .ui-button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .ui-field { display: grid; gap: var(--space-1); margin-block: var(--space-3); }
 .ui-field :is(input, select, textarea) { min-width: 0; width: 100%; padding: var(--space-2) var(--space-3); border: 1px solid var(--rule); border-radius: var(--radius-control); background: var(--screen); }
+/* Phone: fields, summary rows and back links reach 44px to tap. A summary keeps its look; an invisible ::after grows its hit area. */
+@media (max-width: 760px) {
+  .ui-field :is(input:not([type="checkbox"], [type="radio"]), select, textarea) { min-height: 44px; }
+  .add-entry-repeat { min-height: 44px; }
+  .ui-back { display: inline-flex; align-items: center; min-height: 44px; }
+  summary { position: relative; }
+  summary::after { content: ""; position: absolute; inset-inline: 0; inset-block: min(0px, calc(50% - 22px)); }
+}
+/* A required field carries a hanging asterisk beside its label. */
+.ui-field { position: relative; }
+.ui-field:has(> :is(input, select, textarea):required)::before { content: "*" / ""; position: absolute; left: calc(-1 * var(--space-3)); color: var(--red); font-weight: 600; }

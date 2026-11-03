@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AmountInput } from "@/components/ui/CheckedInput";
 import "./add-entry.css";
 
 export type EntryIds = { bill: string; charge: string };
@@ -17,8 +18,9 @@ type Props = {
 /** One entry point for typing in a bill or a card charge. The ids are minted per render so a double submit saves once. */
 export function AddEntry({ ids, returnTo, today, currency, people, cards, categories }: Props) {
   const [kind, setKind] = useState<"bill" | "charge">("bill");
-  const amount = <label className="ui-field">Amount ({currency})<input name="amount" inputMode={currency === "JPY" ? "numeric" : "decimal"} required maxLength={16}
-    pattern={currency === "JPY" ? "[0-9]+" : "[0-9]+(\\.[0-9]{1,2})?"} /></label>;
+  const [whose, setWhose] = useState(""); // "" = shared
+  const split = people.length >= 2; // D45: the split fields exist only for a household of two or more; alone, a bill is saved as shared (no owner), as before
+  const amount = <label className="ui-field">Amount ({currency})<AmountInput name="amount" currency={currency} required /></label>;
   return <details className="add-entry">
     <summary>Add a bill or charge</summary>
     <div className="add-entry-kind" role="group" aria-label="What to add">
@@ -34,8 +36,10 @@ export function AddEntry({ ids, returnTo, today, currency, people, cards, catego
       <label className="add-entry-repeat"><input name="monthly" type="checkbox" /> Every month, on this day</label>
       <label className="ui-field">Category<input name="category" list="add-entry-categories" maxLength={100} required />
         <datalist id="add-entry-categories">{categories.map(name => <option key={name} value={name} />)}</datalist></label>
-      <label className="ui-field">Whose<select name="memberId" defaultValue="">
-        <option value="">Shared</option>{people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>
+      {split && <label className="ui-field">Whose<select name="memberId" value={whose} onChange={event => setWhose(event.target.value)}>
+        <option value="">Shared, split by shares</option>{people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>}
+      {split && whose === "" && <label className="ui-field">Paid by<select name="paidByMemberId" defaultValue={people[0].id} required>
+        {people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>}
       <button className="ui-button primary">Add bill</button>
     </form> : cards.length ? <form method="post" action="/api/charges">
       <input type="hidden" name="id" value={ids.charge} />
@@ -44,6 +48,8 @@ export function AddEntry({ ids, returnTo, today, currency, people, cards, catego
       {amount}
       <label className="ui-field">Date<input name="date" type="date" defaultValue={today} required /></label>
       <label className="ui-field">Card<select name="cardId" required>{cards.map(card => <option key={card.id} value={card.id}>{card.label}</option>)}</select></label>
+      {split && <><label className="add-entry-repeat"><input name="shared" type="checkbox" /> Shared, split by shares</label>
+        <p className="ui-hint">The card’s owner paid it. Set a card’s owner in Settings.</p></>}
       <button className="ui-button primary">Add charge</button>
     </form> : <p className="ui-hint">Add a card in Settings before adding a charge.</p>}
   </details>;

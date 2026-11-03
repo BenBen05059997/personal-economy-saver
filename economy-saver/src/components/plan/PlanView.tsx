@@ -1,20 +1,19 @@
 import type { MoneyState, Pot } from "@/lib/money/types";
 import { minorMoney } from "@/lib/money/format";
 import { monthYear, moneyInPotsLine, potLine, roomLine } from "@/lib/money/plan";
+import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
 import "@/components/household/add-entry.css";
 import "./plan.css";
 
 const plain = (n: number, currency: string) => currency === "USD" ? n.toFixed(2) : String(n);
 
 function Fields({ state, pot }: { state: MoneyState; pot?: Pot }) {
-  const jpy = state.homeCurrency === "JPY";
-  const amount = { inputMode: jpy ? "numeric" : "decimal", maxLength: 16, pattern: jpy ? "[0-9]+" : "[0-9]+(\\.[0-9]{1,2})?" } as const;
   return <>
     {!pot && <label className="ui-field">Name<input name="name" maxLength={60} required placeholder="Car, trip, tax" /></label>}
-    <label className="ui-field">Saved so far ({state.homeCurrency})<input name="saved" {...amount} defaultValue={pot ? plain(pot.saved, state.homeCurrency) : "0"} required /></label>
-    <label className="ui-field">Target amount, optional ({state.homeCurrency})<input name="target" {...amount} defaultValue={pot?.target === undefined ? "" : plain(pot.target, state.homeCurrency)} /></label>
+    <label className="ui-field">Saved so far ({state.homeCurrency})<AmountInput name="saved" currency={state.homeCurrency} defaultValue={pot ? plain(pot.saved, state.homeCurrency) : "0"} required /></label>
+    <label className="ui-field">Target amount, optional ({state.homeCurrency})<AmountInput name="target" currency={state.homeCurrency} defaultValue={pot?.target === undefined ? "" : plain(pot.target, state.homeCurrency)} /></label>
     <label className="ui-field">Target date, optional<input name="targetDate" type="date" defaultValue={pot?.targetDate ?? ""} /></label>
-    <label className="ui-field">Set aside % of each client payment, optional<input name="fillPct" inputMode="decimal" maxLength={6} pattern="[0-9]{1,3}(\.[0-9]{1,2})?" defaultValue={pot?.fillPct === undefined ? "" : String(pot.fillPct)} placeholder="25" /></label>
+    <label className="ui-field">Set aside % of each client payment, optional<PercentInput name="fillPct" maxLength={6} defaultValue={pot?.fillPct === undefined ? "" : String(pot.fillPct)} placeholder="25" /></label>
   </>;
 }
 

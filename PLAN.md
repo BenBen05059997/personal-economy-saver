@@ -4,7 +4,7 @@
 
 ## What exists now
 
-- **Foundation (D31–D37).** The Supabase project in Tokyo has all eleven migrations applied (20 tables), one fictional Ben household seeded, Vault create/read/delete passing, the private Storage bucket `household-documents` verified (a test object was refused to the publishable key and its public URL), and no readable rows in `households` for the publishable key. The app builds as a Cloudflare Worker through OpenNext (2,674 KiB gzip, limit 3 MiB) with the daily Cron Trigger; the local Worker preview renders the Tokyo household.
+- **Foundation (D31–D37).** The Supabase project in Tokyo has all twelve migrations applied (21 tables), one fictional Ben household seeded, Vault create/read/delete passing, the private Storage bucket `household-documents` verified (a test object was refused to the publishable key and its public URL), and no readable rows in `households` for the publishable key. The app builds as a Cloudflare Worker through OpenNext (2,674 KiB gzip, limit 3 MiB) with the daily Cron Trigger; the local Worker preview renders the Tokyo household.
 - **Screens (D25).** Shell with sidebar, top bar (Ask, bell, Add) and phone layout; Home (sentence, safe to spend, runway, To check, Cards, Coming up); To check; Activity; Cards and Clients with a right-hand panel; invoice review; Upload; Options; Settings. Checked at 375px and 1440px, light and dark.
 - **Sessions (D34).** Try it makes an anonymous fictional household with a protected cookie and a demo-only reset, anchored at Nov 14, 2026. Magic-link routes, session refresh, scoped membership and onboarding are implemented and tested on PGlite; a real magic link is not verified yet.
 - **PayPal (D12–D15, D37).** Sandbox guard, REST client, toolkit split (the agent drafts, the approve route sends), invoice review and approve/send/remind, verified webhook persisted in Postgres, scoped refresh with a five-minute cooldown, `npm run smoke`. A real sandbox send and paid webhook have not run on a deployed URL.
@@ -16,7 +16,7 @@
 - **Options (D7) and household (D28).** Options ranks total extra cost with the Japan references in DECISIONS; Settings edits bank balance, member names, cards and bill ownership.
 - **Own AI key (D33).** Settings key field, Vault create/update/delete, and atomic daily default-key quota reservation by the household's local date are implemented and tested; no live call yet.
 - **Catalogue (D6).** Japan 20 moves and US 16 in `src/lib/catalogue/` and `src/data/catalogue/`; nothing calls it until households have a profile.
-- **Checks.** `tsc` and lint are clean; `npm run db:test` runs eleven PGlite suites and passes; the three HTTP suites (`scripts/frontend-check.mjs`) pass on dev against Tokyo with the export step and guard: `--run` 24 checks, `--extra` 12, `--guards` 12 (the Ask check accepts the 503 missing-setting error); the local Worker preview last passed before the export step was added. An independent security review of the build and its fixes (D12, D37) passed.
+- **Checks.** `tsc` and lint are clean; `npm run db:test` runs twelve PGlite suites and passes; the three HTTP suites (`scripts/frontend-check.mjs`) pass on dev against Tokyo with the export step and guard: `--run` 24 checks, `--extra` 12, `--guards` 14 (people and settle guards included) (the Ask check accepts the 503 missing-setting error); the local Worker preview last passed before the export step was added. An independent security review of the build and its fixes (D12, D37) passed.
 - **Submission files.** `submission/DEVPOST.md` and `submission/VIDEO-SCRIPT.md` are private current-state drafts. The code is MIT-licensed; the bundled Hanken Grotesk and Newsreader fonts carry SIL OFL 1.1 notices. Fictional samples (bills, a card-statement email, a 国保 slip, a US power bill) are in `economy-saver/samples/bills/`.
 
 ### Timings (latest measurement, Nov 3)
@@ -73,7 +73,7 @@ Warm single HTTP request through the complete response body on the same demo hou
 
 If days run out, cut from the bottom: H first, then F. Never cut B or D.
 
-### Build stages (D41–D44)
+### Build stages (D41–D45)
 Built one stage at a time by a Sonnet subagent and reviewed by the lead; each stage ends with `tsc`, lint, `db:test` and a browser check at 375px and desktop, and its docs updated in the same turn. Owner verification (phases A, B, E) runs alongside and is not blocked by these.
 
 **Stage 1. Card clarity on Home (D4, D25)**
@@ -117,29 +117,68 @@ Built one stage at a time by a Sonnet subagent and reviewed by the lead; each st
 - [x] JSON Schema generated from the zod definition and committed, with a script to regenerate it and a test that fails on drift
 - [x] Tests: the snapshot validates against its schema, money and dates are in the stated form, nothing secret is included, household scope
 
-**After the stages:** household split and settle-up, income other than invoices (D28), the catalogue as an agent tool once households have a profile (D6), moving money between pots.
+**Stage 7. Household split (D45)**
+- [x] Migration: `members.share_bp`, `households.split_since`, `bills.paid_by_member_id` (same-household foreign key), `charges.shared`, and a `settlements` table (from member, to member, amount, currency, through date, settled at) in `drizzle/0011_gigantic_stone_men.sql`, applied on Tokyo; existing households with two or more members get equal shares
+- [x] Settings → People: add a member, rename, set shares (must total 100%); adding the second member sets `split_since` and splits equally; each change records an event
+- [x] Bill and charge forms show "Whose" (shared or a member) and "Paid by" for a shared bill, or "Shared" for a charge, only when the household has two or more members
+- [x] Pure `lib/money/split.ts`: balance per member and the fewest transfers, counting past occurrences of monthly bills; `loadMoneyState` carries members, shares and the last settlement
+- [x] Home line per transfer with Mark settled (`/api/settle`, same-origin, household guard, rate limit), an Activity event, and the balance back to zero
+- [x] Agent and MCP: read tool `who_owes_whom`; `add_bill` takes shared and paid by, `log_charge` takes shared; pending items keep them through To check
+- [x] The household snapshot (D44) carries shares, paid by, shared and settlements; `schema/household.v1.json` regenerated
+- [x] Tests (`scripts/split-test.ts` in `db:test`, 26 checks): two and three members, uneven shares, a monthly bill's past occurrences, settle then a new item, a share change after settling, an item entered for the settlement day after settling, household scope; Ben alone shows nothing and every demo number is unchanged
+- [x] Browser check at 375px and 1440px: Aki added at 40%, Card B made Aki's, a shared ¥30,000 bill paid by Ben and a shared ¥5,000 charge on Card B, both dated the day Aki joined → "Aki owes Ben ¥9,000"; Mark settled cleared it, Activity shows "Aki paid Ben ¥9,000", and the sentence stayed at ¥48,780 short (the new bill itself moved it from ¥18,780)
+
+**Stage 8. UI/UX pass (D25)**
+- [x] Lead review in the browser of every screen at 375px and 1440px, light and dark, on a Try it household with two members; findings below
+- [x] Settings → People: adding a person or saving shares shows the new list and shares at once (today it says "Added" and needs a reload)
+- [x] Settings → People: one row per person (name and share) with one Save people (`savePeople` renames and sets shares in one transaction)
+- [x] Settings → Shared & personal bills: with two or more people, a shared bill with no payer reads "Household, not split" so it is clear it is left out of who owes whom
+- [x] Activity wording: "settled through Nov 14" (not 2026-11-14); a card owner change says "Card B now belongs to Aki" (not "Household settings updated"); a shared charge says "Shared, paid by Aki (Card B)"
+- [x] Cards page rows match Home's card summary (owed now, limit left, statement or so far with due date, Covered or short) and name the owner when there are two or more people
+- [x] Clients: a client with nothing outstanding reads "Nothing outstanding", not "$0 · Outstanding"
+- [x] Upload: the file picker matches the app's buttons (not the browser's plain "Choose File")
+- [x] Options: the line under the heading is plain words ("The cheapest fix comes first. Payment dates are estimates."), not "the projected ¥0 financing-cost option"
+- [x] Phone tap targets: Home's inline links (Other options, Update, All cards, All activity, Later in the month, card names) get a hit area of at least 44px tall without changing how they look
+- [x] Settings at desktop width uses two columns of panels instead of one narrow column
+- [x] Dev only: the Next dev "N" badge overlaps the microphone button and the sidebar's person (`devIndicators` moved to bottom-right; on a phone it can still cover the end of the Ask bar)
+- [x] Browser check at 375px and 1440px, light and dark: adding Ren showed three rows at 33.34/33.33/33.33 at once; Cards match Home (Card A ¥86,450 owed, Card B Aki's); Beacon reads Nothing outstanding; hit areas 44–47px; a reset Ben-alone household shows no Shared costs and ¥18,780 short. The new Activity wording is covered by `split-test`, not seen on screen
+
+**Stage 9. Fixes from the first full browser run (BROWSER-CHECKS.md)**
+- [x] I6: a Reset button for Try it households (Settings → Account), posting to `/api/try/reset`; today nothing on screen calls it
+- [x] F2: the card panel's "Room on this card" (what can still go on the card and be paid from cash on its due date, `roomOnCard`) reads as a second "limit left"; label it in those words next to the limit left
+- [x] B5: with one person, the bill form's Whose select and the "· Shared" labels in Settings are hidden (everything is that person's)
+- [x] Coming up: the row that carries the shortfall (Rent on the 27th) is never folded into "Later in the month"
+- [x] L2: on a phone, buttons, inputs, selects, summary rows, back links, the top bar's Add and "Money", Upload's "To check" and the Options reference links reach 44px (real height or a `::after` hit area); desktop sizes unchanged
+- [x] J1: a refused upload (wrong type or too big) stays in the app with the message, not a plain-text page at `/api/upload`
+- [x] C6: amount fields say what they accept ("a whole number of yen, like 5000") in place of the browser's "Please match the requested format", and required fields are marked
+- [x] Activity: renaming the household, adding a card and editing a card say what changed (today "Household settings updated")
+- [x] Settings → People: Save people shows "Saved" and clears the earlier "Added…" line
+- [x] Clients at 375px: "Nothing outstanding" never breaks mid-word beside a long name
+- [x] Card and client rows have an accessible name (the link reads as the card or client)
+- [x] Options at desktop width keeps text to a readable line length (about 70 characters)
+- [x] `/api/events`: find why the feed is sometimes fetched 2–8 times at once with the same cursor, and fetch once
+- [x] A pending bill (Hikari before Confirm) is marked "waiting in To check" in Settings → Shared & personal bills
+- [x] F2 follow-up: the card room label also says the date it covers through (`roomOnCard`'s `through`): a later due date on any card stretches the plan window, so every card's room can drop when one card changes
+- [x] With one person, Settings → Cards hides "Card belongs to" (as B5 does for bills)
+- [x] Settings → Add a card clears its fields after a save
+- [x] Browser check of every box above with BROWSER-CHECKS.md at 375px and 1440px (light, and dark for Settings, Upload and Cards) by two Sonnet runs: Card A reads "Limit left ¥413,550" and "Can still go on this card and leave every bill through Dec 26 covered ¥173,770"; Reset, Keep and every number match
+
+**After the stages:** income other than invoices (D28), the catalogue as an agent tool once households have a profile (D6), moving money between pots.
 
 ### Functionality stage (D38: after foundation, before UI/UX)
 One database function per job, called by both the form and the agent tool (D39). The doors and the agent are built (see "What exists now"); what is left:
 - [ ] FN1: run one live PayPal import (waits on `PAYPAL_BALANCE_HOUSEHOLD_ID`)
 - [ ] FN2: verify one real ask (waits on the Anthropic settings in phase A), on dev and then on the Worker
 
-### User journeys (D38)
-Each is run on a fresh Try it household at phone (375px) and desktop width, on dev first and again on the Worker after the first deploy. Measured times go in the timings table above.
-- [ ] U1 Try it → Home sentence with a date and a client name, ≤ 1.5 s
-- [ ] U2 Upload `kokuho-2026-nouhusho.png` → "Document ready to read" at once → To check row ≤ 30 s → confirm → safe to spend changes
-- [ ] U3 Forward a mail with `kokuho-2026-nouhusho.pdf` attached → same as U2 (needs Email Routing)
-- [ ] U4 Say or type "I paid ¥3,800 at the noodle place on Card B" → pending charge in To check → confirm → Card B's room changes (the typed charge form is verified; the Ask path waits on the Anthropic settings)
-- [x] U5 Add a bill by hand → appears in Coming up and in the runway (a ¥5,000 bill moved the shortfall from ¥18,780 to ¥23,780; 375px and desktop)
-- [ ] U6 New invoice → review → Approve → "Sent" in Activity ≤ 2 s → (live) webhook → "Paid" and the sentence flips
-- [ ] U7 (waits on the Anthropic settings) Ask "can I afford ¥4,000 tonight", "what's due", "where am I", and one free-form question → one or two sentences each, numbers equal to Home's, ≤ 8 s
-- [ ] U8 (waits on `MCP_TOKEN_KEY`) Settings → make an MCP token → `where_am_i` and `draft_invoice` from an MCP client → the draft opens in the app
-- [ ] U9 Sign in by magic link → onboarding (name, timezone, bank balance, one card) → own sentence; a Try it household is upgraded, not lost
-- [ ] U10 Delete my data → everything gone, including the Vault key and Storage objects; Reset on a Try it household restores Ben
+### Browser checks (D38)
+The hand checks in a real browser are [BROWSER-CHECKS.md](BROWSER-CHECKS.md): what to do on each screen and the number it should show. Run them on dev first and again on the Worker after the first deploy; failures become boxes here.
+- [x] Full run on dev at 375px and 1440px, light and dark (sections A–L, skipping the "Needs …" checks), by two Sonnet runs on fresh Try it households: every money number matched; the failures are Stage 9 below
+- [ ] Full run on the Worker after the first deploy
+- [ ] The "Needs …" checks once their settings exist: magic link (A5), agent drafts (D2, K3, K4), PayPal send and webhook (E4), MCP (I5), delete my data (I7), the reader (J2, J3)
+- [ ] Measured times go in the timings table above: Try it to Home ≤ 1.5 s (A2), a To check row ≤ 30 s after upload (J2), Sent in Activity ≤ 2 s (E4), an answer ≤ 8 s (K3)
 
 ### UI/UX stage (D38: after functionality)
-Findings from browser checks of the doors and the agent; the design review and screens join this list.
-- [ ] Dev only: the Next dev "N" badge overlaps the microphone button
+Findings from browser checks are in Build stage 8.
 
 ### J. Foundation and security hardening (last stage, D38)
 - [ ] Tenant-isolation test in `db:test`: two seeded households, every read function in `src/db`, zero rows cross over

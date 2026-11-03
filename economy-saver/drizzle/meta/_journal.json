@@ -78,6 +78,13 @@
       "when": 1793688929528,
       "tag": "0010_ordinary_captain_flint",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793695974294,
+      "tag": "0011_gigantic_stone_men",
+      "breakpoints": true
     }
   ]
 }

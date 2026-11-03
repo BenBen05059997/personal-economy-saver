@@ -14,7 +14,7 @@
     "schema": "tsx --tsconfig ./tsconfig.json scripts/schema.ts",
     "db:seed": "tsx --tsconfig ./tsconfig.json scripts/seed.ts",
     "db:vault-check": "tsx --tsconfig ./tsconfig.json scripts/vault-check.ts",
-    "db:test": "tsx --tsconfig ./tsconfig.json scripts/db-test.ts && npm run db:approve-test && npm run mcp:demo && npm run db:reader-test && npm run db:settings-test && npm run db:agent-test && npm run db:refresh-test && npm run db:doors-test && npm run db:import-test && npm run db:pots-test && npm run db:snapshot-test",
+    "db:test": "tsx --tsconfig ./tsconfig.json scripts/db-test.ts && npm run db:approve-test && npm run mcp:demo && npm run db:reader-test && npm run db:settings-test && npm run db:agent-test && npm run db:refresh-test && npm run db:doors-test && npm run db:import-test && npm run db:pots-test && npm run db:snapshot-test && npm run db:split-test",
     "db:approve-test": "tsx --tsconfig ./tsconfig.json scripts/approve-test.ts",
     "cf:build": "node scripts/build-worker.mjs",
     "cf:preview": "npm run cf:build && opennextjs-cloudflare preview --port 8787",
@@ -28,7 +28,8 @@
     "db:doors-test": "tsx --tsconfig ./tsconfig.json scripts/doors-test.ts",
     "db:import-test": "tsx --tsconfig ./tsconfig.json scripts/paypal-import-test.ts",
     "db:pots-test": "tsx --tsconfig ./tsconfig.json scripts/pots-test.ts",
-    "db:snapshot-test": "tsx --tsconfig ./tsconfig.json scripts/snapshot-test.ts"
+    "db:snapshot-test": "tsx --tsconfig ./tsconfig.json scripts/snapshot-test.ts",
+    "db:split-test": "tsx --tsconfig ./tsconfig.json scripts/split-test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

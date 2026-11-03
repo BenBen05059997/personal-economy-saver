@@ -4,7 +4,7 @@ import "./account.css";
 
 export function AccountFrame({ title, children }: { title: string; children: ReactNode }) {
   return <main className="account-page">
-    <Link href="/" className="account-back">‹ Home</Link>
+    <Link href="/" className="account-back ui-back">‹ Home</Link>
     <h1 className="ui-title">{title}</h1>
     {children}
   </main>;
