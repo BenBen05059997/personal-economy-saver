@@ -50,7 +50,7 @@ Warm single HTTP request through the complete response body on the same demo hou
 ### B. First deploy and the live PayPal loop (owner runs the deploy)
 - [ ] Secrets set with `wrangler secret put`; the owner runs `npm run cf:deploy` (owner's OK, D22); the deployed URL is set as `APP_URL` and added to the Tokyo project's Authentication redirect URLs
 - [ ] PayPal webhook registered on the deployed URL and `PAYPAL_WEBHOOK_ID` set; a sandbox invoice sent, paid and the sentence flipped end to end (V1)
-- [ ] The three HTTP suites and the user journeys below re-run on the Worker
+- [ ] The three HTTP suites and [BROWSER-CHECKS.md](BROWSER-CHECKS.md) re-run on the Worker
 
 ### D. Early submission, Nov 5 (owner submits)
 - [ ] Owner's OK to make the repository public (D22)
