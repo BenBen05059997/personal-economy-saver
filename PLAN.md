@@ -1,6 +1,6 @@
 # Personal Economy Saver: plan
 
-**Submit the evening of Nov 12, Tokyo** (closes Nov 13 05:00 Tokyo). The one other date is the early Devpost version by Nov 5 (D30). What the product is and why: [DECISIONS.md](DECISIONS.md) (D2, D3). The hard rules: [HANDOFF.md](HANDOFF.md). Tick a box the moment it is true. Owner = Ben; implementation by subagents, reviewed by the lead (D19).
+**Submit the evening of Nov 12, Tokyo** (closes Nov 13 05:00 Tokyo). The one other date is the early Devpost version by Nov 5 (D30). What the product is and why: [DECISIONS.md](DECISIONS.md) (D2, D3). The hard rules: [AGENTS.md](AGENTS.md). Tick a box the moment it is true. Owner = Ben; implementation by subagents, reviewed by the lead (D19).
 
 ## What exists now
 
@@ -149,7 +149,7 @@ Findings from browser checks of the doors and the agent; the design review and s
 - [ ] Count Storage bytes per household and cap them (each upload is already capped at 6 MiB)
 - [ ] Operator log: one structured line per request (`cf-ray`, route, household UUID, outcome code, duration), no content; `cf-ray` shown on error pages
 - [ ] Retention for raw documents in the bucket (N days after confirmation, plus per-document delete) and `webhook_deliveries.payload` trimmed to what the app uses
-- [ ] Migration-order rule in HANDOFF (expand before use, contract after; the running Worker must keep working)
+- [ ] Migration-order rule in AGENTS.md (expand before use, contract after; the running Worker must keep working)
 - [ ] Manual encrypted database dump before demo day (owner)
 - [ ] Privacy page: what is stored, where (Tokyo), who processes it (Supabase, Cloudflare, Anthropic in the US, PayPal), how long, how to delete; one line on clients' data and on Try it data living behind a cookie
 - [ ] Later: app database role with RLS policies on `app.household_id`; separate production Supabase project; hourly cron by local time; secret rotation procedure; Pro-plan backups
