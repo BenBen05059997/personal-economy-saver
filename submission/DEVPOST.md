@@ -1,41 +1,42 @@
 # Personal Economy Saver — private Devpost draft
 
-**Pitch:** Personal Economy Saver shows a freelancer’s 30-day cash-flow shortfall and lets them approve a PayPal Sandbox invoice from the same screen.
+**Pitch:** Know before the card bill does. Personal Economy Saver is a money assistant for people paid through PayPal: it reads your bills and receipts, tells you whether to spend or hold off, and gets you paid through PayPal when you approve.
 
 ## Inspiration
 
-Freelancers can have enough income on paper and still be short on the day a bill is due. The useful question is not only “what is my balance?” It is “what changes if this client pays late, and what can I do now?”
+Freelancers can have enough income on paper and still be short on the day a bill is due. The useful question is not only "what is my balance?" It is "what changes if this client pays late, and what can I do now?"
 
-Personal Economy Saver follows that question for a fictional freelance designer in Tokyo, paid in US dollars through PayPal. Bills, card statements, expected client payments and one approval-gated invoice action meet in the same 30-day view.
+Personal Economy Saver follows that question for one fictional person: Ben, a freelance designer in Tokyo, paid in US dollars through PayPal. Bills, card statements, expected client payments and one approval-gated invoice action meet in the same 30-day view.
 
 ## What it does
 
-Home leads with a dated sentence calculated from the household’s stored financial rows and the runway engine. The demo seed initially shows a ¥18,780 shortfall on November 27 if clients pay late. Confirming the pending fictional Hikari Denki bill changes that database-backed result to ¥30,000 short. The screen also shows safe-to-spend, card spend not yet billed, bills to check and upcoming events. The next action links to a review page for Beacon Studio’s fictional $400 invoice.
+Home leads with a dated sentence computed from the household's stored rows by the runway engine. Ben's seed starts at "You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th." Below it: safe to spend (including card spend not yet billed), what needs checking, and the dates ahead.
 
-The user reviews the client, work, due date and amount, then approves. The server’s PayPal integration is sandbox-only and keeps sending behind the approval route. Verified PayPal webhook deliveries can update a matching invoice and the household’s PayPal balance once. The app does not trust browser state to mark an invoice paid.
-
-## Demo and evidence
-
-The local rehearsal uses fictional records in isolated PGlite test databases. Its PayPal transport is simulated, and the paid webhook is passed to the database layer as already verified; no invoice was sent, no client logged in, and no payment was made. The final sentence shown after the simulated $400 payment reflects the resulting database mutation and the runway engine. The video labels this clearly as **“Local rehearsal · simulated sandbox delivery.”**
-
-Automated scripts cover seed and engine behavior, household isolation, bill confirmation, invoice approval/idempotent retries, webhook replay handling, and the resulting ¥60,000 balance increase at the seeded ¥150 per US dollar rate. The displayed paid state is calculated from that PGlite database mutation.
+- **Bills and receipts in.** Forward a bill to your address or upload a photo or PDF. Claude reads it into a proposed reading that waits in To check; confirming it moves the forecast (confirming the fictional Hikari Denki bill changes the seeded shortfall from ¥18,780 to ¥30,000). Corrections become rules for the next bill from that biller. Clients, bills and card charges can also be typed in, and an invoice paid outside PayPal can be marked paid.
+- **An agent with tools.** Type or say a question or a purchase. Claude calls tools over the engine, quotes the engine's numbers and never does the arithmetic itself. It can read the outlook, what is due, whether a purchase fits, the timeline and the ranked options when short. It can draft an invoice or put a bill or card charge into To check. It cannot send or pay.
+- **Getting paid.** When the forecast is short, the next action is to invoice finished work or remind a late client. Ben reviews the invoice (Beacon Studio, a fictional $400 milestone) and taps Approve. The server sends it through PayPal Sandbox. A PayPal webhook, signature-verified, marks it paid once and credits the balance; the sentence changes. The browser never sets payment state.
+- **Options when short.** Every option ranked by total cost in yen, cheapest first; a loan is never the recommendation while a ¥0 option (invoice finished work, nudge a late client) covers the gap. Information only, never a product to buy.
+- **From a terminal.** The same tool catalogue is an MCP server: an MCP client with a token can ask where Ben stands or draft an invoice. Sending still needs the tap in the app.
 
 ## How it is built
 
-- **A deterministic money engine:** integer minor-unit amounts, household-scoped database reads, stored FX rates and a pure runway/sentence calculation from confirmed rows.
-- **A reviewable action:** invoice details are shown before approval. Agent and MCP tools may read or draft; the send path is available only through the server approval route.
-- **A verified payment update:** the webhook signature is checked before delivery handling. Duplicate event IDs do not apply the payment twice.
-- **Private intake:** photo/PDF upload and forwarded-email reading produce a proposed reading that waits for the user to confirm. Local tests cover extraction and confirmation behavior.
-- **Sandbox boundary:** the environment validator accepts only `PAYPAL_ENVIRONMENT=SANDBOX`, the PayPal client targets the sandbox host, and the Agent Toolkit is configured with sandbox mode.
+- **A deterministic money engine:** integer minor-unit amounts, household-scoped database reads, stored FX rates, and a pure runway and sentence calculation from confirmed rows.
+- **One tool catalogue, one send path:** the in-app agent and the MCP server share read and draft tools; the PayPal send and reminder tools run only from the approval route, and lint fails any other import of them.
+- **A verified payment update:** the webhook signature is checked before anything changes; duplicate PayPal event ids do not apply a payment twice.
+- **Private intake:** originals go to a private Supabase Storage bucket and are read in the background; nothing changes the forecast until the user confirms.
+- **Sandbox boundary:** the environment validator accepts only `PAYPAL_ENVIRONMENT=SANDBOX`, the PayPal client targets the sandbox host, and the Agent Toolkit is created in sandbox mode.
+- **Households, one person on screen:** every row carries a household id and every query is scoped by it; the demo shows Ben alone.
 
-## Current status
+## Status
 
-The Next.js 16 app, household-scoped Postgres data layer, fictional seed, Home and invoice review screens, local reader flow, sandbox integration code, and isolated PGlite tests are in the private repository. The rough recording is a local artifact. No public repository or live app URL is available, and the submission has not been made.
+The app is in a private repository. Automated suites run on isolated test databases with simulated PayPal and Claude responses: seed and engine, household isolation, bill confirmation, invoice approval and idempotent retries, webhook replay handling and the balance credit (a $400 payment adds ¥60,000 at the seeded ¥150 per dollar), the reader, the agent, the typed-in doors and the PayPal import. The app also renders Ben's household from a Supabase project in Tokyo, in local dev and in a local Cloudflare Worker.
+
+Not yet verified live, and not claimed above as working live: a Claude call from the running app, a real PayPal Sandbox send with its signed paid webhook, magic-link sign-in, and email forwarding. No public repository or live URL exists and nothing has been submitted.
 
 ## Built with
 
-Next.js 16, TypeScript, React, Drizzle ORM, Postgres/Supabase, PayPal Agent Toolkit, PayPal REST APIs (sandbox), and Claude for document reading and language tasks.
+Next.js 16, TypeScript, React, Drizzle ORM, Supabase (Postgres, Auth, Vault, Storage), Cloudflare Workers, PayPal Agent Toolkit and REST APIs (sandbox), Model Context Protocol, and Claude.
 
 ## Links
 
-Video, public repository, and deployed URL: **owner to add only after review and publication**.
+Video, public repository and deployed URL: **owner to add only after review and publication**.

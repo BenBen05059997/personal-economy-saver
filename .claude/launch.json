@@ -16,15 +16,6 @@
       "port": 3123
     },
     {
-      "name": "concept-page",
-      "runtimeExecutable": "node",
-      "runtimeArgs": [
-        "-e",
-        "require('http').createServer((q,s)=>{s.setHeader('content-type','text/html; charset=utf-8');s.end('<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\">'+require('fs').readFileSync('economy-saver-concept.html','utf8'))}).listen(+process.env.PORT||3124,'127.0.0.1')"
-      ],
-      "port": 3124
-    },
-    {
       "name": "design-mockup",
       "runtimeExecutable": "node",
       "runtimeArgs": [

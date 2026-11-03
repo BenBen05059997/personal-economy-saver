@@ -1,32 +1,34 @@
 # Personal Economy Saver
 
-A money assistant for freelancers paid across borders. The current example follows a fictional Tokyo designer whose clients pay in US dollars. Home calculates a 30-day runway from household records, highlights what needs checking, and links to an invoice review page. A user must approve before the server can send an invoice through PayPal Sandbox.
+A money assistant for people paid through PayPal. The example follows Ben, a fictional freelance designer in Tokyo whose clients pay in US dollars. Home gives a 30-day runway as one dated sentence, safe to spend, what needs checking and one PayPal action: invoice finished work or nudge a late client. The user must approve before the server sends anything through PayPal Sandbox.
 
-This is a private hackathon project in development. Next.js dev renders a fictional household from the Supabase project in Tokyo (`ap-northeast-1`), and so does the local Worker. The first public deployment and the PayPal sandbox send-to-webhook check are pending.
+This is a private hackathon project in development. Next.js dev and the local Worker render a fictional household from the Supabase project in Tokyo (`ap-northeast-1`). Not yet verified live: the deployed Worker, a Claude call, magic-link delivery, Email Routing and a real PayPal sandbox send with its signed webhook.
 
 ## What is implemented
 
 - A Next.js 16 app with household-scoped Postgres/Drizzle data and a fictional Ben seed.
-- A deterministic runway and sentence based on stored bills, cards, charges, invoices, FX rates, and client payment history.
-- Home, invoice review, To check, Activity, Cards, Clients, Settings, upload and document review screens.
-- A Try it household flow, email/passwordless auth integration, per-household document intake, and confirmation before a reading changes money records.
-- PayPal sandbox REST and Agent Toolkit integration. Draft/read tools are separate from the server approval path. Verified webhook deliveries are idempotent.
-- MCP over Streamable HTTP. Household tools read and draft; sending remains an app approval action.
-- Rate limits on Try it (60 new demo households an hour app-wide), drafts (20 a minute per household), approvals (10 a minute) and Ask; PayPal toolkit calls time out after 20 s.
-- A daily Cron route with explicit household allowlist (`CRON_HOUSEHOLD_IDS`).
-- Isolated PGlite scripts for schema/seed/engine, approval and webhook behavior, MCP protocol, and reader flows. These are local tests and do not establish that hosted services are configured.
+- A deterministic runway and sentence from stored bills, cards, charges, invoices, FX rates and client payment history.
+- Screens: Home, invoice review, To check, Activity, Cards, Clients, Options, Settings, Upload and document review.
+- A Try it household flow and passwordless email sign-in.
+- Typed-in data: clients, bills, card charges, and invoices marked paid outside PayPal.
+- Document intake (upload and forwarded email) with confirmation before a reading changes money records.
+- An in-app agent: `/api/ask` runs Claude with tools over the engine (reads and drafts only). The same tool catalogue serves MCP.
+- PayPal sandbox REST and Agent Toolkit integration, with the draft/read tools separate from the server approval path; verified webhook deliveries are idempotent; a read-only import of sandbox invoice history.
+- Rate limits on Try it, Ask, drafts, approvals, uploads and imports; PayPal toolkit calls time out after 20 s.
+- A daily Cron route with an explicit household list (`CRON_HOUSEHOLD_IDS`).
+- Isolated PGlite test suites for schema/seed/engine, approval and webhook behaviour, MCP, reader, settings, agent, PayPal refresh, typed-in data and import. They do not show that hosted services are configured.
 
-## Safety and demo status
+## Safety
 
-- The application accepts only `PAYPAL_ENVIRONMENT=SANDBOX`; PayPal requests use `https://api-m.sandbox.paypal.com`.
-- The server checks webhook signatures before applying a delivery. Only the verified webhook path records an invoice as paid.
-- No credentials are needed for the PGlite test scripts. Keep actual settings in ignored local environment files or the owner's private service configuration. Never paste secrets into chat, screenshots, or this repository. Lint allows only `src/app/api/approve/route.ts` to import the send-capable PayPal tool functions.
-- Fictional seed records only. The recorded local rehearsal labels the external PayPal delivery as simulated. No live payment flow has been recorded.
-- Deployment, account setup, and any public release are owner-managed steps and are not part of local setup here.
+- The app accepts only `PAYPAL_ENVIRONMENT=SANDBOX`; PayPal requests go to `https://api-m.sandbox.paypal.com`.
+- The server checks webhook signatures before applying a delivery. Only the verified webhook records a PayPal-sent invoice as paid.
+- Lint allows only `src/app/api/approve/route.ts` to import the send-capable PayPal tool functions.
+- Keep real settings in ignored local environment files or the owner's private service configuration. Never paste secrets into chat, screenshots or this repository.
+- Seed records are fictional. Deployment, account setup and any public release are owner-managed.
 
 ## Requirements
 
-- Node.js 22.15 or newer and npm (the pinned Cloudflare/OpenNext build hook requires this runtime).
+- Node.js 22.15 or newer and npm (the pinned Cloudflare/OpenNext build hook requires it).
 - A configured Supabase project for running the app against persistent data.
 - PayPal Sandbox application credentials and a fictional/test client recipient for PayPal actions.
 
@@ -38,71 +40,74 @@ This is a private hackathon project in development. Next.js dev renders a fictio
    npm install
    ```
 
-2. Copy `.env.example` to `.env.local` and fill only the settings required for the feature being used. The app fails clearly if a required setting is missing; there is no local database fallback. Keep `PAYPAL_ENVIRONMENT=SANDBOX`.
+2. Copy `.env.example` to `.env.local` and fill only the settings the feature needs. The app fails clearly when a required setting is missing; there is no local database fallback. Keep `PAYPAL_ENVIRONMENT=SANDBOX`.
 
-   Database-backed app routes need `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and `DATABASE_URL`. `APP_URL` is required too: sign-in links return to it (never to the request's Origin header), and it must be listed under the project's Authentication → URL Configuration. Locally it is `http://127.0.0.1:3123`; in the Worker preview it is `http://localhost:8787`. Use the Supabase transaction pooler connection string on port 6543 for Worker compatibility. PayPal actions additionally need `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and `SANDBOX_CLIENT_EMAIL`. A webhook needs the private sandbox `PAYPAL_WEBHOOK_ID` after the owner has registered it.
+   - **Database-backed routes:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (the transaction pooler string, port 6543) and `APP_URL`. Sign-in links return to `APP_URL` (never to the request's Origin header), and it must be listed under the project's Authentication → URL Configuration. Locally it is `http://127.0.0.1:3123`; in the Worker preview `http://localhost:8787`.
+   - **PayPal actions:** `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `SANDBOX_CLIENT_EMAIL`. A webhook also needs `PAYPAL_WEBHOOK_ID` once the owner has registered it. Refreshing the stored balance and importing invoice history for a non-demo household need `PAYPAL_BALANCE_HOUSEHOLD_ID`.
+   - **Claude (Ask and the reader):** `ANTHROPIC_API_KEY`, a positive `ANTHROPIC_DAILY_READ_LIMIT`, `ANTHROPIC_TEXT_MODEL` (Ask and plain forwarded mail) and `ANTHROPIC_DOCUMENT_MODEL` (photos, PDFs and mail with attachments).
+   - **Reader storage and forwarding:** `SUPABASE_DOCUMENT_BUCKET` (a private bucket; `household-documents` on the Tokyo project), `FORWARDING_DOMAIN`, `INBOUND_ADDRESS_KEY`, `INBOUND_WORKER_SECRET`.
+   - **MCP tokens:** `MCP_TOKEN_KEY`, a dedicated random 32-byte key as unpadded base64url. Keep the same key across instances; rotating it invalidates tokens.
+   - **Cron:** `CRON_SECRET` and `CRON_HOUSEHOLD_IDS` (comma-separated household UUIDs).
 
-   The default AI reader needs `ANTHROPIC_API_KEY` and a positive `ANTHROPIC_DAILY_READ_LIMIT`. Document extraction also needs `ANTHROPIC_DOCUMENT_MODEL`, `ANTHROPIC_TEXT_MODEL`, and `SUPABASE_DOCUMENT_BUCKET` naming a private Storage bucket (`household-documents` on the Tokyo project). Forwarded email requires the owner's routing settings (`FORWARDING_DOMAIN`, `INBOUND_ADDRESS_KEY`, and `INBOUND_WORKER_SECRET`). The Cron route requires `CRON_SECRET` and `CRON_HOUSEHOLD_IDS`, a comma-separated list of household UUIDs; each run loads only those households. Refreshing the stored balance for a non-demo PayPal connection also requires `PAYPAL_BALANCE_HOUSEHOLD_ID` to select its household.
+   For the local Cloudflare preview, copy the needed settings to the ignored `.dev.vars`. Worker values are runtime bindings: the build does not package values from `.env.local`; local preview reads `.dev.vars` and deployed Workers get owner-managed secrets. The build hook checks its pinned OpenNext version and emits empty generated project-env exports so build-machine dotenv values are not embedded.
 
-   For local Cloudflare preview, copy the needed local settings to ignored `.dev.vars`. Worker values such as PayPal, database, Cron, MCP, forwarding and reader settings are runtime bindings: the build does not package values from `.env.local`; local preview reads `.dev.vars`, and deployed Workers receive owner-managed runtime secrets/vars. The build hook checks its pinned OpenNext version and emits empty generated project-env exports so build-machine dotenv values are not embedded.
-
-3. Apply the schema and create the fictional demo household only when using the owner's configured database:
+3. Apply the schema and create the fictional demo household, only against the owner's configured database:
 
    ```bash
    npm run db:migrate
    npm run db:seed
    ```
 
-   The seed command prints the demo household ID only. `npm run db:vault-check` checks the owner-configured Vault connection and removes its temporary test secret.
+   The seed prints the demo household ID only. `npm run db:vault-check` checks the Vault connection and removes its temporary test secret.
 
 4. Start the development server:
 
    ```bash
-   npm run dev
+   npm run dev -- -p 3123
    ```
 
-   Open `http://localhost:3000`. `/api/health` reports readiness without revealing credential values.
+   Open `http://127.0.0.1:3123`. `/api/health` reports readiness without revealing values.
 
-## Local checks
+## Checks
 
-These scripts use isolated PGlite test databases and simulated external results; they do not require Supabase or make PayPal calls:
+These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test
-npm run db:approve-test
-npm run db:reader-test
-npm run mcp:demo
+npm run db:test      # all nine suites: db, approve, mcp, reader, settings, agent, refresh, doors, import
 npx tsc --noEmit -p .
 npm run lint
 ```
 
-The approval tests use a simulated PayPal transport. They cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. Live sandbox smoke checks are separate and require configured sandbox credentials; do not interpret a local test pass as a live transaction.
+Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction.
 
-With the app running locally and Supabase configured, `node scripts/frontend-check.mjs --run http://127.0.0.1:3123` times the core household workflows. Use `--extra` for Upload, Options and invoice draft retries, or `--guards` for integration rejection paths. The workflow checks create fictional demo households. Results and timings are in [PLAN.md](../PLAN.md).
+With the app running and Supabase configured, `node scripts/frontend-check.mjs --run http://127.0.0.1:3123` times the core household workflows. `--extra` covers Upload, Options and invoice draft retries; `--guards` covers integration rejection paths. They create fictional Try it households. Results and timings are in [PLAN.md](../PLAN.md).
 
-## PayPal sandbox setup
+Cloudflare: `npm run cf:preview` builds and previews the Worker on port 8787 (reads `.dev.vars`); `npm run cf:size` builds, reports the bundle size (the free plan's limit is 3 MiB gzip) and scans the Worker for credentials. Deploying (`npm run cf:deploy`) is owner-managed.
 
-Use only an already owner-configured PayPal Developer Sandbox app and sandbox recipients. Never use live credentials. `npm run smoke` exercises sandbox token/balance/invoice permissions and creates a temporary USD draft invoice; it deletes that draft unless explicitly retained with `npm run smoke -- --keep`. `npm run webhook:register -- <approved-endpoint>` registers only against the sandbox and is an owner-managed operation. Keep the webhook ID private and set it in local settings. PayPal may cache OAuth tokens for several hours after permission changes.
+## PayPal sandbox
 
-## Voice and MCP
+Use only an owner-configured PayPal Developer Sandbox app and sandbox recipients. `npm run smoke` exercises sandbox token, balance and invoice permissions and creates a temporary USD draft invoice, which it deletes unless run with `npm run smoke -- --keep`. `npm run webhook:register -- <approved-endpoint>` registers only against the sandbox and is owner-managed. Keep the webhook ID private. PayPal may cache OAuth tokens for hours after permission changes.
 
-The ask panel accepts text and, where supported, browser speech recognition. It answers from the same runway data; proposed charges still wait for confirmation.
+## Ask, voice and MCP
 
-To issue household-scoped MCP tokens, set `MCP_TOKEN_KEY` to a dedicated random 32-byte key encoded as unpadded base64url, then use Settings. Keep the same private key across instances; rotating it invalidates tokens. The database stores token hashes. Connect a Streamable HTTP MCP client to `/api/mcp` with the issued token as a Bearer credential. The token supports household reads and optional invoice drafts; approval and sending stay in the app. `npm run mcp:demo` runs a finite local protocol demonstration on loopback with an isolated PGlite household and an ephemeral in-memory key.
+The Ask panel accepts typed text and, where the browser supports it, speech. The agent answers from the runway engine and can only read or draft: a spoken or typed bill, card charge or invoice waits for confirmation (in To check, or on the invoice review page). Without the Anthropic settings Ask shows a clear missing-setting error.
+
+To issue household-scoped MCP tokens, set `MCP_TOKEN_KEY`, then use Settings. Connect a Streamable HTTP MCP client to `/api/mcp` with the token as a Bearer credential. The token supports household reads and invoice drafts; approval and sending stay in the app. `npm run mcp:demo` runs a finite protocol demonstration on loopback with an isolated PGlite household and an in-memory key.
 
 ## Project map
 
 ```text
 src/app/                 pages and API routes
-src/components/home/     data-backed Home and runway chart
-src/components/invoices invoice review and draft UI
-src/components/reader/   document upload, review and correction UI
-src/db/                  schema, scoped queries, seed and transactions
+src/components/          UI by area: shell, home, household, invoices, reader, settings, ask, auth, mcp
+src/db/                  schema, household-scoped queries, seeds, rate limits
 src/lib/money/           pure runway, sentence and options logic
-src/lib/paypal/          sandbox client, toolkit and webhook verification
-src/lib/mcp/             Streamable HTTP tools
+src/lib/agent/           the tool catalogue and the Claude runner
+src/lib/paypal/          sandbox client, toolkit, invoice listing and webhook verification
+src/lib/mcp/             Streamable HTTP server
+src/lib/reader/          extraction, forwarding, storage
 scripts/                 isolated tests and explicit owner-operated checks
-drizzle/                 schema migration
+drizzle/                 ordered schema migrations (0000–0007)
+samples/bills/           fictional sample bills for the reader
 ```
 
 ## License
