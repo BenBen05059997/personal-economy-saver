@@ -35,10 +35,10 @@ function billOwner(bill: SettingsData["bills"][number], people: SettingsData["pe
 function billSummary(bill: SettingsData["bills"][number], people: SettingsData["people"]) {
   return [bill.biller, billOwner(bill, people), bill.status === "pending" ? "waiting in To check" : null].filter(Boolean).join(" · ");
 }
-/** Remove for one bill: asks first, and says when it is a monthly bill that the whole series goes. */
+/** Remove for one bill: asks first, and says when it repeats that the whole series goes. */
 function RemoveBill({ bill }: { bill: SettingsData["bills"][number] }) {
   return <ConfirmRemove kind="bill" id={bill.id} returnTo="/settings" label={`${bill.biller} ${minorMoney(bill.amountMinor, Currency.parse(bill.currency))}`}
-    note={bill.repeatDay === null ? undefined : "It repeats every month, so every month goes."} />;
+    note={bill.repeatUnit === null ? undefined : bill.repeatUnit === "year" ? "It repeats every year, so every year goes." : "It repeats every month, so every month goes."} />;
 }
 function CardFields({ data, card }: { data: SettingsData; card?: SettingsData["cards"][number] }) {
   return <><input type="hidden" name="kind" value="card" /><input type="hidden" name="id" value={card?.id ?? ""} />

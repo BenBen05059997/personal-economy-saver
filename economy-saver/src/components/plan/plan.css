@@ -16,7 +16,8 @@
 .plan-cat { border-bottom: 1px solid var(--rule); }
 .plan-cat > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: var(--control-height); padding-block: var(--space-3); cursor: pointer; list-style: none; }
 .plan-cat > summary::-webkit-details-marker { display: none; }
-.plan-cat-name::before { content: "›"; display: inline-block; width: 1em; color: var(--muted); transition: transform 0.15s; }
+.plan-cat > summary:hover { background: var(--wash); }
+.plan-cat-name::before { content: "›"; display: inline-block; width: 1em; color: var(--ink); font-size: 18px; line-height: 1; vertical-align: -1px; transition: transform 0.15s; }
 .plan-cat[open] .plan-cat-name::before { transform: rotate(90deg); }
 .plan-cat .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .plan-cat small { display: block; font-size: 13px; color: var(--muted); white-space: normal; }

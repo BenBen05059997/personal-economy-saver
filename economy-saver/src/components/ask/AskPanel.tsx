@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
+import { flushSync } from "react-dom";
 
 type Recognition = {
   lang: string;
@@ -33,6 +34,21 @@ export function AskPanel() {
     const toggled = () => { if (element?.matches(":popover-open")) field.current?.focus(); else recognizer.current?.abort(); };
     element?.addEventListener("toggle", toggled);
     return () => { element?.removeEventListener("toggle", toggled); recognizer.current?.abort(); };
+  }, []);
+
+  // The Ask bar is a button that looks like a field: typing a character while it has focus opens the box with that character in it.
+  useEffect(() => {
+    function typedOnBar(event: globalThis.KeyboardEvent) {
+      const bar = event.target instanceof Element ? event.target.closest("button[popovertarget='shell-questions']") : null;
+      if (!bar || event.key.length !== 1 || event.key === " " || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+      event.preventDefault();
+      flushSync(() => { setText(event.key); setSource("manual"); requestId.current = ""; });
+      if (!panel.current?.matches(":popover-open")) panel.current?.showPopover();
+      field.current?.focus();
+      field.current?.setSelectionRange(1, 1);
+    }
+    document.addEventListener("keydown", typedOnBar);
+    return () => document.removeEventListener("keydown", typedOnBar);
   }, []);
 
   function speak() {

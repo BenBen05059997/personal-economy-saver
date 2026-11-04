@@ -64,7 +64,8 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
       cap(tx.select({
         id: s.bills.id, memberId: s.bills.memberId, paidByMemberId: s.bills.paidByMemberId, biller: s.bills.biller, amountMinor: s.bills.amountMinor, currency: s.bills.currency,
         due: s.bills.due, category: s.bills.category, businessBp: s.bills.businessBp, status: s.bills.status, previousAmountMinor: s.bills.previousAmountMinor,
-        fxRateMicro: s.bills.fxRateMicro, repeatDay: s.bills.repeatDay, documentId: s.bills.documentId,
+        fxRateMicro: s.bills.fxRateMicro, repeatDay: s.bills.repeatDay, repeatUnit: s.bills.repeatUnit, nextAmountMinor: s.bills.nextAmountMinor,
+        nextAmountFrom: s.bills.nextAmountFrom, cancelBy: s.bills.cancelBy, documentId: s.bills.documentId,
       }).from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(desc(s.bills.due), desc(s.bills.createdAt), desc(s.bills.id)).$dynamic()),
       tx.select({ id: s.clients.id, name: s.clients.name, email: s.clients.email, termsDays: s.clients.termsDays }).from(s.clients)
         .where(eq(s.clients.householdId, hid)).orderBy(s.clients.createdAt, s.clients.id),

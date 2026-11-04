@@ -42,7 +42,7 @@ const state2 = (over: Partial<SplitState> = {}): SplitState => ({
   settledAt: over.settledAt !== undefined ? over.settledAt : over.settledThrough ? LATER : null, // a settlement is after the items made before it
 });
 const bill = (over: Partial<SplitState["bills"][number]> = {}) =>
-  ({ id: "b", biller: "Rent", amountMinor: 80_000, due: "2026-10-27", repeatDay: null, paidBy: "ben", createdAt: CREATED, ...over });
+  ({ id: "b", biller: "Rent", amountMinor: 80_000, due: "2026-10-27", repeatUnit: null, repeatDay: null, nextAmountMinor: null, nextAmountFrom: null, paidBy: "ben", createdAt: CREATED, ...over });
 const charge = (over: Partial<SplitState["charges"][number]> = {}) =>
   ({ id: "c", merchant: "Market", amountMinor: 5_000, date: "2026-11-05", paidBy: "aki", createdAt: CREATED, ...over });
 const net = (state: SplitState, today = TODAY) => Object.fromEntries(splitBalance(state, today).members.map(m => [m.id, m.netMinor]));
@@ -129,23 +129,33 @@ async function main() {
       assert.equal(net(state2({ ...settled, bills: [after] })).ben, 2_000, "made after settling, dated that day: counts (Ben paid 5,000 and owes 3,000)");
       assert.equal(splitBalance(state2({ ...settled, bills: [before, after] }), TODAY).items, 1);
       assert.equal(splitBalance(state2({ ...settled, charges: [charge({ date: "2026-11-10", createdAt: "2026-11-10T10:00:00.000Z" }), charge({ date: "2026-11-10", createdAt: "2026-11-10T08:00:00.000Z" }), charge({ date: "2026-11-09", createdAt: "2026-11-10T10:00:00.000Z" })] }), TODAY).items, 1, "a charge dated before the settlement day is settled whenever it was made");
-      const monthly = (createdAt: string) => bill({ amountMinor: 80_000, due: "2026-09-10", repeatDay: 10, createdAt });
+      const monthly = (createdAt: string) => bill({ amountMinor: 80_000, due: "2026-09-10", repeatUnit: "month", repeatDay: 10, createdAt });
       assert.equal(splitBalance(state2({ since: "2026-09-01", ...settled, bills: [monthly("2026-11-10T08:00:00.000Z")] }), TODAY).items, 0, "the Nov 10 occurrence of a bill made before settling is settled");
       assert.equal(splitBalance(state2({ since: "2026-09-01", ...settled, bills: [monthly("2026-11-10T10:00:00.000Z")] }), TODAY).items, 1, "...and counts when the bill row was made after; Sep 10 and Oct 10 are settled either way");
       assert.equal(splitBalance(state2({ since: "2026-09-01", ...settled, bills: [monthly("2026-11-10T10:00:00.000Z")] }), "2026-12-10").items, 2, "the Dec 10 occurrence is dated after the settlement");
     });
 
     await check("a monthly shared bill counts every past occurrence from its first due date, clamped to short months", () => {
-      const rent = bill({ amountMinor: 80_000, due: "2026-08-27", repeatDay: 27 });
+      const rent = bill({ amountMinor: 80_000, due: "2026-08-27", repeatUnit: "month", repeatDay: 27 });
       assert.equal(splitBalance(state2({ since: "2026-08-01", bills: [rent] }), TODAY).items, 3, "Aug 27, Sep 27, Oct 27; Nov 27 has not come");
       assert.equal(splitBalance(state2({ since: "2026-08-01", bills: [rent] }), "2026-11-27").items, 4, "on the day itself it counts");
       assert.equal(splitBalance(state2({ since: "2026-09-28", bills: [rent] }), TODAY).items, 1, "from the split day: only Oct 27");
       assert.equal(splitBalance(state2({ since: "2026-08-01", settledThrough: "2026-09-27", bills: [rent] }), TODAY).items, 1, "after a settlement: only Oct 27");
       assert.equal(net(state2({ since: "2026-08-01", bills: [rent] })).ben, 96_000);
-      const month31 = bill({ amountMinor: 1_000, due: "2026-01-31", repeatDay: 31 });
+      const month31 = bill({ amountMinor: 1_000, due: "2026-01-31", repeatUnit: "month", repeatDay: 31 });
       assert.equal(splitBalance(state2({ since: "2026-01-01", bills: [month31] }), "2026-03-01").items, 2, "Jan 31 and Feb 28");
       assert.equal(splitBalance(state2({ since: "2026-01-01", bills: [month31] }), "2026-02-27").items, 1, "Feb 28 has not come");
       assert.equal(splitBalance(state2({ since: "2026-01-01", bills: [bill({ ...month31, due: "2026-12-31" })] }), "2026-11-30").items, 0, "a first due date in the future counts nothing");
+    });
+
+    await check("a yearly shared bill counts once a year; an amount that changes counts at the amount of each date (D48)", () => {
+      const cover = bill({ biller: "Fictional cover", amountMinor: 60_000, due: "2024-02-29", repeatUnit: "year" });
+      assert.equal(splitBalance(state2({ since: "2024-01-01", bills: [cover] }), "2026-11-14").items, 3, "Feb 29 2024, Feb 28 2025, Feb 28 2026");
+      assert.equal(splitBalance(state2({ since: "2024-01-01", bills: [cover] }), "2025-02-27").items, 1, "Feb 28 2025 has not come");
+      assert.equal(splitBalance(state2({ since: "2025-06-01", bills: [cover] }), "2026-11-14").items, 1, "from the split day: only Feb 28 2026");
+      const rise = bill({ amountMinor: 80_000, due: "2026-08-27", repeatUnit: "month", repeatDay: 27, nextAmountMinor: 90_000, nextAmountFrom: "2026-10-01" });
+      assert.equal(splitBalance(state2({ since: "2026-08-01", bills: [rise] }), TODAY).items, 3, "Aug 27, Sep 27, Oct 27");
+      assert.equal(net(state2({ since: "2026-08-01", bills: [rise] })).ben, 100_000, "Ben paid 80,000 + 80,000 + 90,000 = 250,000 and owes 60% of it: 150,000");
     });
 
     await check("share parsing and equal shares: whole percent or two decimals; the owner takes the remainder", () => {
@@ -274,7 +284,7 @@ async function main() {
       assert.equal(tool("who_owes_whom").scope, "read");
       assert.deepEqual(Object.keys(tool("who_owes_whom").input.shape), []);
       assert.deepEqual([...(toolInputSchema(tool("add_bill")) as unknown as { required: string[] }).required].sort(),
-        ["amount", "biller", "business_bp", "category", "due", "id", "memberId", "monthly", "paidBy", "shared"]);
+        ["amount", "biller", "business_bp", "cancel_by", "category", "due", "id", "memberId", "next_amount", "next_amount_from", "paidBy", "repeat", "shared"]);
       assert.ok((toolInputSchema(tool("log_charge")) as unknown as { required: string[] }).required.includes("shared"));
       assert.equal(tools.filter(t => t.scope === "read").length, 11);
 
@@ -289,19 +299,19 @@ async function main() {
       assert.deepEqual([alone.summary, alone.split, alone.transfers], ["Only one person is in this household, so there is nothing to split.", false, []]);
 
       const id = randomUUID();
-      const pending = await run(a, "add_bill", { id, biller: "Fictional gas", amount: "6000", due: "2026-11-25", category: "utilities", memberId: null, monthly: true, shared: true, paidBy: " aki " });
+      const pending = await run(a, "add_bill", { id, biller: "Fictional gas", amount: "6000", due: "2026-11-25", category: "utilities", memberId: null, repeat: "month", shared: true, paidBy: " aki " });
       assert.match(pending, /waiting in To check/);
       const row = await first(db.select().from(schema.bills).where(eq(schema.bills.id, id)));
       assert.deepEqual([row.status, row.memberId, row.paidByMemberId, row.repeatDay], ["pending", null, aki, 25]);
-      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, monthly: false, shared: true, paidBy: "Nobody" }), /Nobody called Nobody is in this household/);
-      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, monthly: false, shared: true, paidBy: null }), /Say who pays/);
-      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, monthly: false, shared: false, paidBy: "Aki" }), /set shared to true/);
-      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: ben, monthly: false, shared: true, paidBy: "Aki" }), /leave memberId empty/);
-      await assert.rejects(run(b, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, monthly: false, shared: true, paidBy: "Ben" }), /second person/);
-      await assert.rejects(run(b, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, monthly: false, shared: true, paidBy: "Aki" }), /second person/);
+      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: "Nobody" }), /Nobody called Nobody is in this household/);
+      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: null }), /Say who pays/);
+      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: false, paidBy: "Aki" }), /set shared to true/);
+      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: ben, repeat: null, shared: true, paidBy: "Aki" }), /leave memberId empty/);
+      await assert.rejects(run(b, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: "Ben" }), /second person/);
+      await assert.rejects(run(b, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: "Aki" }), /second person/);
       await assert.rejects(memberByName(db, b, "Aki"), /Nobody called Aki/, "a name in another household is unknown");
       const plain = randomUUID();
-      await run(b, "add_bill", { id: plain, biller: "Fictional plain", amount: "1", due: TODAY, category: "other", memberId: null, monthly: false, shared: null, paidBy: null });
+      await run(b, "add_bill", { id: plain, biller: "Fictional plain", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: null, paidBy: null });
       assert.equal((await first(db.select().from(schema.bills).where(eq(schema.bills.id, plain)))).paidByMemberId, null, "shared and paidBy are optional");
 
       const charge = randomUUID();
@@ -372,7 +382,7 @@ async function main() {
       await db.insert(schema.cards).values({ id: fCard, householdId: f, memberId: fAki, label: "Aki Card", closingDay: 31, dueDay: 26, currency: "JPY" });
       const owes = async () => splitBalance((await stateOf(f)).split, TODAY).transfers.map(t => transferLine(t, "JPY"));
       await insertBill(db, f, billInput.parse({ id: randomUUID(), biller: "Fictional before", amount: "10000", due: TODAY, category: "other", paidByMemberId: fBen }), "confirmed");
-      await insertBill(db, f, billInput.parse({ id: randomUUID(), biller: "Fictional monthly before", amount: "20000", due: TODAY, category: "other", monthly: true, paidByMemberId: fBen }), "confirmed");
+      await insertBill(db, f, billInput.parse({ id: randomUUID(), biller: "Fictional monthly before", amount: "20000", due: TODAY, category: "other", repeat: "month", paidByMemberId: fBen }), "confirmed");
       assert.deepEqual(await owes(), ["Aki owes Ben ¥15,000"], "50/50 of 10,000 and 20,000");
       assert.equal((await settleUp(db, f)).length, 1);
       assert.deepEqual(await owes(), [], "dated today, made before settling: settled, including today's occurrence of the monthly bill");
@@ -383,7 +393,7 @@ async function main() {
       assert.deepEqual(await owes(), ["Aki owes Ben ¥2,000"], "dated today, made after settling: counts");
       await insertCharge(db, f, chargeInput.parse({ id: randomUUID(), cardId: fCard, merchant: "Fictional late grocer", amount: "1000", date: TODAY, category: "other", shared: true }), "confirmed", "manual");
       assert.deepEqual(await owes(), ["Aki owes Ben ¥1,500"], "a charge made after settling counts too (Aki paid 1,000: 2,000 - 500)");
-      await insertBill(db, f, billInput.parse({ id: randomUUID(), biller: "Fictional monthly after", amount: "6000", due: TODAY, category: "other", monthly: true, paidByMemberId: fBen }), "confirmed");
+      await insertBill(db, f, billInput.parse({ id: randomUUID(), biller: "Fictional monthly after", amount: "6000", due: TODAY, category: "other", repeat: "month", paidByMemberId: fBen }), "confirmed");
       assert.deepEqual(await owes(), ["Aki owes Ben ¥4,500"], "today's occurrence of a monthly bill made after settling counts");
       assert.equal((await settleUp(db, f)).length, 1);
       assert.deepEqual(await owes(), [], "a second settlement the same day settles those");
@@ -426,7 +436,7 @@ async function main() {
       await db.update(schema.households).set({ splitSince: "2026-10-01" }).where(eq(schema.households.id, c));
       const cCard = randomUUID();
       await db.insert(schema.cards).values({ id: cCard, householdId: c, memberId: cAki, label: "Aki Card", closingDay: 31, dueDay: 26, currency: "JPY" });
-      const rent = billInput.parse({ id: randomUUID(), biller: "Fictional rent", amount: "80000", due: "2026-10-27", category: "housing", monthly: true, paidByMemberId: cBen });
+      const rent = billInput.parse({ id: randomUUID(), biller: "Fictional rent", amount: "80000", due: "2026-10-27", category: "housing", repeat: "month", paidByMemberId: cBen });
       const groceries = chargeInput.parse({ id: randomUUID(), cardId: cCard, merchant: "Fictional greens", amount: "2000", date: "2026-11-10", category: "other", shared: true });
       await insertBill(db, c, rent, "pending");
       await insertCharge(db, c, groceries, "pending", "voice");

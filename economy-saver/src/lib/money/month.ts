@@ -4,7 +4,7 @@
 import type { Currency } from "@/lib/catalogue/types";
 import { dayLabel, minorMoney } from "./format";
 import { businessPart, CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
-import { occurrenceDates } from "./repeat";
+import { amountOn, occurrenceDates } from "./repeat";
 import type { MoneyState } from "./types";
 
 export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number };
@@ -37,7 +37,7 @@ function monthBounds(today: string): { first: string; last: string } {
 }
 
 /**
- * Confirmed bills due in the month (a monthly bill once, at its occurrence) and confirmed card charges dated in it, in the home
+ * Confirmed bills due in the month (a repeating bill once, at its occurrence) and confirmed card charges dated in it, in the home
  * currency, grouped by category. Statements and pending rows are left out; so are charges and bills of other months.
  */
 export function monthByCategory(state: MoneyState, today: string): MonthView {
@@ -50,16 +50,17 @@ export function monthByCategory(state: MoneyState, today: string): MonthView {
   for (const bill of state.bills) {
     if (bill.status !== "confirmed") continue;
     const base = { category: bill.category };
-    const item = (date: string): MonthItem => ({ label: bill.biller, date, amountMinor: minor(bill.amount), businessBp: bill.businessBp });
-    if (bill.repeatDay === undefined || bill.startsOn === undefined) {
+    const next = bill.nextAmount !== undefined && bill.nextAmountFrom !== undefined ? { amount: bill.nextAmount, from: bill.nextAmountFrom } : null;
+    const item = (date: string): MonthItem => ({ label: bill.biller, date, amountMinor: minor(amountOn(bill.startAmount ?? bill.amount, next, date)), businessBp: bill.businessBp });
+    if (bill.repeatUnit === undefined || bill.startsOn === undefined || bill.startAmount === undefined) {
       if (bill.due >= first && bill.due <= last) entries.push({ ...base, item: item(bill.due) });
       continue;
     }
-    // A monthly bill is one series of occurrences (`<id>@<date>`); the month holds at most one of them.
+    // A repeating bill is one series of occurrences (`<id>@<date>`); the month holds at most one of them, at the amount that applies on its date.
     const series = bill.id.slice(0, bill.id.indexOf("@"));
     if (seenSeries.has(series)) continue;
     seenSeries.add(series);
-    for (const date of occurrenceDates(bill.startsOn, bill.repeatDay, first, last)) entries.push({ ...base, item: item(date) });
+    for (const date of occurrenceDates(bill.startsOn, bill.repeatUnit, bill.repeatDay ?? null, first, last)) entries.push({ ...base, item: item(date) });
   }
   for (const charge of state.charges) {
     if (charge.status !== "confirmed" || charge.date < first || charge.date > last) continue;
@@ -84,8 +85,9 @@ export function monthByCategory(state: MoneyState, today: string): MonthView {
 
 const money = (view: MonthView, minor: number) => minorMoney(minor, view.currency);
 
-/** The one line at the top of Where the month goes: "Business ¥32,830 of ¥152,230 this month". */
+/** The one line at the top of Where the month goes: "Business ¥32,830 of ¥152,230 this month", or "All personal this month" when nothing has a business share. */
 export function businessLine(view: MonthView): string {
+  if (view.businessMinor === 0) return "All personal this month";
   return `Business ${money(view, view.businessMinor)} of ${money(view, view.totalMinor)} this month`;
 }
 

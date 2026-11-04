@@ -55,7 +55,10 @@ async function main() {
       assert.equal(roomLine(benMoney), "The next 30 days leave about ¥92,220 if clients pay as usual.");
       const bare = { ...benMoney, invoices: [] };
       assert.ok(monthlyRoom(bare) < 0, "bills and statements with nothing coming in leave nothing over");
-      assert.equal(roomLine(bare), "The next 30 days leave nothing over if clients pay as usual.");
+      assert.equal(roomLine(bare), "No client payments are expected in the next 30 days, so the plan counts your bank balance only.");
+      const unpaid = { ...benMoney, invoices: benMoney.invoices.filter(invoice => invoice.status !== "sent") };
+      assert.ok(monthlyRoom(unpaid) < 0, "without a sent invoice the month is a net outflow");
+      assert.equal(roomLine(unpaid), "No client payments are expected in the next 30 days, so the plan counts your bank balance only.");
     });
 
     await check("planFor: needed, whole months, monthly needed rounded up, fits against the room", () => {

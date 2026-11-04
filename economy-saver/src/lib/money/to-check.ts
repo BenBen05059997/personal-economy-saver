@@ -20,7 +20,7 @@ export function toCheck(state: MoneyState) {
     })),
     ...state.bills.filter(bill => bill.status === "pending").map(bill => ({
       kind: "bill" as const, id: bill.id, amount: bill.amount, title: bill.biller,
-      detail: `${categoryLabel(bill.category)} · ${shareLabel(bill.businessBp)} · due ${dayLabel(bill.due)}${bill.repeatDay === undefined ? "" : " · every month"}${bill.paidBy === undefined ? "" : ` · shared, paid by ${payer(bill.paidBy)}`}`,
+      detail: `${categoryLabel(bill.category)} · ${shareLabel(bill.businessBp)} · due ${dayLabel(bill.due)}${bill.repeatUnit === undefined ? "" : bill.repeatUnit === "month" ? " · every month" : " · every year"}${bill.nextAmount === undefined || bill.nextAmountFrom === undefined ? "" : ` · ${minorMoney(minor(bill.nextAmount), state.homeCurrency)} from ${dayLabel(bill.nextAmountFrom)}`}${bill.cancelBy === undefined ? "" : ` · cancel by ${dayLabel(bill.cancelBy)}`}${bill.paidBy === undefined ? "" : ` · shared, paid by ${payer(bill.paidBy)}`}`,
     })),
     ...pendingCharges(state).map(charge => {
       const card = state.cards.find(card => card.id === charge.cardId);

@@ -131,6 +131,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The bar is a button, not a field: it ends in a button-like "Ask" label and the cursor stays an arrow-and-hand, not an I-beam. */
+.shell-ask b {
+  flex: none;
+  margin-left: auto;
+  padding: 3px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--screen);
+  color: var(--ink);
+  font: 500 13px/1.3 var(--sans);
+}
+.shell-bar .shell-ask:hover b { border-color: var(--faint); }
 .shell-bar .shell-add {
   padding: 0 16px;
   background: var(--ink);
@@ -200,7 +212,7 @@
   .shell-mobile-brand { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; text-decoration: none; }
   .shell-bell { min-height: 44px; }
   .shell-bar .shell-add { height: 44px; padding: 0 12px; }
-  .shell-main { padding: 18px max(20px, env(safe-area-inset-right)) 96px max(20px, env(safe-area-inset-left)); }
+  .shell-main { padding: 18px max(20px, env(safe-area-inset-right)) var(--ask-bar-clearance) max(20px, env(safe-area-inset-left)); }
   .shell-phone-ask {
     position: fixed;
     inset: auto 0 0;

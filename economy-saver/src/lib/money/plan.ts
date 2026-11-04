@@ -3,6 +3,7 @@
 
 import { MONTHS, minorMoney } from "./format";
 import { availableCash, moneyInPots, series } from "./runway";
+import { expectsClientPayment } from "./sentence";
 import type { MoneyState, Pot } from "./types";
 
 const unit = (state: MoneyState) => (state.homeCurrency === "USD" ? 100 : 1);
@@ -76,7 +77,7 @@ export const monthYear = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]
 /** The one-line answer, built here so the screen and the agent say the same words and numbers. */
 export function planLine(input: PlanInput, plan: Plan, state: MoneyState): string {
   const money = (n: number) => minorMoney(Math.round(n * unit(state)), state.homeCurrency);
-  const room = roomLine(state).slice(0, -1);
+  const room = roomClause(state).slice(0, -1);
   if (plan.needed === 0) return `Nothing more to set aside: ${money(input.target)} is already there.`;
   const parts: string[] = [];
   if (plan.monthlyNeeded !== undefined && input.targetDate) {
@@ -105,12 +106,19 @@ export function potLine(pot: Pot, state: MoneyState): string | undefined {
   return "The next 30 days leave nothing over yet, so there is no date to give.";
 }
 
-/** The sentence at the top of the Plan page. */
-export function roomLine(state: MoneyState): string {
+/** What the next 30 days leave, as a sentence that planLine can continue ("…, so it fits"). */
+function roomClause(state: MoneyState): string {
   const room = monthlyRoom(state);
   return room > 0
     ? `The next 30 days leave about ${minorMoney(Math.round(room * unit(state)), state.homeCurrency)} if clients pay as usual.`
     : "The next 30 days leave nothing over if clients pay as usual.";
+}
+
+/** The sentence at the top of the Plan page. With no client payment expected, it says the plan counts the bank balance only. */
+export function roomLine(state: MoneyState): string {
+  return expectsClientPayment(state)
+    ? roomClause(state)
+    : "No client payments are expected in the next 30 days, so the plan counts your bank balance only.";
 }
 
 /** Under the room line: how much is set aside and so left out of safe to spend. Undefined with no money in pots. */

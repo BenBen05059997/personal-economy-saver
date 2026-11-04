@@ -9,6 +9,8 @@ import { cardSummary } from "@/components/home/card-summary";
 import { AddClientForm } from "./AddClientForm";
 import "./household.css";
 
+const STATEMENT_COVERED = "Covered: this statement can be paid on its due date from your bank or from client payments due by then.";
+
 function Detail({ title, close, children }: { title: string; close: string; children: ReactNode }) {
   return <aside className="directory-detail" aria-label={title}>
     <header><h2>{title}</h2><Link className="ui-back" href={close}>Close</Link></header>
@@ -61,6 +63,7 @@ function ClientPanel({ state, client }: { state: MoneyState; client: Client }) {
       <span className="num">{usd(invoice.amountUsd)}</span>
     </Link>)}
     {!invoices.length && <p className="ui-hint">No current work or recent invoices.</p>}
+    <p className="directory-next"><Link prefetch={false} href={`/invoices/new?client=${client.id}`}>New invoice for this client ›</Link></p>
   </Detail>;
 }
 
@@ -82,7 +85,7 @@ export function Directory({ state, section, selected, newClientId }: { state: Mo
             <small>{next ? `${next.open ? "So far" : "Statement"} ${format(next.amount)} · due ${dayLabel(next.dueOn)}` : "No statement due"}</small>
             {limitLeft !== undefined && <small>{format(Math.max(0, limitLeft))} limit left</small>}</div>
           <div>{format(owed)}<small>owed now</small>
-            {next && <small>{shortBy > 0 ? <span className="directory-short">Short {format(shortBy)}</span> : <span className="directory-covered">Covered ✓</span>}</small>}</div>
+            {next && <small>{shortBy > 0 ? <span className="directory-short">Short {format(shortBy)}</span> : <span className="directory-covered" title={STATEMENT_COVERED} aria-label={STATEMENT_COVERED}>Covered ✓</span>}</small>}</div>
         </Link>;
       }) : state.clients.map(item => {
         const outstanding = state.invoices.filter(i => i.clientId === item.id && i.status === "sent").reduce((sum, i) => sum + i.amountUsd, 0);

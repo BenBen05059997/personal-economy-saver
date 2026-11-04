@@ -1,5 +1,6 @@
 import { accountHousehold } from "@/db/account";
 import { verifiedUid } from "./auth-request";
+import { FORM_REDIRECT_HEADER, postedByForm } from "./form-fetch";
 import { hasAuthCookie } from "./supabase-auth";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -24,8 +25,11 @@ export async function householdRequest(request: Request): Promise<string | Respo
   return await currentHouseholdId() ?? new Response("Household session required", { status: 401 });
 }
 
-export function demoResponse(id: string) {
-  const response = new NextResponse(null, { status: 303, headers: { Location: "/" } });
+/** Sets the demo cookie and sends the visitor Home: a 303, or, to a post made by `ApiForm` (pass the request), 204 with the destination in a header. */
+export function demoResponse(id: string, request?: Request) {
+  const response = request && postedByForm(request)
+    ? new NextResponse(null, { status: 204, headers: { [FORM_REDIRECT_HEADER]: "/" } })
+    : new NextResponse(null, { status: 303, headers: { Location: "/" } });
   response.headers.set("Cache-Control", "private, no-store");
   response.cookies.set("household", id, {
     httpOnly: true,

@@ -3,8 +3,8 @@
 //
 // What counts: each confirmed shared bill or charge dated after the last settlement (or dated that day but created after
 // the settlement happened, so an item entered for today after settling today is not lost), on or before today and on or
-// after the day the household got its second member. A monthly shared bill counts once per past occurrence (its first due date
-// through today); the runway looks forward, so the past ones are counted here. The payer paid the whole amount and every
+// after the day the household got its second member. A repeating shared bill (monthly or yearly) counts once per past occurrence (its first due date
+// through today), each at the amount that applies on its date; the runway looks forward, so the past ones are counted here. The payer paid the whole amount and every
 // member owes their share of it at the current shares.
 //
 // Rounding: each item's amount is cut by the shares with the largest-remainder rule (floor of each share, then the
@@ -13,7 +13,7 @@
 
 import type { Currency } from "@/lib/catalogue/types";
 import { minorMoney } from "./format";
-import { occurrenceDates } from "./repeat";
+import { amountOn, occurrenceDates } from "./repeat";
 import type { SplitState } from "./types";
 
 export const SHARE_TOTAL_BP = 10_000;
@@ -90,8 +90,9 @@ export function splitBalance(split: SplitState, today: string): SplitBalance {
   };
   if (from !== null) {
     for (const bill of split.bills) {
-      const dates = bill.repeatDay === null ? (bill.due >= from && bill.due <= today ? [bill.due] : []) : occurrenceDates(bill.due, bill.repeatDay, from, today);
-      for (const date of dates) if (unsettled(split, date, bill.createdAt)) count(bill.amountMinor, bill.paidBy); // an occurrence takes its bill row's created_at
+      const dates = bill.repeatUnit === null ? (bill.due >= from && bill.due <= today ? [bill.due] : []) : occurrenceDates(bill.due, bill.repeatUnit, bill.repeatDay, from, today);
+      const next = bill.nextAmountMinor !== null && bill.nextAmountFrom !== null ? { amount: bill.nextAmountMinor, from: bill.nextAmountFrom } : null;
+      for (const date of dates) if (unsettled(split, date, bill.createdAt)) count(amountOn(bill.amountMinor, next, date), bill.paidBy); // an occurrence takes its bill row's created_at and the amount that applies on its date
     }
     for (const charge of split.charges) if (charge.date >= from && charge.date <= today && unsettled(split, charge.date, charge.createdAt)) count(charge.amountMinor, charge.paidBy);
   }

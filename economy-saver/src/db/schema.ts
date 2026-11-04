@@ -293,11 +293,18 @@ export const bills = pgTable(
     previousAmountMinor: minor("previous_amount_minor"),
     fxRateMicro: bigint("fx_rate_micro", { mode: "number" }),
     documentId: uuid("document_id").references(() => documents.id, { onDelete: "set null" }),
-    repeatDay: integer("repeat_day"), // D41: day of the month a monthly bill repeats on; null = one-off
+    repeatDay: integer("repeat_day"), // D41: day of the month a monthly bill repeats on; only with repeat_unit = 'month'
+    repeatUnit: text("repeat_unit"), // D48: 'month' or 'year'; null = one-off. A yearly bill repeats on its due date's month and day
+    nextAmountMinor: minor("next_amount_minor"), // D48: the amount from next_amount_from on (occurrences on or after it)
+    nextAmountFrom: date("next_amount_from", { mode: "string" }),
+    cancelBy: date("cancel_by", { mode: "string" }), // D48: information only: the date to act by before the next occurrence charges
     createdAt: createdAt(),
   },
   (t) => [index("bills_household_idx").on(t.householdId), index("bills_due_idx").on(t.householdId, t.due),
     check("bills_repeat_day_valid", sql`${t.repeatDay} is null or ${t.repeatDay} between 1 and 31`),
+    check("bills_repeat_unit_valid", sql`${t.repeatUnit} is null or ${t.repeatUnit} in ('month', 'year')`),
+    check("bills_repeat_day_monthly", sql`(${t.repeatUnit} is not distinct from 'month') = (${t.repeatDay} is not null)`),
+    check("bills_next_amount_pair", sql`(${t.nextAmountMinor} is null) = (${t.nextAmountFrom} is null)`),
     check("bills_category_valid", sql`${t.category} in (${categoryList})`),
     check("bills_business_valid", sql`${t.businessBp} between 0 and 10000`),
     foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "bills_member_household_fk" }),

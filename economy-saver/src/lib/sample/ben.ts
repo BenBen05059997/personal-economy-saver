@@ -38,9 +38,9 @@ export const benProfile: Profile = {
 // the electricity bill is a one-off waiting in To check. Each carries a category and a business share (D46):
 // rent is 30% business (a home office), the phone 50%, the subscription and the hosting are all business.
 export const benStoredBills: Bill[] = ([
-  { id: "b-cloudbox", biller: "CloudBox Plus", amount: 1_980, due: "2026-11-18", category: "subscriptions", businessBp: 10_000, repeatDay: 18 },
-  { id: "b-mobaile", biller: "Mobaile Tsushin", amount: 4_800, due: "2026-11-20", category: "phone_internet", businessBp: 5_000, repeatDay: 20 },
-  { id: "b-rent", biller: "Rent", amount: 82_000, due: "2026-11-27", category: "housing", businessBp: 3_000, repeatDay: 27 },
+  { id: "b-cloudbox", biller: "CloudBox Plus", amount: 1_980, due: "2026-11-18", category: "subscriptions", businessBp: 10_000, repeatUnit: "month", repeatDay: 18 },
+  { id: "b-mobaile", biller: "Mobaile Tsushin", amount: 4_800, due: "2026-11-20", category: "phone_internet", businessBp: 5_000, repeatUnit: "month", repeatDay: 20 },
+  { id: "b-rent", biller: "Rent", amount: 82_000, due: "2026-11-27", category: "housing", businessBp: 3_000, repeatUnit: "month", repeatDay: 27 },
   {
     id: "b-hikari",
     biller: "Hikari Denki",
@@ -91,6 +91,7 @@ export const benMoney: MoneyState = {
   ],
   pots: [], // D43: Ben has no pots, so every demo number stays as it is
   pendingPots: [],
+  cancelNotices: [],
   split: { members: [{ id: "m-ben", name: "Ben", shareBp: 10_000 }], since: null, settledThrough: null, settledAt: null, bills: [], charges: [] },
   balanceUpdates: [],
   invoices: [

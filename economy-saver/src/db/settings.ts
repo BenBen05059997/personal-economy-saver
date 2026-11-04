@@ -33,7 +33,7 @@ export async function loadSettings(db: Db, householdId: string) {
     db.select({ id: members.id, name: members.displayName, role: members.role, shareBp: members.shareBp }).from(members).where(eq(members.householdId, hid))
       .orderBy(sql`(${members.role} = 'owner') desc`, members.createdAt, members.id),
     db.select().from(cards).where(eq(cards.householdId, hid)).orderBy(cards.createdAt),
-    db.select({ id: bills.id, biller: bills.biller, amountMinor: bills.amountMinor, currency: bills.currency, repeatDay: bills.repeatDay, status: bills.status, memberId: bills.memberId, paidByMemberId: bills.paidByMemberId }).from(bills).where(eq(bills.householdId, hid)).orderBy(bills.due),
+    db.select({ id: bills.id, biller: bills.biller, amountMinor: bills.amountMinor, currency: bills.currency, repeatDay: bills.repeatDay, repeatUnit: bills.repeatUnit, status: bills.status, memberId: bills.memberId, paidByMemberId: bills.paidByMemberId }).from(bills).where(eq(bills.householdId, hid)).orderBy(bills.due),
   ]);
   return { household, people, cards: cardRows, bills: billRows };
 }

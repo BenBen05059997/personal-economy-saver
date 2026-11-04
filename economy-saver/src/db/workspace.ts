@@ -44,5 +44,5 @@ export async function loadWorkspaceData(tx: Db, hid: string, home = false,
   ]);
   if (home) await observeRunway(tx, hid, state, household);
   const feed = await eventFeed(tx, hid);
-  return { state, people, name, feed, timeZone, inbox, freshness, pending: toCheck(state).length + inbox.readings.length };
+  return { state, people, name, feed, timeZone, inbox, freshness, demo: household.isDemo, pending: toCheck(state).length + inbox.readings.length };
 }

@@ -1,7 +1,8 @@
 import type { ReaderInbox } from "@/db/reader-inbox";
 import Link from "next/link";
 import { ApiForm } from "@/components/ui/ApiForm";
-import type { MoneyState } from "@/lib/money/types";
+import { categoryLabel } from "@/lib/money/categories";
+import type { CancelNotice, MoneyState } from "@/lib/money/types";
 import { dayLabel, formatter, usd } from "@/lib/money/format";
 import { addDays, arrivals, daysBetween, low, safeToSpend, series, statementItems, timeline } from "@/lib/money/runway";
 import { fundingOptions } from "@/lib/money/options";
@@ -18,6 +19,11 @@ import "./home.css";
 
 type Props = { state: MoneyState };
 type People = { id: string; name: string }[];
+
+// What the ✓ marks mean in the engine: a bill's tick is "the worst-case balance on its due day is at least zero";
+// a card's is "the statement is paid from the bank, or once client payments land by its due date, with every other bill still paid".
+const DAY_COVERED = "Covered: your balance stays above zero on this day, even if clients pay late.";
+const STATEMENT_COVERED = "Covered: this statement can be paid on its due date from your bank or from client payments due by then.";
 
 function Actions({ state }: Props) {
   const options = fundingOptions(state);
@@ -58,7 +64,7 @@ function ToCheck({ state, inbox }: Props & { inbox: ReaderInbox }) {
   const rows = toCheck(state);
   return <section id="to-check" className="home-panel home-review">
     <h2>To check{rows.length + inbox.readings.length > 0 && ` · ${rows.length + inbox.readings.length}`}</h2>
-    {!rows.length && !inbox.readings.length && !inbox.jobs.length && <p className="home-empty">Nothing to check.</p>}
+    {!rows.length && !inbox.readings.length && !inbox.jobs.length && <p className="home-empty">Nothing to check. <Link prefetch={false} href="/settings#forwarding">Forward a bill or upload a receipt ›</Link></p>}
     {inbox.jobs.map(job => <div key={job.id} className="home-row"><Link href="/to-check">{job.status === "failed" ? "Document needs attention" : "Reading document…"}</Link></div>)}
     {inbox.readings.map(r => <div key={r.id} className="home-row"><span>{r.value.name || "Document"}</span><Link href={`/to-check#reading-${r.id}`}>Review</Link></div>)}
     {rows.map((row) => <div key={row.id} className="home-row home-check-row">
@@ -69,11 +75,31 @@ function ToCheck({ state, inbox }: Props & { inbox: ReaderInbox }) {
   </section>;
 }
 
+/** D47: three things that make the forecast real. Each ticks when true (a pending bill counts as a bill); the panel is gone once all three are. */
+function FirstSteps({ state }: Props) {
+  const steps = [
+    { done: state.bills.length > 0, open: "Add a bill", closed: "Bill added", note: "Rent, phone, a subscription", href: "#add-bill" },
+    { done: state.clients.length > 0, open: "Add a client who pays you", closed: "Client added", note: "So late payments show up in the sentence", href: "/clients" },
+    { done: state.charges.length > 0, open: "Add a card charge", closed: "Card charge added", note: "Spend the card has not billed yet", href: "#add-charge" },
+  ];
+  const left = steps.filter(step => !step.done).length;
+  if (left === 0) return null;
+  return <section id="first-steps" className="home-panel home-steps">
+    <h2>First steps · {left} to go</h2>
+    <ol>{steps.map(step => <li key={step.open} className={step.done ? "home-step-done" : undefined}>
+      <span className="home-step-tick" aria-hidden="true">{step.done ? "✓" : ""}</span>
+      {step.done ? <span>{step.closed}</span>
+        : step.href.startsWith("#") ? <a href={step.href}><span>{step.open}</span><small>{step.note}</small></a>
+        : <Link prefetch={false} href={step.href}><span>{step.open}</span><small>{step.note}</small></Link>}
+    </li>)}</ol>
+  </section>;
+}
+
 function Cards({ state }: Props) {
   const format = formatter(state.homeCurrency);
   return <section id="cards" className="home-panel home-cards">
     <h2>Cards <Link prefetch={false} href="/cards">All cards ›</Link></h2>
-    {state.cards.length === 0 && <p className="home-empty">No cards added.</p>}
+    {state.cards.length === 0 && <p className="home-empty">No cards added. <Link prefetch={false} href="/settings">Add a card in Settings ›</Link></p>}
     {state.cards.map((card) => {
       const { owed, limitLeft, next, shortBy } = cardSummary(state, card.id);
       return <div key={card.id} className="home-row home-card-row">
@@ -81,7 +107,7 @@ function Cards({ state }: Props) {
         <div className="home-number">{format(owed)}<small>owed now</small></div>
         {limitLeft !== undefined && <small className="home-card-limit">{format(Math.max(0, limitLeft))} limit left</small>}
         <small className="home-card-next">{next ? `${next.open ? "So far" : "Statement"} ${format(next.amount)} · due ${dayLabel(next.dueOn)}` : "No statement due"}</small>
-        {next && <small className="home-card-status">{shortBy > 0 ? <span className="home-short">Short {format(shortBy)}</span> : <span className="home-covered">Covered ✓</span>}</small>}
+        {next && <small className="home-card-status">{shortBy > 0 ? <span className="home-short">Short {format(shortBy)}</span> : <span className="home-covered" title={STATEMENT_COVERED} aria-label={STATEMENT_COVERED}>Covered ✓</span>}</small>}
       </div>;
     })}
   </section>;
@@ -93,7 +119,7 @@ function SharedCosts({ state }: Props) {
   const { transfers } = splitBalance(state.split, state.today);
   return <section id="shared-costs" className="home-panel home-split">
     <h2>Shared costs</h2>
-    {transfers.length === 0 && <p className="home-empty">Nobody owes anyone anything.</p>}
+    {transfers.length === 0 && <p className="home-empty">Nobody owes anyone anything. Mark a bill or charge as shared to split it. <a href="#add-bill">Add a bill ›</a></p>}
     {transfers.map(transfer => <div key={transfer.fromId + transfer.toId} className="home-row"><div>{transferLine(transfer, state.homeCurrency)}</div></div>)}
     {transfers.length > 0 && <ApiForm action="/api/settle" className="home-settle">
       <input type="hidden" name="returnTo" value="/" />
@@ -102,12 +128,27 @@ function SharedCosts({ state }: Props) {
   </section>;
 }
 
+/** "Nov 20", or "Jan 1, 2028" when the date is in another year than today. */
+const dateIn = (iso: string, today: string) => dayLabel(iso) + (iso.slice(0, 4) === today.slice(0, 4) ? "" : `, ${iso.slice(0, 4)}`);
+
+/** D48: the row a cancel-by date makes. It is information: nothing here cancels, moves or pays anything. */
+function CancelRow({ notice, state }: { notice: CancelNotice; state: MoneyState }) {
+  const format = formatter(state.homeCurrency);
+  const what = notice.repeats ? "it renews at" : "it is charged";
+  return <div className="home-row home-dated home-cancel">
+    <time dateTime={notice.cancelBy}>{dayLabel(notice.cancelBy)}</time>
+    <div>Cancel {notice.biller} by {dateIn(notice.cancelBy, state.today)} or {what} {format(notice.amount)} on {dateIn(notice.renewsOn, state.today)}
+      <small>{categoryLabel(notice.category)} · reminder only</small></div>
+    <div className="home-number" />
+  </div>;
+}
+
 function ComingUp({ state, people, entryIds }: Props & { people: People; entryIds: EntryIds }) {
   const format = formatter(state.homeCurrency);
   const usual = timeline(state, "expected");
   const late = series(state, "worst");
   const incoming = new Map(arrivals(state).map((item) => [`${item.invoiceId}-expected`, item]));
-  const monthly = new Set(state.bills.filter((bill) => bill.repeatDay !== undefined).map((bill) => bill.id)); // an event's id is its bill's id
+  const repeats = new Map(state.bills.filter((bill) => bill.repeatUnit !== undefined).map((bill) => [bill.id, bill.repeatUnit === "year" ? "Yearly" : "Every month"])); // an event's id is its bill's id
   // A short day says "Short by …" once, on its last row that can carry it (not a client's payment, not a pending bill).
   const canCarry = (event: (typeof usual)[number]) => !incoming.has(event.id) && !event.pending && late[daysBetween(state.today, event.date)] < 0;
   const carries = usual.map((event, index) => canCarry(event) && !usual.slice(index + 1).some((later) => later.date === event.date && canCarry(later)));
@@ -121,29 +162,37 @@ function ComingUp({ state, people, entryIds }: Props & { people: People; entryId
           {payment ? <small>Usual date · if late, {dayLabel(payment.worstOn)}</small>
             : event.pending ? <small>Awaiting confirmation</small>
             : carries[index] && <small className="home-short">Short by {format(-late[i])} if clients pay late</small>}
-          {monthly.has(event.id) && <small>Every month</small>}
+          {repeats.has(event.id) && <small>{repeats.get(event.id)}</small>}
         </div>
         <div className="home-number">{payment ? `+${usd(payment.amountUsd)}` : format(Math.abs(event.amount))}
           {payment && state.homeCurrency !== "USD" && <small>≈{format(payment.amountHome)}</small>}
-          {!payment && !event.pending && !short && <span className="home-covered-tick" aria-label="Covered"> ✓</span>}
+          {!payment && !event.pending && !short && <span className="home-covered-tick" title={DAY_COVERED} aria-label={DAY_COVERED}> ✓</span>}
         </div>
       </div>;
     });
   // The rows that say "Short by …" and the low point's own row are never folded away.
+  // D48: a cancel-by date is a dated row of its own (information only), placed by date after that day's other rows.
+  const notices = state.cancelNotices.filter((notice) => daysBetween(state.today, notice.cancelBy) < 30);
   const lowDay = low(late).dayIndex;
   const lowRow = usual.map((event, index) => carries[index] && daysBetween(state.today, event.date) === lowDay ? index : -1).reduce((a, b) => Math.max(a, b), -1);
-  const shown = Math.max(5, carries.indexOf(true) + 1, lowRow + 1);
+  const shownUsual = Math.max(5, carries.indexOf(true) + 1, lowRow + 1);
+  const dated = [
+    ...usual.map((event, index) => ({ date: event.date, rank: 0, index, node: rows[index] })),
+    ...notices.map((notice, index) => ({ date: notice.cancelBy, rank: 1, index, node: <CancelRow key={`cancel-${notice.billId}`} notice={notice} state={state} /> })),
+  ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.rank - b.rank || a.index - b.index));
+  // Rows fold after the last usual row that must stay; a cancel-by row folds with the day it belongs to.
+  const shown = shownUsual >= usual.length ? dated.length : dated.findIndex((row) => row.rank === 0 && row.index === shownUsual - 1) + 1;
   return <section id="coming-up" className="home-panel home-upcoming">
     <h2>Coming up <Link prefetch={false} href="/activity">All activity ›</Link></h2>
-    {rows.length === 0 && <p className="home-empty">Nothing due in the next 30 days.</p>}
-    {rows.slice(0, shown)}
-    {rows.length > shown && <details><summary>Later in the month · {rows.length - shown} more</summary>{rows.slice(shown)}</details>}
+    {dated.length === 0 && <p className="home-empty">Nothing due yet. <a href="#add-bill">Add your rent ›</a></p>}
+    {dated.slice(0, shown).map((row) => row.node)}
+    {dated.length > shown && <details><summary>Later in the month · {dated.length - shown} more</summary>{dated.slice(shown).map((row) => row.node)}</details>}
     <AddEntry key={entryIds.bill + entryIds.charge} ids={entryIds} returnTo="/" today={state.today} currency={state.homeCurrency} people={people}
       cards={state.cards.map(card => ({ id: card.id, label: card.label }))} />
   </section>;
 }
 
-export function HomeView({ state, inbox, notice, people, entryIds, balanceId }: Props & { inbox: ReaderInbox; notice?: string | null; people: People; entryIds: EntryIds; balanceId: string }) {
+export function HomeView({ state, inbox, notice, people, entryIds, balanceId, demo }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; people: People; entryIds: EntryIds; balanceId: string }) {
   const sentence = homeSentence(state);
   const safe = safeToSpend(state, 0);
   const lead = sentence.lead.split(/([,\s]+)/).map((word, index) => {
@@ -156,11 +205,12 @@ export function HomeView({ state, inbox, notice, people, entryIds, balanceId }: 
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
     <h1>{lead} <span className={safe.shortBy > 0 ? "home-short" : undefined}>{sentence.emphasis}</span></h1>
+    {demo && <p className="home-demo">A fictional household that lives in this browser. <Link prefetch={false} href="/start">Start with my numbers ›</Link></p>}
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} />
     <div className="home-panels">
       <div className="home-column"><Next30Days state={state} balanceId={balanceId} /><Cards state={state} /><SharedCosts state={state} /></div>
-      <div className="home-column"><ToCheck state={state} inbox={inbox} /><ComingUp state={state} people={people} entryIds={entryIds} /></div>
+      <div className="home-column"><FirstSteps state={state} /><ToCheck state={state} inbox={inbox} /><ComingUp state={state} people={people} entryIds={entryIds} /></div>
     </div>
   </article>;
 }

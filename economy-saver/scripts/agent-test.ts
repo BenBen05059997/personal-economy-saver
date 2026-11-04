@@ -128,8 +128,9 @@ async function main() {
       }
       const spend = toolInputSchema(tools.find(t => t.name === "can_i_spend")!) as { properties: { card_id: { anyOf: { type: string }[] } } };
       assert.ok(spend.properties.card_id.anyOf.some(v => v.type === "null"));
-      const addBill = toolInputSchema(tools.find(t => t.name === "add_bill")!) as { properties: { monthly: { type: string } } };
-      assert.equal(addBill.properties.monthly.type, "boolean");
+      const addBill = toolInputSchema(tools.find(t => t.name === "add_bill")!) as { properties: { repeat: unknown; next_amount: unknown; next_amount_from: unknown; cancel_by: unknown }; required: string[] };
+      assert.ok(["repeat", "next_amount", "next_amount_from", "cancel_by"].every(key => key in addBill.properties && addBill.required.includes(key)), "the D48 fields are required properties (nullable) of add_bill");
+      assert.ok(!("monthly" in addBill.properties));
     });
 
     await check("tools only see the asking household: no other household's data in any tool output", async () => {
@@ -251,7 +252,7 @@ async function main() {
     await check("log_charge and add_bill leave pending rows in To check for the asking household only, and a retry adds nothing", async () => {
       const chargeId = crypto.randomUUID(), billId = crypto.randomUUID();
       const charge = { id: chargeId, cardId: aState.cards[0].id, merchant: "Noodle place", amount: "3800", date: aState.today };
-      const bill = { id: billId, biller: "Hikari Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, monthly: true };
+      const bill = { id: billId, biller: "Hikari Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, repeat: "month" };
       const script = () => transport([
         () => reply("tool_use", [toolUse("c", "log_charge", charge), toolUse("b", "add_bill", bill)]),
         () => reply("end_turn", [text("Both are waiting in To check.")]),
@@ -265,7 +266,7 @@ async function main() {
       assert.equal(row.amountMinor, 3800);
       const [pendingBill] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.id, billId)));
       assert.equal(pendingBill.status, "pending");
-      assert.equal(pendingBill.repeatDay, Number(aState.today.slice(8, 10)), "monthly: true stores the due date's day");
+      assert.equal(pendingBill.repeatDay, Number(aState.today.slice(8, 10)), "repeat month stores the due date's day");
       await ask(a, "Same again.", script().fetch);
       assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, chargeId))).length, 1);
       assert.equal((await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), eq(schema.events.refId, chargeId)))).length, 1);
@@ -276,6 +277,22 @@ async function main() {
       const refused = await ask(a, "Log it on that card.", crossCard.fetch);
       assert.equal(refused.pending, false);
       assert.equal(toolResults(crossCard.bodies[1])[0].is_error, true);
+    });
+
+    await check("add_bill takes repeat, next_amount, next_amount_from and cancel_by (D48): a yearly bill waits in To check with them, and a bad schedule is an error the model can read", async () => {
+      const billId = crypto.randomUUID();
+      const yearly = { id: billId, biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", memberId: null, repeat: "year", next_amount: "13000", next_amount_from: "2027-12-01", cancel_by: "2026-11-20" };
+      const run = transport([() => reply("tool_use", [toolUse("y", "add_bill", yearly)]), () => reply("end_turn", [text("Waiting in To check.")])]);
+      const result = await ask(a, "Fictional Cloud renews yearly on Dec 1 at 12000, rising to 13000 in 2027; cancel by Nov 20.", run.fetch);
+      assert.equal(result.pending, true);
+      const [row] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.id, billId)));
+      assert.deepEqual([row.status, row.repeatUnit, row.repeatDay, row.amountMinor, row.nextAmountMinor, row.nextAmountFrom, row.cancelBy], ["pending", "year", null, 12_000, 13_000, "2027-12-01", "2026-11-20"]);
+      const bad = transport([() => reply("tool_use", [toolUse("z", "add_bill", { ...yearly, id: crypto.randomUUID(), repeat: null })]), () => reply("end_turn", [text("Done.")])]);
+      const refused = await ask(a, "Add it as a one-off.", bad.fetch);
+      assert.equal(refused.pending, false);
+      const error = toolResults(bad.bodies[1])[0];
+      assert.equal(error.is_error, true);
+      assert.match(JSON.stringify(error.content), /needs a bill that repeats/);
     });
 
     await check("update_bank_balance leaves a pending update in To check, not a new balance, and a retry adds nothing", async () => {
@@ -392,7 +409,7 @@ async function main() {
       const [out] = toolResults(owes.bodies[1]);
       assert.ok(!out.is_error);
       assert.equal(JSON.parse(out.content).summary, "Nobody owes anyone anything.");
-      const bill = (paidBy: string) => toolUse("a", "add_bill", { id: crypto.randomUUID(), biller: "Fictional rent", amount: "80000", due: "2026-11-27", category: "housing", memberId: null, monthly: true, shared: true, paidBy });
+      const bill = (paidBy: string) => toolUse("a", "add_bill", { id: crypto.randomUUID(), biller: "Fictional rent", amount: "80000", due: "2026-11-27", category: "housing", memberId: null, repeat: "month", shared: true, paidBy });
       const unknown = transport([() => reply("tool_use", [bill("Nobody")]), () => reply("end_turn", [text("I could not find that person.")])]);
       const refused = await ask(c, "Add rent paid by Nobody.", unknown.fetch);
       assert.equal(refused.pending, false);

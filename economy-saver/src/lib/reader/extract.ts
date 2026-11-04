@@ -3,6 +3,7 @@ import PostalMime from "postal-mime";
 import { z } from "zod";
 import { anthropicClient } from "@/lib/anthropic";
 import { BusinessBp, CATEGORY_KEYS, CategoryKeySchema } from "@/lib/money/categories";
+import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { ReaderError, readerSetting } from "./settings";
 
 export const extractSchema = z.object({
@@ -14,6 +15,11 @@ export const extractSchema = z.object({
   category: CategoryKeySchema.nullable(),
   businessBp: BusinessBp.nullable().default(null), // the reader never proposes a share; the user or a stored rule sets it
   cardId: z.string().uuid().nullable(),
+  // D48, bills only: the reader never proposes these; the user sets them on the review card.
+  repeat: RepeatUnitSchema.nullable().default(null),
+  nextAmountMinor: z.number().int().positive().safe().nullable().default(null), // in the reading's currency, from nextAmountFrom on
+  nextAmountFrom: z.string().date().nullable().default(null),
+  cancelBy: z.string().date().nullable().default(null),
 }).strict();
 export type Extracted = z.infer<typeof extractSchema>;
 const recordsSchema = z.object({ items: z.array(extractSchema).max(12) });

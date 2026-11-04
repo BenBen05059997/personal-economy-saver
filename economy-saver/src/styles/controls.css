@@ -22,7 +22,7 @@
 /* The shared form (components/ui/ApiForm): its fieldset only carries `disabled`, so it takes no box of its own, and its
    status line sits under the fields; while it is empty it takes no room at all (it stays in the page for screen readers). */
 .ui-form > fieldset { display: contents; }
-.ui-form > .ui-form-status { flex: 1 0 100%; margin: var(--space-2) 0 0; scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom)); } /* clear of the fixed Ask bar at phone width */
+.ui-form > .ui-form-status { flex: 1 0 100%; margin: var(--space-2) 0 0; scroll-margin-bottom: var(--ask-bar-clearance); } /* clear of the fixed Ask bar at phone width */
 .ui-form > .ui-form-status:empty { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); }
 /* Remove with a confirm: the question and its two buttons open under the link. */
 .ui-remove > summary { cursor: pointer; font: 500 14px var(--sans); color: var(--accent); }

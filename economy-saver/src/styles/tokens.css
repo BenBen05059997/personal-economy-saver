@@ -31,6 +31,7 @@
   --detail-width: 420px;
   --content-width: 1000px;
   --topbar-height: 56px;
+  --ask-bar-clearance: calc(96px + env(safe-area-inset-bottom)); /* room left under content for the fixed Ask bar at phone width */
   --mono: ui-monospace, Menlo, monospace;
   --bg: var(--screen);
   --surface: var(--screen);

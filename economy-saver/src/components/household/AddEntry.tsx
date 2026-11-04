@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { AmountInput, CheckedInput } from "@/components/ui/CheckedInput";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { CategoryFields } from "./CategoryFields";
+import { ScheduleFields } from "./ScheduleFields";
 import "./add-entry.css";
 
 export type EntryIds = { bill: string; charge: string };
@@ -21,7 +22,31 @@ type Props = {
 export function AddEntry({ ids, returnTo, today, currency, people, cards }: Props) {
   const [kind, setKind] = useState<"bill" | "charge">("bill");
   const shared = { returnTo, today, currency };
-  return <details className="add-entry">
+  const [open, setOpen] = useState(false);
+  // Links to "#add-bill" and "#add-charge" (the empty panels and First steps on Home; the + Add menu links to "/#add-bill" from any page) open this form on the right tab.
+  // A page opened with the hash already in its address (arriving from another page) opens it on load.
+  useEffect(() => {
+    const kinds: Record<string, "bill" | "charge"> = { "#add-bill": "bill", "#add-charge": "charge" };
+    function show(target: "bill" | "charge") {
+      setKind(target);
+      setOpen(true);
+      requestAnimationFrame(() => document.getElementById("add-entry")?.scrollIntoView({ block: "center" }));
+    }
+    function onClick(event: MouseEvent) {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest("a") : null;
+      const href = link?.getAttribute("href") ?? "";
+      const target = kinds[href] ?? (window.location.pathname === "/" ? kinds[href.replace(/^\//, "")] : undefined);
+      if (!target) return;
+      event.preventDefault();
+      show(target);
+    }
+    const arrived = kinds[window.location.hash];
+    if (arrived) show(arrived);
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+  return <details id="add-entry" className="add-entry" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Add a bill or charge</summary>
     <div className="add-entry-kind" role="group" aria-label="What to add">
       <button type="button" className="ui-button" aria-pressed={kind === "bill"} onClick={() => setKind("bill")}>Bill</button>
@@ -44,7 +69,7 @@ function BillForm({ id, returnTo, today, currency, people }: FormProps) {
     <label className="ui-field">Biller<input name="biller" maxLength={160} required value={name} onChange={event => setName(event.target.value)} /></label>
     <label className="ui-field">Amount ({currency})<AmountInput name="amount" currency={currency} required /></label>
     <label className="ui-field">Due<CheckedInput name="due" type="date" defaultValue={today} max={latestDate(today)} message={HORIZON_MESSAGE} required /></label>
-    <label className="add-entry-repeat"><input name="monthly" type="checkbox" /> Every month, on this day</label>
+    <ScheduleFields id={id} today={today} currency={currency} />
     <CategoryFields name={name} />
     {split && <label className="ui-field">Whose<select name="memberId" value={whose} onChange={event => setWhose(event.target.value)}>
       <option value="">Shared, split by shares</option>{people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>}

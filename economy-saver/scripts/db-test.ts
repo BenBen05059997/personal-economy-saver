@@ -12,10 +12,11 @@ import { householdMoment } from "@/db/clock";
 import { convertMinor, fromMinor, toMinor } from "@/db/money";
 import * as schema from "@/db/schema";
 import { randomUUID } from "node:crypto";
-import { accountHousehold, deleteOwnedHousehold, finishSetup, householdClock, setupForm } from "@/db/account";
+import { accountHousehold, createHousehold, deleteOwnedHousehold, finishSetup, householdClock, setupForm } from "@/db/account";
 import { runDaily } from "@/db/daily";
 import { parseReferenceRate } from "@/db/reference-rate";
 import { confirmPending } from "@/db/confirm";
+import { insertBill } from "@/db/bills";
 import { homeSentence } from "@/lib/money/sentence";
 import { findDemoHousehold, resetDemoHousehold } from "@/db/demo";
 import { seedBen } from "@/db/seed";
@@ -451,6 +452,27 @@ async function main() {
     assert.equal(await deleteOwnedHousehold(db, uid), true);
     assert.equal(await accountHousehold(db, uid), null);
     assert.equal(await findDemoHousehold(db, a), a);
+  });
+
+  await check("a blank demo says what to add, never that it is fine; a pending bill changes nothing, a confirmed one gives the normal sentence (D47)", async () => {
+    const blank = await createHousehold(db, randomUUID(), setupForm.parse({
+      name: "Mika", currency: "USD", timeZone: "Asia/Tokyo", bank: "1,200", card: "Card D", limit: "", closingDay: "20", dueDay: "10",
+    }), { isDemo: true });
+    assert.equal(await findDemoHousehold(db, blank), blank);
+    assert.equal(await accountHousehold(db, blank), null);
+    assert.equal((await householdClock(db, blank)).today, today, "a blank demo has the demo clock");
+    const empty = await loadMoneyState(db, blank, today);
+    assert.equal(empty.cards.length, 1);
+    assert.equal(empty.bills.length + empty.charges.length + empty.invoices.length + empty.clients.length + empty.pots.length, 0, "no Ben data");
+    assert.deepEqual(homeSentence(empty), { lead: "Add your rent, your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." });
+    const bill = { id: randomUUID(), biller: "Fictional rent", amount: "300", due: "2026-11-20", category: "housing" as const, businessBp: 0, memberId: null, paidByMemberId: null, repeat: null, nextAmount: null, nextAmountFrom: null, cancelBy: null };
+    await insertBill(db, blank, bill, "pending");
+    assert.equal(homeSentence(await loadMoneyState(db, blank, today)).emphasis, "Bank balance $1,200.", "a pending bill alone is still nothing to forecast");
+    await confirmPending(db, blank, "bill", bill.id);
+    const after = homeSentence(await loadMoneyState(db, blank, today));
+    assert.match(after.lead, /You're fine for the next 30 days/);
+    assert.equal(after.emphasis, "$900 on the 20th.");
+    assert.equal(await deleteOwnedHousehold(db, blank), false, "a blank demo is not an account");
   });
 
   await check("anonymous sessions isolate visitors and only reset their own demo household", async () => {

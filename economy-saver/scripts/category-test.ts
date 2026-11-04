@@ -132,12 +132,12 @@ async function main() {
 
     await check("month maths: a monthly bill counts once, at its occurrence, even when that day has passed; pending bills and charges, other months and statements stay out", () => {
       const stored: Bill[] = [
-        { id: "early", biller: "Early monthly", amount: 1_000, due: "2026-08-03", category: "subscriptions", businessBp: 0, status: "confirmed", repeatDay: 3 },
-        { id: "later", biller: "Later monthly", amount: 2_000, due: "2026-09-20", category: "utilities", businessBp: 5000, status: "confirmed", repeatDay: 20 },
-        { id: "future", biller: "Starts in December", amount: 3_000, due: "2026-12-05", category: "debt", businessBp: 0, status: "confirmed", repeatDay: 5 },
+        { id: "early", biller: "Early monthly", amount: 1_000, due: "2026-08-03", category: "subscriptions", businessBp: 0, status: "confirmed", repeatUnit: "month", repeatDay: 3 },
+        { id: "later", biller: "Later monthly", amount: 2_000, due: "2026-09-20", category: "utilities", businessBp: 5000, status: "confirmed", repeatUnit: "month", repeatDay: 20 },
+        { id: "future", biller: "Starts in December", amount: 3_000, due: "2026-12-05", category: "debt", businessBp: 0, status: "confirmed", repeatUnit: "month", repeatDay: 5 },
         { id: "oneoff", biller: "One-off in month", amount: 4_000, due: "2026-11-30", category: "health", businessBp: 0, status: "confirmed" },
         { id: "oldoff", biller: "One-off in October", amount: 5_000, due: "2026-10-30", category: "health", businessBp: 0, status: "confirmed" },
-        { id: "pending", biller: "Pending monthly", amount: 6_000, due: "2026-11-25", category: "debt", businessBp: 0, status: "pending", repeatDay: 25 },
+        { id: "pending", biller: "Pending monthly", amount: 6_000, due: "2026-11-25", category: "debt", businessBp: 0, status: "pending", repeatUnit: "month", repeatDay: 25 },
       ];
       const today = benMoney.today;
       const charge = (merchant: string, date: string, status: Charge["status"]): Charge => ({ id: merchant, cardId: "card-a", merchant, amount: 100, date, category: "food", businessBp: 0, source: "manual", status });
@@ -153,15 +153,34 @@ async function main() {
       // The same series in December and in a month that does not have day 31.
       const dec = monthByCategory({ ...state, today: "2026-12-14" }, "2026-12-14");
       assert.deepEqual(dec.categories.map(c => c.items.map(i => i.label)).flat().sort(), ["December", "Early monthly", "Later monthly", "Starts in December"]);
-      const short = expandBills([{ ...stored[0], id: "thirty-one", due: "2026-01-31", repeatDay: 31 }], "2026-02-10", "2026-03-31");
+      const short = expandBills([{ ...stored[0], id: "thirty-one", due: "2026-01-31", repeatUnit: "month", repeatDay: 31 }], "2026-02-10", "2026-03-31");
       assert.deepEqual(monthByCategory({ ...benMoney, today: "2026-02-10", bills: short, charges: [] }, "2026-02-10").categories[0].items.map(i => i.date), ["2026-02-28"]);
     });
 
+    await check("month maths (D48): a yearly bill counts once in its anniversary month; a changed amount counts at the amount of the occurrence in that month, including the months before today", () => {
+      const base = { biller: "", amount: 1_000, due: "", category: "subscriptions" as const, businessBp: 0, status: "confirmed" as const };
+      const stored = [
+        { ...base, id: "gym", biller: "Fictional gym", due: "2026-08-03", repeatUnit: "month" as const, repeatDay: 3, nextAmount: 1_500, nextAmountFrom: "2026-11-03" },
+        { ...base, id: "cloud", biller: "Fictional Cloud", amount: 12_000, due: "2025-11-20", repeatUnit: "year" as const, nextAmount: 13_000, nextAmountFrom: "2027-11-20" },
+      ];
+      const month = (today: string) => {
+        const state = { ...benMoney, today, bills: expandBills(stored, today, addDays(today, 60)), charges: [], cancelNotices: [] };
+        return monthByCategory(state, today).categories.flatMap(c => c.items.map(i => [i.label, i.date, i.amountMinor]));
+      };
+      assert.deepEqual(month("2026-11-14"), [["Fictional gym", "2026-11-03", 1_500], ["Fictional Cloud", "2026-11-20", 12_000]], "Nov 3 is the boundary date: the new amount, though it has passed; the yearly bill is in its month");
+      assert.deepEqual(month("2026-10-14"), [["Fictional gym", "2026-10-03", 1_000]], "October: the old amount, and the yearly bill is not due");
+      assert.deepEqual(month("2027-11-14"), [["Fictional gym", "2027-11-03", 1_500], ["Fictional Cloud", "2027-11-20", 13_000]], "a year on: the new yearly amount applies from its date");
+      assert.deepEqual(month("2027-03-14").map(row => row[0]), ["Fictional gym"], "no yearly bill in March");
+    });
+
     await check("US household: cents, not dollars", () => {
-      const usd: MoneyState = { ...benMoney, homeCurrency: "USD", fxPerUsd: 1, bills: [{ ...benMoney.bills[0], amount: 19.99, due: "2026-11-18", businessBp: 5000 }], charges: [] };
+      const usd: MoneyState = { ...benMoney, homeCurrency: "USD", fxPerUsd: 1, bills: [{ ...benMoney.bills[0], amount: 19.99, startAmount: 19.99, due: "2026-11-18", businessBp: 5000 }], charges: [] };
       const view = monthByCategory(usd, usd.today);
       assert.deepEqual([view.currency, view.totalMinor, view.businessMinor, view.personalMinor], ["USD", 1_999, 1_000, 999]);
       assert.equal(businessLine(view), "Business $10 of $19.99 this month");
+      const personal = monthByCategory({ ...usd, bills: usd.bills.map(b => ({ ...b, businessBp: 0 })), charges: usd.charges.map(c => ({ ...c, businessBp: 0 })) }, usd.today);
+      assert.ok(personal.totalMinor > 0 && personal.businessMinor === 0);
+      assert.equal(businessLine(personal), "All personal this month", "no business share this month: no 'Business $0 of …'");
     });
 
     // ------------------------------------------------------------ the database
@@ -226,8 +245,8 @@ async function main() {
       const old = new PGlite();
       try {
         const files = readdirSync("./drizzle").filter(f => /^\d{4}_.*\.sql$/.test(f)).sort();
-        const last = files.pop()!;
-        assert.match(last, /^0012_/);
+        const last = files.find(f => f.startsWith("0012_"))!; // this suite tests migration 0012 on the database as 0011 left it
+        files.splice(files.indexOf(last));
         const statements = (file: string) => readFileSync(`./drizzle/${file}`, "utf8").split("--> statement-breakpoint").map(s => s.trim()).filter(Boolean);
         for (const file of files) for (const statement of statements(file)) await old.exec(statement);
         const household = (await old.query<{ id: string }>("insert into households (name, home_currency) values ('Old', 'JPY') returning id")).rows[0].id;
@@ -255,7 +274,7 @@ async function main() {
       assert.equal(billInput.safeParse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20" }).success, false, "a bill needs a category");
       assert.equal(billInput.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "other" }).businessBp, 0, "the share defaults to personal");
       assert.equal(chargeInput.safeParse({ id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "pets" }).success, false);
-      await assert.rejects(insertBill(db, hid, { id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", businessBp: 0, memberId: null, paidByMemberId: null, monthly: false } as never, "confirmed"));
+      await assert.rejects(insertBill(db, hid, { id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", businessBp: 0, memberId: null, paidByMemberId: null, repeat: null } as never, "confirmed"));
       await assert.rejects(insertCharge(db, hid, { id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "other", businessBp: -1, shared: false } as never, "confirmed", "manual"));
       const row = { householdId: hid, biller: "Raw", amountMinor: 1, currency: "JPY", due: "2026-11-20" };
       await assert.rejects(db.insert(schema.bills).values({ ...row, category: "pets" }), "bills_category_valid");
@@ -270,7 +289,7 @@ async function main() {
     await check("typed-in bills and charges keep their category and share, are idempotent on them, and a different one under the same id is refused", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const card = (await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)))[0];
-      const rent = billInput.parse({ id: randomUUID(), biller: "Fictional studio", amount: "50000", due: "2026-11-25", category: "housing", businessBp: 4000, monthly: true });
+      const rent = billInput.parse({ id: randomUUID(), biller: "Fictional studio", amount: "50000", due: "2026-11-25", category: "housing", businessBp: 4000, repeat: "month" });
       await insertBill(db, hid, rent, "confirmed");
       await insertBill(db, hid, rent, "confirmed");
       await assert.rejects(insertBill(db, hid, { ...rent, businessBp: 5000 }, "confirmed"), /already in use/);
@@ -300,11 +319,11 @@ async function main() {
         assert.ok(CATEGORY_KEYS.every(key => tool(name).description.includes(key)), `${name} names every key in its description`);
         assert.equal(tool(name).scope, "draft");
       }
-      assert.throws(() => tool("add_bill").input.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", memberId: null, monthly: false, shared: null, paidBy: null }));
+      assert.throws(() => tool("add_bill").input.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", memberId: null, repeat: null, shared: null, paidBy: null }));
       assert.throws(() => tool("log_charge").input.parse({ id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "other", business_bp: 10_001 }));
 
       const given = randomUUID(), guessed = randomUUID(), unsure = randomUUID();
-      const bill = (id: string, biller: string, extra: object) => ({ id, biller, amount: "3000", due: "2026-11-25", memberId: null, monthly: false, shared: null, paidBy: null, category: null, business_bp: null, ...extra });
+      const bill = (id: string, biller: string, extra: object) => ({ id, biller, amount: "3000", due: "2026-11-25", memberId: null, repeat: null, shared: null, paidBy: null, category: null, business_bp: null, ...extra });
       assert.equal(await run("add_bill", bill(given, "Fictional gym", { category: "health", business_bp: 2500 })), "Fictional gym is waiting in To check for the user to confirm. Category: Health.");
       assert.equal(await run("add_bill", bill(guessed, "Fictional electric co", {})), "Fictional electric co is waiting in To check for the user to confirm. No category was given, so it was guessed from the name: Utilities. The user can change it in To check.");
       assert.match(await run("add_bill", bill(unsure, "Zebra Supplies", {})), /No category was given and the name matched none, so it is Other\. The user can choose one in To check\.$/);

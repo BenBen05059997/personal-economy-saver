@@ -5,7 +5,7 @@ import { and, count, desc, eq, gt, gte, inArray, isNull, isNotNull, lte, sql } f
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { Currency } from "@/lib/catalogue/types";
 import { CategoryKeySchema as CategoryKey } from "@/lib/money/categories";
-import { expandBills } from "@/lib/money/repeat";
+import { cancelNotices, expandBills, RepeatUnitSchema } from "@/lib/money/repeat";
 import { countingFrom } from "@/lib/money/split";
 import { addDays, planWindow } from "@/lib/money/runway";
 import type { Bill, Card, Charge, Client, ClosedStatement, Invoice, MoneyState, Pot, SplitState } from "@/lib/money/types";
@@ -64,7 +64,7 @@ export function paypalTotalMinor(connections: { balanceMinor: number; balanceCur
 /**
  * The inputs of "who owes whom" (D45), in whole minor units of the home currency: the members with their shares, the day the
  * split began, the latest settlement's through date and the confirmed shared bills and charges that can still count. Only
- * charges from the first counting day on are read; a monthly bill is one stored row. A household with one member has none.
+ * charges from the first counting day on are read; a repeating bill is one stored row. A household with one member has none.
  */
 export async function loadSplitState(
   db: Db, householdId: string, splitSince: string | null, today: string, toHome: (minor: number, currency: string) => number,
@@ -87,7 +87,9 @@ export async function loadSplitState(
       .where(and(eq(s.charges.householdId, hid), eq(s.charges.status, "confirmed"), eq(s.charges.shared, true), gte(s.charges.date, from), lte(s.charges.date, today)))
       .orderBy(s.charges.date, s.charges.merchant, s.charges.id),
   ]);
-  split.bills = billRows.map(b => ({ id: b.id, biller: b.biller, amountMinor: toHome(b.amountMinor, b.currency), due: b.due, repeatDay: b.repeatDay, paidBy: b.paidByMemberId!, createdAt: b.createdAt.toISOString() }));
+  split.bills = billRows.map(b => ({ id: b.id, biller: b.biller, amountMinor: toHome(b.amountMinor, b.currency), due: b.due, paidBy: b.paidByMemberId!, createdAt: b.createdAt.toISOString(),
+    repeatUnit: b.repeatUnit === null ? null : RepeatUnitSchema.parse(b.repeatUnit), repeatDay: b.repeatDay,
+    nextAmountMinor: b.nextAmountMinor === null ? null : toHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }));
   split.charges = chargeRows.map(({ charge: c, payer }) => {
     if (payer === null) throw new Error(`The shared charge ${c.merchant} is on a card that belongs to no member`);
     return { id: c.id, merchant: c.merchant, amountMinor: toHome(c.amountMinor, c.currency), date: c.date, paidBy: payer, createdAt: c.createdAt.toISOString() };
@@ -141,7 +143,10 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     businessBp: b.businessBp,
     status: b.status,
     ...(b.previousAmountMinor !== null && { previousAmount: inHome(b.previousAmountMinor, b.currency) }),
+    ...(b.repeatUnit !== null && { repeatUnit: RepeatUnitSchema.parse(b.repeatUnit) }),
     ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
+    ...(b.nextAmountMinor !== null && b.nextAmountFrom !== null && { nextAmount: inHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }),
+    ...(b.cancelBy !== null && { cancelBy: b.cancelBy }),
     ...(b.paidByMemberId !== null && { paidBy: b.paidByMemberId }),
   }));
 
@@ -233,6 +238,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     invoices,
     pots: potRows.filter((p) => p.status === "confirmed").map(toPot),
     pendingPots: potRows.filter((p) => p.status === "pending").map(toPot),
+    cancelNotices: cancelNotices(storedBills, today),
     balanceUpdates: balanceRows.map((u) => ({ id: u.id, amount: inHome(u.amountMinor, u.currency) })),
     split,
   };

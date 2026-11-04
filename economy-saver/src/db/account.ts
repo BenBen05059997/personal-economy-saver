@@ -42,35 +42,41 @@ export const setupForm = z.object({
   limit: z.string().trim().max(16),
 });
 
-export async function finishSetup(db: Db, verifiedUid: string, data: z.infer<typeof setupForm>, demo: string | null) {
-  const id = requireHousehold(verifiedUid);
-  if (await accountHousehold(db, id)) return id;
+type Setup = z.infer<typeof setupForm>;
+
+/**
+ * The one function that creates a household from the setup form (D39, D47): the household, its owner, one card and the
+ * PayPal connection row. Onboarding passes the verified uid as the id and as `authUserId` (the owner then also gets a
+ * users row) and may name the visitor's demo household to delete; the blank start passes a fresh id, `isDemo` and no
+ * auth user. Concurrent and retried submissions with the same id converge on one household.
+ */
+export async function createHousehold(db: Db, id: string, data: Setup, opts: { isDemo: boolean; authUserId?: string; replaceDemo?: string | null }) {
+  requireHousehold(id);
   const reference = data.currency === "JPY" ? await fetchReferenceRate() : null;
   const bank = parseMinor(data.bank, data.currency);
   const limit = data.limit ? parseMinor(data.limit, data.currency) : null;
   if (limit !== null && limit < 0) throw new InputError("Credit limit cannot be negative");
   return db.transaction(async tx => {
-    // Concurrent and retried submissions converge on one household and one initial card.
     const [created] = await tx.insert(households).values({
-      id, name: data.name, timeZone: data.timeZone, homeCurrency: data.currency, bankBalanceMinor: bank,
+      id, name: data.name, timeZone: data.timeZone, homeCurrency: data.currency, bankBalanceMinor: bank, isDemo: opts.isDemo,
     }).onConflictDoNothing({ target: households.id }).returning({ id: households.id });
     if (!created) {
-      if (await accountHousehold(tx, id)) return id;
+      if (opts.authUserId && await accountHousehold(tx, id)) return id;
       throw new Error("Household unavailable");
     }
     if (reference) await storeReferenceRate(tx, id, reference);
     const [owner] = await tx.insert(members).values({
-      householdId: id, displayName: data.name, role: "owner", shareBp: 10_000, authUserId: verifiedUid,
+      householdId: id, displayName: data.name, role: "owner", shareBp: 10_000, authUserId: opts.authUserId ?? null,
     }).returning({ id: members.id });
-    await tx.insert(users).values({ householdId: id, memberId: owner.id, authUserId: verifiedUid });
+    if (opts.authUserId) await tx.insert(users).values({ householdId: id, memberId: owner.id, authUserId: opts.authUserId });
     await tx.insert(cards).values({
       householdId: id, memberId: owner.id, label: data.card, currency: data.currency,
       closingDay: data.closingDay, dueDay: data.dueDay, limitMinor: limit,
     });
     await tx.insert(paypalConnections).values({ householdId: id, memberId: owner.id, balanceCurrency: data.currency });
-    if (demo) {
+    if (opts.replaceDemo) {
       const [old] = await tx.select({ id: households.id }).from(households)
-        .where(and(eq(households.id, requireHousehold(demo)), eq(households.isDemo, true))).for("update");
+        .where(and(eq(households.id, requireHousehold(opts.replaceDemo)), eq(households.isDemo, true))).for("update");
       if (old) {
         await deleteHouseholdKey(tx, old.id);
         await removeHouseholdDocuments(tx, old.id);
@@ -79,6 +85,12 @@ export async function finishSetup(db: Db, verifiedUid: string, data: z.infer<typ
     }
     return id;
   });
+}
+
+export async function finishSetup(db: Db, verifiedUid: string, data: Setup, demo: string | null) {
+  const id = requireHousehold(verifiedUid);
+  if (await accountHousehold(db, id)) return id;
+  return createHousehold(db, id, data, { isDemo: false, authUserId: verifiedUid, replaceDemo: demo });
 }
 
 export async function deleteOwnedHousehold(db: Db, verifiedUid: string) {

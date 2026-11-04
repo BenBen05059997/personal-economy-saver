@@ -1,3 +1,6 @@
+.directory-next { margin: var(--space-4) 0 0; }
+.directory-next a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.directory-next a:hover { text-decoration: underline; }
 .directory { display: grid; gap: var(--space-6); }
 .directory.detail-open { grid-template-columns: minmax(0, 1fr) minmax(270px, var(--detail-width)); align-items: start; }
 .directory-list { min-width: 0; }

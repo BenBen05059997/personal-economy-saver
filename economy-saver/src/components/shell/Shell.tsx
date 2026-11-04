@@ -75,7 +75,7 @@ export function Shell({ children, name, pending, feed, section }: {
         <button className="shell-mobile-toggle" popoverTarget="shell-nav" aria-label="Open navigation"><Icon name="activity" /></button>
         <Link prefetch={false} className="shell-mobile-brand" href="/">Money</Link>
         <button className="shell-ask" popoverTarget="shell-questions">
-          <Icon name="mic" /><span>Ask or say: {askPrompt}</span>
+          <Icon name="mic" /><span>Ask or say: {askPrompt}</span><b>Ask</b>
         </button>
         <button className="shell-bell" popoverTarget="shell-notifications" aria-label={`Notifications, ${unread} unread`}>
           <Icon name="bell" />{unread > 0 && <span className="shell-badge">{unread}</span>}
@@ -107,6 +107,8 @@ export function Shell({ children, name, pending, feed, section }: {
       <Link prefetch={false} href="/activity">View activity</Link>
     </section>
     <nav id="shell-add" popover="auto" className="shell-popover shell-add-menu" aria-label="Add to household">
+      <Link prefetch={false} href="/#add-bill">Add a bill</Link>
+      <Link prefetch={false} href="/#add-charge">Add a card charge</Link>
       <Link prefetch={false} href="/settings#forwarding">Forward a bill</Link>
       <Link prefetch={false} href="/upload">Upload a receipt</Link>
       <Link prefetch={false} href="/invoices/new">New invoice</Link>

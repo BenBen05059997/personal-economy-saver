@@ -9,7 +9,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - A Next.js 16 app with household-scoped Postgres/Drizzle data and a fictional Ben seed.
 - A deterministic runway and sentence from stored bills, cards, charges, invoices, FX rates and client payment history.
 - Screens: Home, invoice review, To check, Activity, Cards, Clients, Plan, Options, Settings, Upload and document review.
-- A Try it household flow (with Reset to Ben's starting numbers in Settings) and passwordless email sign-in.
+- A Try it household flow (with Reset to Ben's starting numbers in Settings), Start with my numbers (`/start`, also offered in Settings, posts the setup form to `/api/try/blank`: a new blank demo household that replaces any Try it one whose Home says what to add and shows First steps until a bill, a client and a card charge exist) and passwordless email sign-in.
 - Typed-in data: clients, bills (optionally repeating monthly), card charges, a one-line bank balance, and invoices marked paid outside PayPal. Amounts take thousands separators and stop at ¥100,000,000 or $1,000,000; dates stop two years ahead. A mistyped bill (a monthly one as a whole series) or card charge is removed with Remove, after an in-page confirm. A refused form shows its message beside the form and keeps what you typed.
 - Pots on the Plan page: money set aside for a reason, taken off the cash every runway number starts from, optionally filled by a percentage of each client payment.
 - A household split: Settings → People sets each person's share, a bill or card charge can be shared, and Home shows who owes whom with Mark settled. It appears only with two or more people and does not change the runway.
@@ -114,7 +114,7 @@ src/lib/mcp/             Streamable HTTP server
 src/lib/catalogue/       the wealth-move catalogue engine (words and sources in src/data/catalogue/)
 src/lib/reader/          extraction, forwarding, storage
 scripts/                 isolated tests and explicit owner-operated checks
-drizzle/                 ordered schema migrations (0000–0012)
+drizzle/                 ordered schema migrations, fourteen files (0000–0013)
 worker.ts                Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
 samples/bills/           fictional sample bills for the reader
 ```

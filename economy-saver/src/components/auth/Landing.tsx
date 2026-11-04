@@ -10,7 +10,10 @@ export async function Landing() {
     <p className={styles.brand}><span aria-hidden="true">¥</span> Personal Economy Saver</p>
     <h1>Will your next payment arrive in time?</h1>
     <p>Follow a fictional Tokyo designer’s bills, cards and client payments over the next 30 days.</p>
-    <TryItForm />
+    <div className={styles.entries}>
+      <TryItForm />
+      <Link className={styles.secondary} href="/start">Start with my numbers</Link>
+    </div>
     <p style={{ marginTop: "1rem" }}><Link href="/login">Sign in with email</Link></p>
   </main>;
 }

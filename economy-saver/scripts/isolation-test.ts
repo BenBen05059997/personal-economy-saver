@@ -59,7 +59,7 @@ import { tools, type ToolContext } from "@/lib/agent/tools";
 // called through the tracked module object F below, so a name cannot sit here without a test behind it.
 const covered = [
   // account.ts
-  "householdClock", "householdDate", "accountHousehold", "finishSetup", "deleteOwnedHousehold",
+  "householdClock", "householdDate", "accountHousehold", "createHousehold", "finishSetup", "deleteOwnedHousehold",
   // ai-key.ts
   "aiKey", "saveHouseholdKey", "deleteHouseholdKey",
   // approval.ts
@@ -93,6 +93,8 @@ const notApplicable: Record<string, string> = {
   publicEvent: "pure mapper of one row passed in",
   requireHousehold: "pure check that a value is a UUID",
   paypalTotalMinor: "pure sum of balances passed in",
+  dueLabel: "pure date formatter", repeatDayFor: "pure date maths on a date passed in", checkSchedule: "pure check of a bill's dates and amount passed in; insertBill, which calls it, is covered above",
+  scheduleWords: "pure formatter of a bill's schedule passed in",
   toMinor: "pure money maths", fromMinor: "pure money maths", toRateMicro: "pure money maths", fromRateMicro: "pure money maths",
   convertMinor: "pure money maths", parseMinor: "pure money maths", parseAmountMinor: "pure money maths",
   parseShareBp: "pure text parser", equalShares: "pure share maths", parseFillBp: "pure text parser", percent: "pure formatter",
@@ -222,8 +224,8 @@ async function main() {
       const client = randomUUID();
       await F.insertClient(db, hid, { id: client, name: `${T} client`, email: `isolation-${l}-client@example.test`, termsDays: 14 });
       const billConfirmed = randomUUID(), billPending = randomUUID(), charge = randomUUID(), chargePending = randomUUID();
-      await F.insertBill(db, hid, billInput.parse({ id: billConfirmed, biller: `${T} rent`, amount: "80000", due: "2026-11-27", category: "housing", paidByMemberId: aki, monthly: true }), "confirmed");
-      await F.insertBill(db, hid, billInput.parse({ id: billPending, biller: `${T} pending bill`, amount: "3000", due: "2026-11-20", category: "utilities" }), "pending");
+      await F.insertBill(db, hid, billInput.parse({ id: billConfirmed, biller: `${T} rent`, amount: "80000", due: "2026-11-27", category: "housing", paidByMemberId: aki, repeat: "month" }), "confirmed");
+      await F.insertBill(db, hid, billInput.parse({ id: billPending, biller: `${T} pending bill`, amount: "3000", due: "2026-11-20", category: "utilities", repeat: "year", nextAmount: "3500", nextAmountFrom: "2027-11-20", cancelBy: "2026-11-19" }), "pending");
       await F.insertCharge(db, hid, chargeInput.parse({ id: charge, cardId: card.id, merchant: `${T} market`, amount: "2000", date: "2026-11-12", category: "food", shared: true }), "confirmed", "manual");
       await F.insertCharge(db, hid, chargeInput.parse({ id: chargePending, cardId: card.id, merchant: `${T} pending market`, amount: "900", date: "2026-11-13", category: "food" }), "pending", "manual");
       const pot = randomUUID(), potPending = randomUUID();
@@ -482,7 +484,7 @@ async function main() {
         assert.equal(toolCalls, 0, "no PayPal call was made for the other household's invoice");
       });
       await check(`${X.name} -> ${Y.name}: readings, documents, tokens, events, webhooks`, async () => {
-        const item = { kind: "charge" as const, name: "Isolation probe", date: "2026-11-12", amountMinor: 100, currency: "JPY" as const, category: "other" as const, businessBp: 0, cardId: null };
+        const item = { kind: "charge" as const, name: "Isolation probe", date: "2026-11-12", amountMinor: 100, currency: "JPY" as const, category: "other" as const, businessBp: 0, cardId: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null };
         await refuse("reviewReading reject", () => F.reviewReading(store, X.hid, y.reading, null));
         await refuse("reviewReading confirm", () => F.reviewReading(store, X.hid, y.reading, { ...item, cardId: x.card }));
         await mustThrow("proposeReadings on the other's document", () => F.proposeReadings(store, X.hid, y.documentRead, [item]));
@@ -594,6 +596,39 @@ async function main() {
       assert.equal(await F.deleteOwnedHousehold(store, uid), true);
       assert.equal(await F.accountHousehold(store, uid), null);
       await bothUntouched("deleteOwnedHousehold of a third household");
+    });
+    await check("createHousehold: a blank demo is a fresh household of its own (no sign-in, no users row) and takes nothing from A, B or an account", async () => {
+      const blank = randomUUID();
+      assert.equal(await F.createHousehold(store, blank, SETUP, { isDemo: true }), blank);
+      assert.equal(await F.findDemoHousehold(store, blank), blank, "it is a demo household");
+      assert.equal(await F.accountHousehold(store, blank), null, "a blank demo is not an account");
+      assert.equal(await F.householdDate(store, blank), DEMO_DATE, "it has the demo clock");
+      assert.deepEqual((await pg.query("select count(*)::int as n from users where household_id = $1", [blank])).rows[0], { n: 0 });
+      assert.deepEqual((await pg.query("select count(*)::int as n from cards where household_id = $1", [blank])).rows[0], { n: 1 });
+      assert.deepEqual((await pg.query("select count(*)::int as n from bills where household_id = $1", [blank])).rows[0], { n: 0 }, "no Ben data");
+      await assert.rejects(F.createHousehold(store, A.hid, SETUP, { isDemo: true }), /Household unavailable/, "an id that already names a household is never taken over");
+      await assert.rejects(F.createHousehold(store, B.hid, SETUP, { isDemo: false, authUserId: randomUUID() }), /Household unavailable/);
+      await bothUntouched("createHousehold");
+      await F.deleteHousehold(store, blank);
+    });
+    await check("createHousehold with replaceDemo deletes only the named demo: a non-demo household or an unknown id changes nothing, and A and B stay as they were", async () => {
+      const uid = randomUUID();
+      await F.finishSetup(store, uid, SETUP, null); // a real account: its id can be named by a stale cookie, never deleted by it
+      const accountBefore = (await fingerprint(uid)).text;
+      const named = await F.createHousehold(store, randomUUID(), SETUP, { isDemo: true, replaceDemo: uid });
+      assert.equal(await F.accountHousehold(store, uid), uid, "the account household survives");
+      assert.equal((await fingerprint(uid)).text, accountBefore, "naming a non-demo household changes nothing in it");
+      assert.equal(await F.findDemoHousehold(store, named), named);
+      await F.createHousehold(store, randomUUID(), SETUP, { isDemo: true, replaceDemo: randomUUID() });
+      await bothUntouched("a blank start naming a non-demo or unknown household");
+      const mine = await seedBen(db, { isDemo: true });
+      const replaced = await F.createHousehold(store, randomUUID(), SETUP, { isDemo: true, replaceDemo: mine });
+      assert.equal(await F.findDemoHousehold(store, mine), null, "the visitor's own demo is replaced");
+      assert.equal(await F.findDemoHousehold(store, replaced), replaced);
+      assert.deepEqual((await pg.query("select count(*)::int as n from bills where household_id = $1", [mine])).rows[0], { n: 0 }, "its rows are gone with it");
+      assert.equal((await fingerprint(uid)).text, accountBefore);
+      await bothUntouched("replacing the visitor's own demo");
+      await F.deleteHousehold(store, named);
     });
     await check("demo functions: find, reset, delete and cleanup name one household and leave A and B as they were", async () => {
       const [c1, c2, c3, c4] = [await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true })];

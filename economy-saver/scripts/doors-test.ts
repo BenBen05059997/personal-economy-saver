@@ -2,11 +2,13 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/doors-test.ts
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
+import { createHousehold, setupForm } from "@/db/account";
 import { insertBill, billInput, removeBill } from "@/db/bills";
 import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { insertCharge, removeCharge } from "@/db/charges";
@@ -16,12 +18,13 @@ import { confirmPending } from "@/db/confirm";
 import { InputError } from "@/db/input-error";
 import { parseAmountMinor, parseMinor } from "@/db/money";
 import { amountProblem } from "@/lib/money/amount";
-import { latestDate } from "@/lib/money/horizon";
+import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { seedBen } from "@/db/seed";
 import { loadMoneyState } from "@/db/household";
-import { occurrenceDates } from "@/lib/money/repeat";
+import { cancelNotices, expandBills, occurrenceDates } from "@/lib/money/repeat";
 import { loadNavigationData } from "@/db/workspace";
 import { toCheck } from "@/lib/money/to-check";
+import { homeSentence } from "@/lib/money/sentence";
 import { addDays, low, planWindow, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { cardSummary } from "@/components/home/card-summary";
 import { EVENT_KIND_LABELS, eventKindLabel } from "@/lib/money/event-kinds";
@@ -103,6 +106,27 @@ async function main() {
       const added = (await events(a, "bill_added")).find(e => e.refId === edge.id)!;
       assert.equal(added.title, "Fictional far bill added, due Nov 14, 2028", "the Activity line names the due date, with the year when it is not this year");
       await db.delete(schema.bills).where(eq(schema.bills.id, edge.id));
+    });
+
+    await check("a blank household reads the empty sentence, then the normal one after its first confirmed bill (D47)", async () => {
+      const blank = await createHousehold(db, randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo", bank: "1,200", card: "Card D", limit: "", closingDay: "20", dueDay: "10" }), { isDemo: true });
+      const empty = { lead: "Add your rent, your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." };
+      assert.deepEqual(homeSentence(await loadMoneyState(db, blank, TODAY)), empty);
+      await insertClient(db, blank, clientInput.parse({ id: randomUUID(), name: "Fictional Paper Co", email: "ap@paper.example", termsDays: "14" }));
+      assert.deepEqual(homeSentence(await loadMoneyState(db, blank, TODAY)), empty, "a client alone is nothing to forecast");
+      const rent = bill({ biller: "Fictional rent", amount: "300", due: "2026-11-20" });
+      await insertBill(db, blank, rent, "pending");
+      assert.deepEqual(homeSentence(await loadMoneyState(db, blank, TODAY)), empty, "a pending bill alone is nothing to forecast");
+      await confirmPending(db, blank, "bill", rent.id);
+      const after = homeSentence(await loadMoneyState(db, blank, TODAY));
+      assert.match(after.lead, /^You're fine for the next 30 days/);
+      assert.equal(after.lead, "You're fine for the next 30 days. Lowest point", "one bill and no invoices: nothing to be late, so the sentence does not say 'even if clients pay late'");
+      assert.equal(after.emphasis, "$900 on the 20th.");
+      // a card charge alone is enough to leave the empty sentence too
+      const other = await createHousehold(db, randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo", bank: "50", card: "Card E", limit: "", closingDay: "20", dueDay: "10" }), { isDemo: true });
+      const [card] = await cardsOf(other);
+      await insertCharge(db, other, charge({ cardId: card.id, amount: "20" }) as never, "confirmed", "manual");
+      assert.notDeepEqual(homeSentence(await loadMoneyState(db, other, TODAY)).lead, empty.lead);
     });
 
     await check("insertClient adds a client once, records client_added, and is idempotent on id", async () => {
@@ -303,11 +327,11 @@ async function main() {
     });
 
     await check("a day past the month's end clamps to its last day", async () => {
-      assert.deepEqual(occurrenceDates("2027-01-31", 31, "2027-01-20", "2027-04-30"), ["2027-01-31", "2027-02-28", "2027-03-31", "2027-04-30"]);
-      assert.deepEqual(occurrenceDates("2028-01-31", 31, "2028-01-20", "2028-03-31"), ["2028-01-31", "2028-02-29", "2028-03-31"]);
-      assert.deepEqual(occurrenceDates("2026-11-30", 30, "2026-11-01", "2027-03-01"), ["2026-11-30", "2026-12-30", "2027-01-30", "2027-02-28"]);
+      assert.deepEqual(occurrenceDates("2027-01-31", "month", 31, "2027-01-20", "2027-04-30"), ["2027-01-31", "2027-02-28", "2027-03-31", "2027-04-30"]);
+      assert.deepEqual(occurrenceDates("2028-01-31", "month", 31, "2028-01-20", "2028-03-31"), ["2028-01-31", "2028-02-29", "2028-03-31"]);
+      assert.deepEqual(occurrenceDates("2026-11-30", "month", 30, "2026-11-01", "2027-03-01"), ["2026-11-30", "2026-12-30", "2027-01-30", "2027-02-28"]);
       const hid = await seedBen(db, { isDemo: true });
-      const input = bill({ biller: "Fictional month-end plan", due: "2027-01-31", monthly: true });
+      const input = bill({ biller: "Fictional month-end plan", due: "2027-01-31", repeat: "month" });
       await insertBill(db, hid, input, "confirmed");
       assert.equal(await stored(input.id), 31);
       assert.deepEqual((await billsOf(hid, "2027-01-27", "Fictional month-end plan")).map(row => row.due), ["2027-01-31", "2027-02-28"]);
@@ -323,7 +347,7 @@ async function main() {
 
     await check("a pending monthly bill never expands; confirming it keeps the repeat day and expands it", async () => {
       const hid = await seedBen(db, { isDemo: true });
-      const input = bill({ biller: "Fictional pending plan", due: "2026-11-25", monthly: true });
+      const input = bill({ biller: "Fictional pending plan", due: "2026-11-25", repeat: "month" });
       await insertBill(db, hid, input, "pending");
       assert.equal(await stored(input.id), 25);
       const pending = await billsOf(hid, TODAY, "Fictional pending plan");
@@ -336,25 +360,157 @@ async function main() {
     });
 
     await check("the form path and the agent's pending path both store the due date's day; unchecked stores a one-off", async () => {
-      const form = billInput.parse({ id: randomUUID(), biller: "Fictional form plan", amount: "900", due: "2026-11-09", category: "subscriptions", monthly: true });
+      const form = billInput.parse({ id: randomUUID(), biller: "Fictional form plan", amount: "900", due: "2026-11-09", category: "subscriptions", repeat: "month" });
       await insertBill(db, a, form, "confirmed");
       assert.equal(await stored(form.id), 9);
-      const agent = billInput.parse({ id: randomUUID(), biller: "Fictional agent plan", amount: "900", due: "2026-11-30", category: "subscriptions", monthly: true });
+      const agent = billInput.parse({ id: randomUUID(), biller: "Fictional agent plan", amount: "900", due: "2026-11-30", category: "subscriptions", repeat: "month" });
       await insertBill(db, a, agent, "pending");
       assert.equal(await stored(agent.id), 30);
       const once = bill({ biller: "Fictional once" });
       await insertBill(db, a, once, "confirmed");
       assert.equal(await stored(once.id), null);
-      assert.equal(billInput.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-09", category: "other" }).monthly, false, "monthly defaults to off");
-      await assert.rejects(insertBill(db, a, { ...form, monthly: false }, "confirmed"), InputError, "the same id with a different repeat is refused");
+      assert.equal(billInput.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-09", category: "other" }).repeat, null, "repeat defaults to a one-off");
+      await assert.rejects(insertBill(db, a, { ...form, repeat: null }, "confirmed"), InputError, "the same id with a different repeat is refused");
       assert.equal(await insertBill(db, a, form, "confirmed"), form.id);
       await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "Bad", amountMinor: 1, currency: "JPY", due: "2026-11-20", category: "other", repeatDay: 32 }));
       await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "Bad", amountMinor: 1, currency: "JPY", due: "2026-11-20", category: "other", repeatDay: 0 }));
     });
 
+    // ---- yearly bills, an amount that changes, a cancel-by date (D48)
+    await check("a yearly bill repeats on its month and day: across a year end, from a past due date, and 29 February falls on the 28th in a common year", async () => {
+      assert.deepEqual(occurrenceDates("2026-12-01", "year", null, "2026-11-14", "2029-12-31"), ["2026-12-01", "2027-12-01", "2028-12-01", "2029-12-01"]);
+      assert.deepEqual(occurrenceDates("2025-12-31", "year", null, "2026-01-01", "2027-12-31"), ["2026-12-31", "2027-12-31"], "the stored date is before today: the series goes on");
+      assert.deepEqual(occurrenceDates("2024-03-10", "year", null, "2026-11-14", "2028-12-31"), ["2027-03-10", "2028-03-10"]);
+      assert.deepEqual(occurrenceDates("2028-02-29", "year", null, "2028-01-01", "2033-03-01"), ["2028-02-29", "2029-02-28", "2030-02-28", "2031-02-28", "2032-02-29", "2033-02-28"], "the 29th comes back in a leap year");
+      assert.deepEqual(occurrenceDates("2026-12-01", "year", null, "2026-12-02", "2027-11-30"), [], "nothing falls inside a window that holds no anniversary");
+      assert.throws(() => occurrenceDates("2026-12-01", "month", null, "2026-11-14", "2027-01-01"), /day of the month/);
+    });
+
+    await check("an occurrence on or after next_amount_from has the new amount, the day before has the old; a pending or one-off bill passes through", async () => {
+      const base = { id: "b", biller: "Fictional rent", amount: 80_000, due: "2026-08-27", category: "housing" as const, businessBp: 0, status: "confirmed" as const };
+      const rent = { ...base, repeatUnit: "month" as const, repeatDay: 27, nextAmount: 85_000, nextAmountFrom: "2026-11-27" };
+      assert.deepEqual(expandBills([rent], "2026-09-01", "2027-01-31").map(o => [o.due, o.amount, o.startAmount]), [
+        ["2026-09-27", 80_000, 80_000], ["2026-10-27", 80_000, 80_000], ["2026-11-27", 85_000, 80_000], ["2026-12-27", 85_000, 80_000], ["2027-01-27", 85_000, 80_000]], "Nov 27 is the boundary date and takes the new amount");
+      const yearly = { ...base, due: "2026-12-01", amount: 12_000, repeatUnit: "year" as const, nextAmount: 13_000, nextAmountFrom: "2027-12-01" };
+      assert.deepEqual(expandBills([yearly], "2026-11-14", "2028-12-31").map(o => [o.due, o.amount]), [["2026-12-01", 12_000], ["2027-12-01", 13_000], ["2028-12-01", 13_000]]);
+      assert.deepEqual(expandBills([{ ...yearly, status: "pending" }], "2026-11-14", "2028-12-31").map(o => o.id), ["b"], "a pending bill never expands");
+      assert.deepEqual(expandBills([{ ...base, due: "2026-11-20" }], "2026-11-14", "2028-12-31").map(o => [o.id, o.amount]), [["b", 80_000]]);
+    });
+
+    await check("cancel notices: the renewal is the first occurrence after the cancel-by date, at the amount that applies then; past or pending ones make none", async () => {
+      const yearly = { id: "y", biller: "Fictional Cloud", amount: 12_000, due: "2026-12-01", category: "subscriptions" as const, businessBp: 0, status: "confirmed" as const, repeatUnit: "year" as const, cancelBy: "2026-11-20" };
+      assert.deepEqual(cancelNotices([yearly], TODAY), [{ billId: "y", biller: "Fictional Cloud", category: "subscriptions", cancelBy: "2026-11-20", renewsOn: "2026-12-01", amount: 12_000, repeats: true }]);
+      const rise = { ...yearly, id: "r", due: "2025-12-01", cancelBy: "2026-11-30", nextAmount: 15_000, nextAmountFrom: "2026-06-01" };
+      assert.deepEqual(cancelNotices([rise], TODAY).map(n => [n.renewsOn, n.amount]), [["2026-12-01", 15_000]], "stored due long past: Dec 1 2026 is the renewal, at the new amount");
+      assert.deepEqual(cancelNotices([{ ...yearly, repeatUnit: undefined }], TODAY).map(n => [n.renewsOn, n.repeats]), [["2026-12-01", false]], "a one-off is charged once");
+      assert.deepEqual(cancelNotices([{ ...yearly, cancelBy: "2026-11-13" }, { ...yearly, id: "p", status: "pending" }, { ...yearly, id: "n", cancelBy: undefined }], TODAY), [], "a cancel-by in the past, a pending bill, no cancel-by");
+      assert.deepEqual(cancelNotices([{ ...yearly, repeatUnit: undefined, due: "2026-11-15", cancelBy: "2026-11-16" }], TODAY), [], "a one-off that was already charged has no renewal");
+    });
+
+    await check("a typed-in yearly bill with a new amount and a cancel-by date: stored, expanded with the right amount, one cancel notice, Activity says it", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const before = (await loadMoneyState(db, hid, TODAY)).bills.length;
+      const input = bill({ biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year", nextAmount: "13,000", nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20" });
+      await insertBill(db, hid, input, "confirmed");
+      const row = await first(db.select().from(schema.bills).where(eq(schema.bills.id, input.id)));
+      assert.deepEqual([row.repeatUnit, row.repeatDay, row.amountMinor, row.nextAmountMinor, row.nextAmountFrom, row.cancelBy], ["year", null, 12_000, 13_000, "2027-12-01", "2026-11-20"]);
+      const state = await loadMoneyState(db, hid, TODAY);
+      const mine = state.bills.filter(x => x.biller === "Fictional Cloud");
+      assert.deepEqual(mine.map(x => [x.id, x.due, x.amount, x.repeatUnit, x.repeatDay]), [[`${input.id}@2026-12-01`, "2026-12-01", 12_000, "year", undefined]], "inside the plan window only the Dec 1 anniversary");
+      assert.equal(state.bills.length, before + 1);
+      assert.deepEqual(state.cancelNotices, [{ billId: input.id, biller: "Fictional Cloud", category: "subscriptions", cancelBy: "2026-11-20", renewsOn: "2026-12-01", amount: 12_000, repeats: true }]);
+      const event = await first(db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.refId, input.id))));
+      assert.equal(event.title, "Fictional Cloud added, due Dec 1");
+      assert.equal(event.body, "Every year · Changes to ¥13,000 from Dec 1, 2027 · Cancel by Nov 20");
+      assert.equal(await insertBill(db, hid, input, "confirmed"), input.id, "the same fields again return the same bill");
+      for (const change of [{ nextAmount: "13,500" }, { nextAmountFrom: "2027-12-02" }, { cancelBy: "2026-11-21" }, { repeat: "month" as const }, { repeat: null, nextAmount: null, nextAmountFrom: null }]) {
+        await assert.rejects(insertBill(db, hid, { ...input, ...change }, "confirmed"), InputError, `the same id with ${Object.keys(change)[0]} changed is refused`);
+      }
+      assert.equal(await removeBill(db, hid, input.id), true);
+      assert.equal((await first(db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, "bill_removed"))))).body, "Every year, so every occurrence is gone");
+    });
+
+    await check("a monthly bill whose stored due date is long past: the next occurrence has the new amount and the cancel notice names it", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const input = bill({ biller: "Fictional gym", amount: "5000", due: "2026-08-16", category: "health", repeat: "month", nextAmount: "6000", nextAmountFrom: "2026-09-01", cancelBy: "2026-11-15" });
+      await insertBill(db, hid, input, "confirmed");
+      const state = await loadMoneyState(db, hid, TODAY);
+      assert.deepEqual(state.bills.filter(x => x.biller === "Fictional gym").map(x => [x.due, x.amount]), [["2026-11-16", 6000], ["2026-12-16", 6000]]);
+      assert.deepEqual(state.cancelNotices.map(n => [n.cancelBy, n.renewsOn, n.amount]), [["2026-11-15", "2026-11-16", 6000]]);
+      assert.equal((await first(db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.refId, input.id))))).body, "Changes to ¥6,000 from Sep 1 · Cancel by Nov 15", "a monthly bill does not say Every year");
+    });
+
+    await check("a pending bill with the D48 fields shows them in To check, counts nothing, and confirming keeps them", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const input = bill({ biller: "Fictional domain", amount: "1500", due: "2026-12-10", category: "business_tools", repeat: "year", nextAmount: "1800", nextAmountFrom: "2027-12-10", cancelBy: "2026-12-05" });
+      await insertBill(db, hid, input, "pending");
+      const waiting = await loadMoneyState(db, hid, TODAY);
+      assert.deepEqual(waiting.cancelNotices, [], "pending: no notice yet");
+      assert.equal(toCheck(waiting).find(r => r.title === "Fictional domain")!.detail, "Business tools · Personal · due Dec 10 · every year · ¥1,800 from Dec 10 · cancel by Dec 5");
+      assert.equal(await confirmPending(db, hid, "bill", input.id), true);
+      const confirmed = await loadMoneyState(db, hid, TODAY);
+      assert.deepEqual(confirmed.cancelNotices.map(n => [n.biller, n.cancelBy, n.renewsOn, n.amount]), [["Fictional domain", "2026-12-05", "2026-12-10", 1500]]);
+      assert.deepEqual(confirmed.bills.filter(x => x.biller === "Fictional domain").map(x => x.due), ["2026-12-10"]);
+    });
+
+    await check("D48 refusals: a next amount without a date (and the reverse), on a one-off, on or before the due date, a cancel-by on or after the next charge, dates past two years, amounts out of range", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const refused = async (over: Parameters<typeof bill>[0], pattern: RegExp) => assert.rejects(insertBill(db, hid, bill({ biller: "Fictional refused", due: "2026-12-01", ...over }), "confirmed"), (e: unknown) => e instanceof InputError && pattern.test(e.message), JSON.stringify(over));
+      await refused({ repeat: "year", nextAmount: "13000" }, /together with the date/);
+      await refused({ repeat: "year", nextAmountFrom: "2027-12-01" }, /together with the date/);
+      await refused({ nextAmount: "13000", nextAmountFrom: "2027-12-01" }, /needs a bill that repeats/);
+      await refused({ repeat: "year", nextAmount: "13000", nextAmountFrom: "2026-12-01" }, /after the due date/);
+      await refused({ repeat: "year", nextAmount: "13000", nextAmountFrom: "2026-11-30" }, /after the due date/);
+      await refused({ repeat: "year", cancelBy: "2026-12-01" }, /before the bill is next charged on Dec 1/);
+      await refused({ repeat: "year", cancelBy: "2026-12-02" }, /before the bill is next charged on Dec 1/);
+      await refused({ cancelBy: "2027-01-01" }, /before the bill is next charged on Dec 1/);
+      await refused({ repeat: "month", due: "2026-08-16", cancelBy: "2026-11-16" }, /before the bill is next charged on Nov 16/);
+      await refused({ repeat: "year", nextAmount: "13000", nextAmountFrom: "2029-01-01" }, new RegExp(HORIZON_MESSAGE));
+      await refused({ repeat: "year", cancelBy: "2029-01-01" }, new RegExp(HORIZON_MESSAGE));
+      await refused({ repeat: "year", due: "2029-01-01" }, new RegExp(HORIZON_MESSAGE));
+      await refused({ repeat: "year", nextAmount: "100,000,001", nextAmountFrom: "2027-12-01" }, /Enter an amount up to ¥100,000,000/);
+      await refused({ repeat: "year", nextAmount: "0", nextAmountFrom: "2027-12-01" }, /more than zero/);
+      await refused({ repeat: "year", nextAmount: "12.5", nextAmountFrom: "2027-12-01" }, /whole numbers/);
+      assert.equal(billInput.safeParse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-09", category: "other", repeat: "week" }).success, false, "only month and year");
+      assert.equal(billInput.safeParse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-09", category: "other", cancelBy: "soon" }).success, false);
+      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, hid), eq(schema.bills.biller, "Fictional refused")))).length, 0, "nothing was saved");
+      assert.equal(latestDate(TODAY), "2028-11-14");
+    });
+
+    await check("the database holds the line too: unit values, the day only for monthly, the new amount and its date together", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const row = { householdId: hid, biller: "Bad", amountMinor: 1, currency: "JPY", due: "2026-11-20", category: "other" };
+      await assert.rejects(db.insert(schema.bills).values({ ...row, repeatUnit: "week" }), "an unknown unit");
+      await assert.rejects(db.insert(schema.bills).values({ ...row, repeatDay: 20 }), "a day with no unit");
+      await assert.rejects(db.insert(schema.bills).values({ ...row, repeatUnit: "month" }), "a monthly bill without its day");
+      await assert.rejects(db.insert(schema.bills).values({ ...row, repeatUnit: "year", repeatDay: 20 }), "a yearly bill with a day");
+      await assert.rejects(db.insert(schema.bills).values({ ...row, repeatUnit: "year", nextAmountMinor: 5 }), "a new amount without its date");
+      await assert.rejects(db.insert(schema.bills).values({ ...row, repeatUnit: "year", nextAmountFrom: "2027-01-01" }), "a date without its new amount");
+      await db.insert(schema.bills).values({ ...row, biller: "Fine", repeatUnit: "year", nextAmountMinor: 5, nextAmountFrom: "2027-11-20", cancelBy: "2026-11-19" });
+    });
+
+    await check("migration 0013 sets repeat_unit = month for every bill that had a repeat day and leaves one-offs null", async () => {
+      const old = new PGlite();
+      try {
+        const files = readdirSync("./drizzle").filter(f => /^\d{4}_.*\.sql$/.test(f)).sort();
+        const target = files.find(f => f.startsWith("0013_"))!;
+        const statements = (file: string) => readFileSync(`./drizzle/${file}`, "utf8").split("--> statement-breakpoint").map(x => x.trim()).filter(Boolean);
+        for (const file of files.slice(0, files.indexOf(target))) for (const statement of statements(file)) await old.exec(statement);
+        const household = (await old.query<{ id: string }>("insert into households (name, home_currency) values ('Old', 'JPY') returning id")).rows[0].id;
+        for (const [biller, day] of [["Monthly A", 5], ["Monthly B", 31], ["One-off", null]] as const) {
+          await old.query("insert into bills (household_id, biller, amount_minor, currency, due, category, repeat_day) values ($1, $2, 100, 'JPY', '2026-11-27', 'other', $3)", [household, biller, day]);
+        }
+        for (const statement of statements(target)) await old.exec(statement);
+        const rows = (await old.query<{ biller: string; repeat_unit: string | null; repeat_day: number | null; next_amount_minor: number | null; cancel_by: string | null }>("select biller, repeat_unit, repeat_day, next_amount_minor, cancel_by from bills order by biller")).rows;
+        assert.deepEqual(rows.map(r => [r.biller, r.repeat_unit, r.repeat_day, r.next_amount_minor, r.cancel_by]), [["Monthly A", "month", 5, null, null], ["Monthly B", "month", 31, null, null], ["One-off", null, null, null, null]]);
+      } finally {
+        await old.close();
+      }
+    });
+
     await check("another household's monthly bill never appears", async () => {
       const mine = await seedBen(db, { isDemo: true }), theirs = await seedBen(db, { isDemo: true });
-      await insertBill(db, theirs, bill({ biller: "Fictional neighbour plan", due: "2026-11-21", monthly: true }), "confirmed");
+      await insertBill(db, theirs, bill({ biller: "Fictional neighbour plan", due: "2026-11-21", repeat: "month" }), "confirmed");
       assert.equal((await billsOf(theirs, TODAY, "Fictional neighbour plan")).length, 2);
       assert.equal((await billsOf(mine, TODAY, "Fictional neighbour plan")).length, 0);
       assert.equal((await loadMoneyState(db, mine, TODAY)).bills.length, (await loadMoneyState(db, mine, TODAY)).bills.filter(row => row.biller !== "Fictional neighbour plan").length);
@@ -362,7 +518,7 @@ async function main() {
 
     await check("card room and safe to spend count a repeating subscription that falls inside the window", async () => {
       const base = await seedBen(db, { isDemo: true }), repeating = await seedBen(db, { isDemo: true }), once = await seedBen(db, { isDemo: true });
-      await insertBill(db, repeating, bill({ biller: "Fictional streaming", amount: "5000", due: "2026-11-16", monthly: true }), "confirmed");
+      await insertBill(db, repeating, bill({ biller: "Fictional streaming", amount: "5000", due: "2026-11-16", repeat: "month" }), "confirmed");
       await insertBill(db, once, bill({ biller: "Fictional streaming", amount: "5000", due: "2026-11-16" }), "confirmed");
       const [stateBase, stateRepeating, stateOnce] = await Promise.all([base, repeating, once].map(hid => loadMoneyState(db, hid, TODAY)));
       const roomOf = (state: typeof stateBase, label: string) => roomOnCard(state, state.cards.find(card => card.label === label)!.id).room;
@@ -456,7 +612,7 @@ async function main() {
     await check("removeBill deletes a bill with its event, a monthly bill as a whole series, and the runway follows", async () => {
       const mine = await seedBen(db, { isDemo: true }), theirs = await seedBen(db, { isDemo: true });
       const before = await loadMoneyState(db, mine, TODAY);
-      const once = bill({ biller: "Fictional repair", amount: "30000", due: "2026-11-20" }), monthly = bill({ biller: "Fictional gym", amount: "5000", due: "2026-11-16", monthly: true });
+      const once = bill({ biller: "Fictional repair", amount: "30000", due: "2026-11-20" }), monthly = bill({ biller: "Fictional gym", amount: "5000", due: "2026-11-16", repeat: "month" });
       await insertBill(db, mine, once, "confirmed"); await insertBill(db, mine, monthly, "confirmed");
       const withBoth = await loadMoneyState(db, mine, TODAY);
       assert.equal(withBoth.bills.filter(row => row.biller === "Fictional gym").length, 2, "Nov 16 and Dec 16 are inside the window");

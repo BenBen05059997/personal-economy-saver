@@ -7,6 +7,8 @@
 import type { Currency } from "@/lib/catalogue/types";
 import type { CategoryKey } from "./categories";
 
+export type RepeatUnit = "month" | "year";
+
 export type Bill = {
   id: string;
   biller: string;
@@ -16,8 +18,13 @@ export type Bill = {
   businessBp: number; // D46: business share in basis points (0 personal, 10000 business)
   status: "confirmed" | "pending"; // pending = read by AI, waiting for the user to confirm
   previousAmount?: number;
-  repeatDay?: number; // monthly bill (D41): the day of the month it falls due; the engine sees one Bill per occurrence
-  startsOn?: string; // set on each occurrence of a monthly bill: the stored due date, where the series starts (the month view needs the occurrences before today)
+  repeatUnit?: RepeatUnit; // D48: absent = one-off; the engine sees one Bill per occurrence
+  repeatDay?: number; // monthly bill (D41): the day of the month it falls due; only with repeatUnit "month"
+  nextAmount?: number; // D48: the amount an occurrence on or after nextAmountFrom has; absent together with nextAmountFrom
+  nextAmountFrom?: string; // YYYY-MM-DD
+  cancelBy?: string; // D48: information only: the date to act by before the renewal; the app never cancels anything
+  startsOn?: string; // set on each occurrence of a repeating bill: the stored due date, where the series starts (the month view needs the occurrences before today)
+  startAmount?: number; // set with startsOn: the stored amount, before any change (an occurrence's own `amount` may already be the new one)
   paidBy?: string; // shared bill (D45): the member who pays it; the engine ignores it
 };
 
@@ -91,7 +98,11 @@ export type Pot = {
 // the rows as stored (a monthly shared bill is one row; split.ts counts its past occurrences). The engine ignores all of it.
 export type SplitMember = { id: string; name: string; shareBp: number }; // the owner first; shares total 10,000
 // createdAt is an ISO instant: an item dated on the settlement day counts again only when it was created after the settlement.
-export type SplitBill = { id: string; biller: string; amountMinor: number; due: string; repeatDay: number | null; paidBy: string; createdAt: string };
+export type SplitBill = {
+  id: string; biller: string; amountMinor: number; due: string; paidBy: string; createdAt: string;
+  repeatUnit: RepeatUnit | null; repeatDay: number | null; // D48: repeatDay for monthly only
+  nextAmountMinor: number | null; nextAmountFrom: string | null; // an occurrence on or after nextAmountFrom splits nextAmountMinor
+};
 export type SplitCharge = { id: string; merchant: string; amountMinor: number; date: string; paidBy: string; createdAt: string };
 export type SplitState = {
   members: SplitMember[];
@@ -101,6 +112,9 @@ export type SplitState = {
   bills: SplitBill[]; // confirmed shared bills that name who pays
   charges: SplitCharge[]; // confirmed shared charges from the first day that can count (the settlement day itself included); paidBy is the card's owner
 };
+
+// A cancel-by date on a confirmed bill (D48): cancel by `cancelBy` or the bill is charged `amount` on `renewsOn`.
+export type CancelNotice = { billId: string; biller: string; category: CategoryKey; cancelBy: string; renewsOn: string; amount: number; repeats: boolean };
 
 export type MoneyState = {
   today: string;
@@ -116,6 +130,7 @@ export type MoneyState = {
   invoices: Invoice[];
   pots: Pot[]; // confirmed pots: their saved money is taken off the cash the runway starts from
   pendingPots: Pot[]; // pots waiting in To check; they count for nothing until confirmed
+  cancelNotices: CancelNotice[]; // D48: dated "cancel by" rows for Coming up; information only
   balanceUpdates: { id: string; amount: number }[]; // new bank balances waiting in To check (D42), home currency
   split: SplitState; // D45: members, shares and the shared items since the last settlement
 };

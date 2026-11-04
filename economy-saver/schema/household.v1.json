@@ -457,7 +457,7 @@
                 "type": "null"
               }
             ],
-            "description": "Who pays a shared bill, every month for a monthly one; the bill is split between the members only when this is set. Null otherwise."
+            "description": "Who pays a shared bill, at every occurrence of a repeating one; the bill is split between the members only when this is set. Null otherwise."
           },
           "biller": {
             "type": "string"
@@ -476,7 +476,7 @@
           "due": {
             "type": "string",
             "format": "date",
-            "description": "The stored due date. A monthly bill is one row here, not one per month."
+            "description": "The stored due date. A repeating bill is one row here, not one per month."
           },
           "category": {
             "type": "string",
@@ -550,7 +550,62 @@
                 "type": "null"
               }
             ],
-            "description": "Day of the month a monthly bill falls due; null = one-off."
+            "description": "Day of the month a monthly bill falls due; null unless repeatUnit is month."
+          },
+          "repeatUnit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "month",
+                  "year"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "month = every month on repeatDay, year = every year on the due date's month and day (29 Feb becomes 28 Feb in a common year); null or absent = one-off."
+          },
+          "nextAmountMinor": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The amount an occurrence on or after nextAmountFrom costs, in the bill's currency; null or absent = the amount never changes. Set together with nextAmountFrom."
+          },
+          "nextAmountFrom": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The first date nextAmountMinor applies on."
+          },
+          "cancelBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Information only: the last day to cancel or change the bill before its next occurrence charges. The app never cancels anything."
           },
           "documentId": {
             "anyOf": [
@@ -582,7 +637,7 @@
         ],
         "additionalProperties": false
       },
-      "description": "Stored rows. A monthly bill appears once, with `repeatDay`; occurrences are not expanded."
+      "description": "Stored rows. A repeating bill appears once, with `repeatUnit` (and `repeatDay` when monthly); occurrences are not expanded."
     },
     "clients": {
       "type": "array",

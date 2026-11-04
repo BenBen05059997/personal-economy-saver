@@ -12,6 +12,8 @@
   text-wrap: pretty;
 }
 .money-home .home-short, .home-low-label.is-short { color: var(--red); }
+.money-home .home-demo { margin: 8px 0 0; color: var(--muted); font: 400 13px/1.45 var(--sans); }
+.home-demo a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; white-space: nowrap; }
 .home-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .home-button, .home-confirm {
   display: inline-flex;
@@ -113,6 +115,16 @@
 .home-covered-tick { color: var(--green); }
 .home-empty, .home-upcoming details { margin: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
 .home-upcoming summary { cursor: pointer; }
+.home-empty a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; white-space: nowrap; }
+.home-steps ol { margin: 0; padding: 0; list-style: none; }
+.home-steps li { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--rule); font-size: 14px; }
+.home-steps li > a, .home-steps li > span:last-child { flex: 1; min-width: 0; }
+.home-steps li > a { color: var(--ink); text-decoration: none; }
+.home-steps li > a > span { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+.home-steps li small { display: block; margin-top: 2px; color: var(--muted); font: 400 12.5px/1.4 var(--sans); }
+.home-step-tick { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1.5px solid var(--faint); border-radius: 50%; color: var(--green); font-size: 12px; font-weight: 700; }
+.home-step-done { color: var(--muted); }
+.home-step-done .home-step-tick { border-color: var(--green); background: var(--green-wash); }
 .home-upcoming details[open] summary { padding-bottom: 10px; }
 
 @media (min-width: 761px) and (max-width: 1150px) {
@@ -134,7 +146,11 @@
   .home-chart { margin-top: 12px; }
   .home-plot { height: 100px; }
   .home-amount { font-size: 44px; line-height: 1.05; }
-  .home-review { order: 1; }
+  .home-steps, .home-review { order: 1; }
+  .home-steps li { min-height: 44px; }
+  .home-steps li > a { display: flex; flex-direction: column; justify-content: center; min-height: 44px; }
+  .home-empty a { position: relative; }
+  .home-empty a::after { content: ""; position: absolute; inset: -14px -8px; }
   .home-cards { order: 2; }
   .home-split { order: 2; }
   .home-upcoming { order: 3; }

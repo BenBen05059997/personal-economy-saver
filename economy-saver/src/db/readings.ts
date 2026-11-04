@@ -2,6 +2,9 @@ import { lockRunway, observeRunway } from "./runway-events";
 import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { type Db, recordEvent, requireHousehold } from "./household";
 import { bills, cards, charges, documents, fxRates, households, readings, rules } from "./schema";
+import { checkSchedule, repeatDayFor } from "./bills";
+import { clockForHousehold } from "./clock";
+import { InputError } from "./input-error";
 import { convertMinor, fromMinor, fromRateMicro } from "./money";
 import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
@@ -30,7 +33,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
   return db.transaction(async tx => {
     const previous = await lockRunway(tx, hid);
     const [row] = await tx.select({
-      data: readings.extracted, documentId: readings.documentId, source: documents.kind, currency: households.homeCurrency,
+      data: readings.extracted, documentId: readings.documentId, source: documents.kind, currency: households.homeCurrency, isDemo: households.isDemo, timeZone: households.timeZone,
     }).from(readings).innerJoin(documents, and(eq(readings.documentId, documents.id), eq(documents.householdId, hid)))
       .innerJoin(households, eq(households.id, readings.householdId))
       .where(and(eq(readings.householdId, hid), eq(readings.id, readingId), eq(readings.status, "to_check"))).for("update");
@@ -67,8 +70,13 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
       targetId = charge.id;
       await syncClosedStatementCharge(tx, hid, charge.id);
     } else {
+      // D48: the schedule is checked like a typed-in bill; the new amount converts at the same rate as the amount.
+      const nextAmountMinor = value.nextAmountMinor === null ? null : fx === null ? value.nextAmountMinor : convertMinor(value.nextAmountMinor, currency, row.currency, fromRateMicro(fx));
+      try { checkSchedule(date, clockForHousehold(row).today, { repeat: value.repeat, nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy }); }
+      catch (error) { throw error instanceof InputError ? new ReaderError(error.message) : error; }
       const [bill] = await tx.insert(bills).values({
-        ...amounts, ...category, due: date, biller: name, status: "confirmed",
+        ...amounts, ...category, due: date, biller: name, status: "confirmed", repeatUnit: value.repeat, repeatDay: repeatDayFor(date, value.repeat),
+        nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy,
       }).returning({ id: bills.id });
       targetId = bill.id;
     }

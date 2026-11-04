@@ -10,6 +10,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { setBankBalance } from "@/db/bank-balance";
+import { billInput, insertBill } from "@/db/bills";
 import { DEMO_DATE } from "@/db/clock";
 import { loadMoneyState } from "@/db/household";
 import { fromMinor, fromRateMicro } from "@/db/money";
@@ -71,6 +72,8 @@ async function main() {
     const trip = potInput.parse({ id: randomUUID(), name: "Trip" });
     await savePot(db, a, car, "confirmed");
     await savePot(db, a, trip, "pending");
+    const yearlyBill = billInput.parse({ id: randomUUID(), biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year", nextAmount: "13000", nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20" });
+    await insertBill(db, a, yearlyBill, "confirmed");
     const pendingBalance = randomUUID();
     await setBankBalance(db, a, { id: pendingBalance, amount: "123456" }, "pending");
     const docId = randomUUID();
@@ -151,6 +154,24 @@ async function main() {
       assert.ok(snap.bills.every(bill => bill.status === "confirmed" || bill.status === "pending"));
       const rows = new Set(snap.bills.map(bill => bill.id));
       assert.equal(rows.size, snap.bills.length);
+    });
+
+    await check("a yearly bill with a new amount and a cancel-by date appears once, with the D48 fields; a one-off and a monthly bill carry them as null (version stays 1: the fields are optional)", () => {
+      const yearly = snap.bills.find(bill => bill.id === yearlyBill.id)!;
+      assert.deepEqual([yearly.repeatUnit, yearly.repeatDay, yearly.amountMinor, yearly.nextAmountMinor, yearly.nextAmountFrom, yearly.cancelBy], ["year", null, 12_000, 13_000, "2027-12-01", "2026-11-20"]);
+      assert.equal(snap.bills.filter(bill => bill.biller === "Fictional Cloud").length, 1, "one row, not one per year");
+      const rent = snap.bills.find(bill => bill.biller === "Rent")!;
+      assert.deepEqual([rent.repeatUnit, rent.repeatDay, rent.nextAmountMinor, rent.nextAmountFrom, rent.cancelBy], ["month", 27, null, null, null]);
+      assert.equal(snap.version, 1);
+      // A version 1 document written before these fields existed has none of them and still validates.
+      const old: Record<string, unknown> = { ...yearly };
+      for (const key of ["repeatUnit", "nextAmountMinor", "nextAmountFrom", "cancelBy"]) delete old[key];
+      assert.equal(HouseholdSnapshot.safeParse({ ...snap, bills: [old] }).success, true);
+      assert.equal(HouseholdSnapshot.safeParse({ ...snap, bills: [{ ...yearly, repeatUnit: "week" }] }).success, false);
+      assert.equal(HouseholdSnapshot.safeParse({ ...snap, bills: [{ ...yearly, cancelBy: "soon" }] }).success, false);
+      const jsonSchema = JSON.parse(readFileSync(SCHEMA_FILE, "utf8")).properties.bills.items;
+      assert.ok(["repeatUnit", "nextAmountMinor", "nextAmountFrom", "cancelBy"].every(key => key in jsonSchema.properties && !jsonSchema.required.includes(key)), "in the committed JSON Schema, not required");
+      assert.ok(jsonSchema.required.includes("repeatDay"), "the fields that were there stay required");
     });
 
     await check("pots and the pending balance update appear with their status", () => {

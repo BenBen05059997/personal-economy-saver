@@ -61,6 +61,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
             status: b.status,
             previousAmountMinor: b.previousAmount === undefined ? null : toMinor(b.previousAmount, home),
             repeatDay: b.repeatDay ?? null,
+            repeatUnit: b.repeatUnit ?? null,
           })),
         )
         .returning({ id: s.bills.id, biller: s.bills.biller, status: s.bills.status, amountMinor: s.bills.amountMinor }),

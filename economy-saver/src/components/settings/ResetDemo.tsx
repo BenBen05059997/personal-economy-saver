@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 /** Try it households only: a two-step reset, asked on the page itself (no confirm() dialog). */
@@ -28,7 +29,12 @@ export function ResetDemo() {
         <button type="button" className="ui-button primary" disabled={busy} onClick={reset}>Reset</button>
         <button type="button" className="ui-button" disabled={busy} onClick={() => setAsking(false)}>Keep</button>
       </div>
-    </> : <button type="button" className="ui-button" onClick={() => { setMessage(""); setAsking(true); }}>Reset to Ben’s starting numbers</button>}
+    </> : <>
+      <button type="button" className="ui-button" onClick={() => { setMessage(""); setAsking(true); }}>Reset to Ben’s starting numbers</button>
+      <p className="ui-hint">Puts Ben’s fictional starting numbers back.</p>
+    </>}
+    <p className="ui-hint"><Link href="/start">Start over with my numbers ›</Link></p>
+    <p className="ui-hint">Replaces this household with a blank one and your own numbers.</p>
     <p role="status" className="ui-hint">{message}</p>
   </div>;
 }

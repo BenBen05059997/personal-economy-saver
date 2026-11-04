@@ -120,6 +120,7 @@ async function test() {
     assert.equal(stored.amountMinor, 1875);
     console.log("✓ Forwarded MIME email produces a card charge, dated FX snapshot and exact integer amounts");
 
+    extracted = { ...extracted, kind: "bill", name: "Fictional Cloud", cardId: null, currency: "JPY", amountMinor: 12_000, date: "2026-12-01", category: "subscriptions" }; // the retried document reads as an annual bill
     const countBefore = calls;
     const retry = await storeDocument(db, a, "email", expectedMime, file("Subject: retry\r\n\r\nMinato kiosk again"));
     delete process.env.ANTHROPIC_TEXT_MODEL;
@@ -130,6 +131,18 @@ async function test() {
     await readDocument(db, a, retry, true);
     assert.equal(calls, countBefore + 1);
     console.log("✓ Missing model fails clearly; retry uses one more reserved AI call");
+
+    const plan = (await readerInbox(db, a)).readings[0];
+    assert.deepEqual([plan.value.repeat, plan.value.nextAmountMinor, plan.value.nextAmountFrom, plan.value.cancelBy], [null, null, null, null], "the reader never proposes a repeat, a new amount or a cancel-by date");
+    for (const [change, message] of [[{ cancelBy: "2026-12-02" }, /before the bill is next charged on Dec 1/], [{ nextAmountMinor: 13_000 }, /together with the date/], [{ nextAmountFrom: "2027-12-01" }, /together with the date/], [{ repeat: null, nextAmountMinor: 13_000, nextAmountFrom: "2027-12-01" }, /needs a bill that repeats/]] as const) {
+      await assert.rejects(reviewReading(db, a, plan.id, { ...plan.value, repeat: "year", ...change }), message);
+    }
+    assert.equal((await readerInbox(db, a)).readings.some(r => r.id === plan.id), true, "a refused review leaves the reading in To check");
+    assert.equal(await reviewReading(db, a, plan.id, { ...plan.value, repeat: "year", nextAmountMinor: 13_000, nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20" }), true);
+    const [planRow] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.documentId, retry)));
+    assert.deepEqual([planRow.status, planRow.repeatUnit, planRow.repeatDay, planRow.amountMinor, planRow.nextAmountMinor, planRow.nextAmountFrom, planRow.cancelBy], ["confirmed", "year", null, 12_000, 13_000, "2027-12-01", "2026-11-20"]);
+    assert.deepEqual((await loadMoneyState(db, a, "2026-11-14")).cancelNotices.map(n => [n.biller, n.renewsOn, n.amount]), [["Fictional Cloud", "2026-12-01", 12_000]]);
+    console.log("✓ The review card's repeat, new amount and cancel-by date are checked like a typed-in bill and stored with the confirmed bill");
 
     empty = true;
     const nonfinancial = await storeDocument(db, a, "email", expectedMime, file("Subject: hello\r\n\r\nMinato kiosk newsletter"));

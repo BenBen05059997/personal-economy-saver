@@ -68,6 +68,8 @@ function flight(html) {
   return chunks.join("");
 }
 function pageContent(html) { return text(html) + " " + flight(html); }
+// The sentence is built from several text nodes, so its words can sit apart ("rent , your"): close the gap before punctuation.
+const plain = (content) => content.replace(/\s+([,.])/g, "$1");
 async function page(path, content) {
   const result = await request(path);
   expect(result.response.status === 200, "page-status");
@@ -157,6 +159,7 @@ if (args[0] === "--guards") {
     ["ai-key-without-household", "/api/settings/ai-key", { method: "POST" }, 401],
     ["export-without-household", "/api/export", { method: "POST" }, 401],
     ["people-without-household", "/api/people", { method: "POST" }, 401],
+    ["bill-with-schedule-without-household", "/api/bills", { method: "POST", form: { id: "x", biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year", cancelBy: "2026-11-20" } }, 401],
     ["settle-without-household", "/api/settle", { method: "POST" }, 401],
     ["remove-without-household", "/api/remove", { method: "POST" }, 401],
     ["cron-without-bearer", "/api/cron", {}, 401],
@@ -210,6 +213,16 @@ const firstCookie = cookie;
 // Cold means first Home in this fresh session, not a restarted server or cleared compiler cache.
 const home = await step("page", "home-first-session", () => page("/", /18,780/));
 await step("page", "home-warm", () => page("/", /18,780/));
+// D47: Try it arrives with every step true, so the First steps panel never shows and the demo numbers are untouched.
+await step("page", "home-try-it-has-no-first-steps", async () => {
+  const html = await page("/", /18,780/);
+  expect(!/First steps/.test(pageContent(html)), "first-steps-shown");
+  expect(!/Add your rent\s*,\s*your bills and the clients/.test(pageContent(html)), "empty-sentence-shown");
+  // Any demo household says so on Home and links to Start with my numbers.
+  expect(/A fictional household that lives in this browser\./.test(plain(pageContent(html))) && /href="\/start"/.test(html), "demo-line-missing");
+  // The + Add menu offers the two things people add most, linking to the Home anchors the entry form opens from.
+  expect(/href="\/#add-bill"[^>]*>Add a bill</.test(html) && /href="\/#add-charge"[^>]*>Add a card charge</.test(html), "add-menu-bill-and-charge");
+});
 await step("page", "cards", () => page("/cards", /Card B/));
 await step("page", "clients", () => page("/clients", /Beacon/));
 await step("page", "plan", () => page("/plan", /Add a pot/));
@@ -254,6 +267,14 @@ const refused = (label, fields, message) => step("guard", label, async () => {
 await refused("bill-with-amount-0-refused-with-message", { amount: "0" }, "The amount must be more than zero");
 await refused("bill-over-yen-limit-refused-with-message", { amount: "100,000,001" }, "Enter an amount up to ¥100,000,000");
 await refused("bill-dated-over-two-years-refused-with-message", { due: "2029-01-01" }, "Choose a date within the next two years");
+// D48: a schedule that does not hang together is refused with its words and nothing is saved.
+await refused("bill-new-amount-without-date-refused-with-message", { repeat: "year", nextAmount: "13000" }, "Give the new amount together with the date it starts");
+await refused("bill-new-amount-on-a-one-off-refused-with-message", { nextAmount: "13000", nextAmountFrom: "2027-12-01" }, "A new amount needs a bill that repeats: choose Every month or Every year");
+await refused("bill-new-amount-on-or-before-due-refused-with-message", { repeat: "year", nextAmount: "13000", nextAmountFrom: "2026-11-20" }, "The new amount must start after the due date");
+await refused("bill-cancel-by-after-the-renewal-refused-with-message", { repeat: "year", cancelBy: "2026-11-21" }, "Choose a cancel-by date before the bill is next charged on Nov 20");
+await refused("bill-cancel-by-over-two-years-refused-with-message", { cancelBy: "2029-01-01" }, "Choose a date within the next two years");
+await refused("bill-new-amount-over-yen-limit-refused-with-message", { repeat: "year", nextAmount: "100,000,001", nextAmountFrom: "2027-11-20" }, "Enter an amount up to ¥100,000,000");
+await refused("bill-with-an-unknown-repeat-refused", { repeat: "week" }, "Check the required fields and try again.");
 await step("action", "bill-with-thousands-separator-saved-and-removed", async () => {
   const id = randomUUID();
   const form = { id, biller: "Fictional separator bill", amount: "1,000", due: "2026-11-20", category: "other", businessShare: "personal" };
@@ -281,7 +302,7 @@ await step("read", "confirm-single-event", async () => {
 // with them it must answer from the engine's numbers.
 await step("action", "typed-ask-read-only", async () => {
   const result = await request("/api/ask", { method: "POST", json: { id: randomUUID(), text: "Where do I stand?", source: "manual" } });
-  if (result.response.status === 503 && /^ANTHROPIC_[A-Z_]+ is not set$/.test(result.body)) {
+  if (result.response.status === 503 && /^Ask isn't set up on this server yet \(ANTHROPIC_[A-Z_]+ is not set\)\.$/.test(result.body)) {
     console.log(`NOTE typed-ask-read-only: ${result.body}; the live answer is not checked`);
     return;
   }
@@ -290,6 +311,7 @@ await step("action", "typed-ask-read-only", async () => {
   expect(answer.pending === false && typeof answer.answer === "string" && /30,000/.test(answer.answer), "ask-result");
 });
 await step("page", "settings", () => page("/settings", /Household &amp; bank|Household & bank/));
+await step("page", "settings-offers-start-over-with-my-numbers", () => page("/settings", /Start over with my numbers/));
 await step("action", "export-my-data", async () => {
   const result = await request("/api/export", { method: "POST" });
   const { headers } = result.response;
@@ -325,6 +347,79 @@ await step("page", "home-after-reset-18780", () => page("/", /18,780/));
 await step("read", "reset-invalidates-old-session", async () => {
   const result = await request("/api/events", { session: firstCookie });
   expect(result.response.status === 401, "old-session-status");
+});
+// D47: Start with my numbers. A blank demo says what to add (never "You're fine"), shows three open first steps, and
+// changes to the normal sentence and two open steps once a bill is added through the same door the form uses.
+cookie = "";
+const setup = { name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "120,000", card: "Card N", closingDay: "25", dueDay: "10", limit: "" };
+await step("guard", "start-blank-bad-form-refused", async () => {
+  const result = await request("/api/try/blank", { method: "POST", form: { ...setup, closingDay: "40" }, session: "" });
+  expect(result.response.status === 400 && !result.response.headers.get("set-cookie"), "blank-bad-form");
+});
+await step("action", "start-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" })));
+if (cookie === "") process.exit(1);
+await step("page", "start-blank-home-empty-sentence", async () => {
+  const content = plain(pageContent(await page("/", /Add your rent\s*,\s*your bills and the clients who pay you to see your next 30 days/)));
+  expect(content.includes("Add your rent, your bills and the clients who pay you to see your next 30 days."), "blank-sentence");
+  expect(content.includes("A fictional household that lives in this browser. Start with my numbers ›"), "blank-demo-line");
+  expect(/Bank balance ¥120,000\./.test(content), "blank-bank-balance");
+  expect(!/You(?:'|&#x27;)re fine/.test(content), "blank-fine-verdict");
+  expect(/First steps · 3 to go/.test(content), "blank-three-steps-open");
+  for (const label of ["Add a bill", "Add a client who pays you", "Add a card charge"]) expect(content.includes(label), "blank-step-" + label);
+  expect(/Nothing due yet\. Add your rent/.test(content), "blank-coming-up-hint");
+  expect(/Card N/.test(content), "blank-card-row");
+});
+// Start with my numbers never reuses the cookie household: a second post makes a new one and deletes the old demo.
+await step("page", "start-form-says-it-replaces-the-demo", async () => {
+  await page("/start", /This replaces the Try it household in this browser\. Reset in Settings brings Ben(?:'|&#x27;)s numbers back\./);
+  const fresh = await request("/start", { session: "" });
+  expect(fresh.response.status === 200 && !/This replaces the Try it household/.test(pageContent(fresh.body)), "start-notice-without-demo");
+});
+await step("action", "start-blank-second-post-replaces-the-demo", async () => {
+  const old = cookie;
+  adopt(await request("/api/try/blank", { method: "POST", form: setup }));
+  expect(cookie !== old, "blank-second-fresh-cookie");
+  expect((await request("/api/events", { session: old })).response.status === 401, "blank-old-demo-gone");
+  expect((await request("/api/events")).response.status === 200, "blank-new-demo-works");
+});
+await step("page", "start-blank-new-household-is-empty-again", () => page("/", /Add your rent\s*,\s*your bills and the clients who pay you to see your next 30 days/));
+await step("action", "start-blank-add-rent", async () => {
+  const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional rent", amount: "60,000", due: "2026-11-27", category: "housing", businessShare: "personal" } });
+  expect(result.response.status === 303 && result.response.headers.get("location") === "/", "blank-bill-result");
+});
+await step("page", "start-blank-home-after-bill", async () => {
+  const content = plain(pageContent(await page("/", /You(?:'|&#x27;)re fine for the next 30 days[\s\S]*¥60,000 on the 27th/)));
+  expect(!/Add your rent, your bills and the clients/.test(content), "blank-empty-still-shown");
+  expect(/First steps · 2 to go/.test(content) && content.includes("Bill added"), "blank-two-steps-left");
+  expect(!/Add a bill Rent/.test(content), "blank-bill-step-still-open");
+});
+// D48 on a blank household (Try it numbers never move): a yearly bill with a new amount and a cancel-by date goes through the
+// same door the form uses; Coming up says "Yearly" and has the cancel-by row, Activity names what the bill carries.
+await step("action", "start-blank-add-yearly-bill-with-cancel-by", async () => {
+  const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional Cloud", amount: "12,000", due: "2026-12-01", category: "subscriptions", businessShare: "personal",
+    repeat: "year", nextAmount: "13,000", nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20" } });
+  expect(result.response.status === 303 && result.response.headers.get("location") === "/", "yearly-bill-result");
+});
+await step("page", "start-blank-coming-up-says-yearly-and-has-the-cancel-by-row", async () => {
+  const content = plain(pageContent(await page("/", /Cancel Fictional Cloud by Nov 20/)));
+  expect(content.includes("Cancel Fictional Cloud by Nov 20 or it renews at ¥12,000 on Dec 1"), "cancel-by-row-text");
+  expect(/Subscriptions · reminder only/.test(content), "cancel-by-row-category");
+  expect(/Fictional Cloud[^]*?Yearly/.test(content), "yearly-row-says-yearly");
+  expect(content.indexOf("Cancel Fictional Cloud") < content.indexOf("Fictional rent"), "cancel-by-row-in-date-order");
+});
+await step("page", "start-blank-activity-names-the-yearly-bill", async () => {
+  const content = plain(pageContent(await page("/activity", /Fictional Cloud added, due Dec 1/)));
+  expect(content.includes("Every year · Changes to ¥13,000 from Dec 1, 2027 · Cancel by Nov 20"), "yearly-activity-line");
+});
+await step("page", "start-blank-plan-month-counts-the-yearly-bill-in-its-month-only", async () => {
+  const content = plain(pageContent(await page("/plan", /Where the month goes/)));
+  expect(!/Fictional Cloud/.test(content), "yearly-bill-not-in-november");
+});
+await step("action", "start-blank-fetch-form-gets-redirect-header", async () => {
+  cookie = "";
+  const result = await request("/api/try/blank", { method: "POST", form: setup, session: "", extraHeaders: { "x-form-fetch": "1" } });
+  expect(result.response.status === 204 && result.response.headers.get("x-form-redirect") === "/", "blank-fetch-redirect");
+  expect(/household=[0-9a-f-]{36}/.test(result.response.headers.get("set-cookie") ?? ""), "blank-fetch-cookie");
 });
 console.log(`${failures ? "FAIL" : "PASS"} summary ${failures} failed`);
 process.exitCode = failures ? 1 : 0;

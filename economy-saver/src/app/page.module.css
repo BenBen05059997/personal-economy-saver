@@ -8,3 +8,6 @@
 .landing h1 { font: 400 clamp(40px, 6vw, 62px)/1.06 var(--serif); margin: 40px 0 16px; }
 .landing h1 + p { color: var(--muted); max-width: 42ch; }
 .landing button { margin-top: 26px; padding: 10px 25px; border: 0; border-radius: 6px; background: var(--accent); color: var(--on-accent); }
+.entries { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 26px; }
+.entries button { margin-top: 0; }
+.secondary { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 4px; }

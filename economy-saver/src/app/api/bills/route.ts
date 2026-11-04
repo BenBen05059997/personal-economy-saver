@@ -12,7 +12,10 @@ export async function POST(request: Request) {
   if (!category.success) return text(category.error.issues[0].message, 400);
   const businessBp = businessBpFromForm(form.get("businessShare"), form.get("businessPercent"));
   if (businessBp === null) return text("Enter the business share as a percentage from 0 to 100.", 400);
-  const data = billInput.safeParse({ ...Object.fromEntries(form), category: category.data, businessBp, memberId: form.get("memberId") || null, paidByMemberId: form.get("paidByMemberId") || null, monthly: form.get("monthly") === "on" });
+  const data = billInput.safeParse({
+    ...Object.fromEntries(form), category: category.data, businessBp, memberId: form.get("memberId") || null, paidByMemberId: form.get("paidByMemberId") || null,
+    repeat: form.get("repeat") || null, nextAmount: form.get("nextAmount") || null, nextAmountFrom: form.get("nextAmountFrom") || null, cancelBy: form.get("cancelBy") || null,
+  });
   if (!data.success) return badFields();
   try {
     await insertBill(db(), hid, data.data, "confirmed");
