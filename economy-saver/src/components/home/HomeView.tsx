@@ -205,7 +205,7 @@ export function HomeView({ state, inbox, notice, people, entryIds, balanceId, de
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
     <h1>{lead} <span className={safe.shortBy > 0 ? "home-short" : undefined}>{sentence.emphasis}</span></h1>
-    {demo && <p className="home-demo">A fictional household that lives in this browser. <Link prefetch={false} href="/start">Start with my numbers ›</Link></p>}
+    {demo && <p className="home-demo">A fictional household that lives in this browser for seven days after your last change. <Link prefetch={false} href="/start">Start with my numbers ›</Link></p>}
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} />
     <div className="home-panels">

@@ -13,7 +13,7 @@ Clients
 
 Cloudflare
 ├── Email Worker: Email Routing hands it each forwarded mail → POST /api/inbound
-├── Cron Trigger: once a day → GET /api/cron (keeps Supabase awake, FX snapshots, statements, reminders)
+├── Cron Trigger: once a day → GET /api/cron (deletes demo households quiet for seven days, D49; keeps Supabase awake, FX snapshots, statements, reminders)
 └── Next.js 16 app on Workers (OpenNext adapter)
     ├── Pages (server components, including /plan): read the household's tables, render the sentence
     ├── API routes (mutating routes start with `householdRequest` from src/lib/session.ts: same-origin check, then household; shared responses in src/lib/door.ts). Every form that posts to a route is the one client component `src/components/ui/ApiForm.tsx` (upload keeps its own): it posts with fetch and the header `x-form-fetch: 1`, shows the route's text answer in its status line when the route refuses (keeping what was typed), refreshes the page when the route answers 200, and follows the route's redirect when it answers one. A route that redirects takes the request (`redirectTo(location, request)`, `privateRedirect(location, request)`): to a fetch with the header it answers 204 with `x-form-redirect: <location>`, to a native post (no JavaScript, the HTTP suites) the 303 it always sent (`src/lib/form-fetch.ts`)
@@ -22,7 +22,7 @@ Cloudflare
     │   ├── /api/remove          remove a bill (a repeating bill as a whole series) or a card charge; kind and id, same-origin, 20 a minute
     │   ├── /api/bank-balance    the one-line bank balance update on Home (D42)
     │   ├── /api/pots, /api/pots/remove   add or edit a pot; remove a pot (the Plan page, D43)
-│   ├── /api/people, /api/settle      Settings → People (add, rename, shares); Mark settled on Home (D45)
+    │   ├── /api/people, /api/settle      Settings → People (add, rename, shares); Mark settled on Home (D45)
     │   ├── /api/invoices/draft, /api/invoices/paid  invoice draft; mark an invoice paid outside PayPal
     │   ├── /api/upload          photo or PDF → Storage → documents → reader
     │   ├── /api/inbound         forwarded email → Storage → documents → reader
@@ -40,7 +40,7 @@ Cloudflare
     │   ├── /api/settings, /api/settings/ai-key, /api/forwarding   household preferences, AI-key lifecycle, forwarding address
     │   ├── /api/household       delete my data
     │   ├── /api/export          Export my data: POST form from Settings → the household snapshot with events as a JSON download (D44)
-    │   ├── /api/cron            daily job (bearer secret)
+    │   ├── /api/cron            daily job (bearer secret): the demo sweep first, then each household in CRON_HOUSEHOLD_IDS
     │   └── /api/health          readiness, no values
     └── Core (pure TypeScript, no I/O)
         ├── Runway engine (lib/money/runway.ts): availableCash (bank + PayPal less money in pots), series, low, safe to spend, room per card, options ladder; planning maths in lib/money/plan.ts; who owes whom in lib/money/split.ts; where the month goes in lib/money/month.ts (`monthByCategory`: the current month's confirmed bills and charges by category with their business and personal parts, D46) over the category list in lib/money/categories.ts and the keyword table in lib/money/categorise.ts; none of it feeds the runway

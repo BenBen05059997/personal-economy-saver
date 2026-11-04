@@ -67,7 +67,7 @@ const covered = [
   // bank-balance.ts, bills.ts, charges.ts, clients.ts, confirm.ts
   "setBankBalance", "confirmBalanceUpdate", "insertBill", "removeBill", "insertCharge", "removeCharge", "insertClient", "confirmPending",
   // daily.ts, demo.ts, document-cleanup.ts, event-feed.ts
-  "runDaily", "findDemoHousehold", "resetDemoHousehold", "removeHouseholdDocuments", "eventFeed",
+  "runDaily", "findDemoHousehold", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
   // household.ts
   "householdOwnerName", "usdRate", "usdRateMicro", "loadSplitState", "loadMoneyState", "recordEvent", "listEvents", "unreadCount", "markRead",
   "recordWebhookDelivery", "deleteHousehold",
@@ -649,6 +649,29 @@ async function main() {
       assert.equal(await F.findDemoHousehold(store, c4), c4, "a demo household nobody named is left alone");
       await bothUntouched("demo functions");
       await F.deleteHousehold(store, uid);
+    });
+    await check("sweepDemoHouseholds: removes only an old quiet demo; A, B, a recent demo, an old non-demo and an old demo with a recent event all survive", async () => {
+      const old = new Date(Date.now() - 9 * 86_400_000);
+      const [oldQuiet, oldBusy, recent] = [await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true })];
+      const oldReal = await seedBen(db);
+      for (const id of [oldQuiet, oldBusy, oldReal]) await db.update(schema.households).set({ createdAt: old }).where(eq(schema.households.id, id));
+      await db.delete(schema.events).where(eq(schema.events.householdId, oldQuiet));
+      await db.delete(schema.events).where(eq(schema.events.householdId, oldReal));
+      await db.delete(schema.events).where(eq(schema.events.householdId, oldBusy));
+      await F.recordEvent(store, oldBusy, { kind: "isolation_sweep_probe", title: "Recent change" });
+      const result = await F.sweepDemoHouseholds(store);
+      assert.equal(result.failed, 0);
+      assert.equal(result.swept, 1, "only the old quiet demo household");
+      const alive = async (id: string) => (await db.select().from(schema.households).where(eq(schema.households.id, id))).length === 1;
+      assert.equal(await alive(oldQuiet), false);
+      for (const id of [oldBusy, recent, oldReal, A.hid, B.hid]) assert.equal(await alive(id), true);
+      await bothUntouched("sweepDemoHouseholds");
+      const [gone] = [await seedBen(db, { isDemo: true })];
+      assert.equal(await F.deleteDemoHousehold(store, oldReal), false, "deleteDemoHousehold never deletes a non-demo household");
+      assert.equal(await db.transaction(tx => F.deleteDemoHousehold(tx as unknown as Db, gone)), true);
+      assert.equal(await alive(oldReal), true);
+      await bothUntouched("deleteDemoHousehold");
+      for (const id of [oldBusy, recent, oldReal]) await F.deleteHousehold(store, id);
     });
     await check("PayPal import into the designated household cannot take or touch an invoice that belongs to A or B", async () => {
       const designated = await seedBen(db);

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { AccountFrame } from "./AccountFrame";
@@ -10,7 +11,7 @@ const currencies = {
 } as const;
 
 /** The one setup form: onboarding (a signed-in owner) and Start with my numbers (a blank demo) post the same fields to their own route. */
-export function SetupForm({ action, title, hint, button, notice }: { action: string; title: string; hint: string; button: string; notice?: string }) {
+export function SetupForm({ action, title, hint, button, notice, privacy = false }: { action: string; title: string; hint: string; button: string; notice?: string; privacy?: boolean }) {
   const [currency, setCurrency] = useState<keyof typeof currencies>("JPY");
   const { symbol, example } = currencies[currency];
   return <AccountFrame title={title}>
@@ -35,6 +36,7 @@ export function SetupForm({ action, title, hint, button, notice }: { action: str
       <label className="ui-field">Credit limit (optional)<input name="limit" inputMode="decimal" maxLength={16} /></label>
       <p className="ui-hint">You can set up bill forwarding and an AI key later in Settings.</p>
       <button className="ui-button primary">{button}</button>
+      {privacy && <p className="ui-hint">Your numbers stay in this browser’s demo household. <Link className="account-link" href="/privacy">Privacy ›</Link></p>}
     </ApiForm>
   </AccountFrame>;
 }

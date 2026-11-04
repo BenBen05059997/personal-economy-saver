@@ -15,5 +15,6 @@ export async function Landing() {
       <Link className={styles.secondary} href="/start">Start with my numbers</Link>
     </div>
     <p style={{ marginTop: "1rem" }}><Link href="/login">Sign in with email</Link></p>
+    <p><Link className={styles.secondary} href="/privacy">Privacy</Link></p>
   </main>;
 }

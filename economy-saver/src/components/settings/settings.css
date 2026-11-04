@@ -27,3 +27,4 @@
 .settings-page .ui-remove { padding-block: 0; border-bottom: 0; }
 .settings-page details > .ui-remove { margin-top: var(--space-3); }
 .settings-bill:last-child { border-bottom: 0; }
+.account-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 4px; }

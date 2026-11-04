@@ -77,7 +77,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all fourteen suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, pots, snapshot, split, category, isolation
+npm run db:test      # all fifteen suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, pots, snapshot, split, category, sweep, isolation
 npm run schema       # rewrites schema/household.v1.json from the zod definition (db:test fails when it is stale)
 npx tsc --noEmit -p .
 npm run lint

@@ -13,12 +13,13 @@ async function Account() {
   const uid = await verifiedUid();
   if (!uid) {
     if (!await currentHouseholdId()) redirect("/login");
-    return <AccountFrame title="Your account"><p>This is a Try it household. Sign in with email to start your own household.</p><Link href="/login">Sign in with email</Link></AccountFrame>;
+    return <AccountFrame title="Your account"><p>This is a Try it household. Sign in with email to start your own household.</p><Link href="/login">Sign in with email</Link> <Link className="account-link" href="/privacy">Privacy ›</Link></AccountFrame>;
   }
   if (!await accountHousehold(db(), uid)) redirect("/onboarding");
   return <AccountFrame title="Your account">
     <form method="post" action="/api/auth/logout"><button className="ui-button">Sign out</button></form>
     <section className="account-danger"><h2>Delete household</h2>
+      <p><Link className="account-link" href="/privacy">How your data is stored and deleted ›</Link></p>
       <p>Deleting your household permanently removes its bills, invoices, cards, activity and members.</p>
       <ApiForm action="/api/household">
         <label className="ui-check"><input type="checkbox" name="confirmation" value="delete" required /> Delete my household and its data</label>

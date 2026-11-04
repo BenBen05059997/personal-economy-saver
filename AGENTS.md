@@ -55,7 +55,7 @@ economy-saver/                           the app
 | Dev server | `npm run dev -- -p 3123` |
 | Type check | `npx tsc --noEmit -p .` |
 | Lint | `npm run lint` |
-| Database tests (no credentials; fourteen suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, pots, snapshot, split, category, isolation) | `npm run db:test` |
+| Database tests (no credentials; fifteen suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, pots, snapshot, split, category, sweep, isolation) | `npm run db:test` |
 | Regenerate `schema/household.v1.json` from the zod definition (`db:snapshot-test` fails when it is stale) | `npm run schema` |
 | Regenerate migration after schema edits | `npm run db:generate` (then commit the SQL with the schema) |
 | Apply migrations / seed one demo household / Vault probe (owner's database) | `npm run db:migrate` / `npm run db:seed` / `npm run db:vault-check` |

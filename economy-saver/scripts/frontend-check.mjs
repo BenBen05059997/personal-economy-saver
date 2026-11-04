@@ -162,12 +162,14 @@ if (args[0] === "--guards") {
     ["bill-with-schedule-without-household", "/api/bills", { method: "POST", form: { id: "x", biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year", cancelBy: "2026-11-20" } }, 401],
     ["settle-without-household", "/api/settle", { method: "POST" }, 401],
     ["remove-without-household", "/api/remove", { method: "POST" }, 401],
+    ["privacy-page-without-cookie", "/privacy", { session: "" }, 200],
     ["cron-without-bearer", "/api/cron", {}, 401],
   ];
   for (const [label, path, options, status, location] of checks) {
     await step("guard", label, async () => {
-      const { response } = await request(path, options);
+      const { response, body } = await request(path, options);
       expect(response.status === status, "guard-status");
+      if (label === "privacy-page-without-cookie") for (const word of ["Supabase", "Tokyo", "Anthropic", "seven days"]) expect(text(body).includes(word), "privacy-" + word);
       if (location) expect(response.headers.get("location") === location, "guard-redirect");
     });
   }
@@ -175,6 +177,12 @@ if (args[0] === "--guards") {
   process.exit(failures ? 1 : 0);
 }
 
+await step("page", "landing-and-start-link-to-privacy", async () => {
+  for (const path of ["/", "/start"]) {
+    const result = await request(path, { session: "" });
+    expect(result.response.status === 200 && /href="\/privacy"[^>]*>[^<]*Privacy/.test(result.body), "privacy-link-" + path);
+  }
+});
 await step("action", "create-fictional-session", async () => adopt(await request("/api/try")));
 if (!cookie) process.exit(1); // Never proceed against an unverified session.
 if (args[0] === "--extra") {
@@ -219,7 +227,7 @@ await step("page", "home-try-it-has-no-first-steps", async () => {
   expect(!/First steps/.test(pageContent(html)), "first-steps-shown");
   expect(!/Add your rent\s*,\s*your bills and the clients/.test(pageContent(html)), "empty-sentence-shown");
   // Any demo household says so on Home and links to Start with my numbers.
-  expect(/A fictional household that lives in this browser\./.test(plain(pageContent(html))) && /href="\/start"/.test(html), "demo-line-missing");
+  expect(/A fictional household that lives in this browser/.test(plain(pageContent(html))) && /href="\/start"/.test(html), "demo-line-missing");
   // The + Add menu offers the two things people add most, linking to the Home anchors the entry form opens from.
   expect(/href="\/#add-bill"[^>]*>Add a bill</.test(html) && /href="\/#add-charge"[^>]*>Add a card charge</.test(html), "add-menu-bill-and-charge");
 });
@@ -361,7 +369,7 @@ if (cookie === "") process.exit(1);
 await step("page", "start-blank-home-empty-sentence", async () => {
   const content = plain(pageContent(await page("/", /Add your rent\s*,\s*your bills and the clients who pay you to see your next 30 days/)));
   expect(content.includes("Add your rent, your bills and the clients who pay you to see your next 30 days."), "blank-sentence");
-  expect(content.includes("A fictional household that lives in this browser. Start with my numbers ›"), "blank-demo-line");
+  expect(/A fictional household that lives in this browser[^›]*Start with my numbers ›/.test(content), "blank-demo-line");
   expect(/Bank balance ¥120,000\./.test(content), "blank-bank-balance");
   expect(!/You(?:'|&#x27;)re fine/.test(content), "blank-fine-verdict");
   expect(/First steps · 3 to go/.test(content), "blank-three-steps-open");

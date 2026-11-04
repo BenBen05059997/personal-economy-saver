@@ -97,7 +97,7 @@ export function SettingsView({ data, canImportPayPal = false }: { data: Settings
       <p className="ui-hint">Download everything in this household as one JSON file: balances, cards, charges, bills, clients, invoices, pots and your activity history. It has no AI key, sign-in details or uploaded files.</p>
       <form method="post" action="/api/export"><button className="ui-button">Export my data</button></form>
     </section>
-    <section className="ui-panel"><h2>Account</h2><p className="ui-hint">{household.demo ? "This is a fictional Try it household. Sign in to start with your own balances." : "Manage sign-in and delete your household data."}</p><Link className="ui-button" prefetch={false} href="/account">Open account</Link>
+    <section className="ui-panel"><h2>Account</h2><p className="ui-hint">{household.demo ? "This is a fictional Try it household. Sign in to start with your own balances." : "Manage sign-in and delete your household data."}</p><Link className="ui-button" prefetch={false} href="/account">Open account</Link> <Link className="account-link" href="/privacy">Privacy ›</Link>
       {household.demo && <ResetDemo />}</section>
   </>;
 }
