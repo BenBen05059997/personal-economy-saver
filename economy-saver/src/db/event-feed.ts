@@ -7,7 +7,7 @@ export function publicEvent(row: typeof events.$inferSelect) {
   return {
     id: row.id, kind: row.kind, title: row.title, body: row.body,
     amountMinor: row.amountMinor, currency: row.currency, refType: row.refType, refId: row.refId,
-    occurredAt: row.occurredAt.toISOString(), notify: row.notify, readAt: row.readAt?.toISOString() ?? null,
+    madeBy: row.madeBy, occurredAt: row.occurredAt.toISOString(), notify: row.notify, readAt: row.readAt?.toISOString() ?? null,
   };
 }
 

@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const data = chargeInput.safeParse({ ...Object.fromEntries(form), category: category.data, businessBp, shared: form.get("shared") === "on" });
   if (!data.success) return badFields();
   try {
-    await insertCharge(db(), hid, data.data, "confirmed", "manual");
+    await insertCharge(db(), hid, data.data, "confirmed", "manual", { madeBy: "form" });
     return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {
     return failure(error);

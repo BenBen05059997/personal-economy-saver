@@ -26,7 +26,7 @@ export async function confirmPending(db: Db, householdId: string, kind: "bill" |
       .returning({ name: kind === "bill" ? bills.biller : charges.merchant, amount: table.amountMinor, currency: table.currency });
     if (!row) return false;
     if (kind === "charge") await syncClosedStatementCharge(tx, hid, id);
-    await recordEvent(tx, hid, {
+    await recordEvent(tx, hid, { madeBy: "form",
       kind: kind + "_confirmed",
       title: row.name + " confirmed",
       amount: { value: fromMinor(row.amount, row.currency), currency: row.currency },

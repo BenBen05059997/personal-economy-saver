@@ -24,7 +24,7 @@ export async function proposeReadings(db: Db, id: string, documentId: string, it
     const [row] = await db.insert(readings).values({
       householdId: hid, documentId, extracted: { original, proposed }, target: proposed.kind,
     }).returning({ id: readings.id });
-    await recordEvent(db, hid, { kind: "to_check", title: `Review ${proposed.name ?? proposed.kind}`, ref: { type: "reading", id: row.id }, notify: true });
+    await recordEvent(db, hid, { madeBy: "reader", kind: "to_check", title: `Review ${proposed.name ?? proposed.kind}`, ref: { type: "reading", id: row.id }, notify: true });
   }
 }
 
@@ -40,7 +40,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     if (!row) return false;
     if (!fields) {
       await tx.update(readings).set({ status: "rejected", confirmedAt: new Date() }).where(and(eq(readings.householdId, hid), eq(readings.id, readingId)));
-      await recordEvent(tx, hid, { kind: "reading_rejected", title: "Reading dismissed", ref: { type: "reading", id: readingId } });
+      await recordEvent(tx, hid, { madeBy: "reader", kind: "reading_rejected", title: "Reading dismissed", ref: { type: "reading", id: readingId } });
       return true;
     }
     if (previous === null) await observeRunway(tx, hid);
@@ -55,7 +55,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
       fx = rate.rateMicro;
       amount = convertMinor(amountMinor, currency, row.currency, fromRateMicro(fx));
     }
-    const amounts = { householdId: hid, documentId: row.documentId, amountMinor: amount, currency: row.currency, fxRateMicro: fx };
+    const amounts = { madeBy: "reader" as const, householdId: hid, documentId: row.documentId, amountMinor: amount, currency: row.currency, fxRateMicro: fx };
     if (!value.category) throw new ReaderError("Choose a category.");
     const category = { category: value.category, businessBp: value.businessBp ?? 0 };
     let targetId: string;
@@ -93,7 +93,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     }
     await tx.update(readings).set({ status: "confirmed", confirmedAt: new Date(), target: value.kind, extracted: { original, proposed, confirmed: value } })
       .where(and(eq(readings.householdId, hid), eq(readings.id, readingId)));
-    await recordEvent(tx, hid, { kind: value.kind + "_confirmed", title: name + " confirmed", ref: { type: value.kind, id: targetId },
+    await recordEvent(tx, hid, { madeBy: "reader", kind: value.kind + "_confirmed", title: name + " confirmed", ref: { type: value.kind, id: targetId },
       amount: { value: fromMinor(amount, row.currency), currency: row.currency } });
     await observeRunway(tx, hid);
     return true;

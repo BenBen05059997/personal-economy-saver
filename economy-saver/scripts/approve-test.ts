@@ -78,9 +78,9 @@ async function main() {
     assert.equal((await db.select().from(schema.invoices).where(target))[0].status, "paid");
     assert.equal((await listEvents(db, householdId)).filter(e => e.kind === "invoice_paid" && e.refId === invoice.id).length, 1);
     const draft = { id: crypto.randomUUID(), clientId: invoice.clientId, item: "Design sketches", amount: "15.45", note: "" };
-    await saveInvoiceDraft(db, householdId, draft);
-    await saveInvoiceDraft(db, householdId, draft);
-    await assert.rejects(saveInvoiceDraft(db, other, draft), /Client not found/);
+    await saveInvoiceDraft(db, householdId, draft, { madeBy: "form" });
+    await saveInvoiceDraft(db, householdId, draft, { madeBy: "form" });
+    await assert.rejects(saveInvoiceDraft(db, other, draft, { madeBy: "form" }), /Client not found/);
     const [newInvoice] = await db.select().from(schema.invoices).where(and(eq(schema.invoices.householdId, householdId), eq(schema.invoices.id, draft.id)));
     assert.equal(newInvoice.amountMinor, 1545);
     const newRemote = "INV2-FICTIONAL-15";

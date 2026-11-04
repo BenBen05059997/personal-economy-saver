@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   });
   if (!data.success) return badFields();
   try {
-    await savePot(db(), hid, data.data, "confirmed");
+    await savePot(db(), hid, data.data, "confirmed", { madeBy: "form" });
     return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {
     return failure(error);

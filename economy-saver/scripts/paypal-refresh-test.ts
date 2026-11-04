@@ -132,7 +132,7 @@ async function test() {
     await db.transaction(async tx=>{await observeRunway(tx,b)});
     await updateSettings(db,b,{kind:"household",name:"Ben",bank:"950000"});
     await updateSettings(db,b,{kind:"household",name:"Ben",bank:"0"});
-    await db.transaction(async tx=>{await recordEvent(tx,b,{kind:"daily_reminder",title:"Due soon",notify:true})});
+    await db.transaction(async tx=>{await recordEvent(tx,b,{ madeBy: "form",kind:"daily_reminder",title:"Due soon",notify:true})});
     const changes=(await listEvents(db,b)).filter(e=>["runway_clear","runway_short","daily_reminder"].includes(e.kind));
     assert.equal(changes.filter(e=>e.kind==="runway_clear").length,1);
     assert.equal(changes.filter(e=>e.kind==="runway_short").length,1);

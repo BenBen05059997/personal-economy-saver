@@ -9,14 +9,18 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { seedBen } from "@/db/seed";
 import * as s from "@/db/schema";
 import { issueMcpToken, listMcpTokens, revokeMcpToken } from "@/db/mcp-tokens";
 import { consumeRequest } from "@/db/rate-limit";
 import { mcpRequest } from "@/lib/mcp/server";
+import { MODEL_RULES } from "@/lib/agent/rules";
 
 let stage = "database setup";
+const logged: Record<string, unknown>[] = [];
+const realInfo = console.info;
+console.info = (...args: unknown[]) => { const first = String(args[0]); if (first.startsWith('{"at":')) logged.push(JSON.parse(first)); else realInfo(...args); };
 async function main() {
   process.env.MCP_TOKEN_KEY = randomBytes(32).toString("base64url");
   const pg = new PGlite();
@@ -54,9 +58,14 @@ async function main() {
     const transport = new StreamableHTTPClientTransport(endpoint, { requestInit: { headers: { Authorization: "Bearer " + token } } });
     stage = "MCP handshake";
     await client.connect(transport);
+    stage = "instructions";
+    const instructions = client.getInstructions();
+    assert.equal(instructions, MODEL_RULES);
+    assert.match(instructions!, /matches more than one[^.]*or none, ask which one/);
+    assert.ok(!/\btoday\b|JPY/i.test(instructions!), "the server cannot know the date or currency");
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_pot", "can_i_spend", "draft_invoice", "household_snapshot", "list_clients_and_cards", "list_invoices", "log_charge", "month_by_category", "options_when_short", "plan_for", "timeline", "update_bank_balance", "whats_due", "where_am_i", "who_owes_whom"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "can_i_spend", "draft_invoice", "household_snapshot", "list_clients_and_cards", "list_invoices", "log_charge", "log_charges", "month_by_category", "options_when_short", "plan_for", "timeline", "update_bank_balance", "whats_due", "where_am_i", "who_owes_whom"]);
     stage = "tool execution";
     const outlook = await client.callTool({ name: "where_am_i", arguments: {} });
     assert.match(JSON.stringify(outlook.content), /18,780 short/);
@@ -85,7 +94,31 @@ async function main() {
     const [saved] = await db.select().from(s.invoices).where(and(eq(s.invoices.householdId, hid), eq(s.invoices.id, draft.id)));
     assert.equal(saved.amountMinor, 1852);
     assert.equal(saved.status, "draft");
+    assert.deepEqual([saved.madeBy, saved.askId], ["mcp", null]);
     console.log("The terminal saved one $18.52 draft after two requests. Approval stays in the app.");
+    stage = "bulk tools";
+    const card = (await db.select().from(s.cards).where(eq(s.cards.householdId, hid)).limit(1))[0];
+    const billItem = (i: number) => ({ id: crypto.randomUUID(), biller: `MCP bulk bill ${i}`, amount: "900", due: "2026-11-27", category: null, memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, business_bp: null, shared: null, paidBy: null });
+    const chargeItem = (i: number) => ({ id: crypto.randomUUID(), cardId: card.id, merchant: `MCP bulk shop ${i}`, amount: "300", date: "2026-11-03", category: null, business_bp: null, shared: false });
+    const billItems = [billItem(0), billItem(1)], chargeItems = [chargeItem(0), chargeItem(1), chargeItem(2)];
+    const addedBills = await client.callTool({ name: "add_bills", arguments: { items: billItems } });
+    const loggedCharges = await client.callTool({ name: "log_charges", arguments: { items: chargeItems } });
+    assert.ok(!addedBills.isError && !loggedCharges.isError);
+    const bulkBills = await db.select().from(s.bills).where(and(eq(s.bills.householdId, hid), inArray(s.bills.id, billItems.map(b => b.id))));
+    const bulkCharges = await db.select().from(s.charges).where(and(eq(s.charges.householdId, hid), inArray(s.charges.id, chargeItems.map(c => c.id))));
+    assert.equal(bulkBills.length, 2);
+    assert.equal(bulkCharges.length, 3);
+    assert.ok([...bulkBills, ...bulkCharges].every(r => r.status === "pending" && r.madeBy === "mcp" && r.askId === null));
+    const refused = await client.callTool({ name: "add_bills", arguments: { items: [billItem(2), { ...billItem(3), due: "2099-01-01" }] } });
+    assert.equal(refused.isError, true);
+    assert.equal((await db.select().from(s.bills).where(and(eq(s.bills.householdId, hid), like(s.bills.biller, "MCP bulk bill %")))).length, 2, "a bad item saves none");
+    assert.equal((await client.callTool({ name: "add_bills", arguments: { items: [] } })).isError, true);
+    const mcpLines = logged.filter(l => l.at === "mcp");
+    assert.ok(mcpLines.length >= 4);
+    const lastLine = mcpLines.at(-1)!;
+    assert.deepEqual(Object.keys(lastLine).sort(), ["at", "householdId", "ms", "outcome", "stop", "tools", "turns"]);
+    assert.deepEqual([lastLine.householdId, lastLine.outcome, (lastLine.tools as { name: string; ok: boolean }[]).map(t => [t.name, t.ok])], [hid, "error", [["add_bills", false]]]);
+    assert.ok(!JSON.stringify(mcpLines).includes("MCP bulk"), "no tool argument or result in the log");
     const denied = await fetch(endpoint, { method: "POST", headers: { Origin: "https://wrong.example", Authorization: "Bearer " + token } });
     assert.equal(denied.status, 403);
     assert.equal(await revokeMcpToken(db, other, info.id), false);
@@ -95,7 +128,7 @@ async function main() {
     const readClient = new Client({ name: "read-test", version: "1.0.0" });
     try {
       await readClient.connect(new StreamableHTTPClientTransport(endpoint, { requestInit: { headers: { Authorization: "Bearer " + readOnly } } }));
-      assert.ok(!(await readClient.listTools()).tools.some(t => t.name === "draft_invoice" || t.name === "update_bank_balance" || t.name === "add_pot"));
+      assert.ok(!(await readClient.listTools()).tools.some(t => t.name === "draft_invoice" || t.name === "add_bills" || t.name === "log_charges" || t.name === "update_bank_balance" || t.name === "add_pot"));
     } finally { await readClient.close(); }
 
     stage = "rate limits";

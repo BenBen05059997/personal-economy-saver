@@ -71,7 +71,7 @@ export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): 
         latestCreditAt: sql`greatest(${paypalConnections.latestCreditAt}, ${event.create_time}::timestamptz)`,
       })
         .where(and(eq(paypalConnections.householdId, owner.householdId), eq(paypalConnections.id, connection.id)));
-      await recordEvent(tx, owner.householdId, {
+      await recordEvent(tx, owner.householdId, { madeBy: "form",
         kind: "invoice_paid",
         title: `Invoice ${paid.number ?? paid.item} paid`,
         amount: { value: fromMinor(paid.amount, paid.currency), currency: paid.currency },

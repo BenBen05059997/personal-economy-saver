@@ -31,9 +31,12 @@ function Actions({ state }: Props) {
   const unbilled = state.invoices.find((i) => i.status === "unbilled");
   const client = state.clients.find((c) => c.id === unbilled?.clientId);
   const invoiceFix = pick?.id === "invoice" && unbilled && client;
+  // D50: a late client the daily job suggested a nudge for comes first; the reminder still needs the tap on its review page.
+  const nudged = state.nudgedInvoiceIds?.map(id => state.invoices.find(i => i.id === id && i.status === "sent")).find(i => i !== undefined);
+  const nudgedClient = state.clients.find(c => c.id === nudged?.clientId);
   return <div id="actions">
     <div className="home-actions">
-      {invoiceFix ? <Link className="home-button home-primary" prefetch={false} href={`/invoices/${unbilled.id}`}>Invoice {client.name.split(" ")[0]} {usd(unbilled.amountUsd)}</Link>
+      {nudged && nudgedClient ? <Link className="home-button home-primary" prefetch={false} href={`/invoices/${nudged.id}`}>Nudge {nudgedClient.name.split(" ")[0]} {usd(nudged.amountUsd)}</Link> : invoiceFix ? <Link className="home-button home-primary" prefetch={false} href={`/invoices/${unbilled.id}`}>Invoice {client.name.split(" ")[0]} {usd(unbilled.amountUsd)}</Link>
         : pick && <Link className="home-button home-primary" prefetch={false} href={pick.id === "remind" ? "/clients" : "/options"}>{pick.title}</Link>}
       <Link className="home-button home-secondary" prefetch={false} href="/settings#forwarding">Forward a bill</Link>
       <Link className="home-button home-secondary" prefetch={false} href="/upload">Upload a receipt</Link>

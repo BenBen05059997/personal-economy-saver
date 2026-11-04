@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db } from "./household";
+import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
 import { fromMinor, parseAmountMinor } from "./money";
 import { observeRunway } from "./runway-events";
 import { clockForHousehold } from "./clock";
@@ -37,7 +37,7 @@ async function ownerName(tx: Db, hid: string, memberId: string | null): Promise<
  * who owes whom: it needs two or more members and a card that belongs to one of them, who is the payer.
  */
 export async function insertCharge(
-  db: Db, householdId: string, input: z.infer<typeof chargeInput>, status: "confirmed" | "pending", source: "manual" | "voice",
+  db: Db, householdId: string, input: z.infer<typeof chargeInput>, status: "confirmed" | "pending", source: "manual" | "voice", by: Maker,
 ): Promise<string> {
   const hid = requireHousehold(householdId);
   const data = chargeInput.parse(input);
@@ -65,14 +65,14 @@ export async function insertCharge(
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     await tx.insert(charges).values({
       id: data.id, householdId: hid, cardId: data.cardId, merchant: data.merchant, amountMinor, currency: card.currency,
-      date: data.date, shared: data.shared, category: data.category, businessBp: data.businessBp, source, status,
+      date: data.date, shared: data.shared, category: data.category, businessBp: data.businessBp, source, status, madeBy: by.madeBy, askId: by.askId ?? null,
     });
     if (status === "pending") {
-      await recordEvent(tx, hid, { kind: "to_check", title: `${data.merchant} charge to check`, ref: { type: "charge", id: data.id }, notify: true });
+      await recordEvent(tx, hid, { kind: "to_check", ...by, title: `${data.merchant} charge to check`, ref: { type: "charge", id: data.id }, notify: true });
     } else {
       await syncClosedStatementCharge(tx, hid, data.id);
       await recordEvent(tx, hid, {
-        kind: "charge_added", title: `${data.merchant} added`, ...(data.shared && { body: `Shared, paid by ${await ownerName(tx, hid, card.memberId)} (${card.label})` }),
+        kind: "charge_added", ...by, title: `${data.merchant} added`, ...(data.shared && { body: `Shared, paid by ${await ownerName(tx, hid, card.memberId)} (${card.label})` }),
         amount: { value: fromMinor(amountMinor, card.currency), currency: card.currency }, ref: { type: "charge", id: data.id },
       });
       await observeRunway(tx, hid);
@@ -98,7 +98,7 @@ export async function removeCharge(db: Db, householdId: string, id: string): Pro
     if (household.previous === null) await observeRunway(tx, hid);
     if (row.status === "confirmed") await unsyncClosedStatementCharge(tx, hid, chargeId);
     await tx.delete(charges).where(and(eq(charges.householdId, hid), eq(charges.id, chargeId)));
-    await recordEvent(tx, hid, {
+    await recordEvent(tx, hid, { madeBy: "form",
       kind: "charge_removed", title: `Removed charge ${row.merchant} ${minorMoney(row.amountMinor, Currency.parse(row.currency))}`,
       amount: { value: fromMinor(row.amountMinor, row.currency), currency: row.currency }, ref: { type: "charge", id: chargeId },
     });

@@ -21,6 +21,7 @@ export const EVENT_KIND_LABELS = {
   member_added: "Person added",
   member_renamed: "Person renamed",
   paypal_imported: "Imported from PayPal",
+  nudge_suggested: "Nudge suggested",
   pot_added: "Pot added",
   pot_filled: "Set aside for a pot",
   pot_removed: "Pot removed",

@@ -111,7 +111,7 @@ async function sendInvoice(ctx: ApprovalContext) {
       .where(and(eq(clients.householdId, ctx.householdId), eq(clients.id, invoice.clientId)));
     await tx.update(invoices).set({ status: "sent", sentOn: ctx.today, dueOn: invoice.dueOn ?? ctx.today })
       .where(invoiceWhere(ctx, invoice.id));
-    await recordEvent(tx, ctx.householdId, { kind: "invoice_sent", title: `Invoice sent to ${client.name}`,
+    await recordEvent(tx, ctx.householdId, { madeBy: "form", kind: "invoice_sent", title: `Invoice sent to ${client.name}`,
       amount: { value: fromMinor(invoice.amountMinor, invoice.currency), currency: invoice.currency }, ref: { type: "invoice", id: invoice.id } });
     await observeRunway(tx, ctx.householdId);
     return invoice.id;
@@ -136,7 +136,7 @@ async function remind(ctx: ApprovalContext) {
     await ctx.tool("send_invoice_reminder", { invoice_id: claim.remoteId }, requestId(ctx.approveKey, "R"));
     await ctx.db.transaction(async tx => {
       await tx.update(invoices).set({ remindedAt: new Date() }).where(invoiceWhere(ctx, claim.id));
-      await recordEvent(tx, ctx.householdId, { kind: "reminder_sent", title: "Invoice reminder sent", ref: { type: "invoice", id: claim.id } });
+      await recordEvent(tx, ctx.householdId, { madeBy: "form", kind: "reminder_sent", title: "Invoice reminder sent", ref: { type: "invoice", id: claim.id } });
     });
   }
   return claim.id;

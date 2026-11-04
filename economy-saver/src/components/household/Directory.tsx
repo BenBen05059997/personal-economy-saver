@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { dayLabel, formatter, usd } from "@/lib/money/format";
-import { cycle, medianLow, paybackFor, project, roomOnCard } from "@/lib/money/runway";
+import { clientPace } from "@/lib/money/pace";
+import { cycle, paybackFor, project, roomOnCard } from "@/lib/money/runway";
 import type { Card, Client, MoneyState } from "@/lib/money/types";
 import { cardSummary } from "@/components/home/card-summary";
 import { AddClientForm } from "./AddClientForm";
@@ -49,12 +50,12 @@ function CardPanel({ state, card }: { state: MoneyState; card: Card }) {
 
 function ClientPanel({ state, client }: { state: MoneyState; client: Client }) {
   const invoices = state.invoices.filter(i => i.clientId === client.id);
-  const history = client.daysToPay;
+  const pace = clientPace(client);
   return <Detail title={client.name} close="/clients">
     <p className="ui-hint">{client.email}</p>
     <dl>
       <div className="ui-row"><dt>Payment terms</dt><dd>{client.termsDays === 0 ? "Due on receipt" : `${client.termsDays} days`}</dd></div>
-      {history.length > 0 && <div className="ui-row"><dt>Time to pay</dt><dd>{medianLow(history)} days usual · {Math.max(...history)} slowest</dd></div>}
+      {pace && <div className="ui-row"><dt>Time to pay</dt><dd>{pace.usual} days usual · {pace.slowest} slowest</dd></div>}
     </dl>
     <h3>Work and invoices</h3>
     {invoices.map(invoice => <Link prefetch={false} className="ui-row directory-link" key={invoice.id} href={`/invoices/${invoice.id}`}>

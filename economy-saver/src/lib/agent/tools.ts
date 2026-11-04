@@ -5,7 +5,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { transformJSONSchema } from "@anthropic-ai/sdk/lib/transform-json-schema";
 import { z } from "zod";
-import { requireHousehold, type Db } from "@/db/household";
+import { requireHousehold, type Db, type Maker } from "@/db/household";
 import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
 import { chargeInput, insertCharge } from "@/db/charges";
@@ -22,6 +22,7 @@ import { guessCategory } from "@/lib/money/categorise";
 import { monthByCategory, monthText } from "@/lib/money/month";
 import { fundingOptions } from "@/lib/money/options";
 import { RepeatUnitSchema } from "@/lib/money/repeat";
+import { clientPace } from "@/lib/money/pace";
 import { planFor, planLine } from "@/lib/money/plan";
 import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
 import { splitBalance, splitSummary } from "@/lib/money/split";
@@ -32,6 +33,8 @@ export type ToolContext = {
   householdId: string;
   state: () => Promise<MoneyState>;
   appUrl: URL;
+  /** D50: who is calling; every row a tool writes carries it (and `askId` for Ask). */
+  madeBy: "ask" | "mcp";
   askId?: string;
   /** How the question arrived; a charge logged from it keeps this as its source. */
   source?: "voice" | "manual";
@@ -40,6 +43,8 @@ export type ToolContext = {
   /** Called when a tool leaves a row waiting in To check. */
   onPending?: () => void;
 };
+
+const by = (ctx: ToolContext): Maker => ({ madeBy: ctx.madeBy, ...(ctx.askId && { askId: ctx.askId }) });
 
 export type Tool = {
   name: string;
@@ -83,6 +88,39 @@ function categoryFor(name: string, given: z.infer<typeof categoryField>): { cate
     ? `No category was given, so it was guessed from the name: ${categoryLabel(guess.category)}. The user can change it in To check.`
     : `No category was given and the name matched none, so it is ${categoryLabel(guess.category)}. The user can choose one in To check.` };
 }
+
+/** Checks one add_bill item and turns it into what insertBill takes. Throws an InputError the model can read. */
+async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>) {
+  const { shared, paidBy, category: given, business_bp, next_amount, next_amount_from, cancel_by, ...bill } = input;
+  let paidByMemberId: string | null = null;
+  if (paidBy !== null && !shared) throw new InputError("paidBy names who pays a shared bill; set shared to true");
+  if (shared) {
+    if (bill.memberId !== null) throw new InputError("A shared bill belongs to nobody in particular; leave memberId empty");
+    if (paidBy === null) throw new InputError("Say who pays a shared bill (paidBy)");
+    if (await memberCount(ctx.db, ctx.householdId) < 2) throw new InputError("Splitting a bill needs a second person; add one in Settings, People");
+    paidByMemberId = (await memberByName(ctx.db, ctx.householdId, paidBy)).id;
+  }
+  const { category, note } = categoryFor(bill.biller, given);
+  return {
+    biller: bill.biller, note, status: "pending" as const,
+    bill: { ...bill, category, businessBp: business_bp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by },
+  };
+}
+
+function prepareCharge(input: z.infer<typeof logChargeInput>) {
+  const { category: given, business_bp, ...charge } = input;
+  const { category, note } = categoryFor(charge.merchant, given);
+  return { merchant: charge.merchant, note, charge: { ...charge, category, businessBp: business_bp ?? 0 } };
+}
+
+/** Runs one item of a bulk call; an InputError says which item (index counts from 0, like the paths in an invalid-input error). */
+async function atItem<T>(index: number, run: () => Promise<T> | T): Promise<T> {
+  try { return await run(); }
+  catch (failure) {
+    if (failure instanceof InputError) throw new InputError(`items[${index}]: ${failure.message}`);
+    throw failure;
+  }
+}
 /** The most recent rows of each long list that the agent's snapshot carries (the export has them all). */
 export const SNAPSHOT_TOOL_WINDOW = 100;
 const SCENARIOS = { as_usual: "expected", late: "worst" } as const;
@@ -110,10 +148,11 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "list_clients_and_cards", scope: "read", input: none,
-    description: "List client and card names and IDs for this household.",
+    description: "List client and card names and IDs for this household. Each client also has usualDaysToPay (the usual days from sending an invoice to being paid) and slowestDaysToPay, both null when the client has no paid invoice yet. Mention a client's pace when it bears on the answer.",
     run: async ctx => {
       const state = await ctx.state();
-      return JSON.stringify({ clients: state.clients.map(c => ({ id: c.id, name: c.name })), cards: state.cards.map(c => ({ id: c.id, label: c.label })) });
+      const pace = (c: (typeof state.clients)[number]) => { const p = clientPace(c); return { usualDaysToPay: p?.usual ?? null, slowestDaysToPay: p?.slowest ?? null }; };
+      return JSON.stringify({ clients: state.clients.map(c => ({ id: c.id, name: c.name, ...pace(c) })), cards: state.cards.map(c => ({ id: c.id, label: c.label })) });
     },
   }),
   defineTool({
@@ -155,17 +194,21 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "list_invoices", scope: "read", input: none,
-    description: "The household's 50 most recent invoices: client name, status, USD amount in cents, and sent, due and paid dates.",
+    description: "The household's 50 most recent invoices: client name, status, USD amount in cents, sent, due and paid dates, and the client's usualDaysToPay and slowestDaysToPay (days from sending to being paid; null when the client has no paid invoice yet).",
     run: async ctx => {
       const hid = requireHousehold(ctx.householdId);
+      const state = await ctx.state();
       const rows = await ctx.db.select({
-        client: clients.name, number: invoices.number, item: invoices.item, status: invoices.status,
+        clientId: clients.id, client: clients.name, number: invoices.number, item: invoices.item, status: invoices.status,
         amountMinor: invoices.amountMinor, currency: invoices.currency,
         sentOn: invoices.sentOn, dueOn: invoices.dueOn, paidOn: invoices.paidOn,
       }).from(invoices)
         .innerJoin(clients, and(eq(clients.householdId, invoices.householdId), eq(clients.id, invoices.clientId)))
         .where(eq(invoices.householdId, hid)).orderBy(desc(invoices.createdAt)).limit(50);
-      return JSON.stringify(rows);
+      return JSON.stringify(rows.map(({ clientId, ...row }) => {
+        const pace = clientPace(state.clients.find(c => c.id === clientId) ?? { daysToPay: [] } as never);
+        return { ...row, usualDaysToPay: pace?.usual ?? null, slowestDaysToPay: pace?.slowest ?? null };
+      }));
     },
   }),
   defineTool({
@@ -232,7 +275,7 @@ export const tools: Tool[] = [
     name: "draft_invoice", scope: "draft", input: draftInput,
     description: "Save a local USD invoice draft for the user to review; nothing is sent. amount is dollars, like 18.52. id is a new UUID; reuse the same id when retrying. client_id comes from list_clients_and_cards.",
     run: async (ctx, input) => {
-      const id = await saveInvoiceDraft(ctx.db, ctx.householdId, input);
+      const id = await saveInvoiceDraft(ctx.db, ctx.householdId, input, by(ctx));
       const href = new URL("/invoices/" + id, ctx.appUrl).href;
       ctx.addLink?.({ label: "Review invoice draft", href });
       return `Review the draft at ${href}.`;
@@ -242,37 +285,54 @@ export const tools: Tool[] = [
     name: "add_bill", scope: "draft", input: addBillInput,
     description: `Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800). due is YYYY-MM-DD. memberId is null for a household bill. repeat is "month" when the bill repeats every month on the due date's day (rent, phone, a subscription), "year" when it repeats every year on the due date's month and day (insurance, a domain, an annual plan), null for a one-off; it only starts repeating once the user confirms it. next_amount with next_amount_from says the amount changes from that date (a rent increase, a price rise; needs repeat, and the date is after the due date). cancel_by is the last day to cancel before the bill is charged again: the app shows it as a dated reminder and never cancels anything; it must be before the next time the bill is charged. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the name and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
     run: async (ctx, input) => {
-      const { shared, paidBy, category: given, business_bp, next_amount, next_amount_from, cancel_by, ...bill } = input;
-      let paidByMemberId: string | null = null;
-      if (paidBy !== null && !shared) throw new InputError("paidBy names who pays a shared bill; set shared to true");
-      if (shared) {
-        if (bill.memberId !== null) throw new InputError("A shared bill belongs to nobody in particular; leave memberId empty");
-        if (paidBy === null) throw new InputError("Say who pays a shared bill (paidBy)");
-        if (await memberCount(ctx.db, ctx.householdId) < 2) throw new InputError("Splitting a bill needs a second person; add one in Settings, People");
-        paidByMemberId = (await memberByName(ctx.db, ctx.householdId, paidBy)).id;
-      }
-      const { category, note } = categoryFor(bill.biller, given);
-      await insertBill(ctx.db, ctx.householdId, { ...bill, category, businessBp: business_bp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by }, "pending");
+      const { bill, status, biller, note } = await prepareBill(ctx, input);
+      await insertBill(ctx.db, ctx.householdId, bill, status, by(ctx));
       ctx.onPending?.();
-      return `${input.biller} is waiting in To check for the user to confirm. ${note}`;
+      return `${biller} is waiting in To check for the user to confirm. ${note}`;
+    },
+  }),
+  defineTool({
+    name: "add_bills", scope: "draft", input: z.object({ items: z.array(addBillInput).min(1).max(10) }),
+    description: "Add 1 to 10 bills the user tells you about in one call, when they give several at once. Each item has exactly the fields of add_bill and the same meaning (see add_bill). All of them are saved together and wait in To check until the user confirms them; if one item is invalid, none is saved and the error names the item's index (counting from 0), so fix it and send the whole list again. Each id is a new UUID; reuse the same ids when retrying.",
+    run: async (ctx, input) => {
+      const prepared: Awaited<ReturnType<typeof prepareBill>>[] = [];
+      for (const [i, item] of input.items.entries()) prepared.push(await atItem(i, () => prepareBill(ctx, item)));
+      const maker = by(ctx);
+      await ctx.db.transaction(async tx => {
+        for (const [i, p] of prepared.entries()) await atItem(i, () => insertBill(tx, ctx.householdId, p.bill, p.status, maker));
+      });
+      ctx.onPending?.();
+      return `${prepared.length} bills are waiting in To check for the user to confirm: ${prepared.map(p => `${p.biller} (${p.note})`).join(" ")}`;
     },
   }),
   defineTool({
     name: "log_charge", scope: "draft", input: logChargeInput,
     description: `Log a card purchase the user tells you about. It waits in To check until the user confirms it. amount is a plain number in the household's home currency. date is YYYY-MM-DD (today if the user does not say). card_id comes from list_clients_and_cards. shared is true when the purchase is split between the household's people (needs two or more people and a card that belongs to one of them, who paid); false otherwise. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the merchant and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
     run: async (ctx, input) => {
-      const { category: given, business_bp, ...charge } = input;
-      const { category, note } = categoryFor(charge.merchant, given);
-      await insertCharge(ctx.db, ctx.householdId, { ...charge, category, businessBp: business_bp ?? 0 }, "pending", ctx.source ?? "manual");
+      const { charge, merchant, note } = prepareCharge(input);
+      await insertCharge(ctx.db, ctx.householdId, charge, "pending", ctx.source ?? "manual", by(ctx));
       ctx.onPending?.();
-      return `${input.merchant} is waiting in To check for the user to confirm. ${note}`;
+      return `${merchant} is waiting in To check for the user to confirm. ${note}`;
+    },
+  }),
+  defineTool({
+    name: "log_charges", scope: "draft", input: z.object({ items: z.array(logChargeInput).min(1).max(10) }),
+    description: "Log 1 to 10 card purchases the user tells you about in one call, when they give several at once. Each item has exactly the fields of log_charge and the same meaning (see log_charge). All of them are saved together and wait in To check until the user confirms them; if one item is invalid, none is saved and the error names the item's index (counting from 0), so fix it and send the whole list again. Each id is a new UUID; reuse the same ids when retrying.",
+    run: async (ctx, input) => {
+      const prepared = input.items.map(prepareCharge);
+      const maker = by(ctx);
+      await ctx.db.transaction(async tx => {
+        for (const [i, p] of prepared.entries()) await atItem(i, () => insertCharge(tx, ctx.householdId, p.charge, "pending", ctx.source ?? "manual", maker));
+      });
+      ctx.onPending?.();
+      return `${prepared.length} charges are waiting in To check for the user to confirm: ${prepared.map(p => `${p.merchant} (${p.note})`).join(" ")}`;
     },
   }),
   defineTool({
     name: "add_pot", scope: "draft", input: potInput.pick({ id: true, name: true, target: true, targetDate: true, fillPct: true }),
     description: "Suggest a pot, money set aside with a reason, only when the user talks about saving for something or a payment just landed and they ask what to do. It waits in To check until the user confirms it; money in a pot is not safe to spend once confirmed. name is the reason (Car, Trip, Tax). target is a plain number in the household's home currency, or null. targetDate is YYYY-MM-DD, or null. fillPct is the share of each client payment to set aside, such as 25 for 25 percent, or null. id is a new UUID; reuse the same id when retrying.",
     run: async (ctx, input) => {
-      await savePot(ctx.db, ctx.householdId, { ...input, saved: "0", memberId: null }, "pending");
+      await savePot(ctx.db, ctx.householdId, { ...input, saved: "0", memberId: null }, "pending", by(ctx));
       ctx.onPending?.();
       return `The ${input.name} pot is waiting in To check for the user to confirm.`;
     },
@@ -281,7 +341,7 @@ export const tools: Tool[] = [
     name: "update_bank_balance", scope: "draft", input: bankBalanceInput,
     description: "Update the household's bank balance to the amount the user tells you. It waits in To check until the user confirms it; the balance does not change yet. amount is the new balance as a plain number in the household's home currency (182000 for ¥182,000; a negative number if overdrawn). id is a new UUID; reuse the same id when retrying.",
     run: async (ctx, input) => {
-      await setBankBalance(ctx.db, ctx.householdId, input, "pending");
+      await setBankBalance(ctx.db, ctx.householdId, input, "pending", by(ctx));
       ctx.onPending?.();
       return "The new bank balance is waiting in To check for the user to confirm.";
     },

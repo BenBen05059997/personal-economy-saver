@@ -4,7 +4,7 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db } from "./household";
+import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
 import { fromMinor, parseAmountMinor, parseMinor } from "./money";
 import { observeRunway } from "./runway-events";
 import { households, members, pots } from "./schema";
@@ -77,8 +77,9 @@ function changes(before: Fields, after: Fields, currency: Currency): string {
     .map(key => `${label[key]} ${old[key]} → ${now[key]}`).join("; ");
 }
 
-function addedEvent(tx: Db, hid: string, id: string, f: Fields, currency: string) {
+function addedEvent(tx: Db, hid: string, id: string, f: Fields, currency: string, by: Maker) {
   return recordEvent(tx, hid, {
+    ...by,
     kind: "pot_added", title: `${f.name} pot added`,
     ...(f.savedMinor > 0 && { amount: { value: fromMinor(f.savedMinor, currency), currency } }),
     ref: { type: "pot", id },
@@ -92,7 +93,7 @@ function addedEvent(tx: Db, hid: string, id: string, f: Fields, currency: string
  * same id with the same fields returns it again with no second event; a pending call with an id already in use by
  * different fields throws.
  */
-export async function savePot(db: Db, householdId: string, input: PotInput, status: "confirmed" | "pending"): Promise<string> {
+export async function savePot(db: Db, householdId: string, input: PotInput, status: "confirmed" | "pending", by: Maker): Promise<string> {
   const hid = requireHousehold(householdId);
   const data = potInput.parse(input);
   return db.transaction(async tx => {
@@ -110,16 +111,16 @@ export async function savePot(db: Db, householdId: string, input: PotInput, stat
       if (status !== "confirmed" || existing.status !== "confirmed") throw new InputError("This pot identifier is already in use");
       if (household.previous === null) await observeRunway(tx, hid);
       await tx.update(pots).set(fields).where(and(eq(pots.householdId, hid), eq(pots.id, data.id)));
-      await recordEvent(tx, hid, { kind: "pot_updated", title: `${fields.name} pot updated`, body: changes(before, fields, currency), ref: { type: "pot", id: data.id } });
+      await recordEvent(tx, hid, { ...by, kind: "pot_updated", title: `${fields.name} pot updated`, body: changes(before, fields, currency), ref: { type: "pot", id: data.id } });
       await observeRunway(tx, hid);
       return data.id;
     }
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
-    await tx.insert(pots).values({ id: data.id, householdId: hid, currency: household.currency, status, ...fields });
+    await tx.insert(pots).values({ id: data.id, householdId: hid, currency: household.currency, status, madeBy: by.madeBy, askId: by.askId ?? null, ...fields });
     if (status === "pending") {
-      await recordEvent(tx, hid, { kind: "to_check", title: `${fields.name} pot to check`, ref: { type: "pot", id: data.id }, notify: true });
+      await recordEvent(tx, hid, { ...by, kind: "to_check", title: `${fields.name} pot to check`, ref: { type: "pot", id: data.id }, notify: true });
     } else {
-      await addedEvent(tx, hid, data.id, fields, household.currency);
+      await addedEvent(tx, hid, data.id, fields, household.currency, by);
       await observeRunway(tx, hid);
     }
     return data.id;
@@ -139,7 +140,7 @@ export async function confirmPot(tx: Db, householdId: string, id: string): Promi
   }
   const [row] = await tx.update(pots).set({ status: "confirmed" }).where(pending).returning();
   if (!row) return false;
-  await addedEvent(tx, hid, id, row, row.currency);
+  await addedEvent(tx, hid, id, row, row.currency, { madeBy: "form" });
   await observeRunway(tx, hid);
   return true;
 }
@@ -153,7 +154,7 @@ export async function removePot(db: Db, householdId: string, id: string): Promis
     if (household.previous === null) await observeRunway(tx, hid);
     const [row] = await tx.delete(pots).where(and(eq(pots.householdId, hid), eq(pots.id, potId))).returning();
     if (!row) return false;
-    await recordEvent(tx, hid, {
+    await recordEvent(tx, hid, { madeBy: "form",
       kind: "pot_removed", title: `${row.name} pot removed`,
       ...(row.status === "confirmed" && row.savedMinor > 0 && { body: `${minorMoney(row.savedMinor, Currency.parse(row.currency))} is cash you can spend again`, amount: { value: fromMinor(row.savedMinor, row.currency), currency: row.currency } }),
       ref: { type: "pot", id: potId },
@@ -181,7 +182,7 @@ export async function fillPots(tx: Db, householdId: string, creditedMinor: numbe
     const share = Number((BigInt(creditedMinor) * BigInt(pot.fillBp!) * BigInt(2) + BigInt(10_000)) / BigInt(20_000)); // half up, exact beyond 2^53
     if (share === 0) continue;
     await tx.update(pots).set({ savedMinor: sql`${pots.savedMinor} + ${share}` }).where(and(eq(pots.householdId, hid), eq(pots.id, pot.id)));
-    await recordEvent(tx, hid, {
+    await recordEvent(tx, hid, { madeBy: "form",
       kind: "pot_filled",
       title: `Set aside ${minorMoney(share, Currency.parse(pot.currency))} for ${pot.name} (${percent(pot.fillBp!)}% of ${sourceLabel})`,
       amount: { value: fromMinor(share, pot.currency), currency: pot.currency },

@@ -9,6 +9,9 @@ import type { CategoryKey } from "./categories";
 
 export type RepeatUnit = "month" | "year";
 
+/** D50: set only when the row was not made by a form; To check shows "Drafted by Ask" / "Drafted through MCP" from it. */
+export type MadeBy = "form" | "ask" | "mcp" | "reader" | "cron" | "paypal" | "import";
+
 export type Bill = {
   id: string;
   biller: string;
@@ -26,6 +29,7 @@ export type Bill = {
   startsOn?: string; // set on each occurrence of a repeating bill: the stored due date, where the series starts (the month view needs the occurrences before today)
   startAmount?: number; // set with startsOn: the stored amount, before any change (an occurrence's own `amount` may already be the new one)
   paidBy?: string; // shared bill (D45): the member who pays it; the engine ignores it
+  madeBy?: MadeBy;
 };
 
 export type Client = {
@@ -74,6 +78,7 @@ export type Charge = {
   status: "confirmed" | "pending"; // pending = read by AI, waiting for the user to confirm
   place?: string; // city, when travelling
   shared?: true; // D45: split between the members; the card's owner paid it. The engine ignores it
+  madeBy?: MadeBy;
 };
 
 // A statement that has closed and waits to be paid. Open-cycle spend is computed from charges.
@@ -92,6 +97,7 @@ export type Pot = {
   target?: number; // home currency
   targetDate?: string; // YYYY-MM-DD
   fillPct?: number; // 25 = a quarter of each client payment
+  madeBy?: MadeBy;
 };
 
 // Who owes whom (D45). Pure input for lib/money/split.ts: whole minor units of the home currency (yen, or cents for USD),
@@ -131,6 +137,7 @@ export type MoneyState = {
   pots: Pot[]; // confirmed pots: their saved money is taken off the cash the runway starts from
   pendingPots: Pot[]; // pots waiting in To check; they count for nothing until confirmed
   cancelNotices: CancelNotice[]; // D48: dated "cancel by" rows for Coming up; information only
-  balanceUpdates: { id: string; amount: number }[]; // new bank balances waiting in To check (D42), home currency
+  balanceUpdates: { id: string; amount: number; madeBy?: MadeBy }[]; // new bank balances waiting in To check (D42), home currency
+  nudgedInvoiceIds?: string[]; // D50: sent invoices the daily job suggested a nudge for and that can still be reminded; present only while the rule is on. Home shows the first as its one action
   split: SplitState; // D45: members, shares and the shared items since the last settlement
 };

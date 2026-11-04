@@ -3,6 +3,7 @@ import type { invoiceReview } from "@/db/approval";
 import { convertMinor, fromRateMicro } from "@/db/money";
 import { Currency } from "@/lib/catalogue/types";
 import { dayLabel, minorMoney } from "@/lib/money/format";
+import { clientPace } from "@/lib/money/pace";
 import type { MoneyState } from "@/lib/money/types";
 import "./invoice.css";
 
@@ -18,6 +19,8 @@ export function InvoiceReview({ review, state }: { review: Review; state: MoneyS
     invoice.fxRateMicro === null ? state.fxPerUsd : fromRateMicro(invoice.fxRateMicro));
   const due = invoice.dueOn ? dayLabel(invoice.dueOn) : "On receipt";
   const paidOutside = !invoice.paypalInvoiceId && (draft || invoice.status === "sent");
+  const clientRow = state.clients.find(c => c.id === invoice.clientId);
+  const pace = clientRow ? clientPace(clientRow) : null;
   const label = draft ? "Approve and send" : "Approve reminder";
   return <article className="invoice-review">
     <Link prefetch={false} href="/" className="ui-hint ui-back">← Home</Link>
@@ -28,6 +31,7 @@ export function InvoiceReview({ review, state }: { review: Review; state: MoneyS
       <div className="ui-row"><dt>Due</dt><dd>{due}</dd></div>
       <div className="ui-row"><dt>Amount</dt><dd className="invoice-amount">{minorMoney(invoice.amountMinor, currency)}
         {currency !== state.homeCurrency && <small>≈ {minorMoney(homeAmount, state.homeCurrency)}</small>}</dd></div>
+      {pace && <div className="ui-row"><dt>Pace</dt><dd className="invoice-pace">{client} usually pays {pace.usual} days after you send, slowest {pace.slowest}</dd></div>}
       {invoice.note && <div className="ui-row"><dt>Note</dt><dd>{invoice.note}</dd></div>}
     </dl>
     {draft || reminder ? <form method="post" action="/api/approve">

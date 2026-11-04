@@ -274,8 +274,8 @@ async function main() {
       assert.equal(billInput.safeParse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20" }).success, false, "a bill needs a category");
       assert.equal(billInput.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "other" }).businessBp, 0, "the share defaults to personal");
       assert.equal(chargeInput.safeParse({ id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "pets" }).success, false);
-      await assert.rejects(insertBill(db, hid, { id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", businessBp: 0, memberId: null, paidByMemberId: null, repeat: null } as never, "confirmed"));
-      await assert.rejects(insertCharge(db, hid, { id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "other", businessBp: -1, shared: false } as never, "confirmed", "manual"));
+      await assert.rejects(insertBill(db, hid, { id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", businessBp: 0, memberId: null, paidByMemberId: null, repeat: null } as never, "confirmed", { madeBy: "form" }));
+      await assert.rejects(insertCharge(db, hid, { id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "other", businessBp: -1, shared: false } as never, "confirmed", "manual", { madeBy: "form" }));
       const row = { householdId: hid, biller: "Raw", amountMinor: 1, currency: "JPY", due: "2026-11-20" };
       await assert.rejects(db.insert(schema.bills).values({ ...row, category: "pets" }), "bills_category_valid");
       await assert.rejects(db.insert(schema.bills).values({ ...row, category: "Housing" }), "keys only, not labels");
@@ -290,14 +290,14 @@ async function main() {
       const hid = await seedBen(db, { isDemo: true });
       const card = (await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)))[0];
       const rent = billInput.parse({ id: randomUUID(), biller: "Fictional studio", amount: "50000", due: "2026-11-25", category: "housing", businessBp: 4000, repeat: "month" });
-      await insertBill(db, hid, rent, "confirmed");
-      await insertBill(db, hid, rent, "confirmed");
-      await assert.rejects(insertBill(db, hid, { ...rent, businessBp: 5000 }, "confirmed"), /already in use/);
-      await assert.rejects(insertBill(db, hid, { ...rent, category: "other" }, "confirmed"), /already in use/);
+      await insertBill(db, hid, rent, "confirmed", { madeBy: "form" });
+      await insertBill(db, hid, rent, "confirmed", { madeBy: "form" });
+      await assert.rejects(insertBill(db, hid, { ...rent, businessBp: 5000 }, "confirmed", { madeBy: "form" }), /already in use/);
+      await assert.rejects(insertBill(db, hid, { ...rent, category: "other" }, "confirmed", { madeBy: "form" }), /already in use/);
       const lunch = chargeInput.parse({ id: randomUUID(), cardId: card.id, merchant: "Fictional bento", amount: "900", date: "2026-11-14", category: "food", businessBp: 10_000 });
-      await insertCharge(db, hid, lunch, "confirmed", "manual");
-      await insertCharge(db, hid, lunch, "confirmed", "manual");
-      await assert.rejects(insertCharge(db, hid, { ...lunch, category: "other" }, "confirmed", "manual"), /already in use/);
+      await insertCharge(db, hid, lunch, "confirmed", "manual", { madeBy: "form" });
+      await insertCharge(db, hid, lunch, "confirmed", "manual", { madeBy: "form" });
+      await assert.rejects(insertCharge(db, hid, { ...lunch, category: "other" }, "confirmed", "manual", { madeBy: "form" }), /already in use/);
       const state = await stateOf(hid);
       const view = monthByCategory(state, state.today);
       assert.deepEqual(view.categories.find(c => c.category === "housing")!.items.map(i => [i.label, i.amountMinor, i.businessBp]).sort(), [["Fictional studio", 50_000, 4000], ["Rent", 82_000, 3000]]);
@@ -308,7 +308,7 @@ async function main() {
     // ------------------------------------------------------------ the agent and MCP tools
     await check("tools: add_bill and log_charge take category and business_bp, guess from the name when none is given and say so, and keep both through To check", async () => {
       const hid = await seedBen(db, { isDemo: true });
-      const ctx: ToolContext = { db, householdId: hid, state: () => stateOf(hid), appUrl: new URL("http://127.0.0.1:3123") };
+      const ctx: ToolContext = { madeBy: "ask", db, householdId: hid, state: () => stateOf(hid), appUrl: new URL("http://127.0.0.1:3123") };
       const tool = (name: string) => tools.find(t => t.name === name)!;
       const run = (name: string, input: unknown) => tool(name).run(ctx, tool(name).input.parse(input) as never);
       const card = (await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)))[0];
@@ -370,7 +370,7 @@ async function main() {
     await check("household scope: one household's items, categories and shares never appear in another's month", async () => {
       const one = await seedBen(db, { isDemo: true }), two = await seedBen(db, { isDemo: true });
       const card = (await db.select().from(schema.cards).where(eq(schema.cards.householdId, one)))[0];
-      await insertCharge(db, one, chargeInput.parse({ id: randomUUID(), cardId: card.id, merchant: "ZZ Only In One", amount: "777", date: "2026-11-14", category: "debt", businessBp: 10_000 }), "confirmed", "manual");
+      await insertCharge(db, one, chargeInput.parse({ id: randomUUID(), cardId: card.id, merchant: "ZZ Only In One", amount: "777", date: "2026-11-14", category: "debt", businessBp: 10_000 }), "confirmed", "manual", { madeBy: "form" });
       const stateOne = await stateOf(one), stateTwo = await stateOf(two);
       assert.ok(monthByCategory(stateOne, stateOne.today).categories.some(c => c.category === "debt" && c.items[0].label === "ZZ Only In One"));
       assert.deepEqual(summary(stateTwo), summary(benMoney), "the other household still has exactly Ben's month");

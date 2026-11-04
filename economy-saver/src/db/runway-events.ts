@@ -31,7 +31,7 @@ export async function observeRunway(db: Db, id: string, state?: MoneyState, lock
   await db.update(households).set({ runwayShort: short }).where(eq(households.id, hid));
   if (previous !== null) {
     const sentence = homeSentence(money);
-    await recordEvent(db, hid, { kind: short ? "runway_short" : "runway_clear", title: short ? "A shortfall is ahead" : "Your next 30 days are covered",
+    await recordEvent(db, hid, { madeBy: "form", kind: short ? "runway_short" : "runway_clear", title: short ? "A shortfall is ahead" : "Your next 30 days are covered",
       body: sentence.lead + " " + sentence.emphasis, notify: true });
   }
 }

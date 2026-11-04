@@ -6,7 +6,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { aiKey, AiKeyError } from "@/db/ai-key";
 import { householdDate } from "@/db/account";
@@ -14,7 +14,9 @@ import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { AgentError, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
-import { dueAnswer } from "@/lib/money/ask";
+import { dueAnswer, statusAnswer } from "@/lib/money/ask";
+import { medianLow } from "@/lib/money/runway";
+import { MODEL_RULES } from "@/lib/agent/rules";
 import { savePot } from "@/db/pots";
 import { addMember } from "@/db/people";
 import { planFor, planLine } from "@/lib/money/plan";
@@ -57,19 +59,23 @@ async function main() {
   const db = drizzle(pg, { schema });
   const saved = { key: process.env.ANTHROPIC_API_KEY, limit: process.env.ANTHROPIC_DAILY_READ_LIMIT, model: process.env.ANTHROPIC_TEXT_MODEL };
   let passed = 0;
+  const realInfo = console.info;
   async function check(name: string, run: () => Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });
     process.env.ANTHROPIC_API_KEY = KEY;
-    process.env.ANTHROPIC_DAILY_READ_LIMIT = "50";
+    process.env.ANTHROPIC_DAILY_READ_LIMIT = "500";
     process.env.ANTHROPIC_TEXT_MODEL = "fixture-text";
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     await db.update(schema.clients).set({ name: "ZZ Secret Client" }).where(eq(schema.clients.householdId, b));
     const stateOf = async (hid: string) => loadMoneyState(db, hid, await householdDate(db, hid));
     const aState = await stateOf(a), bState = await stateOf(b);
     const reads = async (hid: string) => (await db.select().from(schema.households).where(eq(schema.households.id, hid)))[0].aiReadsToday;
-    const ask = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { now?: () => number; source?: "voice" | "manual" } = {}) =>
-      runAgent({ db, householdId: hid, question, askId: crypto.randomUUID(), appUrl: APP, key: () => aiKey(db, hid), fetch, ...extra });
+    // The one log line per Ask (D50) is captured here instead of printed.
+    const logged: Record<string, unknown>[] = [];
+    console.info = (...args: unknown[]) => { const first = String(args[0]); if (first.startsWith('{"at":')) logged.push(JSON.parse(first)); else realInfo(...args); };
+    const ask = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { now?: () => number; source?: "voice" | "manual"; askId?: string } = {}) =>
+      runAgent({ db, householdId: hid, question, askId: extra.askId ?? crypto.randomUUID(), appUrl: APP, key: () => aiKey(db, hid), fetch, ...extra });
 
     await check("a question runs a tool, feeds the engine's own answer back and reserves one allowance unit per model call", async () => {
       const { fetch, bodies } = transport([
@@ -221,7 +227,7 @@ async function main() {
       const d = await seedBen(db, { isDemo: true });
       const { fetch } = transport([() => reply("tool_use", [toolUse("q", "where_am_i", {})]), () => reply("end_turn", [text("never")])]);
       await assert.rejects(ask(d, "x", fetch), AiKeyError);
-      process.env.ANTHROPIC_DAILY_READ_LIMIT = "50";
+      process.env.ANTHROPIC_DAILY_READ_LIMIT = "500";
     });
 
     await check("a missing model setting stops before any allowance is reserved", async () => {
@@ -350,7 +356,7 @@ async function main() {
       assert.ok(plan.bodies[0].system.includes("never unprompted"), "the prompt says when to offer a pot");
 
       const potId = crypto.randomUUID();
-      await savePot(db, a, { id: potId, name: "Car", target: "1200000", targetDate: "2027-03-31", saved: "200000", fillPct: null, memberId: null }, "confirmed");
+      await savePot(db, a, { id: potId, name: "Car", target: "1200000", targetDate: "2027-03-31", saved: "200000", fillPct: null, memberId: null }, "confirmed", { madeBy: "form" });
       const existing = transport([
         () => reply("tool_use", [toolUse("e", "plan_for", { target_minor: null, target_date: null, monthly_minor: 100_000, pot_id: potId })]),
         () => reply("end_turn", [text("ok")]),
@@ -421,6 +427,169 @@ async function main() {
       assert.deepEqual([saved.status, saved.memberId === null, saved.paidByMemberId !== null], ["pending", true, true]);
     });
 
+
+    await check("list_clients_and_cards and list_invoices carry each client's pace: usual and slowest days to pay, null with no paid invoice", async () => {
+      const fresh = await seedBen(db, { isDemo: true });
+      const freshState = await stateOf(fresh);
+      const { fetch, bodies } = transport([
+        () => reply("tool_use", [toolUse("lc", "list_clients_and_cards", {}), toolUse("li", "list_invoices", {})]),
+        () => reply("end_turn", [text("ok")]),
+      ]);
+      await ask(fresh, "How fast do my clients pay?", fetch);
+      const [listing, invoices] = toolResults(bodies[1]).map(r => JSON.parse(r.content));
+      const paced = freshState.clients.filter(c => c.daysToPay.length > 0);
+      assert.ok(paced.length > 0, "the sample has clients with history");
+      for (const c of freshState.clients) {
+        const row = listing.clients.find((x: { id: string }) => x.id === c.id);
+        const expected = c.daysToPay.length ? { usual: medianLow(c.daysToPay), slowest: Math.max(...c.daysToPay) } : null;
+        assert.deepEqual([row.usualDaysToPay, row.slowestDaysToPay], [expected?.usual ?? null, expected?.slowest ?? null]);
+        for (const inv of invoices.filter((i: { client: string }) => i.client === c.name)) assert.deepEqual([inv.usualDaysToPay, inv.slowestDaysToPay], [expected?.usual ?? null, expected?.slowest ?? null]);
+      }
+      assert.ok(!("clientId" in invoices[0]));
+      const none = await seedBen(db, { isDemo: true });
+      await db.update(schema.invoices).set({ paidOn: null, sentOn: null, status: "draft" }).where(eq(schema.invoices.householdId, none));
+      const bare = transport([() => reply("tool_use", [toolUse("lc", "list_clients_and_cards", {})]), () => reply("end_turn", [text("ok")])]);
+      await ask(none, "Pace?", bare.fetch);
+      assert.ok(JSON.parse(toolResults(bare.bodies[1])[0].content).clients.every((c: { usualDaysToPay: null; slowestDaysToPay: null }) => c.usualDaysToPay === null && c.slowestDaysToPay === null));
+    });
+
+    await check("the system prompt carries the rules (ask on ambiguous names, snapshot is context, mention pace, bulk tools) and the same text is what MCP gets", async () => {
+      const { fetch, bodies } = transport(() => reply("end_turn", [text("ok")]));
+      await ask(a, "Hi", fetch);
+      const system = bodies[0].system;
+      assert.ok(system.includes(aState.today) && system.includes("JPY"));
+      assert.match(system, /matches more than one[^.]*or none, ask which one/);
+      assert.match(system, /household_snapshot is background context/);
+      assert.match(system, /usualDaysToPay, slowestDaysToPay/);
+      assert.match(system, /add_bills or log_charges/);
+      assert.ok(system.includes(MODEL_RULES.split("\n").slice(1).join("\n")));
+      assert.ok(!/\btoday\b|\d{4}-\d{2}-\d{2}|JPY|home currency/i.test(MODEL_RULES), "the shared rules name neither the date nor the household's currency");
+    });
+
+    await check("add_bills and log_charges: 1-10 items, all pending in one transaction, made by ask with the question's id on every row and event; an invalid item saves none", async () => {
+      const askId = crypto.randomUUID();
+      const bills = [0, 1, 2].map(i => ({ id: crypto.randomUUID(), biller: `Bulk bill ${i}`, amount: String(1000 + i), due: aState.today, category: null, memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, business_bp: null, shared: null, paidBy: null }));
+      const charges = [0, 1].map(i => ({ id: crypto.randomUUID(), cardId: aState.cards[0].id, merchant: `Bulk shop ${i}`, amount: String(500 + i), date: aState.today, category: null, business_bp: null, shared: false }));
+      const run = transport([
+        () => reply("tool_use", [toolUse("ab", "add_bills", { items: bills }), toolUse("lc", "log_charges", { items: charges })]),
+        () => reply("end_turn", [text("Five items are in To check.")]),
+      ]);
+      const result = await ask(a, "Add these five.", run.fetch, { askId, source: "voice" });
+      assert.equal(result.pending, true);
+      const [ab, lc] = toolResults(run.bodies[1]);
+      assert.ok(!ab.is_error && !lc.is_error);
+      assert.match(ab.content, /^3 bills are waiting in To check/);
+      assert.match(lc.content, /^2 charges are waiting in To check/);
+      const billRows = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.askId, askId)));
+      const chargeRows = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, a), eq(schema.charges.askId, askId)));
+      assert.equal(billRows.length, 3);
+      assert.equal(chargeRows.length, 2);
+      assert.ok([...billRows, ...chargeRows].every(r => r.status === "pending" && r.madeBy === "ask"));
+      assert.ok(chargeRows.every(r => r.source === "voice"));
+      const ev = await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), eq(schema.events.askId, askId)));
+      assert.equal(ev.length, 5);
+      assert.ok(ev.every(e => e.kind === "to_check" && e.madeBy === "ask"));
+      // a retry with the same ids adds nothing
+      await ask(a, "Again.", transport([() => reply("tool_use", [toolUse("ab", "add_bills", { items: bills })]), () => reply("end_turn", [text("ok")])]).fetch, { askId });
+      assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.askId, askId))).length, 3);
+
+      // field paths: names the failing fields, never the values sent
+      const secret = "ZZ-secret-value-9931";
+      const badShape = [...bills.slice(0, 2).map(b => ({ ...b, id: crypto.randomUUID() })), { ...bills[2], id: crypto.randomUUID(), due: secret, amount: 5 }];
+      const invalid = transport([() => reply("tool_use", [toolUse("bad", "add_bills", { items: badShape }), toolUse("empty", "log_charges", { items: [] })]), () => reply("end_turn", [text("ok")])]);
+      await ask(a, "Bad.", invalid.fetch);
+      const [bad, empty] = toolResults(invalid.bodies[1]);
+      assert.deepEqual([bad.is_error, bad.content], [true, "Invalid input for this tool: items.2.amount, items.2.due"]);
+      assert.deepEqual([empty.is_error, empty.content], [true, "Invalid input for this tool: items"]);
+      assert.ok(!bad.content.includes(secret));
+      const tooMany = transport([() => reply("tool_use", [toolUse("many", "log_charges", { items: Array.from({ length: 11 }, () => charges[0]) })]), () => reply("end_turn", [text("ok")])]);
+      await ask(a, "Too many.", tooMany.fetch);
+      assert.equal(toolResults(tooMany.bodies[1])[0].content, "Invalid input for this tool: items");
+
+      // an item that fails inside the transaction names its index and saves none of the others
+      const ids = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
+      const items = ids.map((id, i) => ({ ...bills[0], id, biller: `Rolled back ${i}`, due: i === 2 ? "2099-01-01" : aState.today }));
+      const rolled = transport([() => reply("tool_use", [toolUse("rb", "add_bills", { items })]), () => reply("end_turn", [text("ok")])]);
+      const rolledResult = await ask(a, "One is too far out.", rolled.fetch);
+      const [rb] = toolResults(rolled.bodies[1]);
+      assert.equal(rb.is_error, true);
+      assert.match(rb.content, /^items\[2\]: /);
+      assert.equal(rolledResult.pending, false);
+      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), inArray(schema.bills.id, ids)))).length, 0, "all or nothing");
+      assert.equal((await db.select().from(schema.events).where(inArray(schema.events.refId, ids))).length, 0);
+      // the same for charges: a card of another household fails the whole call
+      const mixed = [charges[0], { ...charges[1], id: crypto.randomUUID(), cardId: bState.cards[0].id }].map((c, i) => ({ ...c, id: crypto.randomUUID(), merchant: `Rolled charge ${i}` }));
+      const mixedRun = transport([() => reply("tool_use", [toolUse("mx", "log_charges", { items: mixed })]), () => reply("end_turn", [text("ok")])]);
+      await ask(a, "Mixed.", mixedRun.fetch);
+      assert.match(toolResults(mixedRun.bodies[1])[0].content, /^items\[1\]: /);
+      assert.equal((await db.select().from(schema.charges).where(inArray(schema.charges.id, mixed.map(c => c.id)))).length, 0);
+      // the new tools are draft tools with strict schemas, and the singles stay
+      for (const name of ["add_bills", "log_charges"]) assert.equal(tools.find(t => t.name === name)!.scope, "draft");
+      assert.ok(tools.some(t => t.name === "add_bill") && tools.some(t => t.name === "log_charge"));
+    });
+
+    await check("every row and event an ask writes carries made_by 'ask' and the question's id", async () => {
+      const askId = crypto.randomUUID();
+      const ids = { draft: crypto.randomUUID(), bill: crypto.randomUUID(), charge: crypto.randomUUID(), pot: crypto.randomUUID(), bank: crypto.randomUUID() };
+      const run = transport([
+        () => reply("tool_use", [
+          toolUse("d", "draft_invoice", { id: ids.draft, clientId: aState.clients[0].id, item: "Traced", amount: "5.00", note: "" }),
+          toolUse("b", "add_bill", { id: ids.bill, biller: "Traced bill", amount: "100", due: aState.today, category: null, memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, business_bp: null, shared: null, paidBy: null }),
+          toolUse("c", "log_charge", { id: ids.charge, cardId: aState.cards[0].id, merchant: "Traced shop", amount: "100", date: aState.today, category: null, business_bp: null, shared: false }),
+          toolUse("p", "add_pot", { id: ids.pot, name: "Traced", target: null, targetDate: null, fillPct: null }),
+          toolUse("u", "update_bank_balance", { id: ids.bank, amount: "1234" }),
+        ]),
+        () => reply("end_turn", [text("Done.")]),
+      ]);
+      await ask(a, "Trace everything.", run.fetch, { askId });
+      assert.ok(toolResults(run.bodies[1]).every(r => !r.is_error));
+      const stamped = (rows: { madeBy: string; askId: string | null }[]) => rows.map(r => [r.madeBy, r.askId]);
+      const one = [["ask", askId]];
+      assert.deepEqual(stamped(await db.select().from(schema.invoices).where(eq(schema.invoices.id, ids.draft))), one);
+      assert.deepEqual(stamped(await db.select().from(schema.bills).where(eq(schema.bills.id, ids.bill))), one);
+      assert.deepEqual(stamped(await db.select().from(schema.charges).where(eq(schema.charges.id, ids.charge))), one);
+      assert.deepEqual(stamped(await db.select().from(schema.pots).where(eq(schema.pots.id, ids.pot))), one);
+      assert.deepEqual(stamped(await db.select().from(schema.balanceUpdates).where(eq(schema.balanceUpdates.id, ids.bank))), one);
+      const ev = await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), inArray(schema.events.refId, Object.values(ids))));
+      assert.ok(ev.length >= 4 && ev.every(e => e.madeBy === "ask" && e.askId === askId));
+    });
+
+    await check("one content-free log line per Ask, at every exit: its shape, and neither the question, the tool result, the answer nor the key is in it", async () => {
+      const question = "Distinctive question zq81 about my fictional dentist";
+      const answer = "Distinctive answer wx47 for you";
+      logged.length = 0;
+      const askId = crypto.randomUUID();
+      const run = transport([
+        () => reply("tool_use", [toolUse("w", "where_am_i", {}), toolUse("bad", "can_i_spend", { amount_minor: -1, card_id: null })]),
+        () => reply("end_turn", [text(answer)]),
+      ]);
+      await ask(a, question, run.fetch, { askId, source: "manual" });
+      assert.equal(logged.length, 1);
+      const [line] = logged;
+      assert.deepEqual(Object.keys(line).sort(), ["askId", "at", "householdId", "inputTokens", "ms", "outcome", "outputTokens", "source", "stop", "tools", "turns"]);
+      assert.deepEqual([line.at, line.householdId, line.askId, line.source, line.stop, line.turns, line.outcome, line.inputTokens, line.outputTokens], ["ask", a, askId, "manual", "end_turn", 2, "answer", 2, 2]);
+      const lineTools = line.tools as { name: string; ok: boolean; ms: number }[];
+      assert.deepEqual(lineTools.map(t => [t.name, t.ok]), [["where_am_i", true], ["can_i_spend", false]]);
+      assert.ok(lineTools.every(t => Number.isInteger(t.ms)) && Number.isInteger(line.ms));
+      const raw = JSON.stringify(line);
+      const result = dueAnswer(aState);
+      for (const needle of [question, answer, KEY, "dentist", "Distinctive", statusAnswer(aState)]) assert.ok(!raw.includes(needle), `the log line leaks ${needle.slice(0, 20)}`);
+      assert.ok(!raw.includes(result.slice(0, 20)) || result.length < 20);
+
+      // every failure exit logs one line with its key, and no provider message
+      logged.length = 0;
+      await assert.rejects(ask(a, question, transport(() => reply("refusal", [])).fetch));
+      await assert.rejects(ask(a, question, transport(() => reply("end_turn", [])).fetch));
+      await assert.rejects(ask(a, question, transport(() => reply("tool_use", [toolUse("again", "where_am_i", {})])).fetch), AgentError);
+      await assert.rejects(ask(a, question, transport(() => Response.json({ type: "error", error: { type: "authentication_error", message: KEY + " provider words" } }, { status: 401 })).fetch));
+      assert.deepEqual(logged.map(l => [l.outcome, l.stop]), [["refusal", "refusal"], ["empty", "end_turn"], ["turns", "tool_use"], ["api_error", "api_error"]]);
+      assert.equal((logged[2].tools as unknown[]).length, 4);
+      for (const l of logged) {
+        const text2 = JSON.stringify(l);
+        assert.ok(!text2.includes(question) && !text2.includes(KEY) && !text2.includes("provider words"));
+      }
+    });
+
     await check("no agent source can reach the send-capable PayPal runner", async () => {
       const dir = "src/lib/agent";
       for (const file of readdirSync(dir)) {
@@ -430,6 +599,7 @@ async function main() {
     });
     console.log(`Agent checks passed (${passed}).`);
   } finally {
+    console.info = realInfo;
     for (const [name, value] of Object.entries({ ANTHROPIC_API_KEY: saved.key, ANTHROPIC_DAILY_READ_LIMIT: saved.limit, ANTHROPIC_TEXT_MODEL: saved.model })) {
       if (value === undefined) delete process.env[name]; else process.env[name] = value;
     }

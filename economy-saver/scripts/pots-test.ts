@@ -173,8 +173,8 @@ async function main() {
 
     await check("savePot confirmed: stores home-currency minor units, records pot_added once, idempotent on id", async () => {
       const car = input({ name: "Car", target: "1200000", targetDate: "2027-03-31", saved: "200000", fillPct: "12.5" });
-      assert.equal(await savePot(db, a, car, "confirmed"), car.id);
-      assert.equal(await savePot(db, a, car, "confirmed"), car.id);
+      assert.equal(await savePot(db, a, car, "confirmed", { madeBy: "form" }), car.id);
+      assert.equal(await savePot(db, a, car, "confirmed", { madeBy: "form" }), car.id);
       const row = await rowOf(car.id);
       assert.deepEqual([row.householdId, row.name, row.targetMinor, row.targetDate, row.savedMinor, row.fillBp, row.currency, row.status],
         [a, "Car", 1_200_000, "2027-03-31", 200_000, 1250, "JPY", "confirmed"]);
@@ -192,24 +192,24 @@ async function main() {
         { targetDate: "2027-03-31" }, { memberId: memberB }, { name: "   " }, { name: "x".repeat(61) }]) {
         const bad = potInput.safeParse({ id: randomUUID(), name: "Fictional trip", ...over });
         if (!bad.success) continue;
-        await assert.rejects(savePot(db, a, bad.data, "confirmed"), InputError, JSON.stringify(over));
+        await assert.rejects(savePot(db, a, bad.data, "confirmed", { madeBy: "form" }), InputError, JSON.stringify(over));
         assert.equal((await db.select().from(schema.pots).where(eq(schema.pots.id, bad.data.id))).length, 0);
       }
     });
 
     await check("savePot confirmed again with new fields edits the pot and records the old and new values", async () => {
       const tax = input({ name: "Tax", saved: "10000", fillPct: "25" });
-      await savePot(db, a, tax, "confirmed");
-      await savePot(db, a, { ...tax, saved: "15000", target: "100000", fillPct: "30" }, "confirmed");
+      await savePot(db, a, tax, "confirmed", { madeBy: "form" });
+      await savePot(db, a, { ...tax, saved: "15000", target: "100000", fillPct: "30" }, "confirmed", { madeBy: "form" });
       const row = await rowOf(tax.id);
       assert.deepEqual([row.savedMinor, row.targetMinor, row.fillBp], [15_000, 100_000, 3000]);
       const updated = (await events(a, "pot_updated")).filter(e => e.refId === tax.id);
       assert.equal(updated.length, 1);
       assert.equal(updated[0].title, "Tax pot updated");
       assert.equal(updated[0].body, "Saved ¥10,000 → ¥15,000; Target none → ¥100,000; Set aside 25% → 30%");
-      await savePot(db, a, { ...tax, saved: "15000", target: "100000", fillPct: "30" }, "confirmed");
+      await savePot(db, a, { ...tax, saved: "15000", target: "100000", fillPct: "30" }, "confirmed", { madeBy: "form" });
       assert.equal((await events(a, "pot_updated")).filter(e => e.refId === tax.id).length, 1, "the same edit twice records one event");
-      await assert.rejects(savePot(db, b, tax, "confirmed"), "an id held by another household is refused");
+      await assert.rejects(savePot(db, b, tax, "confirmed", { madeBy: "form" }), "an id held by another household is refused");
       assert.equal((await rowOf(tax.id)).householdId, a);
       await removePot(db, a, tax.id);
     });
@@ -218,14 +218,14 @@ async function main() {
       await db.update(schema.households).set({ runwayShort: true, notificationDay: null }).where(eq(schema.households.id, a));
       const before = (await events(a, "runway_clear")).length;
       const car = input({ name: "Car", target: "1200000", targetDate: "2027-03-31" });
-      await savePot(db, a, car, "pending");
-      await savePot(db, a, car, "pending");
+      await savePot(db, a, car, "pending", { madeBy: "form" });
+      await savePot(db, a, car, "pending", { madeBy: "form" });
       assert.equal((await rowOf(car.id)).status, "pending");
       const checks = (await events(a, "to_check")).filter(e => e.refId === car.id);
       assert.deepEqual([checks.length, checks[0].notify, checks[0].refType], [1, true, "pot"]);
       assert.equal((await events(a, "pot_added")).filter(e => e.refId === car.id).length, 0);
-      await assert.rejects(savePot(db, a, { ...car, target: "999999" }, "pending"), InputError);
-      await assert.rejects(savePot(db, a, { ...car, target: "999999" }, "confirmed"), InputError, "a pending pot is never edited by an id reuse");
+      await assert.rejects(savePot(db, a, { ...car, target: "999999" }, "pending", { madeBy: "form" }), InputError);
+      await assert.rejects(savePot(db, a, { ...car, target: "999999" }, "confirmed", { madeBy: "form" }), InputError, "a pending pot is never edited by an id reuse");
       assert.equal((await rowOf(car.id)).targetMinor, 1_200_000);
       const state = await stateOf(a);
       assert.deepEqual([state.pots.length, state.pendingPots.map(p => p.name)], [0, ["Car"]]);
@@ -247,7 +247,7 @@ async function main() {
       await db.update(schema.households).set({ bankBalanceMinor: 67_000 + 40_000, runwayShort: false }).where(eq(schema.households.id, c));
       const shorts = (await events(c, "runway_short")).length, clears = (await events(c, "runway_clear")).length;
       const reserve = input({ name: "Reserve", saved: "30000" });
-      await savePot(db, c, reserve, "confirmed");
+      await savePot(db, c, reserve, "confirmed", { madeBy: "form" });
       assert.equal((await events(c, "runway_short")).length, shorts + 1);
       assert.equal((await first(db.select().from(schema.households).where(eq(schema.households.id, c)))).runwayShort, true);
       assert.equal(await removePot(db, c, reserve.id), true);
@@ -257,7 +257,7 @@ async function main() {
 
     await check("removePot deletes this household's pot, records pot_removed, and touches no other household's", async () => {
       const gone = input({ name: "Trip", saved: "5000" });
-      await savePot(db, a, gone, "confirmed");
+      await savePot(db, a, gone, "confirmed", { madeBy: "form" });
       assert.equal(await removePot(db, b, gone.id), false);
       assert.equal((await rowOf(gone.id)).name, "Trip");
       assert.equal(await removePot(db, a, gone.id), true);
@@ -280,8 +280,8 @@ async function main() {
       const c = await seedBen(db, { isDemo: true });
       const tax = input({ name: "Tax", fillPct: "25", saved: "1000" }), tenth = input({ name: "Tenth", fillPct: "10" });
       const car = input({ name: "Car", target: "100000" }), waiting = input({ name: "Waiting", fillPct: "50" });
-      for (const p of [tax, tenth, car]) await savePot(db, c, p, "confirmed");
-      await savePot(db, c, waiting, "pending");
+      for (const p of [tax, tenth, car]) await savePot(db, c, p, "confirmed", { madeBy: "form" });
+      await savePot(db, c, waiting, "pending", { madeBy: "form" });
       assert.equal(await db.transaction(tx => fillPots(tx, c, 37_500, "Acme Corp's payment")), 2);
       assert.deepEqual([await saved(tax.id), await saved(tenth.id), await saved(car.id), await saved(waiting.id)], [1000 + 9375, 3750, 0, 0]);
       const rows = await filled(c);
@@ -300,7 +300,7 @@ async function main() {
     await check("marking an invoice paid outside PayPal fills the pots: 25% of a $250 payment at the stored rate", async () => {
       const c = await seedBen(db, { isDemo: true });
       const tax = input({ name: "Tax", fillPct: "25" }), plain = input({ name: "Car", target: "500000" });
-      await savePot(db, c, tax, "confirmed"); await savePot(db, c, plain, "confirmed");
+      await savePot(db, c, tax, "confirmed", { madeBy: "form" }); await savePot(db, c, plain, "confirmed", { madeBy: "form" });
       const inv = await invoice(c, "Northwind", 25_000);
       const bank = async () => (await first(db.select().from(schema.households).where(eq(schema.households.id, c)))).bankBalanceMinor;
       const start = await bank();
@@ -320,7 +320,7 @@ async function main() {
     await check("a verified paid webhook fills the pots after the credit, once", async () => {
       const c = await seedBen(db, { isDemo: true }), d = await seedBen(db, { isDemo: true });
       const tax = input({ name: "Tax", fillPct: "25" }), other = input({ name: "Other", fillPct: "40" });
-      await savePot(db, c, tax, "confirmed"); await savePot(db, d, other, "confirmed");
+      await savePot(db, c, tax, "confirmed", { madeBy: "form" }); await savePot(db, d, other, "confirmed", { madeBy: "form" });
       const remote = "INV2-FICTIONAL-POTS";
       const inv = await invoice(c, "Northwind", 25_000, { paypalInvoiceId: remote });
       const connection = async (hid: string) => (await first(db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, hid)))).balanceMinor;
@@ -344,15 +344,15 @@ async function main() {
     await check("every pot read and write is scoped by household", async () => {
       const x = await seedBen(db, { isDemo: true }), y = await seedBen(db, { isDemo: true });
       const px = input({ name: "Only X", fillPct: "10", saved: "100" });
-      await savePot(db, x, px, "confirmed");
+      await savePot(db, x, px, "confirmed", { madeBy: "form" });
       assert.deepEqual((await stateOf(y)).pots, []);
       assert.equal((await stateOf(x)).pots.length, 1);
       await db.transaction(tx => fillPots(tx, y, 100_000, "Y's payment"));
       assert.equal(await saved(px.id), 100);
       assert.equal(await removePot(db, y, px.id), false);
       assert.equal(await confirmPending(db, y, "pot", px.id), false);
-      await assert.rejects(savePot(db, y, px, "confirmed"));
-      await assert.rejects(savePot(db, "", px, "confirmed"), /household id is required/);
+      await assert.rejects(savePot(db, y, px, "confirmed", { madeBy: "form" }));
+      await assert.rejects(savePot(db, "", px, "confirmed", { madeBy: "form" }), /household id is required/);
       await assert.rejects(db.transaction(tx => fillPots(tx, "", 1, "x")), /household id is required/);
       assert.equal(await saved(px.id), 100);
       assert.equal((await loadNavigationData(db, y)).pending, (await loadNavigationData(db, await seedBen(db, { isDemo: true }))).pending);

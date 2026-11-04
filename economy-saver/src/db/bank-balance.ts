@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db } from "./household";
+import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
 import { fromMinor, parseMinor } from "./money";
 import { observeRunway } from "./runway-events";
 import { balanceUpdates, households } from "./schema";
@@ -16,14 +16,14 @@ export const bankBalanceInput = z.object({
 type Locked = { id: string; currency: string; bank: number; previous: boolean | null };
 
 /** Writes the balance and its event inside a transaction that holds the household lock. No event when the value is unchanged. */
-async function applyBalance(tx: Db, hid: string, household: Locked, amountMinor: number, id: string) {
+async function applyBalance(tx: Db, hid: string, household: Locked, amountMinor: number, id: string, by: Maker) {
   if (household.previous === null) await observeRunway(tx, hid);
   if (amountMinor === household.bank) return;
   await tx.update(households).set({ bankBalanceMinor: amountMinor }).where(eq(households.id, hid));
   const currency = Currency.parse(household.currency);
   const major = (minor: number) => fromMinor(minor, household.currency);
   await recordEvent(tx, hid, {
-    kind: "bank_balance", title: `Bank balance set to ${minorMoney(amountMinor, currency)} (was ${minorMoney(household.bank, currency)})`,
+    ...by, kind: "bank_balance", title: `Bank balance set to ${minorMoney(amountMinor, currency)} (was ${minorMoney(household.bank, currency)})`,
     amount: { value: major(amountMinor), currency: household.currency }, ref: { type: "balance_update", id },
   });
   await observeRunway(tx, hid);
@@ -42,7 +42,7 @@ async function lockHousehold(tx: Db, hid: string): Promise<Locked> {
  * that waits in To check until `confirmPending` applies it (the agent and MCP). Idempotent on `id`: the same id with the
  * same amount returns it again and never applies twice; a different amount throws.
  */
-export async function setBankBalance(db: Db, householdId: string, input: z.infer<typeof bankBalanceInput>, status: "confirmed" | "pending"): Promise<string> {
+export async function setBankBalance(db: Db, householdId: string, input: z.infer<typeof bankBalanceInput>, status: "confirmed" | "pending", by: Maker): Promise<string> {
   const hid = requireHousehold(householdId);
   const data = bankBalanceInput.parse(input);
   return db.transaction(async tx => {
@@ -53,10 +53,10 @@ export async function setBankBalance(db: Db, householdId: string, input: z.infer
       if (existing.amountMinor !== amountMinor) throw new InputError("This balance update identifier is already in use");
       return data.id;
     }
-    await tx.insert(balanceUpdates).values({ id: data.id, householdId: hid, amountMinor, currency: household.currency, status });
+    await tx.insert(balanceUpdates).values({ id: data.id, householdId: hid, amountMinor, currency: household.currency, status, madeBy: by.madeBy, askId: by.askId ?? null });
     if (status === "pending") {
-      await recordEvent(tx, hid, { kind: "to_check", title: "Bank balance update to check", ref: { type: "balance_update", id: data.id }, notify: true });
-    } else await applyBalance(tx, hid, household, amountMinor, data.id);
+      await recordEvent(tx, hid, { ...by, kind: "to_check", title: "Bank balance update to check", ref: { type: "balance_update", id: data.id }, notify: true });
+    } else await applyBalance(tx, hid, household, amountMinor, data.id, by);
     return data.id;
   });
 }
@@ -69,6 +69,6 @@ export async function confirmBalanceUpdate(tx: Db, householdId: string, id: stri
   const [row] = await tx.select({ amountMinor: balanceUpdates.amountMinor }).from(balanceUpdates).where(pending);
   if (!row) return false;
   await tx.update(balanceUpdates).set({ status: "confirmed" }).where(pending);
-  await applyBalance(tx, hid, household, row.amountMinor, id);
+  await applyBalance(tx, hid, household, row.amountMinor, id, { madeBy: "form" });
   return true;
 }

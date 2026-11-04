@@ -38,7 +38,7 @@ export async function markPaidOutside(db: Db, householdId: string, invoiceId: st
       .returning({ id: invoices.id });
     if (!updated.length) return false;
     await tx.update(households).set({ bankBalanceMinor: household.bank + credit }).where(eq(households.id, hid));
-    await recordEvent(tx, hid, {
+    await recordEvent(tx, hid, { madeBy: "paypal",
       kind: "invoice_paid_outside", title: `${row.client} marked paid outside PayPal`,
       amount: { value: fromMinor(invoice.amountMinor, invoice.currency), currency: invoice.currency },
       ref: { type: "invoice", id }, notify: false,

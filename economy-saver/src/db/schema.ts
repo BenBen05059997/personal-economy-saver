@@ -48,6 +48,10 @@ export const documentKind = pgEnum("document_kind", ["upload", "email"]);
 export const documentStatus = pgEnum("document_status", ["queued", "reading", "read", "failed"]);
 export const readingStatus = pgEnum("reading_status", ["to_check", "confirmed", "rejected"]);
 export const readingTarget = pgEnum("reading_target", ["bill", "charge"]);
+// D50: who made a row or event. `ask_id` ties an Ask-made row to its question.
+export const madeBy = pgEnum("made_by", ["form", "ask", "mcp", "reader", "cron", "paypal", "import"]);
+const madeByColumn = () => madeBy("made_by").notNull().default("form");
+const askIdColumn = () => uuid("ask_id");
 
 export const households = pgTable("households", {
   id: id(),
@@ -58,6 +62,7 @@ export const households = pgTable("households", {
   isDemo: boolean("is_demo").notNull().default(false),
   forwardingLocalpart: text("forwarding_localpart"),
   runwayShort: boolean("runway_short"),
+  nudgeAfterDays: integer("nudge_after_days"), // D50: null = off; the daily job suggests a nudge this many days past due
   notificationDay: date("notification_day", { mode: "string" }),
   splitSince: date("split_since", { mode: "string" }), // D45: the day the household got its second member; null while it has one
   aiKeySecretId: uuid("ai_key_secret_id"), // the user's own key lives in Supabase Vault (D33); this is its id
@@ -65,7 +70,7 @@ export const households = pgTable("households", {
   aiReadsToday: integer("ai_reads_today").notNull().default(0),
   aiReadsDay: date("ai_reads_day", { mode: "string" }),
   createdAt: createdAt(),
-}).enableRLS();
+}, (t) => [check("households_nudge_after_days_valid", sql`${t.nudgeAfterDays} is null or ${t.nudgeAfterDays} between 1 and 60`)]).enableRLS();
 
 // Daily reference rates for each household: how many `quote` per 1 `base`.
 export const fxRates = pgTable(
@@ -175,6 +180,8 @@ export const invoices = pgTable(
     approveKey: uuid("approve_key").notNull().defaultRandom().unique(), // D37: idempotency key for Approve
     reminderAttemptedAt: timestamp("reminder_attempted_at", { withTimezone: true }),
     remindedAt: timestamp("reminded_at", { withTimezone: true }),
+    madeBy: madeByColumn(),
+    askId: askIdColumn(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -263,6 +270,8 @@ export const charges = pgTable(
     status: confirmStatus("status").notNull().default("confirmed"),
     place: text("place"),
     documentId: uuid("document_id").references(() => documents.id, { onDelete: "set null" }),
+    madeBy: madeByColumn(),
+    askId: askIdColumn(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -298,6 +307,8 @@ export const bills = pgTable(
     nextAmountMinor: minor("next_amount_minor"), // D48: the amount from next_amount_from on (occurrences on or after it)
     nextAmountFrom: date("next_amount_from", { mode: "string" }),
     cancelBy: date("cancel_by", { mode: "string" }), // D48: information only: the date to act by before the next occurrence charges
+    madeBy: madeByColumn(),
+    askId: askIdColumn(),
     createdAt: createdAt(),
   },
   (t) => [index("bills_household_idx").on(t.householdId), index("bills_due_idx").on(t.householdId, t.due),
@@ -323,6 +334,8 @@ export const balanceUpdates = pgTable(
     amountMinor: minor("amount_minor").notNull(), // the new balance; may be negative
     currency: char("currency", { length: 3 }).notNull(),
     status: confirmStatus("status").notNull().default("confirmed"),
+    madeBy: madeByColumn(),
+    askId: askIdColumn(),
     createdAt: createdAt(),
   },
   (t) => [index("balance_updates_household_idx").on(t.householdId), unique("balance_updates_household_id_uq").on(t.householdId, t.id)],
@@ -344,6 +357,8 @@ export const pots = pgTable(
     fillBp: integer("fill_bp"),
     currency: char("currency", { length: 3 }).notNull(),
     status: confirmStatus("status").notNull().default("confirmed"),
+    madeBy: madeByColumn(),
+    askId: askIdColumn(),
     createdAt: createdAt(),
   },
   (t) => [index("pots_household_idx").on(t.householdId), unique("pots_household_id_uq").on(t.householdId, t.id),
@@ -423,6 +438,8 @@ export const events = pgTable(
     notify: boolean("notify").notNull().default(false),
     readAt: timestamp("read_at", { withTimezone: true }),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    madeBy: madeByColumn(),
+    askId: askIdColumn(),
     createdAt: createdAt(),
   },
   (t) => [

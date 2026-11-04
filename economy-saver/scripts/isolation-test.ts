@@ -224,18 +224,18 @@ async function main() {
       const client = randomUUID();
       await F.insertClient(db, hid, { id: client, name: `${T} client`, email: `isolation-${l}-client@example.test`, termsDays: 14 });
       const billConfirmed = randomUUID(), billPending = randomUUID(), charge = randomUUID(), chargePending = randomUUID();
-      await F.insertBill(db, hid, billInput.parse({ id: billConfirmed, biller: `${T} rent`, amount: "80000", due: "2026-11-27", category: "housing", paidByMemberId: aki, repeat: "month" }), "confirmed");
-      await F.insertBill(db, hid, billInput.parse({ id: billPending, biller: `${T} pending bill`, amount: "3000", due: "2026-11-20", category: "utilities", repeat: "year", nextAmount: "3500", nextAmountFrom: "2027-11-20", cancelBy: "2026-11-19" }), "pending");
-      await F.insertCharge(db, hid, chargeInput.parse({ id: charge, cardId: card.id, merchant: `${T} market`, amount: "2000", date: "2026-11-12", category: "food", shared: true }), "confirmed", "manual");
-      await F.insertCharge(db, hid, chargeInput.parse({ id: chargePending, cardId: card.id, merchant: `${T} pending market`, amount: "900", date: "2026-11-13", category: "food" }), "pending", "manual");
+      await F.insertBill(db, hid, billInput.parse({ id: billConfirmed, biller: `${T} rent`, amount: "80000", due: "2026-11-27", category: "housing", paidByMemberId: aki, repeat: "month" }), "confirmed", { madeBy: "form" });
+      await F.insertBill(db, hid, billInput.parse({ id: billPending, biller: `${T} pending bill`, amount: "3000", due: "2026-11-20", category: "utilities", repeat: "year", nextAmount: "3500", nextAmountFrom: "2027-11-20", cancelBy: "2026-11-19" }), "pending", { madeBy: "form" });
+      await F.insertCharge(db, hid, chargeInput.parse({ id: charge, cardId: card.id, merchant: `${T} market`, amount: "2000", date: "2026-11-12", category: "food", shared: true }), "confirmed", "manual", { madeBy: "form" });
+      await F.insertCharge(db, hid, chargeInput.parse({ id: chargePending, cardId: card.id, merchant: `${T} pending market`, amount: "900", date: "2026-11-13", category: "food" }), "pending", "manual", { madeBy: "form" });
       const pot = randomUUID(), potPending = randomUUID();
-      await F.savePot(db, hid, potInput.parse({ id: pot, name: `${T} pot`, target: "100000", targetDate: "2027-03-01", saved: "5000", fillPct: "10" }), "confirmed");
-      await F.savePot(db, hid, potInput.parse({ id: potPending, name: `${T} pending pot` }), "pending");
+      await F.savePot(db, hid, potInput.parse({ id: pot, name: `${T} pot`, target: "100000", targetDate: "2027-03-01", saved: "5000", fillPct: "10" }), "confirmed", { madeBy: "form" });
+      await F.savePot(db, hid, potInput.parse({ id: potPending, name: `${T} pending pot` }), "pending", { madeBy: "form" });
       const balancePending = randomUUID();
-      await F.setBankBalance(db, hid, { id: balancePending, amount: String(bankYen + 1) }, "pending");
+      await F.setBankBalance(db, hid, { id: balancePending, amount: String(bankYen + 1) }, "pending", { madeBy: "form" });
       const balanceConfirmed = one(await db.select().from(schema.balanceUpdates).where(and(eq(schema.balanceUpdates.householdId, hid), eq(schema.balanceUpdates.status, "confirmed")))).id;
       const invoiceDraft = randomUUID();
-      await F.saveInvoiceDraft(db, hid, { id: invoiceDraft, clientId: client, item: `${T} invoice item`, amount: "12.34", note: `${T} invoice note` });
+      await F.saveInvoiceDraft(db, hid, { id: invoiceDraft, clientId: client, item: `${T} invoice item`, amount: "12.34", note: `${T} invoice note` }, { madeBy: "form" });
       const paypalInvoice = `ISO-${tag}-PAYPAL-INV`;
       const sent = one(await db.insert(schema.invoices).values({
         householdId: hid, clientId: client, status: "sent", number: `ISO-${tag}-1`, item: `${T} sent invoice`, amountMinor: 50_000, currency: "USD",
@@ -263,7 +263,7 @@ async function main() {
       await F.saveHouseholdKey(db, hid, key);
       const secret = one(await db.select({ id: schema.households.aiKeySecretId }).from(schema.households).where(eq(schema.households.id, hid))).id!;
       await F.consumeRequest(db, hid, "ask");
-      await F.recordEvent(db, hid, { kind: `isolation_${l}_event`, title: `${T} event`, body: `${T} event body`, notify: true });
+      await F.recordEvent(db, hid, { madeBy: "form", kind: `isolation_${l}_event`, title: `${T} event`, body: `${T} event body`, notify: true });
       return {
         hid, tag, name: T, bankYen, rateMicro, key, tokenString: issued.token, akiName,
         ids: { owner: ownerRow.id, aki, card: card.id, client, billConfirmed, billPending, charge, chargePending, pot, potPending, balanceConfirmed, balancePending,
@@ -295,7 +295,7 @@ async function main() {
       assert.ok(leaks(bState, bNeedles).length >= 5, "B's own state shows B's ids and names");
       assert.deepEqual(leaks(JSON.stringify(await F.loadMoneyState(store, A.hid, DEMO_DATE)), bNeedles), []);
       const before = await fingerprint(B.hid);
-      await F.recordEvent(store, B.hid, { kind: "isolation_b_canary", title: "Isolation B canary" });
+      await F.recordEvent(store, B.hid, { madeBy: "form", kind: "isolation_b_canary", title: "Isolation B canary" });
       assert.notEqual((await fingerprint(B.hid)).text, before.text);
     });
 
@@ -321,7 +321,7 @@ async function main() {
       can_i_spend: { amount_minor: 1_000 }, timeline: { scenario: "late" }, plan_for: { target_minor: 100_000, target_date: "2027-06-01" },
     };
     function toolContext(t: Tenant): ToolContext {
-      return { db: store, householdId: t.hid, state: () => F.loadMoneyState(store, t.hid, DEMO_DATE), appUrl: new URL("http://127.0.0.1:3123") };
+      return { madeBy: "ask", db: store, householdId: t.hid, state: () => F.loadMoneyState(store, t.hid, DEMO_DATE), appUrl: new URL("http://127.0.0.1:3123") };
     }
     const runTool = (t: Tenant, name: string, input: unknown) => {
       const tool = tools.find(x => x.name === name)!;
@@ -445,21 +445,21 @@ async function main() {
         await refuse("confirmed charge is not a pending one either", () => F.confirmPending(store, X.hid, "bill", y.billConfirmed));
       });
       await check(`${X.name} -> ${Y.name}: inserts and edits that name the other household's id, card, member or client`, async () => {
-        await mustThrow("insertBill with the other's bill id", () => F.insertBill(store, X.hid, exactBill({ id: y.billConfirmed }), "confirmed"));
-        await mustThrow("insertBill with the other's member", () => F.insertBill(store, X.hid, exactBill({ memberId: y.aki }), "confirmed"), /member of this household/);
-        await mustThrow("insertBill paid by the other's member", () => F.insertBill(store, X.hid, exactBill({ paidByMemberId: y.aki }), "pending"), /member of this household/);
+        await mustThrow("insertBill with the other's bill id", () => F.insertBill(store, X.hid, exactBill({ id: y.billConfirmed }), "confirmed", { madeBy: "form" }));
+        await mustThrow("insertBill with the other's member", () => F.insertBill(store, X.hid, exactBill({ memberId: y.aki }), "confirmed", { madeBy: "form" }), /member of this household/);
+        await mustThrow("insertBill paid by the other's member", () => F.insertBill(store, X.hid, exactBill({ paidByMemberId: y.aki }), "pending", { madeBy: "form" }), /member of this household/);
         const charge = (over: object) => chargeInput.parse({ id: randomUUID(), cardId: x.card, merchant: "Isolation probe", amount: "100", date: "2026-11-13", category: "other", ...over });
-        await mustThrow("insertCharge on the other's card", () => F.insertCharge(store, X.hid, charge({ cardId: y.card }), "confirmed", "manual"), /card of this household/);
-        await mustThrow("insertCharge with the other's charge id", () => F.insertCharge(store, X.hid, charge({ id: y.charge }), "pending", "manual"));
+        await mustThrow("insertCharge on the other's card", () => F.insertCharge(store, X.hid, charge({ cardId: y.card }), "confirmed", "manual", { madeBy: "form" }), /card of this household/);
+        await mustThrow("insertCharge with the other's charge id", () => F.insertCharge(store, X.hid, charge({ id: y.charge }), "pending", "manual", { madeBy: "form" }));
         await mustThrow("insertClient with the other's client id", () => F.insertClient(store, X.hid, { id: y.client, name: "Isolation probe", email: "isolation-probe@example.test", termsDays: 0 }));
-        await mustThrow("saveInvoiceDraft for the other's client", () => F.saveInvoiceDraft(store, X.hid, { id: randomUUID(), clientId: y.client, item: "probe", amount: "1", note: "" }), /Client not found/);
-        await mustThrow("saveInvoiceDraft with the other's invoice id", () => F.saveInvoiceDraft(store, X.hid, { id: y.invoiceDraft, clientId: x.client, item: "probe", amount: "1", note: "" }), /already in use/);
-        await mustThrow("setBankBalance with the other's update id (pending)", () => F.setBankBalance(store, X.hid, { id: y.balancePending, amount: "1" }, "pending"));
-        await mustThrow("setBankBalance with the other's update id (confirmed)", () => F.setBankBalance(store, X.hid, { id: y.balanceConfirmed, amount: "1" }, "confirmed"));
+        await mustThrow("saveInvoiceDraft for the other's client", () => F.saveInvoiceDraft(store, X.hid, { id: randomUUID(), clientId: y.client, item: "probe", amount: "1", note: "" }, { madeBy: "form" }), /Client not found/);
+        await mustThrow("saveInvoiceDraft with the other's invoice id", () => F.saveInvoiceDraft(store, X.hid, { id: y.invoiceDraft, clientId: x.client, item: "probe", amount: "1", note: "" }, { madeBy: "form" }), /already in use/);
+        await mustThrow("setBankBalance with the other's update id (pending)", () => F.setBankBalance(store, X.hid, { id: y.balancePending, amount: "1" }, "pending", { madeBy: "form" }));
+        await mustThrow("setBankBalance with the other's update id (confirmed)", () => F.setBankBalance(store, X.hid, { id: y.balanceConfirmed, amount: "1" }, "confirmed", { madeBy: "form" }));
         const pot = (over: object) => potInput.parse({ id: randomUUID(), name: "Isolation probe", ...over });
-        await mustThrow("savePot with the other's pot id (confirmed)", () => F.savePot(store, X.hid, pot({ id: y.pot }), "confirmed"));
-        await mustThrow("savePot with the other's pot id (pending)", () => F.savePot(store, X.hid, pot({ id: y.potPending }), "pending"));
-        await mustThrow("savePot owned by the other's member", () => F.savePot(store, X.hid, pot({ memberId: y.aki }), "confirmed"), /member of this household/);
+        await mustThrow("savePot with the other's pot id (confirmed)", () => F.savePot(store, X.hid, pot({ id: y.pot }), "confirmed", { madeBy: "form" }));
+        await mustThrow("savePot with the other's pot id (pending)", () => F.savePot(store, X.hid, pot({ id: y.potPending }), "pending", { madeBy: "form" }));
+        await mustThrow("savePot owned by the other's member", () => F.savePot(store, X.hid, pot({ memberId: y.aki }), "confirmed", { madeBy: "form" }), /member of this household/);
         await mustThrow("savePeople with the other's members", () => F.savePeople(store, X.hid, { people: [{ id: y.owner, name: "Probe one", percent: "50" }, { id: y.aki, name: "Probe two", percent: "50" }] }), /every person in this household/);
         await mustThrow("savePeople mixing in one of the other's members", () => F.savePeople(store, X.hid, { people: [{ id: x.owner, name: "Probe one", percent: "50" }, { id: y.aki, name: "Probe two", percent: "50" }] }), /every person in this household/);
         await mustThrow("updateSettings card of the other household", () => F.updateSettings(store, X.hid, { kind: "card", id: y.card, label: "Probe", memberId: "", closingDay: 1, dueDay: 2, limit: "" }), /Card no longer exists/);
@@ -542,7 +542,7 @@ async function main() {
       });
       await check(`${X.name}: its own writes (events, rate limit, pots, reference rate, daily run, settle, locks) leave ${Y.name} untouched`, async () => {
         const own = async (name: string, fn: () => Promise<unknown>) => { await fn(); await untouched(name); };
-        await own("recordEvent", () => F.recordEvent(store, X.hid, { kind: `isolation_${X.tag.toLowerCase()}_probe`, title: `${X.name} probe`, notify: true }));
+        await own("recordEvent", () => F.recordEvent(store, X.hid, { madeBy: "form", kind: `isolation_${X.tag.toLowerCase()}_probe`, title: `${X.name} probe`, notify: true }));
         assert.ok(await F.markRead(store, X.hid) >= 1);
         await untouched("markRead all");
         assert.equal(await F.consumeRequest(store, X.hid, "ask"), true);
@@ -658,7 +658,7 @@ async function main() {
       await db.delete(schema.events).where(eq(schema.events.householdId, oldQuiet));
       await db.delete(schema.events).where(eq(schema.events.householdId, oldReal));
       await db.delete(schema.events).where(eq(schema.events.householdId, oldBusy));
-      await F.recordEvent(store, oldBusy, { kind: "isolation_sweep_probe", title: "Recent change" });
+      await F.recordEvent(store, oldBusy, { madeBy: "form", kind: "isolation_sweep_probe", title: "Recent change" });
       const result = await F.sweepDemoHouseholds(store);
       assert.equal(result.failed, 0);
       assert.equal(result.swept, 1, "only the old quiet demo household");

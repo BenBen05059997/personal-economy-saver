@@ -19,6 +19,7 @@ const minor = z.number().int().safe().describe("Integer minor units: whole yen f
 const rateMicro = z.number().int().safe().describe("An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency.");
 const category = CategoryKeySchema.describe("One of the thirteen fixed categories; the key, not the label.");
 const businessBp = z.number().int().min(0).max(10_000).describe("The business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). Categories and shares move no money.");
+const madeBy = z.enum(["form", "ask", "mcp", "reader", "cron", "paypal", "import"]).optional().describe("Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import.");
 const status = z.enum(["confirmed", "pending"]).describe("pending = waiting in To check; it counts for nothing until the user confirms it.");
 
 const Member = z.object({
@@ -66,6 +67,7 @@ const Charge = z.object({
   category,
   businessBp,
   documentId: id.nullable(),
+  madeBy,
 }).strict();
 
 const Bill = z.object({
@@ -87,6 +89,7 @@ const Bill = z.object({
   nextAmountFrom: day.nullable().optional().describe("The first date nextAmountMinor applies on."),
   cancelBy: day.nullable().optional().describe("Information only: the last day to cancel or change the bill before its next occurrence charges. The app never cancels anything."),
   documentId: id.nullable(),
+  madeBy,
 }).strict();
 
 const Client = z.object({
@@ -112,6 +115,7 @@ const Invoice = z.object({
   paypalInvoiceId: z.string().nullable().describe("null = typed in or marked paid outside PayPal."),
   paypalStatus: z.string().nullable(),
   remindedAt: moment.nullable(),
+  madeBy,
 }).strict();
 
 const Pot = z.object({
@@ -124,6 +128,7 @@ const Pot = z.object({
   fillBp: z.number().int().min(1).max(10_000).nullable().describe("Share of each client payment added to the pot, in basis points (2500 = 25%)."),
   currency,
   status,
+  madeBy,
 }).strict();
 
 const Settlement = z.object({
@@ -143,6 +148,7 @@ const BalanceUpdate = z.object({
   currency,
   status: status.describe("confirmed = a balance the user set (history); pending = waiting in To check, the bank balance does not change until it is confirmed."),
   createdAt: moment,
+  madeBy,
 }).strict();
 
 // A reference to a document the reader has seen. No storage path, no file, no extracted text, no error text.
@@ -165,6 +171,7 @@ const Event = z.object({
   notify: z.boolean(),
   readAt: moment.nullable(),
   occurredAt: moment,
+  madeBy,
 }).strict();
 
 const Truncated = z.object({

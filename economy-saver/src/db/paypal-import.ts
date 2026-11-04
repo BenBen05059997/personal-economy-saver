@@ -87,7 +87,7 @@ export async function importPayPalHistory(db: Db, householdId: string, read: Rea
           const isNew = clientId === undefined;
           if (isNew) clientId = await insertClient(sp, hid, newClient(record, email));
           const row = await sp.insert(invoices).values({
-            householdId: hid, clientId: clientId!, status, number: record.number, item: record.number ?? "PayPal invoice",
+            householdId: hid, madeBy: "paypal", clientId: clientId!, status, number: record.number, item: record.number ?? "PayPal invoice",
             amountMinor, currency: "USD", sentOn: status === "draft" ? null : record.invoiceDate, dueOn: record.dueDate,
             paidOn: status === "paid" ? record.paidDate : null, paypalInvoiceId: record.paypalInvoiceId, paypalStatus: record.status,
           }).onConflictDoNothing({ target: invoices.paypalInvoiceId }).returning({ id: invoices.id });
@@ -102,7 +102,7 @@ export async function importPayPalHistory(db: Db, householdId: string, read: Rea
       }
     }
     if (newInvoices) {
-      await recordEvent(tx, hid, {
+      await recordEvent(tx, hid, { madeBy: "paypal",
         kind: "paypal_imported", title: `Imported ${plural(newInvoices, "invoice")} and ${plural(newClients, "client")} from PayPal`, notify: false,
       });
     }

@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db } from "./household";
+import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
 import { fromMinor, parseAmountMinor } from "./money";
 import { Currency } from "@/lib/catalogue/types";
 import { dayLabel, minorMoney } from "@/lib/money/format";
@@ -75,7 +75,7 @@ export function scheduleWords(schedule: BillSchedule, currency: Currency, today:
  * fields returns it again without a second event, different fields throw. A shared bill (no member) may name who pays it
  * (`paidByMemberId`, D45): it then counts in who owes whom.
  */
-export async function insertBill(db: Db, householdId: string, input: z.infer<typeof billInput>, status: "confirmed" | "pending"): Promise<string> {
+export async function insertBill(db: Db, householdId: string, input: z.infer<typeof billInput>, status: "confirmed" | "pending", by: Maker): Promise<string> {
   const hid = requireHousehold(householdId);
   const data = billInput.parse(input);
   return db.transaction(async tx => {
@@ -118,13 +118,14 @@ export async function insertBill(db: Db, householdId: string, input: z.infer<typ
       id: data.id, householdId: hid, memberId: data.memberId, paidByMemberId: data.paidByMemberId, biller: data.biller, amountMinor,
       currency: household.currency, due: data.due, category: data.category, businessBp: data.businessBp, status, repeatDay,
       repeatUnit: data.repeat, nextAmountMinor: schedule.nextAmountMinor, nextAmountFrom: data.nextAmountFrom, cancelBy: data.cancelBy,
+      madeBy: by.madeBy, askId: by.askId ?? null,
     });
     if (status === "pending") {
-      await recordEvent(tx, hid, { kind: "to_check", title: `${data.biller} bill to check`, ref: { type: "bill", id: data.id }, notify: true });
+      await recordEvent(tx, hid, { ...by, kind: "to_check", title: `${data.biller} bill to check`, ref: { type: "bill", id: data.id }, notify: true });
     } else {
       const body = [...(paidByName ? [`Shared, paid by ${paidByName}`] : []), ...scheduleWords(schedule, Currency.parse(household.currency), today)];
       await recordEvent(tx, hid, {
-        kind: "bill_added", title: `${data.biller} added, due ${dueLabel(data.due, today)}`,
+        kind: "bill_added", ...by, title: `${data.biller} added, due ${dueLabel(data.due, today)}`,
         ...(body.length > 0 && { body: body.join(" · ") }),
         amount: { value: fromMinor(amountMinor, household.currency), currency: household.currency }, ref: { type: "bill", id: data.id },
       });
@@ -149,7 +150,7 @@ export async function removeBill(db: Db, householdId: string, id: string): Promi
     if (household.previous === null) await observeRunway(tx, hid);
     const [row] = await tx.delete(bills).where(and(eq(bills.householdId, hid), eq(bills.id, billId))).returning();
     if (!row) return false;
-    await recordEvent(tx, hid, {
+    await recordEvent(tx, hid, { madeBy: "form",
       kind: "bill_removed", title: `Removed bill ${row.biller} ${minorMoney(row.amountMinor, Currency.parse(row.currency))}`,
       ...(row.repeatUnit !== null && { body: `Every ${row.repeatUnit}, so every occurrence is gone` }),
       amount: { value: fromMinor(row.amountMinor, row.currency), currency: row.currency }, ref: { type: "bill", id: billId },

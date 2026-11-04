@@ -78,7 +78,7 @@ export async function addMember(db: Db, householdId: string, input: z.infer<type
     if (household.splitSince === null) {
       await tx.update(households).set({ splitSince: (await householdClock(tx, hid)).today }).where(eq(households.id, hid));
     }
-    await recordEvent(tx, hid, {
+    await recordEvent(tx, hid, { madeBy: "form",
       kind: "member_added", title: `${data.name} joined the household`,
       body: "Shares: " + after.map((m, i) => `${m.name} ${percent(shares[i])}%`).join(", "), ref: { type: "member", id: added.id },
     });
@@ -114,11 +114,11 @@ export async function savePeople(db: Db, householdId: string, input: z.infer<typ
       const name = given.get(m.id)!.name;
       if (name === m.name) continue;
       await tx.update(members).set({ displayName: name }).where(and(eq(members.householdId, hid), eq(members.id, m.id)));
-      await recordEvent(tx, hid, { kind: "member_renamed", title: `${m.name} is now called ${name}`, ref: { type: "member", id: m.id } });
+      await recordEvent(tx, hid, { madeBy: "form", kind: "member_renamed", title: `${m.name} is now called ${name}`, ref: { type: "member", id: m.id } });
     }
     if (current.every((m, i) => shares[i] === m.shareBp)) return;
     for (const [i, m] of current.entries()) await tx.update(members).set({ shareBp: shares[i] }).where(and(eq(members.householdId, hid), eq(members.id, m.id)));
-    await recordEvent(tx, hid, {
+    await recordEvent(tx, hid, { madeBy: "form",
       kind: "shares_updated", title: "Shared-cost shares updated",
       body: current.map((m, i) => `${given.get(m.id)!.name} ${percent(m.shareBp)}% → ${percent(shares[i])}%`).join("; "),
     });

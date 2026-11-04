@@ -31,7 +31,7 @@ export async function settleUp(db: Db, householdId: string): Promise<{ fromId: s
       const [row] = await tx.insert(settlements).values({
         householdId: hid, fromMemberId: t.fromId, toMemberId: t.toId, amountMinor: t.amountMinor, currency: home, through: today, settledAt: sql`now()`, // the database clock, the one that stamps created_at
       }).returning({ id: settlements.id });
-      await recordEvent(tx, hid, {
+      await recordEvent(tx, hid, { madeBy: "form",
         kind: "settled", title: `${t.fromName} paid ${t.toName} ${minorMoney(t.amountMinor, home)}`, body: `Shared costs settled through ${dayLabel(today)}`,
         amount: { value: fromMinor(t.amountMinor, home), currency: home }, ref: { type: "settlement", id: row.id },
       });

@@ -114,7 +114,7 @@ async function main() {
       const real = await seedBen(db);
       assert.equal(await resetDemoHousehold(store, real), null);
       assert.equal(await exists(real), true);
-      await recordEvent(store, fresh, { kind: "sweep_probe", title: "A change" });
+      await recordEvent(store, fresh, { madeBy: "form", kind: "sweep_probe", title: "A change" });
     });
   } finally {
     await pg.close();

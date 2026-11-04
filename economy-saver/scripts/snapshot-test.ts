@@ -70,12 +70,12 @@ async function main() {
     // Pots, a pending balance update, a document and a pending charge for A; secrets planted in A and B.
     const car = potInput.parse({ id: randomUUID(), name: "Car", target: "1200000", targetDate: "2027-03-31", saved: "200000", fillPct: "12.5" });
     const trip = potInput.parse({ id: randomUUID(), name: "Trip" });
-    await savePot(db, a, car, "confirmed");
-    await savePot(db, a, trip, "pending");
+    await savePot(db, a, car, "confirmed", { madeBy: "form" });
+    await savePot(db, a, trip, "pending", { madeBy: "form" });
     const yearlyBill = billInput.parse({ id: randomUUID(), biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year", nextAmount: "13000", nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20" });
-    await insertBill(db, a, yearlyBill, "confirmed");
+    await insertBill(db, a, yearlyBill, "confirmed", { madeBy: "form" });
     const pendingBalance = randomUUID();
-    await setBankBalance(db, a, { id: pendingBalance, amount: "123456" }, "pending");
+    await setBankBalance(db, a, { id: pendingBalance, amount: "123456" }, "pending", { madeBy: "form" });
     const docId = randomUUID();
     await db.insert(schema.documents).values({ id: docId, householdId: a, kind: "upload", storagePath: SECRET_VALUES.storagePath, mime: "image/png", status: "failed", error: SECRET_VALUES.documentError });
     await db.insert(schema.readings).values({ householdId: a, documentId: docId, extracted: { marker: SECRET_VALUES.readingMarker }, target: "bill" });
@@ -186,6 +186,18 @@ async function main() {
       assert.deepEqual([charge.status, charge.source, charge.documentId], ["pending", "voice", docId]);
     });
 
+    await check("D50: madeBy is on the charges, bills, invoices, pots, balance updates and events, and the schema keeps it optional (version 1)", () => {
+      const lists = [snap.charges, snap.bills, snap.invoices, snap.pots, snap.balanceUpdates, full.events ?? []];
+      for (const list of lists) {
+        assert.ok(list.length > 0);
+        for (const row of list) assert.ok(["form", "ask", "mcp", "reader", "cron", "paypal", "import"].includes(row.madeBy ?? ""), JSON.stringify(row));
+      }
+      assert.equal(snap.version, 1);
+      const old = JSON.parse(JSON.stringify(snap.pots[0])) as Record<string, unknown>;
+      delete old.madeBy;
+      assert.deepEqual(HouseholdSnapshot.parse({ ...JSON.parse(JSON.stringify(snap)), pots: [old] }).pots.length, 1, "a snapshot without madeBy still parses");
+    });
+
     await check("documents are references only", () => {
       assert.deepEqual(snap.documents, [{ id: docId, kind: "upload", status: "failed", createdAt: snap.documents[0].createdAt }]);
     });
@@ -252,7 +264,7 @@ async function main() {
       assert.deepEqual(tool.input.safeParse({}).success, true);
       assert.equal(tool.input.safeParse({ extra: 1 }).success, false);
       assert.match(tool.description, new RegExp(`${SNAPSHOT_TOOL_WINDOW} most recent`));
-      const ctx = { db, householdId: a, appUrl: new URL("http://127.0.0.1:3123"), state: () => Promise.reject(new Error("the snapshot reads no engine state")) };
+      const ctx = { madeBy: "mcp" as const, db, householdId: a, appUrl: new URL("http://127.0.0.1:3123"), state: () => Promise.reject(new Error("the snapshot reads no engine state")) };
       const out = await tool.run(ctx, {} as never);
       const parsed = HouseholdSnapshot.parse(JSON.parse(out));
       assert.equal(parsed.household.id, a);

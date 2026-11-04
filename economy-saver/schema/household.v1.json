@@ -403,6 +403,19 @@
                 "type": "null"
               }
             ]
+          },
+          "madeBy": {
+            "type": "string",
+            "enum": [
+              "form",
+              "ask",
+              "mcp",
+              "reader",
+              "cron",
+              "paypal",
+              "import"
+            ],
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
           }
         },
         "required": [
@@ -617,6 +630,19 @@
                 "type": "null"
               }
             ]
+          },
+          "madeBy": {
+            "type": "string",
+            "enum": [
+              "form",
+              "ask",
+              "mcp",
+              "reader",
+              "cron",
+              "paypal",
+              "import"
+            ],
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
           }
         },
         "required": [
@@ -796,6 +822,19 @@
               }
             ],
             "description": "An instant, ISO 8601 in UTC."
+          },
+          "madeBy": {
+            "type": "string",
+            "enum": [
+              "form",
+              "ask",
+              "mcp",
+              "reader",
+              "cron",
+              "paypal",
+              "import"
+            ],
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
           }
         },
         "required": [
@@ -900,6 +939,19 @@
               "pending"
             ],
             "description": "pending = waiting in To check; it counts for nothing until the user confirms it."
+          },
+          "madeBy": {
+            "type": "string",
+            "enum": [
+              "form",
+              "ask",
+              "mcp",
+              "reader",
+              "cron",
+              "paypal",
+              "import"
+            ],
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
           }
         },
         "required": [
@@ -1008,6 +1060,19 @@
             "type": "string",
             "format": "date-time",
             "description": "An instant, ISO 8601 in UTC."
+          },
+          "madeBy": {
+            "type": "string",
+            "enum": [
+              "form",
+              "ask",
+              "mcp",
+              "reader",
+              "cron",
+              "paypal",
+              "import"
+            ],
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
           }
         },
         "required": [
@@ -1180,6 +1245,19 @@
             "type": "string",
             "format": "date-time",
             "description": "An instant, ISO 8601 in UTC."
+          },
+          "madeBy": {
+            "type": "string",
+            "enum": [
+              "form",
+              "ask",
+              "mcp",
+              "reader",
+              "cron",
+              "paypal",
+              "import"
+            ],
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
           }
         },
         "required": [

@@ -111,7 +111,13 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
   const inUsd = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, "USD", fxPerUsd), "USD");
   const toHome = (minor: number, currency: string) => convertMinor(minor, currency, home, fxPerUsd);
 
-  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows, balanceRows, potRows, split] = await Promise.all([
+  // D50: only while the standing rule is on. A nudge counts while its invoice is still sent, unreminded and linked to PayPal.
+  const nudged = household.nudgeAfterDays === null ? undefined : db.select({ id: s.invoices.id }).from(s.events)
+    .innerJoin(s.invoices, and(eq(s.invoices.householdId, hid), eq(s.invoices.id, s.events.refId)))
+    .where(and(eq(s.events.householdId, hid), eq(s.events.kind, "nudge_suggested"), eq(s.events.refType, "invoice"),
+      eq(s.invoices.status, "sent"), isNull(s.invoices.remindedAt), isNull(s.invoices.reminderAttemptedAt), isNotNull(s.invoices.paypalInvoiceId)))
+    .orderBy(s.events.occurredAt, s.events.id);
+  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows, balanceRows, potRows, split, nudgedRows] = await Promise.all([
     db.select().from(s.paypalConnections).where(eq(s.paypalConnections.householdId, hid)),
     db.select().from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(s.bills.due, s.bills.biller),
     db.select().from(s.cards).where(eq(s.cards.householdId, hid)).orderBy(s.cards.createdAt, s.cards.label),
@@ -130,6 +136,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     db.select().from(s.balanceUpdates).where(and(eq(s.balanceUpdates.householdId, hid), eq(s.balanceUpdates.status, "pending"))).orderBy(s.balanceUpdates.createdAt, s.balanceUpdates.id),
     db.select().from(s.pots).where(eq(s.pots.householdId, hid)).orderBy(s.pots.createdAt, s.pots.name, s.pots.id),
     loadSplitState(db, hid, household.splitSince, today, toHome),
+    nudged ?? Promise.resolve(undefined),
   ]);
 
   const paypalMinor = paypalTotalMinor(connections, home, fxPerUsd);
@@ -148,6 +155,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     ...(b.nextAmountMinor !== null && b.nextAmountFrom !== null && { nextAmount: inHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }),
     ...(b.cancelBy !== null && { cancelBy: b.cancelBy }),
     ...(b.paidByMemberId !== null && { paidBy: b.paidByMemberId }),
+    ...(b.madeBy !== "form" && { madeBy: b.madeBy }),
   }));
 
   const cards: Card[] = cardRows.map((c) => ({
@@ -175,6 +183,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     status: c.status,
     ...(c.place !== null && { place: c.place }),
     ...(c.shared && { shared: true as const }),
+    ...(c.madeBy !== "form" && { madeBy: c.madeBy }),
   }));
 
   const statements: ClosedStatement[] = statementRows.map((st) => ({
@@ -222,6 +231,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     ...(p.targetMinor !== null && { target: inHome(p.targetMinor, p.currency) }),
     ...(p.targetDate !== null && { targetDate: p.targetDate }),
     ...(p.fillBp !== null && { fillPct: p.fillBp / 100 }),
+    ...(p.madeBy !== "form" && { madeBy: p.madeBy }),
   });
 
   const state: MoneyState = {
@@ -239,7 +249,8 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     pots: potRows.filter((p) => p.status === "confirmed").map(toPot),
     pendingPots: potRows.filter((p) => p.status === "pending").map(toPot),
     cancelNotices: cancelNotices(storedBills, today),
-    balanceUpdates: balanceRows.map((u) => ({ id: u.id, amount: inHome(u.amountMinor, u.currency) })),
+    balanceUpdates: balanceRows.map((u) => ({ id: u.id, amount: inHome(u.amountMinor, u.currency), ...(u.madeBy !== "form" && { madeBy: u.madeBy }) })),
+    ...(nudgedRows && { nudgedInvoiceIds: nudgedRows.map(row => row.id) }),
     split,
   };
   // D41: monthly bills become their occurrences up to the last day the engine looks at. planWindow reads only cards,
@@ -250,7 +261,13 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
 
 // ---------------------------------------------------------------- events (D35)
 
+export type MadeBy = (typeof s.madeBy.enumValues)[number];
+/** D50: who made a row or event; `askId` ties an Ask-made one to its question. Required wherever a row is written. */
+export type Maker = { madeBy: MadeBy; askId?: string };
+
 export type NewEvent = {
+  madeBy: MadeBy;
+  askId?: string;
   kind: string;
   title: string;
   body?: string;
@@ -288,6 +305,8 @@ export async function recordEvent(db: Db, householdId: string, e: NewEvent): Pro
       refType: e.ref?.type ?? null,
       refId: e.ref?.id ?? null,
       notify,
+      madeBy: e.madeBy,
+      askId: e.askId ?? null,
       ...(occurredAt && { occurredAt }),
     })
     .returning({ id: s.events.id });

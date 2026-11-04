@@ -240,7 +240,8 @@ await step("page", "seeded-invoice-review-read-only", async () => {
   const id = home?.match(/href="\/invoices\/([0-9a-f-]{36})"/i)?.[1]
     ?? (home && flight(home).match(/"href"\s*:\s*"\/invoices\/([0-9a-f-]{36})"/i)?.[1]);
   expect(id, "invoice-link");
-  await page("/invoices/" + id, /Review invoice/);
+  const review = plain(pageContent(await page("/invoices/" + id, /Review invoice/)));
+  expect(review.includes("Beacon Studio usually pays 2 days after you send, slowest 3"), "invoice-review-client-pace");
 });
 const initial = await step("read", "events-before-actions", events);
 await step("action", "mark-notification-read", async () => {
@@ -339,6 +340,27 @@ await step("action", "settings-invalid-input", async () => {
 await step("action", "settings-save-fictional-name", async () => {
   const result = await request("/api/settings", { method: "POST", form: { kind: "household", name: "Fictional Check", bank: "67000" } });
   expect(result.response.status === 200 && result.body === "Settings saved", "save-settings-result");
+});
+// D50: the one standing rule. Off by default; 1 to 60 or empty; it only suggests (the page says sending still needs the tap).
+await step("page", "settings-nudge-is-off-and-says-it-only-suggests", async () => {
+  const content = plain(pageContent(await page("/settings", /Suggest a nudge when a client is N days past due/)));
+  expect(content.includes("It only suggests. Sending a reminder still needs your tap."), "nudge-hint");
+});
+await step("guard", "settings-nudge-out-of-range-refused", async () => {
+  for (const afterDays of ["0", "61", "2.5", "abc"]) {
+    const result = await request("/api/settings", { method: "POST", form: { kind: "nudge", afterDays } });
+    expect(result.response.status === 400, "nudge-refused-" + afterDays);
+  }
+});
+await step("action", "settings-nudge-on-then-off", async () => {
+  const on = await request("/api/settings", { method: "POST", form: { kind: "nudge", afterDays: "5" } });
+  expect(on.response.status === 200 && on.body === "Settings saved", "nudge-on-result");
+  const shown = (await request("/settings")).body;
+  expect(/name="afterDays"[^>]*value="5"|value="5"[^>]*name="afterDays"/.test(shown) || /"name"\s*:\s*"afterDays"[^}]*"(?:defaultValue|value)"\s*:\s*"?5/.test(flight(shown)), "nudge-saved-value");
+  await page("/activity", /Nudge suggestions on, 5 days past due/);
+  const off = await request("/api/settings", { method: "POST", form: { kind: "nudge", afterDays: "" } });
+  expect(off.response.status === 200, "nudge-off-result");
+  await page("/activity", /Nudge suggestions turned off/);
 });
 await step("page", "settings-reload-saved-name", async () => {
   const html = await page("/settings", /Settings/);

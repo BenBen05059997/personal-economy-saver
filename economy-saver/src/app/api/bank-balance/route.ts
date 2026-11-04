@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const data = bankBalanceInput.safeParse(Object.fromEntries(form));
   if (!data.success) return badFields();
   try {
-    await setBankBalance(db(), hid, data.data, "confirmed");
+    await setBankBalance(db(), hid, data.data, "confirmed", { madeBy: "form" });
     return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {
     return failure(error);

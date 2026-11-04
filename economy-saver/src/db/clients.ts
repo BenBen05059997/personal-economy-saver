@@ -26,7 +26,7 @@ export async function insertClient(db: Db, householdId: string, input: z.infer<t
       return data.id;
     }
     await tx.insert(clients).values({ id: data.id, householdId: hid, name: data.name, email: data.email, termsDays: data.termsDays });
-    await recordEvent(tx, hid, { kind: "client_added", title: `${data.name} added as a client`, ref: { type: "client", id: data.id } });
+    await recordEvent(tx, hid, { madeBy: "form", kind: "client_added", title: `${data.name} added as a client`, ref: { type: "client", id: data.id } });
     return data.id;
   });
 }

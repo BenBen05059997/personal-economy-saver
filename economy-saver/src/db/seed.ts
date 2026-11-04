@@ -51,7 +51,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
         .insert(s.bills)
         .values(
           benStoredBills.map((b) => ({
-            householdId: hid,
+            householdId: hid, madeBy: "form" as const,
             biller: b.biller,
             amountMinor: toMinor(b.amount, home),
             currency: home,
@@ -72,7 +72,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
       c.daysToPay.forEach((days, i) => {
         const sentOn = addDays(HISTORY_START, i * HISTORY_STEP_DAYS);
         history.push({
-          householdId: hid,
+          householdId: hid, madeBy: "form" as const,
           clientId: clientIds.get(c.id)!,
           status: "paid",
           number: `H-${c.id.slice(2, 5)}-${i + 1}`,
@@ -92,7 +92,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
     const at = (iso: string) => new Date(`${iso}+09:00`);
     const eventInsert = tx.insert(s.events).values([
       {
-        householdId: hid,
+        householdId: hid, madeBy: "form" as const,
         kind: "invoice_sent",
         title: "Invoice 1038 sent to Northwind",
         amountMinor: toMinor(800, "USD"),
@@ -102,7 +102,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
       ...(pending
         ? [
             {
-              householdId: hid,
+              householdId: hid, madeBy: "form" as const,
               kind: "to_check",
               title: "Hikari Denki bill is higher than last month",
               amountMinor: pending.amountMinor,
@@ -139,7 +139,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
       tx.insert(s.invoices).values([
         ...history,
         ...m.invoices.map((i) => ({
-          householdId: hid,
+          householdId: hid, madeBy: "form" as const,
           clientId: clientIds.get(i.clientId)!,
           status: i.status,
           number: i.number ?? null,
@@ -167,7 +167,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
       ),
       tx.insert(s.charges).values(
         m.charges.map((c) => ({
-          householdId: hid,
+          householdId: hid, madeBy: "form" as const,
           cardId: cardIds.get(c.cardId)!,
           merchant: c.merchant,
           amountMinor: toMinor(c.amount, home),

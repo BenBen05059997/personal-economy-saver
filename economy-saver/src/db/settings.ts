@@ -19,6 +19,7 @@ export const settingsInput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("card"), id: z.union([z.string().uuid(), z.literal("")]), label: name,
     memberId, closingDay: z.coerce.number().int().min(1).max(31), dueDay: z.coerce.number().int().min(1).max(31),
     limit: z.union([amount, z.literal("")]) }),
+  z.object({ kind: z.literal("nudge"), afterDays: z.union([z.literal(""), z.coerce.number().int().min(1).max(60)]) }), // D50: "" = off
   z.object({ kind: z.literal("bill-owner"), id: z.string().uuid(), memberId, paidByMemberId: memberId.default("") }), // D45: a shared bill (memberId "") may name who pays it
 ]);
 
@@ -26,7 +27,7 @@ export async function loadSettings(db: Db, householdId: string) {
   const hid = requireHousehold(householdId);
   const [household] = await db.select({ name: households.name, currency: households.homeCurrency,
     bank: households.bankBalanceMinor, timeZone: households.timeZone, demo: households.isDemo,
-    aiKeyHint: households.aiKeyHint, aiReadsDay: households.aiReadsDay, aiReadsToday: households.aiReadsToday })
+    aiKeyHint: households.aiKeyHint, aiReadsDay: households.aiReadsDay, aiReadsToday: households.aiReadsToday, nudgeAfterDays: households.nudgeAfterDays })
     .from(households).where(eq(households.id, hid));
   if (!household) throw new SettingsError("Household no longer exists");
   const [people, cardRows, billRows] = await Promise.all([
@@ -42,7 +43,7 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
   const hid = requireHousehold(householdId);
   const data = settingsInput.parse(input);
   await db.transaction(async tx => {
-    const [household] = await tx.select({ currency: households.homeCurrency, bank: households.bankBalanceMinor, name: households.name }).from(households).where(eq(households.id, hid)).for("update");
+    const [household] = await tx.select({ currency: households.homeCurrency, bank: households.bankBalanceMinor, name: households.name, nudgeAfterDays: households.nudgeAfterDays }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new SettingsError("Household no longer exists");
     await beginMoneyChange(tx, hid);
     for (const memberRef of [data.kind === "bill-owner" || data.kind === "card" ? data.memberId : "", data.kind === "bill-owner" ? data.paidByMemberId : ""]) {
@@ -56,7 +57,11 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
       if (data.name !== household.name) title = `Household renamed to ${data.name}`;
       await tx.update(households).set({ name: data.name }).where(eq(households.id, hid));
       // D42: the one way to set the balance
-      if (parseMinor(data.bank, household.currency) !== household.bank) await setBankBalance(tx, hid, { id: crypto.randomUUID(), amount: data.bank }, "confirmed");
+      if (parseMinor(data.bank, household.currency) !== household.bank) await setBankBalance(tx, hid, { id: crypto.randomUUID(), amount: data.bank }, "confirmed", { madeBy: "form" });
+    } else if (data.kind === "nudge") {
+      const after = data.afterDays === "" ? null : data.afterDays;
+      if (after !== household.nudgeAfterDays) title = after === null ? "Nudge suggestions turned off" : `Nudge suggestions on, ${after} days past due`;
+      await tx.update(households).set({ nudgeAfterDays: after }).where(eq(households.id, hid));
     } else if (data.kind === "card") {
       const limitMinor = data.limit ? parseMinor(data.limit, household.currency) : null;
       if (limitMinor !== null && limitMinor < 0) throw new SettingsError("Credit limit cannot be negative");
@@ -98,7 +103,7 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
       if (bill) title = `${bill.biller} bill owner updated`;
     }
     if (!changed) throw new SettingsError("That row no longer exists in this household");
-    if (title) await recordEvent(tx, hid, { kind: "settings_updated", title });
+    if (title) await recordEvent(tx, hid, { madeBy: "form", kind: "settings_updated", title });
     await observeRunway(tx, hid);
   });
 }

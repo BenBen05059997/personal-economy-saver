@@ -466,7 +466,7 @@ async function main() {
     assert.equal(empty.bills.length + empty.charges.length + empty.invoices.length + empty.clients.length + empty.pots.length, 0, "no Ben data");
     assert.deepEqual(homeSentence(empty), { lead: "Add your rent, your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." });
     const bill = { id: randomUUID(), biller: "Fictional rent", amount: "300", due: "2026-11-20", category: "housing" as const, businessBp: 0, memberId: null, paidByMemberId: null, repeat: null, nextAmount: null, nextAmountFrom: null, cancelBy: null };
-    await insertBill(db, blank, bill, "pending");
+    await insertBill(db, blank, bill, "pending", { madeBy: "form" });
     assert.equal(homeSentence(await loadMoneyState(db, blank, today)).emphasis, "Bank balance $1,200.", "a pending bill alone is still nothing to forecast");
     await confirmPending(db, blank, "bill", bill.id);
     const after = homeSentence(await loadMoneyState(db, blank, today));
@@ -521,8 +521,8 @@ async function main() {
     const real2 = await seedBen(db);
     const seeded = await listEvents(db, demo);
     const feedBefore = await eventFeed(db, demo);
-    await recordEvent(db, demo, { kind: "bank_balance_set", title: "Bank balance set to ¥100,000 (was ¥67,000)" });
-    await recordEvent(db, real2, { kind: "bank_balance_set", title: "Bank balance set" });
+    await recordEvent(db, demo, { madeBy: "form", kind: "bank_balance_set", title: "Bank balance set to ¥100,000 (was ¥67,000)" });
+    await recordEvent(db, real2, { madeBy: "form", kind: "bank_balance_set", title: "Bank balance set" });
     const [fresh, ...older] = await listEvents(db, demo);
     assert.equal(fresh.title, "Bank balance set to ¥100,000 (was ¥67,000)", "newest demo event sorts above the seeded ones, whatever the time of day");
     assert.deepEqual(older.map(e => e.id), seeded.map(e => e.id));
@@ -537,7 +537,7 @@ async function main() {
 
     // An explicit timestamp (a provider's, D37) is kept as given.
     const provider = new Date("2026-11-03T01:02:03Z");
-    await recordEvent(db, demo, { kind: "invoice_paid", title: "Paid", occurredAt: provider });
+    await recordEvent(db, demo, { madeBy: "form", kind: "invoice_paid", title: "Paid", occurredAt: provider });
     assert.ok((await listEvents(db, demo)).some(e => e.occurredAt.getTime() === provider.getTime()));
 
     // The poll's cursor is the household's latest event time from the server, so the feed sees a new demo event

@@ -48,7 +48,7 @@ export async function storeDocument(db: Db, id: string, kind: "email" | "upload"
       const { error } = await bucket.upload(path, bytes, { contentType: mime, upsert: true });
       if (error) throw new ReaderError("Could not save the document to private Storage.");
       await tx.update(documents).set({ status: "queued", error: null, processingAt: null }).where(where);
-      await recordEvent(tx, hid, { kind: "document_queued", title: "Document ready to read", ref: { type: "document", id: documentId } });
+      await recordEvent(tx, hid, { madeBy: "reader", kind: "document_queued", title: "Document ready to read", ref: { type: "document", id: documentId } });
       return documentId;
     });
   } catch (error) {
@@ -86,14 +86,14 @@ export async function readDocument(db: Db, id: string, documentId: string, retry
       const completed = await tx.update(documents).set({ status: "read" }).where(claim).returning({ id: documents.id });
       if (!completed.length) return;
       if (items.length) await proposeReadings(tx, hid, documentId, items);
-      else await recordEvent(tx, hid, { kind: "document_read", title: "No bill or card charge found", ref: { type: "document", id: documentId } });
+      else await recordEvent(tx, hid, { madeBy: "reader", kind: "document_read", title: "No bill or card charge found", ref: { type: "document", id: documentId } });
     });
   } catch (error) {
     const reason = error instanceof ReaderError || error instanceof AiKeyError ? error.message : "Document could not be read. Try again.";
     await db.transaction(async tx => {
       await lockHousehold(tx, hid);
       const failed = await tx.update(documents).set({ status: "failed", error: reason }).where(claim).returning({ id: documents.id });
-      if (failed.length) await recordEvent(tx, hid, { kind: "document_failed", title: "Document needs attention", body: reason, ref: { type: "document", id: documentId }, notify: true });
+      if (failed.length) await recordEvent(tx, hid, { madeBy: "reader", kind: "document_failed", title: "Document needs attention", body: reason, ref: { type: "document", id: documentId }, notify: true });
     });
   }
 }
