@@ -6,6 +6,8 @@ import { type Db, requireHousehold } from "./household";
 import { cards, households, members, paypalConnections, users } from "./schema";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
+import { InputError } from "./input-error";
+import { parseMinor } from "./money";
 
 export async function householdClock(db: Db, id: string, now = new Date()) {
   const [household] = await db.select({ isDemo: households.isDemo, timeZone: households.timeZone })
@@ -33,28 +35,20 @@ export const setupForm = z.object({
     try { new Intl.DateTimeFormat("en", { timeZone: zone }); return true; } catch { return false; }
   }),
   currency,
-  bank: z.string().max(16).regex(/^-?\d+(\.\d{1,2})?$/),
+  bank: z.string().trim().min(1).max(16), // read by parseMinor: separators and full-width digits are fine; the limit and the decimals are checked there
   card: z.string().trim().min(1).max(80),
   closingDay: z.coerce.number().int().min(1).max(31),
   dueDay: z.coerce.number().int().min(1).max(31),
-  limit: z.string().max(16).regex(/^$|^\d+(\.\d{1,2})?$/),
-}).refine(data => data.currency === "USD" || ![data.bank, data.limit].some(s => s.includes(".")), {
-  message: "Yen amounts must be whole numbers.",
+  limit: z.string().trim().max(16),
 });
-
-function minor(raw: string, currency: "JPY" | "USD") {
-  const [whole, cents = ""] = raw.split(".");
-  const value = Number(currency === "JPY" ? whole : whole + cents.padEnd(2, "0"));
-  if (!Number.isSafeInteger(value)) throw new Error("Amount exceeds the supported range");
-  return value;
-}
 
 export async function finishSetup(db: Db, verifiedUid: string, data: z.infer<typeof setupForm>, demo: string | null) {
   const id = requireHousehold(verifiedUid);
   if (await accountHousehold(db, id)) return id;
   const reference = data.currency === "JPY" ? await fetchReferenceRate() : null;
-  const bank = minor(data.bank, data.currency);
-  const limit = data.limit ? minor(data.limit, data.currency) : null;
+  const bank = parseMinor(data.bank, data.currency);
+  const limit = data.limit ? parseMinor(data.limit, data.currency) : null;
+  if (limit !== null && limit < 0) throw new InputError("Credit limit cannot be negative");
   return db.transaction(async tx => {
     // Concurrent and retried submissions converge on one household and one initial card.
     const [created] = await tx.insert(households).values({

@@ -6,6 +6,15 @@ import { cards, cardStatements, charges, fxRates } from "./schema";
 import { convertMinor, fromRateMicro } from "./money";
 export class StatementChargeError extends Error {}
 
+/** A charge amount in the currency its statement is kept in; a USD charge on a yen statement uses the household's reference rate on the charge date. */
+async function toStatementCurrency(tx: Db, hid: string, targetCurrency: string, amount: number, currency: string, date: string) {
+  if (currency === targetCurrency) return amount;
+  const [rate] = await tx.select().from(fxRates).where(and(eq(fxRates.householdId, hid), eq(fxRates.base, "USD"), eq(fxRates.quote, "JPY"), lte(fxRates.date, date)))
+    .orderBy(desc(fxRates.date)).limit(1);
+  if (!rate) throw new StatementChargeError("No household USD/JPY reference rate for this charge date");
+  return convertMinor(amount, currency, targetCurrency, fromRateMicro(rate.rateMicro));
+}
+
 /** Caller holds the household lock and invokes once per newly confirmed charge, in the same transaction. */
 export async function syncClosedStatementCharge(tx: Db, householdId: string, chargeId: string) {
   const hid = requireHousehold(householdId);
@@ -19,13 +28,7 @@ export async function syncClosedStatementCharge(tx: Db, householdId: string, cha
   if (statement?.paidOn) throw new StatementChargeError("This statement is already paid. Check the charge date before confirming.");
   if (!statement && close >= await householdDate(tx, hid)) return;
   const targetCurrency = statement?.currency ?? card.currency;
-  async function inStatement(amount: number, currency: string, date: string) {
-    if (currency === targetCurrency) return amount;
-    const [rate] = await tx.select().from(fxRates).where(and(eq(fxRates.householdId, hid), eq(fxRates.base, "USD"), eq(fxRates.quote, "JPY"), lte(fxRates.date, date)))
-      .orderBy(desc(fxRates.date)).limit(1);
-    if (!rate) throw new StatementChargeError("No household USD/JPY reference rate for this charge date");
-    return convertMinor(amount, currency, targetCurrency, fromRateMicro(rate.rateMicro));
-  }
+  const inStatement = (amount: number, currency: string, date: string) => toStatementCurrency(tx, hid, targetCurrency, amount, currency, date);
   if (statement) {
     const extra = await inStatement(charge.amountMinor, charge.currency, charge.date);
     await tx.update(cardStatements).set({ amountMinor: sql`${cardStatements.amountMinor} + ${extra}` })
@@ -37,4 +40,25 @@ export async function syncClosedStatementCharge(tx: Db, householdId: string, cha
     for (const row of cycleCharges) if (closingOnOrAfter(card, row.date) === close) amountMinor += await inStatement(row.amountMinor, row.currency, row.date);
     await tx.insert(cardStatements).values({ householdId: hid, cardId: card.id, closedOn: close, dueOn: dueDateFor(card, close), currency: targetCurrency, amountMinor });
   }
+}
+
+/**
+ * The other way round, for a confirmed charge about to be removed (the caller holds the household lock and deletes the row
+ * afterwards): takes its amount back out of the stored statement of the cycle it closed in. A statement left at zero goes.
+ * No stored statement means the cycle is computed from the charges, so there is nothing to undo.
+ */
+export async function unsyncClosedStatementCharge(tx: Db, householdId: string, chargeId: string) {
+  const hid = requireHousehold(householdId);
+  const [charge] = await tx.select().from(charges).where(and(eq(charges.householdId, hid), eq(charges.id, chargeId), eq(charges.status, "confirmed")));
+  if (!charge) throw new StatementChargeError("Confirmed household charge not found");
+  const [card] = await tx.select().from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, charge.cardId)));
+  if (!card) throw new StatementChargeError("Household card not found");
+  const [statement] = await tx.select().from(cardStatements)
+    .where(and(eq(cardStatements.householdId, hid), eq(cardStatements.cardId, card.id), eq(cardStatements.closedOn, closingOnOrAfter(card, charge.date))));
+  if (!statement) return;
+  if (statement.paidOn) throw new StatementChargeError("This charge is in a statement that is already paid, so it stays.");
+  const back = await toStatementCurrency(tx, hid, statement.currency, charge.amountMinor, charge.currency, charge.date);
+  const where = and(eq(cardStatements.householdId, hid), eq(cardStatements.id, statement.id));
+  if (statement.amountMinor - back <= 0) await tx.delete(cardStatements).where(where);
+  else await tx.update(cardStatements).set({ amountMinor: sql`${cardStatements.amountMinor} - ${back}` }).where(where);
 }

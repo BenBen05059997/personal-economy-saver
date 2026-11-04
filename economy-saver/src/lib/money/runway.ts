@@ -7,9 +7,10 @@
 // - Paid invoices are not arrivals: paying moves the money into the PayPal balance.
 // - Pending bills, pending charges and pending pots (read by the AI, not yet confirmed) are left out of the series.
 // - The series starts from availableCash: bank + PayPal less the money in confirmed pots (D43).
-// - A closed card statement is an out-flow on its due date. The open cycle of each card (confirmed
-//   charges after the last close, up to the next closing day) is an out-flow on the due date of the
-//   statement it will become: dueDay of the month after the one it closes in.
+// - A closed card statement is an out-flow on its due date. Confirmed charges after the latest stored statement
+//   are grouped by the cycle they close in: a cycle that has closed with no stored statement is a computed closed
+//   statement, and the open cycle (up to the next closing day) is an out-flow on the due date of the statement it
+//   will become: dueDay of the month after the one it closes in.
 // - Dates are YYYY-MM-DD strings and are handled in UTC, so the maths does not depend on the time zone.
 
 import type { Context, Currency, Moment, Profile } from "@/lib/catalogue/types";
@@ -103,7 +104,16 @@ export function pendingCharges(state: MoneyState, cardId?: string): Charge[] {
   return state.charges.filter((c) => c.status === "pending" && (!cardId || c.cardId === cardId)).sort(byDate);
 }
 
-/** Every statement still to be paid, soonest first: the closed ones, then one per cycle that holds confirmed charges. */
+/** The close of the latest stored statement of a card: every charge on or before it is inside a stored statement. Empty when the card has none. */
+function storedLine(state: MoneyState, cardId: string): string {
+  return state.statements.reduce((line, st) => (st.cardId === cardId && st.closedOn > line ? st.closedOn : line), "");
+}
+
+/**
+ * Every statement still to be paid, soonest first: the stored ones, then one per cycle that holds confirmed charges
+ * after the latest stored statement. A cycle that has closed and has no stored statement is a computed closed
+ * statement (open: false); a cycle that can still take charges is open. A computed one whose due date has passed is paid.
+ */
 export function statementItems(state: MoneyState): StatementItem[] {
   const out: StatementItem[] = [];
   for (const card of state.cards) {
@@ -112,16 +122,18 @@ export function statementItems(state: MoneyState): StatementItem[] {
         out.push({ cardId: card.id, label: `${card.label} statement`, amount: st.amount, closedOn: st.closedOn, closesOn: st.closedOn, dueOn: st.dueOn, open: false });
       }
     }
-    const lastClose = closingBefore(card, state.today);
+    const line = storedLine(state, card.id);
     const byClose = new Map<string, number>();
     for (const c of state.charges) {
-      if (c.cardId !== card.id || c.status !== "confirmed" || c.date <= lastClose) continue;
+      if (c.cardId !== card.id || c.status !== "confirmed" || c.date <= line) continue;
       const close = closingOnOrAfter(card, c.date);
       byClose.set(close, (byClose.get(close) ?? 0) + c.amount);
     }
     for (const [closesOn, amount] of byClose) {
-      if (state.statements.some(item => item.cardId === card.id && item.closedOn === closesOn)) continue;
-      out.push({ cardId: card.id, label: `${card.label} statement`, amount, closesOn, dueOn: dueDateFor(card, closesOn), open: true });
+      const dueOn = dueDateFor(card, closesOn);
+      const open = closesOn >= state.today;
+      if (!open && dueOn < state.today) continue;
+      out.push({ cardId: card.id, label: `${card.label} statement`, amount, ...(open ? {} : { closedOn: closesOn }), closesOn, dueOn, open });
     }
   }
   return out.sort((a, b) => (a.dueOn < b.dueOn ? -1 : a.dueOn > b.dueOn ? 1 : a.cardId < b.cardId ? -1 : 1));
@@ -339,7 +351,7 @@ export function roomOnCard(state: MoneyState, cardId: string): CardRoom {
   const byBalance = Math.max(0, Math.min(...worst.slice(from)));
   const through = addDays(state.today, days - 1);
   if (!card || card.limit === undefined) return { room: byBalance, dueOn: cy.dueOn, through, capped: false };
-  const closedUnpaid = state.statements.filter((st) => st.cardId === cardId && st.dueOn >= state.today).reduce((sum, st) => sum + st.amount, 0);
+  const closedUnpaid = statementItems(state).filter((st) => st.cardId === cardId && !st.open).reduce((sum, st) => sum + st.amount, 0); // stored statements and closed cycles computed from charges
   const pending = pendingCharges(state, cardId).reduce((sum, c) => sum + c.amount, 0);
   const limitLeft = card.limit - (cy.openTotal + closedUnpaid + pending);
   const cap = Math.max(0, limitLeft);

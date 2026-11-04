@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
@@ -22,7 +22,7 @@ import { BusinessBp, CATEGORIES, CATEGORY_KEYS, businessBpFromForm, businessPart
 import { guessCategory } from "@/lib/money/categorise";
 import { businessLine, monthByCategory, monthText, splitLine } from "@/lib/money/month";
 import { expandBills } from "@/lib/money/repeat";
-import { addDays, safeToSpend } from "@/lib/money/runway";
+import { addDays, cycle, safeToSpend, statementItems } from "@/lib/money/runway";
 import { monthlyRoom } from "@/lib/money/plan";
 import { homeSentence } from "@/lib/money/sentence";
 import { toCheck } from "@/lib/money/to-check";
@@ -193,6 +193,33 @@ async function main() {
       const view = monthByCategory(after, after.today);
       assert.deepEqual([view.totalMinor, view.businessMinor], [163_450, 36_196]);
       assert.equal(homeSentence(after).emphasis, "¥30,000 short on the 27th.", "the runway moved because the bill counts, not because of its category");
+    });
+
+    await check("moving Card A's closing day from 31 to 10 keeps what is owed: the Nov 4 and Nov 9 charges fall into a computed closed statement", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const [cardA] = await db.select().from(schema.cards).where(and(eq(schema.cards.householdId, c), eq(schema.cards.label, "Card A")));
+      const before = await stateOf(c);
+      const sentence = homeSentence(before).emphasis, safeBefore = safeToSpend(before, 0).amount;
+      assert.equal(cardSummary(before, cardA.id).owed, 86_450);
+      await db.update(schema.cards).set({ closingDay: 10 }).where(and(eq(schema.cards.householdId, c), eq(schema.cards.id, cardA.id)));
+      const state = await stateOf(c);
+      const summaryA = cardSummary(state, cardA.id);
+      assert.deepEqual([summaryA.owed, summaryA.limitLeft], [86_450, 413_550], "owed now and limit left do not move");
+      const items = statementItems(state).filter(item => item.cardId === cardA.id);
+      assert.deepEqual(items.map(item => [item.amount, item.closedOn ?? null, item.closesOn, item.dueOn, item.open]), [
+        [58_000, "2026-10-31", "2026-10-31", "2026-11-26", false], // the stored October statement
+        [22_050, "2026-11-10", "2026-11-10", "2026-12-26", false], // Nov 4 ¥3,850 + Nov 9 ¥18,200: closed on the 10th, no stored row, computed
+        [6_400, null, "2026-12-10", "2027-01-26", true], // Nov 12 is in the open cycle
+      ]);
+      assert.equal(cycle(state, cardA.id).openTotal, 6_400);
+      assert.equal(homeSentence(state).emphasis, sentence, "the sentence keeps its number");
+      assert.equal(safeToSpend(state, 0).amount, safeBefore);
+      assert.equal(state.statements.length, 1, "the closed statement is computed, not stored");
+      // The same cycle, closed and stored (a charge confirmed into it, or the daily job), is the same money.
+      await db.insert(schema.cardStatements).values({ householdId: c, cardId: cardA.id, closedOn: "2026-11-10", dueOn: "2026-12-26", currency: "JPY", amountMinor: 22_050 });
+      const stored = await stateOf(c);
+      assert.deepEqual(statementItems(stored).filter(item => item.cardId === cardA.id).map(item => [item.amount, item.closesOn, item.open]), [[58_000, "2026-10-31", false], [22_050, "2026-11-10", false], [6_400, "2026-12-10", true]]);
+      assert.equal(cardSummary(stored, cardA.id).owed, 86_450);
     });
 
     await check("the migration: the four old free-text values map to keys, anything else to other; charges default to other; shares default to 0", async () => {

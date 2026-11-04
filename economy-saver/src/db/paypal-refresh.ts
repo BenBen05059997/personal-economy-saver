@@ -4,7 +4,7 @@ import { closedInvoiceStates } from "@/lib/paypal/status";
 import { env } from "@/lib/env";
 import { paypalFetch } from "@/lib/paypal/client";
 import { type Db, requireHousehold } from "./household";
-import { convertMinor, fromRateMicro, parseMinor } from "./money";
+import { convertMinor, fromRateMicro, toMinor } from "./money";
 import { fxRates, households, invoices, members, paypalConnections } from "./schema";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 
@@ -31,7 +31,8 @@ async function readBalance(db: Db, hid: string, report: BalanceReport, currency:
     if (Number(money.value) === 0) continue;
     if (!["JPY", "USD"].includes(money.currency_code)) throw new FreshnessError("PayPal reports an unsupported balance currency.");
     const raw = money.currency_code === "JPY" ? money.value.replace(/\.0{1,2}$/, "") : money.value;
-    const amount = parseMinor(raw, money.currency_code);
+    // PayPal's own figure, already checked against the pattern above: not typed by a person, so the form limits do not apply.
+    const amount = toMinor(Number(raw), money.currency_code);
     if (money.currency_code === currency) total += amount;
     else {
       const [rate] = await db.select({ rate: fxRates.rateMicro }).from(fxRates)

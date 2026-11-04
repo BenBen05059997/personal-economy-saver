@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   const data = clientInput.safeParse(Object.fromEntries(await request.formData()));
   if (!data.success) return badFields();
   try {
-    return redirectTo(`/clients/${await insertClient(db(), hid, data.data)}`);
+    return redirectTo(`/clients/${await insertClient(db(), hid, data.data)}`, request);
   } catch (error) {
     return failure(error);
   }

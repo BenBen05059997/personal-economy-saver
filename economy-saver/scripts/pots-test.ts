@@ -185,7 +185,7 @@ async function main() {
     });
 
     await check("savePot refuses a bad amount, a date without a target, a bad share and a member of another household", async () => {
-      for (const over of [{ target: "0" }, { target: "12.5" }, { target: "abc" }, { saved: "-1" }, { saved: "1,000" }, { fillPct: "0" }, { fillPct: "101" },
+      for (const over of [{ target: "0" }, { target: "12.5" }, { target: "abc" }, { saved: "-1" }, { saved: "1,00" }, { fillPct: "0" }, { fillPct: "101" },
         { targetDate: "2027-03-31" }, { memberId: memberB }, { name: "   " }, { name: "x".repeat(61) }]) {
         const bad = potInput.safeParse({ id: randomUUID(), name: "Fictional trip", ...over });
         if (!bad.success) continue;

@@ -1,0 +1,44 @@
+// How an amount typed by a person is read: one function for the input's own check in the browser and for the
+// server's parser, so both accept and refuse the same text with the same words.
+// Accepted: digits with an optional decimal part, thousands separators ("1,000.50"), full-width digits (NFKC),
+// and a leading minus where the field allows one. Never accepted: a plus sign, spaces inside, an exponent.
+
+import { minorMoney } from "./format";
+
+/** The largest amount any form takes, in whole units: ¥100,000,000 or $1,000,000. */
+export const AMOUNT_LIMIT: Record<"JPY" | "USD", number> = { JPY: 100_000_000, USD: 1_000_000 };
+
+const SHAPE = /^(-?)(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?$/;
+const PLACES: Record<string, number> = { JPY: 0, USD: 2 };
+
+export type ReadAmount = { minor: number } | { problem: string };
+
+/** The message for an amount over the limit: "Enter an amount up to ¥100,000,000". */
+export function limitMessage(currency: "JPY" | "USD"): string {
+  return `Enter an amount up to ${minorMoney(AMOUNT_LIMIT[currency] * 10 ** PLACES[currency], currency)}`;
+}
+
+/**
+ * Reads typed text as signed integer minor units of `currency` (yen, or cents), or says in words what is wrong.
+ * `signed` is whether a minus sign is part of the field; zero is a valid reading (callers that need more than zero check it).
+ */
+export function readAmount(text: string, currency: string, signed = true): ReadAmount {
+  const places = PLACES[currency];
+  if (places === undefined) throw new Error(`Unknown currency: ${currency}`);
+  const match = SHAPE.exec(text.normalize("NFKC").trim());
+  if (!match) return { problem: places ? "Enter an amount in dollars, like 400, 1,000 or 400.50" : "Enter a whole number of yen, like 5000 or 5,000" };
+  const [, minus, digits, fraction = ""] = match;
+  if (minus && !signed) return { problem: "Enter an amount without a minus sign" };
+  if (fraction.length > places) return { problem: places ? `${currency} amounts have at most ${places} decimal places` : `${currency} amounts are whole numbers` };
+  const whole = digits.replaceAll(",", "");
+  if (whole.length > 12 || Number(whole) > AMOUNT_LIMIT[currency as "JPY" | "USD"]) return { problem: limitMessage(currency as "JPY" | "USD") };
+  const minor = Number(whole + fraction.padEnd(places, "0"));
+  if (minor > AMOUNT_LIMIT[currency as "JPY" | "USD"] * 10 ** places) return { problem: limitMessage(currency as "JPY" | "USD") };
+  return { minor: minus ? 0 - minor : minor };
+}
+
+/** "" when the text is a good amount for the field, otherwise the message (used by the input's own check). */
+export function amountProblem(text: string, currency: string, signed = false): string {
+  const read = readAmount(text, currency, signed);
+  return "problem" in read ? read.problem : "";
+}

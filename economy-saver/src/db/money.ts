@@ -1,3 +1,4 @@
+import { readAmount } from "@/lib/money/amount";
 import { InputError } from "./input-error";
 
 // Money in the database is an integer count of the currency's smallest unit (JPY: yen, USD: cents).
@@ -38,19 +39,15 @@ export function convertMinor(minor: number, from: string, to: string, perUsd: nu
 }
 
 /**
- * Parses an amount typed by a person ("3800", "-12.50") into signed integer minor units of `currency`.
- * Plain digits with an optional leading minus and a decimal part no longer than the currency allows;
- * no plus sign, no thousands separators. Zero is allowed here; callers that need a sign check the result.
+ * Parses an amount typed by a person ("3800", "1,000.50", "-12.50", full-width digits) into signed integer minor units
+ * of `currency`, by the same reading the amount inputs use in the browser (lib/money/amount.ts). Thousands separators
+ * are fine; a plus sign is not. Over ¥100,000,000 or $1,000,000 is refused. Zero is allowed here; callers that need a sign check the result.
  */
 export function parseMinor(text: string, currency: string): number {
-  const places = digits(currency);
-  const match = /^(-?)(\d{1,12})(?:\.(\d+))?$/.exec(text.trim());
-  if (!match) throw new InputError("Enter the amount as a plain number, such as 3800" + (places ? ".50" : ""));
-  const [, minus, whole, fraction = ""] = match;
-  if (fraction.length > places) throw new InputError(places ? `${currency} amounts have at most ${places} decimal places` : `${currency} amounts are whole numbers`);
-  const minor = Number(whole + fraction.padEnd(places, "0"));
-  if (!Number.isSafeInteger(minor)) throw new InputError("That amount is too large");
-  return minus ? 0 - minor : minor;
+  digits(currency);
+  const read = readAmount(text, currency);
+  if ("problem" in read) throw new InputError(read.problem);
+  return read.minor;
 }
 
 /** An amount that must be more than zero (an invoice, a bill, a charge). */

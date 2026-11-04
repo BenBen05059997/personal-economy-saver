@@ -4,10 +4,14 @@ import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db } from "./household";
 import { fromMinor, parseAmountMinor } from "./money";
 import { observeRunway } from "./runway-events";
+import { clockForHousehold } from "./clock";
+import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { memberCount } from "./people";
 import { BusinessBp, CategoryKeySchema } from "@/lib/money/categories";
 import { cards, charges, households, members } from "./schema";
-import { syncClosedStatementCharge } from "./statement-charge";
+import { syncClosedStatementCharge, unsyncClosedStatementCharge } from "./statement-charge";
+import { Currency } from "@/lib/catalogue/types";
+import { minorMoney } from "@/lib/money/format";
 
 export const chargeInput = z.object({
   id: z.string().uuid(),
@@ -38,7 +42,7 @@ export async function insertCharge(
   const hid = requireHousehold(householdId);
   const data = chargeInput.parse(input);
   return db.transaction(async tx => {
-    const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort })
+    const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
     const [card] = await tx.select({ currency: cards.currency, memberId: cards.memberId, label: cards.label }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, data.cardId)));
@@ -57,6 +61,7 @@ export async function insertCharge(
       }
       return data.id;
     }
+    if (data.date > latestDate(clockForHousehold(household).today)) throw new InputError(HORIZON_MESSAGE);
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     await tx.insert(charges).values({
       id: data.id, householdId: hid, cardId: data.cardId, merchant: data.merchant, amountMinor, currency: card.currency,
@@ -73,5 +78,31 @@ export async function insertCharge(
       await observeRunway(tx, hid);
     }
     return data.id;
+  });
+}
+
+/**
+ * Removes a card charge of this household, a confirmed one or one still waiting in To check, and records a `charge_removed`
+ * event ("Removed charge Minato Fresh Market ¥2,000"). A confirmed charge in a cycle that already has a stored statement is
+ * taken back out of that statement, so what is owed follows. Settlements already recorded stay as they are; the split
+ * simply recounts from the rows left. False when this household has no such charge.
+ */
+export async function removeCharge(db: Db, householdId: string, id: string): Promise<boolean> {
+  const hid = requireHousehold(householdId);
+  const chargeId = z.string().uuid().parse(id);
+  return db.transaction(async tx => {
+    const [household] = await tx.select({ id: households.id, previous: households.runwayShort }).from(households).where(eq(households.id, hid)).for("update");
+    if (!household) throw new InputError("Household not found");
+    const [row] = await tx.select().from(charges).where(and(eq(charges.householdId, hid), eq(charges.id, chargeId)));
+    if (!row) return false;
+    if (household.previous === null) await observeRunway(tx, hid);
+    if (row.status === "confirmed") await unsyncClosedStatementCharge(tx, hid, chargeId);
+    await tx.delete(charges).where(and(eq(charges.householdId, hid), eq(charges.id, chargeId)));
+    await recordEvent(tx, hid, {
+      kind: "charge_removed", title: `Removed charge ${row.merchant} ${minorMoney(row.amountMinor, Currency.parse(row.currency))}`,
+      amount: { value: fromMinor(row.amountMinor, row.currency), currency: row.currency }, ref: { type: "charge", id: chargeId },
+    });
+    if (row.status === "confirmed") await observeRunway(tx, hid);
+    return true;
   });
 }

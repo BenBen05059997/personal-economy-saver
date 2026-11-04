@@ -17,6 +17,7 @@ type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkit
 export function AskPanel() {
   const router = useRouter();
   const panel = useRef<HTMLElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
   const recognizer = useRef<Recognition | null>(null);
   const requestId = useRef("");
   const [text, setText] = useState("");
@@ -28,9 +29,10 @@ export function AskPanel() {
 
   useEffect(() => {
     const element = panel.current;
-    const stop = () => { if (!element?.matches(":popover-open")) recognizer.current?.abort(); };
-    element?.addEventListener("toggle", stop);
-    return () => { element?.removeEventListener("toggle", stop); recognizer.current?.abort(); };
+    // Opening the panel puts the cursor in the question box; closing it stops the microphone.
+    const toggled = () => { if (element?.matches(":popover-open")) field.current?.focus(); else recognizer.current?.abort(); };
+    element?.addEventListener("toggle", toggled);
+    return () => { element?.removeEventListener("toggle", toggled); recognizer.current?.abort(); };
   }, []);
 
   function speak() {
@@ -83,7 +85,7 @@ export function AskPanel() {
     <h2>Ask about your money</h2>
     <form onSubmit={ask}>
       <label className="ui-field">Your question
-        <textarea maxLength={320} rows={3} value={text} required placeholder="What’s due this week? Can I afford ¥4,000 tonight?"
+        <textarea ref={field} maxLength={320} rows={3} value={text} required placeholder="What’s due this week? Can I afford ¥4,000 tonight?"
           onKeyDown={enterAsks}
           onChange={event => { setText(event.target.value); setSource("manual"); requestId.current = ""; }} />
       </label>

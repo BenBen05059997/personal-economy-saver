@@ -24,10 +24,10 @@ export async function POST(request: Request) {
       if (error instanceof ReaderError || error instanceof StatementChargeError) return new Response(error.message, { status: 400 });
       return new Response("Reading could not be saved. Try again.", { status: 503 });
     }
-    return redirectTo("/to-check");
+    return redirectTo("/to-check", request);
   }
   if (kind !== "bill" && kind !== "charge" && kind !== "balance" && kind !== "pot") return new Response("Invalid item", { status: 400 });
   try { await confirmPending(db(), hid, kind, id.data); }
   catch (error) { return new Response(error instanceof StatementChargeError ? error.message : "Confirmation could not be saved. Try again.", { status: error instanceof StatementChargeError ? 400 : 503 }); }
-  return redirectTo(returnPath(form.get("returnTo")));
+  return redirectTo(returnPath(form.get("returnTo")), request);
 }

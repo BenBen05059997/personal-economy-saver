@@ -1,11 +1,13 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { FORM_REDIRECT_HEADER, postedByForm } from "./form-fetch";
 import { authCookieOptions, hasAuthCookie, supabaseAuth } from "./supabase-auth";
 
-export function privateRedirect(location: string) {
-  return new NextResponse(null, { status: 303, headers: {
-    Location: location, "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
-  } });
+/** A 303 redirect; to a post made by `ApiForm` (pass the request) it answers 204 with the destination in a header instead. */
+export function privateRedirect(location: string, request?: Request) {
+  const headers = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" };
+  if (request && postedByForm(request)) return new NextResponse(null, { status: 204, headers: { ...headers, [FORM_REDIRECT_HEADER]: location } });
+  return new NextResponse(null, { status: 303, headers: { ...headers, Location: location } });
 }
 
 export async function routeAuth(response: NextResponse) {

@@ -12,7 +12,7 @@ import { beginMoneyChange, observeRunway } from "./runway-events";
 
 export class SettingsError extends InputError {}
 const name = z.string().trim().min(1).max(80);
-const amount = z.string().max(16).regex(/^-?\d+(\.\d{1,2})?$/);
+const amount = z.string().trim().min(1).max(16); // read by parseMinor: separators and full-width digits are fine; the limit and the decimals are checked there
 const memberId = z.union([z.string().uuid(), z.literal("")]);
 export const settingsInput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("household"), name, bank: amount }),
@@ -33,7 +33,7 @@ export async function loadSettings(db: Db, householdId: string) {
     db.select({ id: members.id, name: members.displayName, role: members.role, shareBp: members.shareBp }).from(members).where(eq(members.householdId, hid))
       .orderBy(sql`(${members.role} = 'owner') desc`, members.createdAt, members.id),
     db.select().from(cards).where(eq(cards.householdId, hid)).orderBy(cards.createdAt),
-    db.select({ id: bills.id, biller: bills.biller, status: bills.status, memberId: bills.memberId, paidByMemberId: bills.paidByMemberId }).from(bills).where(eq(bills.householdId, hid)).orderBy(bills.due),
+    db.select({ id: bills.id, biller: bills.biller, amountMinor: bills.amountMinor, currency: bills.currency, repeatDay: bills.repeatDay, status: bills.status, memberId: bills.memberId, paidByMemberId: bills.paidByMemberId }).from(bills).where(eq(bills.householdId, hid)).orderBy(bills.due),
   ]);
   return { household, people, cards: cardRows, bills: billRows };
 }

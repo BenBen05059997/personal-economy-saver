@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     return new Response(error instanceof AiKeyError || error instanceof ReaderError ? error.message : "Could not finish household deletion. Try again.", { status: 503 });
   }
   // With the membership gone no session can read household data; clear this browser's session.
-  const response = privateRedirect("/");
+  const response = privateRedirect("/", request);
   for (const cookie of (await cookies()).getAll()) {
     if (cookie.name === AUTH_COOKIE || cookie.name.startsWith(AUTH_COOKIE + ".") || ["household", "upgrade-demo"].includes(cookie.name)) response.cookies.delete(cookie.name);
   }

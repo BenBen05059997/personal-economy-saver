@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { dayLabel, formatter, usd } from "@/lib/money/format";
 import { cycle, medianLow, paybackFor, project, roomOnCard } from "@/lib/money/runway";
 import type { Card, Client, MoneyState } from "@/lib/money/types";
@@ -36,8 +37,9 @@ function CardPanel({ state, card }: { state: MoneyState; card: Card }) {
     </dl>
     <h3>Recent charges</h3>
     {state.charges.filter(c => c.cardId === card.id).reverse().map(charge =>
-      <div className="ui-row" key={charge.id}><div>{charge.merchant}
+      <div className="ui-row directory-charge" key={charge.id}><div>{charge.merchant}
         <small>{dayLabel(charge.date)}{charge.place && ` · ${charge.place}`}{charge.status === "pending" && " · To check"}</small>
+        <ConfirmRemove kind="charge" id={charge.id} returnTo={`/cards/${card.id}`} label={`${charge.merchant} ${format(charge.amount)}`} />
       </div><span className="num">{format(charge.amount)}</span></div>)}
     {!state.charges.some(c => c.cardId === card.id) && <p className="ui-hint">No recent charges.</p>}
   </Detail>;

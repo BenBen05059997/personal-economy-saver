@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Currency } from "@/lib/catalogue/types";
+import { eventKindLabel } from "@/lib/money/event-kinds";
 import { minorMoney } from "@/lib/money/format";
 import type { publicEvent } from "@/db/event-feed";
 import "./household.css";
@@ -14,7 +15,7 @@ export function ActivityView({ rows, index, hasOlder, timeZone }: {
       <tbody>{rows.map(row => <tr key={row.id}>
         <td className="date"><time dateTime={row.occurredAt}>{new Date(row.occurredAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: timeZone })}</time></td>
         <td>{row.title}{row.body && <p className="ui-hint">{row.body}</p>}</td>
-        <td className="event-kind">{row.kind.replaceAll("_", " ")}</td>
+        <td className="event-kind">{eventKindLabel(row.kind)}</td>
         <td className="amount num">{row.amountMinor !== null && row.currency ? minorMoney(row.amountMinor, Currency.parse(row.currency)) : "—"}</td>
       </tr>)}</tbody>
     </table>}

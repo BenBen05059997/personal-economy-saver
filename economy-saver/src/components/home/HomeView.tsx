@@ -1,6 +1,6 @@
 import type { ReaderInbox } from "@/db/reader-inbox";
 import Link from "next/link";
-import { AmountInput } from "@/components/ui/CheckedInput";
+import { ApiForm } from "@/components/ui/ApiForm";
 import type { MoneyState } from "@/lib/money/types";
 import { dayLabel, formatter, usd } from "@/lib/money/format";
 import { addDays, arrivals, daysBetween, low, safeToSpend, series, statementItems, timeline } from "@/lib/money/runway";
@@ -9,6 +9,7 @@ import { potSummary } from "@/lib/money/plan";
 import { toCheck } from "@/lib/money/to-check";
 import { homeSentence } from "@/lib/money/sentence";
 import { splitBalance, transferLine } from "@/lib/money/split";
+import { BankBalance } from "./BankBalance";
 import { RunwayChart } from "./RunwayChart";
 import { cardSummary } from "./card-summary";
 import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
@@ -35,20 +36,6 @@ function Actions({ state }: Props) {
   </div>;
 }
 
-/** D42: the bank balance in one line. Update reveals one field; the id is minted per render so a double submit saves once. */
-function BankBalance({ state, balanceId }: Props & { balanceId: string }) {
-  const format = formatter(state.homeCurrency);
-  return <details className="home-balance">
-    <summary><span>Bank balance <b>{format(state.bank)}</b></span><span className="home-balance-edit">Update</span></summary>
-    <form method="post" action="/api/bank-balance">
-      <input type="hidden" name="id" value={balanceId} />
-      <input type="hidden" name="returnTo" value="/" />
-      <AmountInput name="amount" aria-label={`New bank balance (${state.homeCurrency})`} placeholder="New balance" currency={state.homeCurrency} signed required />
-      <button className="home-confirm">Save</button>
-    </form>
-  </details>;
-}
-
 function Next30Days({ state, balanceId }: Props & { balanceId: string }) {
   const format = formatter(state.homeCurrency);
   // Only the amount is displayed. The essentials threshold affects the optional spending verdict.
@@ -61,7 +48,7 @@ function Next30Days({ state, balanceId }: Props & { balanceId: string }) {
     <p className="home-label">Safe to spend now</p>
     <div className="home-amount">{format(safe.amount)}</div>
     <p className="home-note">{unbilled.length ? `Includes ${unbilled.join(" and ")} not yet billed` : "No unbilled card spend due in the next 30 days."}</p>
-    <BankBalance state={state} balanceId={balanceId} />
+    <BankBalance key={balanceId} currency={state.homeCurrency} balance={format(state.bank)} balanceId={balanceId} />
     {state.pots.length > 0 && <ul className="home-pots">{state.pots.map((pot) => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}
     <RunwayChart balances={series(state, "worst")} format={format} />
   </section>;
@@ -108,10 +95,10 @@ function SharedCosts({ state }: Props) {
     <h2>Shared costs</h2>
     {transfers.length === 0 && <p className="home-empty">Nobody owes anyone anything.</p>}
     {transfers.map(transfer => <div key={transfer.fromId + transfer.toId} className="home-row"><div>{transferLine(transfer, state.homeCurrency)}</div></div>)}
-    {transfers.length > 0 && <form method="post" action="/api/settle" className="home-settle">
+    {transfers.length > 0 && <ApiForm action="/api/settle" className="home-settle">
       <input type="hidden" name="returnTo" value="/" />
       <button className="home-confirm">Mark settled</button>
-    </form>}
+    </ApiForm>}
   </section>;
 }
 
@@ -121,7 +108,10 @@ function ComingUp({ state, people, entryIds }: Props & { people: People; entryId
   const late = series(state, "worst");
   const incoming = new Map(arrivals(state).map((item) => [`${item.invoiceId}-expected`, item]));
   const monthly = new Set(state.bills.filter((bill) => bill.repeatDay !== undefined).map((bill) => bill.id)); // an event's id is its bill's id
-  const rows = usual.map((event) => {
+  // A short day says "Short by …" once, on its last row that can carry it (not a client's payment, not a pending bill).
+  const canCarry = (event: (typeof usual)[number]) => !incoming.has(event.id) && !event.pending && late[daysBetween(state.today, event.date)] < 0;
+  const carries = usual.map((event, index) => canCarry(event) && !usual.slice(index + 1).some((later) => later.date === event.date && canCarry(later)));
+  const rows = usual.map((event, index) => {
       const payment = incoming.get(event.id);
       const i = daysBetween(state.today, event.date);
       const short = late[i] < 0;
@@ -130,7 +120,7 @@ function ComingUp({ state, people, entryIds }: Props & { people: People; entryId
         <div>{payment ? <><Link prefetch={false} href={`/clients/${payment.clientId}`}>{event.label}</Link> pays</> : event.label}
           {payment ? <small>Usual date · if late, {dayLabel(payment.worstOn)}</small>
             : event.pending ? <small>Awaiting confirmation</small>
-            : short && <small className="home-short">Short by {format(-late[i])} if clients pay late</small>}
+            : carries[index] && <small className="home-short">Short by {format(-late[i])} if clients pay late</small>}
           {monthly.has(event.id) && <small>Every month</small>}
         </div>
         <div className="home-number">{payment ? `+${usd(payment.amountUsd)}` : format(Math.abs(event.amount))}
@@ -139,17 +129,16 @@ function ComingUp({ state, people, entryIds }: Props & { people: People; entryId
         </div>
       </div>;
     });
-  // The rows that say "Short by …" (not a client's payment, not a pending bill) and the low point's own row are never folded away.
-  const carriesShortfall = (event: (typeof usual)[number]) => !incoming.has(event.id) && !event.pending && late[daysBetween(state.today, event.date)] < 0;
+  // The rows that say "Short by …" and the low point's own row are never folded away.
   const lowDay = low(late).dayIndex;
-  const lowRow = usual.map((event, index) => carriesShortfall(event) && daysBetween(state.today, event.date) === lowDay ? index : -1).reduce((a, b) => Math.max(a, b), -1);
-  const shown = Math.max(5, usual.findIndex(carriesShortfall) + 1, lowRow + 1);
+  const lowRow = usual.map((event, index) => carries[index] && daysBetween(state.today, event.date) === lowDay ? index : -1).reduce((a, b) => Math.max(a, b), -1);
+  const shown = Math.max(5, carries.indexOf(true) + 1, lowRow + 1);
   return <section id="coming-up" className="home-panel home-upcoming">
     <h2>Coming up <Link prefetch={false} href="/activity">All activity ›</Link></h2>
     {rows.length === 0 && <p className="home-empty">Nothing due in the next 30 days.</p>}
     {rows.slice(0, shown)}
     {rows.length > shown && <details><summary>Later in the month · {rows.length - shown} more</summary>{rows.slice(shown)}</details>}
-    <AddEntry ids={entryIds} returnTo="/" today={state.today} currency={state.homeCurrency} people={people}
+    <AddEntry key={entryIds.bill + entryIds.charge} ids={entryIds} returnTo="/" today={state.today} currency={state.homeCurrency} people={people}
       cards={state.cards.map(card => ({ id: card.id, label: card.label }))} />
   </section>;
 }

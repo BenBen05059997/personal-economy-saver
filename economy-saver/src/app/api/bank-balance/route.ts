@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   if (!data.success) return badFields();
   try {
     await setBankBalance(db(), hid, data.data, "confirmed");
-    return redirectTo(returnPath(form.get("returnTo")));
+    return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {
     return failure(error);
   }

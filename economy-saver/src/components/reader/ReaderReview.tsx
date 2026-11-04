@@ -2,6 +2,7 @@ import type { ReaderInbox } from "@/db/reader-inbox";
 import type { MoneyState } from "@/lib/money/types";
 import type { Extracted } from "@/lib/reader/extract";
 import { CategoryFields } from "@/components/household/CategoryFields";
+import { ApiForm } from "@/components/ui/ApiForm";
 
 function majorText(entry: Extracted) {
   if (entry.amountMinor === null || !entry.currency) return "";
@@ -17,19 +18,19 @@ export function ReaderReview({ inbox, state }: { inbox: ReaderInbox; state: Mone
     </div>)}
     {inbox.readings.map(({ id, value }) => <details id={`reading-${id}`} key={id} className="ui-panel reader-card" open>
       <summary>{value.name || "Document"} · review {value.kind}</summary>
-      <form method="post" action="/api/confirm">
+      <ApiForm action="/api/confirm">
         <input type="hidden" name="kind" value="reading" /><input type="hidden" name="id" value={id} />
         <div className="reader-fields">
           <label className="ui-field">Entry<select name="target" defaultValue={value.kind}><option value="bill">Bill</option><option value="charge">Card charge</option></select></label>
           <label className="ui-field">Biller or merchant<input name="name" defaultValue={value.name ?? ""} required maxLength={160}/></label>
-          <label className="ui-field">Amount<input name="amount" inputMode="decimal" defaultValue={majorText(value)} required/></label>
+          <label className="ui-field">Amount<input name="amount" inputMode="decimal" defaultValue={majorText(value)} required maxLength={17}/></label>
           <label className="ui-field">Currency<select name="currency" required defaultValue={value.currency ?? ""}><option value="">Choose currency</option><option>JPY</option><option>USD</option></select></label>
           <label className="ui-field">Due or charge date<input name="date" type="date" required defaultValue={value.date ?? ""}/></label>
           <CategoryFields name={value.name ?? ""} defaultCategory={value.category} defaultBp={value.businessBp ?? 0} />
           <label className="ui-field">Card for a charge<select name="cardId" defaultValue={value.cardId ?? ""}><option value="">Choose card</option>{state.cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
         </div>
         <div className="reader-buttons"><button className="ui-button primary" name="decision" value="confirm">Confirm reading</button><button className="ui-button" name="decision" value="reject" formNoValidate>Dismiss</button></div>
-      </form>
+      </ApiForm>
     </details>)}
   </section>;
 }

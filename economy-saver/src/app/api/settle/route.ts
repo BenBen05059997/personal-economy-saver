@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   try {
     if (!await consumeRequest(db(), hid, "settle", 10)) return text("Too many settlements. Try again in a minute.", 429, { "Retry-After": "60" });
     await settleUp(db(), hid);
-    return redirectTo(returnPath(form.get("returnTo")));
+    return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {
     return failure(error);
   }

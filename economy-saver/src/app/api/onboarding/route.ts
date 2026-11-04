@@ -5,6 +5,7 @@ import { db } from "@/db/client";
 import { privateRedirect, verifiedUid } from "@/lib/auth-request";
 import { sameOrigin } from "@/lib/session";
 import { AiKeyError } from "@/db/ai-key";
+import { InputError } from "@/db/input-error";
 import { ReaderError } from "@/lib/reader/settings";
 
 export async function POST(request: Request) {
@@ -17,8 +18,11 @@ export async function POST(request: Request) {
   const original = store.get("upgrade-demo")?.value;
   const demo = original === store.get("household")?.value && z.string().uuid().safeParse(original).success ? original! : null;
   try { await finishSetup(db(), uid, form.data, demo); }
-  catch (error) { return new Response(error instanceof AiKeyError || error instanceof ReaderError ? error.message : "Household setup could not finish. Your existing household is retained; try again.", { status: 503 }); }
-  const response = privateRedirect("/");
+  catch (error) {
+    if (error instanceof InputError) return new Response(error.message, { status: 400 });
+    return new Response(error instanceof AiKeyError || error instanceof ReaderError ? error.message : "Household setup could not finish. Your existing household is retained; try again.", { status: 503 });
+  }
+  const response = privateRedirect("/", request);
   response.cookies.delete("household");
   response.cookies.delete("upgrade-demo");
   return response;

@@ -21,7 +21,7 @@ export function CheckView({ state, inbox, people, entryIds }: {
       <ConfirmButton kind={row.kind} id={row.id} title={row.title} onCheckPage />
     </div>)}
     <ReaderReview state={state} inbox={inbox} />
-    <AddEntry ids={entryIds} returnTo="/to-check" today={state.today} currency={state.homeCurrency} people={people}
+    <AddEntry key={entryIds.bill + entryIds.charge} ids={entryIds} returnTo="/to-check" today={state.today} currency={state.homeCurrency} people={people}
       cards={state.cards.map(card => ({ id: card.id, label: card.label }))} />
   </>;
 }

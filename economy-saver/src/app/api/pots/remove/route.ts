@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   if (!id.success) return badFields();
   try {
     await removePot(db(), hid, id.data);
-    return redirectTo(returnPath(form.get("returnTo")));
+    return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {
     return failure(error);
   }

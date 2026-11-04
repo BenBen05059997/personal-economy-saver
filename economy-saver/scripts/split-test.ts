@@ -8,8 +8,8 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
-import { billInput, insertBill } from "@/db/bills";
-import { chargeInput, insertCharge } from "@/db/charges";
+import { billInput, insertBill, removeBill } from "@/db/bills";
+import { chargeInput, insertCharge, removeCharge } from "@/db/charges";
 import { DEMO_DATE } from "@/db/clock";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
@@ -390,6 +390,33 @@ async function main() {
       const rows = await db.select().from(schema.settlements).where(eq(schema.settlements.householdId, f));
       assert.deepEqual(rows.map(r => [r.through, r.amountMinor]).sort(), [[TODAY, 15_000], [TODAY, 4_500]].sort());
       assert.ok(rows.every(r => r.settledAt instanceof Date));
+    });
+
+    await check("removing a shared bill and charge from a settled period leaves the settlements as they were; the split recounts from the rows left", async () => {
+      const g = await seedBen(db, { isDemo: true, name: "Removal" });
+      const gBen = (await members(g))[0].id;
+      const gAki = await addMember(db, g, { name: "Aki" });
+      const gCard = randomUUID();
+      await db.insert(schema.cards).values({ id: gCard, householdId: g, memberId: gAki, label: "Aki Card", closingDay: 31, dueDay: 26, currency: "JPY" });
+      const owes = async () => splitBalance((await stateOf(g)).split, TODAY).transfers.map(t => transferLine(t, "JPY"));
+      const settled = billInput.parse({ id: randomUUID(), biller: "Fictional settled rent", amount: "20000", due: TODAY, category: "other", paidByMemberId: gBen });
+      const settledCharge = chargeInput.parse({ id: randomUUID(), cardId: gCard, merchant: "Fictional settled grocer", amount: "4000", date: TODAY, category: "other", shared: true });
+      await insertBill(db, g, settled, "confirmed"); await insertCharge(db, g, settledCharge, "confirmed", "manual");
+      assert.deepEqual(await owes(), ["Aki owes Ben ¥8,000"], "Ben paid 20,000, Aki paid 4,000: each owes half of 24,000");
+      assert.equal((await settleUp(db, g)).length, 1);
+      const settlements = async () => (await db.select().from(schema.settlements).where(eq(schema.settlements.householdId, g))).map(r => [r.through, r.amountMinor, r.fromMemberId, r.toMemberId]);
+      const recorded = await settlements();
+      assert.deepEqual(recorded, [[TODAY, 8_000, gAki, gBen]]);
+      const open = billInput.parse({ id: randomUUID(), biller: "Fictional open bill", amount: "6000", due: TODAY, category: "other", paidByMemberId: gBen });
+      await insertBill(db, g, open, "confirmed");
+      assert.deepEqual(await owes(), ["Aki owes Ben ¥3,000"]);
+      assert.equal(await removeBill(db, g, settled.id), true);
+      assert.equal(await removeCharge(db, g, settledCharge.id), true);
+      assert.deepEqual(await settlements(), recorded, "what was settled stays as it was");
+      assert.deepEqual(await owes(), ["Aki owes Ben ¥3,000"], "the balance counts only what is dated after the settlement, so it does not move");
+      assert.equal(await removeBill(db, g, open.id), true);
+      assert.deepEqual(await owes(), [], "removing the open item recounts from the rows left");
+      assert.deepEqual(await settlements(), recorded);
     });
 
     await check("pending shared items count for nothing and keep their payer through To check; confirming makes them count", async () => {

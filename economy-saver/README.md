@@ -10,7 +10,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - A deterministic runway and sentence from stored bills, cards, charges, invoices, FX rates and client payment history.
 - Screens: Home, invoice review, To check, Activity, Cards, Clients, Plan, Options, Settings, Upload and document review.
 - A Try it household flow (with Reset to Ben's starting numbers in Settings) and passwordless email sign-in.
-- Typed-in data: clients, bills (optionally repeating monthly), card charges, a one-line bank balance, and invoices marked paid outside PayPal.
+- Typed-in data: clients, bills (optionally repeating monthly), card charges, a one-line bank balance, and invoices marked paid outside PayPal. Amounts take thousands separators and stop at ¥100,000,000 or $1,000,000; dates stop two years ahead. A mistyped bill (a monthly one as a whole series) or card charge is removed with Remove, after an in-page confirm. A refused form shows its message beside the form and keeps what you typed.
 - Pots on the Plan page: money set aside for a reason, taken off the cash every runway number starts from, optionally filled by a percentage of each client payment.
 - A household split: Settings → People sets each person's share, a bill or card charge can be shared, and Home shows who owes whom with Mark settled. It appears only with two or more people and does not change the runway.
 - Categories and a business share: thirteen fixed categories and a Personal / Business / Mixed share on every bill and charge (proposed from the name, confirmed by you); Plan shows "Where the month goes" for the current month. Neither moves any money.

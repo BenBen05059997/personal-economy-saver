@@ -7,20 +7,24 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
-import { insertBill, billInput } from "@/db/bills";
+import { insertBill, billInput, removeBill } from "@/db/bills";
 import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
-import { insertCharge } from "@/db/charges";
+import { insertCharge, removeCharge } from "@/db/charges";
 import { clientInput, insertClient } from "@/db/clients";
 import { markPaidOutside } from "@/db/invoice-paid";
 import { confirmPending } from "@/db/confirm";
 import { InputError } from "@/db/input-error";
-import { parseAmountMinor } from "@/db/money";
+import { parseAmountMinor, parseMinor } from "@/db/money";
+import { amountProblem } from "@/lib/money/amount";
+import { latestDate } from "@/lib/money/horizon";
 import { seedBen } from "@/db/seed";
 import { loadMoneyState } from "@/db/household";
 import { occurrenceDates } from "@/lib/money/repeat";
 import { loadNavigationData } from "@/db/workspace";
 import { toCheck } from "@/lib/money/to-check";
 import { addDays, low, planWindow, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
+import { cardSummary } from "@/components/home/card-summary";
+import { EVENT_KIND_LABELS, eventKindLabel } from "@/lib/money/event-kinds";
 
 const TODAY = "2026-11-14";
 
@@ -47,18 +51,58 @@ async function main() {
     const charge = (over: Record<string, unknown> = {}) =>
       ({ id: randomUUID(), cardId: cardA.id, merchant: "Fictional bakery", amount: "540", date: TODAY, category: "food", ...over });
 
-    await check("parseAmountMinor accepts plain numbers and rejects everything else", async () => {
+    await check("parseAmountMinor accepts plain numbers, thousands separators and full-width digits, and rejects everything else", async () => {
       assert.equal(parseAmountMinor("3800", "JPY"), 3800);
       assert.equal(parseAmountMinor(" 3800 ", "JPY"), 3800);
+      assert.equal(parseAmountMinor("1,000", "JPY"), 1000);
+      assert.equal(parseAmountMinor("12,345,678", "JPY"), 12_345_678);
+      assert.equal(parseAmountMinor("１，０００", "JPY"), 1000, "full-width digits and comma, by NFKC");
       assert.equal(parseAmountMinor("12.5", "USD"), 1250);
       assert.equal(parseAmountMinor("12.05", "USD"), 1205);
       assert.equal(parseAmountMinor("12", "USD"), 1200);
-      for (const bad of ["3800.5", "3800.", "0", "00", "-1", "+5", "1,000", "", "abc", "1e3", "0x10", "12 000", "9999999999999"]) {
+      assert.equal(parseAmountMinor("1,000.50", "USD"), 100_050);
+      assert.equal(parseMinor("-1,234", "JPY"), -1234);
+      for (const bad of ["3800.5", "3800.", "0", "00", "-1", "+5", "1,00", "1,0000", ",100", "1,000,", "", "abc", "1e3", "0x10", "12 000", "9999999999999"]) {
         assert.throws(() => parseAmountMinor(bad, "JPY"), InputError, `JPY ${bad}`);
       }
-      for (const bad of ["12.345", "0.00", "-0.5", "1,000.00", ".5", "12.", "9007199254740993"]) {
+      for (const bad of ["12.345", "0.00", "-0.5", "1,00.00", ".5", "12.", "9007199254740993"]) {
         assert.throws(() => parseAmountMinor(bad, "USD"), InputError, `USD ${bad}`);
       }
+    });
+
+    await check("amounts above ¥100,000,000 or $1,000,000 are refused with the limit in the message; the limit itself is fine", async () => {
+      assert.equal(parseAmountMinor("100,000,000", "JPY"), 100_000_000);
+      assert.equal(parseAmountMinor("1,000,000", "USD"), 100_000_000);
+      assert.equal(parseMinor("-100000000", "JPY"), -100_000_000);
+      assert.throws(() => parseAmountMinor("100000001", "JPY"), (e: unknown) => e instanceof InputError && e.message === "Enter an amount up to ¥100,000,000");
+      assert.throws(() => parseAmountMinor("1000000.01", "USD"), (e: unknown) => e instanceof InputError && e.message === "Enter an amount up to $1,000,000");
+      assert.throws(() => parseMinor("-100000001", "JPY"), InputError);
+      assert.equal(amountProblem("1,000.50", "USD"), "");
+      assert.equal(amountProblem("１，０００", "JPY"), "");
+      assert.equal(amountProblem("-5", "JPY"), "Enter an amount without a minus sign");
+      assert.equal(amountProblem("-5", "JPY", true), "");
+      assert.equal(amountProblem("2e5", "JPY"), "Enter a whole number of yen, like 5000 or 5,000");
+      for (const [kind, run] of [
+        ["bill", () => insertBill(db, a, bill({ amount: "100,000,001" }), "confirmed")],
+        ["charge", () => insertCharge(db, a, charge({ amount: "100000001" }) as never, "confirmed", "manual")],
+        ["bank balance", () => setBankBalance(db, a, bankBalanceInput.parse({ id: randomUUID(), amount: "100000001" }), "confirmed")],
+      ] as const) await assert.rejects(run(), (e: unknown) => e instanceof InputError && /up to ¥100,000,000/.test(e.message), kind);
+    });
+
+    await check("a bill or charge dated more than two years after the household's today is refused; two years to the day is fine", async () => {
+      assert.equal(latestDate("2026-11-14"), "2028-11-14");
+      assert.equal(latestDate("2028-02-29"), "2030-02-28");
+      const far = bill({ due: "2028-11-15" }), edge = bill({ due: "2028-11-14", biller: "Fictional far bill", amount: "777" });
+      await assert.rejects(insertBill(db, a, far, "confirmed"), (e: unknown) => e instanceof InputError && e.message === "Choose a date within the next two years");
+      await assert.rejects(insertBill(db, a, far, "pending"), InputError);
+      assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.id, far.id))).length, 0);
+      const farCharge = charge({ date: "2028-11-15" });
+      await assert.rejects(insertCharge(db, a, farCharge as never, "confirmed", "manual"), (e: unknown) => e instanceof InputError && e.message === "Choose a date within the next two years");
+      assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, farCharge.id))).length, 0);
+      await insertBill(db, a, edge, "confirmed");
+      const added = (await events(a, "bill_added")).find(e => e.refId === edge.id)!;
+      assert.equal(added.title, "Fictional far bill added, due Nov 14, 2028", "the Activity line names the due date, with the year when it is not this year");
+      await db.delete(schema.bills).where(eq(schema.bills.id, edge.id));
     });
 
     await check("insertClient adds a client once, records client_added, and is idempotent on id", async () => {
@@ -85,7 +129,7 @@ async function main() {
       assert.deepEqual([rows[0].amountMinor, rows[0].currency, rows[0].status, rows[0].memberId, rows[0].householdId], [3800, "JPY", "confirmed", memberA, a]);
       const added = (await events(a, "bill_added")).filter(e => e.refId === input.id);
       assert.equal(added.length, 1);
-      assert.deepEqual([added[0].title, added[0].amountMinor, added[0].currency, added[0].refType, added[0].notify], ["Fictional landlord added", 3800, "JPY", "bill", false]);
+      assert.deepEqual([added[0].title, added[0].amountMinor, added[0].currency, added[0].refType, added[0].notify], ["Fictional landlord added, due Nov 25", 3800, "JPY", "bill", false]);
       await assert.rejects(insertBill(db, a, { ...input, amount: "3801" }, "confirmed"), InputError);
       await assert.rejects(insertBill(db, a, { ...input, due: "2026-11-26" }, "confirmed"), InputError);
       await assert.rejects(insertBill(db, a, { ...input, memberId: null }, "confirmed"), InputError);
@@ -123,7 +167,7 @@ async function main() {
     });
 
     await check("insertBill rejects bad amounts and a member of another household", async () => {
-      for (const amount of ["3800.5", "0", "-1", "1,000", "", "abc"]) {
+      for (const amount of ["3800.5", "0", "-1", "1,00", "", "abc"]) {
         const input = bill({ amount });
         await assert.rejects(insertBill(db, a, input, "confirmed"), InputError, amount);
         assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.id, input.id))).length, 0);
@@ -173,7 +217,7 @@ async function main() {
       const mismatch = charge({ cardId: usdCard.id, amount: "12.50" });
       await assert.rejects(insertCharge(db, a, mismatch as never, "confirmed", "manual"), InputError);
       assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, mismatch.id))).length, 0);
-      for (const amount of ["540.5", "0", "-1", "1,000", ""]) {
+      for (const amount of ["540.5", "0", "-1", "1,00", ""]) {
         const bad = charge({ amount });
         await assert.rejects(insertCharge(db, a, bad as never, "confirmed", "manual"), InputError, amount);
         assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, bad.id))).length, 0);
@@ -356,7 +400,7 @@ async function main() {
       assert.equal(await bank(a), 0);
       await setBankBalance(db, a, { id: randomUUID(), amount: "-1200" }, "confirmed");
       assert.equal(await bank(a), -1200, "an overdrawn balance is allowed, as in Settings");
-      for (const bad of ["", "abc", "1,000", "12.5", "1e3"]) await assert.rejects(setBankBalance(db, a, { id: randomUUID(), amount: bad }, "confirmed"), InputError, bad);
+      for (const bad of ["", "abc", "1,00", "12.5", "1e3"]) await assert.rejects(setBankBalance(db, a, { id: randomUUID(), amount: bad }, "confirmed"), InputError, bad);
       assert.equal(bankBalanceInput.safeParse({ id: "not-a-uuid", amount: "1" }).success, false);
     });
 
@@ -409,6 +453,81 @@ async function main() {
       assert.equal(await confirmPending(db, a, "balance", randomUUID()), false);
     });
 
+    await check("removeBill deletes a bill with its event, a monthly bill as a whole series, and the runway follows", async () => {
+      const mine = await seedBen(db, { isDemo: true }), theirs = await seedBen(db, { isDemo: true });
+      const before = await loadMoneyState(db, mine, TODAY);
+      const once = bill({ biller: "Fictional repair", amount: "30000", due: "2026-11-20" }), monthly = bill({ biller: "Fictional gym", amount: "5000", due: "2026-11-16", monthly: true });
+      await insertBill(db, mine, once, "confirmed"); await insertBill(db, mine, monthly, "confirmed");
+      const withBoth = await loadMoneyState(db, mine, TODAY);
+      assert.equal(withBoth.bills.filter(row => row.biller === "Fictional gym").length, 2, "Nov 16 and Dec 16 are inside the window");
+      assert.equal(low(series(before, "worst")).amount - low(series(withBoth, "worst")).amount, 35_000);
+      assert.equal(await removeBill(db, theirs, once.id), false, "another household's bill id removes nothing");
+      assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.id, once.id))).length, 1);
+      assert.equal(await removeBill(db, mine, once.id), true);
+      assert.equal(await removeBill(db, mine, once.id), false, "a second tap finds nothing");
+      assert.equal(await removeBill(db, mine, monthly.id), true);
+      assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.householdId, mine))).some(row => row.id === once.id || row.id === monthly.id), false);
+      const after = await loadMoneyState(db, mine, TODAY);
+      assert.equal(after.bills.some(row => row.biller === "Fictional gym" || row.biller === "Fictional repair"), false, "every occurrence is gone with the series");
+      assert.deepEqual(series(after, "worst"), series(before, "worst"), "the runway is back to what it was");
+      const removed = (await events(mine, "bill_removed")).map(e => [e.title, e.amountMinor, e.refType, e.notify]);
+      assert.deepEqual(removed, [["Removed bill Fictional repair ¥30,000", 30_000, "bill", false], ["Removed bill Fictional gym ¥5,000", 5000, "bill", false]]);
+      assert.equal((await events(theirs, "bill_removed")).length, 0);
+      await assert.rejects(removeBill(db, mine, "not-a-uuid"));
+    });
+
+    await check("removeCharge deletes a charge with its event, takes it out of a stored statement, and what is owed follows", async () => {
+      const mine = await seedBen(db, { isDemo: true }), theirs = await seedBen(db, { isDemo: true });
+      const [card] = await cardsOf(mine), other = (await cardsOf(theirs))[0];
+      const owedOf = async (hid: string) => cardSummary(await loadMoneyState(db, hid, TODAY), card.id).owed;
+      const owed = await owedOf(mine);
+      const open = charge({ cardId: card.id, merchant: "Fictional shoes", amount: "2000", date: "2026-11-13" });
+      const closed = charge({ cardId: card.id, merchant: "Fictional October shop", amount: "2500", date: "2026-10-30" });
+      await insertCharge(db, mine, open as never, "confirmed", "manual"); await insertCharge(db, mine, closed as never, "confirmed", "manual");
+      assert.equal(await owedOf(mine), owed + 4500);
+      const statement = () => first(db.select().from(schema.cardStatements).where(and(eq(schema.cardStatements.householdId, mine), eq(schema.cardStatements.cardId, card.id), eq(schema.cardStatements.closedOn, "2026-10-31"))));
+      assert.equal((await statement()).amountMinor, 58_000 + 2500);
+      assert.equal(await removeCharge(db, theirs, open.id as string), false, "another household's charge id removes nothing");
+      assert.equal(await removeCharge(db, mine, randomUUID()), false);
+      assert.equal(await removeCharge(db, mine, open.id as string), true);
+      assert.equal(await removeCharge(db, mine, open.id as string), false);
+      assert.equal(await owedOf(mine), owed + 2500);
+      assert.equal(await removeCharge(db, mine, closed.id as string), true);
+      assert.equal((await statement()).amountMinor, 58_000, "the stored statement gives the charge back");
+      assert.equal(await owedOf(mine), owed);
+      const pending = charge({ cardId: card.id, merchant: "Fictional pending shop", amount: "900", date: "2026-10-29" });
+      await insertCharge(db, mine, pending as never, "pending", "voice");
+      assert.equal(await removeCharge(db, mine, pending.id as string), true);
+      assert.equal((await statement()).amountMinor, 58_000, "a pending charge was never in the statement");
+      assert.deepEqual((await events(mine, "charge_removed")).map(e => [e.title, e.amountMinor, e.refType]), [
+        ["Removed charge Fictional shoes ¥2,000", 2000, "charge"], ["Removed charge Fictional October shop ¥2,500", 2500, "charge"], ["Removed charge Fictional pending shop ¥900", 900, "charge"]]);
+      assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.householdId, theirs))).some(row => row.cardId === other.id && row.merchant === "Fictional shoes"), false);
+      const stillThere = charge({ cardId: other.id, merchant: "Fictional neighbour shop", amount: "100" });
+      await insertCharge(db, theirs, stillThere as never, "confirmed", "manual");
+      assert.equal(await removeCharge(db, mine, stillThere.id as string), false);
+      assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, stillThere.id as string))).length, 1);
+    });
+
+    await check("every Activity event kind the app writes has words in the Type column", async () => {
+      const { readdirSync, readFileSync } = await import("node:fs");
+      const files = [...readdirSync("./src/db").map(f => `./src/db/${f}`), "./src/lib/events.ts"].filter(f => f.endsWith(".ts"));
+      const written = new Set<string>();
+      for (const file of files) for (const m of readFileSync(file, "utf8").matchAll(/kind: "([a-z_]+)"|kind: [^"\n]*\? "([a-z_]+)" : "([a-z_]+)"|kind \+ "_confirmed"|kind: value\.kind \+ "_confirmed"/g)) {
+        for (const kind of [m[1], m[2], m[3]]) if (kind) written.add(kind);
+        if (m[0].includes("_confirmed")) { written.add("bill_confirmed"); written.add("charge_confirmed"); }
+      }
+      assert.ok(written.has("bill_removed") && written.has("settings_updated") && written.has("runway_clear"), "the scan finds the kinds");
+      // Kinds that are not events: a reading's own kind, a document source, a snapshot field.
+      for (const notEvent of ["bill", "charge", "balance", "pot", "email", "upload", "arrival", "statement", "reading"]) written.delete(notEvent);
+      for (const kind of written) assert.ok(Object.hasOwn(EVENT_KIND_LABELS, kind), `no label for the event kind ${kind}`);
+      for (const kind of Object.keys(EVENT_KIND_LABELS)) assert.ok(written.has(kind), `the label ${kind} is for a kind nothing writes`);
+      assert.equal(eventKindLabel("invoice_paid_outside"), "Invoice paid outside PayPal");
+      assert.equal(eventKindLabel("runway_clear"), "Clear for 30 days");
+      assert.equal(eventKindLabel("runway_short"), "Short");
+      assert.equal(eventKindLabel("settings_updated"), "Settings changed");
+      assert.equal(eventKindLabel("to_check"), "Waiting in To check");
+    });
+
     await check("every new function throws without a household id", async () => {
       for (const bad of ["", "not-a-uuid", null, undefined] as never[]) {
         await assert.rejects(insertClient(db, bad, clientInput.parse({ id: randomUUID(), name: "X", email: "x@x.example", termsDays: 0 })), /household id is required/);
@@ -417,6 +536,8 @@ async function main() {
         await assert.rejects(markPaidOutside(db, bad, randomUUID(), TODAY), /household id is required/);
         await assert.rejects(setBankBalance(db, bad, { id: randomUUID(), amount: "1" }, "confirmed"), /household id is required/);
         await assert.rejects(confirmPending(db, bad, "balance", randomUUID()), /household id is required/);
+        await assert.rejects(removeBill(db, bad, randomUUID()), /household id is required/);
+        await assert.rejects(removeCharge(db, bad, randomUUID()), /household id is required/);
       }
     });
 

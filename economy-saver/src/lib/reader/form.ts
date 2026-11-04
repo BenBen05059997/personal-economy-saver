@@ -1,3 +1,4 @@
+import { readAmount } from "@/lib/money/amount";
 import { businessBpFromForm } from "@/lib/money/categories";
 import { extractSchema } from "./extract";
 import { ReaderError } from "./settings";
@@ -5,10 +6,12 @@ import { ReaderError } from "./settings";
 export function readingForm(form: FormData) {
   const amount = String(form.get("amount") ?? "").trim();
   const currency = form.get("currency");
-  const valid = currency === "USD" ? /^\d{1,14}(\.\d{1,2})?$/ : /^\d{1,15}$/;
-  if (!valid.test(amount)) throw new ReaderError("Enter a positive amount in the selected currency.");
-  const [whole, fraction = ""] = amount.split(".");
-  const amountMinor = currency === "USD" ? Number(whole) * 100 + Number(fraction.padEnd(2, "0")) : Number(whole);
+  if (currency !== "USD" && currency !== "JPY") throw new ReaderError("Enter a positive amount in the selected currency.");
+  // The same reading as every amount input (separators, full-width digits, the ¥100,000,000 / $1,000,000 limit).
+  const read = readAmount(amount, currency, false);
+  if ("problem" in read) throw new ReaderError(read.problem);
+  if (read.minor <= 0) throw new ReaderError("The amount must be more than zero");
+  const amountMinor = read.minor;
   const businessBp = businessBpFromForm(form.get("businessShare"), form.get("businessPercent"));
   if (businessBp === null) throw new ReaderError("Enter the business share as a percentage from 0 to 100.");
   const result = extractSchema.safeParse({ kind: form.get("target"), name: form.get("name"), date: form.get("date"),

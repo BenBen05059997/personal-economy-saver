@@ -23,10 +23,10 @@ try {
 let cookie = "";
 let failures = 0;
 function expect(condition, code) { if (!condition) throw new Error(code); }
-async function request(path, { method = "GET", form, json, session = cookie } = {}) {
+async function request(path, { method = "GET", form, json, session = cookie, extraHeaders = {} } = {}) {
   // Every URL is selected by this script; redirects never leave the local origin.
   expect(path.startsWith("/") && !path.startsWith("//"), "invalid-local-path");
-  const headers = { Origin: base.origin, "Sec-Fetch-Site": "same-origin" };
+  const headers = { Origin: base.origin, "Sec-Fetch-Site": "same-origin", ...extraHeaders };
   if (session) headers.Cookie = session;
   if (json) headers["Content-Type"] = "application/json";
   const response = await fetch(new URL(path, base), {
@@ -126,7 +126,8 @@ function draftFormValues(html) {
   }
   let values;
   for (const record of records.values()) walk(record, (tag, props) => {
-    if (tag !== "form" || props.action !== "/api/invoices/draft") return;
+    // The form is the shared ApiForm in a client component, so on the Worker its tag is a client reference, not "form".
+    if (props.action !== "/api/invoices/draft") return;
     let id, clientId;
     walk(props.children, (field, attributes) => {
       if (field === "input" && attributes.name === "id") id = attributes.value;
@@ -157,6 +158,7 @@ if (args[0] === "--guards") {
     ["export-without-household", "/api/export", { method: "POST" }, 401],
     ["people-without-household", "/api/people", { method: "POST" }, 401],
     ["settle-without-household", "/api/settle", { method: "POST" }, 401],
+    ["remove-without-household", "/api/remove", { method: "POST" }, 401],
     ["cron-without-bearer", "/api/cron", {}, 401],
   ];
   for (const [label, path, options, status, location] of checks) {
@@ -243,6 +245,33 @@ await step("guard", "bill-with-unknown-category-refused", async () => {
   const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional vet", amount: "4000", due: "2026-11-20", category: "pets", businessShare: "personal" } });
   expect(result.response.status === 400 && result.body === "Choose a category from the list.", "bad-category-result");
 });
+// A refused form answers with its message (the page shows it inline and keeps what was typed); a native post, as here,
+// gets the same status and text. The shared form posts with "x-form-fetch: 1" and is answered a redirect as 204 plus a header.
+const refused = (label, fields, message) => step("guard", label, async () => {
+  const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional vet", amount: "4000", due: "2026-11-20", category: "other", businessShare: "personal", ...fields } });
+  expect(result.response.status === 400 && result.body === message, "refused-result");
+});
+await refused("bill-with-amount-0-refused-with-message", { amount: "0" }, "The amount must be more than zero");
+await refused("bill-over-yen-limit-refused-with-message", { amount: "100,000,001" }, "Enter an amount up to ¥100,000,000");
+await refused("bill-dated-over-two-years-refused-with-message", { due: "2029-01-01" }, "Choose a date within the next two years");
+await step("action", "bill-with-thousands-separator-saved-and-removed", async () => {
+  const id = randomUUID();
+  const form = { id, biller: "Fictional separator bill", amount: "1,000", due: "2026-11-20", category: "other", businessShare: "personal" };
+  const native = await request("/api/bills", { method: "POST", form });
+  expect(native.response.status === 303 && native.response.headers.get("location") === "/", "bill-native-result");
+  const again = await request("/api/bills", { method: "POST", form, extraHeaders: { "x-form-fetch": "1" } });
+  expect(again.response.status === 204 && again.response.headers.get("x-form-redirect") === "/" && !again.response.headers.get("location"), "bill-form-result");
+  const removed = await request("/api/remove", { method: "POST", form: { kind: "bill", id, returnTo: "/settings" }, extraHeaders: { "x-form-fetch": "1" } });
+  expect(removed.response.status === 204 && removed.response.headers.get("x-form-redirect") === "/settings", "remove-form-result");
+  const gone = await request("/api/remove", { method: "POST", form: { kind: "bill", id } });
+  expect(gone.response.status === 303 && gone.response.headers.get("location") === "/", "remove-twice-native-result");
+  const data = await events();
+  expect(data.events.filter(event => event.kind === "bill_removed" && event.refId === id).length === 1, "remove-single-event");
+});
+await step("guard", "remove-with-bad-fields-refused", async () => {
+  const result = await request("/api/remove", { method: "POST", form: { kind: "pot", id: "nope" } });
+  expect(result.response.status === 400, "remove-bad-fields-status");
+});
 await step("read", "confirm-single-event", async () => {
   expect(bill, "seed-bill");
   const data = await events();
@@ -275,7 +304,7 @@ await step("action", "export-my-data", async () => {
 });
 await step("action", "settings-invalid-input", async () => {
   const result = await request("/api/settings", { method: "POST", form: { kind: "household", name: "Fictional Check", bank: "invalid" } });
-  expect(result.response.status === 400 && /required fields and amounts/.test(result.body), "invalid-settings-result");
+  expect(result.response.status === 400 && result.body === "Enter a whole number of yen, like 5000 or 5,000", "invalid-settings-result");
 });
 await step("action", "settings-save-fictional-name", async () => {
   const result = await request("/api/settings", { method: "POST", form: { kind: "household", name: "Fictional Check", bank: "67000" } });

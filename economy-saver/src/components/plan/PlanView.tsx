@@ -3,6 +3,7 @@ import { dayLabel, minorMoney } from "@/lib/money/format";
 import { shareLabel } from "@/lib/money/categories";
 import { businessLine, monthByCategory, splitLine, type MonthView } from "@/lib/money/month";
 import { monthYear, moneyInPotsLine, potLine, roomLine } from "@/lib/money/plan";
+import { ApiForm } from "@/components/ui/ApiForm";
 import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
 import "@/components/household/add-entry.css";
 import "./plan.css";
@@ -37,22 +38,22 @@ function PotRow({ state, pot }: { state: MoneyState; pot: Pot }) {
     <div className="plan-actions">
       <details className="plan-edit">
         <summary>Edit</summary>
-        <form method="post" action="/api/pots">
+        <ApiForm action="/api/pots">
           <input type="hidden" name="id" value={pot.id} />
           <input type="hidden" name="name" value={pot.name} />
           <input type="hidden" name="returnTo" value="/plan" />
           <Fields state={state} pot={pot} />
           <button className="ui-button primary">Save changes</button>
-        </form>
+        </ApiForm>
       </details>
       <details className="plan-edit">
         <summary>Remove</summary>
-        <form method="post" action="/api/pots/remove">
+        <ApiForm action="/api/pots/remove">
           <input type="hidden" name="id" value={pot.id} />
           <input type="hidden" name="returnTo" value="/plan" />
           <p>Remove {pot.name}? {money(pot.saved)} becomes cash you can spend again.</p>
           <button className="ui-button">Yes, remove {pot.name}</button>
-        </form>
+        </ApiForm>
       </details>
     </div>
   </section>;
@@ -93,14 +94,14 @@ export function PlanView({ state, newPotId }: { state: MoneyState; newPotId: str
     <MonthGoes view={monthByCategory(state, state.today)} />
     {state.pots.length === 0 && <p className="ui-hint">No pots yet. A pot is money set aside with a reason; it stops counting as safe to spend.</p>}
     {state.pots.map(pot => <PotRow key={pot.id} state={state} pot={pot} />)}
-    <details className="add-entry" open={state.pots.length === 0}>
+    <details key={newPotId} className="add-entry" open={state.pots.length === 0}>
       <summary>Add a pot</summary>
-      <form method="post" action="/api/pots">
+      <ApiForm action="/api/pots">
         <input type="hidden" name="id" value={newPotId} />
         <input type="hidden" name="returnTo" value="/plan" />
         <Fields state={state} />
         <button className="ui-button primary">Add pot</button>
-      </form>
+      </ApiForm>
     </details>
   </article>;
 }

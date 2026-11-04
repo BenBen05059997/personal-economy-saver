@@ -21,5 +21,8 @@
 .settings-actions { display: flex; gap: var(--space-3); }
 .settings-reset { margin-top: var(--space-3); }
 .settings-reset .ui-button { margin-top: 0; }
-.settings-bill { padding-block: 12px; border-bottom: 1px solid var(--rule); font-weight: 500; overflow-wrap: anywhere; }
+.settings-bill { padding-block: 12px; border-bottom: 1px solid var(--rule); overflow-wrap: anywhere; }
+.settings-bill p { margin: 0 0 var(--space-2); font-weight: 500; }
+.settings-page .ui-remove { padding-block: 0; border-bottom: 0; }
+.settings-page details > .ui-remove { margin-top: var(--space-3); }
 .settings-bill:last-child { border-bottom: 0; }

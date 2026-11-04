@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { AccountFrame } from "@/components/auth/AccountFrame";
+import { ApiForm } from "@/components/ui/ApiForm";
 import { verifiedUid } from "@/lib/auth-request";
 import { accountHousehold } from "@/db/account";
 import { db } from "@/db/client";
@@ -19,10 +20,10 @@ async function Account() {
     <form method="post" action="/api/auth/logout"><button className="ui-button">Sign out</button></form>
     <section className="account-danger"><h2>Delete household</h2>
       <p>Deleting your household permanently removes its bills, invoices, cards, activity and members.</p>
-      <form method="post" action="/api/household">
-        <label><input type="checkbox" name="confirmation" value="delete" required /> Delete my household and its data</label>
+      <ApiForm action="/api/household">
+        <label className="ui-check"><input type="checkbox" name="confirmation" value="delete" required /> Delete my household and its data</label>
         <button className="ui-button">Delete household</button>
-      </form>
+      </ApiForm>
     </section>
   </AccountFrame>;
 }

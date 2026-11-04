@@ -48,7 +48,7 @@ export function McpTokens({ tokens }: { tokens: McpTokenInfo[] }) {
     <p className="ui-hint">Connect an MCP client to <code>/api/mcp</code> with a bearer token. Choose whether it can draft invoices.</p>
     <form onSubmit={issue}>
       <label className="ui-field">Token name<input name="name" maxLength={80} required /></label>
-      <label><input type="checkbox" name="draft" /> Allow invoice drafts</label>{" "}
+      <label className="ui-check"><input type="checkbox" name="draft" /> Allow invoice drafts</label>{" "}
       <button className="ui-button" disabled={busy}>Create token</button>
     </form>
     {issued && <div className="ui-field"><label htmlFor="new-mcp-token">Copy this token now. It’s shown once.</label>

@@ -43,20 +43,22 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 - B2. The runway picture marks −¥18,780 on Nov 27, and its dates run Nov 14 to Dec 13.
 - B3. "Later in the month · 1 more" opens and shows the Card B statement ¥61,000 on Dec 10; the row that carries the shortfall is never folded into it.
 - B4. "Other options ›" opens Options; "All cards ›" opens Cards; "All activity ›" opens Activity.
-- B5. Ben alone: no Shared costs panel, and no Whose, Paid by or Shared fields or labels anywhere.
+- B5. Ben alone: no Shared costs panel, and no Whose, Paid by or Shared fields or labels anywhere; Settings has no "Card belongs to" select, its bills panel is headed "Bills" (not "Shared & personal bills"), and the "Add a partner or housemate…" line is still there.
 
 ## C. Typing things in
 
-- C1. Bank balance: Update → ¥100,000 → Save → "You're fine for the next 30 days, even if clients pay late. Lowest point ¥14,220 on the 27th."; Activity shows "Bank balance set to ¥100,000 (was ¥67,000)". Set it back to ¥67,000.
+- C1. Bank balance: Update (the cursor is already in the field) → ¥100,000 → Save → "You're fine for the next 30 days, even if clients pay late. Lowest point ¥14,220 on the 27th."; Activity shows "Bank balance set to ¥100,000 (was ¥67,000)". Set it back to ¥67,000. Escape inside the open form closes it and returns focus to Update.
 - C2. Add a bill: type the biller "Fictional power" → the Category select picks Utilities by itself; type "Zebra Supplies" instead → it shows "Choose a category" and the form will not submit until you pick one. Choose Personal / Business / Mixed under Business share (Mixed asks for a percent). Add a bill (¥5,000, due Nov 25, category Other, Personal) → it appears in Coming up and the shortfall moves from ¥18,780 to ¥23,780. Later checks assume it is not there: start a fresh household, or add ¥5,000 to the shortfalls below.
 - C3. Add a monthly bill → Coming up shows "Every month"; Settings lists it.
 - C4. Card charge ¥3,800 on Card B (merchant "Noodle shop", category Food, Personal) → Card B owed now rises to ¥64,800 and limit left falls to ¥235,200; the sentence and the low point do not move (Card B is billed after the window).
 - C5. Add a client → it appears on Clients and in the new-invoice list.
-- C6. A form with a missing or wrong field shows a clear message and saves nothing.
+- C6. A form that is refused shows the route's message under the form, keeps what was typed, and saves nothing; the page does not leave. Bill amount 0 → "The amount must be more than zero"; a pot with 101% → "Enter a share between 0.01 and 100 percent, such as 25"; an invoice draft amount 0 → "The amount must be more than zero"; a client with a bad email stops at the browser's own message. Editing any field clears the message (also when the browser's own validation then blocks the next send). Correct the field and send again → it goes through. Without JavaScript the same forms still post and answer with the route's text.
+- C7. Amounts and dates have limits. "1,000" and "1,000.50" (and full-width １，０００) are taken as 1000 and 1000.50 in every amount box (a bill, a charge, an invoice, the bank balance, a pot). ¥100,000,001 (or $1,000,001) → "Enter an amount up to ¥100,000,000" (or "$1,000,000"). A bill or charge dated more than two years after Nov 14, 2026 (Nov 15, 2028) → "Choose a date within the next two years"; Nov 14, 2028 is accepted and Activity reads "… added, due Nov 14, 2028".
+- C8. Remove. Settings → Bills (Ben alone: each bill has Remove; with two people, open the bill and use Remove): Remove on a bill asks "Remove Rent ¥82,000? It repeats every month, so every month goes." with Keep and Remove; Keep closes the question and changes nothing; Remove takes the bill (all its months) off Coming up and the runway, and Activity says "Removed bill Rent ¥82,000". Cards → Card A → Recent charges: Remove on "Yamabiko Outdoor ¥6,400" asks first, then Card A's owed now falls from ¥86,450 to ¥80,050 and Activity says "Removed charge Yamabiko Outdoor ¥6,400". Start a fresh household afterwards.
 
 ## D. To check
 
-- D1. The Hikari Denki row reads "Utilities · 30% business · due Nov 27". Confirm it → it leaves To check, Coming up shows it as a bill, the shortfall becomes ¥30,000 on the 27th, and the To check count drops to 0.
+- D1. The Hikari Denki row reads "Utilities · 30% business · due Nov 27". Confirm it → it leaves To check, Coming up shows it as a bill, the shortfall becomes ¥30,000 on the 27th, and the To check count drops to 0. Nov 27 now has two rows (Hikari Denki and Rent); only the last of them reads "Short by ¥30,000 if clients pay late", the other shows neither that nor a Covered tick.
 - D2. Needs the Anthropic settings: an item the agent drafted (a bill, charge, bank balance or pot) waits here with its details and changes nothing until Confirm.
 
 ## E. Getting paid
@@ -68,8 +70,8 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 
 ## F. Lists
 
-- F1. Activity: newest first, dates in "Nov 14" form, every row says in words what changed (no raw ids or ISO dates).
-- F2. Cards: each row matches Home's card row; a row opens its panel with its own link; Card A's panel shows "Limit left ¥413,550" and "Can still go on this card and leave every bill through Dec 26 covered ¥173,770".
+- F1. Activity: newest first, dates in "Nov 14" form, every row says in words what changed (no raw ids or ISO dates), and its Type column is in words ("Invoice paid outside PayPal", "Clear for 30 days", "Short", "Settings changed", "Waiting in To check"), never an internal name with underscores.
+- F2. Cards: each row matches Home's card row; a row opens its panel with its own link; Card A's panel shows "Limit left ¥413,550" and "Can still go on this card and leave every bill through Dec 26 covered ¥173,770" (with Card A's closing day at 31; I2 moves it), and each of Recent charges has a Remove (C8).
 - F3. Clients: a row opens its panel; amounts match Home's Coming up.
 - F4. Options: the cheapest fix first; Review invoice opens Beacon's invoice; borrowing options show principal and total repayment.
 
@@ -93,7 +95,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 ## I. Settings
 
 - I1. Household name and bank balance save and stay after a reload; the bank balance shows on Home.
-- I2. Add a card, edit a card's closing and due days → Home's card rows follow.
+- I2. Add a card, edit a card's closing and due days → Home's card rows follow. Change Card A's closing day from 31 to 10 → Card A still reads ¥86,450 owed now and ¥413,550 limit left, the sentence and safe to spend do not move, and Coming up gains no new row inside 30 days (the Nov 4 and Nov 9 charges, ¥22,050, are a statement due Dec 26). Set it back to 31.
 - I3. Export my data → a file `personal-economy-saver-2026-11-14.json` downloads; it opens as JSON with the household, cards, bills, clients and events, and no AI key, tokens, sign-in email or uploaded files (clients' billing emails are the household's own data and belong in it).
 - I4. Your AI key: a key not shaped like `sk-ant-…` is refused with "Enter a valid Anthropic API key"; a saved key shows only its last four characters.
 - I5. Needs `MCP_TOKEN_KEY`: Create token → the token is shown once; an MCP client can call `where_am_i` and `who_owes_whom`, and `draft_invoice` opens as a draft in the app.
@@ -108,6 +110,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 
 ## K. Ask
 
+- K0. Opening Ask puts the cursor in the question box.
 - K1. Without the Anthropic settings, Ask shows the clear "ANTHROPIC_TEXT_MODEL is not set" error and nothing breaks.
 - K2. Enter sends; Shift+Enter adds a line; Japanese input (IME) does not send mid-word.
 - K3. Needs the Anthropic settings: "can I afford ¥4,000 tonight", "what's due", "where am I", "who owes whom" and one free-form question each get one or two sentences in ≤ 8 s, with numbers equal to Home's.
@@ -126,7 +129,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 Home, To check, Activity, Cards, Clients, Plan, Options, Settings, Upload, New invoice, Invoice review, Login:
 
 - L1. Nothing scrolls sideways; no text is cut off or overlaps; long names wrap.
-- L2. On a phone, every link, button, input and summary row is about 44px tall to tap (measure the box, or its `::after` hit area), and the Ask bar never covers the last row.
+- L2. On a phone, every link, button, input and summary row is about 44px tall to tap (measure the box, or its `::after` hit area), and the Ask bar never covers the last row. This includes the client links in Home's sentence and in Coming up, the "Later in the month" summary, and Settings' "Allow invoice drafts" checkbox.
 - L3. Dark mode: all text is readable, the red shortfall and green Covered stay clear, and form fields and buttons are visible.
 - L4. Desktop: the sidebar, top bar (Ask, bell, Add) and panels line up; Settings uses two columns.
 - L5. Loading states ("Opening …") give way to the page within a second or two on a visible tab.
