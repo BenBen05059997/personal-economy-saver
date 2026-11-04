@@ -17,7 +17,7 @@
 - **Options (D7) and household (D28).** Options ranks total extra cost with the Japan references in DECISIONS; Settings edits bank balance, member names, cards and bill ownership.
 - **Own AI key (D33).** Settings key field, Vault create/update/delete, and atomic daily default-key quota reservation by the household's local date are implemented and tested; no live call yet.
 - **Catalogue (D6).** Japan 20 moves and US 16 in `src/lib/catalogue/` and `src/data/catalogue/`; nothing calls it until households have a profile.
-- **Checks.** `tsc` and lint are clean; `npm run db:test` runs thirteen PGlite suites and passes; the three HTTP suites (`scripts/frontend-check.mjs`) pass on dev against Tokyo with the export step and guard: `--run` 32 checks, `--extra` 12, `--guards` 15 (people, settle and remove guards included; the five Stage 11 `--run` steps and the remove guard are added and wait for a run after the dev server restarts) (the Ask check accepts the 503 missing-setting error); the local Worker preview last passed before the export step was added. An independent security review of the build and its fixes (D12, D37) passed.
+- **Checks.** `tsc` and lint are clean; `npm run db:test` runs fourteen PGlite suites and passes, the last being the tenant-isolation suite (`npm run db:isolation-test`, 31 checks: two households, every exported function in `src/db` called across the boundary in both directions, a coverage guard that fails when a new export is neither tested nor listed as not applicable with a reason; removing one `household_id` filter from a write or a read makes it fail); the three HTTP suites (`scripts/frontend-check.mjs`) pass on dev against Tokyo with the export step and guard: `--run` 32 checks, `--extra` 12, `--guards` 15 (people, settle and remove guards included) (the Ask check accepts the 503 missing-setting error); the local Worker preview last passed before the export step was added. An independent security review of the build and its fixes (D12, D37) passed.
 - **Submission files.** `submission/DEVPOST.md` and `submission/VIDEO-SCRIPT.md` are private current-state drafts. The code is MIT-licensed; the bundled Hanken Grotesk and Newsreader fonts carry SIL OFL 1.1 notices. Fictional samples (bills, a card-statement email, a 国保 slip, a US power bill) are in `economy-saver/samples/bills/`.
 
 ### Timings (latest measurement, Nov 3)
@@ -213,7 +213,7 @@ The hand checks in a real browser are [BROWSER-CHECKS.md](BROWSER-CHECKS.md): wh
 Findings from browser checks are in Build stage 8.
 
 ### J. Foundation and security hardening (last stage, D38)
-- [ ] Tenant-isolation test in `db:test`: two seeded households, every read function in `src/db`, zero rows cross over
+- [x] Tenant-isolation test in `db:test`: two seeded households, every exported function in `src/db` (reads, writes and removes, both directions, plus the agent tools), zero rows cross over (`scripts/isolation-test.ts`)
 - [ ] Demo sweeper in the daily job: delete demo households older than N days and their Storage objects through `document-cleanup`
 - [ ] App-wide daily AI budget (one global `request_buckets` row) in addition to the per-household cap
 - [ ] Per-IP limits on `/api/try` and `/api/auth/link` (Cloudflare rate-limiting rule or an IP-keyed bucket)
