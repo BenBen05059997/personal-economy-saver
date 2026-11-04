@@ -13,7 +13,7 @@ import { toCheck } from "@/lib/money/to-check";
 /** Navigation needs counts, not money conversions or reader payloads. Caller owns the read transaction. */
 export async function loadNavigationData(tx: Db, householdId: string) {
   const hid = requireHousehold(householdId);
-  const [household] = await tx.select({ isDemo: households.isDemo, timeZone: households.timeZone })
+  const [household] = await tx.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
     .from(households).where(eq(households.id, hid));
   if (!household) throw new Error("Household not found");
   const { today, timeZone } = clockForHousehold(household);
@@ -44,5 +44,5 @@ export async function loadWorkspaceData(tx: Db, hid: string, home = false,
   ]);
   if (home) await observeRunway(tx, hid, state, household);
   const feed = await eventFeed(tx, hid);
-  return { state, people, name, feed, timeZone, inbox, freshness, demo: household.isDemo, pending: toCheck(state).length + inbox.readings.length };
+  return { state, people, name, feed, timeZone, inbox, freshness, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length };
 }

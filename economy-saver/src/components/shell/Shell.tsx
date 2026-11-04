@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AskPanel } from "@/components/ask/AskPanel";
 import React, { type ReactNode } from "react";
+import { hrefForRef } from "@/lib/links";
 import type { EventFeed } from "@/db/event-feed";
 import { useEventFeed } from "./useEventFeed";
 import "./shell.css";
@@ -98,7 +99,7 @@ export function Shell({ children, name, pending, feed, section }: {
       <p>{unread === 0 ? "You’re caught up." : `${unread} unread notification${unread === 1 ? "" : "s"}`}</p>
       {notifications.length > 0 && <ul className="shell-notification-list">
         {notifications.map(item => <li key={item.id}>
-          <div>{item.title}{item.body && <small>{item.body}</small>}</div>
+          <div>{hrefForRef(item.refType, item.refId) ? <Link prefetch={false} href={hrefForRef(item.refType, item.refId)!}>{item.title}</Link> : item.title}{item.body && <small>{item.body}</small>}</div>
           <button disabled={marking} onClick={() => mark([item.id])} aria-label={`Mark ${item.title} read`}>Mark read</button>
         </li>)}
       </ul>}

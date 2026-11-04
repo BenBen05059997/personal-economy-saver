@@ -44,8 +44,8 @@ function CardFields({ data, card }: { data: SettingsData; card?: SettingsData["c
   return <><input type="hidden" name="kind" value="card" /><input type="hidden" name="id" value={card?.id ?? ""} />
     <label className="ui-field">Card label<input name="label" defaultValue={card?.label} maxLength={80} required /></label>
     {data.people.length < 2 ? <input type="hidden" name="memberId" value={card?.memberId ?? ""} /> : <Person people={data.people} selected={card?.memberId ?? null} />}
-    <div className="settings-grid"><label className="ui-field">Closing day<input name="closingDay" type="number" min="1" max="31" defaultValue={card?.closingDay} required /></label>
-      <label className="ui-field">Payment day<input name="dueDay" type="number" min="1" max="31" defaultValue={card?.dueDay} required /></label></div>
+    <div className="settings-grid"><label className="ui-field">Statement closes on the<input name="closingDay" type="number" min="1" max="31" defaultValue={card?.closingDay} required /></label>
+      <label className="ui-field">Card bill is paid on the<input name="dueDay" type="number" min="1" max="31" defaultValue={card?.dueDay} required /></label></div>
     <label className="ui-field">Credit limit ({data.household.currency}, optional)<AmountInput name="limit" currency={data.household.currency} defaultValue={card?.limitMinor == null ? "" : fromMinor(card.limitMinor, card.currency)} /></label>
     <button className="ui-button">{card ? "Save card" : "Add card"}</button></>;
 }
@@ -84,7 +84,7 @@ export function SettingsView({ data, canImportPayPal = false }: { data: Settings
       <details><summary>Add a card</summary><ApiForm><CardFields key={cards.length} data={data} /></ApiForm></details>
     </section>
     <section className="ui-panel"><h2>{people.length < 2 ? "Bills" : "Shared & personal bills"}</h2><p className="ui-hint">Every bill stays in the household runway.{people.length > 1 && " Choose who it belongs to."}</p>
-      {bills.length ? bills.map(bill => people.length < 2 ? <div key={bill.id} className="settings-bill"><p>{billSummary(bill, people)}</p><RemoveBill bill={bill} /></div> : <details key={bill.id}><summary>{billSummary(bill, people)}</summary>
+      {bills.length ? bills.map(bill => people.length < 2 ? <div key={bill.id} id={`bill-${bill.id}`} className="settings-bill"><p>{billSummary(bill, people)}</p><RemoveBill bill={bill} /></div> : <details key={bill.id}><summary id={`bill-${bill.id}`}>{billSummary(bill, people)}</summary>
         <ApiForm><input type="hidden" name="kind" value="bill-owner" /><input type="hidden" name="id" value={bill.id} />
           <Person people={people} selected={bill.memberId} shared /><PaidBy people={people} selected={bill.paidByMemberId} /><button className="ui-button">Save bill owner</button></ApiForm><RemoveBill bill={bill} /></details>) : <p className="ui-hint">Your bills appear here after you confirm a reading.</p>}
     </section>

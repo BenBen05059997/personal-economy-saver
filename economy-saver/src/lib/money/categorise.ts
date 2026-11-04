@@ -31,3 +31,15 @@ export function guessCategory(name: string): { category: CategoryKey; sure: bool
   }
   return { category: "other", sure: false };
 }
+
+// How often a bill of this name usually comes (D51 prefill). Only the obvious names; everything else is one-off and the user can change it.
+const MONTHLY = ["rent", "phone", "mobile", "internet", "broadband", "gym", "subscription", "netflix", "spotify", "streaming", "membership", "家賃", "携帯"];
+const YEARLY = ["insurance", "domain", "annual", "yearly", "保険"];
+
+export function guessRepeat(name: string): "" | "month" | "year" {
+  const text = name.normalize("NFKC").toLowerCase();
+  const tokens = words(name);
+  const hit = (list: string[]) => list.some(word => /[^\x00-\x7f]/.test(word) ? text.includes(word) : tokens.some(token => token === word || token === `${word}s`));
+  if (hit(YEARLY)) return "year";
+  return hit(MONTHLY) ? "month" : "";
+}

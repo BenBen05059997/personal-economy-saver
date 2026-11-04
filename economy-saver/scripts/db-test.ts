@@ -460,7 +460,7 @@ async function main() {
     }), { isDemo: true });
     assert.equal(await findDemoHousehold(db, blank), blank);
     assert.equal(await accountHousehold(db, blank), null);
-    assert.equal((await householdClock(db, blank)).today, today, "a blank demo has the demo clock");
+    assert.notEqual((await householdClock(db, blank)).today, today, "a blank demo lives on the real date (D51)");
     const empty = await loadMoneyState(db, blank, today);
     assert.equal(empty.cards.length, 1);
     assert.equal(empty.bills.length + empty.charges.length + empty.invoices.length + empty.clients.length + empty.pots.length, 0, "no Ben data");
@@ -511,11 +511,11 @@ async function main() {
 
   await check("events: a demo household stamps new events on its clock, a real one on real time (D34)", async () => {
     // The moment is the demo date at the current time of day in the household's zone; the zone's offset is the one on that date.
-    const tokyo = { isDemo: true, timeZone: "Asia/Tokyo" };
+    const tokyo = { isDemo: true, fixedToday: "2026-11-14", timeZone: "Asia/Tokyo" };
     assert.equal(householdMoment(tokyo, new Date("2026-11-03T05:30:15.250Z")).toISOString(), "2026-11-14T05:30:15.250Z");
-    assert.equal(householdMoment({ isDemo: true, timeZone: "America/New_York" }, new Date("2026-07-01T12:00:00Z")).toISOString(), "2026-11-14T13:00:00.000Z");
+    assert.equal(householdMoment({ isDemo: true, fixedToday: "2026-11-14", timeZone: "America/New_York" }, new Date("2026-07-01T12:00:00Z")).toISOString(), "2026-11-14T13:00:00.000Z");
     const real = new Date("2026-11-03T05:30:15Z");
-    assert.equal(householdMoment({ isDemo: false, timeZone: "Asia/Tokyo" }, real), real);
+    assert.equal(householdMoment({ isDemo: false, fixedToday: null, timeZone: "Asia/Tokyo" }, real), real);
 
     const demo = await seedBen(db, { isDemo: true });
     const real2 = await seedBen(db);

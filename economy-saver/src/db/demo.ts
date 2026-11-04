@@ -13,6 +13,14 @@ export async function findDemoHousehold(db: Db, id: string): Promise<string | nu
   return demo?.id ?? null;
 }
 
+// Whether a demo household is Ben's Try it (it has a fixed date, D51) rather than a blank one; null when the id is no demo household.
+export async function tryItKind(db: Db, id: string): Promise<"try-it" | "blank" | null> {
+  if (!z.string().uuid().safeParse(id).success) return null;
+  const [row] = await db.select({ fixedToday: households.fixedToday }).from(households)
+    .where(and(eq(households.id, requireHousehold(id)), eq(households.isDemo, true)));
+  return row ? (row.fixedToday ? "try-it" : "blank") : null;
+}
+
 // The one deletion of a demo household (Reset and the sweeper both call it): lock the row with is_demo re-checked,
 // delete its AI key and Storage documents, then the row; the schema's cascades remove everything else.
 // Call it inside a transaction. Returns false when the id is not a demo household.

@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiForm } from "@/components/ui/ApiForm";
-import { AmountInput, CheckedInput } from "@/components/ui/CheckedInput";
+import { CheckedInput } from "@/components/ui/CheckedInput";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
+import { AmountField } from "./AmountField";
 import { CategoryFields } from "./CategoryFields";
+import { LABELS } from "./labels";
+import { MoreFields } from "./MoreFields";
 import { ScheduleFields } from "./ScheduleFields";
 import "./add-entry.css";
 
@@ -25,27 +28,36 @@ export function AddEntry({ ids, returnTo, today, currency, people, cards }: Prop
   const [open, setOpen] = useState(false);
   // Links to "#add-bill" and "#add-charge" (the empty panels and First steps on Home; the + Add menu links to "/#add-bill" from any page) open this form on the right tab.
   // A page opened with the hash already in its address (arriving from another page) opens it on load.
+  // The click is caught in the capture phase, before a Next <Link> handles it: a Link's own hash navigation finds no
+  // element called add-bill, so it would scroll nowhere and leave the form closed (found in the Nov 4 walk).
+  const scrollWhenOpen = useRef(false);
   useEffect(() => {
     const kinds: Record<string, "bill" | "charge"> = { "#add-bill": "bill", "#add-charge": "charge" };
     function show(target: "bill" | "charge") {
       setKind(target);
+      scrollWhenOpen.current = true;
       setOpen(true);
-      requestAnimationFrame(() => document.getElementById("add-entry")?.scrollIntoView({ block: "center" }));
     }
     function onClick(event: MouseEvent) {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const link = event.target instanceof Element ? event.target.closest("a") : null;
       const href = link?.getAttribute("href") ?? "";
       const target = kinds[href] ?? (window.location.pathname === "/" ? kinds[href.replace(/^\//, "")] : undefined);
       if (!target) return;
-      event.preventDefault();
+      event.preventDefault(); // a Next <Link> leaves a prevented click alone; menus that close on any click still see it
       show(target);
     }
     const arrived = kinds[window.location.hash];
     if (arrived) show(arrived);
-    document.addEventListener("click", onClick);
-    return () => document.removeEventListener("click", onClick);
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
   }, []);
+  // Scroll once the open form is on the page, not before React has drawn it.
+  useEffect(() => {
+    if (!open || !scrollWhenOpen.current) return;
+    scrollWhenOpen.current = false;
+    document.getElementById("add-entry")?.scrollIntoView({ block: "center" });
+  }, [open]);
   return <details id="add-entry" className="add-entry" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Add a bill or charge</summary>
     <div className="add-entry-kind" role="group" aria-label="What to add">
@@ -60,38 +72,45 @@ export function AddEntry({ ids, returnTo, today, currency, people, cards }: Prop
 type FormProps = { id: string; returnTo: "/" | "/to-check"; today: string; currency: string; people: { id: string; name: string }[] };
 
 function BillForm({ id, returnTo, today, currency, people }: FormProps) {
-  const [name, setName] = useState(""); // the biller typed so far; the category follows it until the user chooses
+  const [name, setName] = useState(""); // the name typed so far; the category and the repeat follow it until the user chooses
+  const [due, setDue] = useState(today);
   const [whose, setWhose] = useState(""); // "" = shared
   const split = people.length >= 2; // D45: the split fields exist only for a household of two or more; alone, a bill is saved as shared (no owner), as before
   return <ApiForm action="/api/bills">
     <input type="hidden" name="id" value={id} />
     <input type="hidden" name="returnTo" value={returnTo} />
-    <label className="ui-field">Biller<input name="biller" maxLength={160} required value={name} onChange={event => setName(event.target.value)} /></label>
-    <label className="ui-field">Amount ({currency})<AmountInput name="amount" currency={currency} required /></label>
-    <label className="ui-field">Due<CheckedInput name="due" type="date" defaultValue={today} max={latestDate(today)} message={HORIZON_MESSAGE} required /></label>
-    <ScheduleFields id={id} today={today} currency={currency} />
-    <CategoryFields name={name} />
-    {split && <label className="ui-field">Whose<select name="memberId" value={whose} onChange={event => setWhose(event.target.value)}>
-      <option value="">Shared, split by shares</option>{people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>}
-    {split && whose === "" && <label className="ui-field">Paid by<select name="paidByMemberId" defaultValue={people[0].id} required>
-      {people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>}
+    <label className="ui-field">{LABELS.name}<input name="biller" maxLength={160} required placeholder={LABELS.namePlaceholder} value={name} onChange={event => setName(event.target.value)} /></label>
+    <label className="ui-field">{LABELS.amount}<AmountField name="amount" currency={currency} required /></label>
+    <label className="ui-field">{LABELS.dueDate}<CheckedInput name="due" type="date" value={due} onChange={event => setDue(event.target.value)} max={latestDate(today)} message={HORIZON_MESSAGE} required /></label>
     <button className="ui-button primary">Add bill</button>
+    <MoreFields>
+      <ScheduleFields id={id} today={today} currency={currency} name={name} due={due} flat />
+      <CategoryFields name={name} guessed />
+      {split && <label className="ui-field">{LABELS.whoFor}<select name="memberId" value={whose} onChange={event => setWhose(event.target.value)}>
+        <option value="">Shared, split by shares</option>{people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>}
+      {split && whose === "" && <label className="ui-field">{LABELS.whoPays}<select name="paidByMemberId" defaultValue={people[0].id} required>
+        {people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>}
+    </MoreFields>
   </ApiForm>;
 }
 
 function ChargeForm({ id, returnTo, today, currency, people, cards }: FormProps & { cards: { id: string; label: string }[] }) {
-  const [name, setName] = useState(""); // the merchant typed so far; the category follows it until the user chooses
+  const [name, setName] = useState(""); // what or where, typed so far; the category follows it until the user chooses
   const split = people.length >= 2;
+  const card = <label className="ui-field">{LABELS.card}<select name="cardId" required>{cards.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>;
   return <ApiForm action="/api/charges">
     <input type="hidden" name="id" value={id} />
     <input type="hidden" name="returnTo" value={returnTo} />
-    <label className="ui-field">Merchant<input name="merchant" maxLength={160} required value={name} onChange={event => setName(event.target.value)} /></label>
-    <label className="ui-field">Amount ({currency})<AmountInput name="amount" currency={currency} required /></label>
-    <label className="ui-field">Date<CheckedInput name="date" type="date" defaultValue={today} max={latestDate(today)} message={HORIZON_MESSAGE} required /></label>
-    <label className="ui-field">Card<select name="cardId" required>{cards.map(card => <option key={card.id} value={card.id}>{card.label}</option>)}</select></label>
-    <CategoryFields name={name} />
-    {split && <><label className="add-entry-repeat"><input name="shared" type="checkbox" /> Shared, split by shares</label>
-      <p className="ui-hint">The card’s owner paid it. Set a card’s owner in Settings.</p></>}
+    <label className="ui-field">{LABELS.whatOrWhere}<input name="merchant" maxLength={160} required placeholder={LABELS.whatOrWherePlaceholder} value={name} onChange={event => setName(event.target.value)} /></label>
+    <label className="ui-field">{LABELS.amount}<AmountField name="amount" currency={currency} required /></label>
+    <label className="ui-field">{LABELS.date}<CheckedInput name="date" type="date" defaultValue={today} max={latestDate(today)} message={HORIZON_MESSAGE} required /></label>
+    {cards.length > 1 && card}
     <button className="ui-button primary">Add charge</button>
+    <MoreFields>
+      {cards.length === 1 && card}
+      <CategoryFields name={name} guessed />
+      {split && <><label className="add-entry-repeat"><input name="shared" type="checkbox" /> Shared, split by shares</label>
+        <p className="ui-hint">The card’s owner paid it. Set a card’s owner in Settings.</p></>}
+    </MoreFields>
   </ApiForm>;
 }

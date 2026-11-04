@@ -67,7 +67,7 @@ const covered = [
   // bank-balance.ts, bills.ts, charges.ts, clients.ts, confirm.ts
   "setBankBalance", "confirmBalanceUpdate", "insertBill", "removeBill", "insertCharge", "removeCharge", "insertClient", "confirmPending",
   // daily.ts, demo.ts, document-cleanup.ts, event-feed.ts
-  "runDaily", "findDemoHousehold", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
+  "runDaily", "findDemoHousehold", "tryItKind", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
   // household.ts
   "householdOwnerName", "usdRate", "usdRateMicro", "loadSplitState", "loadMoneyState", "recordEvent", "listEvents", "unreadCount", "markRead",
   "recordWebhookDelivery", "deleteHousehold",
@@ -602,7 +602,10 @@ async function main() {
       assert.equal(await F.createHousehold(store, blank, SETUP, { isDemo: true }), blank);
       assert.equal(await F.findDemoHousehold(store, blank), blank, "it is a demo household");
       assert.equal(await F.accountHousehold(store, blank), null, "a blank demo is not an account");
-      assert.equal(await F.householdDate(store, blank), DEMO_DATE, "it has the demo clock");
+      assert.notEqual(await F.householdDate(store, blank), DEMO_DATE, "a blank demo lives on the real date");
+      assert.equal(await F.tryItKind(store, blank), "blank");
+      assert.equal(await F.tryItKind(store, A.hid), "try-it");
+      assert.equal(await F.tryItKind(store, randomUUID()), null, "an unknown id is no demo");
       assert.deepEqual((await pg.query("select count(*)::int as n from users where household_id = $1", [blank])).rows[0], { n: 0 });
       assert.deepEqual((await pg.query("select count(*)::int as n from cards where household_id = $1", [blank])).rows[0], { n: 1 });
       assert.deepEqual((await pg.query("select count(*)::int as n from bills where household_id = $1", [blank])).rows[0], { n: 0 }, "no Ben data");

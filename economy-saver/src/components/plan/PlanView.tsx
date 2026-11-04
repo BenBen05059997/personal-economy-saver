@@ -23,7 +23,7 @@ function Fields({ state, pot }: { state: MoneyState; pot?: Pot }) {
 function PotRow({ state, pot }: { state: MoneyState; pot: Pot }) {
   const money = (n: number) => minorMoney(Math.round(n * (state.homeCurrency === "USD" ? 100 : 1)), state.homeCurrency);
   const line = potLine(pot, state);
-  return <section className="plan-pot" aria-label={pot.name}>
+  return <section className="plan-pot" id={`pot-${pot.id}`} aria-label={pot.name}>
     <div className="ui-row">
       <div>
         <b>{pot.name}</b>

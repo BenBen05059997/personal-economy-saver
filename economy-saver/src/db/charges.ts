@@ -42,7 +42,7 @@ export async function insertCharge(
   const hid = requireHousehold(householdId);
   const data = chargeInput.parse(input);
   return db.transaction(async tx => {
-    const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, timeZone: households.timeZone })
+    const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
     const [card] = await tx.select({ currency: cards.currency, memberId: cards.memberId, label: cards.label }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, data.cardId)));

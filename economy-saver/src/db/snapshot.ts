@@ -37,7 +37,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
   return db.transaction(async tx => {
     const [household] = await tx.select({
       id: s.households.id, name: s.households.name, homeCurrency: s.households.homeCurrency, timeZone: s.households.timeZone,
-      isDemo: s.households.isDemo, bankBalanceMinor: s.households.bankBalanceMinor, splitSince: s.households.splitSince,
+      isDemo: s.households.isDemo, fixedToday: s.households.fixedToday, bankBalanceMinor: s.households.bankBalanceMinor, splitSince: s.households.splitSince,
     }).from(s.households).where(eq(s.households.id, hid));
     if (!household) throw new Error("Household not found");
 

@@ -4,6 +4,7 @@
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import { addDays } from "@/lib/money/runway";
 import type { Db } from "./household";
+import { DEMO_DATE } from "./clock";
 import { toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
 
@@ -31,6 +32,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
         homeCurrency: home,
         bankBalanceMinor: toMinor(m.bank, home),
         isDemo: opts.isDemo ?? false,
+        fixedToday: opts.isDemo ? DEMO_DATE : null, // D51: the Try it date; a seeded owner household lives on the real one
       })
       .returning({ id: s.households.id });
     const hid = household.id;

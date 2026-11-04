@@ -19,7 +19,7 @@ import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { toolInputSchema, tools, type ToolContext } from "@/lib/agent/tools";
 import { cardSummary } from "@/components/home/card-summary";
 import { BusinessBp, CATEGORIES, CATEGORY_KEYS, businessBpFromForm, businessPart, categoryLabel, CategoryKeySchema, shareLabel } from "@/lib/money/categories";
-import { guessCategory } from "@/lib/money/categorise";
+import { guessCategory, guessRepeat } from "@/lib/money/categorise";
 import { businessLine, monthByCategory, monthText, splitLine } from "@/lib/money/month";
 import { expandBills } from "@/lib/money/repeat";
 import { addDays, cycle, safeToSpend, statementItems } from "@/lib/money/runway";
@@ -89,6 +89,12 @@ async function main() {
       ];
       for (const [name, category] of cases) assert.deepEqual(guessCategory(name), { category, sure: true }, name);
       for (const name of ["", "   ", "Zebra Supplies", "Marketing agency", "Business class seat", "Brenton Ltd"]) assert.deepEqual(guessCategory(name), { category: "other", sure: false }, `"${name}" matches nothing`);
+    });
+
+    await check("guessRepeat (D51 prefill): rent, phone and subscriptions every month, insurance and domains every year, the rest one-off", () => {
+      for (const name of ["Rent", "家賃", "Phone bill", "Hikari internet", "City Gym", "Netflix", "Fictional Cloud subscription"]) assert.equal(guessRepeat(name), "month", name);
+      for (const name of ["Car insurance", "Domain renewal", "Annual fee", "自動車保険"]) assert.equal(guessRepeat(name), "year", name);
+      for (const name of ["", "Fictional power", "Zebra Supplies", "Rental car"]) assert.equal(guessRepeat(name), "", name);
     });
 
     // ------------------------------------------------------------ the month view, pure

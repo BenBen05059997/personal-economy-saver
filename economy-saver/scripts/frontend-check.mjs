@@ -47,6 +47,7 @@ async function step(type, label, run) {
     // Never emit response bodies, URLs, identifiers, cookies or raw fetch errors.
     const reason = error?.name === "TimeoutError" ? "timeout" : "check-failed";
     console.log(`FAIL ${type} ${label} ${Math.round(performance.now() - start)}ms ${reason}`);
+    if (process.env.CHECK_DEBUG && error instanceof Error && /^[a-z0-9-]+$/.test(error.message)) console.log(`  code ${error.message}`); // expect codes only, never a body
     return undefined;
   }
 }
@@ -173,7 +174,7 @@ if (args[0] === "--guards") {
       if (location) expect(response.headers.get("location") === location, "guard-redirect");
     });
   }
-  console.log(`${failures ? "FAIL" : "PASS"} summary ${failures} failed`);
+console.log(`${failures ? "FAIL" : "PASS"} summary ${failures} failed`);
   process.exit(failures ? 1 : 0);
 }
 
@@ -214,7 +215,7 @@ if (args[0] === "--extra") {
     expect(/Fictional verification design/.test(pageContent(html)) && /12\.34/.test(pageContent(html)), "draft-review-values");
   });
   await step("action", "reset-fictional-session", async () => adopt(await request("/api/try/reset", { method: "POST" })));
-  console.log(`${failures ? "FAIL" : "PASS"} summary ${failures} failed`);
+console.log(`${failures ? "FAIL" : "PASS"} summary ${failures} failed`);
   process.exit(failures ? 1 : 0);
 }
 const firstCookie = cookie;
@@ -394,16 +395,16 @@ await step("page", "start-blank-home-empty-sentence", async () => {
   expect(/A fictional household that lives in this browser[^›]*Start with my numbers ›/.test(content), "blank-demo-line");
   expect(/Bank balance ¥120,000\./.test(content), "blank-bank-balance");
   expect(!/You(?:'|&#x27;)re fine/.test(content), "blank-fine-verdict");
-  expect(/First steps · 3 to go/.test(content), "blank-three-steps-open");
-  for (const label of ["Add a bill", "Add a client who pays you", "Add a card charge"]) expect(content.includes(label), "blank-step-" + label);
-  expect(/Nothing due yet\. Add your rent/.test(content), "blank-coming-up-hint");
+  expect(/First steps · 4 to go/.test(content), "blank-four-steps-open");
+  expect(content.includes("Add your rent, so the day it leaves shows up") && !content.includes("Add a client who pays you, so"), "blank-only-the-first-step-is-open");
+  expect(/Nothing due in the next 30 days\. Add a bill ›/.test(content), "blank-coming-up-hint");
   expect(/Card N/.test(content), "blank-card-row");
 });
 // Start with my numbers never reuses the cookie household: a second post makes a new one and deletes the old demo.
 await step("page", "start-form-says-it-replaces-the-demo", async () => {
-  await page("/start", /This replaces the Try it household in this browser\. Reset in Settings brings Ben(?:'|&#x27;)s numbers back\./);
+  await page("/start", /This replaces your household in this browser and its numbers\./); // this browser holds a blank household, not Ben's Try it
   const fresh = await request("/start", { session: "" });
-  expect(fresh.response.status === 200 && !/This replaces the Try it household/.test(pageContent(fresh.body)), "start-notice-without-demo");
+  expect(fresh.response.status === 200 && !/This replaces (the Try it|your) household/.test(pageContent(fresh.body)), "start-notice-without-demo");
 });
 await step("action", "start-blank-second-post-replaces-the-demo", async () => {
   const old = cookie;
@@ -420,8 +421,8 @@ await step("action", "start-blank-add-rent", async () => {
 await step("page", "start-blank-home-after-bill", async () => {
   const content = plain(pageContent(await page("/", /You(?:'|&#x27;)re fine for the next 30 days[\s\S]*¥60,000 on the 27th/)));
   expect(!/Add your rent, your bills and the clients/.test(content), "blank-empty-still-shown");
-  expect(/First steps · 2 to go/.test(content) && content.includes("Bill added"), "blank-two-steps-left");
-  expect(!/Add a bill Rent/.test(content), "blank-bill-step-still-open");
+  expect(/First steps · 3 to go/.test(content) && content.includes("Bill added"), "blank-three-steps-left");
+  expect(!content.includes("Add your rent, so the day"), "blank-bill-step-still-open");
 });
 // D48 on a blank household (Try it numbers never move): a yearly bill with a new amount and a cancel-by date goes through the
 // same door the form uses; Coming up says "Yearly" and has the cancel-by row, Activity names what the bill carries.
@@ -450,6 +451,102 @@ await step("action", "start-blank-fetch-form-gets-redirect-header", async () => 
   const result = await request("/api/try/blank", { method: "POST", form: setup, session: "", extraHeaders: { "x-form-fetch": "1" } });
   expect(result.response.status === 204 && result.response.headers.get("x-form-redirect") === "/", "blank-fetch-redirect");
   expect(/household=[0-9a-f-]{36}/.test(result.response.headers.get("set-cookie") ?? ""), "blank-fetch-cookie");
+});
+// Stage 15 A: Start asks for a name and a bank balance (D51); the household lives on the real date; Home asks for one thing at a time.
+const twoFields = { name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "250,000" };
+await step("page", "stage15a-start-form-has-two-fields-and-folded-card-and-region", async () => {
+  const html = await page("/start", /What’s in your bank today\?|What&#x27;s in your bank today\?|What’s in your bank today/);
+  const content = plain(pageContent(html));
+  expect(/Your name/.test(content) && /Add a card now ›/.test(content) && /· Change/.test(content), "a-start-labels");
+  expect(!/Card bill is paid on the[^]*required/.test(html) && !/name="closingDay"[^>]*required/.test(html), "a-card-fields-not-required");
+});
+await step("action", "stage15a-start-two-fields", async () => adopt(await request("/api/try/blank", { method: "POST", form: twoFields, session: "" })));
+await step("page", "stage15a-home-has-the-real-date-no-card-and-the-card-step", async () => {
+  const html = await page("/", /First steps/);
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  expect(html.includes(`dateTime="${today}"`), "a-real-date");
+  const content = plain(pageContent(html));
+  expect(/Add your rent, so the day it leaves shows up/.test(content) && html.includes('href="/#add-bill"'), "a-first-step-is-rent");
+  expect(/Bank balance ¥250,000\./.test(content), "a-bank");
+  expect(/No card yet\./.test(content), "a-no-card");
+});
+await step("action", "stage15a-add-rent-collapses-step-and-asks-for-a-client", async () => {
+  const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional rent", amount: "60,000", due: "2026-12-27", category: "housing", businessShare: "personal" } });
+  expect(result.response.status === 303, "a-bill-result");
+  const html = await page("/", /Bill added/);
+  const content = plain(pageContent(html));
+  // No card yet, so the card step still counts: client, card, charge and share remain.
+  expect(/First steps · 4 to go/.test(content) && /Add a client who pays you, so late payments show in the sentence/.test(content), "a-client-step-next");
+  expect(html.includes('href="/clients"') && !/Add your rent, so the day/.test(content), "a-rent-step-collapsed");
+});
+await step("action", "stage15a-start-with-card-block", async () => {
+  adopt(await request("/api/try/blank", { method: "POST", form: { ...twoFields, card: "Card Q", closingDay: "25", dueDay: "10", limit: "" }, session: "" }));
+  await page("/", /Card Q/);
+  const html = await page("/", /First steps/);
+  expect(!/Add a card, so card bills count/.test(pageContent(html)), "a-card-step-hidden-with-a-card");
+});
+await step("guard", "stage15a-half-a-card-refused", async () => {
+  const result = await request("/api/try/blank", { method: "POST", form: { ...twoFields, card: "Card Q" }, session: "" });
+  expect(result.response.status === 400 && !result.response.headers.get("set-cookie"), "a-half-card");
+});
+await step("action", "stage15a-try-it-keeps-nov-14-and-has-no-first-steps", async () => {
+  adopt(await request("/api/try", { session: "" })); // a fresh session: with a cookie, /api/try keeps the current household
+  const html = await page("/", /short on the 27th/);
+  expect(html.includes('dateTime="2026-11-14"') && /18,780/.test(pageContent(html)) && !/First steps/.test(pageContent(html)), "a-try-it-date");
+});
+await step("page", "stage15a-start-notice-names-ben-for-try-it", () => page("/start", /This replaces the Try it household in this browser\. Reset in Settings brings Ben(?:'|&#x27;|’)s numbers back\./));
+
+// Stage 15 C: every empty panel names what fills it and links there; rows lead to what they are about.
+await step("action", "stage15c-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" })));
+await step("page", "stage15c-empty-panel-hints-link-to-what-fills-them", async () => {
+  const html = await page("/", /Nothing due in the next 30 days/);
+  const content = plain(pageContent(html));
+  expect(/Nothing due in the next 30 days\. Add a bill ›/.test(content) && html.includes('href="/#add-bill"'), "c-coming-up-hint");
+  expect(/No card charges yet\. Add a card charge ›/.test(content) && html.includes('href="/#add-charge"'), "c-cards-hint");
+  expect(html.includes('href="/settings#cards"'), "c-cards-change-closing-day");
+  expect(/Things the app read or drafted, waiting for your OK\. Nothing here now\./.test(content), "c-to-check-hint");
+});
+await step("page", "stage15c-to-check-page-hint", () => page("/to-check", /Things the app read or drafted, waiting for your OK\. Nothing here now\./));
+await step("page", "stage15c-clients-hint-links-to-the-add-form", async () => {
+  const html = await page("/clients", /No clients yet\. Add a client ›/);
+  expect(html.includes('href="#add-client"') && html.includes('id="add-client"'), "c-clients-hint-link");
+});
+await step("action", "stage15c-add-rent", async () => {
+  const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional rent", amount: "60,000", due: "2026-11-27", category: "housing", businessShare: "personal" } });
+  expect(result.response.status === 303, "c-bill-result");
+});
+await step("page", "stage15c-coming-up-row-carries-a-link-to-its-bill", async () => {
+  const html = await page("/", /Fictional rent/);
+  expect(/href="\/settings#bill-[0-9a-f-]{36}"[^>]*>Fictional rent</.test(html), "c-coming-up-link");
+  const settings = await page("/settings", /Fictional rent/);
+  expect(/id="bill-[0-9a-f-]{36}"/.test(settings), "c-settings-bill-anchor");
+});
+await step("action", "stage15c-try-it-session", async () => adopt(await request("/api/try", { session: "" })));
+await step("page", "stage15c-activity-invoice-row-links-to-the-invoice", async () => {
+  const home = await page("/", /short on the 27th/);
+  expect(/<a [^>]*href="#runway-day"[^>]*>on the 27th</.test(home), "c-sentence-date-link");
+  const id = /href="\/invoices\/([0-9a-f-]{36})"/.exec(home)?.[1];
+  expect(id !== undefined, "c-invoice-id");
+  const paid = await request("/api/invoices/paid", { method: "POST", form: { id } });
+  expect(paid.response.status === 303, "c-paid-outside");
+  const html = await page("/activity", /marked paid outside PayPal/);
+  expect(html.includes(`href="/invoices/${id}"`), "c-activity-invoice-link");
+});
+// Stage 15 B: the add forms show three fields, the rest under More ›, in the user's words
+await step("action", "stage15b-try-it-session", async () => adopt(await request("/api/try", { session: "" }))); // the C block ends on a blank household
+await step("page", "stage15b-bill-form-words-and-more", async () => {
+  const html = pageContent(await page("/", /short on the 27th/));
+  const form = html.slice(html.indexOf("Add a bill or charge"));
+  expect(html.includes("Add a bill or charge") && form.includes("Due date") && form.includes("Add bill"), "b-bill-three-fields");
+  expect(form.indexOf("Add bill") < form.indexOf("More ›"), "b-add-button-before-more");
+  expect(form.includes("For work?") && form.includes("Part work") && form.includes("Last day to cancel") && form.includes("Guessed from the name, change if wrong"), "b-more-words");
+  expect(!/Business share|Biller|basis points|occurrence/.test(form), "b-engine-words-gone"); // case-sensitive: the field is still named "biller" in the page data
+});
+await step("action", "stage15b-three-field-bill-with-guessed-defaults", async () => {
+  // what the browser posts for name "Fictional rent": the guessed category, repeat every month, personal
+  const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional rent b", amount: "61,000", due: "2026-11-27", category: "housing", repeat: "month", businessShare: "personal" } });
+  expect(result.response.status === 303, "b-bill-result");
+  await page("/", /Fictional rent b/);
 });
 console.log(`${failures ? "FAIL" : "PASS"} summary ${failures} failed`);
 process.exitCode = failures ? 1 : 0;

@@ -33,7 +33,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
   return db.transaction(async tx => {
     const previous = await lockRunway(tx, hid);
     const [row] = await tx.select({
-      data: readings.extracted, documentId: readings.documentId, source: documents.kind, currency: households.homeCurrency, isDemo: households.isDemo, timeZone: households.timeZone,
+      data: readings.extracted, documentId: readings.documentId, source: documents.kind, currency: households.homeCurrency, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone,
     }).from(readings).innerJoin(documents, and(eq(readings.documentId, documents.id), eq(documents.householdId, hid)))
       .innerJoin(households, eq(households.id, readings.householdId))
       .where(and(eq(readings.householdId, hid), eq(readings.id, readingId), eq(readings.status, "to_check"))).for("update");

@@ -79,7 +79,7 @@ export async function insertBill(db: Db, householdId: string, input: z.infer<typ
   const hid = requireHousehold(householdId);
   const data = billInput.parse(input);
   return db.transaction(async tx => {
-    const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, timeZone: households.timeZone })
+    const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
     const amountMinor = parseAmountMinor(data.amount, household.currency);

@@ -10,7 +10,7 @@ import { InputError } from "./input-error";
 import { parseMinor } from "./money";
 
 export async function householdClock(db: Db, id: string, now = new Date()) {
-  const [household] = await db.select({ isDemo: households.isDemo, timeZone: households.timeZone })
+  const [household] = await db.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
     .from(households).where(eq(households.id, requireHousehold(id)));
   if (!household) throw new Error("Household no longer exists");
   return clockForHousehold(household, now);
@@ -28,6 +28,7 @@ export async function accountHousehold(db: Db, verifiedUid: string) {
   return membership?.id ?? null;
 }
 
+const blank = (value: unknown) => (typeof value === "string" && value.trim() === "" ? undefined : value);
 const currency = z.enum(["JPY", "USD"]);
 export const setupForm = z.object({
   name: z.string().trim().min(1).max(80),
@@ -36,16 +37,18 @@ export const setupForm = z.object({
   }),
   currency,
   bank: z.string().trim().min(1).max(16), // read by parseMinor: separators and full-width digits are fine; the limit and the decimals are checked there
-  card: z.string().trim().min(1).max(80),
-  closingDay: z.coerce.number().int().min(1).max(31),
-  dueDay: z.coerce.number().int().min(1).max(31),
-  limit: z.string().trim().max(16),
-});
+  // D51: the card is optional. The label, closing day and payment day come together or not at all; a blank field counts as absent.
+  card: z.preprocess(blank, z.string().trim().min(1).max(80).optional()),
+  closingDay: z.preprocess(blank, z.coerce.number().int().min(1).max(31).optional()),
+  dueDay: z.preprocess(blank, z.coerce.number().int().min(1).max(31).optional()),
+  limit: z.string().trim().max(16).default(""),
+}).refine(d => (d.card !== undefined) === (d.closingDay !== undefined) && (d.card !== undefined) === (d.dueDay !== undefined),
+  { message: "A card needs a name, a closing day and a payment day. Fill all three or leave the card out.", path: ["card"] });
 
-type Setup = z.infer<typeof setupForm>;
+type Setup = z.output<typeof setupForm>;
 
 /**
- * The one function that creates a household from the setup form (D39, D47): the household, its owner, one card and the
+ * The one function that creates a household from the setup form (D39, D47): the household, its owner, the optional card and the
  * PayPal connection row. Onboarding passes the verified uid as the id and as `authUserId` (the owner then also gets a
  * users row) and may name the visitor's demo household to delete; the blank start passes a fresh id, `isDemo` and no
  * auth user. Concurrent and retried submissions with the same id converge on one household.
@@ -58,7 +61,8 @@ export async function createHousehold(db: Db, id: string, data: Setup, opts: { i
   if (limit !== null && limit < 0) throw new InputError("Credit limit cannot be negative");
   return db.transaction(async tx => {
     const [created] = await tx.insert(households).values({
-      id, name: data.name, timeZone: data.timeZone, homeCurrency: data.currency, bankBalanceMinor: bank, isDemo: opts.isDemo,
+      id, name: data.name, timeZone: data.timeZone, homeCurrency: data.currency, bankBalanceMinor: bank, isDemo: opts.isDemo, nudgeAfterDays: 3, // D51: the nudge rule is on for a new household; fixedToday stays null (the real date)
+
     }).onConflictDoNothing({ target: households.id }).returning({ id: households.id });
     if (!created) {
       if (opts.authUserId && await accountHousehold(tx, id)) return id;
@@ -69,10 +73,12 @@ export async function createHousehold(db: Db, id: string, data: Setup, opts: { i
       householdId: id, displayName: data.name, role: "owner", shareBp: 10_000, authUserId: opts.authUserId ?? null,
     }).returning({ id: members.id });
     if (opts.authUserId) await tx.insert(users).values({ householdId: id, memberId: owner.id, authUserId: opts.authUserId });
-    await tx.insert(cards).values({
-      householdId: id, memberId: owner.id, label: data.card, currency: data.currency,
-      closingDay: data.closingDay, dueDay: data.dueDay, limitMinor: limit,
-    });
+    if (data.card !== undefined && data.closingDay !== undefined && data.dueDay !== undefined) {
+      await tx.insert(cards).values({
+        householdId: id, memberId: owner.id, label: data.card, currency: data.currency,
+        closingDay: data.closingDay, dueDay: data.dueDay, limitMinor: limit,
+      });
+    }
     await tx.insert(paypalConnections).values({ householdId: id, memberId: owner.id, balanceCurrency: data.currency });
     if (opts.replaceDemo) {
       const [old] = await tx.select({ id: households.id }).from(households)

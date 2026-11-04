@@ -7,6 +7,8 @@ import { clientPace } from "@/lib/money/pace";
 import { cycle, paybackFor, project, roomOnCard } from "@/lib/money/runway";
 import type { Card, Client, MoneyState } from "@/lib/money/types";
 import { cardSummary } from "@/components/home/card-summary";
+import { hrefFor, SETTINGS_CARDS } from "@/lib/links";
+import { PanelHint } from "@/components/ui/PanelHint";
 import { AddClientForm } from "./AddClientForm";
 import "./household.css";
 
@@ -81,7 +83,7 @@ export function Directory({ state, section, selected, newClientId }: { state: Mo
       {isCards ? state.cards.map(item => {
         const { owed, limitLeft, next, shortBy } = cardSummary(state, item.id);
         const owner = state.split.members.length > 1 ? state.split.members.find(member => member.id === item.ownerId)?.name ?? "Household" : null;
-        return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={`/cards/${item.id}`} aria-label={item.label} aria-current={item.id === selected ? "page" : undefined}>
+        return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={hrefFor({ type: "card", id: item.id })} aria-label={item.label} aria-current={item.id === selected ? "page" : undefined}>
           <div>{item.label}{owner && <small>{owner}</small>}
             <small>{next ? `${next.open ? "So far" : "Statement"} ${format(next.amount)} · due ${dayLabel(next.dueOn)}` : "No statement due"}</small>
             {limitLeft !== undefined && <small>{format(Math.max(0, limitLeft))} limit left</small>}</div>
@@ -90,12 +92,13 @@ export function Directory({ state, section, selected, newClientId }: { state: Mo
         </Link>;
       }) : state.clients.map(item => {
         const outstanding = state.invoices.filter(i => i.clientId === item.id && i.status === "sent").reduce((sum, i) => sum + i.amountUsd, 0);
-        return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={`/clients/${item.id}`} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>
+        return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={hrefFor({ type: "client", id: item.id })} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>
           <div>{item.name}<small>{item.email}</small></div><div>{outstanding > 0 ? <>{usd(outstanding)}<small>Outstanding</small></> : <small>Nothing outstanding</small>}</div>
         </Link>;
       })}
-      {(isCards ? state.cards : state.clients).length === 0 && <p className="directory-empty">No {section} yet.</p>}
-      {!isCards && <AddClientForm id={newClientId} />}
+      {isCards && state.cards.length === 0 && <PanelHint className="directory-empty" href={SETTINGS_CARDS} label="Add one in Settings">No card yet.</PanelHint>}
+      {!isCards && state.clients.length === 0 && <PanelHint className="directory-empty" href="#add-client" label="Add a client">No clients yet.</PanelHint>}
+      {!isCards && <div id="add-client"><AddClientForm id={newClientId} /></div>}
     </div>
     {card && <CardPanel state={state} card={card} />}
     {client && <ClientPanel state={state} client={client} />}

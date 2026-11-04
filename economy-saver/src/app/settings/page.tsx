@@ -1,5 +1,6 @@
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
+import { ScrollToHash } from "@/components/ui/ScrollToHash";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { canImportPayPal } from "@/db/paypal-import";
@@ -23,5 +24,5 @@ async function Settings() {
   </div></WorkspaceFrame>;
 }
 export default function Page() {
-  return <Suspense fallback={<LoadingState label="Opening Settings…" />}><Settings /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening Settings…" />}><Settings /><ScrollToHash /></Suspense>;
 }

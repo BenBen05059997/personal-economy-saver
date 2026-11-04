@@ -8,7 +8,8 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
-import { createHousehold, setupForm } from "@/db/account";
+import { createHousehold, householdDate, setupForm } from "@/db/account";
+import { tryItKind } from "@/db/demo";
 import { insertBill, billInput, removeBill } from "@/db/bills";
 import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { insertCharge, removeCharge } from "@/db/charges";
@@ -130,6 +131,28 @@ async function main() {
       const [card] = await cardsOf(other);
       await insertCharge(db, other, charge({ cardId: card.id, amount: "20" }) as never, "confirmed", "manual", { madeBy: "form" });
       assert.notDeepEqual(homeSentence(await loadMoneyState(db, other, TODAY)).lead, empty.lead);
+    });
+
+    await check("the two-field start makes a household with no card, the real date and the nudge rule at 3 days; Try it keeps Nov 14 with the nudge off (D51)", async () => {
+      const bare = setupForm.parse({ name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "250,000" });
+      const id = await createHousehold(db, randomUUID(), bare, { isDemo: true });
+      const [row] = await db.select().from(schema.households).where(eq(schema.households.id, id));
+      assert.equal(row.fixedToday, null); assert.equal(row.nudgeAfterDays, 3); assert.equal(row.bankBalanceMinor, 250_000);
+      assert.equal((await cardsOf(id)).length, 0, "no card block, no card");
+      const real = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      assert.equal(await householdDate(db, id), real, "a blank household lives on the real date in its zone");
+      assert.ok((await db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, id))).length === 1);
+      const withCard = await createHousehold(db, randomUUID(), setupForm.parse({ ...bare, card: "Card D", closingDay: "20", dueDay: "10" }), { isDemo: true });
+      assert.equal((await cardsOf(withCard)).length, 1, "the card block makes one card");
+      for (const half of [{ card: "Card D" }, { closingDay: "20", dueDay: "10" }, { card: "Card D", closingDay: "20" }]) assert.equal(setupForm.safeParse({ ...bare, ...half }).success, false);
+      assert.equal(setupForm.safeParse({ ...bare, card: "", closingDay: "", dueDay: "", limit: "" }).success, true, "blank card fields count as absent");
+      assert.equal(await tryItKind(db, id), "blank");
+      const ben = await seedBen(db, { isDemo: true });
+      const [tryIt] = await db.select().from(schema.households).where(eq(schema.households.id, ben));
+      assert.equal(tryIt.fixedToday, "2026-11-14"); assert.equal(tryIt.nudgeAfterDays, null);
+      assert.equal(await householdDate(db, ben), "2026-11-14");
+      assert.equal(await tryItKind(db, ben), "try-it");
+      assert.equal(await tryItKind(db, randomUUID()), null);
     });
 
     await check("insertClient adds a client once, records client_added, and is idempotent on id", async () => {

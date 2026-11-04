@@ -289,10 +289,10 @@ export async function recordEvent(db: Db, householdId: string, e: NewEvent): Pro
   }
   // D34: a demo household's events carry its clock, so Activity dates and sorts with the scenario. An explicit
   // occurredAt (a provider's timestamp, D37) is kept as given; a real household keeps the database's now().
-  const [household] = await db.select({ isDemo: s.households.isDemo, timeZone: s.households.timeZone })
+  const [household] = await db.select({ isDemo: s.households.isDemo, fixedToday: s.households.fixedToday, timeZone: s.households.timeZone })
     .from(s.households).where(eq(s.households.id, hid));
   if (!household) throw new Error("Household no longer exists");
-  const occurredAt = e.occurredAt ?? (household.isDemo ? householdMoment(household) : undefined);
+  const occurredAt = e.occurredAt ?? (household.fixedToday ? householdMoment(household) : undefined);
   const [row] = await db
     .insert(s.events)
     .values({

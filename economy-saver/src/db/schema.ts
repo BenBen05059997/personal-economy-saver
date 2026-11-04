@@ -60,6 +60,7 @@ export const households = pgTable("households", {
   homeCurrency: char("home_currency", { length: 3 }).notNull(),
   bankBalanceMinor: minor("bank_balance_minor").notNull().default(0), // typed in by the user
   isDemo: boolean("is_demo").notNull().default(false),
+  fixedToday: date("fixed_today", { mode: "string" }), // D51: set only on Try it (the day Ben's numbers need); null = the real date in the time zone
   forwardingLocalpart: text("forwarding_localpart"),
   runwayShort: boolean("runway_short"),
   nudgeAfterDays: integer("nudge_after_days"), // D50: null = off; the daily job suggests a nudge this many days past due

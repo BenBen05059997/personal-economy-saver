@@ -1,7 +1,6 @@
 import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { type Db, recordEvent, recordWebhookDelivery, requireHousehold, usdRateMicro } from "@/db/household";
 import { beginMoneyChange, lockRunway, observeRunway } from "@/db/runway-events";
-import { DEMO_DATE } from "@/db/clock";
 import { convertMinor, fromMinor, fromRateMicro } from "@/db/money";
 import { fillPots } from "@/db/pots";
 import { clients, fxRates, households, invoices, members, paypalConnections, webhookDeliveries } from "@/db/schema";
@@ -14,7 +13,7 @@ export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): 
     const invoiceId = event.event_type.startsWith("INVOICING.INVOICE.") ? resource?.id : undefined;
     // PayPal sends its globally unique invoice id, not our household id. Resolve only its owning household.
     const [owner] = invoiceId
-      ? await tx.select({ householdId: invoices.householdId, timeZone: households.timeZone, demo: households.isDemo, home: households.homeCurrency }).from(invoices)
+      ? await tx.select({ householdId: invoices.householdId, timeZone: households.timeZone, fixedToday: households.fixedToday, home: households.homeCurrency }).from(invoices)
           .innerJoin(households, eq(households.id, invoices.householdId))
           .where(eq(invoices.paypalInvoiceId, invoiceId))
       : [];
@@ -33,8 +32,8 @@ export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): 
 
     await beginMoneyChange(tx, owner.householdId);
     const actualPaidOn = sql`timezone(${owner.timeZone}, ${event.create_time}::timestamptz)::date`;
-    // A demo runs on its seeded business date even when the sandbox is paid earlier.
-    const paidOn = owner.demo ? sql`greatest(${actualPaidOn}, ${DEMO_DATE}::date, ${invoices.sentOn})` : actualPaidOn;
+    // A Try it household runs on its fixed business date even when the sandbox is paid earlier.
+    const paidOn = owner.fixedToday ? sql`greatest(${actualPaidOn}, ${owner.fixedToday}::date, ${invoices.sentOn})` : actualPaidOn;
     const [paid] = await tx.update(invoices).set({
       status: "paid",
       paidOn,

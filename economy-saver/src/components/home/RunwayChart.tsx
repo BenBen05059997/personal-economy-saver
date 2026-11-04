@@ -1,7 +1,7 @@
 import { dayLabel } from "@/lib/money/format";
-import { addDays, low, type Series } from "@/lib/money/runway";
+import { addDays, daysBetween, low, type Series } from "@/lib/money/runway";
 
-export function RunwayChart({ balances, format }: { balances: Series; format: (n: number) => string }) {
+export function RunwayChart({ balances, format, focusDate }: { balances: Series; format: (n: number) => string; focusDate?: string }) {
   const minimum = low(balances);
   const floor = Math.min(0, minimum.amount);
   const ceiling = Math.max(0, ...balances);
@@ -12,6 +12,7 @@ export function RunwayChart({ balances, format }: { balances: Series; format: (n
   const caption = `${format(minimum.amount)} · ${dayLabel(minimum.date)}`;
   const start = addDays(minimum.date, -minimum.dayIndex);
 
+  const focusIndex = focusDate === undefined ? -1 : Math.min(last, Math.max(0, daysBetween(start, focusDate)));
   return <figure className="home-chart" aria-label={`30-day cash balance if clients pay late. Lowest point ${caption}.`}>
     <div className="home-plot" aria-hidden="true">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -19,6 +20,7 @@ export function RunwayChart({ balances, format }: { balances: Series; format: (n
         <path className="home-runway-line" d={path} />
       </svg>
       <span className="home-zero" style={{ top: `${y(0)}%` }}>{format(0)}</span>
+      {focusIndex >= 0 && <span id="runway-day" className={`home-focus-dot ${balances[focusIndex] < 0 ? "is-short" : ""}`} style={{ left: `${x(focusIndex)}%`, top: `${y(balances[focusIndex])}%` }} />}
       <span className={`home-low-dot ${minimum.amount < 0 ? "is-short" : ""}`} style={{ left: `${x(minimum.dayIndex)}%`, top: `${y(minimum.amount)}%` }} />
       <span className={`home-low-label ${minimum.amount < 0 ? "is-short" : ""}`} style={{ left: `clamp(5em, ${x(minimum.dayIndex)}%, 100% - 5em)`, top: `${y(minimum.amount)}%` }}>{caption}</span>
     </div>

@@ -16,3 +16,6 @@ details.add-entry-more[open] > summary { margin-bottom: var(--space-3); }
 @media (max-width: 760px) {
   .share-choice label:not(.ui-field) { min-height: 44px; }
 }
+.amount-field { position: relative; display: block; }
+.amount-field .amount-sign { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--muted, inherit); pointer-events: none; }
+.amount-field input { width: 100%; padding-left: calc(var(--space-3) + 1.4em); }

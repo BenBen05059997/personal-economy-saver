@@ -1,5 +1,6 @@
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
+import { ScrollToHash } from "@/components/ui/ScrollToHash";
 import { redirect } from "next/navigation";
 import { PlanView } from "@/components/plan/PlanView";
 import { loadWorkspace, WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
@@ -14,5 +15,5 @@ async function Plan() {
   </WorkspaceFrame>;
 }
 export default function Page() {
-  return <Suspense fallback={<LoadingState label="Opening Plan…" />}><Plan /></Suspense>;
+  return <Suspense fallback={<LoadingState label="Opening Plan…" />}><Plan /><ScrollToHash /></Suspense>;
 }

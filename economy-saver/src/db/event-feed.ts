@@ -20,7 +20,7 @@ export async function eventFeed(db: Db, householdId: string) {
       inFlight: sql<boolean>`exists (select 1 from ${invoices} where ${invoices.householdId} = ${hid} and ${invoices.status} = 'sent' and ${invoices.paypalInvoiceId} is not null)
         or exists (select 1 from ${documents} where ${documents.householdId} = ${hid} and ${documents.status} in ('queued', 'reading'))`,
     }).from(events).where(eq(events.householdId, hid)),
-    db.select({ id: events.id, title: events.title, body: events.body }).from(events)
+    db.select({ id: events.id, title: events.title, body: events.body, refType: events.refType, refId: events.refId }).from(events)
       .where(and(eq(events.householdId, hid), eq(events.notify, true), isNull(events.readAt)))
       .orderBy(desc(events.occurredAt), desc(events.id)).limit(20),
   ]);
