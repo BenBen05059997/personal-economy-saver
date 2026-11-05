@@ -8,13 +8,13 @@ import { addDays, arrivals, daysBetween, low, safeToSpend, series, statementItem
 import { fundingOptions } from "@/lib/money/options";
 import { potSummary } from "@/lib/money/plan";
 import { toCheck } from "@/lib/money/to-check";
-import { hasNothingToForecast, homeSentence } from "@/lib/money/sentence";
 import { splitBalance, transferLine } from "@/lib/money/split";
 import { occurrenceDates } from "@/lib/money/repeat";
 import { ADD_BILL, ADD_CHARGE, SETTINGS_CARDS, SETTINGS_PEOPLE, hrefFor } from "@/lib/links";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { BankBalance } from "./BankBalance";
 import { RunwayChart } from "./RunwayChart";
+import { focusDate, Sentence } from "./Sentence";
 import { cardSummary } from "./card-summary";
 import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
@@ -46,14 +46,6 @@ function Actions({ state }: Props) {
     </div>
     {options.gap > 0 && <Link className="home-options" prefetch={false} href="/options">{pick ? "Other options" : "Compare options"} ›</Link>}
   </div>;
-}
-
-/** The day the sentence names: the lowest point of the line it states. */
-function focusDate(state: MoneyState) {
-  if (hasNothingToForecast(state)) return undefined;
-  const safe = safeToSpend(state, 0);
-  const usualLow = low(series(state, "expected"));
-  return safe.low.amount < 0 && usualLow.amount < 0 ? usualLow.date : safe.low.date;
 }
 
 function Next30Days({ state, balanceId }: Props & { balanceId: string }) {
@@ -230,23 +222,10 @@ function ComingUp({ state, people, entryIds }: Props & { people: People; entryId
 }
 
 export function HomeView({ state, inbox, notice, people, entryIds, balanceId, demo, tryIt }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; people: People; entryIds: EntryIds; balanceId: string }) {
-  const sentence = homeSentence(state);
-  const safe = safeToSpend(state, 0);
-  const lead = sentence.lead.split(/([,\s]+)/).map((word, index) => {
-    if (!sentence.lead.startsWith("You're fine if ") || !safe.lateClients.includes(word)) return word;
-    const matches = state.clients.filter((client) => client.name.split(" ")[0] === word);
-    if (matches.length !== 1) return word;
-    return <Link key={index} prefetch={false} href={hrefFor({ type: "client", id: matches[0].id })}>{word}</Link>;
-  });
-  const target = focusDate(state);
-  const cut = sentence.emphasis.lastIndexOf(" on the ");
-  const emphasis = target && cut >= 0
-    ? <>{sentence.emphasis.slice(0, cut)} <a href="#runway-day">{sentence.emphasis.slice(cut + 1, -1)}</a>.</>
-    : sentence.emphasis;
   const date = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(state.today)).replace(",", "");
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
-    <h1>{lead} <span className={safe.shortBy > 0 ? "home-short" : undefined}>{emphasis}</span></h1>
+    <h1><Sentence state={state} linked /></h1>
     {demo && <p className="home-demo">A fictional household that lives in this browser for seven days after your last change. <Link prefetch={false} href="/start">Start with my numbers ›</Link></p>}
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} />

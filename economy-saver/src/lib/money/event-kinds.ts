@@ -18,6 +18,8 @@ export const EVENT_KIND_LABELS = {
   invoice_paid: "Invoice paid",
   invoice_paid_outside: "Invoice paid outside PayPal",
   invoice_sent: "Invoice sent",
+  family_link_created: "Family view shared",
+  family_link_stopped: "Family view stopped",
   member_added: "Person added",
   member_renamed: "Person renamed",
   paypal_imported: "Imported from PayPal",

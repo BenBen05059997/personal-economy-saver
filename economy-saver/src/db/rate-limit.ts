@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { requireHousehold, type Db } from "./household";
 import { households, requestBuckets } from "./schema";
 
-export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp" | "reader" | "upload" | "draft" | "approve" | "import" | "export" | "people" | "settle" | "remove", limit = 30) {
+export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp" | "reader" | "upload" | "draft" | "approve" | "import" | "export" | "people" | "settle" | "remove" | "family-links", limit = 30) {
   const window = sql`date_trunc('minute', now())`;
   const sameWindow = sql`${requestBuckets.window} = ${window}`;
   const rows = await db.insert(requestBuckets).values({ householdId: requireHousehold(hid), purpose, window, count: 1 })

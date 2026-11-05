@@ -24,6 +24,7 @@ import * as daily from "@/db/daily";
 import * as demo from "@/db/demo";
 import * as documentCleanup from "@/db/document-cleanup";
 import * as eventFeed from "@/db/event-feed";
+import * as familyLinksMod from "@/db/family-links";
 import * as household from "@/db/household";
 import * as invoiceDraft from "@/db/invoice-draft";
 import * as invoicePaid from "@/db/invoice-paid";
@@ -71,6 +72,8 @@ const covered = [
   // household.ts
   "householdOwnerName", "usdRate", "usdRateMicro", "loadSplitState", "loadMoneyState", "recordEvent", "listEvents", "unreadCount", "markRead",
   "recordWebhookDelivery", "deleteHousehold",
+  // family-links.ts
+  "listFamilyLinks", "createFamilyLink", "stopFamilyLink", "resolveFamilyLink", "loadFamilyView",
   // invoice-draft.ts, invoice-paid.ts, mcp-tokens.ts
   "saveInvoiceDraft", "markPaidOutside", "listMcpTokens", "issueMcpToken", "authenticateMcpToken", "revokeMcpToken",
   // paypal-import.ts, paypal-refresh.ts
@@ -93,7 +96,7 @@ const notApplicable: Record<string, string> = {
   publicEvent: "pure mapper of one row passed in",
   requireHousehold: "pure check that a value is a UUID",
   paypalTotalMinor: "pure sum of balances passed in",
-  dueLabel: "pure date formatter", repeatDayFor: "pure date maths on a date passed in", checkSchedule: "pure check of a bill's dates and amount passed in; insertBill, which calls it, is covered above",
+  linkDay: "pure date formatter", dueLabel: "pure date formatter", repeatDayFor: "pure date maths on a date passed in", checkSchedule: "pure check of a bill's dates and amount passed in; insertBill, which calls it, is covered above",
   scheduleWords: "pure formatter of a bill's schedule passed in",
   toMinor: "pure money maths", fromMinor: "pure money maths", toRateMicro: "pure money maths", fromRateMicro: "pure money maths",
   convertMinor: "pure money maths", parseMinor: "pure money maths", parseAmountMinor: "pure money maths",
@@ -114,10 +117,10 @@ type Ids = {
   owner: string; aki: string; card: string; client: string; billConfirmed: string; billPending: string; charge: string; chargePending: string;
   pot: string; potPending: string; balanceConfirmed: string; balancePending: string; invoiceDraft: string; invoiceSent: string; approveKey: string;
   paypalInvoice: string; document: string; documentFailed: string; documentRead: string; reading: string; settlement: string; token: string;
-  statement: string; webhookEvent: string; secret: string; user: string;
+  statement: string; webhookEvent: string; secret: string; user: string; familyLink: string;
 };
 type Tenant = {
-  hid: string; tag: "A" | "B"; name: string; bankYen: number; rateMicro: number; key: string; tokenString: string; ids: Ids; akiName: string;
+  hid: string; tag: "A" | "B"; name: string; bankYen: number; rateMicro: number; key: string; tokenString: string; familyToken: string; ids: Ids; akiName: string;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -146,7 +149,7 @@ async function main() {
   const used = new Set<string>();
   const modules = {
     ...account, ...aiKeys, ...approval, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
-    ...eventFeed, ...household, ...invoiceDraft, ...invoicePaid, ...mcpTokens, ...paypalImport, ...paypalRefresh, ...people, ...potsMod, ...rateLimit,
+    ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...mcpTokens, ...paypalImport, ...paypalRefresh, ...people, ...potsMod, ...rateLimit,
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
   };
   const F = new Proxy(modules, {
@@ -196,14 +199,14 @@ async function main() {
       const all = new Set<string>();
       walkStrings((await fingerprint(t.hid)).data, all);
       for (const s of all) if (UUID.test(s) || /isolation|iso-/i.test(s) || /^[0-9a-f]{64}$/.test(s)) strings.add(s);
-      strings.add(t.key); strings.add(t.tokenString); strings.add((t.rateMicro / 1_000_000).toString());
+      strings.add(t.key); strings.add(t.tokenString); strings.add(t.familyToken); strings.add((t.rateMicro / 1_000_000).toString());
       return { strings: [...strings], numbers: [t.bankYen, t.rateMicro] };
     }
 
     await check("every table except households carries household_id, so the fingerprint of a household covers all of its rows", () => {
       assert.deepEqual(everyTable.filter(t => !scoped.includes(t)), ["households"]);
       for (const table of ["bills", "charges", "pots", "members", "clients", "invoices", "documents", "readings", "cards", "card_statements", "settlements",
-        "balance_updates", "events", "api_tokens", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules"]) {
+        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules"]) {
         assert.ok(scoped.includes(table), table);
       }
     });
@@ -259,16 +262,17 @@ async function main() {
       const webhookEvent = `ISO-${tag}-EVT-1`;
       await F.recordWebhookDelivery(db, hid, { paypalEventId: webhookEvent, eventType: "PAYMENT.SALE.COMPLETED", verified: true, payload: { note: `${T} payload` } });
       const issued = await F.issueMcpToken(db, hid, { name: `${T} token`, scopes: ["read"] });
+      const family = await F.createFamilyLink(db, hid);
       const key = `sk-ant-isolation-${l}-${"k".repeat(24)}`;
       await F.saveHouseholdKey(db, hid, key);
       const secret = one(await db.select({ id: schema.households.aiKeySecretId }).from(schema.households).where(eq(schema.households.id, hid))).id!;
       await F.consumeRequest(db, hid, "ask");
       await F.recordEvent(db, hid, { madeBy: "form", kind: `isolation_${l}_event`, title: `${T} event`, body: `${T} event body`, notify: true });
       return {
-        hid, tag, name: T, bankYen, rateMicro, key, tokenString: issued.token, akiName,
+        hid, tag, name: T, bankYen, rateMicro, key, tokenString: issued.token, familyToken: family.token, akiName,
         ids: { owner: ownerRow.id, aki, card: card.id, client, billConfirmed, billPending, charge, chargePending, pot, potPending, balanceConfirmed, balancePending,
           invoiceDraft, invoiceSent: sent.id, approveKey: sent.approveKey, paypalInvoice, document, documentFailed, documentRead, reading, settlement, token: issued.info.id,
-          statement, webhookEvent, secret, user },
+          statement, webhookEvent, secret, user, familyLink: family.info.id },
       };
     }
     const A = await populate("A", 5_550_001, 149_876_543);
@@ -364,6 +368,13 @@ async function main() {
       const tokens = await F.listMcpTokens(store, hid);
       seen("listMcpTokens", tokens);
       assert.deepEqual(tokens.map(x => x.id), [viewer.ids.token]);
+      const links = await F.listFamilyLinks(store, hid);
+      seen("listFamilyLinks", links);
+      assert.deepEqual(links.map(x => x.id), [viewer.ids.familyLink]);
+      assert.equal(await F.resolveFamilyLink(store, viewer.familyToken), hid, "the viewer's token opens the viewer's household");
+      const familyView = await F.loadFamilyView(store, hid);
+      seen("loadFamilyView", familyView);
+      assert.equal(familyView.name, `${viewer.name} household`);
       const inbox = await F.readerInbox(store, hid);
       seen("readerInbox", inbox);
       assert.deepEqual([inbox.readings.map(r => r.id), inbox.jobs.length], [[viewer.ids.reading], 2]);
@@ -490,6 +501,8 @@ async function main() {
         await mustThrow("proposeReadings on the other's document", () => F.proposeReadings(store, X.hid, y.documentRead, [item]));
         for (const id of [y.document, y.documentFailed]) await refuse("readDocument " + id, () => F.readDocument(store, X.hid, id, true));
         await refuse("revokeMcpToken", () => F.revokeMcpToken(store, X.hid, y.token));
+        await refuse("stopFamilyLink", () => F.stopFamilyLink(store, X.hid, y.familyLink));
+        assert.equal(await F.resolveFamilyLink(store, Y.familyToken), Y.hid, "the other's link still opens the other's household, and only that");
         assert.ok(yEvents.length > 3);
         await refuse("markRead with the other's event ids", () => F.markRead(store, X.hid, yEvents));
         assert.equal(await F.recordWebhookDelivery(store, X.hid, { paypalEventId: y.webhookEvent, eventType: "PAYMENT.SALE.COMPLETED", verified: true, payload: { note: "replay" } }), false);

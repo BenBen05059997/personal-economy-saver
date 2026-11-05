@@ -214,3 +214,11 @@ A private window, no household cookie.
 - R-B2. Add card charge: What or where, Amount, Date, Add charge, then More › (Category with its hint, For work?). With more than one card the Card select is visible; with one it sits under More ›. With a second person, More › also has "Who is this for?" (Shared by default) and "Who pays it?" (the first person); alone neither exists.
 - R-B3. Clients → Add a client: Name, Email, "Days to pay" (30, "0 means due on receipt"). New invoice: Client, What for, Amount ($ inside the field), Review draft, and Note under More ›. Nowhere do "Biller", "Business share", "basis points", "minor" or "occurrence" show.
 
+
+## S. Family: the month together, shared by link
+
+A Try it household. Settings → People → Add a person "Wife".
+
+- S-A. The month by whose (D52). Plan → Where the month goes shows "Together ¥88,780 · Ben ¥63,450 · Wife ¥0 this month" on top; Housing reads ¥82,000 with "Shared ¥82,000" under it, Food ¥10,700 with "Ben ¥10,700" (no "Shared ¥0"); opening a category marks each item Shared, Ben or Wife. Ben alone (Reset) shows no Together line and no whose lines. At 375px the amount stays on the category's row and nothing scrolls sideways.
+- S-B1. Settings → People → Share a family view → Make a link: "Copy this link now. It's shown once." with the link, Copy link, and the LINE message (the sentence, then "See our month: <link> (until Nov 21)" on Try it, seven days after its Nov 14). The list shows "Made Nov 14 · Lasts until Nov 21" with Stop sharing. A sixth live link is refused with "5 family links are already live. Stop sharing one to make another."
+- S-B2. Open the link in a private window (no cookie): "Ben · family view", Sat Nov 14, the sentence with Acme and Northwind as plain text, Where the month goes as in S-A, Shared bills coming up (CloudBox Plus Nov 18, Mobaile Tsushin Nov 20, Rent Nov 27 ¥82,000), Who owes whom, and "Nothing can be changed from here." The page has no links, buttons or forms; response headers carry `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow`. Stop sharing → the same link shows "This link has ended. Ask for a new one." At 375px nothing scrolls sideways.

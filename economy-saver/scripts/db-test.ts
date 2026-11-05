@@ -393,7 +393,7 @@ async function main() {
 
   await check("row level security is on for every table, with no policies", async () => {
     const tables = allTables().map((t) => getTableConfig(t).name);
-    assert.equal(tables.length, 21);
+    assert.equal(tables.length, 22);
     const on = (await pg.query<{ relname: string }>(`select relname from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace and relrowsecurity`)).rows.map((r) => r.relname);
     assert.deepStrictEqual(on.sort(), tables.sort());
     assert.equal((await pg.query(`select 1 from pg_policies`)).rows.length, 0);

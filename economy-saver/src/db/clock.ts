@@ -3,7 +3,7 @@ import type { households } from "./schema";
 /** The day every Try it household is anchored at (D34). */
 export const DEMO_DATE = "2026-11-14";
 
-type ClockHousehold = Pick<typeof households.$inferSelect, "isDemo" | "fixedToday" | "timeZone">;
+export type ClockHousehold = Pick<typeof households.$inferSelect, "isDemo" | "fixedToday" | "timeZone">;
 
 /** The household's "today": the fixed date of a Try it household (D51), otherwise the calendar date in its time zone. */
 export function clockForHousehold(household: ClockHousehold, now = new Date()) {

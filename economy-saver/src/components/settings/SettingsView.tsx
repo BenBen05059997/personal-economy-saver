@@ -5,6 +5,7 @@ import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { Currency } from "@/lib/catalogue/types";
 import { minorMoney } from "@/lib/money/format";
+import { FamilyShare, type FamilyLinkRow } from "./FamilyShare";
 import { ResetDemo } from "./ResetDemo";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
 import "./settings.css";
@@ -50,7 +51,7 @@ function CardFields({ data, card }: { data: SettingsData; card?: SettingsData["c
     <button className="ui-button">{card ? "Save card" : "Add card"}</button></>;
 }
 
-export function SettingsView({ data, canImportPayPal = false }: { data: SettingsData; canImportPayPal?: boolean }) {
+export function SettingsView({ data, canImportPayPal = false, familyLinks }: { data: SettingsData; canImportPayPal?: boolean; familyLinks: FamilyLinkRow[] }) {
   const { household, people, cards, bills } = data;
   return <><header><p className="ui-hint">YOUR HOUSEHOLD</p><h1 className="ui-title">Settings</h1><p className="ui-hint">Keep your balances, cards and bill ownership up to date.</p></header>
     <section className="ui-panel"><h2>Household & bank</h2>
@@ -78,6 +79,7 @@ export function SettingsView({ data, canImportPayPal = false }: { data: Settings
         <p className="ui-hint">{people.length > 1 ? "Adding someone splits the shared costs equally again." : "Add a partner or housemate to split shared bills and charges. You start equal and can change the shares afterwards."}</p>
         <label key={people.length} className="ui-field">Add a person<input name="name" maxLength={80} required /></label>
         <button className="ui-button">Add person</button></ApiForm></ApiFormGroup>
+      <FamilyShare links={familyLinks} />
     </section>
     <section className="ui-panel" id="cards"><h2>Cards</h2><p className="ui-hint">31 means month end. The payment day is in the following month.</p>
       {cards.map(card => <details key={card.id}><summary>{card.label} · {people.find(p => p.id === card.memberId)?.name ?? "Household"}</summary><ApiForm><CardFields data={data} card={card} /></ApiForm></details>)}

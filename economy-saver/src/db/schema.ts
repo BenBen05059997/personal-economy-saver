@@ -484,6 +484,23 @@ export const apiTokens = pgTable(
   (t) => [index("api_tokens_household_idx").on(t.householdId)],
 ).enableRLS();
 
+// Family view links (D52): only the SHA-256 of the token is stored; the link is shown once. Like MCP tokens, not part of the
+// household snapshot (D44). `expires_at` is real time (seven days), not the household's fixed demo date.
+export const familyLinks = pgTable(
+  "family_links",
+  {
+    id: id(),
+    householdId: householdId(),
+    tokenHash: text("token_hash").notNull().unique(),
+    createdByMemberId: uuid("created_by_member_id").notNull(),
+    createdAt: createdAt(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+  },
+  (t) => [index("family_links_household_idx").on(t.householdId),
+    foreignKey({ columns: [t.householdId, t.createdByMemberId], foreignColumns: [members.householdId, members.id], name: "family_links_member_household_fk" }).onDelete("cascade")],
+).enableRLS();
+
 // One bounded counter per household and purpose. Each window reuses its row.
 export const requestBuckets = pgTable("request_buckets", {
   householdId: householdId(),

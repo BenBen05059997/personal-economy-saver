@@ -117,6 +117,14 @@ async function main() {
       assert.match(monthText(view), /^November: ¥152,230 in total\. Business ¥32,830 of ¥152,230 this month\.\nHousing ¥82,000 \(business ¥24,600 · personal ¥57,400\): Rent Nov 27 ¥82,000 at 30% business\.\n/);
     });
 
+    await check("whose (D52): one person's household has everything on them or Shared and the parts add up; the business numbers are unchanged", () => {
+      const view = monthByCategory(benMoney, benMoney.today);
+      assert.equal(view.byMember.length, benMoney.split.members.length);
+      for (const c of [...view.categories, view]) assert.equal(c.sharedMinor + c.byMember.reduce((s, m) => s + m.minor, 0), c.totalMinor);
+      const ids = benMoney.split.members.map(m => m.id);
+      for (const i of view.categories.flatMap(c => c.items)) assert.ok(i.ownerId === null || ids.includes(i.ownerId), "an item is Shared or a member's");
+    });
+
     await check("month maths: a mixed share rounds per item and the parts add up; every category total is the sum of its items", () => {
       const charge = (over: Partial<Charge>): Charge => ({ id: randomUUID(), cardId: "card-a", merchant: "M", amount: 1, date: "2026-11-05", category: "other", businessBp: 0, source: "manual", status: "confirmed", ...over });
       const state: MoneyState = { ...benMoney, bills: [], charges: [
@@ -307,7 +315,7 @@ async function main() {
       const state = await stateOf(hid);
       const view = monthByCategory(state, state.today);
       assert.deepEqual(view.categories.find(c => c.category === "housing")!.items.map(i => [i.label, i.amountMinor, i.businessBp]).sort(), [["Fictional studio", 50_000, 4000], ["Rent", 82_000, 3000]]);
-      assert.deepEqual(view.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional bento"), { label: "Fictional bento", date: "2026-11-14", amountMinor: 900, businessBp: 10_000 });
+      assert.deepEqual(view.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional bento"), { label: "Fictional bento", date: "2026-11-14", amountMinor: 900, businessBp: 10_000, ownerId: state.cards.find(c => c.id === lunch.cardId)?.ownerId ?? null });
       assert.equal(view.categories.find(c => c.category === "food")!.items.filter(i => i.label === "Fictional bento").length, 1);
     });
 
@@ -353,7 +361,7 @@ async function main() {
       assert.equal(await confirmPending(db, hid, "charge", chargeId), true);
       state = await stateOf(hid);
       const after = monthByCategory(state, state.today);
-      assert.deepEqual(after.categories.find(c => c.category === "health")!.items, [{ label: "Fictional gym", date: "2026-11-25", amountMinor: 3000, businessBp: 2500 }]);
+      assert.deepEqual(after.categories.find(c => c.category === "health")!.items, [{ label: "Fictional gym", date: "2026-11-25", amountMinor: 3000, businessBp: 2500, ownerId: null }]);
       assert.equal(after.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional ramen shop")!.businessBp, 10_000);
 
       const text = await run("month_by_category", {});

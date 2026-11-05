@@ -154,6 +154,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
     ...(b.nextAmountMinor !== null && b.nextAmountFrom !== null && { nextAmount: inHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }),
     ...(b.cancelBy !== null && { cancelBy: b.cancelBy }),
+    ...(b.memberId !== null && { ownerId: b.memberId }),
     ...(b.paidByMemberId !== null && { paidBy: b.paidByMemberId }),
     ...(b.madeBy !== "form" && { madeBy: b.madeBy }),
   }));

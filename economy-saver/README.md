@@ -16,6 +16,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - Categories and a business share: thirteen fixed categories and a Personal / Business / Mixed share on every bill and charge (proposed from the name, confirmed by you); Plan shows "Where the month goes" for the current month. Neither moves any money.
 - Document intake (upload and forwarded email) with confirmation before a reading changes money records.
 - An in-app agent: `/api/ask` runs Claude with tools over the engine (reads and drafts only). The same tool catalogue and rules serve MCP (the server's `instructions`). Each Ask and each MCP call writes one content-free JSON log line to standard output.
+- A family view by link: Settings → People makes a link that lasts 7 days (at most 5 live, stoppable at once; only its hash is stored, so the full link and a ready-to-paste LINE message show once). The page at `/family/<token>` needs no sign-in and has no actions: the sentence, the shared bills coming up and who owes whom. `APP_URL` sets the address in the link.
 - One versioned household schema: Settings has Export my data (a JSON download with the household's events), the `household_snapshot` read tool gives the agent and MCP the same picture without events, and `schema/household.v1.json` is generated from the same definition.
 - PayPal sandbox REST and Agent Toolkit integration, with the draft/read tools separate from the server approval path; verified webhook deliveries are idempotent; a read-only import of sandbox invoice history.
 - Rate limits on Try it, Ask, MCP, drafts, approvals, uploads, document reads, imports and exports; PayPal toolkit calls time out after 20 s.
@@ -78,7 +79,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all sixteen suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, pots, snapshot, split, category, cron, sweep, isolation
+npm run db:test      # all seventeen suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, pots, snapshot, split, category, cron, sweep, isolation, family
 npm run schema       # rewrites schema/household.v1.json from the zod definition (db:test fails when it is stale)
 npx tsc --noEmit -p .
 npm run lint
@@ -115,7 +116,7 @@ src/lib/mcp/             Streamable HTTP server
 src/lib/catalogue/       the wealth-move catalogue engine (words and sources in src/data/catalogue/)
 src/lib/reader/          extraction, forwarding, storage
 scripts/                 isolated tests and explicit owner-operated checks
-drizzle/                 ordered schema migrations, fifteen files (0000–0014)
+drizzle/                 ordered schema migrations, seventeen files (0000–0016)
 worker.ts                Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
 samples/bills/           fictional sample bills for the reader
 ```

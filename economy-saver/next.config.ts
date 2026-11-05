@@ -10,6 +10,14 @@ const nextConfig: NextConfig = {
   // Dev only: the route indicator's default bottom-left corner covers the sidebar's person and the phone's microphone;
   // top-left and top-right hold the menu, bell and Add. Bottom-right is the one free corner.
   devIndicators: { position: "bottom-right" },
+  // D52: the family view is opened from a shared link: never cached, never indexed, never sent on as a referrer.
+  async headers() {
+    return [{ source: "/family/:path*", headers: [
+      { key: "Cache-Control", value: "private, no-store" },
+      { key: "Referrer-Policy", value: "no-referrer" },
+      { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ] }];
+  },
   cacheComponents: true,
   partialPrefetching: true,
 };

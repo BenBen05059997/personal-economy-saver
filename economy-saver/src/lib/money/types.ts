@@ -28,6 +28,7 @@ export type Bill = {
   cancelBy?: string; // D48: information only: the date to act by before the renewal; the app never cancels anything
   startsOn?: string; // set on each occurrence of a repeating bill: the stored due date, where the series starts (the month view needs the occurrences before today)
   startAmount?: number; // set with startsOn: the stored amount, before any change (an occurrence's own `amount` may already be the new one)
+  ownerId?: string; // D52: the member whose bill it is; absent = shared. Only the month view reads it
   paidBy?: string; // shared bill (D45): the member who pays it; the engine ignores it
   madeBy?: MadeBy;
 };

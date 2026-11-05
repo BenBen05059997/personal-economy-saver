@@ -7,7 +7,10 @@ import { businessPart, CATEGORIES, categoryLabel, type CategoryKey } from "./cat
 import { amountOn, occurrenceDates } from "./repeat";
 import type { MoneyState } from "./types";
 
-export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number };
+/** D52: whose an item is: a member's id, or null for Shared (a bill with no owner, a charge marked shared or on a card nobody owns). */
+export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; ownerId: string | null };
+/** D52: a total split by whose it is. `byMember` has one entry per household member, in member order. */
+export type WhoseTotals = { sharedMinor: number; byMember: { id: string; minor: number }[] };
 export type MonthCategory = {
   category: CategoryKey;
   label: string;
@@ -15,7 +18,7 @@ export type MonthCategory = {
   businessMinor: number;
   personalMinor: number;
   items: MonthItem[];
-};
+} & WhoseTotals;
 export type MonthView = {
   month: string; // YYYY-MM
   name: string; // "November"
@@ -24,7 +27,7 @@ export type MonthView = {
   businessMinor: number;
   personalMinor: number;
   categories: MonthCategory[]; // categories.ts order, only the ones with items
-};
+} & WhoseTotals;
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -36,6 +39,11 @@ function monthBounds(today: string): { first: string; last: string } {
   return { first: `${today.slice(0, 7)}-01`, last: `${today.slice(0, 7)}-${String(lastDay).padStart(2, "0")}` };
 }
 
+function whoseTotals(memberIds: string[], items: MonthItem[]): WhoseTotals {
+  const sum = (ownerId: string | null) => items.filter(i => i.ownerId === ownerId).reduce((total, i) => total + i.amountMinor, 0);
+  return { sharedMinor: sum(null), byMember: memberIds.map(id => ({ id, minor: sum(id) })) };
+}
+
 /**
  * Confirmed bills due in the month (a repeating bill once, at its occurrence) and confirmed card charges dated in it, in the home
  * currency, grouped by category. Statements and pending rows are left out; so are charges and bills of other months.
@@ -44,6 +52,9 @@ export function monthByCategory(state: MoneyState, today: string): MonthView {
   const { first, last } = monthBounds(today);
   const unit = state.homeCurrency === "USD" ? 100 : 1;
   const minor = (amount: number) => Math.round(amount * unit);
+  const memberIds = state.split.members.map(m => m.id);
+  const whose = (id: string | undefined) => (id !== undefined && memberIds.includes(id) ? id : null);
+  const owners = new Map(state.cards.map(card => [card.id, card.ownerId]));
   const entries: { category: CategoryKey; item: MonthItem }[] = [];
 
   const seenSeries = new Set<string>();
@@ -51,7 +62,7 @@ export function monthByCategory(state: MoneyState, today: string): MonthView {
     if (bill.status !== "confirmed") continue;
     const base = { category: bill.category };
     const next = bill.nextAmount !== undefined && bill.nextAmountFrom !== undefined ? { amount: bill.nextAmount, from: bill.nextAmountFrom } : null;
-    const item = (date: string): MonthItem => ({ label: bill.biller, date, amountMinor: minor(amountOn(bill.startAmount ?? bill.amount, next, date)), businessBp: bill.businessBp });
+    const item = (date: string): MonthItem => ({ label: bill.biller, date, amountMinor: minor(amountOn(bill.startAmount ?? bill.amount, next, date)), businessBp: bill.businessBp, ownerId: whose(bill.ownerId) });
     if (bill.repeatUnit === undefined || bill.startsOn === undefined || bill.startAmount === undefined) {
       if (bill.due >= first && bill.due <= last) entries.push({ ...base, item: item(bill.due) });
       continue;
@@ -64,7 +75,7 @@ export function monthByCategory(state: MoneyState, today: string): MonthView {
   }
   for (const charge of state.charges) {
     if (charge.status !== "confirmed" || charge.date < first || charge.date > last) continue;
-    entries.push({ category: charge.category, item: { label: charge.merchant, date: charge.date, amountMinor: minor(charge.amount), businessBp: charge.businessBp } });
+    entries.push({ category: charge.category, item: { label: charge.merchant, date: charge.date, amountMinor: minor(charge.amount), businessBp: charge.businessBp, ownerId: charge.shared ? null : whose(owners.get(charge.cardId)) } });
   }
 
   const categories: MonthCategory[] = [];
@@ -73,11 +84,12 @@ export function monthByCategory(state: MoneyState, today: string): MonthView {
     if (!items.length) continue;
     const totalMinor = items.reduce((sum, i) => sum + i.amountMinor, 0);
     const businessMinor = items.reduce((sum, i) => sum + businessPart(i.amountMinor, i.businessBp), 0);
-    categories.push({ category: key, label: categoryLabel(key), totalMinor, businessMinor, personalMinor: totalMinor - businessMinor, items });
+    categories.push({ category: key, label: categoryLabel(key), totalMinor, businessMinor, personalMinor: totalMinor - businessMinor, items, ...whoseTotals(memberIds, items) });
   }
   const totalMinor = categories.reduce((sum, c) => sum + c.totalMinor, 0);
   const businessMinor = categories.reduce((sum, c) => sum + c.businessMinor, 0);
   return {
+    ...whoseTotals(memberIds, categories.flatMap(c => c.items)),
     month: today.slice(0, 7), name: MONTH_NAMES[Number(today.slice(5, 7)) - 1], currency: state.homeCurrency,
     totalMinor, businessMinor, personalMinor: totalMinor - businessMinor, categories,
   };

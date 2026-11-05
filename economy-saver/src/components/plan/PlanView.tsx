@@ -1,11 +1,11 @@
 import type { MoneyState, Pot } from "@/lib/money/types";
-import { dayLabel, minorMoney } from "@/lib/money/format";
-import { shareLabel } from "@/lib/money/categories";
-import { businessLine, monthByCategory, splitLine, type MonthView } from "@/lib/money/month";
+import { minorMoney } from "@/lib/money/format";
+import { monthByCategory } from "@/lib/money/month";
 import { monthYear, moneyInPotsLine, potLine, roomLine } from "@/lib/money/plan";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
 import "@/components/household/add-entry.css";
+import { MonthSplit } from "./MonthSplit";
 import "./plan.css";
 
 const plain = (n: number, currency: string) => currency === "USD" ? n.toFixed(2) : String(n);
@@ -59,39 +59,13 @@ function PotRow({ state, pot }: { state: MoneyState; pot: Pot }) {
   </section>;
 }
 
-/** D46: the current month's confirmed bills and card charges by category, split into business and personal. Information only; it moves no money. */
-function MonthGoes({ view }: { view: MonthView }) {
-  const money = (minor: number) => minorMoney(minor, view.currency);
-  return <section className="plan-month" aria-labelledby="plan-month-title">
-    <h2 id="plan-month-title">Where the month goes <small>{view.name}</small></h2>
-    {view.categories.length === 0 ? <p className="ui-hint">Nothing confirmed yet this month.</p> : <>
-      <p className="plan-line">{businessLine(view)}</p>
-      {view.categories.map(category => {
-        const split = splitLine(view, category);
-        return <details key={category.category} className="plan-cat">
-          <summary>
-            <span className="plan-cat-name">{category.label}</span>
-            <span className="num">{money(category.totalMinor)}{split && <small>{split}</small>}</span>
-          </summary>
-          <ul>
-            {category.items.map((item, index) => <li key={`${item.label}-${item.date}-${index}`}>
-              <span>{item.label}<small>{dayLabel(item.date)}</small></span>
-              <span className="num">{money(item.amountMinor)}{item.businessBp > 0 && <small>{shareLabel(item.businessBp)}</small>}</span>
-            </li>)}
-          </ul>
-        </details>;
-      })}
-    </>}
-  </section>;
-}
-
 export function PlanView({ state, newPotId }: { state: MoneyState; newPotId: string }) {
   const inPots = moneyInPotsLine(state);
   return <article className="plan">
     <h1 className="ui-title">Plan</h1>
     <p className="plan-room">{roomLine(state)}</p>
     {inPots && <p className="ui-hint">{inPots}</p>}
-    <MonthGoes view={monthByCategory(state, state.today)} />
+    <MonthSplit view={monthByCategory(state, state.today)} people={state.split.members.map(({ id, name }) => ({ id, name }))} />
     {state.pots.length === 0 && <p className="ui-hint">No pots yet. A pot is money set aside with a reason; it stops counting as safe to spend.</p>}
     {state.pots.map(pot => <PotRow key={pot.id} state={state} pot={pot} />)}
     <details key={newPotId} className="add-entry" open={state.pots.length === 0}>

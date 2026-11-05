@@ -23,6 +23,7 @@ import { toolInputSchema, tools, type ToolContext } from "@/lib/agent/tools";
 import { low, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { allocate, splitBalance, splitSummary, transferLine, transfersFor } from "@/lib/money/split";
+import { monthByCategory } from "@/lib/money/month";
 import { toCheck } from "@/lib/money/to-check";
 import type { SplitState } from "@/lib/money/types";
 import { benMoney } from "@/lib/sample/ben";
@@ -255,6 +256,31 @@ async function main() {
       assert.equal((await events(a, "bill_added")).find(e => e.refId === rent.id)!.body, "Shared, paid by Ben");
       assert.equal((await events(a, "charge_added")).find(e => e.refId === dinner.id)!.body, "Shared, paid by Aki (Aki Card)");
       assert.deepEqual([state.charges.find(c => c.id === dinner.id)!.shared, state.bills.find(b => b.id === rent.id)!.paidBy], [true, ben]);
+    });
+
+    await check("the month by whose (D52): shared and each person add up to every category and the month; the owner of a bill or a card decides", async () => {
+      const homeless = randomUUID();
+      await db.insert(schema.cards).values({ id: homeless, householdId: a, memberId: null, label: "House Card", closingDay: 31, dueDay: 26, currency: "JPY", limitMinor: 300_000 });
+      const benBill = billInput.parse({ id: randomUUID(), biller: "Fictional gym", amount: "9000", due: TODAY, category: "health", memberId: ben });
+      await insertBill(db, a, benBill, "confirmed", { madeBy: "form" });
+      const akiBill = billInput.parse({ id: randomUUID(), biller: "Fictional class", amount: "14000", due: TODAY, category: "health", memberId: aki });
+      await insertBill(db, a, akiBill, "confirmed", { madeBy: "form" });
+      const odd = chargeInput.parse({ id: randomUUID(), cardId: homeless, merchant: "Fictional kiosk", amount: "700", date: TODAY, category: "food" });
+      await insertCharge(db, a, odd, "confirmed", "manual", { madeBy: "form" });
+      const akiOwn = chargeInput.parse({ id: randomUUID(), cardId: akiCard, merchant: "Fictional shoes", amount: "3000", date: TODAY, category: "other" });
+      await insertCharge(db, a, akiOwn, "confirmed", "manual", { madeBy: "form" });
+      const state = await stateOf(a);
+      assert.equal(state.bills.find(x => x.id === benBill.id)!.ownerId, ben);
+      assert.equal(state.bills.find(x => x.biller === "Fictional landlord")!.ownerId, undefined);
+      const view = monthByCategory(state, state.today);
+      const whose = (label: string) => view.categories.flatMap(c => c.items).find(i => i.label === label)!.ownerId;
+      assert.deepEqual(["Fictional landlord", "Fictional grocer", "Fictional kiosk", "Fictional gym", "Fictional class", "Fictional shoes"].map(whose), [null, null, null, ben, aki, aki]);
+      assert.deepEqual(view.byMember.map(m => m.id), [ben, aki]);
+      const health = view.categories.find(c => c.category === "health")!;
+      assert.deepEqual([health.sharedMinor, ...health.byMember.map(m => m.minor)].slice(1), [9_000 + (health.items.filter(i => i.ownerId === ben).reduce((s, i) => s + i.amountMinor, 0) - 9_000), 14_000], "Ben's and Aki's own bills");
+      for (const c of [...view.categories, view]) assert.equal(c.sharedMinor + c.byMember.reduce((s, m) => s + m.minor, 0), c.totalMinor);
+      assert.equal(view.categories.find(c => c.category === "housing")!.sharedMinor, view.categories.find(c => c.category === "housing")!.items.filter(i => i.ownerId === null).reduce((s, i) => s + i.amountMinor, 0));
+      assert.ok(view.sharedMinor >= 30_000 + 5_000 + 700, "rent, the shared charge and the unowned card's charge are Shared");
     });
 
     await check("a shared charge and a shared bill are refused where the split cannot work", async () => {
