@@ -25,10 +25,12 @@ import { loadMoneyState } from "@/db/household";
 import { cancelNotices, expandBills, occurrenceDates } from "@/lib/money/repeat";
 import { loadNavigationData } from "@/db/workspace";
 import { draftedLabel, toCheck } from "@/lib/money/to-check";
-import { clientPace } from "@/lib/money/pace";
+import { clientPace, paceLine } from "@/lib/money/pace";
 import { publicEvent } from "@/db/event-feed";
 import { loadSettings, settingsInput, updateSettings } from "@/db/settings";
 import { homeSentence } from "@/lib/money/sentence";
+/** The two strings a sentence is made of (its other parts are tested in pots-test). */
+const lines = (sentence: ReturnType<typeof homeSentence>) => ({ lead: sentence.lead, emphasis: sentence.emphasis });
 import { addDays, low, medianLow, planWindow, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { cardSummary } from "@/components/home/card-summary";
 import { EVENT_KIND_LABELS, eventKindLabel } from "@/lib/money/event-kinds";
@@ -89,6 +91,12 @@ async function main() {
       assert.equal(amountProblem("-5", "JPY"), "Enter an amount without a minus sign");
       assert.equal(amountProblem("-5", "JPY", true), "");
       assert.equal(amountProblem("2e5", "JPY"), "Enter a whole number of yen, like 5000 or 5,000");
+      for (const text of ["12,000円", "¥12,000", "￥ 12000", "12000 yen", "JPY 12,000", "12,000 jpy", "円12000"]) assert.equal(parseAmountMinor(text, "JPY"), 12_000, text);
+      for (const text of ["$400.50", "400.50 USD", "usd 400.50", "400.50$"]) assert.equal(parseAmountMinor(text, "USD"), 40_050, text);
+      assert.equal(parseMinor("-¥500", "JPY"), -500);
+      assert.match(amountProblem("$400", "JPY"), /in dollars|in yen/);
+      assert.match(amountProblem("12,000円", "USD"), /in dollars/);
+      assert.equal(amountProblem("¥100,000,001", "JPY"), "Enter an amount up to ¥100,000,000");
       for (const [kind, run] of [
         ["bill", () => insertBill(db, a, bill({ amount: "100,000,001" }), "confirmed", { madeBy: "form" })],
         ["charge", () => insertCharge(db, a, charge({ amount: "100000001" }) as never, "confirmed", "manual", { madeBy: "form" })],
@@ -115,12 +123,12 @@ async function main() {
     await check("a blank household reads the empty sentence, then the normal one after its first confirmed bill (D47)", async () => {
       const blank = await createHousehold(db, randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo", bank: "1,200", card: "Card D", limit: "", closingDay: "20", dueDay: "10" }), { isDemo: true });
       const empty = { lead: "Add your rent, your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." };
-      assert.deepEqual(homeSentence(await loadMoneyState(db, blank, TODAY)), empty);
+      assert.deepEqual(lines(homeSentence(await loadMoneyState(db, blank, TODAY))), empty);
       await insertClient(db, blank, clientInput.parse({ id: randomUUID(), name: "Fictional Paper Co", email: "ap@paper.example", termsDays: "14" }));
-      assert.deepEqual(homeSentence(await loadMoneyState(db, blank, TODAY)), empty, "a client alone is nothing to forecast");
+      assert.deepEqual(lines(homeSentence(await loadMoneyState(db, blank, TODAY))), empty, "a client alone is nothing to forecast");
       const rent = bill({ biller: "Fictional rent", amount: "300", due: "2026-11-20" });
       await insertBill(db, blank, rent, "pending", { madeBy: "form" });
-      assert.deepEqual(homeSentence(await loadMoneyState(db, blank, TODAY)), empty, "a pending bill alone is nothing to forecast");
+      assert.deepEqual(lines(homeSentence(await loadMoneyState(db, blank, TODAY))), empty, "a pending bill alone is nothing to forecast");
       await confirmPending(db, blank, "bill", rent.id);
       const after = homeSentence(await loadMoneyState(db, blank, TODAY));
       assert.match(after.lead, /^You're fine for the next 30 days/);
@@ -237,8 +245,8 @@ async function main() {
       const rows = await db.select().from(schema.charges).where(eq(schema.charges.id, input.id));
       assert.equal(rows.length, 1);
       assert.deepEqual([rows[0].amountMinor, rows[0].currency, rows[0].status, rows[0].source, rows[0].householdId], [540, "JPY", "confirmed", "manual", a]);
-      const added = (await events(a, "charge_added")).filter(e => e.refId === input.id);
-      assert.equal(added.length, 1); assert.equal(added[0].title, "Fictional bakery added"); assert.equal(added[0].notify, false);
+      const added = (await events(a, "charge_added")).filter(e => e.title === "Fictional bakery added");
+      assert.equal(added.length, 1); assert.deepEqual([added[0].refType, added[0].refId], ["card", cardAB.id]); assert.equal(added[0].notify, false);
       await assert.rejects(insertCharge(db, a, { ...input, amount: "541" } as never, "confirmed", "manual", { madeBy: "form" }), InputError);
       await assert.rejects(insertCharge(db, a, { ...input, merchant: "Other" } as never, "confirmed", "manual", { madeBy: "form" }), InputError);
       await assert.rejects(insertCharge(db, a, { ...input, cardId: cardA.id } as never, "confirmed", "manual", { madeBy: "form" }), InputError);
@@ -254,7 +262,7 @@ async function main() {
       assert.deepEqual([row.status, row.source], ["pending", "voice"]);
       const checks = (await events(a, "to_check")).filter(e => e.refId === input.id);
       assert.equal(checks.length, 1); assert.equal(checks[0].notify, true); assert.equal(checks[0].refType, "charge");
-      assert.equal((await events(a, "charge_added")).filter(e => e.refId === input.id).length, 0);
+      assert.equal((await events(a, "charge_added")).filter(e => e.title === "Fictional voice charge added").length, 0);
       assert.equal(await confirmPending(db, a, "charge", input.id), true);
     });
 
@@ -342,14 +350,17 @@ async function main() {
       assert.deepEqual(await dates("CloudBox Plus"), ["2026-11-18", "2026-12-18"], "Dec 18 is past 30 days, inside the window");
       assert.deepEqual(await dates("Mobaile Tsushin"), ["2026-11-20", "2026-12-20"]);
       assert.deepEqual(await dates("Rent"), ["2026-11-27"], "Dec 27 is past the window");
-      assert.deepEqual(await dates("Hikari Denki"), ["2026-11-27"], "a one-off stays one");
+      const hikari = await billsOf(fresh, TODAY, "Hikari Denki"); // Sep and Oct paid one-offs, Nov's waiting in To check
+      const hikariStored = await db.select({ id: schema.bills.id, due: schema.bills.due }).from(schema.bills)
+        .where(and(eq(schema.bills.householdId, fresh), eq(schema.bills.biller, "Hikari Denki"))).orderBy(schema.bills.due);
+      assert.deepEqual(hikari.map(row => [row.id, row.due]), hikariStored.map(row => [row.id, row.due]), "a one-off stays one row, past or future: never expanded");
       const cloudbox = await billsOf(fresh, TODAY, "CloudBox Plus");
       const original = (await first(db.select().from(schema.bills).where(and(eq(schema.bills.householdId, fresh), eq(schema.bills.biller, "CloudBox Plus"))))).id;
       assert.deepEqual(cloudbox.map(row => row.id), [`${original}@2026-11-18`, `${original}@2026-12-18`]);
       assert.ok(cloudbox.every(row => row.repeatDay === 18 && row.amount === 1980 && row.status === "confirmed"));
       assert.equal(new Set(state.bills.map(row => row.id)).size, state.bills.length, "occurrence ids are unique");
-      assert.equal((await billsOf(fresh, TODAY, "Hikari Denki"))[0].repeatDay, undefined);
-      assert.ok(state.bills.every(row => row.due >= TODAY && row.due <= end));
+      assert.ok(hikari.every(row => row.repeatDay === undefined && row.startsOn === undefined));
+      assert.ok(state.bills.filter(row => row.startsOn !== undefined).every(row => row.due >= TODAY && row.due <= end), "occurrences only from today to the window's end");
     });
 
     await check("a day past the month's end clamps to its last day", async () => {
@@ -732,6 +743,8 @@ async function main() {
     await check("D50: clientPace is the usual and slowest days from the paid invoices, null with none", async () => {
       assert.equal(clientPace({ id: "c", name: "N", email: "n@n.example", termsDays: 7, daysToPay: [] }), null);
       assert.deepEqual(clientPace({ id: "c", name: "N", email: "n@n.example", termsDays: 7, daysToPay: [14, 9, 21, 8] }), { usual: 9, slowest: 21 });
+      assert.equal(paceLine({ id: "c", name: "N", email: "n@n.example", termsDays: 7, daysToPay: [14, 9, 21, 8] }), "9 days usual · 21 slowest");
+      assert.equal(paceLine({ id: "c", name: "N", email: "n@n.example", termsDays: 7, daysToPay: [] }), null);
       const state = await loadMoneyState(db, a, TODAY);
       for (const client of state.clients) assert.equal(clientPace(client)?.usual, client.daysToPay.length ? medianLow(client.daysToPay) : undefined);
     });

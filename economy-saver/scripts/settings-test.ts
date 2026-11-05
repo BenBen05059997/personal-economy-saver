@@ -10,6 +10,7 @@ import { AiKeyError, deleteHouseholdKey, aiKey, saveHouseholdKey } from "@/db/ai
 import { seedBen } from "@/db/seed";
 import { parseMinor } from "@/db/money";
 import { savePeople } from "@/db/people";
+import { billEditInput, updateBill } from "@/db/bills";
 import { loadSettings, settingsInput, updateSettings } from "@/db/settings";
 import { deleteHousehold, loadMoneyState } from "@/db/household";
 import { resetDemoHousehold } from "@/db/demo";
@@ -21,6 +22,11 @@ import { reviewReading } from "@/db/readings";
 import { finishSetup, setupForm } from "@/db/account";
 import { loadNavigationData } from "@/db/workspace";
 import { listMcpTokens } from "@/db/mcp-tokens";
+
+const setWhose = async (db: Parameters<typeof updateBill>[0], hid: string, billId: string, memberId: string | null, paidByMemberId: string | null = null) => {
+  const [bill] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, hid), eq(schema.bills.id, billId)));
+  return updateBill(db, hid, billEditInput.parse({ id: billId, biller: bill.biller, amount: String(bill.amountMinor), due: bill.due, category: bill.category, businessBp: bill.businessBp, memberId, paidByMemberId }), { madeBy: "form" });
+}; // Settings → Bills → Edit with only whose changed
 
 async function main() {
   const pg = new PGlite();
@@ -107,14 +113,14 @@ async function main() {
       assert.equal(await bankEvents(), written + 1, "Settings changes the balance through setBankBalance (old and new in an event)");
       await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Fictional household", bank: "23456" }));
       await assert.rejects(savePeople(db, a, { people: [{ id: settingsB.people[0].id, name: "Wrong household" }] }));
-      await assert.rejects(updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: settingsA.bills[0].id, memberId: settingsB.people[0].id })));
-      await updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: settingsA.bills[0].id, memberId: settingsA.people[0].id }));
+      await assert.rejects(setWhose(db, a, settingsA.bills[0].id, settingsB.people[0].id));
+      await setWhose(db, a, settingsA.bills[0].id, settingsA.people[0].id);
       assert.equal((await loadSettings(db, a)).bills[0].memberId, settingsA.people[0].id);
       await assert.rejects(db.update(schema.cards).set({ memberId: settingsB.people[0].id }).where(and(eq(schema.cards.householdId, a), eq(schema.cards.id, settingsA.cards[0].id))));
       await assert.rejects(db.insert(schema.bills).values({ householdId: a, memberId: settingsB.people[0].id, biller: "Invalid", amountMinor: 1, currency: "JPY", due: "2026-11-20", category: "other", status: "pending" }));
       await assert.rejects(db.insert(schema.users).values({ householdId: a, memberId: settingsB.people[0].id, authUserId: randomUUID() }));
       const [person] = await db.insert(schema.members).values({ householdId: a, displayName: "Fictional partner", shareBp: 0 }).returning();
-      await updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: settingsA.bills[0].id, memberId: person.id }));
+      await setWhose(db, a, settingsA.bills[0].id, person.id);
       await db.update(schema.cards).set({ memberId: person.id }).where(and(eq(schema.cards.householdId, a), eq(schema.cards.id, settingsA.cards[0].id)));
       await db.delete(schema.members).where(and(eq(schema.members.householdId, a), eq(schema.members.id, person.id)));
       const afterDelete = await loadSettings(db, a);

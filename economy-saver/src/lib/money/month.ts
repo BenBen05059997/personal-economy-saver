@@ -1,14 +1,13 @@
-// Where the month goes (D46). Pure: the household's current calendar month, grouped by category, each amount split into
+// Where the month goes (D46). Pure: one calendar month (the household's current one unless asked for another), grouped by category, each amount split into
 // its business and personal parts. Reads bills and charges only; it moves no money and nothing in the runway reads it.
 // Amounts are integer minor units of the home currency (whole yen, cents for USD).
 import type { Currency } from "@/lib/catalogue/types";
-import { dayLabel, minorMoney } from "./format";
+import { aboutMoney, dayLabel, minorMoney } from "./format";
 import { businessPart, CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
-import { amountOn, occurrenceDates } from "./repeat";
-import type { MoneyState } from "./types";
+import { monthBounds, monthName, spendingItems, type SpendingInput } from "./spending";
 
 /** D52: whose an item is: a member's id, or null for Shared (a bill with no owner, a charge marked shared or on a card nobody owns). */
-export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; ownerId: string | null };
+export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; ownerId: string | null; estimated?: true };
 /** D52: a total split by whose it is. `byMember` has one entry per household member, in member order. */
 export type WhoseTotals = { sharedMinor: number; byMember: { id: string; minor: number }[] };
 export type MonthCategory = {
@@ -29,16 +28,6 @@ export type MonthView = {
   categories: MonthCategory[]; // categories.ts order, only the ones with items
 } & WhoseTotals;
 
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-/** The first and last day of the month `today` is in. */
-function monthBounds(today: string): { first: string; last: string } {
-  const year = Number(today.slice(0, 4));
-  const month = Number(today.slice(5, 7));
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return { first: `${today.slice(0, 7)}-01`, last: `${today.slice(0, 7)}-${String(lastDay).padStart(2, "0")}` };
-}
-
 function whoseTotals(memberIds: string[], items: MonthItem[]): WhoseTotals {
   const sum = (ownerId: string | null) => items.filter(i => i.ownerId === ownerId).reduce((total, i) => total + i.amountMinor, 0);
   return { sharedMinor: sum(null), byMember: memberIds.map(id => ({ id, minor: sum(id) })) };
@@ -46,41 +35,18 @@ function whoseTotals(memberIds: string[], items: MonthItem[]): WhoseTotals {
 
 /**
  * Confirmed bills due in the month (a repeating bill once, at its occurrence) and confirmed card charges dated in it, in the home
- * currency, grouped by category. Statements and pending rows are left out; so are charges and bills of other months.
+ * currency, grouped by category: `spendingItems` over the month (D53), so the search and this view share one rule. `month` is
+ * YYYY-MM and defaults to the month `today` is in. Statements and pending rows are left out; so are charges and bills of other months.
  */
-export function monthByCategory(state: MoneyState, today: string): MonthView {
-  const { first, last } = monthBounds(today);
-  const unit = state.homeCurrency === "USD" ? 100 : 1;
-  const minor = (amount: number) => Math.round(amount * unit);
+export function monthByCategory(state: SpendingInput, today: string, month: string = today.slice(0, 7)): MonthView {
+  const { first, last } = monthBounds(month);
   const memberIds = state.split.members.map(m => m.id);
-  const whose = (id: string | undefined) => (id !== undefined && memberIds.includes(id) ? id : null);
-  const owners = new Map(state.cards.map(card => [card.id, card.ownerId]));
-  const entries: { category: CategoryKey; item: MonthItem }[] = [];
-
-  const seenSeries = new Set<string>();
-  for (const bill of state.bills) {
-    if (bill.status !== "confirmed") continue;
-    const base = { category: bill.category };
-    const next = bill.nextAmount !== undefined && bill.nextAmountFrom !== undefined ? { amount: bill.nextAmount, from: bill.nextAmountFrom } : null;
-    const item = (date: string): MonthItem => ({ label: bill.biller, date, amountMinor: minor(amountOn(bill.startAmount ?? bill.amount, next, date)), businessBp: bill.businessBp, ownerId: whose(bill.ownerId) });
-    if (bill.repeatUnit === undefined || bill.startsOn === undefined || bill.startAmount === undefined) {
-      if (bill.due >= first && bill.due <= last) entries.push({ ...base, item: item(bill.due) });
-      continue;
-    }
-    // A repeating bill is one series of occurrences (`<id>@<date>`); the month holds at most one of them, at the amount that applies on its date.
-    const series = bill.id.slice(0, bill.id.indexOf("@"));
-    if (seenSeries.has(series)) continue;
-    seenSeries.add(series);
-    for (const date of occurrenceDates(bill.startsOn, bill.repeatUnit, bill.repeatDay ?? null, first, last)) entries.push({ ...base, item: item(date) });
-  }
-  for (const charge of state.charges) {
-    if (charge.status !== "confirmed" || charge.date < first || charge.date > last) continue;
-    entries.push({ category: charge.category, item: { label: charge.merchant, date: charge.date, amountMinor: minor(charge.amount), businessBp: charge.businessBp, ownerId: charge.shared ? null : whose(owners.get(charge.cardId)) } });
-  }
+  const entries = spendingItems(state, first, last);
 
   const categories: MonthCategory[] = [];
   for (const { key } of CATEGORIES) {
-    const items = entries.filter(e => e.category === key).map(e => e.item).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
+    const items = entries.filter(e => e.category === key)
+      .map(({ label, date, amountMinor, businessBp, ownerId, estimated }): MonthItem => ({ label, date, amountMinor, businessBp, ownerId, ...(estimated ? { estimated } : {}) }));
     if (!items.length) continue;
     const totalMinor = items.reduce((sum, i) => sum + i.amountMinor, 0);
     const businessMinor = items.reduce((sum, i) => sum + businessPart(i.amountMinor, i.businessBp), 0);
@@ -90,17 +56,22 @@ export function monthByCategory(state: MoneyState, today: string): MonthView {
   const businessMinor = categories.reduce((sum, c) => sum + c.businessMinor, 0);
   return {
     ...whoseTotals(memberIds, categories.flatMap(c => c.items)),
-    month: today.slice(0, 7), name: MONTH_NAMES[Number(today.slice(5, 7)) - 1], currency: state.homeCurrency,
+    month, name: monthName(month), currency: state.homeCurrency,
     totalMinor, businessMinor, personalMinor: totalMinor - businessMinor, categories,
   };
 }
 
 const money = (view: MonthView, minor: number) => minorMoney(minor, view.currency);
 
-/** The one line at the top of Where the month goes: "Business ¥32,830 of ¥152,230 this month", or "All personal this month" when nothing has a business share. */
-export function businessLine(view: MonthView): string {
-  if (view.businessMinor === 0) return "All personal this month";
-  return `Business ${money(view, view.businessMinor)} of ${money(view, view.totalMinor)} this month`;
+/** The one wording for when a month view is about: "this month" for the household's current month, "in October" for a past one (`past` is the name to show). */
+export function monthWhen(past?: string): string {
+  return past === undefined ? "this month" : `in ${past}`;
+}
+
+/** The one line at the top of Where the month goes: "Business ¥32,830 of ¥152,230 this month" ("in October" for a past month), or "All personal this month" when nothing has a business share. */
+export function businessLine(view: MonthView, when = monthWhen()): string {
+  if (view.businessMinor === 0) return `All personal ${when}`;
+  return `Business ${money(view, view.businessMinor)} of ${money(view, view.totalMinor)} ${when}`;
 }
 
 /** How a row says its split: just the total when everything is one kind, otherwise the two parts. */
@@ -110,13 +81,13 @@ export function splitLine(view: MonthView, part: { totalMinor: number; businessM
 }
 
 /** The month as text the agent can quote; built here so the screen and the agent say the same numbers. */
-export function monthText(view: MonthView): string {
-  if (!view.categories.length) return `${view.name}: nothing confirmed yet this month.`;
-  const lines = [`${view.name}: ${money(view, view.totalMinor)} in total. ${businessLine(view)}.`];
+export function monthText(view: MonthView, when = monthWhen()): string {
+  if (!view.categories.length) return `${view.name}: nothing confirmed ${when === monthWhen() ? "yet " : ""}${when}.`;
+  const lines = [`${view.name}: ${money(view, view.totalMinor)} in total. ${businessLine(view, when)}.`];
   for (const c of view.categories) {
     const split = splitLine(view, c);
     lines.push(`${c.label} ${money(view, c.totalMinor)}${split ? ` (${split})` : c.businessMinor ? " (all business)" : ""}: ${c.items.map(i =>
-      `${i.label} ${dayLabel(i.date)} ${money(view, i.amountMinor)}${i.businessBp > 0 && i.businessBp < 10_000 ? ` at ${i.businessBp / 100}% business` : ""}`).join("; ")}.`);
+      `${i.label} ${dayLabel(i.date)} ${i.estimated ? aboutMoney(i.amountMinor, view.currency) : money(view, i.amountMinor)}${i.businessBp > 0 && i.businessBp < 10_000 ? ` at ${i.businessBp / 100}% business` : ""}`).join("; ")}.`);
   }
   return lines.join("\n");
 }

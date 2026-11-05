@@ -10,10 +10,10 @@ import { InputError } from "./input-error";
 import { parseMinor } from "./money";
 
 export async function householdClock(db: Db, id: string, now = new Date()) {
-  const [household] = await db.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
+  const [household] = await db.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone, currency: households.homeCurrency })
     .from(households).where(eq(households.id, requireHousehold(id)));
   if (!household) throw new Error("Household no longer exists");
-  return clockForHousehold(household, now);
+  return { ...clockForHousehold(household, now), currency: household.currency };
 }
 
 export async function householdDate(db: Db, id: string, now?: Date) {

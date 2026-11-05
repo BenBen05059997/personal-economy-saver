@@ -17,7 +17,7 @@ const moment = z.string().datetime().describe("An instant, ISO 8601 in UTC.");
 const currency = z.string().regex(/^[A-Z]{3}$/).describe("ISO 4217 code, for example JPY or USD.");
 const minor = z.number().int().safe().describe("Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out.");
 const rateMicro = z.number().int().safe().describe("An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency.");
-const category = CategoryKeySchema.describe("One of the thirteen fixed categories; the key, not the label.");
+const category = CategoryKeySchema.describe("One of the fourteen fixed categories; the key, not the label.");
 const businessBp = z.number().int().min(0).max(10_000).describe("The business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). Categories and shares move no money.");
 const madeBy = z.enum(["form", "ask", "mcp", "reader", "cron", "paypal", "import"]).optional().describe("Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import.");
 const status = z.enum(["confirmed", "pending"]).describe("pending = waiting in To check; it counts for nothing until the user confirms it.");
@@ -88,6 +88,8 @@ const Bill = z.object({
   nextAmountMinor: minor.nullable().optional().describe("The amount an occurrence on or after nextAmountFrom costs, in the bill's currency; null or absent = the amount never changes. Set together with nextAmountFrom."),
   nextAmountFrom: day.nullable().optional().describe("The first date nextAmountMinor applies on."),
   cancelBy: day.nullable().optional().describe("Information only: the last day to cancel or change the bill before its next occurrence charges. The app never cancels anything."),
+  amountVaries: z.boolean().optional().describe("A monthly bill whose amount changes every month (electricity, water, gas): a month without its real bill is forecast as the average of the last three real bills linked to it (amountMinor when there are none). Absent = false."),
+  seriesBillId: id.nullable().optional().describe("On a one-off real bill: the id of the amount-varies monthly bill it belongs to; it replaces that series' estimate in its due month. Null or absent = not linked."),
   documentId: id.nullable(),
   madeBy,
 }).strict();

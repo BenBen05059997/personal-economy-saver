@@ -4,11 +4,24 @@ import type { Extracted } from "@/lib/reader/extract";
 import { CategoryFields } from "@/components/household/CategoryFields";
 import { ScheduleFields } from "@/components/household/ScheduleFields";
 import { ApiForm } from "@/components/ui/ApiForm";
+import { minorMoney } from "@/lib/money/format";
+import { monthName } from "@/lib/money/spending";
+import type { LinkPreview } from "@/lib/money/varies";
 
 function majorText(entry: Extracted) {
   if (entry.amountMinor === null || !entry.currency) return "";
   if (entry.currency === "JPY") return String(entry.amountMinor);
   return Math.floor(entry.amountMinor / 100) + "." + String(entry.amountMinor % 100).padStart(2, "0");
+}
+
+/**
+ * D54: the one line a one-off bill reading carries when confirming it as read would link it to an amount-varies series:
+ * "Tokyo Gas for November — replaces the estimate of about ¥9,330." Worked out by `readerInbox` from the reading as proposed.
+ */
+function LinkLine({ link, state }: { link: LinkPreview | null; state: MoneyState }) {
+  if (link === null) return null;
+  const month = monthName(link.month) + (link.month.slice(0, 4) === state.today.slice(0, 4) ? "" : ` ${link.month.slice(0, 4)}`);
+  return <p className="ui-hint reader-link">{link.biller} for {month} — {link.estimateMinor === null ? "counts toward its estimate." : `replaces the estimate of about ${minorMoney(link.estimateMinor, state.homeCurrency)}.`}</p>;
 }
 
 export function ReaderReview({ inbox, state }: { inbox: ReaderInbox; state: MoneyState }) {
@@ -17,10 +30,11 @@ export function ReaderReview({ inbox, state }: { inbox: ReaderInbox; state: Mone
       <div>{job.status === "failed" ? "Document needs attention" : "Reading document…"}{job.error && <p className="ui-hint">{job.error}</p>}</div>
       {job.retry && <form method="post" action="/api/readings/retry"><input type="hidden" name="id" value={job.id}/><button className="ui-button">Retry</button></form>}
     </div>)}
-    {inbox.readings.map(({ id, value }) => <details id={`reading-${id}`} key={id} className="ui-panel reader-card" open>
+    {inbox.readings.map(({ id, value, link }) => <details id={`reading-${id}`} key={id} className="ui-panel reader-card" open>
       <summary>{value.name || "Document"} · review {value.kind}</summary>
       <ApiForm action="/api/confirm">
         <input type="hidden" name="kind" value="reading" /><input type="hidden" name="id" value={id} />
+        <LinkLine link={link} state={state} />
         <div className="reader-fields">
           <label className="ui-field">Entry<select name="target" defaultValue={value.kind}><option value="bill">Bill</option><option value="charge">Card charge</option></select></label>
           <label className="ui-field">Biller or merchant<input name="name" defaultValue={value.name ?? ""} required maxLength={160}/></label>

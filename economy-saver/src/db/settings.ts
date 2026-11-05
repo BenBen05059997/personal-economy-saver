@@ -6,9 +6,9 @@ import { InputError } from "./input-error";
 import { minorMoney } from "@/lib/money/format";
 import { Currency } from "@/lib/catalogue/types";
 import { parseMinor } from "./money";
-import { memberCount } from "./people";
 import { bills, cards, charges, households, members } from "./schema";
 import { beginMoneyChange, observeRunway } from "./runway-events";
+import { clockForHousehold } from "./clock";
 
 export class SettingsError extends InputError {}
 const name = z.string().trim().min(1).max(80);
@@ -20,23 +20,24 @@ export const settingsInput = z.discriminatedUnion("kind", [
     memberId, closingDay: z.coerce.number().int().min(1).max(31), dueDay: z.coerce.number().int().min(1).max(31),
     limit: z.union([amount, z.literal("")]) }),
   z.object({ kind: z.literal("nudge"), afterDays: z.union([z.literal(""), z.coerce.number().int().min(1).max(60)]) }), // D50: "" = off
-  z.object({ kind: z.literal("bill-owner"), id: z.string().uuid(), memberId, paidByMemberId: memberId.default("") }), // D45: a shared bill (memberId "") may name who pays it
 ]);
 
 export async function loadSettings(db: Db, householdId: string) {
   const hid = requireHousehold(householdId);
   const [household] = await db.select({ name: households.name, currency: households.homeCurrency,
     bank: households.bankBalanceMinor, timeZone: households.timeZone, demo: households.isDemo,
-    aiKeyHint: households.aiKeyHint, aiReadsDay: households.aiReadsDay, aiReadsToday: households.aiReadsToday, nudgeAfterDays: households.nudgeAfterDays })
+    aiKeyHint: households.aiKeyHint, aiReadsDay: households.aiReadsDay, aiReadsToday: households.aiReadsToday, nudgeAfterDays: households.nudgeAfterDays, fixedToday: households.fixedToday })
     .from(households).where(eq(households.id, hid));
   if (!household) throw new SettingsError("Household no longer exists");
+  const { fixedToday, ...shown } = household;
   const [people, cardRows, billRows] = await Promise.all([
     db.select({ id: members.id, name: members.displayName, role: members.role, shareBp: members.shareBp }).from(members).where(eq(members.householdId, hid))
       .orderBy(sql`(${members.role} = 'owner') desc`, members.createdAt, members.id),
     db.select().from(cards).where(eq(cards.householdId, hid)).orderBy(cards.createdAt),
-    db.select({ id: bills.id, biller: bills.biller, amountMinor: bills.amountMinor, currency: bills.currency, repeatDay: bills.repeatDay, repeatUnit: bills.repeatUnit, status: bills.status, memberId: bills.memberId, paidByMemberId: bills.paidByMemberId }).from(bills).where(eq(bills.householdId, hid)).orderBy(bills.due),
+    db.select({ id: bills.id, biller: bills.biller, amountMinor: bills.amountMinor, currency: bills.currency, due: bills.due, category: bills.category, businessBp: bills.businessBp, repeatDay: bills.repeatDay, repeatUnit: bills.repeatUnit, nextAmountMinor: bills.nextAmountMinor, nextAmountFrom: bills.nextAmountFrom, cancelBy: bills.cancelBy, amountVaries: bills.amountVaries, seriesBillId: bills.seriesBillId, status: bills.status, memberId: bills.memberId, paidByMemberId: bills.paidByMemberId }).from(bills).where(eq(bills.householdId, hid)).orderBy(bills.due),
   ]);
-  return { household, people, cards: cardRows, bills: billRows };
+  // `today` is the household's own date, for the bill edit form's amounts and dates.
+  return { household: shown, today: clockForHousehold({ isDemo: household.demo, fixedToday, timeZone: household.timeZone }).today, people, cards: cardRows, bills: billRows };
 }
 
 export async function updateSettings(db: Db, householdId: string, input: z.infer<typeof settingsInput>) {
@@ -46,7 +47,7 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
     const [household] = await tx.select({ currency: households.homeCurrency, bank: households.bankBalanceMinor, name: households.name, nudgeAfterDays: households.nudgeAfterDays }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new SettingsError("Household no longer exists");
     await beginMoneyChange(tx, hid);
-    for (const memberRef of [data.kind === "bill-owner" || data.kind === "card" ? data.memberId : "", data.kind === "bill-owner" ? data.paidByMemberId : ""]) {
+    for (const memberRef of [data.kind === "card" ? data.memberId : ""]) {
       if (!memberRef) continue;
       const [person] = await tx.select({ id: members.id }).from(members).where(and(eq(members.householdId, hid), eq(members.id, memberRef)));
       if (!person) throw new SettingsError("Choose a member of this household");
@@ -94,13 +95,6 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
         await tx.insert(cards).values({ householdId: hid, currency: household.currency, ...values });
         title = `${data.label} added`;
       }
-    } else {
-      // Who pays only means something for a shared bill, so a bill given an owner drops it.
-      const paidBy = data.memberId ? null : data.paidByMemberId || null;
-      if (paidBy && await memberCount(tx, hid) < 2) throw new SettingsError("Splitting a bill needs a second person; add one in People");
-      const [bill] = await tx.update(bills).set({ memberId: data.memberId || null, paidByMemberId: paidBy }).where(and(eq(bills.householdId, hid), eq(bills.id, data.id))).returning({ biller: bills.biller });
-      changed = !!bill;
-      if (bill) title = `${bill.biller} bill owner updated`;
     }
     if (!changed) throw new SettingsError("That row no longer exists in this household");
     if (title) await recordEvent(tx, hid, { madeBy: "form", kind: "settings_updated", title });

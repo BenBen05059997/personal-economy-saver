@@ -15,7 +15,9 @@ import { seedBen } from "@/db/seed";
 import { AgentError, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { dueAnswer, statusAnswer } from "@/lib/money/ask";
-import { medianLow } from "@/lib/money/runway";
+import { addDays, medianLow } from "@/lib/money/runway";
+import { createHousehold, setupForm } from "@/db/account";
+import { billInput, insertBill } from "@/db/bills";
 import { MODEL_RULES } from "@/lib/agent/rules";
 import { savePot } from "@/db/pots";
 import { addMember } from "@/db/people";
@@ -590,6 +592,58 @@ async function main() {
       }
     });
 
+    await check("search_spending (D53) is a read tool that answers on the sample household; month_by_category takes a month of the last twelve", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const search = tools.find(t => t.name === "search_spending")!, month = tools.find(t => t.name === "month_by_category")!;
+      assert.deepEqual([search.scope, month.scope], ["read", "read"]);
+      const schemaOf = toolInputSchema(search) as unknown as { required: string[]; properties: Record<string, unknown> };
+      assert.deepEqual(schemaOf.required.sort(), ["months", "query"], "strict schema: both listed");
+      assert.throws(() => search.input.parse({ query: "x".repeat(81), months: 3 }));
+      for (const months of [0, 13, 1.5]) assert.throws(() => search.input.parse({ query: "", months }), String(months));
+      assert.throws(() => month.input.parse({ month: "2026-13" }));
+      const run = transport([
+        () => reply("tool_use", [toolUse("s", "search_spending", { query: "food", months: 1 }), toolUse("r", "search_spending", { query: "rent", months: null })]),
+        () => reply("end_turn", [text("Food: ¥10,700 in November.")]),
+      ]);
+      assert.equal((await ask(c, "How much did I spend on food this month?", run.fetch)).answer, "Food: ¥10,700 in November.");
+      const [food, rent] = toolResults(run.bodies[1]).map(r => { assert.ok(!r.is_error, r.content); return JSON.parse(r.content); });
+      assert.equal(food.summary, "Food: ¥10,700 in November (3 items). ¥10,700 in all.");
+      assert.deepEqual([food.from, food.to, food.currency, food.category, food.totalMinor], ["2026-11-01", "2026-11-14", "JPY", "food", 10_700]);
+      assert.deepEqual(food.months[0].items.map((i: { label: string; date: string; amountMinor: number }) => [i.label, i.date, i.amountMinor]),
+        [["Minato Fresh Market", "2026-11-13", 1_400], ["Kissa Midori café", "2026-11-12", 1_880], ["Minato Fresh Market", "2026-11-08", 7_420]]);
+      assert.equal(rent.summary, `"rent": ¥82,000 in October (1 item), ¥82,000 in September (1 item); nothing in the other 1 month. ¥164,000 in all.`, "Ben's rent series starts Aug 27; Nov 27 is after the demo's today");
+      assert.equal(rent.from, "2026-09-01");
+      const october = await month.run({ madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never, month.input.parse({ month: "2026-10" }) as never);
+      assert.match(october, /^October: ¥132,060 in total\. Business ¥31,986 of ¥132,060 in October\.\nHousing ¥82,000 /);
+      assert.match(october, /\nFood ¥11,440: /);
+      const refused = transport([() => reply("tool_use", [toolUse("m", "month_by_category", { month: "2025-10" })]), () => reply("end_turn", [text("Only the last 12 months.")])]);
+      await ask(c, "What about October last year?", refused.fetch);
+      assert.deepEqual(toolResults(refused.bodies[1]).map(r => [r.is_error, r.content]), [[true, "month must be one of the last 12 months, 2025-12 to 2026-11"]]);
+    });
+
+    await check("regular_costs (D54) is a read tool: Ben's regular costs this month against last, months 2 to 6", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const regular = tools.find(t => t.name === "regular_costs")!;
+      assert.equal(regular.scope, "read");
+      assert.deepEqual((toolInputSchema(regular) as unknown as { required: string[] }).required, ["months"], "strict schema: months listed");
+      for (const months of [1, 7, 2.5]) assert.throws(() => regular.input.parse({ months }), String(months));
+      const run = transport([
+        () => reply("tool_use", [toolUse("g", "regular_costs", { months: null }), toolUse("g6", "regular_costs", { months: 6 })]),
+        () => reply("end_turn", [text("Kissa Midori café down ¥920 so far.")]),
+      ]);
+      assert.equal((await ask(c, "What changed in my regular costs?", run.fetch)).answer, "Kissa Midori café down ¥920 so far.");
+      const [three, six] = toolResults(run.bodies[1]).map(r => { assert.ok(!r.is_error, r.content); return JSON.parse(r.content); });
+      assert.equal(three.summary, "Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far");
+      assert.deepEqual([three.from, three.to, three.currency, three.month, three.months], ["2026-09-01", "2026-11-30", "JPY", "2026-11", ["2026-09", "2026-10", "2026-11"]]);
+      assert.deepEqual(three.items.map((i: { label: string; status: string; thisMinor: number; lastMinor: number }) => [i.label, i.status, i.thisMinor, i.lastMinor]), [
+        ["Kissa Midori café", "down", 1_880, 2_800], ["Minato Fresh Market", "up", 8_820, 8_640], ["Rent", "same", 82_000, 82_000],
+        ["Mobaile Tsushin", "same", 4_800, 4_800], ["CloudBox Plus", "same", 1_980, 1_980], ["Hikari Denki", "not_yet", 0, 10_020],
+      ], "Rent's Nov 27 counts: a known bill still due this month; Hikari Denki's November bill is still in To check");
+      assert.equal(three.items.find((i: { label: string }) => i.label === "Hikari Denki").usualDay, 25);
+      assert.equal(six.from, "2026-06-01");
+      assert.deepEqual(six.items.find((i: { label: string }) => i.label === "Rent").months.map((m: { amountMinor: number }) => m.amountMinor), [0, 0, 82_000, 82_000, 82_000, 82_000], "Ben's rent starts Aug 27");
+    });
+
     await check("no agent source can reach the send-capable PayPal runner", async () => {
       const dir = "src/lib/agent";
       for (const file of readdirSync(dir)) {
@@ -597,6 +651,22 @@ async function main() {
         assert.ok(!/runTool|deleteSmokeDraft|paypal\/toolkit/.test(source), `${file} must not import the PayPal toolkit`);
       }
     });
+    await check("a US household: the timeline and plan_for tools speak cents ($12.50 is 1250, a $1,500 target is 150000)", async () => {
+      const usd = await createHousehold(db, crypto.randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo", bank: "1,200", card: "Card D", limit: "", closingDay: "20", dueDay: "10" }), { isDemo: true });
+      const today = (await stateOf(usd)).today;
+      await insertBill(db, usd, billInput.parse({ id: crypto.randomUUID(), biller: "Fictional landlord", amount: "12.50", due: addDays(today, 5), category: "housing" }), "confirmed", { madeBy: "form" });
+      const { fetch, bodies } = transport([
+        () => reply("tool_use", [toolUse("t", "timeline", { scenario: "late" }), toolUse("p", "plan_for", { target_minor: 150_000, target_date: null, monthly_minor: 25_000, pot_id: null })]),
+        () => reply("end_turn", [text("ok")]),
+      ]);
+      await ask(usd, "What's coming?", fetch);
+      const [t, p] = toolResults(bodies[1]).map(r => JSON.parse(r.content));
+      assert.equal(t.currency, "USD");
+      assert.deepEqual(t.events.map((e: { label: string; amountMinor: number; balanceAfterMinor: number }) => [e.label, e.amountMinor, e.balanceAfterMinor]), [["Fictional landlord", -1250, 118_750]]);
+      assert.deepEqual([t.low.amountMinor, p.currency, p.neededMinor, p.paceMinor, p.monthsAtPace], [118_750, "USD", 150_000, 25_000, 6]);
+      assert.match(p.summary, /\$1,500/);
+    });
+
     console.log(`Agent checks passed (${passed}).`);
   } finally {
     console.info = realInfo;

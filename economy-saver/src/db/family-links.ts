@@ -3,13 +3,12 @@
 // (never the household's fixed demo date), can be stopped at once, and at most five are live at a time. Not part of the
 // household snapshot (D44), like MCP tokens.
 import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { FAMILY_LINK_DAYS, MAX_LIVE_FAMILY_LINKS } from "@/lib/family-links";
 import { InputError } from "./input-error";
 import { loadMoneyState, recordEvent, requireHousehold, type Db } from "./household";
 import { clockForHousehold, householdMoment, type ClockHousehold } from "./clock";
 import { familyLinks, households, members } from "./schema";
 
-export const FAMILY_LINK_DAYS = 7;
-export const MAX_LIVE_FAMILY_LINKS = 5;
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/; // 32 random bytes, base64url
 
 async function digest(token: string) {

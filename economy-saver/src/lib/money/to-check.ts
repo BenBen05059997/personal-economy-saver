@@ -1,5 +1,5 @@
 import { categoryLabel, shareLabel } from "./categories";
-import { dayLabel, minorMoney } from "./format";
+import { dayLabel, minorMoney, minorPerUnit, repeatWords } from "./format";
 import { monthYear } from "./plan";
 import { pendingCharges } from "./runway";
 import type { MadeBy, MoneyState } from "./types";
@@ -10,7 +10,7 @@ export function draftedLabel(madeBy: MadeBy | undefined): string | null {
 }
 
 export function toCheck(state: MoneyState) {
-  const minor = (amount: number) => Math.round(amount * (state.homeCurrency === "USD" ? 100 : 1));
+  const minor = (amount: number) => Math.round(amount * minorPerUnit(state.homeCurrency));
   const payer = (id: string) => state.split.members.find(member => member.id === id)?.name; // D45: kept through To check
   return [
     ...state.balanceUpdates.map(update => ({
@@ -25,7 +25,7 @@ export function toCheck(state: MoneyState) {
     })),
     ...state.bills.filter(bill => bill.status === "pending").map(bill => ({
       kind: "bill" as const, id: bill.id, amount: bill.amount, title: bill.biller, madeBy: bill.madeBy,
-      detail: `${categoryLabel(bill.category)} · ${shareLabel(bill.businessBp)} · due ${dayLabel(bill.due)}${bill.repeatUnit === undefined ? "" : bill.repeatUnit === "month" ? " · every month" : " · every year"}${bill.nextAmount === undefined || bill.nextAmountFrom === undefined ? "" : ` · ${minorMoney(minor(bill.nextAmount), state.homeCurrency)} from ${dayLabel(bill.nextAmountFrom)}`}${bill.cancelBy === undefined ? "" : ` · cancel by ${dayLabel(bill.cancelBy)}`}${bill.paidBy === undefined ? "" : ` · shared, paid by ${payer(bill.paidBy)}`}`,
+      detail: `${categoryLabel(bill.category)} · ${shareLabel(bill.businessBp)} · due ${dayLabel(bill.due)}${bill.repeatUnit === undefined ? "" : ` · ${repeatWords(bill.repeatUnit).toLowerCase()}`}${bill.nextAmount === undefined || bill.nextAmountFrom === undefined ? "" : ` · ${minorMoney(minor(bill.nextAmount), state.homeCurrency)} from ${dayLabel(bill.nextAmountFrom)}`}${bill.cancelBy === undefined ? "" : ` · cancel by ${dayLabel(bill.cancelBy)}`}${bill.paidBy === undefined ? "" : ` · shared, paid by ${payer(bill.paidBy)}`}`,
     })),
     ...pendingCharges(state).map(charge => {
       const card = state.cards.find(card => card.id === charge.cardId);

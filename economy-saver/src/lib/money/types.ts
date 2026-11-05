@@ -26,6 +26,9 @@ export type Bill = {
   nextAmount?: number; // D48: the amount an occurrence on or after nextAmountFrom has; absent together with nextAmountFrom
   nextAmountFrom?: string; // YYYY-MM-DD
   cancelBy?: string; // D48: information only: the date to act by before the renewal; the app never cancels anything
+  amountVaries?: true; // D54: a monthly bill forecast from its own past (never with nextAmount); its real bills carry seriesBillId
+  seriesBillId?: string; // D54: on a confirmed one-off real bill: the amount-varies series it belongs to; it replaces that series' occurrence in its due month
+  estimated?: true; // D54: set by expandBills on an amount-varies occurrence: `amount` is the estimate, not a real bill ("about ¥9,330")
   startsOn?: string; // set on each occurrence of a repeating bill: the stored due date, where the series starts (the month view needs the occurrences before today)
   startAmount?: number; // set with startsOn: the stored amount, before any change (an occurrence's own `amount` may already be the new one)
   ownerId?: string; // D52: the member whose bill it is; absent = shared. Only the month view reads it
@@ -109,7 +112,10 @@ export type SplitBill = {
   id: string; biller: string; amountMinor: number; due: string; paidBy: string; createdAt: string;
   repeatUnit: RepeatUnit | null; repeatDay: number | null; // D48: repeatDay for monthly only
   nextAmountMinor: number | null; nextAmountFrom: string | null; // an occurrence on or after nextAmountFrom splits nextAmountMinor
+  varies?: RealBill[]; // D54: present exactly on an amount-varies monthly bill: its confirmed linked real bills (any whose), home minor units
 };
+/** D54: one confirmed real bill linked to an amount-varies series: its due date and amount in whole minor units. */
+export type RealBill = { due: string; amountMinor: number };
 export type SplitCharge = { id: string; merchant: string; amountMinor: number; date: string; paidBy: string; createdAt: string };
 export type SplitState = {
   members: SplitMember[];

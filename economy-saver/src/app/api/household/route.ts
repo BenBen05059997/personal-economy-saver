@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { formOf } from "@/lib/door";
 import { deleteOwnedHousehold } from "@/db/account";
 import { privateRedirect, verifiedUid } from "@/lib/auth-request";
 import { sameOrigin } from "@/lib/session";
@@ -11,7 +12,9 @@ export async function POST(request: Request) {
   if (!sameOrigin(request)) return new Response("Same-origin request required", { status: 403 });
   const uid = await verifiedUid();
   if (!uid) return new Response("Authenticated owner required", { status: 403 });
-  if ((await request.formData()).get("confirmation") !== "delete") return new Response("Confirm household deletion", { status: 400 });
+  const body = await formOf(request);
+  if (body instanceof Response) return body;
+  if (body.get("confirmation") !== "delete") return new Response("Confirm household deletion", { status: 400 });
   try {
     if (!await deleteOwnedHousehold(db(), uid)) return new Response("Household owner required", { status: 403 });
   } catch (error) {

@@ -4,14 +4,15 @@ import { readingForm } from "@/lib/reader/form";
 import { ReaderError } from "@/lib/reader/settings";
 import { reviewReading } from "@/db/readings";
 import { confirmPending } from "@/db/confirm";
-import { redirectTo, returnPath } from "@/lib/door";
+import { redirectTo, returnPath, formOf } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 import { StatementChargeError } from "@/db/statement-charge";
 
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  const form = await request.formData();
+  const form = await formOf(request);
+  if (form instanceof Response) return form;
   const kind = form.get("kind");
   const id = z.string().uuid().safeParse(form.get("id"));
   if (!id.success) return new Response("Invalid item", { status: 400 });

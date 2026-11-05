@@ -2,7 +2,7 @@ import { lockRunway, observeRunway } from "./runway-events";
 import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { type Db, recordEvent, requireHousehold } from "./household";
 import { bills, cards, charges, documents, fxRates, households, readings, rules } from "./schema";
-import { checkSchedule, repeatDayFor } from "./bills";
+import { checkSchedule, linkToSeries, repeatDayFor } from "./bills";
 import { clockForHousehold } from "./clock";
 import { InputError } from "./input-error";
 import { convertMinor, fromMinor, fromRateMicro } from "./money";
@@ -59,6 +59,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     if (!value.category) throw new ReaderError("Choose a category.");
     const category = { category: value.category, businessBp: value.businessBp ?? 0 };
     let targetId: string;
+    let linked: string | null = null;
     if (value.kind === "charge") {
       if (!value.cardId) throw new ReaderError("Select the card used for this charge.");
       const [card] = await tx.select({ id: cards.id }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, value.cardId)));
@@ -72,13 +73,14 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     } else {
       // D48: the schedule is checked like a typed-in bill; the new amount converts at the same rate as the amount.
       const nextAmountMinor = value.nextAmountMinor === null ? null : fx === null ? value.nextAmountMinor : convertMinor(value.nextAmountMinor, currency, row.currency, fromRateMicro(fx));
-      try { checkSchedule(date, clockForHousehold(row).today, { repeat: value.repeat, nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy }); }
+      try { checkSchedule(date, clockForHousehold(row).today, { repeat: value.repeat, nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy, amountVaries: false }); }
       catch (error) { throw error instanceof InputError ? new ReaderError(error.message) : error; }
       const [bill] = await tx.insert(bills).values({
         ...amounts, ...category, due: date, biller: name, status: "confirmed", repeatUnit: value.repeat, repeatDay: repeatDayFor(date, value.repeat),
         nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy,
       }).returning({ id: bills.id });
       targetId = bill.id;
+      linked = await linkToSeries(tx, hid, bill.id); // D54: a one-off joins its amount-varies series, as on the form
     }
     const saved = row.data as { original: Extracted; proposed: Extracted };
     const original = extractSchema.parse(saved.original), proposed = extractSchema.parse(saved.proposed);
@@ -93,7 +95,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     }
     await tx.update(readings).set({ status: "confirmed", confirmedAt: new Date(), target: value.kind, extracted: { original, proposed, confirmed: value } })
       .where(and(eq(readings.householdId, hid), eq(readings.id, readingId)));
-    await recordEvent(tx, hid, { madeBy: "reader", kind: value.kind + "_confirmed", title: name + " confirmed", ref: { type: value.kind, id: targetId },
+    await recordEvent(tx, hid, { madeBy: "reader", kind: value.kind + "_confirmed", title: name + " confirmed", ref: { type: value.kind, id: targetId }, ...(linked && { body: linked }),
       amount: { value: fromMinor(amount, row.currency), currency: row.currency } });
     await observeRunway(tx, hid);
     return true;

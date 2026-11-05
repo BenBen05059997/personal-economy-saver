@@ -54,7 +54,8 @@ function Navigation({ pending, name, section }: { pending: number; name: string;
 
 const askPrompt = "Can I afford ¥4,000 tonight?";
 
-export function Shell({ children, name, pending, feed, section }: {
+export function Shell({ children, name, pending, feed, section, forwarding }: {
+  forwarding: boolean; // false when email forwarding is not set up on this server: the + Add menu then has no Forward entry
   children: ReactNode;
   name: string;
   pending: number;
@@ -110,7 +111,7 @@ export function Shell({ children, name, pending, feed, section }: {
     <nav id="shell-add" popover="auto" className="shell-popover shell-add-menu" aria-label="Add to household">
       <Link prefetch={false} href="/#add-bill">Add a bill</Link>
       <Link prefetch={false} href="/#add-charge">Add a card charge</Link>
-      <Link prefetch={false} href="/settings#forwarding">Forward a bill</Link>
+      {forwarding && <Link prefetch={false} href="/settings#forwarding">Forward a bill</Link>}
       <Link prefetch={false} href="/upload">Upload a receipt</Link>
       <Link prefetch={false} href="/invoices/new">New invoice</Link>
     </nav>

@@ -1,4 +1,4 @@
-// The one category list (D46): thirteen keys, the same in every country, with their labels in display order.
+// The one category list (D46, travel since D53): fourteen keys, the same in every country, with their labels in display order.
 // Stored as the key on bills.category and charges.category; every input is validated with the zod enum built from this list.
 // A category and a business share move no money: the runway, safe to spend and the sentence never read them.
 import { z } from "zod";
@@ -10,6 +10,7 @@ export const CATEGORIES = [
   { key: "subscriptions", label: "Subscriptions" },
   { key: "food", label: "Food" },
   { key: "transport", label: "Transport" },
+  { key: "travel", label: "Travel" },
   { key: "health", label: "Health" },
   { key: "insurance", label: "Insurance" },
   { key: "family_shared", label: "Family & shared" },

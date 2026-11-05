@@ -1,12 +1,12 @@
 // Planning maths for pots (D43). Pure functions over a MoneyState: no React, no clock, no I/O.
 // Amounts are in the state's home currency units, as everywhere in the engine (whole yen; dollars with cents for USD).
 
-import { MONTHS, minorMoney } from "./format";
+import { MONTHS, minorMoney, minorPerUnit } from "./format";
 import { availableCash, moneyInPots, series } from "./runway";
 import { expectsClientPayment } from "./sentence";
 import type { MoneyState, Pot } from "./types";
 
-const unit = (state: MoneyState) => (state.homeCurrency === "USD" ? 100 : 1);
+const unit = (state: MoneyState) => minorPerUnit(state.homeCurrency);
 
 /** `iso` plus `n` calendar months; a day that does not exist in the target month (Jan 31 + 1) falls on the month's last day. */
 export function addMonths(iso: string, n: number): string {
@@ -119,6 +119,17 @@ export function roomLine(state: MoneyState): string {
   return expectsClientPayment(state)
     ? roomClause(state)
     : "No client payments are expected in the next 30 days, so the plan counts your bank balance only.";
+}
+
+/**
+ * Under the room line: what the number counts, so it is not read as safe to spend (Home's lowest balance if clients are late).
+ * monthlyRoom is the expected-case balance at the end of 30 days less today's cash: client payments at their usual dates
+ * less every confirmed bill and card statement in the window. Undefined when roomLine says the plan counts the bank only.
+ */
+export function roomNote(state: MoneyState): string | undefined {
+  return expectsClientPayment(state)
+    ? "What client payments bring in over the next 30 days, after every bill and card statement, if clients pay as usual. It leaves out today’s balance and comes before anything goes into pots."
+    : undefined;
 }
 
 /** Under the room line: how much is set aside and so left out of safe to spend. Undefined with no money in pots. */

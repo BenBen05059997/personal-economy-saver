@@ -6,6 +6,7 @@ import { fromMinor } from "./money";
 import { confirmBalanceUpdate } from "./bank-balance";
 import { confirmPot } from "./pots";
 import { syncClosedStatementCharge } from "./statement-charge";
+import { linkToSeries } from "./bills";
 
 export async function confirmPending(db: Db, householdId: string, kind: "bill" | "charge" | "balance" | "pot", id: string) {
   const hid = requireHousehold(householdId);
@@ -26,9 +27,11 @@ export async function confirmPending(db: Db, householdId: string, kind: "bill" |
       .returning({ name: kind === "bill" ? bills.biller : charges.merchant, amount: table.amountMinor, currency: table.currency });
     if (!row) return false;
     if (kind === "charge") await syncClosedStatementCharge(tx, hid, id);
+    const linked = kind === "bill" ? await linkToSeries(tx, hid, id) : null; // D54: a confirmed one-off joins its amount-varies series
     await recordEvent(tx, hid, { madeBy: "form",
       kind: kind + "_confirmed",
       title: row.name + " confirmed",
+      ...(linked && { body: linked }),
       amount: { value: fromMinor(row.amount, row.currency), currency: row.currency },
       ref: { type: kind, id },
     });

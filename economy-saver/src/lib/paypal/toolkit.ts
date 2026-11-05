@@ -29,9 +29,6 @@ function toolsFor(actions: Record<string, Record<string, boolean>>): ToolkitTool
   return new PayPalMCPToolkit({ accessToken: "unused", configuration: { actions, context: CONTEXT } }).getTools();
 }
 
-export const agentTools = () => toolsFor(AGENT_ACTIONS);
-export const approvedTools = () => toolsFor(APPROVED_ACTIONS);
-
 // Runs one toolkit tool by name: validates the arguments with the toolkit's own schema
 // (run() does not), executes it against the sandbox, and turns error payloads into exceptions.
 export async function runTool<T = unknown>(method: string, args: unknown, requestId?: string): Promise<T> {

@@ -58,6 +58,15 @@ async function main() {
     assert.deepEqual(json.required.includes("events"), false, "events is optional");
   });
 
+  await check("D53: travel is one of the fourteen category keys in the committed schema, on bills and charges (version stays 1: a new key only widens the enum)", () => {
+    const json = JSON.parse(readFileSync(SCHEMA_FILE, "utf8"));
+    for (const list of ["bills", "charges"]) {
+      const keys: string[] = json.properties[list].items.properties.category.enum;
+      assert.equal(keys.length, 14, list);
+      assert.deepEqual(keys.slice(5, 7), ["transport", "travel"], `${list}: travel after transport`);
+    }
+  });
+
   const pg = new PGlite();
   const db = drizzle(pg, { schema });
   try {

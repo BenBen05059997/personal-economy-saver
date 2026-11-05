@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { dayLabel, formatter, usd } from "@/lib/money/format";
-import { clientPace } from "@/lib/money/pace";
+import { paceLine } from "@/lib/money/pace";
 import { cycle, paybackFor, project, roomOnCard } from "@/lib/money/runway";
 import type { Card, Client, MoneyState } from "@/lib/money/types";
 import { cardSummary } from "@/components/home/card-summary";
@@ -52,12 +52,12 @@ function CardPanel({ state, card }: { state: MoneyState; card: Card }) {
 
 function ClientPanel({ state, client }: { state: MoneyState; client: Client }) {
   const invoices = state.invoices.filter(i => i.clientId === client.id);
-  const pace = clientPace(client);
+  const pace = paceLine(client);
   return <Detail title={client.name} close="/clients">
     <p className="ui-hint">{client.email}</p>
     <dl>
       <div className="ui-row"><dt>Payment terms</dt><dd>{client.termsDays === 0 ? "Due on receipt" : `${client.termsDays} days`}</dd></div>
-      {pace && <div className="ui-row"><dt>Time to pay</dt><dd>{pace.usual} days usual · {pace.slowest} slowest</dd></div>}
+      {pace && <div className="ui-row"><dt>Time to pay</dt><dd>{pace}</dd></div>}
     </dl>
     <h3>Work and invoices</h3>
     {invoices.map(invoice => <Link prefetch={false} className="ui-row directory-link" key={invoice.id} href={`/invoices/${invoice.id}`}>
@@ -82,7 +82,7 @@ export function Directory({ state, section, selected, newClientId }: { state: Mo
       <p className="ui-hint">{isCards ? "Statements, charges and what will cover them." : "Work to invoice, payments due and how soon clients usually pay."}</p>
       {isCards ? state.cards.map(item => {
         const { owed, limitLeft, next, shortBy } = cardSummary(state, item.id);
-        const owner = state.split.members.length > 1 ? state.split.members.find(member => member.id === item.ownerId)?.name ?? "Household" : null;
+        const owner = state.split.members.length > 1 ? state.split.members.find(member => member.id === item.ownerId)?.name ?? "Shared" : null;
         return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={hrefFor({ type: "card", id: item.id })} aria-label={item.label} aria-current={item.id === selected ? "page" : undefined}>
           <div>{item.label}{owner && <small>{owner}</small>}
             <small>{next ? `${next.open ? "So far" : "Statement"} ${format(next.amount)} · due ${dayLabel(next.dueOn)}` : "No statement due"}</small>
@@ -93,7 +93,7 @@ export function Directory({ state, section, selected, newClientId }: { state: Mo
       }) : state.clients.map(item => {
         const outstanding = state.invoices.filter(i => i.clientId === item.id && i.status === "sent").reduce((sum, i) => sum + i.amountUsd, 0);
         return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={hrefFor({ type: "client", id: item.id })} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>
-          <div>{item.name}<small>{item.email}</small></div><div>{outstanding > 0 ? <>{usd(outstanding)}<small>Outstanding</small></> : <small>Nothing outstanding</small>}</div>
+          <div>{item.name}<small>{item.email}</small>{paceLine(item) && <small>Time to pay: {paceLine(item)}</small>}</div><div>{outstanding > 0 ? <>{usd(outstanding)}<small>Outstanding</small></> : <small>Nothing outstanding</small>}</div>
         </Link>;
       })}
       {isCards && state.cards.length === 0 && <PanelHint className="directory-empty" href={SETTINGS_CARDS} label="Add one in Settings">No card yet.</PanelHint>}

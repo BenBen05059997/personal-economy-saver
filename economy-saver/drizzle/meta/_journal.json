@@ -120,6 +120,20 @@
       "when": 1793849142334,
       "tag": "0016_normal_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793867576716,
+      "tag": "0017_travel_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793870670873,
+      "tag": "0018_amount_varies",
+      "breakpoints": true
     }
   ]
 }

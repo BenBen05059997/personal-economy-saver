@@ -11,6 +11,12 @@ export function clientPace(client: Client): { usual: number; slowest: number } |
   return { usual: medianLow(client.daysToPay), slowest: Math.max(...client.daysToPay) };
 }
 
+/** The pace in words, as the client panel says it: "9 days usual · 21 slowest"; null with no paid invoice. */
+export function paceLine(client: Client): string | null {
+  const pace = clientPace(client);
+  return pace === null ? null : `${pace.usual} days usual · ${pace.slowest} slowest`;
+}
+
 /**
  * The day a sent invoice is expected to be paid, without `project()`'s floor at tomorrow: what the client's own history
  * says (the usual days), else the client's terms. The nudge rule needs the raw date to know how late the invoice is.

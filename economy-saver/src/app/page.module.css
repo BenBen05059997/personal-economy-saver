@@ -11,3 +11,4 @@
 .entries { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 26px; }
 .entries button { margin-top: 0; }
 .secondary { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 4px; }
+.landing p > .secondary { padding-left: 0; } /* a lone link lines up with the sign-in link above it */

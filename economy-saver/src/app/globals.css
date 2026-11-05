@@ -33,4 +33,4 @@ button:disabled { cursor: default; }
 h1, h2, h3, p { margin: 0; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .num { font-variant-numeric: tabular-nums; }
-.mono, code { font-family: var(--mono); }
+code { font-family: var(--mono); }

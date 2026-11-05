@@ -73,7 +73,7 @@ export async function insertCharge(
       await syncClosedStatementCharge(tx, hid, data.id);
       await recordEvent(tx, hid, {
         kind: "charge_added", ...by, title: `${data.merchant} added`, ...(data.shared && { body: `Shared, paid by ${await ownerName(tx, hid, card.memberId)} (${card.label})` }),
-        amount: { value: fromMinor(amountMinor, card.currency), currency: card.currency }, ref: { type: "charge", id: data.id },
+        amount: { value: fromMinor(amountMinor, card.currency), currency: card.currency }, ref: { type: "card", id: data.cardId }, // Activity opens the card page; the charge itself has none
       });
       await observeRunway(tx, hid);
     }

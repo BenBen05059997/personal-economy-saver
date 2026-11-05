@@ -2,13 +2,15 @@
 // Settings → People. Shares are basis points and a household's members always total exactly 10,000; adding the second
 // member starts the split (`households.split_since` = the household's today). The split moves no money in the engine,
 // so nothing here observes the runway.
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { householdClock } from "./account";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db } from "./household";
-import { households, members } from "./schema";
-import { SHARE_TOTAL_BP } from "@/lib/money/split";
+import { loadSplitState, recordEvent, requireHousehold, usdRateMicro, type Db } from "./household";
+import { convertMinor, fromRateMicro } from "./money";
+import { bills, cards, charges, households, members, paypalConnections, pots, settlements, users } from "./schema";
+import { Currency } from "@/lib/catalogue/types";
+import { SHARE_TOTAL_BP, splitBalance } from "@/lib/money/split";
 
 export const memberName = z.string().trim().min(1).max(80);
 export const addMemberInput = z.object({ name: memberName });
@@ -122,5 +124,81 @@ export async function savePeople(db: Db, householdId: string, input: z.infer<typ
       kind: "shares_updated", title: "Shared-cost shares updated",
       body: current.map((m, i) => `${given.get(m.id)!.name} ${percent(m.shareBp)}% → ${percent(shares[i])}%`).join("; "),
     });
+  });
+}
+
+export const removeMemberInput = z.object({ id: z.string().uuid() });
+
+/**
+ * Removes a person from the household (Settings → People). The rule:
+ * - The owner (role owner) and the last person cannot be removed, nor someone who signs in or has PayPal connected
+ *   (removing them would delete that sign-in or connection with them).
+ * - Who owes whom between them and the household must be zero, at the household's today (lib/money/split.ts); otherwise
+ *   "Settle up with Wife first." Their transfers are then already in the settlements, so nothing they owe or are owed is lost.
+ * - Their own bills become shared and paid by the owner; shared bills they paid are now paid by the owner.
+ * - A card they own becomes the household's (owner null), unless it carries shared charges: a shared charge is paid by its
+ *   card's owner (D45), so that card becomes the owner's. Their pots become the household's.
+ * - Their settlement rows go with them (a settlement names both people); the household's latest settlement must survive,
+ *   because it is where the next balance starts counting. With one person left the split ends (`split_since` is cleared,
+ *   so a person added later starts a new split that day); otherwise everyone's share is equal again, the remainder to the owner.
+ * - Family links they made go with them (the foreign key cascades; links are made by the owner today). One `person_removed` event says all of it.
+ * False when this household has no such person.
+ */
+export async function removeMember(db: Db, householdId: string, input: z.infer<typeof removeMemberInput>): Promise<boolean> {
+  const hid = requireHousehold(householdId);
+  const { id } = removeMemberInput.parse(input);
+  return db.transaction(async tx => {
+    const household = await lockHousehold(tx, hid);
+    const [home] = await tx.select({ currency: households.homeCurrency }).from(households).where(eq(households.id, hid));
+    const [person] = await tx.select({ id: members.id, name: members.displayName, role: members.role }).from(members).where(and(eq(members.householdId, hid), eq(members.id, id)));
+    if (!person) return false;
+    if (person.role === "owner") throw new InputError("The household’s owner cannot be removed");
+    const current = await orderedMembers(tx, hid);
+    if (current.length < 2) throw new InputError("The last person in a household cannot be removed");
+    const [login] = await tx.select({ id: users.id }).from(users).where(and(eq(users.householdId, hid), eq(users.memberId, id))).limit(1);
+    const [paypal] = await tx.select({ id: paypalConnections.id }).from(paypalConnections).where(and(eq(paypalConnections.householdId, hid), eq(paypalConnections.memberId, id))).limit(1);
+    if (login || paypal) throw new InputError(`${person.name} signs in or has PayPal connected, so they cannot be removed here`);
+    const owner = current[0];
+    const today = (await householdClock(tx, hid)).today;
+    const currency = Currency.parse(home.currency);
+    const fxPerUsd = fromRateMicro(await usdRateMicro(tx, hid, currency, today));
+    const split = await loadSplitState(tx, hid, household.splitSince, today, (minor, from) => convertMinor(minor, from, currency, fxPerUsd));
+    const balance = splitBalance(split, today).members.find(m => m.id === id);
+    if (balance && balance.netMinor !== 0) throw new InputError(`Settle up with ${person.name} first.`);
+
+    const latest = async () => (await tx.select({ through: settlements.through, settledAt: settlements.settledAt }).from(settlements)
+      .where(eq(settlements.householdId, hid)).orderBy(desc(settlements.through), desc(settlements.settledAt)).limit(1))[0] ?? null;
+    const before = await latest();
+    await tx.delete(settlements).where(and(eq(settlements.householdId, hid), or(eq(settlements.fromMemberId, id), eq(settlements.toMemberId, id))));
+    const after = await latest();
+    const left = current.filter(m => m.id !== id);
+    if (left.length > 1 && before !== null && (after === null || after.through !== before.through || after.settledAt.getTime() !== before.settledAt.getTime())) {
+      throw new InputError(`The last settle-up was only with ${person.name}; settle up between the others once before removing them`);
+    }
+
+    const ownBills = await tx.update(bills).set({ memberId: null, paidByMemberId: owner.id }).where(and(eq(bills.householdId, hid), eq(bills.memberId, id))).returning({ id: bills.id });
+    const paidBills = await tx.update(bills).set({ paidByMemberId: owner.id }).where(and(eq(bills.householdId, hid), eq(bills.paidByMemberId, id))).returning({ id: bills.id });
+    const theirCards = await tx.select({ id: cards.id, label: cards.label }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.memberId, id)));
+    const cardWords: string[] = [];
+    for (const card of theirCards) {
+      const [shared] = await tx.select({ id: charges.id }).from(charges).where(and(eq(charges.householdId, hid), eq(charges.cardId, card.id), eq(charges.shared, true))).limit(1);
+      await tx.update(cards).set({ memberId: shared ? owner.id : null }).where(and(eq(cards.householdId, hid), eq(cards.id, card.id)));
+      cardWords.push(shared ? `${card.label} is now ${owner.name}’s (it has shared charges)` : `${card.label} is now a household card`);
+    }
+    const theirPots = await tx.update(pots).set({ memberId: null }).where(and(eq(pots.householdId, hid), eq(pots.memberId, id))).returning({ id: pots.id });
+    await tx.delete(members).where(and(eq(members.householdId, hid), eq(members.id, id)));
+
+    const shares = equalShares(left.length);
+    for (const [i, m] of left.entries()) await tx.update(members).set({ shareBp: shares[i] }).where(and(eq(members.householdId, hid), eq(members.id, m.id)));
+    if (left.length === 1) await tx.update(households).set({ splitSince: null }).where(eq(households.id, hid));
+    const billCount = ownBills.length + paidBills.length;
+    const body = [
+      ...(billCount ? [`${billCount === 1 ? "1 bill is" : `${billCount} bills are`} now shared and paid by ${owner.name}`] : []),
+      ...cardWords,
+      ...(theirPots.length ? [`${theirPots.length === 1 ? "1 pot is" : `${theirPots.length} pots are`} now the household’s`] : []),
+      left.length > 1 ? "Shares: " + left.map((m, i) => `${m.name} ${percent(shares[i])}%`).join(", ") : "Nothing is split while one person is in the household",
+    ];
+    await recordEvent(tx, hid, { madeBy: "form", kind: "person_removed", title: `${person.name} left the household`, body: body.join(" · "), ref: { type: "member", id } });
+    return true;
   });
 }

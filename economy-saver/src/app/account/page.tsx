@@ -13,7 +13,9 @@ async function Account() {
   const uid = await verifiedUid();
   if (!uid) {
     if (!await currentHouseholdId()) redirect("/login");
-    return <AccountFrame title="Your account"><p>This is a Try it household. Sign in with email to start your own household.</p><Link href="/login">Sign in with email</Link> <Link className="account-link" href="/privacy">Privacy ›</Link></AccountFrame>;
+    return <AccountFrame title="Your account"><p>This is a Try it household. Sign in with email to start your own household.</p><Link href="/login">Sign in with email</Link> <Link className="account-link" href="/privacy">Privacy ›</Link>
+      {/* Clears this device's household cookie (the same route signs out an account); the sweeper (D49) deletes the household seven days after its last change. */}
+      <form method="post" action="/api/auth/logout"><p>Leave this household. It stays on this device for seven days, then it is swept.</p><button className="ui-button">Leave this household</button></form></AccountFrame>;
   }
   if (!await accountHousehold(db(), uid)) redirect("/onboarding");
   return <AccountFrame title="Your account">

@@ -2,6 +2,7 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 import { SetupForm } from "@/components/auth/SetupForm";
+import { missingForwardingSetting } from "@/components/reader/ForwardingSettings";
 import { verifiedUid } from "@/lib/auth-request";
 import { currentHouseholdId } from "@/lib/session";
 import { db } from "@/db/client";
@@ -13,7 +14,7 @@ async function Start() {
   const kind = demo ? await tryItKind(db(), demo) : null;
   const notice = kind === "try-it" ? "This replaces the Try it household in this browser. Reset in Settings brings Ben's numbers back."
     : kind === "blank" ? "This replaces your household in this browser and its numbers." : undefined;
-  return <SetupForm notice={notice} action="/api/try/blank" privacy title="Start with my numbers" button="Open my household"
+  return <SetupForm notice={notice} action="/api/try/blank" forwarding={missingForwardingSetting() === null} privacy title="Start with my numbers" button="Open my household"
     hint="A name and today's bank balance are all it needs. No bills, clients or payments are added for you, and nothing here is real money. You can sign in with email later to keep it." />;
 }
 export default function StartPage() {

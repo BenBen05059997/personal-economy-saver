@@ -377,6 +377,7 @@
               "subscriptions",
               "food",
               "transport",
+              "travel",
               "health",
               "insurance",
               "family_shared",
@@ -385,7 +386,7 @@
               "debt",
               "other"
             ],
-            "description": "One of the thirteen fixed categories; the key, not the label."
+            "description": "One of the fourteen fixed categories; the key, not the label."
           },
           "businessBp": {
             "type": "integer",
@@ -500,6 +501,7 @@
               "subscriptions",
               "food",
               "transport",
+              "travel",
               "health",
               "insurance",
               "family_shared",
@@ -508,7 +510,7 @@
               "debt",
               "other"
             ],
-            "description": "One of the thirteen fixed categories; the key, not the label."
+            "description": "One of the fourteen fixed categories; the key, not the label."
           },
           "businessBp": {
             "type": "integer",
@@ -619,6 +621,22 @@
               }
             ],
             "description": "Information only: the last day to cancel or change the bill before its next occurrence charges. The app never cancels anything."
+          },
+          "amountVaries": {
+            "type": "boolean",
+            "description": "A monthly bill whose amount changes every month (electricity, water, gas): a month without its real bill is forecast as the average of the last three real bills linked to it (amountMinor when there are none). Absent = false."
+          },
+          "seriesBillId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On a one-off real bill: the id of the amount-varies monthly bill it belongs to; it replaces that series' estimate in its due month. Null or absent = not linked."
           },
           "documentId": {
             "anyOf": [

@@ -1,4 +1,3 @@
-import type { Profile } from "@/lib/catalogue/types";
 import { expandBills } from "@/lib/money/repeat";
 import { addDays, planWindow } from "@/lib/money/runway";
 import type { Bill, Charge, MoneyState } from "@/lib/money/types";
@@ -10,37 +9,18 @@ import type { Bill, Charge, MoneyState } from "@/lib/money/types";
 // Expected arrival = sentOn + median(daysToPay); worst = sentOn + max(daysToPay):
 // Acme Nov 22 / Dec 3, Northwind Nov 25 / Nov 29, Beacon (once sent today) Nov 16 / Nov 17.
 
-export const benProfile: Profile = {
-  region: "JP",
-  currency: "JPY",
-  name: "Ben",
-  age: 29,
-  city: "Tokyo",
-  work: "freelancer",
-  incomeCurrency: "USD",
-  annualRevenue: 6_000_000,
-  annualExpenses: 1_000_000,
-  monthlyEssentials: 210_000,
-  bufferMonths: 9,
-  yearsFreelancing: 2,
-  filing: "jp_white",
-  retirementAccount: false,
-  retirementMonthly: 0,
-  taxFreeInvesting: false,
-  healthInsurance: "jp_kokuho",
-  revolvingBalance: 0,
-  doneSignupBonuses: false,
-  loanPending: false,
-  consumptionTaxElected: false,
-};
-
 // The bills as they are stored (and seeded): Ben's subscription, phone and rent repeat every month (D41);
-// the electricity bill is a one-off waiting in To check. Each carries a category and a business share (D46):
-// rent is 30% business (a home office), the phone 50%, the subscription and the hosting are all business.
+// the electricity bill is a one-off each month: September's and October's are paid history (D54: a regular cost that changes
+// month to month), November's waits in To check. Each carries a category and a business share (D46):
+// rent is 30% business (a home office), the phone 50%, the subscription and the hosting are all business, the electricity 30%.
+// The repeating ones started in August, so a search over past months finds them (D53); the engine reads only the occurrences
+// and bills from today on, so the past electricity bills move no current number.
 export const benStoredBills: Bill[] = ([
-  { id: "b-cloudbox", biller: "CloudBox Plus", amount: 1_980, due: "2026-11-18", category: "subscriptions", businessBp: 10_000, repeatUnit: "month", repeatDay: 18 },
-  { id: "b-mobaile", biller: "Mobaile Tsushin", amount: 4_800, due: "2026-11-20", category: "phone_internet", businessBp: 5_000, repeatUnit: "month", repeatDay: 20 },
-  { id: "b-rent", biller: "Rent", amount: 82_000, due: "2026-11-27", category: "housing", businessBp: 3_000, repeatUnit: "month", repeatDay: 27 },
+  { id: "b-cloudbox", biller: "CloudBox Plus", amount: 1_980, due: "2026-08-18", category: "subscriptions", businessBp: 10_000, repeatUnit: "month", repeatDay: 18 },
+  { id: "b-mobaile", biller: "Mobaile Tsushin", amount: 4_800, due: "2026-08-20", category: "phone_internet", businessBp: 5_000, repeatUnit: "month", repeatDay: 20 },
+  { id: "b-rent", biller: "Rent", amount: 82_000, due: "2026-08-27", category: "housing", businessBp: 3_000, repeatUnit: "month", repeatDay: 27 },
+  { id: "b-hikari-09", biller: "Hikari Denki", amount: 8_640, due: "2026-09-25", category: "utilities", businessBp: 3_000 },
+  { id: "b-hikari-10", biller: "Hikari Denki", amount: 10_020, due: "2026-10-25", category: "utilities", businessBp: 3_000 },
   {
     id: "b-hikari",
     biller: "Hikari Denki",
@@ -66,12 +46,20 @@ export const benMoney: MoneyState = {
   // (due Nov 26) and November's charges so far fall into the statement due Dec 26, past the 30-day window.
   // Card B closes on the 15th and is paid on the 10th of the next month: the cycle that closes Nov 15
   // holds ¥61,000 so far, due Dec 10. Neither card is on リボ.
+  // The September and October charges on Card A are history only (D53): they are on or before the stored statement's
+  // close (Oct 31), so the runway never counts them again; they give the month view and the search something to find.
   cards: [
     { id: "card-a", label: "Card A", closingDay: 31, dueDay: 26, limit: 500_000, revolving: false, ownerId: "m-ben" },
     { id: "card-b", label: "Card B", closingDay: 15, dueDay: 10, limit: 300_000, revolving: false, ownerId: "m-ben" },
   ],
   statements: [{ cardId: "card-a", amount: 58_000, closedOn: "2026-10-31", dueOn: "2026-11-26" }],
   charges: ([
+    { id: "ch-h1", cardId: "card-a", merchant: "Kumokaze Air flight", amount: 18_400, date: "2026-09-21", category: "travel", businessBp: 0, source: "card_email" },
+    { id: "ch-h2", cardId: "card-a", merchant: "Hotel Kazemachi Hakone", amount: 28_600, date: "2026-09-22", category: "travel", businessBp: 0, source: "card_email" },
+    { id: "ch-h3", cardId: "card-a", merchant: "Minato Fresh Market", amount: 5_960, date: "2026-09-27", category: "food", businessBp: 0, source: "card_email" },
+    { id: "ch-h4", cardId: "card-a", merchant: "Kaze Taxi", amount: 2_340, date: "2026-10-04", category: "transport", businessBp: 0, source: "receipt" },
+    { id: "ch-h5", cardId: "card-a", merchant: "Kissa Midori café", amount: 1_320, date: "2026-10-10", category: "food", businessBp: 0, source: "receipt" },
+    { id: "ch-h6", cardId: "card-a", merchant: "Hoshizora Cinema", amount: 3_600, date: "2026-10-18", category: "other", businessBp: 0, source: "card_email" },
     { id: "ch-a1", cardId: "card-a", merchant: "Sora Cloud Hosting", amount: 3_850, date: "2026-11-04", category: "business_tools", businessBp: 10_000, source: "card_email" },
     { id: "ch-a2", cardId: "card-a", merchant: "Tsuki Electronics", amount: 18_200, date: "2026-11-09", category: "other", businessBp: 0, source: "card_email" },
     { id: "ch-a3", cardId: "card-a", merchant: "Yamabiko Outdoor", amount: 6_400, date: "2026-11-12", category: "other", businessBp: 0, source: "receipt" },

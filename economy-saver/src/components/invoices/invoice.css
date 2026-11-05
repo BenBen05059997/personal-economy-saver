@@ -9,3 +9,6 @@
 .invoice-review form p { margin-top: var(--space-3); }
 .invoice-status { font-weight: 500; }
 .invoice-paid-outside { margin-top: var(--space-5); }
+.invoice-approve .invoice-sending { display: none; }
+.invoice-approve[aria-busy="true"] .invoice-sending { display: block; color: var(--ink); }
+.invoice-approve[aria-busy="true"] .invoice-send-hint { display: none; }

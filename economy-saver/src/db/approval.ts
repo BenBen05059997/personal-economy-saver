@@ -58,7 +58,7 @@ async function getRemote(ctx: ApprovalContext, remoteId: string) {
   const remote = remoteInvoice.parse(await ctx.tool("get_invoice", { invoice_id: remoteId }));
   const emails = remote.primary_recipients.map(r => r.billing_info.email_address.toLowerCase());
   if (remote.id !== remoteId || emails.length !== 1 || emails[0] !== ctx.recipient.toLowerCase()) {
-    throw new ApprovalError("The invoice recipient does not match the configured sandbox client.");
+    throw new ApprovalError("The invoice recipient must be the PayPal sandbox test client.");
   }
   return remote;
 }

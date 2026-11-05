@@ -101,7 +101,7 @@ export function AskPanel() {
     <h2>Ask about your money</h2>
     <form onSubmit={ask}>
       <label className="ui-field">Your question
-        <textarea ref={field} maxLength={320} rows={3} value={text} required placeholder="What’s due this week? Can I afford ¥4,000 tonight?"
+        <textarea ref={field} maxLength={320} rows={3} value={text} required placeholder="What’s due this week? Can I spend ¥4,000?"
           onKeyDown={enterAsks}
           onChange={event => { setText(event.target.value); setSource("manual"); requestId.current = ""; }} />
       </label>

@@ -8,14 +8,14 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
-import { billInput, insertBill, removeBill } from "@/db/bills";
+import { billEditInput, billInput, insertBill, removeBill, updateBill } from "@/db/bills";
 import { chargeInput, insertCharge, removeCharge } from "@/db/charges";
 import { DEMO_DATE } from "@/db/clock";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
 import { InputError } from "@/db/input-error";
-import { addMember, equalShares, memberByName, parseShareBp, savePeople } from "@/db/people";
-import { settingsInput, SettingsError, updateSettings } from "@/db/settings";
+import { addMember, equalShares, memberByName, parseShareBp, removeMember, savePeople } from "@/db/people";
+import { settingsInput, updateSettings } from "@/db/settings";
 import { seedBen } from "@/db/seed";
 import { settleUp } from "@/db/settle";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
@@ -48,6 +48,10 @@ const charge = (over: Partial<SplitState["charges"][number]> = {}) =>
   ({ id: "c", merchant: "Market", amountMinor: 5_000, date: "2026-11-05", paidBy: "aki", createdAt: CREATED, ...over });
 const net = (state: SplitState, today = TODAY) => Object.fromEntries(splitBalance(state, today).members.map(m => [m.id, m.netMinor]));
 
+const setWhose = async (db: Parameters<typeof updateBill>[0], hid: string, billId: string, memberId: string | null, paidByMemberId: string | null = null) => {
+  const [bill] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, hid), eq(schema.bills.id, billId)));
+  return updateBill(db, hid, billEditInput.parse({ id: billId, biller: bill.biller, amount: String(bill.amountMinor), due: bill.due, category: bill.category, businessBp: bill.businessBp, memberId, paidByMemberId }), { madeBy: "form" });
+}; // Settings → Bills → Edit with only whose changed
 async function main() {
   const pg = new PGlite();
   const db = drizzle(pg, { schema });
@@ -254,7 +258,7 @@ async function main() {
       assert.deepEqual(balance.members.map(m => [m.name, m.paidMinor, m.shareMinor, m.netMinor]), [["Ben", 30_000, 21_000, 9_000], ["Aki", 5_000, 14_000, -9_000]]);
       assert.deepEqual(balance.transfers.map(t => transferLine(t, "JPY")), ["Aki owes Ben ¥9,000"]);
       assert.equal((await events(a, "bill_added")).find(e => e.refId === rent.id)!.body, "Shared, paid by Ben");
-      assert.equal((await events(a, "charge_added")).find(e => e.refId === dinner.id)!.body, "Shared, paid by Aki (Aki Card)");
+      assert.equal((await events(a, "charge_added")).find(e => e.title === "Fictional grocer added")!.body, "Shared, paid by Aki (Aki Card)");
       assert.deepEqual([state.charges.find(c => c.id === dinner.id)!.shared, state.bills.find(b => b.id === rent.id)!.paidBy], [true, ben]);
     });
 
@@ -312,7 +316,7 @@ async function main() {
       assert.deepEqual([...(toolInputSchema(tool("add_bill")) as unknown as { required: string[] }).required].sort(),
         ["amount", "biller", "business_bp", "cancel_by", "category", "due", "id", "memberId", "next_amount", "next_amount_from", "paidBy", "repeat", "shared"]);
       assert.ok((toolInputSchema(tool("log_charge")) as unknown as { required: string[] }).required.includes("shared"));
-      assert.equal(tools.filter(t => t.scope === "read").length, 11);
+      assert.equal(tools.filter(t => t.scope === "read").length, 13);
 
       const mine = JSON.parse(await run(a, "who_owes_whom", {}));
       assert.deepEqual([mine.summary, mine.currency, mine.split, mine.transfers.length], ["Aki owes Ben ¥9,000.", "JPY", true, 1]);
@@ -528,16 +532,17 @@ async function main() {
 
     await check("Settings: a shared bill names who pays; an owner drops the payer; names stay unique; a card with shared charges keeps its owner", async () => {
       const gas = await first(db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.biller, "Fictional landlord"))));
-      await updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: gas.id, memberId: "", paidByMemberId: aki }));
+      await setWhose(db, a, gas.id, null, aki);
       assert.equal((await first(db.select().from(schema.bills).where(eq(schema.bills.id, gas.id)))).paidByMemberId, aki);
-      await updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: gas.id, memberId: ben, paidByMemberId: aki }));
+      await assert.rejects(setWhose(db, a, gas.id, ben, aki), /not split/, "an owner and a payer together are refused");
+      await setWhose(db, a, gas.id, ben);
       const owned = await first(db.select().from(schema.bills).where(eq(schema.bills.id, gas.id)));
       assert.deepEqual([owned.memberId, owned.paidByMemberId], [ben, null], "an owner means not shared, so no payer");
-      await updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: gas.id, memberId: "", paidByMemberId: ben }));
-      await assert.rejects(updateSettings(db, a, settingsInput.parse({ kind: "bill-owner", id: gas.id, memberId: "", paidByMemberId: benB })), SettingsError, "another household's member");
+      await setWhose(db, a, gas.id, null, ben);
+      await assert.rejects(setWhose(db, a, gas.id, null, benB), InputError, "another household's member");
       const solo = await first(db.select().from(schema.bills).where(and(eq(schema.bills.householdId, b), eq(schema.bills.biller, "Rent"))));
-      await assert.rejects(updateSettings(db, b, settingsInput.parse({ kind: "bill-owner", id: solo.id, memberId: "", paidByMemberId: benB })), /second person/);
-      await updateSettings(db, b, settingsInput.parse({ kind: "bill-owner", id: solo.id, memberId: "" }));
+      await assert.rejects(setWhose(db, b, solo.id, null, benB), /second person/);
+      await setWhose(db, b, solo.id, null);
       assert.equal((await first(db.select().from(schema.bills).where(eq(schema.bills.id, solo.id)))).paidByMemberId, null);
 
       const rename = async (id: string, name: string) => {
@@ -586,6 +591,58 @@ async function main() {
       assert.deepEqual((await loadHouseholdSnapshot(db, b, { events: false })).settlements, []);
       assert.deepEqual((await loadHouseholdSnapshot(db, b, { events: false })).members.map(m => m.shareBp), [10_000]);
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, settlements: [{ ...snap.settlements[0], extra: 1 }] }));
+    });
+
+    await check("removing a person (Nov 5): refused while they owe or are owed, for the owner and across households; then their bills, cards and settlements move to the owner and the split ends", async () => {
+      const f = await seedBen(db, { isDemo: true, name: "Removal" });
+      const fBen = (await members(f))[0].id;
+      const wife = await addMember(db, f, { name: "Wife" });
+      const sharedCard = randomUUID(), plainCard = randomUUID();
+      await db.insert(schema.cards).values([{ id: sharedCard, householdId: f, memberId: wife, label: "Wife Card", closingDay: 31, dueDay: 26, currency: "JPY" },
+        { id: plainCard, householdId: f, memberId: wife, label: "Wife Spare", closingDay: 31, dueDay: 26, currency: "JPY" }]);
+      const own = randomUUID(), paid = randomUUID();
+      await insertBill(db, f, billInput.parse({ id: own, biller: "Fictional phone", amount: "4000", due: TODAY, category: "phone_internet", memberId: wife }), "confirmed", { madeBy: "form" });
+      await insertBill(db, f, billInput.parse({ id: paid, biller: "Fictional groceries", amount: "30000", due: TODAY, category: "food", paidByMemberId: wife }), "confirmed", { madeBy: "form" });
+      await insertCharge(db, f, chargeInput.parse({ id: randomUUID(), cardId: sharedCard, merchant: "Fictional outing", amount: "5000", date: TODAY, category: "other", shared: true }), "confirmed", "manual", { madeBy: "form" });
+      await assert.rejects(removeMember(db, f, { id: wife }), /^Error: Settle up with Wife first\.$|Settle up with Wife first\./);
+      await assert.rejects(removeMember(db, f, { id: fBen }), /owner cannot be removed/);
+      assert.equal(await removeMember(db, a, { id: wife }), false, "another household's person is not found");
+      assert.equal(await removeMember(db, f, { id: aki }), false, "nor is this household's id given to the other");
+      assert.equal((await members(f)).length, 2, "nothing removed by the refusals");
+      await settleUp(db, f);
+      assert.equal(await removeMember(db, f, { id: wife }), true);
+      assert.deepEqual((await members(f)).map(m => [m.displayName, m.shareBp]), [["Ben", 10_000]]);
+      const billRows = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, f), eq(schema.bills.id, own)));
+      const paidRows = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, f), eq(schema.bills.id, paid)));
+      assert.deepEqual([billRows[0].memberId, billRows[0].paidByMemberId, paidRows[0].paidByMemberId], [null, fBen, fBen], "her bill is shared and paid by Ben; the bill she paid is Ben's to pay");
+      const cardOwners = Object.fromEntries((await db.select().from(schema.cards).where(eq(schema.cards.householdId, f))).filter(c => c.id === sharedCard || c.id === plainCard).map(c => [c.label, c.memberId]));
+      assert.deepEqual(cardOwners, { "Wife Card": fBen, "Wife Spare": null }, "a card with shared charges goes to the owner, the other to the household");
+      assert.equal((await db.select().from(schema.settlements).where(eq(schema.settlements.householdId, f))).length, 0);
+      assert.equal((await household(f)).splitSince, null, "the split ends with one person");
+      const removed = await events(f, "person_removed");
+      assert.deepEqual(removed.map(e => [e.title, e.body, e.madeBy, e.refId]), [["Wife left the household",
+        "2 bills are now shared and paid by Ben · Wife Card is now Ben’s (it has shared charges) · Wife Spare is now a household card · Nothing is split while one person is in the household", "form", wife]]);
+      const state = await stateOf(f);
+      assert.deepEqual(splitBalance(state.split, TODAY).transfers, []);
+      assert.ok(await addMember(db, f, { name: "Wife" }), "the name is free again");
+      assert.equal((await household(f)).splitSince, TODAY, "a new split starts the day someone joins");
+    });
+
+    await check("removing one of three: the latest settle-up survives, shares are equal again and nothing settled is counted again", async () => {
+      const g = await seedBen(db, { isDemo: true, name: "Three again" });
+      const gBen = (await members(g))[0].id;
+      const gAki = await addMember(db, g, { name: "Aki" });
+      const gMio = await addMember(db, g, { name: "Mio" });
+      await insertBill(db, g, billInput.parse({ id: randomUUID(), biller: "Fictional utilities", amount: "90000", due: TODAY, category: "utilities", paidByMemberId: gBen }), "confirmed", { madeBy: "form" });
+      await assert.rejects(removeMember(db, g, { id: gMio }), /Settle up with Mio first/);
+      assert.equal((await settleUp(db, g)).length, 2);
+      assert.equal(await removeMember(db, g, { id: gMio }), true);
+      assert.deepEqual(await sharesOf(g), [["Ben", 5000], ["Aki", 5000]]);
+      assert.equal((await household(g)).splitSince, TODAY, "two people still split");
+      assert.deepEqual(splitBalance((await stateOf(g)).split, TODAY).transfers, [], "the settled bill is not counted again");
+      assert.equal((await db.select().from(schema.settlements).where(eq(schema.settlements.householdId, g))).length, 1, "Aki's transfer stays");
+      assert.match((await events(g, "person_removed"))[0].body!, /Shares: Ben 50%, Aki 50%$/);
+      assert.ok(gAki);
     });
 
     await check("Ben's seeded household is untouched by all of it: the same numbers as the demo", async () => {

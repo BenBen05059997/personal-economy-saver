@@ -5,6 +5,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { transformJSONSchema } from "@anthropic-ai/sdk/lib/transform-json-schema";
 import { z } from "zod";
+import { householdDate } from "@/db/account";
 import { requireHousehold, type Db, type Maker } from "@/db/household";
 import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
@@ -14,12 +15,16 @@ import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
 import { memberByName, memberCount } from "@/db/people";
 import { potInput, savePot } from "@/db/pots";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
+import { loadSpending } from "@/db/spending";
 import { toMinor } from "@/db/money";
 import { clients, invoices } from "@/db/schema";
+import { minorPerUnit } from "@/lib/money/format";
 import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
 import { BusinessBp, CATEGORY_KEYS, CategoryKeySchema, categoryLabel } from "@/lib/money/categories";
 import { guessCategory } from "@/lib/money/categorise";
-import { monthByCategory, monthText } from "@/lib/money/month";
+import { monthByCategory, monthText, monthWhen } from "@/lib/money/month";
+import { HISTORY_MONTHS, monthBounds, monthsBack, SEARCH_QUERY_MAX, searchLine, searchSpending, spendingItems } from "@/lib/money/spending";
+import { REGULAR_MONTHS, regularCosts } from "@/lib/money/regular";
 import { fundingOptions } from "@/lib/money/options";
 import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { clientPace } from "@/lib/money/pace";
@@ -68,7 +73,8 @@ const categoryField = CategoryKeySchema.nullable().default(null)
   .describe(`One of: ${CATEGORY_KEYS.join(", ")}. null when the user did not say; the app then proposes one from the name and the user confirms it in To check.`);
 const businessField = BusinessBp.nullable().default(null)
   .describe("The business share in basis points: 0 personal, 10000 business, 3000 for 30% business. null = personal.");
-const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true }).extend({
+// D54's "amount varies" is set by the user on the form or in Settings, not by the agent; an agent's one-off still links on confirm.
+const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, amountVaries: true }).extend({
   repeat: RepeatUnitSchema.nullable().default(null).describe("month = every month on the due date's day, year = every year on its month and day, null = a one-off."),
   next_amount: z.string().trim().nullable().default(null).describe("The amount from next_amount_from on, a plain number in the home currency (a price rise); needs repeat. null = unchanged."),
   next_amount_from: z.string().date().nullable().default(null).describe("YYYY-MM-DD, after the due date; the first date the next_amount applies on. null with no next_amount."),
@@ -169,7 +175,7 @@ export const tools: Tool[] = [
         low: { date: lowest.date, amountMinor: minor(lowest.amount) },
         events: engineTimeline(state, kind).map(event => ({
           date: event.date, label: event.label, kind: event.kind, amountMinor: minor(event.amount),
-          currency: state.homeCurrency, balanceAfterMinor: minor(event.balance), ...(event.pending ? { pending: true } : {}),
+          currency: state.homeCurrency, balanceAfterMinor: minor(event.balance), ...(event.pending ? { pending: true } : {}), ...(event.estimated ? { estimated: true } : {}),
         })),
       });
     },
@@ -230,7 +236,7 @@ export const tools: Tool[] = [
       const pot = input.pot_id ? state.pots.find(p => p.id === input.pot_id) : undefined;
       if (input.pot_id && !pot) throw new Error("Unknown pot");
       const minor = (amount: number) => toMinor(amount, state.homeCurrency);
-      const unit = (n: number) => n / (state.homeCurrency === "USD" ? 100 : 1);
+      const unit = (n: number) => n / minorPerUnit(state.homeCurrency);
       const target = input.target_minor != null ? unit(input.target_minor) : pot?.target;
       if (target === undefined) throw new Error("A target amount is required");
       const targetDate = input.target_date ?? pot?.targetDate;
@@ -264,11 +270,49 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "month_by_category", scope: "read", input: none,
-    description: "Where the current calendar month goes: confirmed bills (a repeating bill once) and card charges in the home currency, grouped by category, each split into its business and personal part, with the items under each. Quote it to the user as it is; it is built in code. Information only: categories and business shares move no money and do not change what is safe to spend.",
-    run: async ctx => {
-      const state = await ctx.state();
-      return monthText(monthByCategory(state, state.today));
+    name: "month_by_category", scope: "read",
+    input: z.object({
+      month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").nullable().default(null)
+        .describe(`YYYY-MM, one of the last ${HISTORY_MONTHS} months including the current one; null = the current month.`),
+    }),
+    description: "Where a calendar month goes (the current one unless month is given): confirmed bills (a repeating bill once) and card charges in the home currency, grouped by category, each split into its business and personal part, with the items under each. Quote it to the user as it is; it is built in code. Information only: categories and business shares move no money and do not change what is safe to spend.",
+    run: async (ctx, input) => {
+      const today = await householdDate(ctx.db, ctx.householdId);
+      const month = input.month ?? today.slice(0, 7);
+      if (month > today.slice(0, 7) || month < monthsBack(today.slice(0, 7), HISTORY_MONTHS)) throw new InputError(`month must be one of the last ${HISTORY_MONTHS} months, ${monthsBack(today.slice(0, 7), HISTORY_MONTHS)} to ${today.slice(0, 7)}`);
+      const { first, last } = monthBounds(month);
+      const view = monthByCategory(await loadSpending(ctx.db, ctx.householdId, { from: first, to: last }), today, month);
+      return monthText(view, monthWhen(month === today.slice(0, 7) ? undefined : view.name));
+    },
+  }),
+  defineTool({
+    name: "search_spending", scope: "read",
+    input: z.object({
+      query: z.string().max(SEARCH_QUERY_MAX).default("").describe("Words to find in bill and charge names or categories (hotel, rent, travel, food); every word must match. An empty string lists everything."),
+      months: z.number().int().min(1).max(HISTORY_MONTHS).nullable().default(null).describe(`How many calendar months to look back, 1 to ${HISTORY_MONTHS}, the current month included; null = 3.`),
+    }),
+    description: `Where did the money go: confirmed bills (a repeating bill once per occurrence, at the amount of that day) and card charges up to today that match the query, by month, newest first, with totals per month and per category and the items. A word matches an item's name, its category key or its category label, so "hotel" and "travel" both find a hotel. Amounts are home-currency minor units (whole yen for JPY, cents for USD). Quote summary to the user as it is; it is built in code. Information only.`,
+    run: async (ctx, input) => {
+      const today = await householdDate(ctx.db, ctx.householdId);
+      const from = `${monthsBack(today.slice(0, 7), input.months ?? 3)}-01`;
+      const data = await loadSpending(ctx.db, ctx.householdId, { from, to: today });
+      const result = searchSpending(spendingItems(data, from, today), input.query, data.homeCurrency, { from, to: today });
+      return JSON.stringify({ summary: searchLine(result), from, to: today, ...result });
+    },
+  }),
+  defineTool({
+    name: "regular_costs", scope: "read",
+    input: z.object({
+      months: z.number().int().min(2).max(6).nullable().default(null).describe(`How many calendar months to compare, 2 to 6, the current month included; null = ${REGULAR_MONTHS}.`),
+    }),
+    description: "Regular costs (D54): bills and card charges that come back month after month (a monthly repeating bill, or the same name and category in at least two of the months), each with its amount in every month (oldest first), this month against last month and a status: up, down, same, started, stopped, or not_yet (nothing this month yet; it usually comes later, on usualDay). This month is the month so far plus confirmed bills still due in it; card charges count up to today, and soFar says the amount can still grow. Amounts are home-currency minor units (whole yen for JPY, cents for USD). Quote summary to the user as it is; it is built in code. Information only.",
+    run: async (ctx, input) => {
+      const today = await householdDate(ctx.db, ctx.householdId);
+      const months = input.months ?? REGULAR_MONTHS;
+      const from = `${monthsBack(today.slice(0, 7), months)}-01`, to = monthBounds(today.slice(0, 7)).last;
+      const data = await loadSpending(ctx.db, ctx.householdId, { from, to });
+      const result = regularCosts(spendingItems(data, from, to), data.homeCurrency, today, months);
+      return JSON.stringify({ summary: result.changedLine, from, to, ...result });
     },
   }),
   defineTool({

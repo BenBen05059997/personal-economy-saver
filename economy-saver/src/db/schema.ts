@@ -308,6 +308,8 @@ export const bills = pgTable(
     nextAmountMinor: minor("next_amount_minor"), // D48: the amount from next_amount_from on (occurrences on or after it)
     nextAmountFrom: date("next_amount_from", { mode: "string" }),
     cancelBy: date("cancel_by", { mode: "string" }), // D48: information only: the date to act by before the next occurrence charges
+    amountVaries: boolean("amount_varies").notNull().default(false), // D54: a monthly bill forecast from its own past; only with repeat_unit = 'month', never with a next amount
+    seriesBillId: uuid("series_bill_id"), // D54: the amount-varies series this one-off real bill belongs to (same household); it replaces that month's estimate
     madeBy: madeByColumn(),
     askId: askIdColumn(),
     createdAt: createdAt(),
@@ -317,6 +319,12 @@ export const bills = pgTable(
     check("bills_repeat_unit_valid", sql`${t.repeatUnit} is null or ${t.repeatUnit} in ('month', 'year')`),
     check("bills_repeat_day_monthly", sql`(${t.repeatUnit} is not distinct from 'month') = (${t.repeatDay} is not null)`),
     check("bills_next_amount_pair", sql`(${t.nextAmountMinor} is null) = (${t.nextAmountFrom} is null)`),
+    check("bills_amount_varies_monthly", sql`not ${t.amountVaries} or (${t.repeatUnit} is not distinct from 'month' and ${t.nextAmountMinor} is null)`),
+    check("bills_series_one_off", sql`${t.seriesBillId} is null or ${t.repeatUnit} is null`),
+    unique("bills_household_id_uq").on(t.householdId, t.id),
+    index("bills_series_idx").on(t.householdId, t.seriesBillId),
+    // D54: the series is a bill of the same household; removing it leaves its real bills as plain one-offs (only series_bill_id is cleared, see migration 0018).
+    foreignKey({ columns: [t.householdId, t.seriesBillId], foreignColumns: [t.householdId, t.id], name: "bills_series_household_fk" }).onDelete("set null"),
     check("bills_category_valid", sql`${t.category} in (${categoryList})`),
     check("bills_business_valid", sql`${t.businessBp} between 0 and 10000`),
     foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "bills_member_household_fk" }),

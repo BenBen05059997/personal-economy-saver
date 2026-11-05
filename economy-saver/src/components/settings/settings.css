@@ -30,5 +30,27 @@
 .account-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 4px; }
 .settings-family { display: grid; gap: var(--space-2); justify-items: start; margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--rule); }
 .settings-family > * { margin: 0; }
+.settings-family-date { white-space: nowrap; }
 .settings-family h3 { font: 500 15px/1.3 var(--sans); }
 .settings-family .ui-field, .settings-family .ui-row { justify-self: stretch; }
+.settings-page .settings-bill details.settings-edit { padding-block: 0 var(--space-2); border-bottom: 0; }
+.settings-edit > summary { padding-block: 12px; }
+.settings-remove-people { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--rule); }
+.settings-remove-people > p { margin: 0; }
+/* Settings → Import a statement (D53): the preview of a statement file before its charges are added. */
+.settings-import-preview { display: grid; gap: var(--space-2); margin-top: var(--space-3); min-width: 0; }
+.settings-import-preview > p { margin: 0; }
+.settings-import-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
+@media (max-width: 600px) { .settings-import-columns { grid-template-columns: 1fr; gap: 0; } }
+.settings-import-columns .ui-field { margin-block: var(--space-2); }
+.settings-import-counts { font-weight: 500; }
+.settings-import-scroll { overflow-x: auto; max-width: 100%; }
+.settings-import-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.settings-import-table :is(th, td) { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.settings-import-table th { font-weight: 500; color: var(--muted); }
+.settings-import-table td:nth-child(4) { text-align: right; white-space: nowrap; }
+.settings-import-out td { color: var(--muted); }
+.settings-import-done { margin: var(--space-2) 0 0; font-weight: 500; }
+.settings-import-done a { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+.settings-dev { margin-top: 12px; }
+.settings-dev > summary { cursor: pointer; font-size: 0.875rem; opacity: 0.75; padding-block: 12px; }

@@ -36,3 +36,12 @@ export function failure(error: unknown) {
 export function badFields() {
   return text(BAD_FIELDS, 400);
 }
+
+/** The posted form, or the bad-fields answer when the body is not a form (JSON, broken multipart, nothing): `formData()` throws there, which used to surface as an empty 500. */
+export async function formOf(request: Request): Promise<FormData | Response> {
+  try {
+    return await request.formData();
+  } catch {
+    return badFields();
+  }
+}

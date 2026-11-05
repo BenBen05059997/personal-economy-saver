@@ -150,6 +150,7 @@ function draftFormValues(html) {
 if (args[0] === "--guards") {
   const checks = [
     ["sign-in-invalid-email", "/api/auth/link", { method: "POST", form: { email: "invalid" } }, 400],
+    ["sign-in-json-body", "/api/auth/link", { method: "POST", json: { email: "a@example.com" } }, 400],
     ["callback-without-code", "/api/auth/callback", {}, 303, "/login?expired=1"],
     ["approve-without-household", "/api/approve", { method: "POST" }, 401],
     ["unsigned-webhook", "/api/paypal/webhook", { method: "POST", json: { id: "fictional-check", event_type: "INVOICING.INVOICE.PAID" } }, 400],
@@ -192,6 +193,12 @@ if (args[0] === "--extra") {
     const result = await request("/api/upload", { method: "POST", form: {} });
     expect(result.response.status === 400 && result.body === "Select a file to upload.", "invalid-upload-result");
   });
+  for (const [label, path] of [["clients", "/api/clients"], ["remove", "/api/remove"]]) {
+    await step("guard", "json-body-to-" + label, async () => {
+      const result = await request(path, { method: "POST", json: { kind: "bill" } });
+      expect(result.response.status === 400 && result.body === "Check the required fields and try again.", "json-body-" + label);
+    });
+  }
   await step("page", "to-check", () => page("/to-check", /Hikari Denki/));
   await step("page", "options", () => page("/options", /Compare total extra cost/));
   const fields = await step("page", "new-invoice-form", async () => draftFormValues(await page("/invoices/new", /New invoice/)));
@@ -215,6 +222,143 @@ if (args[0] === "--extra") {
     expect(/Fictional verification design/.test(pageContent(html)) && /12\.34/.test(pageContent(html)), "draft-review-values");
   });
   await step("action", "reset-fictional-session", async () => adopt(await request("/api/try/reset", { method: "POST" })));
+  // Nov 5 walk: edit a bill from Settings, remove a person once settled, leave a cookie household (last: it drops the cookie).
+  await step("action", "nov5-try-it-session", async () => adopt(await request("/api/try", { session: "" })));
+  await step("page", "nov5-settings-bill-rows-have-edit-and-a-repeating-bill-asks-from-when", async () => {
+    const html = await page("/settings", /Fictional|Rent/);
+    const content = plain(pageContent(html));
+    expect(/aria-label="Edit Rent"/.test(html) && /New amount from/.test(content) && /Choose the first due date, [A-Z][a-z]{2} \d{1,2}, to correct every one\./.test(content), "nov5-edit-form");
+  });
+  await step("action", "nov5-edit-a-bill-category-and-amount", async () => {
+    const id = randomUUID();
+    const add = await request("/api/bills", { method: "POST", form: { id, biller: "Fictional noodle stand", amount: "1,200", due: "2026-11-20", category: "other", businessShare: "personal" } });
+    expect(add.response.status === 303, "nov5-add");
+    const edit = { kind: "edit", id, biller: "Fictional noodle stand", amount: "980", due: "2026-11-20", category: "food", businessShare: "personal", memberId: "", paidByMemberId: "", returnTo: "/settings" };
+    const saved = await request("/api/bills", { method: "POST", form: edit, extraHeaders: { "x-form-fetch": "1" } });
+    expect(saved.response.status === 204 && saved.response.headers.get("x-form-redirect") === "/settings", "nov5-edit-result");
+    const again = await request("/api/bills", { method: "POST", form: edit });
+    expect(again.response.status === 303 && again.response.headers.get("location") === "/settings", "nov5-edit-native-result");
+    const changed = (await events()).events.filter(event => event.kind === "bill_changed" && event.refId === id);
+    expect(changed.length === 1 && changed[0].body === "Amount ¥1,200 → ¥980 · Category Other → Food" && changed[0].madeBy === "form", "nov5-one-bill-changed-event");
+    await page("/activity", /Fictional noodle stand bill changed/);
+    const removed = await request("/api/remove", { method: "POST", form: { kind: "bill", id, returnTo: "/settings" } });
+    expect(removed.response.status === 303, "nov5-remove");
+  });
+  await step("guard", "nov5-edit-of-an-unknown-bill-refused", async () => {
+    const result = await request("/api/bills", { method: "POST", form: { kind: "edit", id: randomUUID(), biller: "Fictional probe", amount: "1", due: "2026-11-20", category: "other", businessShare: "personal" } });
+    expect(result.response.status === 400 && result.body === "Choose a bill of this household", "nov5-unknown-bill");
+  });
+  await step("guard", "nov5-bills-unknown-kind-and-json-refused", async () => {
+    const bogus = await request("/api/bills", { method: "POST", form: { kind: "rename", id: randomUUID() } });
+    const json = await request("/api/bills", { method: "POST", json: { kind: "edit" } });
+    expect(bogus.response.status === 400 && json.response.status === 400 && json.body === "Check the required fields and try again.", "nov5-bills-bad-kind");
+  });
+  await step("action", "nov5-remove-a-person-only-once-settled", async () => {
+    const added = await request("/api/people", { method: "POST", form: { kind: "add", name: "Fictional Wife" } });
+    expect(added.response.status === 200, "nov5-person-added");
+    const html = await page("/settings", /Fictional Wife/);
+    const ids = [...html.matchAll(/name="name:([0-9a-f-]{36})"/g)].map(match => match[1]);
+    expect(ids.length === 2, "nov5-two-people");
+    const wife = ids[1];
+    const content = plain(pageContent(html));
+    expect(content.includes("Fictional Wife’s bills become shared and paid by Ben.") && /aria-label="Remove Fictional Wife"/.test(html), "nov5-remove-note");
+    const bill = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional groceries", amount: "30,000", due: "2026-11-14", category: "food", businessShare: "personal", paidByMemberId: wife } });
+    expect(bill.response.status === 303, "nov5-shared-bill");
+    const owed = await request("/api/people", { method: "POST", form: { kind: "remove", id: wife, returnTo: "/settings" } });
+    expect(owed.response.status === 400 && owed.body === "Settle up with Fictional Wife first.", "nov5-settle-first");
+    const owner = await request("/api/people", { method: "POST", form: { kind: "remove", id: ids[0], returnTo: "/settings" } });
+    expect(owner.response.status === 400 && owner.body === "The household’s owner cannot be removed", "nov5-owner-stays");
+    const settled = await request("/api/settle", { method: "POST", form: { returnTo: "/" } });
+    expect(settled.response.status === 303, "nov5-settled");
+    const removed = await request("/api/people", { method: "POST", form: { kind: "remove", id: wife, returnTo: "/settings" }, extraHeaders: { "x-form-fetch": "1" } });
+    expect(removed.response.status === 204 && removed.response.headers.get("x-form-redirect") === "/settings", "nov5-removed");
+    const gone = await request("/api/people", { method: "POST", form: { kind: "remove", id: wife, returnTo: "/settings" } });
+    expect(gone.response.status === 400 && gone.body === "Choose a person of this household", "nov5-removed-twice");
+    expect((await events()).events.some(event => event.kind === "person_removed" && event.title === "Fictional Wife left the household"), "nov5-person-removed-event");
+    expect(!/Fictional Wife/.test(pageContent(await page("/settings", /People/))), "nov5-settings-without-wife");
+  });
+  await step("action", "nov5-leave-a-cookie-household", async () => {
+    const html = await page("/account", /Leave this household/);
+    expect(plain(pageContent(html)).includes("Leave this household. It stays on this device for seven days, then it is swept.") && /action="\/api\/auth\/logout"/.test(html), "nov5-leave-words");
+    const left = await request("/api/auth/logout", { method: "POST" });
+    expect(left.response.status === 303 && left.response.headers.get("location") === "/" && /household=;|household=(?:""|);/.test(left.response.headers.get("set-cookie") ?? ""), "nov5-left");
+  });
+  // Stage 17 import (D53): a statement's rows go to /api/import as JSON for one card; the same rows again are all skipped.
+  {
+    const statementRows = [
+      { date: "2026-11-01", merchant: "Fictional Import Market", amountMinor: 2480, category: "food" },
+      { date: "2026-11-02", merchant: "Fictional Import Kissa", amountMinor: 650, category: "food" },
+      { date: "2026-11-03", merchant: "Fictional Import Metro", amountMinor: 1200, category: "transport" },
+    ];
+    let importCard;
+    await step("action", "stage17-import-try-it-session", async () => adopt(await request("/api/try", { session: "" })));
+    await step("page", "stage17-settings-offers-import-a-statement", async () => {
+      const html = await page("/settings", /Import a statement[\s\S]*Statement file \(CSV\)/);
+      importCard = /<option value="([0-9a-f-]{36})"[^>]*>Card B<\/option>/.exec(html)?.[1];
+      expect(importCard !== undefined, "s17-card-option");
+    });
+    await step("action", "stage17-import-three-rows", async () => {
+      const result = await request("/api/import", { method: "POST", json: { cardId: importCard, rows: statementRows } });
+      expect(result.response.status === 200 && result.body === JSON.stringify({ added: 3, skipped: 0 }), "s17-first-import");
+    });
+    await step("action", "stage17-import-again-skips-all-three", async () => {
+      const result = await request("/api/import", { method: "POST", json: { cardId: importCard, rows: statementRows } });
+      expect(result.response.status === 200 && result.body === JSON.stringify({ added: 0, skipped: 3 }), "s17-second-import");
+    });
+    await step("page", "stage17-activity-names-the-import", () => page("/activity", /Imported 3 charges to Card B from a statement/));
+    await step("guard", "stage17-import-to-a-card-of-no-household-refused", async () => {
+      const result = await request("/api/import", { method: "POST", json: { cardId: randomUUID(), rows: statementRows } });
+      expect(result.response.status === 400 && result.body === "Choose a card of this household", "s17-foreign-card");
+    });
+    await step("guard", "stage17-import-form-body-refused", async () => {
+      const result = await request("/api/import", { method: "POST", form: { cardId: importCard } });
+      expect(result.response.status === 400 && result.body === "Check the required fields and try again.", "s17-form-body");
+    });
+  }
+  // Stage 18 varies (D54): a monthly bill whose amount varies is "about" its estimate on Home until that month's real bill is in;
+  // one-offs with the same name key and category link to it (Activity says so) and a real bill for its month is counted once.
+  {
+    const gasBill = (over) => ({ id: randomUUID(), biller: "Tokyo Gas", amount: "6,000", due: "2026-12-10", category: "utilities", businessShare: "personal", ...over });
+    const comingUp = async () => {
+      const html = await page("/", /Coming up/);
+      return plain(pageContent(html.slice(html.indexOf('id="coming-up"'))));
+    };
+    const linkedBody = async (id) => (await events()).events.find(event => event.kind === "bill_added" && event.refId === id)?.body;
+    await step("action", "stage18-varies-try-it-session", async () => adopt(await request("/api/try", { session: "" })));
+    await step("action", "stage18-varies-add-a-varying-monthly-bill", async () => {
+      const series = gasBill({ repeat: "month", amountVaries: "on" });
+      const added = await request("/api/bills", { method: "POST", form: series });
+      expect(added.response.status === 303, "s18v-add-series");
+      expect(await linkedBody(series.id) === "Amount varies every month", "s18v-series-event");
+      expect((await comingUp()).includes("about ¥6,000"), "s18v-about-6000");
+    });
+    await step("action", "stage18-varies-past-real-bills-link-and-the-estimate-is-their-average", async () => {
+      const october = gasBill({ biller: "Tokyo Gas 10月分", amount: "5,400", due: "2026-10-12" });
+      const november = gasBill({ biller: "Tokyo Gas 11月分", amount: "6,600", due: "2026-11-12" });
+      for (const bill of [october, november]) {
+        const added = await request("/api/bills", { method: "POST", form: bill });
+        expect(added.response.status === 303, "s18v-add-real");
+        expect(await linkedBody(bill.id) === "Linked to Tokyo Gas: counts toward its estimate", "s18v-linked-event");
+      }
+      await page("/activity", /Linked to Tokyo Gas: counts toward its estimate/);
+      expect((await comingUp()).includes("about ¥6,000"), "s18v-average-6000");
+    });
+    await step("action", "stage18-varies-a-real-bill-for-its-month-replaces-the-estimate-once", async () => {
+      const december = gasBill({ amount: "7,100", due: "2026-12-08" });
+      const added = await request("/api/bills", { method: "POST", form: december });
+      expect(added.response.status === 303, "s18v-add-december");
+      expect(await linkedBody(december.id) === "Linked to Tokyo Gas: replaces December’s estimate", "s18v-replaces-event");
+      const content = await comingUp();
+      expect(!content.includes("about ¥"), "s18v-estimate-gone");
+      expect((content.match(/¥7,100/g) ?? []).length === 1, "s18v-counted-once");
+    });
+    await step("page", "stage18-varies-settings-offers-part-of-and-the-box", async () => {
+      const html = await page("/settings", /Tokyo Gas/);
+      const content = plain(pageContent(html));
+      expect(/name="seriesBillId"/.test(html) && content.includes("Tokyo Gas (every month)"), "s18v-part-of");
+      expect(/name="amountVaries"/.test(html) && content.includes("Amount changes every month (electricity, water, gas)"), "s18v-varies-box");
+    });
+  }
 console.log(`${failures ? "FAIL" : "PASS"} summary ${failures} failed`);
   process.exit(failures ? 1 : 0);
 }
@@ -232,10 +376,86 @@ await step("page", "home-try-it-has-no-first-steps", async () => {
   // The + Add menu offers the two things people add most, linking to the Home anchors the entry form opens from.
   expect(/href="\/#add-bill"[^>]*>Add a bill</.test(html) && /href="\/#add-charge"[^>]*>Add a card charge</.test(html), "add-menu-bill-and-charge");
 });
+// Nov 5 walk: every Coming up row up to the day the sentence names (Nov 27 on Try it) is on screen, not under "Later in the month".
+await step("page", "home-coming-up-keeps-the-sentence-day-above-the-fold", async () => {
+  const html = await page("/", /short on the 27th/);
+  const start = html.indexOf('id="coming-up"');
+  expect(start >= 0, "coming-up-panel");
+  const panel = html.slice(start);
+  const fold = panel.indexOf("<details");
+  const before = fold >= 0 ? panel.slice(0, fold) : panel;
+  expect(before.includes('dateTime="2026-11-27"'), "sentence-day-row-folded");
+});
+// Home and Safe to spend say what the number counts; Plan says what its "leave about" counts.
+await step("page", "home-and-plan-say-what-their-numbers-count", async () => {
+  const home = plain(pageContent(await page("/", /18,780|30,000/)));
+  expect(home.includes("The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late."), "safe-to-spend-line");
+  const plan = plain(pageContent(await page("/plan", /leave about/)));
+  expect(plan.includes("What client payments bring in over the next 30 days, after every bill and card statement, if clients pay as usual."), "plan-room-line");
+});
+// The add forms say what More › will save: the guess from the name, with Change ›.
+await step("page", "home-add-forms-show-the-guess", async () => {
+  const content = plain(pageContent(await page("/", /Add a bill or charge/)));
+  expect(/One-off · Other · Change ›/.test(content), "bill-guess-line");
+  expect(/Other · Change ›/.test(content.slice(content.indexOf("What or where"))), "charge-guess-line");
+});
+// Forwarding: Settings never shows a raw "… is not set"; without the settings it says so in words (and names the setting).
+await step("page", "settings-forwarding-in-words", async () => {
+  const content = plain(pageContent(await page("/settings", /Forwarding address/)));
+  expect(!/FORWARDING_DOMAIN is not set|INBOUND_ADDRESS_KEY is not set|INBOUND_WORKER_SECRET is not set/.test(content), "forwarding-raw-message");
+  const off = content.includes("Email forwarding isn’t available on this server yet") || content.includes("Email forwarding isn&#x27;t available");
+  const html = await page("/", /18,780|30,000/);
+  const actions = html.slice(html.indexOf('id="actions"'), html.indexOf('class="home-panels"'));
+  expect(off === !actions.includes('href="/settings#forwarding"'), "home-forward-link-follows-the-setting");
+});
 await step("page", "cards", () => page("/cards", /Card B/));
 await step("page", "clients", () => page("/clients", /Beacon/));
 await step("page", "plan", () => page("/plan", /Add a pot/));
 await step("page", "plan-where-the-month-goes", () => page("/plan", /Where the month goes[\s\S]*Housing ¥82,000/));
+// Stage 17 plan (D53): the search box, the Spending panel and the month links, on the Try it household (today Nov 14).
+const TRY_TODAY = "2026-11-14";
+const lastMonth = (() => { const [y, m] = TRY_TODAY.split("-").map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`; })();
+await step("page", "stage17-plan-search-box-and-no-panel-without-a-query", async () => {
+  const html = await page("/plan", /Business ¥32,830 of ¥152,230 this month/);
+  expect(/<form[^>]*action="\/plan"[^>]*method="get"/.test(html) && /name="q"/.test(html) && html.includes("Search spending: hotel, food, a shop name"), "search-form");
+  expect(!html.includes('id="plan-spending-title"'), "panel-without-query");
+  expect(html.includes(`href="/plan?month=${lastMonth}"`) && !/aria-label="Next month/.test(html), "month-links-on-current-month");
+});
+await step("page", "stage17-plan-search-food", async () => {
+  const content = plain(pageContent(await page("/plan?q=food", /Spending/)));
+  expect(content.includes("Food: ¥10,700 in November (3 items), ¥11,440 in October (3 items), ¥5,960 in September (1 item); nothing in the other 9 months. ¥28,100 in all."), "food-summary-line");
+  const november = content.slice(content.indexOf("November ¥10,700"), content.indexOf("October ¥11,440"));
+  expect(november.includes("Food ¥10,700"), "food-november-by-category");
+  for (const item of ["Minato Fresh Market Nov 13 ¥1,400", "Kissa Midori café Nov 12 ¥1,880", "Minato Fresh Market Nov 8 ¥7,420"]) expect(november.includes(item), "food-november-item");
+  expect(!content.includes("August ¥0"), "zero-month-block");
+  expect(content.includes("Business ¥32,830 of ¥152,230 this month"), "month-view-unchanged-by-search");
+});
+await step("page", "stage17-plan-search-hotel-finds-hakone", async () => {
+  const content = plain(pageContent(await page("/plan?q=hotel", /Spending/))).replaceAll("&quot;", "\"");
+  expect(content.includes("\"hotel\": ¥28,600 in September (1 item); nothing in the other 11 months. ¥28,600 in all.") && content.includes("Hotel Kazemachi Hakone Sep 22 ¥28,600"), "hotel-result");
+});
+await step("page", "stage17-plan-search-nothing-matches", async () => {
+  const content = plain(pageContent(await page("/plan?q=zzz", /Spending/)));
+  expect(content.includes("Nothing matches “zzz” in the last 12 months."), "nothing-matches");
+});
+await step("page", "stage17-plan-last-month", async () => {
+  const html = await page(`/plan?month=${lastMonth}`, /Where October went/);
+  const content = plain(pageContent(html));
+  expect(content.includes("Business ¥31,986 of ¥132,060 in October") && content.includes("Housing ¥82,000") && content.includes("Utilities ¥10,020") && content.includes("Travel") === false, "october-view");
+  expect(/aria-label="Next month, November"/.test(html) && /aria-label="Previous month, September"/.test(html), "october-links");
+});
+await step("guard", "stage17-plan-month-out-of-range-refused-in-words", async () => {
+  const content = plain(pageContent(await page("/plan?month=2020-01", /Plan shows the last 12 months/)));
+  expect(content.includes("Plan shows the last 12 months, December 2025 to November 2026. Here is November.") && content.includes("Where the month goes"), "month-refusal");
+});
+// Stage 18 regular (D54): Plan's Regular costs panel on the Try it household, before and after confirming Hikari Denki.
+const regularPanel = (html) => { const content = plain(pageContent(html)); const at = content.indexOf("Regular costs"); return at < 0 ? "" : content.slice(at); };
+await step("page", "stage18-regular-costs-before-confirm", async () => {
+  const panel = regularPanel(await page("/plan", /Regular costs/));
+  expect(panel.includes("Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far"), "regular-changed-line");
+  expect(/Hikari Denki Utilities not in yet Last month ¥10,020 · usually on the 25th Sep ¥8,640 · Oct ¥10,020 · Nov not in yet/.test(panel), "regular-hikari-not-yet");
+  expect(panel.includes("Rent Housing ¥82,000 Last month ¥82,000 · same Sep ¥82,000 · Oct ¥82,000 · Nov ¥82,000"), "regular-rent-same");
+});
 await step("page", "activity", () => page("/activity", /Hikari Denki/));
 await step("page", "seeded-invoice-review-read-only", async () => {
   const id = home?.match(/href="\/invoices\/([0-9a-f-]{36})"/i)?.[1]
@@ -243,6 +463,9 @@ await step("page", "seeded-invoice-review-read-only", async () => {
   expect(id, "invoice-link");
   const review = plain(pageContent(await page("/invoices/" + id, /Review invoice/)));
   expect(review.includes("Beacon Studio usually pays 2 days after you send, slowest 3"), "invoice-review-client-pace");
+  // The approve form names who and how much, says it is the sandbox, and carries the busy line for the 5 to 10 s send.
+  expect(/PayPal sandbox sends this invoice for \$[\d,.]+ to Beacon(?:’|&#x27;|')s test address\. No real money moves\./.test(review), "invoice-review-send-hint");
+  expect(review.includes("Sending through PayPal sandbox…") && !review.includes("configured test client"), "invoice-review-busy-line");
 });
 const initial = await step("read", "events-before-actions", events);
 await step("action", "mark-notification-read", async () => {
@@ -263,7 +486,12 @@ for (const label of ["confirm-hikari", "confirm-hikari-retry"]) {
 }
 await step("page", "home-after-confirm-30000", () => page("/", /30,000/));
 await step("page", "plan-utilities-after-confirm", () => page("/plan", /Utilities ¥11,220/));
-// A category outside the thirteen keys is refused before anything is saved (needs a session: the guards suite sends none).
+await step("page", "stage18-regular-costs-after-confirm", async () => {
+  const panel = regularPanel(await page("/plan", /Regular costs/));
+  expect(/Regular costs Hikari Denki up ¥1,200 · Kissa Midori café down ¥920 so far/.test(panel), "regular-changed-line-starts-with-hikari");
+  expect(panel.includes("Hikari Denki Utilities ¥11,220 Last month ¥10,020 · up ¥1,200 Sep ¥8,640 · Oct ¥10,020 · Nov ¥11,220"), "regular-hikari-row");
+});
+// A category outside the fourteen keys is refused before anything is saved (needs a session: the guards suite sends none).
 await step("guard", "bill-with-unknown-category-refused", async () => {
   const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional vet", amount: "4000", due: "2026-11-20", category: "pets", businessShare: "personal" } });
   expect(result.response.status === 400 && result.body === "Choose a category from the list.", "bad-category-result");
@@ -289,9 +517,13 @@ await step("action", "bill-with-thousands-separator-saved-and-removed", async ()
   const id = randomUUID();
   const form = { id, biller: "Fictional separator bill", amount: "1,000", due: "2026-11-20", category: "other", businessShare: "personal" };
   const native = await request("/api/bills", { method: "POST", form });
-  expect(native.response.status === 303 && native.response.headers.get("location") === "/", "bill-native-result");
+  // Back on Home, the address carries the new bill's id (never its name or amount) for the "Added …" line, and lands on Coming up.
+  expect(native.response.status === 303 && native.response.headers.get("location") === `/?added=${id}#coming-up`, "bill-native-result");
   const again = await request("/api/bills", { method: "POST", form, extraHeaders: { "x-form-fetch": "1" } });
-  expect(again.response.status === 204 && again.response.headers.get("x-form-redirect") === "/" && !again.response.headers.get("location"), "bill-form-result");
+  expect(again.response.status === 204 && again.response.headers.get("x-form-redirect") === `/?added=${id}#coming-up` && !again.response.headers.get("location"), "bill-form-result");
+  const shown = plain(pageContent(await page(`/?added=${id}`, /Fictional separator bill/)));
+  expect(shown.includes("Added Fictional separator bill ¥1,000, due Nov 20"), "bill-added-line");
+  expect(!plain(pageContent(await page("/", /Coming up/))).includes("Added Fictional separator bill"), "bill-added-line-gone-on-next-load");
   const removed = await request("/api/remove", { method: "POST", form: { kind: "bill", id, returnTo: "/settings" }, extraHeaders: { "x-form-fetch": "1" } });
   expect(removed.response.status === 204 && removed.response.headers.get("x-form-redirect") === "/settings", "remove-form-result");
   const gone = await request("/api/remove", { method: "POST", form: { kind: "bill", id } });
@@ -312,7 +544,7 @@ await step("read", "confirm-single-event", async () => {
 // with them it must answer from the engine's numbers.
 await step("action", "typed-ask-read-only", async () => {
   const result = await request("/api/ask", { method: "POST", json: { id: randomUUID(), text: "Where do I stand?", source: "manual" } });
-  if (result.response.status === 503 && /^Ask isn't set up on this server yet \(ANTHROPIC_[A-Z_]+ is not set\)\.$/.test(result.body)) {
+  if (result.response.status === 503 && /^Ask isn’t available on this server yet \(ANTHROPIC_[A-Z_]+\)\.$/.test(result.body)) {
     console.log(`NOTE typed-ask-read-only: ${result.body}; the live answer is not checked`);
     return;
   }
@@ -392,7 +624,8 @@ if (cookie === "") process.exit(1);
 await step("page", "start-blank-home-empty-sentence", async () => {
   const content = plain(pageContent(await page("/", /Add your rent\s*,\s*your bills and the clients who pay you to see your next 30 days/)));
   expect(content.includes("Add your rent, your bills and the clients who pay you to see your next 30 days."), "blank-sentence");
-  expect(/A fictional household that lives in this browser[^›]*Start with my numbers ›/.test(content), "blank-demo-line");
+  // The demo line is Try it's alone (Ben's fictional numbers); a blank household is the user's own.
+  expect(!/A fictional household that lives in this browser/.test(content), "blank-demo-line-shown");
   expect(/Bank balance ¥120,000\./.test(content), "blank-bank-balance");
   expect(!/You(?:'|&#x27;)re fine/.test(content), "blank-fine-verdict");
   expect(/First steps · 4 to go/.test(content), "blank-four-steps-open");
@@ -416,7 +649,7 @@ await step("action", "start-blank-second-post-replaces-the-demo", async () => {
 await step("page", "start-blank-new-household-is-empty-again", () => page("/", /Add your rent\s*,\s*your bills and the clients who pay you to see your next 30 days/));
 await step("action", "start-blank-add-rent", async () => {
   const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional rent", amount: "60,000", due: "2026-11-27", category: "housing", businessShare: "personal" } });
-  expect(result.response.status === 303 && result.response.headers.get("location") === "/", "blank-bill-result");
+  expect(result.response.status === 303 && /^\/\?added=[0-9a-f-]{36}#coming-up$/.test(result.response.headers.get("location") ?? ""), "blank-bill-result");
 });
 await step("page", "start-blank-home-after-bill", async () => {
   const content = plain(pageContent(await page("/", /You(?:'|&#x27;)re fine for the next 30 days[\s\S]*¥60,000 on the 27th/)));
@@ -429,7 +662,7 @@ await step("page", "start-blank-home-after-bill", async () => {
 await step("action", "start-blank-add-yearly-bill-with-cancel-by", async () => {
   const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional Cloud", amount: "12,000", due: "2026-12-01", category: "subscriptions", businessShare: "personal",
     repeat: "year", nextAmount: "13,000", nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20" } });
-  expect(result.response.status === 303 && result.response.headers.get("location") === "/", "yearly-bill-result");
+  expect(result.response.status === 303 && /^\/\?added=[0-9a-f-]{36}#coming-up$/.test(result.response.headers.get("location") ?? ""), "yearly-bill-result");
 });
 await step("page", "start-blank-coming-up-says-yearly-and-has-the-cancel-by-row", async () => {
   const content = plain(pageContent(await page("/", /Cancel Fictional Cloud by Nov 20/)));

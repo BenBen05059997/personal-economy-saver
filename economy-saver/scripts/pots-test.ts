@@ -135,6 +135,23 @@ async function main() {
       assert.equal(safeToSpend(pending, 0).amount, 21_220, "a pending pot counts for nothing");
     });
 
+    await check("the sentence as parts (box 1): lead + emphasis + the day, the clients and the short flag, with the same words as before", () => {
+      const rich = { ...benMoney, bank: benMoney.bank + 40_000 };
+      const joined = (state: typeof benMoney) => { const s = homeSentence(state); return [s.text, s.day, s.short, s.clients.map(c => c.id).join(",")]; };
+      assert.deepEqual(joined(benMoney), ["You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th.", "2026-11-27", true, "c-acme,c-northwind"]);
+      assert.deepEqual(joined(rich), ["You're fine for the next 30 days, even if clients pay late. Lowest point ¥21,220 on the 27th.", "2026-11-27", false, ""]);
+      assert.deepEqual(joined({ ...benMoney, bank: benMoney.bank - 300_000 }), ["Even if clients pay as usual, you're ¥178,780 short on the 20th.", "2026-11-20", true, ""]);
+      assert.deepEqual(joined({ ...benMoney, bills: [], charges: [], statements: [], invoices: [] }), ["Add your rent, your bills and the clients who pay you to see your next 30 days. Bank balance ¥67,000.", null, false, ""]);
+      const one = homeSentence({ ...benMoney, invoices: benMoney.invoices.filter(i => i.clientId === "c-acme" || i.status !== "sent") });
+      assert.equal(one.text, "You're fine if Acme pays as usual. If that payment is late, you're ¥18,780 short on the 27th.");
+      assert.deepEqual(one.leadParts, ["You're fine if ", { id: "c-acme", name: "Acme" }, " pays as usual. If that payment is late, you're"]);
+      assert.deepEqual(one.emphasisParts, { before: "¥18,780 short", on: "on the 27th" });
+      assert.equal(homeSentence(benMoney).lead, homeSentence(benMoney).leadParts.map(p => typeof p === "string" ? p : p.name).join(""));
+      const twin = homeSentence({ ...benMoney, clients: [...benMoney.clients, { ...benMoney.clients.find(c => c.id === "c-acme")!, id: "c-acme-2" }] });
+      assert.deepEqual(twin.clients.map(c => c.id), ["c-northwind"], "a first name two clients share is plain text, not a link");
+      assert.equal(twin.lead, homeSentence(benMoney).lead);
+    });
+
     await check("a pending pot is a To check row: New pot: Car, ¥1,200,000 by Mar 2027", () => {
       const row = toCheck({ ...benMoney, pendingPots: [pot({ id: "p-car", name: "Car", saved: 0, target: 1_200_000, targetDate: "2027-03-31" })] }).find(r => r.kind === "pot")!;
       assert.deepEqual([row.id, row.title, row.amount], ["p-car", "New pot: Car, ¥1,200,000 by Mar 2027", null]);

@@ -18,6 +18,8 @@ import { parseReferenceRate } from "@/db/reference-rate";
 import { confirmPending } from "@/db/confirm";
 import { insertBill } from "@/db/bills";
 import { homeSentence } from "@/lib/money/sentence";
+/** The two strings a sentence is made of (its other parts are tested in pots-test). */
+const lines = (sentence: ReturnType<typeof homeSentence>) => ({ lead: sentence.lead, emphasis: sentence.emphasis });
 import { findDemoHousehold, resetDemoHousehold } from "@/db/demo";
 import { seedBen } from "@/db/seed";
 import { eventFeed, publicEvent } from "@/db/event-feed";
@@ -201,9 +203,9 @@ async function main() {
     assert.equal(window, 43, "Card A's later statement sets the window");
     const end = addDays(benMoney.today, window - 1);
     assert.deepEqual(benMoney.bills.map((x) => `${x.biller} ${x.due}`).sort(),
-      ["CloudBox Plus 2026-11-18", "CloudBox Plus 2026-12-18", "Hikari Denki 2026-11-27", "Mobaile Tsushin 2026-11-20", "Mobaile Tsushin 2026-12-20", "Rent 2026-11-27"]);
+      ["CloudBox Plus 2026-11-18", "CloudBox Plus 2026-12-18", "Hikari Denki 2026-09-25", "Hikari Denki 2026-10-25", "Hikari Denki 2026-11-27", "Mobaile Tsushin 2026-11-20", "Mobaile Tsushin 2026-12-20", "Rent 2026-11-27"]);
     assert.deepEqual(expandBills(benStoredBills, benMoney.today, end), benMoney.bills);
-    assert.equal(benMoney.bills.find((x) => x.biller === "Hikari Denki")?.repeatDay, undefined);
+    assert.ok(benMoney.bills.filter((x) => x.biller === "Hikari Denki").every((x) => x.repeatDay === undefined), "the electricity bills are one-offs");
     // Without the repeats, only the Nov occurrences exist: the two Dec bills are what lowers the cards' room.
     const oneOff = { ...benMoney, bills: benMoney.bills.filter((x) => x.due < "2026-12-01") };
     const [cardA] = benMoney.cards;
@@ -416,8 +418,8 @@ async function main() {
   await check("Home reads ¥18,780 short, then ¥30,000 short after confirming Hikari exactly once", async () => {
     const demo = await seedBen(db, { isDemo: true });
     const initial = await loadMoneyState(db, demo, today);
-    const bill = initial.bills.find(row => row.biller === "Hikari Denki")!;
-    assert.deepEqual(homeSentence(initial), {
+    const bill = initial.bills.find(row => row.biller === "Hikari Denki" && row.status === "pending")!;
+    assert.deepEqual(lines(homeSentence(initial)), {
       lead: "You're fine if Acme and Northwind pay as usual. If they're late, you're",
       emphasis: "¥18,780 short on the 27th.",
     });
@@ -464,7 +466,7 @@ async function main() {
     const empty = await loadMoneyState(db, blank, today);
     assert.equal(empty.cards.length, 1);
     assert.equal(empty.bills.length + empty.charges.length + empty.invoices.length + empty.clients.length + empty.pots.length, 0, "no Ben data");
-    assert.deepEqual(homeSentence(empty), { lead: "Add your rent, your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." });
+    assert.deepEqual(lines(homeSentence(empty)), { lead: "Add your rent, your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." });
     const bill = { id: randomUUID(), biller: "Fictional rent", amount: "300", due: "2026-11-20", category: "housing" as const, businessBp: 0, memberId: null, paidByMemberId: null, repeat: null, nextAmount: null, nextAmountFrom: null, cancelBy: null };
     await insertBill(db, blank, bill, "pending", { madeBy: "form" });
     assert.equal(homeSentence(await loadMoneyState(db, blank, today)).emphasis, "Bank balance $1,200.", "a pending bill alone is still nothing to forecast");

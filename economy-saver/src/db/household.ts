@@ -65,6 +65,7 @@ export function paypalTotalMinor(connections: { balanceMinor: number; balanceCur
  * The inputs of "who owes whom" (D45), in whole minor units of the home currency: the members with their shares, the day the
  * split began, the latest settlement's through date and the confirmed shared bills and charges that can still count. Only
  * charges from the first counting day on are read; a repeating bill is one stored row. A household with one member has none.
+ * An amount-varies bill (D54) carries every confirmed real bill linked to it, whoever's, for its estimate and its months.
  */
 export async function loadSplitState(
   db: Db, householdId: string, splitSince: string | null, today: string, toHome: (minor: number, currency: string) => number,
@@ -87,9 +88,13 @@ export async function loadSplitState(
       .where(and(eq(s.charges.householdId, hid), eq(s.charges.status, "confirmed"), eq(s.charges.shared, true), gte(s.charges.date, from), lte(s.charges.date, today)))
       .orderBy(s.charges.date, s.charges.merchant, s.charges.id),
   ]);
+  const variesIds = billRows.filter(b => b.amountVaries).map(b => b.id);
+  const realRows = variesIds.length === 0 ? [] : await db.select({ seriesBillId: s.bills.seriesBillId, due: s.bills.due, amountMinor: s.bills.amountMinor, currency: s.bills.currency })
+    .from(s.bills).where(and(eq(s.bills.householdId, hid), eq(s.bills.status, "confirmed"), inArray(s.bills.seriesBillId, variesIds))).orderBy(s.bills.due, s.bills.id);
   split.bills = billRows.map(b => ({ id: b.id, biller: b.biller, amountMinor: toHome(b.amountMinor, b.currency), due: b.due, paidBy: b.paidByMemberId!, createdAt: b.createdAt.toISOString(),
     repeatUnit: b.repeatUnit === null ? null : RepeatUnitSchema.parse(b.repeatUnit), repeatDay: b.repeatDay,
-    nextAmountMinor: b.nextAmountMinor === null ? null : toHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }));
+    nextAmountMinor: b.nextAmountMinor === null ? null : toHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom,
+    ...(b.amountVaries && { varies: realRows.filter(r => r.seriesBillId === b.id).map(r => ({ due: r.due, amountMinor: toHome(r.amountMinor, r.currency) })) }) }));
   split.charges = chargeRows.map(({ charge: c, payer }) => {
     if (payer === null) throw new Error(`The shared charge ${c.merchant} is on a card that belongs to no member`);
     return { id: c.id, merchant: c.merchant, amountMinor: toHome(c.amountMinor, c.currency), date: c.date, paidBy: payer, createdAt: c.createdAt.toISOString() };
@@ -154,6 +159,8 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
     ...(b.nextAmountMinor !== null && b.nextAmountFrom !== null && { nextAmount: inHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }),
     ...(b.cancelBy !== null && { cancelBy: b.cancelBy }),
+    ...(b.amountVaries && { amountVaries: true as const }),
+    ...(b.seriesBillId !== null && { seriesBillId: b.seriesBillId }),
     ...(b.memberId !== null && { ownerId: b.memberId }),
     ...(b.paidByMemberId !== null && { paidBy: b.paidByMemberId }),
     ...(b.madeBy !== "form" && { madeBy: b.madeBy }),
@@ -249,14 +256,14 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     invoices,
     pots: potRows.filter((p) => p.status === "confirmed").map(toPot),
     pendingPots: potRows.filter((p) => p.status === "pending").map(toPot),
-    cancelNotices: cancelNotices(storedBills, today),
+    cancelNotices: cancelNotices(storedBills, today, home),
     balanceUpdates: balanceRows.map((u) => ({ id: u.id, amount: inHome(u.amountMinor, u.currency), ...(u.madeBy !== "form" && { madeBy: u.madeBy }) })),
     ...(nudgedRows && { nudgedInvoiceIds: nudgedRows.map(row => row.id) }),
     split,
   };
   // D41: monthly bills become their occurrences up to the last day the engine looks at. planWindow reads only cards,
   // charges and statements, so it can be computed before any bill is in the state.
-  state.bills = expandBills(storedBills, today, addDays(today, planWindow(state) - 1));
+  state.bills = expandBills(storedBills, today, addDays(today, planWindow(state) - 1), home);
   return state;
 }
 

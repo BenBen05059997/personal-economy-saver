@@ -46,7 +46,7 @@ async function test() {
     console.log("✓ Untouched demo refresh uses one read, skips money-state loads and provider calls, preserves balances and its first invoice lease");
     await db.transaction(async tx => {
       const [household] = await tx.select().from(s.households).where(eq(s.households.id, untouched)).for("update");
-      assert.deepEqual(clockForHousehold(household), await householdClock(tx, untouched));
+      assert.deepEqual({ ...clockForHousehold(household), currency: household.homeCurrency }, await householdClock(tx, untouched));
       queries.length = 0;
       const money = await loadMoneyState(tx, untouched, clockForHousehold(household).today, household);
       await observeRunway(tx, untouched, money, household);

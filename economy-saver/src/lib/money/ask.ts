@@ -26,5 +26,5 @@ export function dueAnswer(state: MoneyState) {
 
 export function statusAnswer(state: MoneyState) {
   const sentence = homeSentence(state);
-  return sentence.lead + " " + sentence.emphasis;
+  return sentence.text;
 }

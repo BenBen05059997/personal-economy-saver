@@ -1,0 +1,4 @@
+ALTER TABLE "bills" DROP CONSTRAINT "bills_category_valid";--> statement-breakpoint
+ALTER TABLE "charges" DROP CONSTRAINT "charges_category_valid";--> statement-breakpoint
+ALTER TABLE "bills" ADD CONSTRAINT "bills_category_valid" CHECK ("bills"."category" in ('housing', 'utilities', 'phone_internet', 'subscriptions', 'food', 'transport', 'travel', 'health', 'insurance', 'family_shared', 'government_tax', 'business_tools', 'debt', 'other'));--> statement-breakpoint
+ALTER TABLE "charges" ADD CONSTRAINT "charges_category_valid" CHECK ("charges"."category" in ('housing', 'utilities', 'phone_internet', 'subscriptions', 'food', 'transport', 'travel', 'health', 'insurance', 'family_shared', 'government_tax', 'business_tools', 'debt', 'other'));

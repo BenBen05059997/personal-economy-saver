@@ -147,7 +147,7 @@
   .home-chart { margin-top: 12px; }
   .home-plot { height: 100px; }
   .home-amount { font-size: 44px; line-height: 1.05; }
-  .home-steps, .home-review { order: 1; }
+  .home-review { order: 1; }
   .home-steps li { min-height: 44px; }
   .home-steps li > a { display: flex; flex-direction: column; justify-content: center; min-height: 44px; }
   .home-empty a { position: relative; }
@@ -169,6 +169,12 @@
   .home-card-row > a::after { inset: -12px 0; }
   .home-balance summary::after { inset: -20px 0 -6px; }
   .home-upcoming summary::after { inset: 0; }
+  /* The demo line's Start link and the panels' small "›" links (Change closing day, Share costs) get the same 44px hit area. */
+  .home-demo a, .home-note a { position: relative; }
+  .home-demo a::after, .home-note a::after { content: ""; position: absolute; inset: -14px -8px; }
+  /* A blank household (D51): First steps is the first panel on a phone, above the runway. */
+  .home-steps { order: -1; border-top: 0; padding-top: 0; }
+  .home-panels:has(.home-steps) .home-runway { border-top: 1px solid var(--rule); padding-top: 18px; }
 }
 .money-home h1 a {
   color: inherit;
@@ -184,3 +190,11 @@
 .home-focus-dot { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border: 2px solid var(--ink); border-radius: 50%; opacity: 0; pointer-events: none; scroll-margin-top: 96px; }
 .home-focus-dot.is-short { border-color: var(--red); }
 .home-focus-dot:target { opacity: 1; }
+
+/* The confirmation the add form leaves at the top of Coming up (D51); it goes with the next navigation. */
+.home-added { margin: 0 0 10px; padding-left: var(--space-3); border-left: 2px solid var(--green); font: 400 14px/1.4 var(--sans); }
+.home-upcoming { scroll-margin-top: 72px; }
+
+/* A link to /#bill-<id> marks that row for two seconds. */
+.home-row:target { animation: home-row-target 2s ease-out; scroll-margin-top: 96px; }
+@keyframes home-row-target { from { background: var(--accent-wash); } to { background: transparent; } }

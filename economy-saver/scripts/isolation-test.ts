@@ -26,6 +26,7 @@ import * as documentCleanup from "@/db/document-cleanup";
 import * as eventFeed from "@/db/event-feed";
 import * as familyLinksMod from "@/db/family-links";
 import * as household from "@/db/household";
+import * as importChargesMod from "@/db/import-charges"; // Stage 17 import
 import * as invoiceDraft from "@/db/invoice-draft";
 import * as invoicePaid from "@/db/invoice-paid";
 import * as mcpTokens from "@/db/mcp-tokens";
@@ -43,8 +44,9 @@ import * as settingsMod from "@/db/settings";
 import * as settle from "@/db/settle";
 import * as snapshotMod from "@/db/snapshot";
 import * as statementCharge from "@/db/statement-charge";
+import * as spendingMod from "@/db/spending"; // Stage 17 spending
 import * as workspace from "@/db/workspace";
-import { billInput } from "@/db/bills";
+import { billEditInput, billInput } from "@/db/bills";
 import { chargeInput } from "@/db/charges";
 import { DEMO_DATE } from "@/db/clock";
 import type { Db } from "@/db/household";
@@ -66,7 +68,7 @@ const covered = [
   // approval.ts
   "invoiceReview", "approveInvoice",
   // bank-balance.ts, bills.ts, charges.ts, clients.ts, confirm.ts
-  "setBankBalance", "confirmBalanceUpdate", "insertBill", "removeBill", "insertCharge", "removeCharge", "insertClient", "confirmPending",
+  "setBankBalance", "confirmBalanceUpdate", "insertBill", "removeBill", "updateBill", "insertCharge", "removeCharge", "insertClient", "confirmPending",
   // daily.ts, demo.ts, document-cleanup.ts, event-feed.ts
   "runDaily", "findDemoHousehold", "tryItKind", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
   // household.ts
@@ -79,12 +81,18 @@ const covered = [
   // paypal-import.ts, paypal-refresh.ts
   "canImportPayPal", "importPayPalHistory", "refreshPayPal",
   // people.ts, pots.ts
-  "memberCount", "memberByName", "addMember", "savePeople", "savePot", "confirmPot", "removePot", "fillPots",
+  "memberCount", "memberByName", "addMember", "savePeople", "removeMember", "savePot", "confirmPot", "removePot", "fillPots",
   // rate-limit.ts, reader-inbox.ts, reader-job.ts, readings.ts, reference-rate.ts
   "consumeRequest", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "storeReferenceRate",
   // runway-events.ts, settings.ts, settle.ts, snapshot.ts, statement-charge.ts, workspace.ts
   "lockRunway", "beginMoneyChange", "observeRunway", "loadSettings", "updateSettings", "settleUp", "loadHouseholdSnapshot",
   "syncClosedStatementCharge", "unsyncClosedStatementCharge", "loadNavigationData", "loadWorkspaceData",
+  // Stage 17 import: import-charges.ts
+  "importCharges",
+  // Stage 17 spending: spending.ts
+  "loadSpending",
+  // Stage 18 varies: bills.ts
+  "linkToSeries", "previewLink",
 ];
 
 const notApplicable: Record<string, string> = {
@@ -151,6 +159,8 @@ async function main() {
     ...account, ...aiKeys, ...approval, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
     ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...mcpTokens, ...paypalImport, ...paypalRefresh, ...people, ...potsMod, ...rateLimit,
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
+    ...importChargesMod, // Stage 17 import
+    ...spendingMod, // Stage 17 spending
   };
   const F = new Proxy(modules, {
     get(target, key: string) {
@@ -443,6 +453,8 @@ async function main() {
         for (const id of [y.billConfirmed, y.billPending]) await refuse("removeBill " + id, () => F.removeBill(store, X.hid, id));
         for (const id of [y.charge, y.chargePending]) await refuse("removeCharge " + id, () => F.removeCharge(store, X.hid, id));
         for (const id of [y.pot, y.potPending]) await refuse("removePot " + id, () => F.removePot(store, X.hid, id));
+        for (const id of [y.billConfirmed, y.billPending]) await refuse("updateBill " + id, () => F.updateBill(store, X.hid, billEditInput.parse({ id, biller: "Isolation probe", amount: "1", due: "2026-11-20", category: "other" }), { madeBy: "form" }));
+        for (const id of [y.aki, y.owner]) await refuse("removeMember " + id, () => F.removeMember(store, X.hid, { id }));
       });
       await check(`${X.name} -> ${Y.name}: confirm by id (bill, charge, balance, pot, statement charge)`, async () => {
         await refuse("confirmPending bill", () => F.confirmPending(store, X.hid, "bill", y.billPending));
@@ -458,6 +470,9 @@ async function main() {
       await check(`${X.name} -> ${Y.name}: inserts and edits that name the other household's id, card, member or client`, async () => {
         await mustThrow("insertBill with the other's bill id", () => F.insertBill(store, X.hid, exactBill({ id: y.billConfirmed }), "confirmed", { madeBy: "form" }));
         await mustThrow("insertBill with the other's member", () => F.insertBill(store, X.hid, exactBill({ memberId: y.aki }), "confirmed", { madeBy: "form" }), /member of this household/);
+        const edit = (over: object) => billEditInput.parse({ id: x.billConfirmed, biller: "Isolation probe", amount: "100", due: "2026-11-27", category: "other", ...over });
+        await mustThrow("updateBill giving its own bill to the other's member", () => F.updateBill(store, X.hid, edit({ memberId: y.aki }), { madeBy: "form" }), /member of this household/);
+        await mustThrow("updateBill paid by the other's member", () => F.updateBill(store, X.hid, edit({ paidByMemberId: y.aki }), { madeBy: "form" }), /member of this household/);
         await mustThrow("insertBill paid by the other's member", () => F.insertBill(store, X.hid, exactBill({ paidByMemberId: y.aki }), "pending", { madeBy: "form" }), /member of this household/);
         const charge = (over: object) => chargeInput.parse({ id: randomUUID(), cardId: x.card, merchant: "Isolation probe", amount: "100", date: "2026-11-13", category: "other", ...over });
         await mustThrow("insertCharge on the other's card", () => F.insertCharge(store, X.hid, charge({ cardId: y.card }), "confirmed", "manual", { madeBy: "form" }), /card of this household/);
@@ -476,9 +491,6 @@ async function main() {
         await mustThrow("updateSettings card of the other household", () => F.updateSettings(store, X.hid, { kind: "card", id: y.card, label: "Probe", memberId: "", closingDay: 1, dueDay: 2, limit: "" }), /Card no longer exists/);
         await mustThrow("updateSettings card owned by the other's member", () => F.updateSettings(store, X.hid, { kind: "card", id: x.card, label: "Probe", memberId: y.aki, closingDay: 1, dueDay: 2, limit: "" }), /member of this household/);
         await mustThrow("updateSettings a new card owned by the other's member", () => F.updateSettings(store, X.hid, { kind: "card", id: "", label: "Probe", memberId: y.owner, closingDay: 1, dueDay: 2, limit: "" }), /member of this household/);
-        await mustThrow("updateSettings the other's bill owner", () => F.updateSettings(store, X.hid, { kind: "bill-owner", id: y.billConfirmed, memberId: "", paidByMemberId: "" }), /no longer exists/);
-        await mustThrow("updateSettings own bill given to the other's member", () => F.updateSettings(store, X.hid, { kind: "bill-owner", id: x.billConfirmed, memberId: y.aki, paidByMemberId: "" }), /member of this household/);
-        await mustThrow("updateSettings own bill paid by the other's member", () => F.updateSettings(store, X.hid, { kind: "bill-owner", id: x.billConfirmed, memberId: "", paidByMemberId: y.aki }), /member of this household/);
       });
       await check(`${X.name} -> ${Y.name}: invoices (paid outside, review, approve, remind)`, async () => {
         await refuse("markPaidOutside the other's draft", () => F.markPaidOutside(store, X.hid, y.invoiceDraft, DEMO_DATE));
@@ -714,6 +726,62 @@ async function main() {
         assert.deepEqual(leaks(mine.text, await needlesOf(B)), []);
         await bothUntouched("importPayPalHistory");
       } finally { delete process.env.PAYPAL_BALANCE_HOUSEHOLD_ID; }
+    });
+
+    // ---------------------------------------------------------------- Stage 17 spending
+    await check("loadSpending (D53): each household's range holds its own confirmed bills and charges and none of the other's; reading changes nothing", async () => {
+      for (const [X, Y] of [[A, B], [B, A]] as const) {
+        const yStart = await fingerprint(Y.hid), xStart = await fingerprint(X.hid);
+        const input = await F.loadSpending(store, X.hid, { from: "2025-11-01", to: "2027-12-31" });
+        assert.deepEqual(leaks(JSON.stringify(input), await needlesOf(Y)), [], `${X.name}'s spending shows ${Y.name}'s data`);
+        assert.ok(input.bills.some(b => b.id === X.ids.billConfirmed) && !input.bills.some(b => b.id === X.ids.billPending), "the confirmed bill; the pending one waits in To check");
+        assert.ok(input.charges.some(c => c.id === X.ids.charge) && !input.charges.some(c => c.id === X.ids.chargePending));
+        assert.ok(input.cards.some(c => c.id === X.ids.card) && !input.cards.some(c => c.id === Y.ids.card));
+        assert.ok(input.split.members.some(m => m.id === X.ids.aki) && !input.split.members.some(m => m.id === Y.ids.aki));
+        assert.equal((await fingerprint(Y.hid)).text, yStart.text);
+        assert.equal((await fingerprint(X.hid)).text, xStart.text, "a read writes nothing");
+      }
+    });
+
+    // ---------------------------------------------------------------- Stage 17 import
+    await check("importCharges: another household's card is refused, and a row like the other household's charge is new here; the other household is untouched", async () => {
+      const bStart = await fingerprint(B.hid);
+      await assert.rejects(F.importCharges(store, A.hid, B.ids.card, [{ date: "2026-11-12", merchant: "Isolation A imported", amountMinor: 2000, category: "food" }], { madeBy: "import" }),
+        (e: unknown) => e instanceof Error && e.message === "Choose a card of this household");
+      assert.equal((await fingerprint(B.hid)).text, bStart.text, "a refused import changed household B");
+      const sameAsB = { date: "2026-11-12", merchant: "Isolation B market", amountMinor: 2000, category: "food" as const };
+      assert.deepEqual(await F.importCharges(store, A.hid, A.ids.card, [sameAsB, { ...sameAsB, merchant: "Isolation A imported" }], { madeBy: "import" }), { added: 2, skipped: 0 },
+        "B's charge with the same date, amount and name is not a duplicate on A's card");
+      assert.equal((await fingerprint(B.hid)).text, bStart.text, "an import into A changed household B");
+      assert.deepEqual(leaks((await fingerprint(B.hid)).text, { strings: ["Isolation A imported", A.ids.card], numbers: [] }), []);
+    });
+
+    // ---------------------------------------------------------------- Stage 18 varies
+    await check("Stage 18 varies (D54): a real bill links only to its own household's series; linkToSeries, previewLink and updateBill refuse the other's series; the other household is untouched", async () => {
+      const form = { madeBy: "form" as const };
+      const gas = (over: object) => billInput.parse({ id: randomUUID(), biller: "Fictional Varies Gas", amount: "6000", due: "2026-12-10", category: "utilities", ...over });
+      const bSeries = gas({ repeat: "month", amountVaries: true });
+      await F.insertBill(store, B.hid, bSeries, "confirmed", form);
+      const bStart = await fingerprint(B.hid);
+      const aReal = gas({ biller: "Fictional Varies Gas 11月分", due: "2026-11-12", amount: "5400" });
+      await F.insertBill(store, A.hid, aReal, "confirmed", form);
+      const [aRow] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, A.hid), eq(schema.bills.id, aReal.id)));
+      assert.equal(aRow.seriesBillId, null, "A's bill did not join B's series");
+      assert.equal(await F.linkToSeries(store, A.hid, aReal.id), null);
+      assert.equal(await F.linkToSeries(store, A.hid, bSeries.id), null, "B's bill is not found from A");
+      assert.equal(await F.previewLink(store, A.hid, { biller: "Fictional Varies Gas", category: "utilities", due: "2026-12-04" }), null, "A's review card sees no series of B's");
+      await assert.rejects(F.updateBill(store, A.hid, billEditInput.parse({ id: aReal.id, biller: aRow.biller, amount: "5400", due: aRow.due, category: "utilities", seriesBillId: bSeries.id }), form),
+        /Choose a monthly bill of this household/);
+      assert.equal(await F.updateBill(store, A.hid, billEditInput.parse({ id: bSeries.id, biller: "Probe", amount: "1", due: "2026-12-10", category: "utilities", amountVaries: false }), form), false, "B's series cannot be edited from A");
+      assert.equal((await fingerprint(B.hid)).text, bStart.text, "household B changed");
+      // A's own series: the real bill links to it, and the preview names it, never B's.
+      const aSeries = gas({ repeat: "month", amountVaries: true });
+      await F.insertBill(store, A.hid, aSeries, "confirmed", form);
+      assert.equal(await F.linkToSeries(store, A.hid, aReal.id), "Linked to Fictional Varies Gas: counts toward its estimate");
+      assert.deepEqual(await F.previewLink(store, A.hid, { biller: "Fictional Varies Gas", category: "utilities", due: "2026-12-04" }),
+        { seriesId: aSeries.id, biller: "Fictional Varies Gas", month: "2026-12", estimateMinor: 5_400 });
+      assert.deepEqual((await F.previewLink(store, B.hid, { biller: "Fictional Varies Gas", category: "utilities", due: "2026-12-04" }))?.estimateMinor, 6_000, "B's estimate reads none of A's real bills");
+      assert.equal((await fingerprint(B.hid)).text, bStart.text, "household B changed");
     });
 
     // ---------------------------------------------------------------- the guard

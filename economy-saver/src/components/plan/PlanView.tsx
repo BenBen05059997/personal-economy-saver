@@ -1,27 +1,31 @@
+import Link from "next/link";
 import type { MoneyState, Pot } from "@/lib/money/types";
-import { minorMoney } from "@/lib/money/format";
+import { majorMoney } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
-import { monthYear, moneyInPotsLine, potLine, roomLine } from "@/lib/money/plan";
+import { HISTORY_MONTHS, monthName, monthsBack, SEARCH_QUERY_MAX, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
+import { monthYear, moneyInPotsLine, potLine, roomLine, roomNote } from "@/lib/money/plan";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
 import "@/components/household/add-entry.css";
 import { MonthSplit } from "./MonthSplit";
+import { RegularCosts } from "./RegularCosts";
+import { SpendingResults, SpendingSearchForm } from "./SpendingSearch";
 import "./plan.css";
 
 const plain = (n: number, currency: string) => currency === "USD" ? n.toFixed(2) : String(n);
 
 function Fields({ state, pot }: { state: MoneyState; pot?: Pot }) {
   return <>
-    {!pot && <label className="ui-field">Name<input name="name" maxLength={60} required placeholder="Car, trip, tax" /></label>}
+    {!pot && <label className="ui-field">Name<input name="name" maxLength={60} required placeholder="e.g. Car, trip, tax" /></label>}
     <label className="ui-field">Saved so far ({state.homeCurrency})<AmountInput name="saved" currency={state.homeCurrency} defaultValue={pot ? plain(pot.saved, state.homeCurrency) : "0"} required /></label>
     <label className="ui-field">Target amount, optional ({state.homeCurrency})<AmountInput name="target" currency={state.homeCurrency} defaultValue={pot?.target === undefined ? "" : plain(pot.target, state.homeCurrency)} /></label>
     <label className="ui-field">Target date, optional<input name="targetDate" type="date" defaultValue={pot?.targetDate ?? ""} /></label>
-    <label className="ui-field">Set aside % of each client payment, optional<PercentInput name="fillPct" maxLength={6} defaultValue={pot?.fillPct === undefined ? "" : String(pot.fillPct)} placeholder="25" /></label>
+    <label className="ui-field">Set aside % of each client payment, optional<PercentInput name="fillPct" maxLength={6} defaultValue={pot?.fillPct === undefined ? "" : String(pot.fillPct)} placeholder="e.g. 25" /></label>
   </>;
 }
 
 function PotRow({ state, pot }: { state: MoneyState; pot: Pot }) {
-  const money = (n: number) => minorMoney(Math.round(n * (state.homeCurrency === "USD" ? 100 : 1)), state.homeCurrency);
+  const money = (n: number) => majorMoney(n, state.homeCurrency);
   const line = potLine(pot, state);
   return <section className="plan-pot" id={`pot-${pot.id}`} aria-label={pot.name}>
     <div className="ui-row">
@@ -59,13 +63,62 @@ function PotRow({ state, pot }: { state: MoneyState; pot: Pot }) {
   </section>;
 }
 
-export function PlanView({ state, newPotId }: { state: MoneyState; newPotId: string }) {
+/** What the address asks Plan for (D53): `?month=YYYY-MM` within the last twelve months and `?q=` a search, both as typed. */
+export type PlanAsk = { today: string; current: string; oldest: string; month: string | string[] | null; query: string | string[] | null };
+
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** The month to show, or the words that refuse the address's month (then the current month is shown). */
+function chosenMonth(ask: PlanAsk): { month: string; refusal: string | null } {
+  if (ask.month === null || ask.month === ask.current) return { month: ask.current, refusal: null };
+  const label = (m: string) => `${monthName(m)} ${m.slice(0, 4)}`;
+  if (typeof ask.month !== "string" || !MONTH.test(ask.month) || ask.month < ask.oldest || ask.month > ask.current) {
+    return { month: ask.current, refusal: `Plan shows the last ${HISTORY_MONTHS} months, ${label(ask.oldest)} to ${label(ask.current)}. Here is ${monthName(ask.current)}.` };
+  }
+  return { month: ask.month, refusal: null };
+}
+
+/** The search as typed (trimmed), the empty string for none, or the words that refuse it. */
+function chosenQuery(ask: PlanAsk): { query: string; refusal: string | null } {
+  if (ask.query === null) return { query: "", refusal: null };
+  if (typeof ask.query !== "string") return { query: "", refusal: "Search for one thing at a time." };
+  const query = ask.query.trim();
+  if (query.length > SEARCH_QUERY_MAX) return { query: "", refusal: `A search is at most ${SEARCH_QUERY_MAX} characters.` };
+  return { query, refusal: null };
+}
+
+function planHref(month: string, current: string, query: string): string {
+  const params = new URLSearchParams();
+  if (month !== current) params.set("month", month);
+  if (query) params.set("q", query);
+  const search = params.toString();
+  return search ? `/plan?${search}` : "/plan";
+}
+
+export function PlanView({ state, spending, ask, newPotId }: { state: MoneyState; spending: SpendingInput; ask: PlanAsk; newPotId: string }) {
   const inPots = moneyInPotsLine(state);
+  const people = state.split.members.map(({ id, name }) => ({ id, name }));
+  const { month, refusal: monthRefusal } = chosenMonth(ask);
+  const { query, refusal: queryRefusal } = chosenQuery(ask);
+  const label = (m: string) => m.slice(0, 4) === ask.current.slice(0, 4) ? monthName(m) : `${monthName(m)} ${m.slice(0, 4)}`;
+  const previous = month > ask.oldest ? monthsBack(month, 2) : null;
+  const next = month < ask.current ? monthsBack(month, 0) : null; // monthsBack(m, 0) is the month after m
+  const nav = <nav className="plan-month-nav" aria-label="Months">
+    {previous && <Link href={planHref(previous, ask.current, query)} aria-label={`Previous month, ${label(previous)}`}>‹ {label(previous)}</Link>}
+    {next && <Link className="plan-month-next" href={planHref(next, ask.current, query)} aria-label={`Next month, ${label(next)}`}>{label(next)} ›</Link>}
+  </nav>;
+  const result = query ? searchSpending(spendingItems(spending, `${ask.oldest}-01`, ask.today), query, spending.homeCurrency, { from: `${ask.oldest}-01`, to: ask.today }) : null;
   return <article className="plan">
     <h1 className="ui-title">Plan</h1>
     <p className="plan-room">{roomLine(state)}</p>
+    {roomNote(state) && <p className="ui-hint">{roomNote(state)}</p>}
     {inPots && <p className="ui-hint">{inPots}</p>}
-    <MonthSplit view={monthByCategory(state, state.today)} people={state.split.members.map(({ id, name }) => ({ id, name }))} />
+    <SpendingSearchForm query={query} month={month === ask.current ? null : month} />
+    {queryRefusal && <p className="plan-line" role="alert">{queryRefusal}</p>}
+    {result && <SpendingResults result={result} typed={query} people={people} />}
+    {monthRefusal && <p className="plan-line" role="alert">{monthRefusal}</p>}
+    <MonthSplit view={monthByCategory(spending, ask.today, month)} people={people} past={month === ask.current ? undefined : label(month)} nav={nav} />
+    <RegularCosts spending={spending} today={ask.today} />
     {state.pots.length === 0 && <p className="ui-hint">No pots yet. A pot is money set aside with a reason; it stops counting as safe to spend.</p>}
     {state.pots.map(pot => <PotRow key={pot.id} state={state} pot={pot} />)}
     <details key={newPotId} className="add-entry" open={state.pots.length === 0}>

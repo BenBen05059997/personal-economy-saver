@@ -1,13 +1,12 @@
 import { readAmount } from "@/lib/money/amount";
+import { MINOR_PLACES } from "@/lib/money/format";
 import { InputError } from "./input-error";
 
 // Money in the database is an integer count of the currency's smallest unit (JPY: yen, USD: cents).
 // The engine works in whole major units, so these two functions are the only bridge between them.
 
-const MINOR_DIGITS: Record<string, number> = { JPY: 0, USD: 2 };
-
 function digits(currency: string): number {
-  const d = MINOR_DIGITS[currency];
+  const d = MINOR_PLACES[currency];
   if (d === undefined) throw new Error(`Unknown currency: ${currency}`);
   return d;
 }

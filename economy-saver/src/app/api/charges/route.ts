@@ -1,13 +1,14 @@
 import { db } from "@/db/client";
 import { chargeInput, insertCharge } from "@/db/charges";
-import { badFields, failure, redirectTo, returnPath, text } from "@/lib/door";
+import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
 import { businessBpFromForm, CategoryKeySchema } from "@/lib/money/categories";
 import { householdRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  const form = await request.formData();
+  const form = await formOf(request);
+  if (form instanceof Response) return form;
   const category = CategoryKeySchema.safeParse(form.get("category"));
   if (!category.success) return text(category.error.issues[0].message, 400);
   const businessBp = businessBpFromForm(form.get("businessShare"), form.get("businessPercent"));
@@ -16,7 +17,9 @@ export async function POST(request: Request) {
   if (!data.success) return badFields();
   try {
     await insertCharge(db(), hid, data.data, "confirmed", "manual", { madeBy: "form" });
-    return redirectTo(returnPath(form.get("returnTo")), request);
+    // Home names what was saved at the top of Coming up (D51): only the id travels in the address; the page looks it up.
+    const back = returnPath(form.get("returnTo"));
+    return redirectTo(back === "/" ? `/?added=${data.data.id}#coming-up` : back, request);
   } catch (error) {
     return failure(error);
   }

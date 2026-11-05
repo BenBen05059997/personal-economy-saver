@@ -9,7 +9,7 @@ export async function Landing() {
   return <main className={styles.landing}>
     <p className={styles.brand}><span aria-hidden="true">¥</span> Personal Economy Saver</p>
     <h1>Will your next payment arrive in time?</h1>
-    <p>Follow a fictional Tokyo designer’s bills, cards and client payments over the next 30 days.</p>
+    <p>Follow a fictional Tokyo designer’s bills, cards and client payments over the next 30 days. When money is short, the app can invoice finished work or nudge a late client through PayPal, with one tap from you.</p>
     <div className={styles.entries}>
       <TryItForm />
       <Link className={styles.secondary} href="/start">Start with my numbers</Link>

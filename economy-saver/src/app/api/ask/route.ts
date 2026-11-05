@@ -5,6 +5,7 @@ import { consumeRequest } from "@/db/rate-limit";
 import { AgentError } from "@/lib/agent/run";
 import { NO_STORE, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
+import { askUnavailable } from "@/lib/agent/availability";
 import { MissingAuthSetting } from "@/lib/supabase-auth";
 
 export async function POST(request: Request) {
@@ -21,6 +22,6 @@ export async function POST(request: Request) {
     const known = error instanceof AgentError || error instanceof AiKeyError || error instanceof MissingAuthSetting;
     // A missing AI setting keeps its name (so the owner can fix it) inside a sentence a person can read.
     const missing = known ? /^(ANTHROPIC_[A-Z_]+) is not set$/.exec(error.message) : null;
-    return text(missing ? `Ask isn't set up on this server yet (${missing[1]} is not set).` : known ? error.message : "Couldn't answer right now. Try again.", 503);
+    return text(missing ? askUnavailable(missing[1]) : known ? error.message : "Couldn't answer right now. Try again.", 503);
   }
 }

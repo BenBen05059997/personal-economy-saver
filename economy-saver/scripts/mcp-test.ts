@@ -65,7 +65,7 @@ async function main() {
     assert.ok(!/\btoday\b|JPY/i.test(instructions!), "the server cannot know the date or currency");
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "can_i_spend", "draft_invoice", "household_snapshot", "list_clients_and_cards", "list_invoices", "log_charge", "log_charges", "month_by_category", "options_when_short", "plan_for", "timeline", "update_bank_balance", "whats_due", "where_am_i", "who_owes_whom"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "can_i_spend", "draft_invoice", "household_snapshot", "list_clients_and_cards", "list_invoices", "log_charge", "log_charges", "month_by_category", "options_when_short", "plan_for", "regular_costs", "search_spending", "timeline", "update_bank_balance", "whats_due", "where_am_i", "who_owes_whom"]);
     stage = "tool execution";
     const outlook = await client.callTool({ name: "where_am_i", arguments: {} });
     assert.match(JSON.stringify(outlook.content), /18,780 short/);
@@ -75,6 +75,8 @@ async function main() {
     assert.deepEqual([owes.summary, owes.transfers, owes.split], ["Only one person is in this household, so there is nothing to split.", [], false]);
     const month = (await client.callTool({ name: "month_by_category", arguments: {} })).content as { text: string }[];
     assert.match(month[0].text, /^November: ¥152,230 in total\. Business ¥32,830 of ¥152,230 this month\./);
+    const regular = JSON.parse(((await client.callTool({ name: "regular_costs", arguments: {} })).content as { text: string }[])[0].text);
+    assert.equal(regular.summary, "Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far", "D54 through MCP, from the same function");
     const snapshotCall = await client.callTool({ name: "household_snapshot", arguments: {} });
     assert.ok(!snapshotCall.isError);
     const snapshot = JSON.parse((snapshotCall.content as { text: string }[])[0].text);

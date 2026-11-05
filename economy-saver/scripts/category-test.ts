@@ -10,7 +10,8 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { householdDate } from "@/db/account";
-import { billInput, insertBill } from "@/db/bills";
+import { billEditInput, billInput, insertBill, updateBill } from "@/db/bills";
+import { InputError } from "@/db/input-error";
 import { chargeInput, insertCharge } from "@/db/charges";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
@@ -20,12 +21,15 @@ import { toolInputSchema, tools, type ToolContext } from "@/lib/agent/tools";
 import { cardSummary } from "@/components/home/card-summary";
 import { BusinessBp, CATEGORIES, CATEGORY_KEYS, businessBpFromForm, businessPart, categoryLabel, CategoryKeySchema, shareLabel } from "@/lib/money/categories";
 import { guessCategory, guessRepeat } from "@/lib/money/categorise";
-import { businessLine, monthByCategory, monthText, splitLine } from "@/lib/money/month";
+import { businessLine, monthByCategory, monthText, monthWhen, splitLine } from "@/lib/money/month";
 import { expandBills } from "@/lib/money/repeat";
 import { addDays, cycle, safeToSpend, statementItems } from "@/lib/money/runway";
 import { monthlyRoom } from "@/lib/money/plan";
 import { homeSentence } from "@/lib/money/sentence";
 import { toCheck } from "@/lib/money/to-check";
+import { sharedBillsComing } from "@/lib/money/family";
+import { aboutMoney, majorMoney } from "@/lib/money/format";
+import { fundingOptions } from "@/lib/money/options";
 import type { Bill, Charge, MoneyState } from "@/lib/money/types";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import { HouseholdSnapshot } from "@/lib/schema/household";
@@ -40,9 +44,9 @@ async function main() {
   async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
   try {
     // ------------------------------------------------------------ the list and the keyword table
-    await check("the list: thirteen keys with their labels in order; the zod enum takes exactly those", () => {
-      assert.deepEqual(CATEGORY_KEYS, ["housing", "utilities", "phone_internet", "subscriptions", "food", "transport", "health", "insurance", "family_shared", "government_tax", "business_tools", "debt", "other"]);
-      assert.deepEqual(CATEGORIES.map(c => c.label), ["Housing", "Utilities", "Phone & internet", "Subscriptions", "Food", "Transport", "Health", "Insurance", "Family & shared", "Government & tax", "Business tools", "Debt", "Other"]);
+    await check("the list: fourteen keys (travel since D53) with their labels in order; the zod enum takes exactly those", () => {
+      assert.deepEqual(CATEGORY_KEYS, ["housing", "utilities", "phone_internet", "subscriptions", "food", "transport", "travel", "health", "insurance", "family_shared", "government_tax", "business_tools", "debt", "other"]);
+      assert.deepEqual(CATEGORIES.map(c => c.label), ["Housing", "Utilities", "Phone & internet", "Subscriptions", "Food", "Transport", "Travel", "Health", "Insurance", "Family & shared", "Government & tax", "Business tools", "Debt", "Other"]);
       for (const key of CATEGORY_KEYS) assert.equal(CategoryKeySchema.safeParse(key).success, true);
       for (const bad of ["pets", "Housing", "", " housing", "phone", null, undefined, 3]) assert.equal(CategoryKeySchema.safeParse(bad).success, false, String(bad));
       assert.equal(CategoryKeySchema.safeParse("pets").error!.issues[0].message, "Choose a category from the list.");
@@ -73,6 +77,7 @@ async function main() {
         ["CloudBox Plus", "subscriptions", true], ["Sora Cloud Hosting", "business_tools", true],
         ["Minato Fresh Market", "food", true], ["Kissa Midori café", "food", true], ["Metro Line commuter pass", "transport", true],
         ["Page & Lantern Books", "other", false], ["Tsuki Electronics", "other", false], ["Yamabiko Outdoor", "other", false], ["Kumo Goods Online", "other", false],
+        ["Kumokaze Air flight", "travel", true], ["Hotel Kazemachi Hakone", "travel", true], ["Kaze Taxi", "transport", true], ["Hoshizora Cinema", "other", false],
       ];
       for (const [name, category, sure] of expected) assert.deepEqual(guessCategory(name), { category, sure }, name);
       const names = new Set([...benStoredBills.map(b => b.biller), ...benMoney.charges.map(c => c.merchant)]);
@@ -91,6 +96,28 @@ async function main() {
       for (const name of ["", "   ", "Zebra Supplies", "Marketing agency", "Business class seat", "Brenton Ltd"]) assert.deepEqual(guessCategory(name), { category: "other", sure: false }, `"${name}" matches nothing`);
     });
 
+    await check("the keyword table (Nov 5 walk): Tokyo food, transport, work and pharmacy names", () => {
+      const cases: [string, string][] = [
+        ["Noodle shop", "food"], ["Udon Taro", "food"], ["Soba house", "food"], ["Curry house", "food"], ["Bento box", "food"], ["Sushi bar", "food"],
+        ["Konbini", "food"], ["Cafe Mori", "food"], ["Corner bakery", "food"], ["Ramen Ichi", "food"], ["Izakaya Kaze", "food"], ["Fictional takeout", "food"],
+        ["Noodles", "food"], ["駅前ラーメン", "food"], ["のり弁当", "food"], ["コンビニ", "food"],
+        ["Pasmo charge", "transport"], ["Shinkansen ticket", "transport"], ["東京フィクション地下鉄 定期", "transport"], ["定期券", "transport"], ["地下鉄", "transport"], ["Design software", "business_tools"], ["Coworking space", "business_tools"], ["駅前薬局", "health"],
+      ];
+      for (const [name, category] of cases) assert.deepEqual(guessCategory(name), { category, sure: true }, name);
+    });
+
+    await check("the keyword table (D53): hotels, inns, flights and booking sites are Travel; commuting stays Transport", () => {
+      const cases: [string, string][] = [
+        ["Hakone Yumoto Hotel", "travel"], ["Fictional hotels group", "travel"], ["箱根ホテル", "travel"], ["Ryokan Kawasemi", "travel"], ["旅館みどり", "travel"],
+        ["Airbnb stay", "travel"], ["Harbour Hostel", "travel"], ["Flight to Sapporo", "travel"], ["Fictional Airline", "travel"], ["ANA domestic", "travel"],
+        ["JAL ticket", "travel"], ["Peach Aviation", "travel"], ["Jetstar Japan", "travel"], ["Skymark", "travel"], ["Expedia", "travel"],
+        ["Booking.com reservation", "travel"], ["BOOKING.COM", "travel"], ["Agoda", "travel"], ["日本航空", "travel"],
+        ["Shinkansen ticket", "transport"], ["Pasmo charge", "transport"], ["Suica top-up", "transport"],
+      ];
+      for (const [name, category] of cases) assert.deepEqual(guessCategory(name), { category, sure: true }, name);
+      for (const name of ["Banana stand", "Booking fee", "Hotelier supplies"]) assert.notEqual(guessCategory(name).category, "travel", `${name} is not travel: whole words only`);
+    });
+
     await check("guessRepeat (D51 prefill): rent, phone and subscriptions every month, insurance and domains every year, the rest one-off", () => {
       for (const name of ["Rent", "家賃", "Phone bill", "Hikari internet", "City Gym", "Netflix", "Fictional Cloud subscription"]) assert.equal(guessRepeat(name), "month", name);
       for (const name of ["Car insurance", "Domain renewal", "Annual fee", "自動車保険"]) assert.equal(guessRepeat(name), "year", name);
@@ -107,6 +134,8 @@ async function main() {
       ]);
       assert.deepEqual([view.totalMinor, view.businessMinor, view.personalMinor], [152_230, 32_830, 119_400]);
       assert.equal(businessLine(view), "Business ¥32,830 of ¥152,230 this month");
+      assert.equal(businessLine(view, monthWhen("October")), "Business ¥32,830 of ¥152,230 in October");
+      assert.equal(monthWhen(), "this month");
       const food = view.categories.find(c => c.category === "food")!;
       assert.deepEqual(food.items.map(i => [i.label, i.date, i.amountMinor]), [["Minato Fresh Market", "2026-11-08", 7_420], ["Kissa Midori café", "2026-11-12", 1_880], ["Minato Fresh Market", "2026-11-13", 1_400]]);
       assert.equal(view.categories.find(c => c.category === "housing")!.items[0].date, "2026-11-27");
@@ -165,10 +194,10 @@ async function main() {
       assert.deepEqual([view.totalMinor, view.businessMinor], [1_000 + 2_000 + 100 + 4_000, 1_000]);
       assert.equal(state.statements.length, 1, "a closed statement exists in the state and is not read");
       // The same series in December and in a month that does not have day 31.
-      const dec = monthByCategory({ ...state, today: "2026-12-14" }, "2026-12-14");
+      const dec = monthByCategory(state, "2026-12-14");
       assert.deepEqual(dec.categories.map(c => c.items.map(i => i.label)).flat().sort(), ["December", "Early monthly", "Later monthly", "Starts in December"]);
       const short = expandBills([{ ...stored[0], id: "thirty-one", due: "2026-01-31", repeatUnit: "month", repeatDay: 31 }], "2026-02-10", "2026-03-31");
-      assert.deepEqual(monthByCategory({ ...benMoney, today: "2026-02-10", bills: short, charges: [] }, "2026-02-10").categories[0].items.map(i => i.date), ["2026-02-28"]);
+      assert.deepEqual(monthByCategory({ ...benMoney, bills: short, charges: [] }, "2026-02-10").categories[0].items.map(i => i.date), ["2026-02-28"]);
     });
 
     await check("month maths (D48): a yearly bill counts once in its anniversary month; a changed amount counts at the amount of the occurrence in that month, including the months before today", () => {
@@ -197,6 +226,24 @@ async function main() {
       assert.equal(businessLine(personal), "All personal this month", "no business share this month: no 'Business $0 of …'");
     });
 
+    await check("US household: every dollar-to-cents factor (To check, options, the pot and family rows) keeps $12.50 as 1250", () => {
+      const usd: MoneyState = { ...benMoney, homeCurrency: "USD", fxPerUsd: 1, paypal: 0, bank: 1_200, cards: [], charges: [], statements: [], cancelNotices: [], pots: [], pendingPots: [], balanceUpdates: [{ id: "u", amount: 1_250.5, madeBy: "form" } as never], bills: [] };
+      const pending: Bill = { ...benMoney.bills[0], id: "pb", biller: "Fictional rent", amount: 900, due: "2026-11-20", status: "pending", repeatUnit: "month", repeatDay: 20, nextAmount: 12.5, nextAmountFrom: "2027-01-20", cancelBy: undefined, businessBp: 0 };
+      const rows = toCheck({ ...usd, bills: [pending] });
+      assert.equal(rows.find(r => r.kind === "balance")!.title, "Bank balance → $1,250.50", "a USD balance update keeps its cents");
+      assert.match(rows.find(r => r.kind === "bill")!.detail!, /· every month · \$12\.50 from Jan 20/, "a USD bill's next amount keeps its cents");
+      const discount = fundingOptions({ ...usd, bank: 0, invoices: [{ ...benMoney.invoices.find(i => i.status === "sent")!, amountUsd: 250.1 }], bills: [{ ...pending, status: "confirmed", due: "2026-11-20", amount: 400, repeatUnit: undefined, nextAmount: undefined, nextAmountFrom: undefined }] }).rows.find(r => r.id === "discount");
+      assert.ok(discount, "a sent invoice and a gap give the early-payment option");
+      assert.equal(discount.cost, 5, "2% of $250.10 is $5.002: cents, so $5");
+      assert.equal(fundingOptions({ ...usd, bank: 0, invoices: [{ ...benMoney.invoices.find(i => i.status === "sent")!, amountUsd: 252.6 }], bills: [{ ...pending, status: "confirmed", due: "2026-11-20", amount: 400, repeatUnit: undefined, nextAmount: undefined, nextAmountFrom: undefined }] }).rows.find(r => r.id === "discount")!.cost, 5.05, "2% of $252.60 is $5.05, not a whole dollar");
+      assert.equal(majorMoney(12.5, "USD"), "$12.50");
+      assert.equal(majorMoney(1200, "JPY"), "¥1,200");
+      assert.equal(aboutMoney(1_250, "USD"), "about $12.50");
+      assert.equal(aboutMoney(6_000, "JPY"), "about ¥6,000");
+      const shared: MoneyState = { ...usd, bills: [{ ...pending, status: "confirmed", repeatUnit: undefined, nextAmount: undefined, nextAmountFrom: undefined, amount: 12.5, due: addDays(usd.today, 3) }] };
+      assert.deepEqual(sharedBillsComing(shared).map(row => [row.biller, row.amountMinor]), [["Fictional rent", 1_250]], "a shared $12.50 bill is 1250 cents in the family list");
+    });
+
     // ------------------------------------------------------------ the database
     await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
@@ -211,7 +258,7 @@ async function main() {
       assert.deepEqual([cardA.owed, cardA.limitLeft, cardB.owed, cardB.limitLeft], [86_450, 413_550, 61_000, 239_000]);
       assert.equal(monthlyRoom(state), 92_220);
       const rows = await db.select().from(schema.bills).where(eq(schema.bills.householdId, a));
-      assert.deepEqual(rows.map(r => [r.biller, r.category, r.businessBp]).sort(), [["CloudBox Plus", "subscriptions", 10_000], ["Hikari Denki", "utilities", 3000], ["Mobaile Tsushin", "phone_internet", 5000], ["Rent", "housing", 3000]]);
+      assert.deepEqual(rows.map(r => [r.biller, r.category, r.businessBp]).sort(), [["CloudBox Plus", "subscriptions", 10_000], ["Hikari Denki", "utilities", 3000], ["Hikari Denki", "utilities", 3000], ["Hikari Denki", "utilities", 3000], ["Mobaile Tsushin", "phone_internet", 5000], ["Rent", "housing", 3000]]);
     });
 
     await check("confirming Hikari Denki from To check adds Utilities ¥11,220 at 30% and changes nothing else in the month", async () => {
@@ -329,7 +376,7 @@ async function main() {
       for (const name of ["add_bill", "log_charge"]) {
         const schemaOf = toolInputSchema(tool(name)) as unknown as { required: string[]; properties: Record<string, { anyOf: { enum?: string[]; type: string }[]; description?: string }> };
         assert.ok(schemaOf.required.includes("category") && schemaOf.required.includes("business_bp"), `${name} lists both`);
-        assert.ok(CATEGORY_KEYS.every(key => schemaOf.properties.category.description!.includes(key)), `${name}'s category field lists the thirteen keys`);
+        assert.ok(CATEGORY_KEYS.every(key => schemaOf.properties.category.description!.includes(key)), `${name}'s category field lists the fourteen keys`);
         assert.ok(CATEGORY_KEYS.every(key => tool(name).description.includes(key)), `${name} names every key in its description`);
         assert.equal(tool(name).scope, "draft");
       }
@@ -373,12 +420,73 @@ async function main() {
     // ------------------------------------------------------------ the snapshot and household scope
     await check("the snapshot carries category on charges and bills and businessBp on both, and refuses a bad key", async () => {
       const snap = await loadHouseholdSnapshot(db, b, { events: false });
-      assert.deepEqual(snap.bills.map(x => [x.biller, x.category, x.businessBp]).sort(), [["CloudBox Plus", "subscriptions", 10_000], ["Hikari Denki", "utilities", 3000], ["Mobaile Tsushin", "phone_internet", 5000], ["Rent", "housing", 3000]]);
+      assert.deepEqual(snap.bills.map(x => [x.biller, x.category, x.businessBp]).sort(), [["CloudBox Plus", "subscriptions", 10_000], ["Hikari Denki", "utilities", 3000], ["Hikari Denki", "utilities", 3000], ["Hikari Denki", "utilities", 3000], ["Mobaile Tsushin", "phone_internet", 5000], ["Rent", "housing", 3000]]);
       assert.deepEqual(snap.charges.find(x => x.merchant === "Sora Cloud Hosting"), { ...snap.charges.find(x => x.merchant === "Sora Cloud Hosting")!, category: "business_tools", businessBp: 10_000 });
       assert.equal(snap.charges.find(x => x.merchant === "Tsuki Electronics")!.category, "other");
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, bills: [{ ...snap.bills[0], category: "pets" }] }));
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, charges: [{ ...snap.charges[0], businessBp: 10_001 }] }));
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, charges: [{ ...snap.charges[0], category: undefined }] }));
+    });
+
+    await check("Settings edit (Nov 5 walk): a one-off bill's amount and category, one bill_changed event, the same values record nothing, another household's bill and a pending one are refused", async () => {
+      const one = await seedBen(db, { isDemo: true }), two = await seedBen(db, { isDemo: true });
+      const id = randomUUID();
+      await insertBill(db, one, billInput.parse({ id, biller: "Noodle shop", amount: "1200", due: "2026-11-20", category: "other" }), "confirmed", { madeBy: "form" });
+      const edit = (over: Partial<Parameters<typeof billEditInput.parse>[0]> = {}) => billEditInput.parse({ id, biller: "Noodle shop", amount: "980", due: "2026-11-20", category: "food", ...over });
+      const changed = () => db.select().from(schema.events).where(and(eq(schema.events.householdId, one), eq(schema.events.kind, "bill_changed")));
+      assert.equal(await updateBill(db, two, edit(), { madeBy: "form" }), false, "another household's bill is not found");
+      assert.equal(await updateBill(db, one, edit(), { madeBy: "form" }), true);
+      const [row] = await db.select().from(schema.bills).where(eq(schema.bills.id, id));
+      assert.deepEqual([row.amountMinor, row.category, row.biller], [980, "food", "Noodle shop"]);
+      assert.deepEqual((await changed()).map(e => [e.title, e.body, e.madeBy]), [["Noodle shop bill changed", "Amount ¥1,200 → ¥980 · Category Other → Food", "form"]]);
+      assert.equal(await updateBill(db, one, edit(), { madeBy: "form" }), true);
+      assert.equal((await changed()).length, 1, "saving the same values records nothing");
+      await assert.rejects(updateBill(db, one, edit({ amount: "abc" }), { madeBy: "form" }), InputError);
+      await assert.rejects(updateBill(db, one, edit({ due: "2099-01-01" }), { madeBy: "form" }), InputError, "the two-year limit");
+      const pending = randomUUID();
+      await insertBill(db, one, billInput.parse({ id: pending, biller: "Fictional pending", amount: "100", due: "2026-11-20", category: "other" }), "pending", { madeBy: "ask" });
+      await assert.rejects(updateBill(db, one, billEditInput.parse({ id: pending, biller: "X", amount: "1", due: "2026-11-20", category: "food" }), { madeBy: "form" }), /To check/);
+      assert.equal((await db.select().from(schema.events).where(and(eq(schema.events.householdId, two), eq(schema.events.kind, "bill_changed")))).length, 0);
+    });
+
+    await check("Settings edit (D48): a repeating bill's amount changes from an occurrence on; the first due date corrects every one; a second scheduled change is refused", async () => {
+      const one = await seedBen(db, { isDemo: true });
+      const id = randomUUID();
+      await insertBill(db, one, billInput.parse({ id, biller: "Fictional gym", amount: "8000", due: "2026-11-20", category: "health", repeat: "month" }), "confirmed", { madeBy: "form" });
+      const edit = (over: Partial<Parameters<typeof billEditInput.parse>[0]>) => billEditInput.parse({ id, biller: "Fictional gym", amount: "8000", due: "2026-11-20", category: "health", ...over });
+      const amounts = async () => (await stateOf(one)).bills.filter(b => b.biller.startsWith("Fictional gym")).map(b => [b.due, b.amount]);
+      await updateBill(db, one, edit({ amount: "9000" }), { madeBy: "form" }); // empty from = the next due date, here the first one: every occurrence
+      const [row] = await db.select().from(schema.bills).where(eq(schema.bills.id, id));
+      assert.deepEqual([row.amountMinor, row.nextAmountMinor, row.nextAmountFrom], [9000, null, null]);
+      await updateBill(db, one, edit({ amount: "9500", amountFrom: "2026-12-20" }), { madeBy: "form" });
+      assert.deepEqual((await amounts()).slice(0, 2), [["2026-11-20", 9000], ["2026-12-20", 9500]]);
+      await assert.rejects(updateBill(db, one, edit({ amount: "10000", amountFrom: "2027-01-20" }), { madeBy: "form" }), /already changes to ¥9,500 from Dec 20/);
+      await updateBill(db, one, edit({ biller: "Fictional gym plus", amount: "9500", amountFrom: "2026-12-20" }), { madeBy: "form" });
+      const bodies = (await db.select().from(schema.events).where(and(eq(schema.events.householdId, one), eq(schema.events.kind, "bill_changed"))).orderBy(schema.events.occurredAt, schema.events.id)).map(e => e.body);
+      assert.deepEqual(bodies, ["Amount ¥8,000 → ¥9,000 from the first due date", "Amount ¥9,000 → ¥9,500 from Dec 20", "Name Fictional gym → Fictional gym plus"]);
+      const [renamed] = await db.select().from(schema.bills).where(eq(schema.bills.id, id));
+      assert.deepEqual([renamed.biller, renamed.amountMinor, renamed.nextAmountMinor, renamed.nextAmountFrom, renamed.repeatDay], ["Fictional gym plus", 9000, 9500, "2026-12-20", 20], "a rename changes the series and keeps its amounts");
+    });
+
+    await check("Settings edit (D48): the last day to cancel is set, changed and removed from Edit, each said once in Activity; absent leaves it alone; a date on or after the next charge is refused", async () => {
+      const one = await seedBen(db, { isDemo: true });
+      const id = randomUUID();
+      await insertBill(db, one, billInput.parse({ id, biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year" }), "confirmed", { madeBy: "form" });
+      const edit = (over: Partial<Parameters<typeof billEditInput.parse>[0]> = {}) => billEditInput.parse({ id, biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", ...over });
+      const bodies = async () => (await db.select().from(schema.events).where(and(eq(schema.events.householdId, one), eq(schema.events.kind, "bill_changed"))).orderBy(schema.events.occurredAt, schema.events.id)).map(e => e.body);
+      const cancelBy = async () => (await db.select().from(schema.bills).where(eq(schema.bills.id, id)))[0].cancelBy;
+      await updateBill(db, one, edit({ cancelBy: "2026-11-20" }), { madeBy: "form" });
+      assert.equal(await cancelBy(), "2026-11-20");
+      assert.equal((await stateOf(one)).cancelNotices.find(n => n.billId === id)?.cancelBy, "2026-11-20");
+      await updateBill(db, one, edit(), { madeBy: "form" });
+      assert.equal(await cancelBy(), "2026-11-20", "absent = unchanged");
+      await updateBill(db, one, edit({ cancelBy: "2026-11-20" }), { madeBy: "form" });
+      await updateBill(db, one, edit({ cancelBy: "2026-11-25" }), { madeBy: "form" });
+      await assert.rejects(updateBill(db, one, edit({ cancelBy: "2026-12-01" }), { madeBy: "form" }), /before the bill is next charged/);
+      assert.equal(await cancelBy(), "2026-11-25");
+      await updateBill(db, one, edit({ cancelBy: null }), { madeBy: "form" });
+      assert.equal(await cancelBy(), null);
+      assert.deepEqual(await bodies(), ["Last day to cancel Nov 20", "Last day to cancel Nov 20 → Nov 25", "No last day to cancel"]);
     });
 
     await check("household scope: one household's items, categories and shares never appear in another's month", async () => {

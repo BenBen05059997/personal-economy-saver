@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { createFamilyLink, loadFamilyView, stopFamilyLink } from "@/db/family-links";
 import { consumeRequest } from "@/db/rate-limit";
-import { badFields, failure, NO_STORE, text } from "@/lib/door";
+import { badFields, failure, NO_STORE, text, formOf } from "@/lib/door";
 import { homeSentence } from "@/lib/money/sentence";
 import { appUrl, MissingAuthSetting } from "@/lib/supabase-auth";
 import { householdRequest } from "@/lib/session";
@@ -14,7 +14,8 @@ import { z } from "zod";
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  const form = await request.formData();
+  const form = await formOf(request);
+  if (form instanceof Response) return form;
   const kind = form.get("kind");
   try {
     if (kind !== "create" && kind !== "stop") return badFields();
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
     const made = await createFamilyLink(db(), hid);
     const sentence = homeSentence((await loadFamilyView(db(), hid)).state);
     const link = `${base}/family/${made.token}`;
-    const message = `${sentence.lead} ${sentence.emphasis}\nSee our month: ${link} (until ${made.day})`;
+    const message = `${sentence.text}\nSee our month: ${link} (until ${made.day})`;
     return Response.json({ link, message, day: made.day, id: made.info.id }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof MissingAuthSetting) return text(error.message, 503);

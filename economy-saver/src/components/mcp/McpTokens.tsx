@@ -25,7 +25,7 @@ export function McpTokens({ tokens }: { tokens: McpTokenInfo[] }) {
       setItems(current => [result.info, ...current]);
       setIssued({ id: result.info.id, value: result.token });
       form.reset();
-    } catch { setMessage("Couldn’t create a token. Check the token list before trying again."); }
+    } catch { setMessage("Couldn’t create the key. Check the list below before trying again."); }
     finally { setBusy(false); }
   }
 
@@ -35,23 +35,23 @@ export function McpTokens({ tokens }: { tokens: McpTokenInfo[] }) {
     setMessage("");
     try {
       const response = await fetch("/api/mcp/tokens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ revoke: id }) });
-      if (!response.ok) { setMessage("Couldn’t revoke this token."); return; }
+      if (!response.ok) { setMessage("Couldn’t revoke this key."); return; }
       setItems(current => current.filter(token => token.id !== id));
       if (issued?.id === id) setIssued(null);
-      setMessage("Token revoked.");
-    } catch { setMessage("Couldn’t revoke this token."); }
+      setMessage("Key revoked.");
+    } catch { setMessage("Couldn’t revoke this key."); }
     finally { setBusy(false); }
   }
 
   return <section className="ui-panel" id="mcp">
-    <h2>MCP access</h2>
-    <p className="ui-hint">Connect an MCP client to <code>/api/mcp</code> with a bearer token. Choose whether it can draft invoices.</p>
+    <h2>Connect another AI assistant</h2>
+    <p className="ui-hint">Give an AI assistant you use a key so it can read your household. You choose whether it may also draft invoices; it can never send one.</p>
     <form onSubmit={issue}>
-      <label className="ui-field">Token name<input name="name" maxLength={80} required /></label>
+      <label className="ui-field">Key name<input name="name" maxLength={80} required /></label>
       <label className="ui-check"><input type="checkbox" name="draft" /> Allow invoice drafts</label>{" "}
-      <button className="ui-button" disabled={busy}>Create token</button>
+      <button className="ui-button" disabled={busy}>Create key</button>
     </form>
-    {issued && <div className="ui-field"><label htmlFor="new-mcp-token">Copy this token now. It’s shown once.</label>
+    {issued && <div className="ui-field"><label htmlFor="new-mcp-token">Copy this key now. It’s shown once.</label>
       <input id="new-mcp-token" readOnly value={issued.value} onFocus={event => event.target.select()} autoComplete="off" spellCheck={false} />
       <button className="ui-button" onClick={() => setIssued(null)}>Done</button></div>}
     {items.map(token => <div className="ui-row" key={token.id}>
@@ -59,5 +59,7 @@ export function McpTokens({ tokens }: { tokens: McpTokenInfo[] }) {
       <button className="ui-button" disabled={busy} onClick={() => revoke(token.id)}>Revoke</button>
     </div>)}
     <p role="status" className="ui-hint">{message}</p>
+    <details className="settings-dev"><summary>For developers</summary>
+      <p className="ui-hint">An MCP client connects to <code>/api/mcp</code> with the key as a bearer token. Keys are stored hashed. The server offers read and draft tools only; sending an invoice stays behind your tap in the app.</p></details>
   </section>;
 }

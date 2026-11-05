@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { db } from "@/db/client";
 import { refreshPayPal } from "@/db/paypal-refresh";
 import { loadNavigationData, loadWorkspaceData } from "@/db/workspace";
+import { missingForwardingSetting } from "@/components/reader/ForwardingSettings";
 import { Shell, type Section } from "./Shell";
 
 export async function loadWorkspace(hid: string, home = false) {
@@ -21,5 +22,5 @@ export function WorkspaceFrame({ workspace, section, children }: {
   children: ReactNode;
 }) {
   const { pending, feed, name } = workspace;
-  return <Shell name={name} pending={pending} feed={feed} section={section}>{children}</Shell>;
+  return <Shell name={name} pending={pending} feed={feed} section={section} forwarding={missingForwardingSetting() === null}>{children}</Shell>;
 }

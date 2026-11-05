@@ -16,10 +16,10 @@ export function ApiFormGroup({ children }: { children: ReactNode }) {
  * The one form that posts to an /api route. It posts with fetch and keeps the person on the page: a refusal shows the
  * route's own message in the status line under the form and keeps what was typed; an accepted post refreshes the page,
  * or, when the route answers with a redirect, goes to where it points. Without JavaScript the same form posts natively
- * and the route answers with its 303 redirect (lib/form-fetch.ts). `secret` clears the fields as soon as they are sent.
+ * and the route answers with its 303 redirect (lib/form-fetch.ts). `secret` clears the fields as soon as they are sent; `onDone` runs once the route accepts the post.
  */
-export function ApiForm({ children, action = "/api/settings", secret = false, className }: {
-  children: ReactNode; action?: string; secret?: boolean; className?: string;
+export function ApiForm({ children, action = "/api/settings", secret = false, className, onDone }: {
+  children: ReactNode; action?: string; secret?: boolean; className?: string; onDone?: () => void;
 }) {
   const router = useRouter();
   const id = useId();
@@ -41,6 +41,7 @@ export function ApiForm({ children, action = "/api/settings", secret = false, cl
     group?.setLast(id);
     try {
       const response = await fetch(action, { method: "POST", body, headers: { [FORM_FETCH_HEADER]: "1" } });
+      if (response.ok) onDone?.();
       const destination = response.ok ? response.headers.get(FORM_REDIRECT_HEADER) : null;
       if (destination) {
         if (destination === window.location.pathname + window.location.search) router.refresh();

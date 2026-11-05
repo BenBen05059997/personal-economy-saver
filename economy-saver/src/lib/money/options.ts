@@ -1,3 +1,4 @@
+import { minorPerUnit } from "./format";
 import type { MoneyState } from "./types";
 import { addDays, arrivals, daysBetween, EARLY_DISCOUNT, ladder, low, project, series } from "./runway";
 
@@ -31,7 +32,8 @@ export function fundingOptions(state: MoneyState) {
     const covers = projection && projection.amountHome >= gap && projection.worstOn <= fundingDate &&
       low(series({ ...state, invoices: state.invoices.map(invoice => invoice.id === unbilled?.id ? { ...invoice, status: "sent", sentOn: state.today } : invoice) }, "worst")).amount >= 0;
     const discount = largest ? largest.amountHome * EARLY_DISCOUNT : 0;
-    const cost = row.id === "discount" ? Math.round(discount * (state.homeCurrency === "USD" ? 100 : 1)) / (state.homeCurrency === "USD" ? 100 : 1) : row.cost;
+    const per = minorPerUnit(state.homeCurrency);
+    const cost = row.id === "discount" ? Math.round(discount * per) / per : row.cost;
     return { id: row.id, title: row.title, cost, principal: 0, pick: !!covers,
       detail: row.id === "remind" ? "Sent invoices are already in the forecast. A reminder does not guarantee an earlier payment." : row.detail,
       status: row.id === "invoice" ? covers ? "Projected to cover the gap if paid within the observed timing" : "Amount or arrival date does not cover the whole gap" :

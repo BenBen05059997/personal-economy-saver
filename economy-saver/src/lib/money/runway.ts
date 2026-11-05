@@ -15,7 +15,7 @@
 
 import type { Context, Currency, Moment, Profile } from "@/lib/catalogue/types";
 import { dayLabel as label, formatter, money, usd } from "./format";
-import type { Bill, Card, Charge, Client, Invoice, MoneyState } from "./types";
+import type { Card, Charge, Client, Invoice, MoneyState } from "./types";
 
 // ---------------------------------------------------------------- dates
 
@@ -57,7 +57,7 @@ export function closingOnOrAfter(card: Card, iso: string): string {
 }
 
 /** The last closing date strictly before `iso`. */
-function closingBefore(card: Card, iso: string): string {
+export function closingBefore(card: Pick<Card, "closingDay">, iso: string): string {
   const y = Number(iso.slice(0, 4));
   const m = Number(iso.slice(5, 7));
   const here = dateIn(y, m, card.closingDay);
@@ -208,7 +208,10 @@ export function arrivals(state: MoneyState): Arrival[] {
   return state.invoices.filter((i) => i.status === "sent").map((i) => project(state, i));
 }
 
-export function series(state: MoneyState, kind: SeriesKind, days = 30): Series {
+/** The window the sentence, safe to spend, the series and Coming up look at, in days from today. */
+export const WINDOW_DAYS = 30;
+
+export function series(state: MoneyState, kind: SeriesKind, days = WINDOW_DAYS): Series {
   const delta = new Array<number>(days).fill(0);
   for (const b of state.bills) {
     if (b.status !== "confirmed") continue;
@@ -249,32 +252,6 @@ export function low(s: readonly number[], startDate?: string): LowPoint {
   return { amount: s.length ? amount : 0, dayIndex, date: start ? addDays(start, dayIndex) : "" };
 }
 
-export type Run = { from: number; to: number }; // inclusive day indexes
-
-/** Contiguous days below zero. `tolerance` ignores balances within that many units of zero. */
-export function shortRuns(s: readonly number[], tolerance = 0): Run[] {
-  const runs: Run[] = [];
-  s.forEach((v, i) => {
-    if (v >= -tolerance) return;
-    const last = runs[runs.length - 1];
-    if (last && last.to === i - 1) last.to = i;
-    else runs.push({ from: i, to: i });
-  });
-  return runs;
-}
-
-/** What happens on one day: confirmed bills and card statements due, and invoices expected or worst-case arriving. */
-export function dayEvents(state: MoneyState, dayIndex: number): { bills: Bill[]; statements: StatementItem[]; expected: Arrival[]; worst: Arrival[] } {
-  const date = addDays(state.today, dayIndex);
-  const arr = arrivals(state);
-  return {
-    bills: state.bills.filter((b) => b.status === "confirmed" && b.due === date),
-    statements: statementItems(state).filter((st) => st.dueOn === date),
-    expected: arr.filter((a) => a.expectedOn === date),
-    worst: arr.filter((a) => a.worstOn === date),
-  };
-}
-
 // ---------------------------------------------------------------- due soon
 
 export type DueItem = {
@@ -288,6 +265,7 @@ export type DueItem = {
   expectedBalance: number; // expected-case balance at the end of the due date
   expectedCovered: boolean;
   pending?: boolean; // a bill read by the AI and not confirmed yet; judged as if it were confirmed
+  estimated?: true; // D54: an amount-varies bill's occurrence: the amount is the estimate ("about ¥9,330")
   open?: boolean; // a statement whose cycle can still take charges
   cardId?: string;
 };
@@ -296,7 +274,7 @@ export type DueItem = {
  * Bills and card statements (closed and open) due in the next `days` days, soonest first. Each says whether the
  * money is there on its due date, even if clients pay late (covered) and when they pay as usual (expectedCovered).
  */
-export function dueItems(state: MoneyState, days = 30): DueItem[] {
+export function dueItems(state: MoneyState, days = WINDOW_DAYS): DueItem[] {
   const worst = series(state, "worst", days);
   const expected = series(state, "expected", days);
   const hasPending = state.bills.some((b) => b.status === "pending");
@@ -324,7 +302,7 @@ export function planWindow(state: MoneyState): number {
   let last = 0;
   for (const st of statementItems(state)) last = Math.max(last, daysBetween(state.today, st.dueOn));
   for (const c of state.cards) last = Math.max(last, daysBetween(state.today, cycle(state, c.id).dueOn));
-  return Math.max(30, last + 1);
+  return Math.max(WINDOW_DAYS, last + 1);
 }
 
 export type CardRoom = {
@@ -502,6 +480,7 @@ export type TimelineEvent = {
   balance: number; // running balance after this event; a pending bill is not counted
   covered: boolean; // the balance at the end of that day is at least zero
   pending?: boolean; // a bill read by the AI and not confirmed yet; judged as if it were confirmed
+  estimated?: true; // D54: an amount-varies bill's occurrence: the amount is the estimate ("about ¥9,330")
   open?: boolean; // a statement whose cycle can still take charges
   cardId?: string;
   clientId?: string;
@@ -513,7 +492,7 @@ export type TimelineEvent = {
  * usual day (expected) or on their slowest (worst). On one day money in comes first, so the last event of a day
  * ends on the same balance `series` gives for that day. The balance of a pending bill is not counted.
  */
-export function timeline(state: MoneyState, kind: SeriesKind, days = 30): TimelineEvent[] {
+export function timeline(state: MoneyState, kind: SeriesKind, days = WINDOW_DAYS): TimelineEvent[] {
   const day = series(state, kind, days);
   const hasPending = state.bills.some((b) => b.status === "pending");
   const dayAll = hasPending ? series({ ...state, bills: state.bills.map((b) => ({ ...b, status: "confirmed" as const })) }, kind, days) : day;
@@ -525,7 +504,7 @@ export function timeline(state: MoneyState, kind: SeriesKind, days = 30): Timeli
   const drafts: Draft[] = [];
   for (const b of state.bills) {
     if (!inWindow(b.due)) continue;
-    drafts.push({ id: b.id, date: b.due, kind: "bill", label: b.biller, amount: -b.amount, ...(b.status === "pending" ? { pending: true } : {}) });
+    drafts.push({ id: b.id, date: b.due, kind: "bill", label: b.biller, amount: -b.amount, ...(b.status === "pending" ? { pending: true } : {}), ...(b.estimated ? { estimated: true as const } : {}) });
   }
   for (const st of statementItems(state)) {
     if (!inWindow(st.dueOn)) continue;
@@ -557,7 +536,7 @@ export type SafeToSpend = {
   lateClients: string[]; // first names of the clients whose worst-case payment lands after the low
 };
 
-export function safeToSpend(state: MoneyState, monthlyEssentials: number, days = 30): SafeToSpend {
+export function safeToSpend(state: MoneyState, monthlyEssentials: number, days = WINDOW_DAYS): SafeToSpend {
   const lw = low(series(state, "worst", days));
   const amount = Math.max(0, lw.amount);
   const verdict = lw.amount < 0 ? "hold" : amount < monthlyEssentials ? "easy" : "go";

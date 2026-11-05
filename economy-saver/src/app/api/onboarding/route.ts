@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { formOf } from "@/lib/door";
 import { z } from "zod";
 import { finishSetup, setupForm } from "@/db/account";
 import { db } from "@/db/client";
@@ -12,7 +13,9 @@ export async function POST(request: Request) {
   if (!sameOrigin(request)) return new Response("Same-origin request required", { status: 403 });
   const uid = await verifiedUid();
   if (!uid) return new Response("A verified email session is required", { status: 401 });
-  const form = setupForm.safeParse(Object.fromEntries(await request.formData()));
+  const body = await formOf(request);
+  if (body instanceof Response) return body;
+  const form = setupForm.safeParse(Object.fromEntries(body));
   if (!form.success) return new Response("Check your name, timezone, balance and card settings.", { status: 400 });
   const store = await cookies();
   const original = store.get("upgrade-demo")?.value;

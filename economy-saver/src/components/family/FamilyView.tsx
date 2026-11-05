@@ -1,27 +1,13 @@
 import { MonthSplit } from "@/components/plan/MonthSplit";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { Sentence } from "@/components/home/Sentence";
-import { dayLabel, minorMoney } from "@/lib/money/format";
+import { sharedBillsComing } from "@/lib/money/family";
+import { aboutMoney, dayLabel, minorMoney } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
-import { addDays } from "@/lib/money/runway";
 import { splitBalance, transferLine } from "@/lib/money/split";
 import type { MoneyState } from "@/lib/money/types";
 import "@/components/home/home.css";
 import "./family.css";
-
-/**
- * The shared bills that fall due from today to 30 days on, by date (information only). Shared means what the month view
- * means (D52): a confirmed bill with no owner. The money state already holds one row per occurrence (D41).
- */
-function sharedBillsComing(state: MoneyState) {
-  const through = addDays(state.today, 29);
-  const names = new Map(state.split.members.map(member => [member.id, member.name]));
-  const unit = state.homeCurrency === "USD" ? 100 : 1;
-  return state.bills
-    .filter(bill => bill.status === "confirmed" && bill.ownerId === undefined && bill.due >= state.today && bill.due <= through)
-    .map(bill => ({ key: bill.id, biller: bill.biller, date: bill.due, paidBy: bill.paidBy ? names.get(bill.paidBy) ?? "" : "", amountMinor: Math.round(bill.amount * unit) }))
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.biller < b.biller ? -1 : 1));
-}
 
 /** D52: the read-only family page. No buttons, no forms, no links into the signed-in app, nothing from PayPal and no emails. */
 export function FamilyView({ name, state }: { name: string; state: MoneyState }) {
@@ -44,7 +30,7 @@ export function FamilyView({ name, state }: { name: string; state: MoneyState })
           {bills.map(bill => <div key={bill.key} className="home-row home-dated">
             <time dateTime={bill.date}>{dayLabel(bill.date)}</time>
             <div>{bill.biller}{bill.paidBy && <small className="family-bill-paid">Paid by {bill.paidBy}</small>}</div>
-            <div className="home-number">{minorMoney(bill.amountMinor, state.homeCurrency)}</div>
+            <div className="home-number">{bill.estimated ? aboutMoney(bill.amountMinor, state.homeCurrency) : minorMoney(bill.amountMinor, state.homeCurrency)}</div>
           </div>)}
         </section>
         {together && <section id="shared-costs" className="home-panel">
