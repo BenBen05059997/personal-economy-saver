@@ -19,16 +19,16 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - Ask: the page `/canvas` (sidebar label Ask; the top bar links to it, voice where the browser supports it). `/api/ask` runs a model of your choice (D56) with tools over the engine (reads and drafts only). A reply is an answer, a clarifying question with choices to tap, or a decline for what is not about your money; code chooses which. An answer can come with a canvas: blocks that each hold a question, never a number, which the engine fills from your records, with "Show the recipe", "Based on" links and Helpful / Not helpful. "What if a client pays two weeks late?" runs the engine on a copy of your numbers and saves nothing. "Pin to Home" keeps a canvas (at most 8) under Home's sentence, drawn by the engine with no model call. The last 200 questions and replies are kept.
 - Memory: the page `/memory` lists what the assistant remembers (each item says where it came from), and you can add, edit, delete or Forget everything. The assistant can `remember` and `forget` when you ask; a text with a run of 12 or more digits is refused. A To check card with a corrected name, category, work share or card offers "Also tell the assistant".
 - Your AI model: Settings → Your AI model sets a provider (or any OpenAI-compatible address once signed in), the models and a key; Save and check runs three checks (uses tools, ignores an injected order, stays on money) and shows the host your questions go to. With no model of its own a household uses the server's `AI_` settings.
-- The same tool catalogue and rules serve MCP (the server's `instructions`), except `clarify` and `out_of_scope`, which only the Ask page offers. The same tool catalogue and rules serve MCP (the server's `instructions`). Each Ask and each MCP call writes one content-free JSON log line to standard output.
+- The same tool catalogue and rules serve MCP (the server's `instructions`), except `clarify` and `out_of_scope`, which only the Ask page offers. Each Ask and each MCP call writes one content-free JSON log line to standard output.
 - A family view by link: Settings → People makes a link that lasts 7 days (at most 5 live, stoppable at once; only its hash is stored, so the full link and a ready-to-paste LINE message show once). The page at `/family/<token>` needs no sign-in and has no actions: the sentence, the shared bills coming up and who owes whom. `APP_URL` sets the address in the link.
 - One versioned household schema: Settings has Export my data (a version 2 JSON download: the record with the household's events, plus memory, pinned canvases and the conversation), the `household_snapshot` read tool gives the agent and MCP the record without events, and the files in `schema/` (`household.v2.json`, `recipe.v1.json`, `memory.v1.json`, `turn.v1.json`, `cash-flow-event.v1.json`) are generated from the same zod definitions.
-- Your data: Settings → Your data lists five kinds (the record, memory, canvases, the conversation, documents) with where each is kept and how many there are. Memory, canvases and the conversation can be deleted all at once or one by one, and Ask has "Delete this conversation"; documents can be deleted too (confirmed bills and charges stay); "Delete everything" goes to the account page. Import reads a version 2 export into a household that has nothing in it yet: your own login stays, the file's events, documents, PayPal invoice ids and status, and the household's name, time zone, currency and exchange rate are not restored, a file in another currency is refused, and every restored row is marked as imported.
-- This device only: memory, canvases and the conversation can be kept in the browser instead of our cloud (Settings → Your data). The server then holds none of it: each question carries the memory and the last turns it needs, the server uses them for that answer and stores nothing, and pins on the device are drawn on Home by asking the engine. Other devices and MCP see none of it, clearing the browser deletes it, and Import is refused while anything is kept there. Export from that device adds its items to the file.
+- Your data: Settings → Your data lists five kinds (the record, memory, canvases, the conversation, documents) with where each is kept and how many there are. Memory, canvases and the conversation can be deleted all at once or one by one, and Ask has "Delete this conversation"; documents can be deleted too (confirmed bills and charges stay); "Delete everything" goes to the account page. Import reads a version 2 export into a household that has nothing in it yet (what it restores and leaves out: D44 in [DECISIONS.md](../DECISIONS.md)).
+- This device only: memory, canvases and the conversation can be kept in the browser instead of our cloud (Settings → Your data). The server then holds none of it and stores nothing from a question; other devices and MCP see none of it, clearing the browser deletes it, and Import is refused while anything is kept there. Export from that device adds its items to the file (D59).
 - PayPal sandbox REST and Agent Toolkit integration, with the draft/read tools separate from the server approval path; verified webhook deliveries are idempotent; a read-only import of sandbox invoice history.
-- Rate limits on Try it, Ask (and five declined questions an hour), MCP, canvases, pins, thumbs, model changes, drafts, approvals, uploads, document reads, imports and exports; PayPal toolkit calls time out after 20 s.
+- Per-household rate limits on every browser-facing route and an app-wide cap on Try it (the numbers: [ARCHITECTURE.md](../ARCHITECTURE.md)); PayPal toolkit calls time out after 20 s.
 - A daily Cron route with an explicit household list (`CRON_HOUSEHOLD_IDS`). Its one standing rule is off until you set it in Settings: once a sent invoice is N days past due it records a "Nudge suggested" event and Home shows it as the one action; it never sends, the reminder still needs your tap.
 - Every row and event records who made it (`made_by`); To check and Activity say "Drafted by Ask" or "Drafted through MCP" after what the agent drafted. The invoice review and the client panel show how fast a client usually pays.
-- Isolated PGlite test suites for schema/seed/engine, approval and webhook behaviour, MCP, reader, settings, agent, the model layer, PayPal refresh, typed-in data, import, pots, the household snapshot, the household split, the canvas, memory, the categories with the business share and the daily nudge rule. They do not show that hosted services are configured.
+- Isolated PGlite test suites (see Checks); they do not show that hosted services are configured.
 
 ## Safety
 
@@ -85,7 +85,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all twenty-seven suites: db, approve, mcp, reader, settings, agent, ai, refresh, doors, import, csv, pots, snapshot, split, category, spending, regular, varies, gaps, canvas, conversation, memory, data, cron, sweep, isolation, family
+npm run db:test      # all twenty-seven suites (listed below)
 npm run schema       # rewrites the five files in schema/ from the zod definitions (db:test fails when one is stale)
 npx tsc --noEmit -p .
 npm run lint
@@ -112,28 +112,17 @@ To issue household-scoped MCP tokens, set `MCP_TOKEN_KEY`, then use Settings. Co
 ## Project map
 
 ```text
-src/app/                 pages and API routes
-src/components/          UI by area: shell, home, household, plan, invoices, reader, settings, ask, auth, mcp, ui
-src/db/                  schema, household-scoped queries, seeds, rate limits
-src/lib/money/           pure runway, plans, repeating bills, sentence and options logic
-src/lib/agent/           the tool catalogue (reads, drafts, canvas and memory tools), the runner and the reply choice
-src/lib/ai/              callModel, the one way the app calls a model (Anthropic and OpenAI-compatible)
-src/lib/canvas/          the canvas recipe, its resolver and starters (components in src/components/canvas/; pins in src/db/canvases.ts)
-src/app/canvas/          the Ask page (components in src/components/ask/; turns in src/db/conversation.ts)
-src/db/memory.ts         what the assistant remembers (page /memory)
-src/lib/schema/          the one household schema (zod, version 2) and its JSON Schema generator
-src/db/data-kinds.ts     the five kinds of stored data: count and delete; restore.ts is Import; place.ts is where memory, canvases and the conversation are kept
-src/lib/store/           this device only: the browser's IndexedDB store for those three
-schema/                  household.v2.json, recipe.v1.json, memory.v1.json, turn.v1.json, cash-flow-event.v1.json: the committed JSON Schemas
-src/lib/paypal/          sandbox client, toolkit, invoice listing and webhook verification
-src/lib/mcp/             Streamable HTTP server
-src/lib/catalogue/       the wealth-move catalogue engine (words and sources in src/data/catalogue/)
-src/lib/reader/          extraction, forwarding, storage
-scripts/                 isolated tests and explicit owner-operated checks
-drizzle/                 ordered schema migrations, twenty-three files (0000–0022)
-worker.ts                Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
-samples/bills/           fictional sample bills for the reader
+src/app/, src/components/   pages, API routes and UI by area
+src/db/                     schema, household-scoped queries, seeds, rate limits
+src/lib/                    money (the engine), agent, ai, canvas, schema, paypal, mcp, reader, catalogue
+schema/                     the committed JSON Schemas (npm run schema)
+scripts/                    isolated tests and explicit owner-operated checks
+drizzle/                    ordered schema migrations, twenty-three files (0000–0022)
+worker.ts                   Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
+samples/bills/              fictional sample bills for the reader
 ```
+
+The full map of files is in [AGENTS.md](../AGENTS.md), "Where things are".
 
 ## License
 

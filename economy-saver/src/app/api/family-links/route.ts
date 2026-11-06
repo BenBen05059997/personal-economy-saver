@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { createFamilyLink, loadFamilyView, stopFamilyLink } from "@/db/family-links";
 import { consumeRequest } from "@/db/rate-limit";
-import { badFields, failure, NO_STORE, text, formOf } from "@/lib/door";
+import { badFields, failure, formOf, NO_STORE, text, tooMany } from "@/lib/door";
 import { homeSentence } from "@/lib/money/sentence";
 import { appUrl, MissingAuthSetting } from "@/lib/supabase-auth";
 import { householdRequest } from "@/lib/session";
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   const kind = form.get("kind");
   try {
     if (kind !== "create" && kind !== "stop") return badFields();
-    if (!await consumeRequest(db(), hid, "family-links", 20)) return text("Too many changes. Try again in a minute.", 429, { "Retry-After": "60" });
+    if (!await consumeRequest(db(), hid, "family-links", 20)) return tooMany("Too many changes. Try again in a minute.");
     if (kind === "stop") {
       const id = z.string().uuid().safeParse(form.get("id"));
       if (!id.success) return badFields();

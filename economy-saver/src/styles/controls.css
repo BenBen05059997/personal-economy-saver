@@ -30,3 +30,5 @@
 .ui-remove[open] > summary { margin-bottom: var(--space-2); }
 .ui-remove p { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
 .ui-remove-buttons { display: flex; gap: var(--space-3); }
+/* A problem sentence on a red wash (Ask, canvas blocks, pins). */
+.ui-problem { margin: 0; padding: var(--space-3); border-radius: var(--radius-control); background: var(--red-wash); color: var(--red); font: 400 14px/1.4 var(--sans); overflow-wrap: anywhere; }

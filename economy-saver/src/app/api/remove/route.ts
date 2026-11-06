@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { removeBill } from "@/db/bills";
 import { removeCharge } from "@/db/charges";
 import { consumeRequest } from "@/db/rate-limit";
-import { badFields, failure, redirectTo, returnPath, text, formOf } from "@/lib/door";
+import { badFields, failure, formOf, redirectTo, returnPath, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 const input = z.object({ kind: z.enum(["bill", "charge"]), id: z.string().uuid() });
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const data = input.safeParse({ kind: form.get("kind"), id: form.get("id") });
   if (!data.success) return badFields();
   try {
-    if (!await consumeRequest(db(), hid, "remove", 20)) return text("Too many removals. Try again in a minute.", 429, { "Retry-After": "60" });
+    if (!await consumeRequest(db(), hid, "remove", 20)) return tooMany("Too many removals. Try again in a minute.");
     if (data.data.kind === "bill") await removeBill(db(), hid, data.data.id);
     else await removeCharge(db(), hid, data.data.id);
     return redirectTo(returnPath(form.get("returnTo")), request);

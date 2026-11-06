@@ -4,7 +4,7 @@ import { setThumb } from "@/db/conversation";
 import { readPlaces } from "@/db/place";
 import { consumeRequest } from "@/db/rate-limit";
 import { logThumb } from "@/lib/agent/log";
-import { text } from "@/lib/door";
+import { text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 const Thumb = z.object({ id: z.string().uuid(), thumb: z.enum(["up", "down"]).nullable(), device: z.literal(true).optional() }).strict();
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   if (hid instanceof Response) return hid;
   const data = Thumb.safeParse(await request.json().catch(() => null));
   if (!data.success) return text("Choose Helpful or Not helpful.", 400);
-  if (!await consumeRequest(db(), hid, "thumb", 30)) return text("Too many requests. Try again in a minute.", 429, { "Retry-After": "60" });
+  if (!await consumeRequest(db(), hid, "thumb", 30)) return tooMany("Too many requests. Try again in a minute.");
   const { id, thumb, device } = data.data;
   const onDevice = (await readPlaces(db(), hid)).journal === "device";
   if (onDevice !== (device === true)) return text("Reload the page and try again.", 409);

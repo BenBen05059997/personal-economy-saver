@@ -1,12 +1,13 @@
 // D58: what the assistant remembers. One function per job; the Memory page and (next) the agent's remember / forget
 // tools call these. Delete is real (D59): the row goes, and no event ever carries a memory's text.
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db } from "./household";
 import { households, memories } from "./schema";
 import { householdMoment } from "./clock";
-import { MEMORY_LIMIT, MemoryKind, MemoryText, MEMORY_KIND_KEYS, SECRET_REFUSAL, hasLongNumber, type MemoryItem } from "@/lib/schema/memory";
+import { MEMORY_CLASH, MEMORY_LIMIT, memoryFull, type MemoryItem } from "@/lib/schema/memory";
+import { kindOf, sortMemory, textOf } from "@/lib/store/memory-ops";
 
 type MemoryMaker = { madeBy: "form" | "ask" | "mcp"; askId?: string };
 type Row = typeof memories.$inferSelect;
@@ -16,17 +17,6 @@ const itemOf = (r: Row): MemoryItem => ({
   createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(),
 });
 
-const kindOf = (kind: unknown) => {
-  const parsed = MemoryKind.safeParse(kind);
-  if (!parsed.success) throw new InputError(`Choose one of: ${MEMORY_KIND_KEYS.join(", ")}.`);
-  return parsed.data;
-};
-const textOf = (text: unknown) => {
-  const parsed = MemoryText.safeParse(text);
-  if (!parsed.success) throw new InputError(parsed.error.issues[0].message);
-  if (hasLongNumber(parsed.data)) throw new InputError(SECRET_REFUSAL);
-  return parsed.data;
-};
 const idOf = (id: string) => z.string().uuid().safeParse(id).success;
 
 const record = (tx: Db, hid: string, by: MemoryMaker, title: string) =>
@@ -42,9 +32,8 @@ async function lock(tx: Db, hid: string) {
 /** Everything the assistant knows, newest first within each kind (kinds in their page order). */
 export async function listMemory(db: Db, householdId: string): Promise<MemoryItem[]> {
   const hid = requireHousehold(householdId);
-  const rows = await db.select().from(memories).where(eq(memories.householdId, hid)).orderBy(desc(memories.createdAt), desc(memories.id));
-  const order = (k: string) => MEMORY_KIND_KEYS.indexOf(k as MemoryKind);
-  return rows.map(itemOf).sort((a, b) => order(a.kind) - order(b.kind));
+  const rows = await db.select().from(memories).where(eq(memories.householdId, hid));
+  return sortMemory(rows.map(itemOf));
 }
 
 /** Adds one thing. The same text already held under the same kind returns the existing item. */
@@ -57,7 +46,7 @@ export async function addMemory(db: Db, householdId: string, input: { kind: stri
     if (same) return itemOf(same);
     const moment = householdMoment(clock);
     const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(memories).where(eq(memories.householdId, hid));
-    if (n >= MEMORY_LIMIT) throw new InputError(`The assistant can hold ${MEMORY_LIMIT} things. Delete some first.`);
+    if (n >= MEMORY_LIMIT) throw new InputError(memoryFull());
     const [row] = await tx.insert(memories).values({ householdId: hid, kind, text, madeBy: by.madeBy, askId: by.askId ?? null, createdAt: moment, updatedAt: moment }).returning();
     await record(tx, hid, by, by.madeBy === "form" ? `You added a ${kind} for the assistant to remember` : `The assistant remembered a ${kind}`);
     return itemOf(row);
@@ -78,7 +67,7 @@ export async function editMemory(db: Db, householdId: string, id: string, change
     if (next.kind === current.kind && next.text === current.text) return itemOf(current);
     const [clash] = await tx.select({ id: memories.id }).from(memories)
       .where(and(eq(memories.householdId, hid), eq(memories.kind, next.kind), eq(memories.text, next.text)));
-    if (clash) throw new InputError("The assistant already knows that.");
+    if (clash) throw new InputError(MEMORY_CLASH);
     const [row] = await tx.update(memories).set({ ...next, updatedAt: householdMoment(clock) }).where(and(eq(memories.householdId, hid), eq(memories.id, id))).returning();
     await record(tx, hid, by, "You edited something the assistant remembers");
     return itemOf(row);

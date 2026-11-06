@@ -4,9 +4,9 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
 import { canvases } from "./schema";
-import { problemWords, RecipeSchema, type Recipe } from "@/lib/canvas/schema";
+import { MAX_PINS, recipeOf, titleOf, type Recipe } from "@/lib/canvas/schema";
 
-export const MAX_PINS = 8;
+export { MAX_PINS };
 export type PinnedCanvas = { id: string; title: string; recipe: Recipe; position: number; madeBy: string; createdAt: string; updatedAt: string };
 type Row = typeof canvases.$inferSelect;
 
@@ -14,17 +14,6 @@ const pinOf = (row: Row): PinnedCanvas => ({
   id: row.id, title: row.title, recipe: row.recipe as Recipe, position: row.position, madeBy: row.madeBy,
   createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
 });
-
-function recipeOf(value: unknown): Recipe {
-  const parsed = RecipeSchema.safeParse(value);
-  if (!parsed.success) throw new InputError(problemWords(parsed.error));
-  return parsed.data;
-}
-const titleOf = (title: string): string => {
-  const trimmed = title.trim();
-  if (trimmed.length < 1 || trimmed.length > 80) throw new InputError("A title is 1 to 80 characters.");
-  return trimmed;
-};
 
 export async function listCanvases(db: Db, householdId: string): Promise<PinnedCanvas[]> {
   const hid = requireHousehold(householdId);

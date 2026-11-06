@@ -1,10 +1,9 @@
-import Link from "next/link";
-import { Canvas } from "@/components/canvas/Canvas";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { listCanvases, type PinnedCanvas } from "@/db/canvases";
 import { db } from "@/db/client";
 import { readPlaces } from "@/db/place";
 import { DevicePins } from "./DevicePins";
+import { PinCard } from "./PinCard";
 import { loadSpending } from "@/db/spending";
 import { CanvasError, resolveRecipe, type CanvasContext, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { HISTORY_MONTHS, monthBounds, monthsBack } from "@/lib/money/spending";
@@ -40,15 +39,11 @@ export async function Pinned({ state }: { state: MoneyState }) {
       let words = "";
       try { blocks = resolveRecipe(pin.recipe, context); }
       catch (error) { if (error instanceof CanvasError) words = error.message; else throw error; }
-      return <article key={pin.id} className="home-panel home-pin">
-        <h2>{pin.title} <Link prefetch={false} href={`/canvas?pin=${pin.id}`}>Open ›</Link></h2>
-        <div className="home-pin-actions">
-          <PinForm pin={pin} kind="move" direction="up" label="Move up" disabled={index === 0} />
-          <PinForm pin={pin} kind="move" direction="down" label="Move down" disabled={index === pins.length - 1} />
-          <PinForm pin={pin} kind="unpin" label="Unpin" />
-        </div>
-        {blocks ? <Canvas recipe={pin.recipe} initial={blocks} /> : <p role="alert" className="home-pin-problem">This canvas can&apos;t be drawn: {words}</p>}
-      </article>;
+      return <PinCard key={pin.id} id={pin.id} title={pin.title} recipe={pin.recipe} blocks={blocks} words={words} actions={<>
+        <PinForm pin={pin} kind="move" direction="up" label="Move up" disabled={index === 0} />
+        <PinForm pin={pin} kind="move" direction="down" label="Move down" disabled={index === pins.length - 1} />
+        <PinForm pin={pin} kind="unpin" label="Unpin" />
+      </>} />;
     })}
   </section>;
 }

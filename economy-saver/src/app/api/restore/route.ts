@@ -2,7 +2,7 @@ import { db } from "@/db/client";
 import { MOVABLE, requireCloud } from "@/db/place";
 import { consumeRequest } from "@/db/rate-limit";
 import { restoreHousehold } from "@/db/restore";
-import { NO_STORE, failure, text } from "@/lib/door";
+import { failure, NO_STORE, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 const MAX_BYTES = 1_000_000;
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > MAX_BYTES) return text("This file is over 1 MB, which is more than Import takes.", 413);
   try {
-    if (!await consumeRequest(db(), hid, "restore", 2)) return text("Import limit reached. Try again in a minute.", 429, { "Retry-After": "60" });
+    if (!await consumeRequest(db(), hid, "restore", 2)) return tooMany("Import limit reached. Try again in a minute.");
     const body = await request.text();
     if (new TextEncoder().encode(body).length > MAX_BYTES) return text("This file is over 1 MB, which is more than Import takes.", 413);
     let file: unknown;

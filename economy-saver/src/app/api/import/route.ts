@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { importCharges, importInput } from "@/db/import-charges";
 import { consumeRequest } from "@/db/rate-limit";
-import { badFields, failure, NO_STORE, text } from "@/lib/door";
+import { badFields, failure, NO_STORE, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 /**
@@ -11,7 +11,7 @@ import { householdRequest } from "@/lib/session";
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  if (!await consumeRequest(db(), hid, "statement-import", 10)) return text("Too many imports. Try again in a minute.", 429, { "Retry-After": "60" });
+  if (!await consumeRequest(db(), hid, "statement-import", 10)) return tooMany("Too many imports. Try again in a minute.");
   let body: unknown;
   try { body = await request.json(); } catch { return badFields(); }
   const data = importInput.safeParse(body);

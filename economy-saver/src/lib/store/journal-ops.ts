@@ -1,12 +1,11 @@
 // D59, D60: the operations on the conversation turns and the pinned canvases, as pure functions over a list, for the device store.
 // The same rules as src/db/conversation.ts (200 turns, a conversation carries on for ten minutes, the last three turns are the context)
 // and src/db/canvases.ts (at most 8, position 0 first).
-import { CONTEXT_TURNS, CONVERSATION_MINUTES, TURN_LIMIT, type ConversationTurn } from "@/lib/schema/turn";
-import { problemWords, RecipeSchema, type Recipe } from "@/lib/canvas/schema";
+import { CONTEXT_TURNS, live, TURN_LIMIT, type ConversationTurn } from "@/lib/schema/turn";
+import { MAX_PINS, recipeOf, titleOf, type Recipe } from "@/lib/canvas/schema";
 import { InputError } from "@/db/input-error";
 
 const byTime = (a: ConversationTurn, b: ConversationTurn) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
-const live = (last: string, now: Date) => now.getTime() - new Date(last).getTime() < CONVERSATION_MINUTES * 60_000;
 
 /** Adds one turn (a retried question has the same id, so it is one turn), oldest first, then drops the oldest beyond 200. */
 export function appendTurn(turns: ConversationTurn[], turn: ConversationTurn): ConversationTurn[] {
@@ -31,39 +30,26 @@ export function latestOf(turns: ConversationTurn[], now: Date): { conversationId
 
 /** A canvas pinned on this device: the saved layout and nothing else. */
 export type DevicePin = { id: string; title: string; recipe: Recipe; position: number; createdAt: string };
-export const MAX_DEVICE_PINS = 8;
 
-const titleOf = (title: string): string => {
-  const trimmed = title.trim();
-  if (trimmed.length < 1 || trimmed.length > 80) throw new InputError("A title is 1 to 80 characters.");
-  return trimmed;
-};
-function recipeOf(value: unknown): Recipe {
-  const parsed = RecipeSchema.safeParse(value);
-  if (!parsed.success) throw new InputError(problemWords(parsed.error));
-  return parsed.data;
-}
-const ordered = (pins: DevicePin[]) => [...pins].sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt));
+export const orderedPins = (pins: DevicePin[]) => [...pins].sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt));
 const renumber = (pins: DevicePin[]): DevicePin[] => pins.map((pin, position) => ({ ...pin, position }));
-
-export const orderedPins = ordered;
 
 /** Pins a canvas last. The ninth is refused. */
 export function pinItem(pins: DevicePin[], input: { title: string; recipe: unknown }, now: Date, id: string): DevicePin[] {
-  if (pins.length >= MAX_DEVICE_PINS) throw new InputError("Unpin one first.");
-  return [...ordered(pins), { id, title: titleOf(input.title), recipe: recipeOf(input.recipe), position: pins.length, createdAt: now.toISOString() }];
+  if (pins.length >= MAX_PINS) throw new InputError("Unpin one first.");
+  return [...orderedPins(pins), { id, title: titleOf(input.title), recipe: recipeOf(input.recipe), position: pins.length, createdAt: now.toISOString() }];
 }
 
 /** Replaces a pin's recipe. Null when the id is not in the list. */
 export function updatePin(pins: DevicePin[], id: string, recipe: unknown): DevicePin[] | null {
   if (!pins.some(pin => pin.id === id)) return null;
   const checked = recipeOf(recipe);
-  return ordered(pins).map(pin => (pin.id === id ? { ...pin, recipe: checked } : pin));
+  return orderedPins(pins).map(pin => (pin.id === id ? { ...pin, recipe: checked } : pin));
 }
 
 /** Moves a pin one place up (towards 0) or down. Null when the id is not in the list; past an end changes nothing. */
 export function movePin(pins: DevicePin[], id: string, direction: "up" | "down"): DevicePin[] | null {
-  const all = ordered(pins);
+  const all = orderedPins(pins);
   const at = all.findIndex(pin => pin.id === id);
   if (at < 0) return null;
   const to = direction === "up" ? at - 1 : at + 1;
@@ -75,5 +61,5 @@ export function movePin(pins: DevicePin[], id: string, direction: "up" | "down")
 /** Removes a pin and closes the gap. Null when the id is not in the list. */
 export function unpinItem(pins: DevicePin[], id: string): DevicePin[] | null {
   if (!pins.some(pin => pin.id === id)) return null;
-  return renumber(ordered(pins).filter(pin => pin.id !== id));
+  return renumber(orderedPins(pins).filter(pin => pin.id !== id));
 }

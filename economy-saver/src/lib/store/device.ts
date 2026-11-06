@@ -55,13 +55,6 @@ export async function clearDevice(householdId: string, kind: DeviceKind): Promis
   await replaceDevice(householdId, kind, []);
   return n;
 }
-/** Deletes one item. False when it is not there. */
-export async function deleteDeviceOne(householdId: string, kind: DeviceKind, id: string): Promise<boolean> {
-  const items = await listDevice(householdId, kind) as { id: string }[];
-  if (!items.some(item => item.id === id)) return false;
-  await replaceDevice(householdId, kind, items.filter(item => item.id !== id) as never);
-  return true;
-}
 
 // ------------------------------------------------------------------ memory
 /** The household's moment now: `moment` (ISO, from the server) plus the time passed since `openedAt` (a browser clock reading). */

@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { InputError } from "@/db/input-error";
 import { consumeRequest } from "@/db/rate-limit";
 import { AgentError } from "@/lib/agent/run";
-import { NO_STORE, text } from "@/lib/door";
+import { NO_STORE, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 import { askUnavailable } from "@/lib/agent/availability";
 import { MissingAuthSetting } from "@/lib/supabase-auth";
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   const data = askInput.safeParse(body);
   if (!data.success) return text("Enter a question of up to 320 characters.", 400);
   const connection = db();
-  if (!await consumeRequest(connection, hid, "ask")) return text("Ask again in a minute.", 429, { "Retry-After": "60" });
+  if (!await consumeRequest(connection, hid, "ask")) return tooMany("Ask again in a minute.");
   try {
     return Response.json(await answerQuestion(connection, hid, data.data), { headers: NO_STORE });
   } catch (error) {

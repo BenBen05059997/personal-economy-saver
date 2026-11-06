@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { DATA_KINDS, deleteConversation, deleteKind, deleteOne } from "@/db/data-kinds";
 import { isMovable, requireCloud } from "@/db/place";
 import { consumeRequest } from "@/db/rate-limit";
-import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
+import { badFields, failure, formOf, redirectTo, returnPath, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 const What = z.enum(DATA_KINDS);
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   if (kind === "delete_conversation" && !id.success) return badFields();
   const by = { madeBy: "form" } as const;
   try {
-    if (!await consumeRequest(db(), hid, "data", 10)) return text("Too many requests. Try again in a minute.", 429, { "Retry-After": "60" });
+    if (!await consumeRequest(db(), hid, "data", 10)) return tooMany("Too many requests. Try again in a minute.");
     // A kind kept on the device is deleted in the browser; the server has none of it.
     if (kind !== "delete_conversation" && isMovable(what.data)) await requireCloud(db(), hid, what.data);
     if (kind === "delete_conversation") await requireCloud(db(), hid, "journal");

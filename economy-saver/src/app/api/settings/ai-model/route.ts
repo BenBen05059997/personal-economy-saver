@@ -4,7 +4,7 @@ import { consumeRequest } from "@/db/rate-limit";
 import { households } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { checkConnection } from "@/lib/ai/check";
-import { NO_STORE, text } from "@/lib/door";
+import { NO_STORE, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 const field = (form: FormData, name: string) => { const v = form.get(name); return typeof v === "string" ? v : ""; };
@@ -12,7 +12,7 @@ const field = (form: FormData, name: string) => { const v = form.get(name); retu
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  if (!await consumeRequest(db(), hid, "ai-model", 6)) return text("Too many changes. Try again in a minute.", 429, { "Retry-After": "60" });
+  if (!await consumeRequest(db(), hid, "ai-model", 6)) return tooMany("Too many changes. Try again in a minute.");
   const form = await smallForm(request, 4096);
   if (!form) return text("That request is too large", 413);
   try {

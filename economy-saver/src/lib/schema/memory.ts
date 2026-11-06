@@ -9,6 +9,8 @@ export const MEMORY_PROMPT_MAX = 6_000;
 /** A run of this many digits (spaces and hyphens between digits count as part of the run) is a card or account number. */
 export const SECRET_DIGITS = 12;
 export const SECRET_REFUSAL = "The assistant doesn't keep card or account numbers.";
+export const memoryFull = () => `The assistant can hold ${MEMORY_LIMIT} things. Delete some first.`;
+export const MEMORY_CLASH = "The assistant already knows that.";
 export const hasLongNumber = (text: string): boolean =>
   new RegExp(`\\d(?:[ \\-\u2010-\u2015\u2212\u00a0]?\\d){${SECRET_DIGITS - 1},}`).test(text.normalize("NFKC"));
 

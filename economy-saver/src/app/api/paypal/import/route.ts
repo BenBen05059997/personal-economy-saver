@@ -3,13 +3,13 @@ import { db } from "@/db/client";
 import { ImportRefused, ImportSetupError, importPayPalHistory } from "@/db/paypal-import";
 import { consumeRequest } from "@/db/rate-limit";
 import { PayPalError } from "@/lib/paypal/client";
-import { redirectTo, text } from "@/lib/door";
+import { redirectTo, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  if (!await consumeRequest(db(), hid, "import", 2)) return text("Import limit reached. Try again in a minute.", 429, { "Retry-After": "60" });
+  if (!await consumeRequest(db(), hid, "import", 2)) return tooMany("Import limit reached. Try again in a minute.");
   try {
     await importPayPalHistory(db(), hid);
     return redirectTo("/settings");

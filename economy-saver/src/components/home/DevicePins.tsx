@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Canvas } from "@/components/canvas/Canvas";
+import { PinCard } from "./PinCard";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import { devicePins, moveDevicePin, unpinOnDevice } from "@/lib/store/device";
 import type { DevicePin } from "@/lib/store/journal-ops";
@@ -42,16 +41,11 @@ export function DevicePins({ householdId }: { householdId: string }) {
   if (!drawn) return null;
   if (drawn.length === 0 && !problem) return null;
   return <section id="pins" className="home-pins" aria-label="Pinned canvases">
-    {problem && <p role="alert" className="home-pin-problem">{problem}</p>}
-    {drawn.map(({ pin, blocks, words }, index) => <article key={pin.id} className="home-panel home-pin">
-      <h2>{pin.title} <Link prefetch={false} href={`/canvas?pin=${pin.id}`}>Open ›</Link></h2>
-      <p className="ui-hint">On this device only.</p>
-      <div className="home-pin-actions">
-        <button type="button" className="home-pin-button" disabled={index === 0} onClick={() => void change(() => moveDevicePin(householdId, pin.id, "up"))}>Move up</button>
-        <button type="button" className="home-pin-button" disabled={index === drawn.length - 1} onClick={() => void change(() => moveDevicePin(householdId, pin.id, "down"))}>Move down</button>
-        <button type="button" className="home-pin-button" onClick={() => void change(() => unpinOnDevice(householdId, pin.id))}>Unpin</button>
-      </div>
-      {blocks ? <Canvas recipe={pin.recipe} initial={blocks} /> : <p role="alert" className="home-pin-problem">This canvas can&apos;t be drawn: {words}</p>}
-    </article>)}
+    {problem && <p role="alert" className="ui-problem">{problem}</p>}
+    {drawn.map(({ pin, blocks, words }, index) => <PinCard key={pin.id} id={pin.id} title={pin.title} recipe={pin.recipe} blocks={blocks} words={words} note="On this device only." actions={<>
+      <button type="button" className="home-pin-button" disabled={index === 0} onClick={() => void change(() => moveDevicePin(householdId, pin.id, "up"))}>Move up</button>
+      <button type="button" className="home-pin-button" disabled={index === drawn.length - 1} onClick={() => void change(() => moveDevicePin(householdId, pin.id, "down"))}>Move down</button>
+      <button type="button" className="home-pin-button" onClick={() => void change(() => unpinOnDevice(householdId, pin.id))}>Unpin</button>
+    </>} />)}
   </section>;
 }

@@ -211,7 +211,6 @@
 .home-pin-form { display: block; }
 .home-pin-button { min-height: 32px; padding: 0 var(--space-3); border: 1px solid var(--rule); border-radius: var(--radius-control); background: var(--screen); color: var(--ink); font: 500 13px/1 var(--sans); cursor: pointer; }
 .home-pin-button:disabled { color: var(--faint); cursor: default; }
-.home-pin-problem { margin: 0; padding: var(--space-3); border-radius: var(--radius-control); background: var(--red-wash); color: var(--red); font: 400 14px/1.4 var(--sans); overflow-wrap: anywhere; }
 @media (max-width: 899px) { .home-pin-button { min-height: 44px; } }
 
 /* The pin heading's "Open ›" link: a 44px tap target at phone width, same look. */

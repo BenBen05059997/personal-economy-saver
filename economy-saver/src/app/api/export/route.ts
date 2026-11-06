@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { consumeRequest } from "@/db/rate-limit";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
-import { NO_STORE, failure, text } from "@/lib/door";
+import { failure, NO_STORE, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 // Export my data (D44): the household's snapshot with its events, as a download. A POST form, so nothing is in a URL.
@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   try {
-    if (!await consumeRequest(db(), hid, "export", 6)) return text("Export limit reached. Try again in a minute.", 429, { "Retry-After": "60" });
+    if (!await consumeRequest(db(), hid, "export", 6)) return tooMany("Export limit reached. Try again in a minute.");
     const snapshot = await loadHouseholdSnapshot(db(), hid, { events: true, stored: true });
     return new Response(JSON.stringify(snapshot, null, 2) + "\n", {
       headers: {

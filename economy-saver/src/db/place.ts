@@ -10,7 +10,7 @@ import { canvases, conversationTurns, households, memories } from "./schema";
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { MEMORY_LIMIT, MemoryItem, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
 import { ConversationTurn, TURN_LIMIT, TURN_VERSION } from "@/lib/schema/turn";
-import { MAX_DEVICE_PINS } from "@/lib/store/journal-ops";
+import { MAX_PINS } from "@/lib/canvas/schema";
 
 export const MOVABLE = ["memory", "canvases", "journal"] as const;
 export type Movable = (typeof MOVABLE)[number];
@@ -46,7 +46,7 @@ export type PinItem = z.infer<typeof PinItem>;
 
 const ItemsFor = {
   memory: z.array(MemoryItem).max(MEMORY_LIMIT),
-  canvases: z.array(PinItem).max(MAX_DEVICE_PINS),
+  canvases: z.array(PinItem).max(MAX_PINS),
   journal: z.array(ConversationTurn).max(TURN_LIMIT),
 } as const;
 

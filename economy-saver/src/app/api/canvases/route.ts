@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { requireCloud } from "@/db/place";
 import { moveCanvas, pinCanvas, unpinCanvas, updateCanvas } from "@/db/canvases";
 import { consumeRequest } from "@/db/rate-limit";
-import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
+import { badFields, failure, formOf, redirectTo, returnPath, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 const MAX_RECIPE = 40_000;
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const by = { madeBy: "form" } as const;
   const kind = form.get("kind");
   if (kind !== "pin" && kind !== "update" && kind !== "move" && kind !== "unpin") return badFields();
-  if (!await consumeRequest(db(), hid, "pins", 20)) return text("Too many changes. Try again in a minute.", 429, { "Retry-After": "60" });
+  if (!await consumeRequest(db(), hid, "pins", 20)) return tooMany("Too many changes. Try again in a minute.");
   const recipeText = String(form.get("recipe") ?? "");
   if (recipeText.length > MAX_RECIPE) return text("This canvas is too large.", 413);
   let recipe: unknown = null;

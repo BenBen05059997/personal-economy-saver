@@ -3,7 +3,7 @@
 // back in the reply. The same rules as src/db/memory.ts: 400 characters, no run of 12 digits, 200 items, the same text under the same kind is one item.
 import { z } from "zod";
 import { InputError } from "@/db/input-error";
-import { MEMORY_KIND_KEYS, MEMORY_LIMIT, MemoryItem, MemoryKind, MemoryText, SECRET_REFUSAL, hasLongNumber } from "@/lib/schema/memory";
+import { MEMORY_CLASH, MEMORY_KIND_KEYS, MEMORY_LIMIT, memoryFull, MemoryItem, MemoryKind, MemoryText, SECRET_REFUSAL, hasLongNumber } from "@/lib/schema/memory";
 
 /** What `remember` and `forget` did to the list the question carried; the browser applies it to its own copy. */
 export const MemoryChange = z.discriminatedUnion("op", [
@@ -24,12 +24,13 @@ export function sortMemory(items: MemoryItem[]): MemoryItem[] {
   return [...items].sort((a, b) => order(a.kind) - order(b.kind) || b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }
 
-const kindOf = (kind: unknown) => {
+/** The kind and the text of an item, checked: the one place the rules live (cloud and device). */
+export const kindOf = (kind: unknown) => {
   const parsed = MemoryKind.safeParse(kind);
   if (!parsed.success) throw new InputError(`Choose one of: ${MEMORY_KIND_KEYS.join(", ")}.`);
   return parsed.data;
 };
-const textOf = (text: unknown) => {
+export const textOf = (text: unknown) => {
   const parsed = MemoryText.safeParse(text);
   if (!parsed.success) throw new InputError(parsed.error.issues[0].message);
   if (hasLongNumber(parsed.data)) throw new InputError(SECRET_REFUSAL);
@@ -41,7 +42,7 @@ export function addMemoryItem(items: MemoryItem[], input: { kind: string; text: 
   const kind = kindOf(input.kind), text = textOf(input.text);
   const same = items.find(item => item.kind === kind && item.text === text);
   if (same) return { items, item: same, added: false };
-  if (items.length >= MEMORY_LIMIT) throw new InputError(`The assistant can hold ${MEMORY_LIMIT} things. Delete some first.`);
+  if (items.length >= MEMORY_LIMIT) throw new InputError(memoryFull());
   const stamp = now.toISOString();
   const item: MemoryItem = { id, kind, text, madeBy: by.madeBy, askId: by.askId ?? null, createdAt: stamp, updatedAt: stamp };
   return { items: sortMemory([...items, item]), item, added: true };
@@ -53,7 +54,7 @@ export function editMemoryItem(items: MemoryItem[], id: string, changes: { kind?
   if (!current) return null;
   const next = { kind: changes.kind === undefined ? current.kind : kindOf(changes.kind), text: changes.text === undefined ? current.text : textOf(changes.text) };
   if (next.kind === current.kind && next.text === current.text) return { items, item: current };
-  if (items.some(item => item.id !== id && item.kind === next.kind && item.text === next.text)) throw new InputError("The assistant already knows that.");
+  if (items.some(item => item.id !== id && item.kind === next.kind && item.text === next.text)) throw new InputError(MEMORY_CLASH);
   const item: MemoryItem = { ...current, ...next, updatedAt: now.toISOString() };
   return { items: sortMemory(items.map(existing => (existing.id === id ? item : existing))), item };
 }

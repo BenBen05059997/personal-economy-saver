@@ -3,7 +3,7 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { requireHousehold, type Db } from "./household";
 import { conversationTurns } from "./schema";
-import { CONTEXT_TURNS, CONVERSATION_MINUTES, TURN_LIMIT, TURN_VERSION, type ConversationTurn, type TurnKind, type TurnSource } from "@/lib/schema/turn";
+import { CONTEXT_TURNS, live, TURN_LIMIT, TURN_VERSION, type ConversationTurn, type TurnKind, type TurnSource } from "@/lib/schema/turn";
 import type { Recipe } from "@/lib/canvas/schema";
 
 export type NewTurn = {
@@ -17,8 +17,6 @@ const turnOf = (row: Row): ConversationTurn => ({
   choices: (row.choices as string[] | null) ?? null, recipe: (row.recipe as Recipe | null) ?? null, sources: row.sources as TurnSource[],
   thumb: row.thumb === 1 ? 1 : row.thumb === -1 ? -1 : null, createdAt: row.createdAt.toISOString(),
 });
-
-const live = (last: Date, now: Date) => now.getTime() - last.getTime() < CONVERSATION_MINUTES * 60_000;
 
 /** Stores one turn (a retried question has the same id, so it is one row), then drops the oldest beyond 200, in one transaction. */
 export async function saveTurn(db: Db, householdId: string, turn: NewTurn, at: Date = new Date()): Promise<void> {

@@ -2,7 +2,7 @@ import { db } from "@/db/client";
 import { consumeRequest } from "@/db/rate-limit";
 import { resolveCanvasRequest } from "@/lib/canvas/request";
 import { CanvasError } from "@/lib/canvas/resolve";
-import { NO_STORE, text } from "@/lib/door";
+import { NO_STORE, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 const MAX_BODY = 100_000;
@@ -13,7 +13,7 @@ const PER_MINUTE = 120;
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  if (!await consumeRequest(db(), hid, "canvas", PER_MINUTE)) return text("Too many canvas requests. Try again in a minute.", 429, { "Retry-After": "60" });
+  if (!await consumeRequest(db(), hid, "canvas", PER_MINUTE)) return tooMany("Too many canvas requests. Try again in a minute.");
   const raw = await request.text();
   if (new TextEncoder().encode(raw).length > MAX_BODY) return text("This canvas is too large.", 413);
   let body: unknown;

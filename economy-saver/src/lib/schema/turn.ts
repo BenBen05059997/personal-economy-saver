@@ -8,6 +8,8 @@ export const TURN_LIMIT = 200;
 /** A conversation carries on while its last turn is younger than this; the last three turns then go to the model as context. */
 export const CONVERSATION_MINUTES = 10;
 export const CONTEXT_TURNS = 3;
+/** True while a conversation's last turn (an ISO string or a Date) is under ten minutes old at `now`. */
+export const live = (last: string | Date, now: Date): boolean => now.getTime() - new Date(last).getTime() < CONVERSATION_MINUTES * 60_000;
 
 export const TurnSource = z.object({ label: z.string().min(1).max(60), href: z.string().min(1).max(200) }).strict();
 export type TurnSource = z.infer<typeof TurnSource>;

@@ -4,6 +4,7 @@
 // person's own number). Amounts in a change are positive integer minor units of the household's home currency (whole yen, cents for USD).
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
+import { InputError } from "@/db/input-error";
 
 export const RECIPE_VERSION = 1;
 export const MAX_BLOCKS = 12;
@@ -88,7 +89,6 @@ export const BlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("action"), label: z.string().min(1).max(60), href: z.string().max(200).refine(isAppPath, "A link goes to a page inside the app, never an outside address or an /api/ path") }).strict(),
 ]);
 export type Block = z.infer<typeof BlockSchema>;
-export type BlockType = Block["type"];
 
 export const RecipeSchema = z.object({
   version: z.literal(RECIPE_VERSION),
@@ -110,4 +110,18 @@ export function problemWords(error: z.ZodError): string {
 export function recipeJsonSchema(): string {
   const { $schema, ...rest } = zodToJsonSchema(RecipeSchema, { $refStrategy: "root" }) as Record<string, unknown>;
   return JSON.stringify({ $schema, title: "CanvasRecipe", description: "Version 1 of a canvas recipe: blocks that hold queries, never amounts.", ...rest }, null, 2) + "\n";
+}
+
+/** The most canvases a household pins, in the cloud and on the device. */
+export const MAX_PINS = 8;
+/** A pin's title and recipe, checked: the one place those rules live (cloud and device). */
+export const titleOf = (title: string): string => {
+  const trimmed = title.trim();
+  if (trimmed.length < 1 || trimmed.length > 80) throw new InputError("A title is 1 to 80 characters.");
+  return trimmed;
+};
+export function recipeOf(value: unknown): Recipe {
+  const parsed = RecipeSchema.safeParse(value);
+  if (!parsed.success) throw new InputError(problemWords(parsed.error));
+  return parsed.data;
 }

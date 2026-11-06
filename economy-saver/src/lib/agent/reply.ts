@@ -37,7 +37,6 @@ const TOOL_SOURCES: Record<string, Source> = {
   forget: { label: "Memory", href: "/memory" },
   recall: { label: "Memory", href: "/memory" },
 };
-export const SOURCE_TOOLS: readonly string[] = Object.keys(TOOL_SOURCES);
 
 /** The distinct sources of the tools an answer used, in the order first used. */
 export function sourcesFor(toolNames: readonly string[]): Source[] {

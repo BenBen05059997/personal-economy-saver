@@ -22,6 +22,11 @@ export function text(message: string, status: number, headers: Record<string, st
   return new Response(message, { status, headers: { ...NO_STORE, ...headers } });
 }
 
+/** The answer to a request over its rate limit: 429 with the message and a one-minute Retry-After. */
+export function tooMany(message: string) {
+  return text(message, 429, { "Retry-After": "60" });
+}
+
 /** Only the pages that offer a form are valid return targets. */
 export function returnPath(value: FormDataEntryValue | null) {
   return value === "/to-check" || value === "/plan" || value === "/settings" || value === "/memory" || value === "/canvas" || (typeof value === "string" && /^\/cards\/[0-9a-f-]{36}$/.test(value)) ? String(value) : "/";

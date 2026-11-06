@@ -83,7 +83,7 @@ export function Canvas({ recipe, initial, children }: { recipe: Recipe; initial:
       <button type="button" className="ui-button" aria-pressed={showRecipe} onClick={() => setShowRecipe(on => !on)}>{showRecipe ? "Hide the recipe" : "Show the recipe"}</button>
       <span role="status" className="canvas-status">{drawing ? "Redrawing…" : ""}</span>
     </div>
-    {problem && <p role="alert" className="canvas-problem">{problem}</p>}
+    {problem && <p role="alert" className="ui-problem">{problem}</p>}
     {showRecipe && <div className="canvas-recipe">
       <p>This canvas is a list of blocks. A block that shows money holds a question, not a number; your records answer it each time it is drawn.</p>
       <ol>{recipe.blocks.map((block, index) => <li key={index}>{blockWords(block)}</li>)}</ol>

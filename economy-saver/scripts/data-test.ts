@@ -16,7 +16,8 @@ import { InputError } from "@/db/input-error";
 import { addMemory, listMemory } from "@/db/memory";
 import { DEVICE_MEMORY_WORDS, itemsToMove, moveToCloud, moveToDevice, readPlaces, requireCloud } from "@/db/place";
 import { addMemoryItem, applyMemoryChanges, editMemoryItem, forgetMemoryItem } from "@/lib/store/memory-ops";
-import { appendTurn, latestOf, MAX_DEVICE_PINS, movePin, pinItem, recentOf, unpinItem, updatePin, type DevicePin } from "@/lib/store/journal-ops";
+import { MAX_PINS } from "@/lib/canvas/schema";
+import { appendTurn, latestOf, movePin, pinItem, recentOf, unpinItem, updatePin, type DevicePin } from "@/lib/store/journal-ops";
 import type { ConversationTurn } from "@/lib/schema/turn";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { NOT_EMPTY, OLD_VERSION, restoreHousehold } from "@/db/restore";
@@ -416,7 +417,7 @@ async function main() {
 
       const r = recipe("Cash"), at = new Date("2026-11-06T01:00:00Z");
       let pins: DevicePin[] = [];
-      for (let i = 0; i < MAX_DEVICE_PINS; i++) pins = pinItem(pins, { title: `Pin ${i}`, recipe: r }, at, randomUUID());
+      for (let i = 0; i < MAX_PINS; i++) pins = pinItem(pins, { title: `Pin ${i}`, recipe: r }, at, randomUUID());
       assert.throws(() => pinItem(pins, { title: "Ninth", recipe: r }, at, randomUUID()), /Unpin one first/);
       assert.throws(() => pinItem([], { title: "", recipe: r }, at, randomUUID()), InputError);
       assert.throws(() => pinItem([], { title: "Bad", recipe: { version: 1, title: "Bad", blocks: [{ type: "number", label: "Cash", amount: 5, query: { q: "cash" } }] } }, at, randomUUID()), InputError);

@@ -264,7 +264,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
         </li>)}
       </ol>
       {busy && <p role="status" className="ui-hint">Checking your numbers…</p>}
-      {problem && <p role="alert" className="ask-problem">{problem}</p>}
+      {problem && <p role="alert" className="ui-problem">{problem}</p>}
       {intro && <p className="ask-intro ui-hint">{intro}</p>}
       <form id="ask" className="ask-form" onSubmit={submit}>
         <label className="ui-field">Your question
