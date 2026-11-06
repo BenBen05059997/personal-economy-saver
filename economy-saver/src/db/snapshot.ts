@@ -3,7 +3,10 @@
 // and hint, auth user ids, MCP token hashes, webhook payloads, storage paths, an invoice's approve key) is never read.
 // The result is parsed with the schema before it is returned, so the shape is enforced at the source.
 import { desc, eq } from "drizzle-orm";
-import { HouseholdSnapshot } from "@/lib/schema/household";
+import { HouseholdSnapshot, SNAPSHOT_VERSION } from "@/lib/schema/household";
+import { listCanvases } from "./canvases";
+import { allTurns } from "./conversation";
+import { listMemory } from "./memory";
 import { clockForHousehold } from "./clock";
 import { fromRateMicro } from "./money";
 import { paypalTotalMinor, requireHousehold, usdRate, type Db } from "./household";
@@ -12,6 +15,8 @@ import * as s from "./schema";
 export type SnapshotOptions = {
   /** The household's events (the audit trail). The export includes them; the agent tool does not. */
   events: boolean;
+  /** What the assistant remembers, the pinned canvases and the conversation turns (D59). The export includes them; the agent tool does not. */
+  stored?: boolean;
   /** Keep only this many most recent rows of each long list and flag it in `truncated`. Omit for everything. */
   recent?: number;
   now?: Date;
@@ -99,10 +104,13 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
         : Promise.resolve(undefined),
     ]);
 
+    const stored = options.stored
+      ? { memory: await listMemory(tx, hid), canvases: await listCanvases(tx, hid), journal: await allTurns(tx, hid) }
+      : undefined;
     const st = window(statements, recent), ch = window(charges, recent), bi = window(bills, recent);
     const inv = window(invoices, recent), bu = window(balanceUpdates, recent), doc = window(documents, recent);
     return HouseholdSnapshot.parse({
-      version: 1,
+      version: SNAPSHOT_VERSION,
       generatedAt: iso(now),
       household: {
         id: household.id, name: household.name, homeCurrency: household.homeCurrency, timeZone: household.timeZone,
@@ -118,6 +126,11 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
       documents: doc.rows.map(d => ({ ...d, createdAt: iso(d.createdAt) })),
       truncated: { bills: bi.cut, charges: ch.cut, statements: st.cut, invoices: inv.cut, balanceUpdates: bu.cut, documents: doc.cut },
       ...(events && { events: events.map(e => ({ ...e, readAt: isoOrNull(e.readAt), occurredAt: iso(e.occurredAt) })) }),
+      ...(stored && {
+        memory: stored.memory,
+        canvases: stored.canvases.map(c => ({ id: c.id, title: c.title, position: c.position, recipe: c.recipe, createdAt: c.createdAt })),
+        journal: stored.journal,
+      }),
     });
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }

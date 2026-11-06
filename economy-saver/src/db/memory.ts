@@ -5,6 +5,7 @@ import { z } from "zod";
 import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db } from "./household";
 import { households, memories } from "./schema";
+import { householdMoment } from "./clock";
 import { MEMORY_LIMIT, MemoryKind, MemoryText, MEMORY_KIND_KEYS, SECRET_REFUSAL, hasLongNumber, type MemoryItem } from "@/lib/schema/memory";
 
 type MemoryMaker = { madeBy: "form" | "ask" | "mcp"; askId?: string };
@@ -31,9 +32,11 @@ const idOf = (id: string) => z.string().uuid().safeParse(id).success;
 const record = (tx: Db, hid: string, by: MemoryMaker, title: string) =>
   recordEvent(tx, hid, { ...by, kind: "memory_changed", title }); // never a body, never the text
 
+/** Locks the household row and returns its clock, so a memory is dated on the household's clock like Activity (D34). */
 async function lock(tx: Db, hid: string) {
-  const [row] = await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
+  const [row] = await tx.select({ id: households.id, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone }).from(households).where(eq(households.id, hid)).for("update");
   if (!row) throw new InputError("Household not found");
+  return row;
 }
 
 /** Everything the assistant knows, newest first within each kind (kinds in their page order). */
@@ -49,12 +52,13 @@ export async function addMemory(db: Db, householdId: string, input: { kind: stri
   const hid = requireHousehold(householdId);
   const kind = kindOf(input.kind), text = textOf(input.text);
   return db.transaction(async tx => {
-    await lock(tx, hid);
+    const clock = await lock(tx, hid);
     const [same] = await tx.select().from(memories).where(and(eq(memories.householdId, hid), eq(memories.kind, kind), eq(memories.text, text)));
     if (same) return itemOf(same);
+    const moment = householdMoment(clock);
     const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(memories).where(eq(memories.householdId, hid));
     if (n >= MEMORY_LIMIT) throw new InputError(`The assistant can hold ${MEMORY_LIMIT} things. Delete some first.`);
-    const [row] = await tx.insert(memories).values({ householdId: hid, kind, text, madeBy: by.madeBy, askId: by.askId ?? null }).returning();
+    const [row] = await tx.insert(memories).values({ householdId: hid, kind, text, madeBy: by.madeBy, askId: by.askId ?? null, createdAt: moment, updatedAt: moment }).returning();
     await record(tx, hid, by, by.madeBy === "form" ? `You added a ${kind} for the assistant to remember` : `The assistant remembered a ${kind}`);
     return itemOf(row);
   });
@@ -67,7 +71,7 @@ export async function editMemory(db: Db, householdId: string, id: string, change
   const kind = changes.kind === undefined ? undefined : kindOf(changes.kind);
   const text = changes.text === undefined ? undefined : textOf(changes.text);
   return db.transaction(async tx => {
-    await lock(tx, hid);
+    const clock = await lock(tx, hid);
     const [current] = await tx.select().from(memories).where(and(eq(memories.householdId, hid), eq(memories.id, id)));
     if (!current) return null;
     const next = { kind: kind ?? current.kind, text: text ?? current.text };
@@ -75,7 +79,7 @@ export async function editMemory(db: Db, householdId: string, id: string, change
     const [clash] = await tx.select({ id: memories.id }).from(memories)
       .where(and(eq(memories.householdId, hid), eq(memories.kind, next.kind), eq(memories.text, next.text)));
     if (clash) throw new InputError("The assistant already knows that.");
-    const [row] = await tx.update(memories).set({ ...next, updatedAt: sql`now()` }).where(and(eq(memories.householdId, hid), eq(memories.id, id))).returning();
+    const [row] = await tx.update(memories).set({ ...next, updatedAt: householdMoment(clock) }).where(and(eq(memories.householdId, hid), eq(memories.id, id))).returning();
     await record(tx, hid, by, "You edited something the assistant remembers");
     return itemOf(row);
   });

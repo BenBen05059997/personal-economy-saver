@@ -10,7 +10,8 @@ import type { MoneyState } from "@/lib/money/types";
 import { logCall, type ToolLog } from "./log";
 import type { Recipe } from "@/lib/canvas/schema";
 import { chooseReply, type ReplyKind, type Source } from "./reply";
-import { memoryContext } from "./memory-prompt";
+import { memoryBlock, memoryContext } from "./memory-prompt";
+import type { DeviceMemory } from "@/lib/store/memory-ops";
 import { ASK_RULES, MODEL_RULES } from "./rules";
 import { tools, toolInputSchema, type ToolContext } from "./tools";
 
@@ -65,6 +66,8 @@ type AskOptions = {
   connection: () => Promise<Connection>; fetch?: typeof globalThis.fetch; now?: () => number;
   /** Quoted data that goes into the user turn after the question (earlier turns, the canvas on screen). Never an amount source. */
   context?: string;
+  /** D59: when the household keeps its memory on one device, the list the question carried. It is used for this question only; `remember` and `forget` change it in place and record `changes` for the reply. Without it, memory is read from the cloud. */
+  deviceMemory?: DeviceMemory;
 };
 export type AskResult = {
   kind: ReplyKind; answer: string; choices: string[] | null; recipe: Recipe | null; sources: Source[];
@@ -116,10 +119,11 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     onCanvas: next => { recipe = next; },
     onClarify: next => { clarify = next; },
     onOutOfScope: next => { outOfScope = next; },
+    deviceMemory: opts.deviceMemory,
     onPending: () => { pending = true; ctx.addLink?.({ label: "Open To check", href: new URL("/to-check", opts.appUrl).href }); },
   };
   const { today, homeCurrency } = await state();
-  const memory = await memoryContext(opts.db, hid);
+  const memory = opts.deviceMemory ? memoryBlock(opts.deviceMemory.items) : await memoryContext(opts.db, hid);
   const system = systemPrompt(today, homeCurrency, memory);
   const turns: Turn[] = [{ role: "user", parts: [{ type: "text", text: opts.context ? `${opts.question}\n\n${opts.context}` : opts.question }] }];
   // Every amount in the answer must come from the question or a tool result (D56).

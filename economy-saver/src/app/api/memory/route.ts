@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
+import { requireCloud } from "@/db/place";
 import { addMemory, deleteMemory, editMemory, forgetEverything } from "@/db/memory";
 import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
   const by = { madeBy: "form" } as const;
   const field = (name: string) => String(form.get(name) ?? "");
   try {
+    await requireCloud(db(), hid, "memory");
     switch (field("kind")) {
       case "add":
         await addMemory(db(), hid, { kind: field("memoryKind"), text: field("text") }, by);

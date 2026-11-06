@@ -3,7 +3,7 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/snapshot-test.ts
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
@@ -18,7 +18,13 @@ import { potInput, savePot } from "@/db/pots";
 import { seedBen } from "@/db/seed";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { SNAPSHOT_TOOL_WINDOW, tools } from "@/lib/agent/tools";
-import { SCHEMA_FILE, householdJsonSchema } from "@/lib/schema/household-json";
+import { SCHEMA_FILE, householdJsonSchema, schemaFiles } from "@/lib/schema/household-json";
+import { addMemory } from "@/db/memory";
+import { pinCanvas } from "@/db/canvases";
+import { saveTurn } from "@/db/conversation";
+import { CashFlowEvent } from "@/lib/schema/cash-flow";
+import { MemoryItem } from "@/lib/schema/memory";
+import { ConversationTurn } from "@/lib/schema/turn";
 import { HouseholdSnapshot } from "@/lib/schema/household";
 
 // Planted in rows the snapshot must never read. None of these may appear anywhere in its JSON.
@@ -49,16 +55,21 @@ async function main() {
   let passed = 0;
   async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 
-  await check("schema/household.v1.json equals the schema generated from the zod definition", () => {
+  await check("schema/household.v2.json equals the schema generated from the zod definition, and so do the recipe, memory, turn and cash-flow schemas (drift for all five files)", () => {
     const committed = readFileSync(SCHEMA_FILE, "utf8");
     assert.equal(committed, householdJsonSchema(), `${SCHEMA_FILE} is out of date. Run \`npm run schema\` and commit the result.`);
+    const files = schemaFiles();
+    assert.deepEqual(files.map(f => f.file), ["schema/household.v2.json", "schema/recipe.v1.json", "schema/memory.v1.json", "schema/turn.v1.json", "schema/cash-flow-event.v1.json"]);
+    for (const { file, text } of files) assert.equal(readFileSync(file, "utf8"), text, `${file} is out of date. Run \`npm run schema\` and commit the result.`);
+    assert.equal(existsSync("schema/household.v1.json"), false, "version 1 file is not kept");
     const json = JSON.parse(committed);
     assert.equal(json.additionalProperties, false);
-    assert.equal(json.properties.version.const, 1);
-    assert.deepEqual(json.required.includes("events"), false, "events is optional");
+    assert.equal(json.properties.version.const, 2);
+    for (const optional of ["events", "memory", "canvases", "journal"]) assert.deepEqual(json.required.includes(optional), false, `${optional} is optional`);
+    for (const key of ["memory", "canvases", "journal"]) assert.ok(key in json.properties, key);
   });
 
-  await check("D53: travel is one of the fourteen category keys in the committed schema, on bills and charges (version stays 1: a new key only widens the enum)", () => {
+  await check("D53: travel is one of the fourteen category keys in the committed schema, on bills and charges (a new key only widens the enum)", () => {
     const json = JSON.parse(readFileSync(SCHEMA_FILE, "utf8"));
     for (const list of ["bills", "charges"]) {
       const keys: string[] = json.properties[list].items.properties.category.enum;
@@ -102,9 +113,9 @@ async function main() {
     const full = await loadHouseholdSnapshot(db, a, { events: true });
     const json = JSON.stringify(full);
 
-    await check("Ben's household parses with the schema, version 1, and the household block is right", () => {
+    await check("Ben's household parses with the schema, version 2, and the household block is right", () => {
       assert.deepEqual(HouseholdSnapshot.parse(JSON.parse(JSON.stringify(snap))), snap);
-      assert.equal(snap.version, 1);
+      assert.equal(snap.version, 2);
       assert.deepEqual(snap.household, { id: a, name: "Ben", homeCurrency: "JPY", timeZone: "Asia/Tokyo", today: DEMO_DATE, isDemo: true,
         bankBalanceMinor: snap.household.bankBalanceMinor, paypalBalanceMinor: snap.household.paypalBalanceMinor,
         usdRateMicro: snap.household.usdRateMicro, usdRateDate: snap.household.usdRateDate, splitSince: null });
@@ -145,7 +156,8 @@ async function main() {
       assert.ok(minors > 20 && currencies > 10);
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, household: { ...snap.household, bankBalanceMinor: 12.5 } }));
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, household: { ...snap.household, homeCurrency: "yen" } }));
-      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 2 }));
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 1 }));
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 3 }));
     });
 
     await check("unknown keys are refused at every level", () => {
@@ -165,14 +177,14 @@ async function main() {
       assert.equal(rows.size, snap.bills.length);
     });
 
-    await check("a yearly bill with a new amount and a cancel-by date appears once, with the D48 fields; a one-off and a monthly bill carry them as null (version stays 1: the fields are optional)", () => {
+    await check("a yearly bill with a new amount and a cancel-by date appears once, with the D48 fields; a one-off and a monthly bill carry them as null (the fields are optional)", () => {
       const yearly = snap.bills.find(bill => bill.id === yearlyBill.id)!;
       assert.deepEqual([yearly.repeatUnit, yearly.repeatDay, yearly.amountMinor, yearly.nextAmountMinor, yearly.nextAmountFrom, yearly.cancelBy], ["year", null, 12_000, 13_000, "2027-12-01", "2026-11-20"]);
       assert.equal(snap.bills.filter(bill => bill.biller === "Fictional Cloud").length, 1, "one row, not one per year");
       const rent = snap.bills.find(bill => bill.biller === "Rent")!;
       assert.deepEqual([rent.repeatUnit, rent.repeatDay, rent.nextAmountMinor, rent.nextAmountFrom, rent.cancelBy], ["month", 27, null, null, null]);
-      assert.equal(snap.version, 1);
-      // A version 1 document written before these fields existed has none of them and still validates.
+      assert.equal(snap.version, 2);
+      // A document written before these fields existed written before these fields existed has none of them and still validates.
       const old: Record<string, unknown> = { ...yearly };
       for (const key of ["repeatUnit", "nextAmountMinor", "nextAmountFrom", "cancelBy"]) delete old[key];
       assert.equal(HouseholdSnapshot.safeParse({ ...snap, bills: [old] }).success, true);
@@ -195,13 +207,13 @@ async function main() {
       assert.deepEqual([charge.status, charge.source, charge.documentId], ["pending", "voice", docId]);
     });
 
-    await check("D50: madeBy is on the charges, bills, invoices, pots, balance updates and events, and the schema keeps it optional (version 1)", () => {
+    await check("D50: madeBy is on the charges, bills, invoices, pots, balance updates and events, and the schema keeps it optional", () => {
       const lists = [snap.charges, snap.bills, snap.invoices, snap.pots, snap.balanceUpdates, full.events ?? []];
       for (const list of lists) {
         assert.ok(list.length > 0);
         for (const row of list) assert.ok(["form", "ask", "mcp", "reader", "cron", "paypal", "import"].includes(row.madeBy ?? ""), JSON.stringify(row));
       }
-      assert.equal(snap.version, 1);
+      assert.equal(snap.version, 2);
       const old = JSON.parse(JSON.stringify(snap.pots[0])) as Record<string, unknown>;
       delete old.madeBy;
       assert.deepEqual(HouseholdSnapshot.parse({ ...JSON.parse(JSON.stringify(snap)), pots: [old] }).pots.length, 1, "a snapshot without madeBy still parses");
@@ -282,6 +294,52 @@ async function main() {
       for (const value of Object.values(SECRET_VALUES)) assert.ok(!out.includes(value));
       assert.ok(!out.includes("ZZ Secret"));
       assert.ok(SNAPSHOT_TOOL_WINDOW >= 50 && SNAPSHOT_TOOL_WINDOW <= 200);
+    });
+
+    await check("D59: memory, canvases and turns are in the export only, in the household's own scope; the version 1 fields are unchanged", async () => {
+      const by = { madeBy: "form" as const };
+      const mem = await addMemory(db, a, { kind: "fact", text: "Rent goes up in April (snapshot test)" }, by);
+      await addMemory(db, b, { kind: "fact", text: "ZZ B memory marker" }, by);
+      const recipe = { version: 1, title: "Cash today", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] };
+      const pin = await pinCanvas(db, a, { title: "Cash today", recipe }, by);
+      await pinCanvas(db, b, { title: "ZZ B canvas marker", recipe: { ...recipe, title: "ZZ B canvas marker" } }, by);
+      const turnId = randomUUID(), conv = randomUUID();
+      await saveTurn(db, a, { id: turnId, conversationId: conv, question: "Am I OK this month? (snapshot test)", kind: "answer", reply: "Yes.", choices: null, recipe: null, sources: [{ label: "Home", href: "/" }] });
+      await saveTurn(db, b, { id: randomUUID(), conversationId: randomUUID(), question: "ZZ B question marker", kind: "answer", reply: "ok", choices: null, recipe: null, sources: [] });
+
+      const record = await loadHouseholdSnapshot(db, a, { events: false });
+      const withEvents = await loadHouseholdSnapshot(db, a, { events: true });
+      const exported = await loadHouseholdSnapshot(db, a, { events: true, stored: true });
+      for (const key of ["memory", "canvases", "journal"]) { assert.ok(!(key in record) && !(key in withEvents), `${key} is not in the record`); assert.ok(key in exported, `${key} is in the export`); }
+      assert.deepEqual(exported.memory!.map(m => m.id), [mem.id]);
+      assert.deepEqual(MemoryItem.parse(exported.memory![0]), exported.memory![0]);
+      assert.deepEqual(exported.canvases!.map(c => [c.id, c.title, c.position]), [[pin.id, "Cash today", 0]]);
+      assert.deepEqual(exported.journal!.map(t => t.id), [turnId]);
+      assert.deepEqual(ConversationTurn.parse(exported.journal![0]), exported.journal![0]);
+      // Every version 1 field is unchanged: the export minus the three new keys is the events build, apart from the moment it was made.
+      const { memory, canvases, journal, ...rest } = exported; void memory; void canvases; void journal;
+      assert.deepEqual({ ...rest, generatedAt: "" }, { ...withEvents, generatedAt: "" });
+      const text = JSON.stringify(exported);
+      assert.ok(!text.includes("ZZ B"), "another household's memory, canvas and turns never appear");
+      assert.deepEqual(HouseholdSnapshot.parse(JSON.parse(text)), exported);
+      assert.throws(() => HouseholdSnapshot.parse({ ...exported, memory: [{ ...exported.memory![0], extra: 1 }] }));
+      assert.throws(() => HouseholdSnapshot.parse({ ...exported, canvases: [{ ...exported.canvases![0], madeBy: "form" }] }));
+    });
+
+    await check("the timeline tool's items parse against CashFlowEvent (version 1), in and out follow the sign", async () => {
+      const tool = tools.find(t => t.name === "timeline")!;
+      const ctx = { madeBy: "mcp" as const, db, householdId: a, appUrl: new URL("http://127.0.0.1:3123"), state: () => loadMoneyState(db, a, DEMO_DATE) };
+      for (const scenario of ["as_usual", "late"] as const) {
+        const out = JSON.parse(await tool.run(ctx, { scenario } as never));
+        assert.ok(out.events.length > 3);
+        for (const event of out.events) {
+          const parsed = CashFlowEvent.parse(event);
+          assert.equal(parsed.direction, parsed.amountMinor < 0 ? "out" : "in");
+        }
+        assert.ok(out.events.some((e: { direction: string }) => e.direction === "in") && out.events.some((e: { direction: string }) => e.direction === "out"));
+      }
+      assert.equal(CashFlowEvent.safeParse({ date: "2026-11-27", label: "Rent", kind: "bill", amountMinor: -82000, currency: "JPY", direction: "out", extra: 1 }).success, false);
+      assert.equal(CashFlowEvent.safeParse({ date: "2026-11-27", label: "Rent", kind: "bill", amountMinor: -820.5, currency: "JPY", direction: "out" }).success, false);
     });
 
     console.log(`\n${passed} checks passed`);

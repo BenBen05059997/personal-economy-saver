@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CashFlowEvent",
+  "description": "Version 1 of a dated cash-flow event.",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "The day it happens, YYYY-MM-DD."
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Who it is with: a biller, a card statement, a client."
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "bill",
+        "statement",
+        "arrival"
+      ],
+      "description": "bill = a stored bill, statement = a card statement paid from the bank, arrival = a client payment expected."
+    },
+    "amountMinor": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991,
+      "description": "Signed integer minor units: negative goes out, positive comes in."
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "ISO 4217 code of the amount."
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "in",
+        "out"
+      ],
+      "description": "in = money comes in, out = money goes out; follows the sign of amountMinor."
+    },
+    "balanceAfterMinor": {
+      "type": "integer",
+      "minimum": -9007199254740991,
+      "maximum": 9007199254740991,
+      "description": "The running balance after this event, in the same currency. A pending bill is not counted."
+    },
+    "estimated": {
+      "type": "boolean",
+      "description": "true = the amount is an estimate (an amount-varies bill)."
+    },
+    "pending": {
+      "type": "boolean",
+      "description": "true = a bill still waiting in To check; judged as if it were confirmed."
+    },
+    "uncounted": {
+      "type": "boolean",
+      "description": "true = the amount is not known and nothing can estimate it; the event counts as 0."
+    }
+  },
+  "required": [
+    "date",
+    "label",
+    "kind",
+    "amountMinor",
+    "currency",
+    "direction"
+  ],
+  "additionalProperties": false
+}

@@ -84,7 +84,7 @@ async function main() {
     const snapshotCall = await client.callTool({ name: "household_snapshot", arguments: {} });
     assert.ok(!snapshotCall.isError);
     const snapshot = JSON.parse((snapshotCall.content as { text: string }[])[0].text);
-    assert.equal(snapshot.version, 1);
+    assert.equal(snapshot.version, 2);
     assert.equal(snapshot.household.id, hid);
     assert.equal(snapshot.clients.length, 3);
     assert.ok(!("events" in snapshot) && !JSON.stringify(snapshot).includes(other));

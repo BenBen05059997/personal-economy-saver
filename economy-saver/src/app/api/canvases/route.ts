@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
+import { requireCloud } from "@/db/place";
 import { moveCanvas, pinCanvas, unpinCanvas, updateCanvas } from "@/db/canvases";
 import { consumeRequest } from "@/db/rate-limit";
 import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
     try { recipe = JSON.parse(recipeText); } catch { return badFields(); }
   }
   try {
+    await requireCloud(db(), hid, "canvases");
     if (kind === "pin") {
       await pinCanvas(db(), hid, { title: String(form.get("title") ?? ""), recipe }, by);
     } else {

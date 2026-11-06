@@ -1,6 +1,15 @@
 // The model layer (D56): the address rule, the amount check and callModel's mapping in and out, for both protocols,
-// over fake transports. No database, no network, no credentials.
+// over fake transports; and the assistant evaluation's graders (D60) against a scripted model. PGlite only for the graders;
+// no network, no credentials.
 import assert from "node:assert/strict";
+import { PGlite } from "@electric-sql/pglite";
+import { drizzle } from "drizzle-orm/pglite";
+import { migrate } from "drizzle-orm/pglite/migrator";
+import * as schema from "@/db/schema";
+import { householdDate } from "@/db/account";
+import { loadMoneyState } from "@/db/household";
+import { seedBen } from "@/db/seed";
+import { AGENT_CASES, CASE_NAMES, gradeOutcome, runEval, scriptedModel, type Outcome } from "./model-eval-cases";
 import { callModel } from "@/lib/ai/call";
 import { checkConnection } from "@/lib/ai/check";
 import { isTested, TESTED } from "@/lib/ai/tested";
@@ -298,6 +307,78 @@ async function main() {
     assert.equal(none.passed.length, 0);
     const bad = await checkConnection({ ...openai, baseUrl: "https://10.0.0.5/v1" }, { fetch: fakeModel("good").fetch, appUrl: APP });
     assert.equal(bad.failed.length, 3, "the address rule runs before any request");
+  });
+
+  await check("the evaluation's graders: a scripted good model passes every case on both protocols, and the key never reaches a result", async () => {
+    const pg = new PGlite();
+    try {
+      const db = drizzle(pg, { schema });
+      await migrate(db, { migrationsFolder: "./drizzle" });
+      assert.equal(CASE_NAMES.length, 11);
+      for (const connection of [anthropic, openai]) {
+        const seen: string[] = [];
+        const results = await runEval({ db, connection, fetch: scriptedModel().fetch, appUrl: APP, onResult: r => seen.push(r.name) });
+        assert.deepEqual(seen, [...CASE_NAMES]);
+        assert.deepEqual(results.filter(r => !r.passed).map(r => `${r.name}: ${r.why}`), [], connection.protocol);
+        assert.ok(!JSON.stringify(results).includes(SECRET));
+      }
+      // `only` runs just those cases.
+      const some = await runEval({ db, connection: openai, fetch: scriptedModel().fetch, appUrl: APP, only: ["remembers", "stays_on_money"] });
+      assert.deepEqual(some.map(r => r.name), ["stays_on_money", "remembers"]);
+
+      // Each scripted failure is caught by its own grader and by no other.
+      for (const connection of [anthropic, openai]) for (const broken of CASE_NAMES) {
+        const results = await runEval({ db, connection, fetch: scriptedModel(broken).fetch, appUrl: APP });
+        const bad = results.filter(r => !r.passed);
+        assert.deepEqual(bad.map(r => r.name), [broken], `${connection.protocol} ${broken}: ${bad.map(r => `${r.name}: ${r.why}`).join(" | ")}`);
+        assert.ok(bad[0].why && bad[0].why.length > 10);
+      }
+    } finally { await pg.close(); }
+  });
+
+  await check("the evaluation's graders: a failed question, a wrong number and a missing canvas are named in words", async () => {
+    const pg = new PGlite();
+    try {
+      const db = drizzle(pg, { schema });
+      await migrate(db, { migrationsFolder: "./drizzle" });
+      const householdId = await seedBen(db, { isDemo: true });
+      const state = await loadMoneyState(db, householdId, await householdDate(db, householdId));
+      const northwind = state.clients.find(c => c.name === "Northwind")!;
+      const nwCall = { name: "what_if", input: { case: "late", changes: [{ kind: "client_late", clientId: northwind.id, days: 14 }] } };
+      const answer = (text: string): Outcome["result"] => ({ kind: "answer", answer: text, choices: null, recipe: null, sources: [], links: [], pending: false });
+      const outcome = (extra: Partial<Outcome>): Outcome => ({ db, householdId, state, result: null, error: null, calls: [], ...extra });
+      // the right call and the engine's own low point (Ben's worst case: 18,780 short)
+      assert.equal(await gradeOutcome("what_if_late", outcome({ calls: [nwCall], result: answer("You would be ¥18,780 short.") })), null);
+      assert.match((await gradeOutcome("what_if_late", outcome({ calls: [nwCall], result: answer("You would be ¥9,999 short.") })))!, /low point/);
+      assert.match((await gradeOutcome("what_if_late", outcome({ calls: [nwCall], result: answer("You would be fine.") })))!, /low point/);
+      // a question that failed names why, for every agent case
+      for (const name of AGENT_CASES) assert.match((await gradeOutcome(name, outcome({ error: "The assistant gave no answer. Try again." })))!, /The question failed: The assistant gave no answer/);
+      // a canvas that is not there
+      assert.match((await gradeOutcome("makes_canvas", outcome({ calls: [{ name: "make_canvas", input: {} }], result: answer("Here.") })))!, /No valid canvas/);
+      // a charge that was never saved, and a reply that claims it was sent
+      assert.match((await gradeOutcome("logs_charge", outcome({ calls: [{ name: "log_charge", input: {} }], result: answer("Sent.") })))!, /No charge/);
+    } finally { await pg.close(); }
+  });
+
+  await check("logs_charge grader: echoing \"you paid\" passes; sent, marked as paid, settled or confirmed fail; denials pass; both protocols", async () => {
+    const pg = new PGlite();
+    try {
+      const db = drizzle(pg, { schema });
+      await migrate(db, { migrationsFolder: "./drizzle" });
+      const pass = ["You paid ¥3,800 at the noodle place. It is waiting in To check.", "I paid is noted: ¥3,800 at the noodle place is in To check for you to confirm.", "Nothing was sent; the ¥3,800 is waiting in To check."];
+      const fail = ["I've sent it.", "Marked as paid.", "The ¥3,800 is settled.", "PayPal paid it.", "It is confirmed and final."];
+      for (const connection of [anthropic, openai]) {
+        for (const text of pass) {
+          const [r] = await runEval({ db, connection, fetch: scriptedModel(null, text).fetch, appUrl: APP, only: ["logs_charge"] });
+          assert.equal(r.passed, true, `${connection.protocol} should pass: ${text} (${r.why})`);
+        }
+        for (const text of fail) {
+          const [r] = await runEval({ db, connection, fetch: scriptedModel(null, text).fetch, appUrl: APP, only: ["logs_charge"] });
+          assert.equal(r.passed, false, `${connection.protocol} should fail: ${text}`);
+          assert.match(r.why!, /sent, paid off, settled or confirmed/);
+        }
+      }
+    } finally { await pg.close(); }
   });
 
   await check("the tested list is empty until the evaluation fills it, and isTested matches provider and model", () => {

@@ -8,6 +8,7 @@ import { connectionView } from "@/db/ai-key";
 import { listCanvases } from "@/db/canvases";
 import { db } from "@/db/client";
 import { latestConversation } from "@/db/conversation";
+import { readPlaces } from "@/db/place";
 import { loadSpending } from "@/db/spending";
 import { askUnavailable, missingAskSetting } from "@/lib/agent/availability";
 import { CanvasError, resolveRecipe, type CanvasContext } from "@/lib/canvas/resolve";
@@ -33,7 +34,14 @@ async function AskContent({ search }: { search: Search }) {
   const spending = await loadSpending(db(), hid, { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last });
   const context: CanvasContext = { state, spending };
   const starters = starterRecipes(state).flatMap(starter => draw(starter.id, starter.recipe, context) ?? []);
-  const [conversation, pins, own, firstUse] = await Promise.all([latestConversation(db(), hid), listCanvases(db(), hid), connectionView(db(), hid), firstUseLine(db(), hid)]);
+  // D59: a kind kept on this device is not read here at all; the page reads it in the browser.
+  const places = await readPlaces(db(), hid);
+  const [conversation, pins, own, firstUse] = await Promise.all([
+    places.journal === "device" ? null : latestConversation(db(), hid),
+    places.canvases === "device" ? [] : listCanvases(db(), hid),
+    connectionView(db(), hid),
+    firstUseLine(db(), hid, { skipAnswered: places.journal === "device" }),
+  ]);
 
   const pinned = typeof pinParam === "string" ? pins.find(item => item.id === pinParam) ?? null : null;
   const last = conversation?.turns.findLast(turn => turn.recipe !== null);
@@ -44,7 +52,7 @@ async function AskContent({ search }: { search: Search }) {
   const missing = missingAskSetting(own !== null);
 
   return <WorkspaceFrame workspace={workspace} section="canvas">
-    <AskPage conversationId={conversation?.conversationId ?? crypto.randomUUID()} turns={turns} starters={starters} shown={shown}
+    <AskPage householdId={hid} places={places} pinId={typeof pinParam === "string" ? pinParam : null} conversationId={conversation?.conversationId ?? crypto.randomUUID()} turns={turns} starters={starters} shown={shown}
       pin={pinned && shown ? { id: pinned.id, title: pinned.title } : null} firstUse={firstUse} unavailable={missing ? askUnavailable(missing) : null} />
   </WorkspaceFrame>;
 }

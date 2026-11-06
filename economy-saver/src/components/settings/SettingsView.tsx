@@ -15,6 +15,7 @@ import { CancelByField } from "@/components/household/ScheduleFields";
 import { dueLabel } from "@/db/bills";
 import { Suspense } from "react";
 import { AiModelPanel } from "./AiModelPanel";
+import { YourData } from "./YourData";
 import { EditAmounts } from "./EditAmounts";
 import { FamilyShare, type FamilyLinkRow } from "./FamilyShare";
 import { ResetDemo } from "./ResetDemo";
@@ -155,10 +156,7 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks }: { d
     </section>}
     <Suspense fallback={<section className="ui-panel" id="ai-model"><h2>Your AI model</h2><p className="ui-hint">Loading…</p></section>}>
       <AiModelPanel demo={household.demo} timeZone={household.timeZone} readsDay={household.aiReadsDay} readsToday={household.aiReadsToday} /></Suspense>
-    <section className="ui-panel" id="export"><h2>Export my data</h2>
-      <p className="ui-hint">Download everything in this household as one JSON file: balances, cards, charges, bills, clients, invoices, pots and your activity history. It has no AI key, sign-in details or uploaded files.</p>
-      <form method="post" action="/api/export"><button className="ui-button">Export my data</button></form>
-    </section>
+    <Suspense fallback={<section className="ui-panel" id="your-data"><h2>Your data</h2><p className="ui-hint">Loading…</p></section>}><YourData /></Suspense>
     <section className="ui-panel"><h2>Account</h2><p className="ui-hint">{household.demo ? "This is a fictional Try it household. Sign in to start with your own balances." : "Manage sign-in and delete your household data."}</p><Link className="ui-button" prefetch={false} href="/account">Open account</Link> <Link className="account-link" href="/privacy">Privacy ›</Link>
       {household.demo && <ResetDemo />}</section>
   </>;

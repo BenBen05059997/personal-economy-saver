@@ -3,6 +3,8 @@ import { Canvas } from "@/components/canvas/Canvas";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { listCanvases, type PinnedCanvas } from "@/db/canvases";
 import { db } from "@/db/client";
+import { readPlaces } from "@/db/place";
+import { DevicePins } from "./DevicePins";
 import { loadSpending } from "@/db/spending";
 import { CanvasError, resolveRecipe, type CanvasContext, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { HISTORY_MONTHS, monthBounds, monthsBack } from "@/lib/money/spending";
@@ -25,6 +27,8 @@ function PinForm({ pin, kind, direction, label, disabled }: { pin: PinnedCanvas;
 export async function Pinned({ state }: { state: MoneyState }) {
   const hid = await currentHouseholdId();
   if (!hid) return null;
+  // Pins kept on this device only (D59) are read in the browser and drawn through the resolve route; the server holds none of them.
+  if ((await readPlaces(db(), hid)).canvases === "device") return <DevicePins householdId={hid} />;
   const pins = await listCanvases(db(), hid);
   if (pins.length === 0) return null;
   const current = state.today.slice(0, 7);

@@ -22,6 +22,7 @@ try {
 
 let cookie = "";
 let failures = 0;
+let tryItExport = "";
 function expect(condition, code) { if (!condition) throw new Error(code); }
 async function request(path, { method = "GET", form, json, session = cookie, extraHeaders = {} } = {}) {
   // Every URL is selected by this script; redirects never leave the local origin.
@@ -178,6 +179,10 @@ if (args[0] === "--guards") {
     ["memory-without-household", "/api/memory", { method: "POST", session: "", form: { kind: "forget_all", returnTo: "/memory" } }, 401],
     ["memory-cross-origin", "/api/memory", { method: "POST", session: "", form: { kind: "forget_all", returnTo: "/memory" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["remove-without-household", "/api/remove", { method: "POST" }, 401],
+    ["data-without-household", "/api/data", { method: "POST", session: "", form: { kind: "delete_kind", what: "memory", returnTo: "/settings" } }, 401],
+    ["data-cross-origin", "/api/data", { method: "POST", session: "", form: { kind: "delete_kind", what: "memory", returnTo: "/settings" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["restore-without-household", "/api/restore", { method: "POST", session: "", json: { version: 2 } }, 401],
+    ["restore-cross-origin", "/api/restore", { method: "POST", session: "", json: { version: 2 }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["privacy-page-without-cookie", "/privacy", { session: "" }, 200],
     ["cron-without-bearer", "/api/cron", {}, 401],
   ];
@@ -609,10 +614,60 @@ await step("action", "export-my-data", async () => {
   expect(/^attachment; filename="personal-economy-saver-\d{4}-\d{2}-\d{2}\.json"$/.test(headers.get("content-disposition") ?? ""), "export-disposition");
   expect(/no-store/.test(headers.get("cache-control") ?? ""), "export-no-store");
   const data = JSON.parse(result.body);
-  expect(data.version === 1 && Array.isArray(data.events) && data.clients.length === 3, "export-shape");
+  expect(data.version === 2 && Array.isArray(data.events) && data.clients.length === 3, "export-shape");
+  expect(Array.isArray(data.memory) && Array.isArray(data.canvases) && Array.isArray(data.journal), "export-stored-kinds");
   expect(!/ai_?key|tokenHash|storagePath|payload/i.test(result.body), "export-no-secrets");
   const get = await fetch(new URL("/api/export", base), { headers: { Cookie: cookie, Origin: base.origin }, redirect: "manual" });
   expect(get.status === 405, "export-get-refused");
+  tryItExport = result.body;
+});
+// D59: Your data lists each kind with where it is kept and how many; a delete is real and the record cannot be deleted by kind.
+await step("page", "settings-your-data-rows", async () => {
+  const content = plain(pageContent(await page("/settings", /Your data/)));
+  for (const words of ["Your numbers", "What the assistant remembers", "Canvases pinned to Home", "Ask conversations", "Uploaded documents", "In our cloud, Tokyo", "Export my data", "Delete everything"]) expect(content.includes(words), "your-data-" + words);
+  expect(/What the assistant remembers · 0 things/.test(content) && !/Delete all the assistant remembers/.test(content), "your-data-memory-empty");
+});
+await step("action", "your-data-delete-one-and-delete-all-memory", async () => {
+  for (const text of ["Fictional data check one", "Fictional data check two", "Fictional data check three"]) {
+    const added = await request("/api/memory", { method: "POST", form: { kind: "add", memoryKind: "fact", text, returnTo: "/memory" } });
+    expect(added.response.status === 303, "data-memory-add");
+  }
+  const rows = JSON.parse((await request("/api/export", { method: "POST" })).body).memory;
+  expect(rows.length === 3, "data-export-has-memory");
+  expect(/What the assistant remembers · 3 things/.test(plain(pageContent((await request("/settings")).body))), "data-memory-count");
+  const one = await request("/api/data", { method: "POST", form: { kind: "delete_one", what: "memory", id: rows[0].id, returnTo: "/settings" } });
+  expect(one.response.status === 303 && one.response.headers.get("location") === "/settings", "data-delete-one");
+  const again = await request("/api/data", { method: "POST", form: { kind: "delete_one", what: "memory", id: rows[0].id, returnTo: "/settings" } });
+  expect(again.response.status === 404, "data-delete-one-again");
+  expect(/What the assistant remembers · 2 things/.test(plain(pageContent((await request("/settings")).body))), "data-memory-count-after-one");
+  const all = await request("/api/data", { method: "POST", form: { kind: "delete_kind", what: "memory", returnTo: "/settings" } });
+  expect(all.response.status === 303, "data-delete-all");
+  expect(JSON.parse((await request("/api/export", { method: "POST" })).body).memory.length === 0, "data-memory-gone-from-export");
+  expect(!/Fictional data check/.test(pageContent((await request("/memory")).body)), "data-memory-page-empty");
+  const record = await request("/api/data", { method: "POST", form: { kind: "delete_kind", what: "record", returnTo: "/settings" } });
+  expect(record.response.status === 400 && /Delete everything/.test(record.body), "data-record-refused");
+  const bad = await request("/api/data", { method: "POST", form: { kind: "delete_kind", what: "nothing", returnTo: "/settings" } });
+  expect(bad.response.status === 400, "data-bad-kind");
+});
+// D59 step 2: Import reads a version 2 file into an empty household only, and says why when it cannot.
+await step("action", "import-refuses-a-full-household-an-old-file-and-an-oversize-body", async () => {
+  const full = await request("/api/restore", { method: "POST", json: JSON.parse(tryItExport) });
+  expect(full.response.status === 400 && full.body === "Import works on an empty household. Start with my numbers first.", "import-full-refused");
+  const big = await request("/api/restore", { method: "POST", json: { version: 2, filler: "x".repeat(1_100_000) } });
+  expect(big.response.status === 413, "import-oversize");
+});
+await step("action", "import-fills-an-empty-household-from-an-export", async () => {
+  const start = await request("/api/try/blank", { method: "POST", form: { name: "Fictional importer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "1", card: "Card I", closingDay: "25", dueDay: "10", limit: "" }, session: "" });
+  const blank = start.response.headers.get("set-cookie")?.match(/(?:^|,\s*)household=([^;]+)/)?.[1];
+  expect(start.response.status === 303 && blank, "import-blank-session");
+  const old = await request("/api/restore", { method: "POST", session: "household=" + blank, json: { ...JSON.parse(tryItExport), version: 1 } });
+  expect(old.response.status === 400 && /version 1/.test(old.body), "import-old-version-refused");
+  const done = await request("/api/restore", { method: "POST", session: "household=" + blank, json: JSON.parse(tryItExport) });
+  expect(done.response.status === 200, "import-status");
+  const counts = JSON.parse(done.body).imported;
+  expect(counts.clients === 3 && counts.bills > 0 && counts.invoices > 0, "import-counts");
+  const home = plain(pageContent((await request("/", { session: "household=" + blank })).body));
+  expect(/short on the 27th|fine/i.test(home) && !/Add your rent, your bills/.test(home), "import-home-shows-the-forecast");
 });
 await step("action", "settings-invalid-input", async () => {
   const result = await request("/api/settings", { method: "POST", form: { kind: "household", name: "Fictional Check", bank: "invalid" } });

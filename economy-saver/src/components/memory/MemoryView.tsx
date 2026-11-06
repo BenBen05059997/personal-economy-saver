@@ -2,13 +2,15 @@ import { ApiForm } from "@/components/ui/ApiForm";
 import { MEMORY_KIND_KEYS, MEMORY_KINDS, MEMORY_LIMIT, MEMORY_TEXT_MAX, type MemoryItem, type MemoryKind } from "@/lib/schema/memory";
 import "./memory.css";
 
-const day = (iso: string) => {
+// Dates are the household's: a Try it household's rows carry its fixed date (D34), shown in its time zone.
+export const dayIn = (timeZone: string) => (iso: string) => {
   const date = new Date(iso);
-  return date.toLocaleDateString("en-US", { day: "numeric", month: "short", timeZone: "UTC", ...(date.getUTCFullYear() === new Date().getUTCFullYear() ? {} : { year: "numeric" }) });
+  const year = (d: Date) => d.toLocaleDateString("en-US", { year: "numeric", timeZone });
+  return date.toLocaleDateString("en-US", { day: "numeric", month: "short", timeZone, ...(year(date) === year(new Date()) ? {} : { year: "numeric" }) });
 };
-const how = (item: MemoryItem) => item.madeBy === "ask" ? `Said in Ask · ${day(item.createdAt)}` : item.madeBy === "mcp" ? `Through MCP · ${day(item.createdAt)}` : `Added here · ${day(item.createdAt)}`;
+export const howIn = (day: (iso: string) => string) => (item: MemoryItem) => item.madeBy === "ask" ? `Said in Ask · ${day(item.createdAt)}` : item.madeBy === "mcp" ? `Through MCP · ${day(item.createdAt)}` : `Added here · ${day(item.createdAt)}`;
 
-function KindSelect({ value }: { value?: MemoryKind }) {
+export function KindSelect({ value }: { value?: MemoryKind }) {
   return <label className="ui-field">Kind
     <select name="memoryKind" defaultValue={value ?? "fact"}>
       {MEMORY_KIND_KEYS.map(key => <option key={key} value={key}>{MEMORY_KINDS[key].label}</option>)}
@@ -16,7 +18,8 @@ function KindSelect({ value }: { value?: MemoryKind }) {
   </label>;
 }
 
-function Item({ item }: { item: MemoryItem }) {
+function Item({ item, timeZone }: { item: MemoryItem; timeZone: string }) {
+  const day = dayIn(timeZone), how = howIn(day);
   return <li className="memory-item">
     <p className="memory-text">{item.text}</p>
     <p className="ui-hint">{how(item)}{item.updatedAt !== item.createdAt && ` · edited ${day(item.updatedAt)}`}</p>
@@ -46,7 +49,7 @@ function Item({ item }: { item: MemoryItem }) {
   </li>;
 }
 
-export function MemoryView({ items }: { items: MemoryItem[] }) {
+export function MemoryView({ items, timeZone }: { items: MemoryItem[]; timeZone: string }) {
   return <div className="memory-page">
     <header>
       <h1 className="ui-title">What the assistant knows</h1>
@@ -61,7 +64,7 @@ export function MemoryView({ items }: { items: MemoryItem[] }) {
       return group.length === 0 ? null : <section key={key} className="memory-group" aria-labelledby={`memory-${key}`}>
         <h2 id={`memory-${key}`}>{MEMORY_KINDS[key].label}</h2>
         <p className="ui-hint">{MEMORY_KINDS[key].help}</p>
-        <ul>{group.map(item => <Item key={item.id} item={item} />)}</ul>
+        <ul>{group.map(item => <Item key={`${item.id}-${item.updatedAt}`} item={item} timeZone={timeZone} />)}</ul>
       </section>;
     })}
 

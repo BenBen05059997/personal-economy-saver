@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   if (hid instanceof Response) return hid;
   try {
     if (!await consumeRequest(db(), hid, "export", 6)) return text("Export limit reached. Try again in a minute.", 429, { "Retry-After": "60" });
-    const snapshot = await loadHouseholdSnapshot(db(), hid, { events: true });
+    const snapshot = await loadHouseholdSnapshot(db(), hid, { events: true, stored: true });
     return new Response(JSON.stringify(snapshot, null, 2) + "\n", {
       headers: {
         ...NO_STORE,

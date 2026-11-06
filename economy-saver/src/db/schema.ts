@@ -79,8 +79,15 @@ export const households = pgTable("households", {
   aiCheck: jsonb("ai_check"),
   aiReadsToday: integer("ai_reads_today").notNull().default(0),
   aiReadsDay: date("ai_reads_day", { mode: "string" }),
+  // D59: where each movable kind is kept. `device` means the browser holds it and the server holds none of it.
+  memoryPlace: text("memory_place").notNull().default("cloud"),
+  journalPlace: text("journal_place").notNull().default("cloud"),
+  canvasPlace: text("canvas_place").notNull().default("cloud"),
   createdAt: createdAt(),
 }, (t) => [
+  check("households_memory_place_valid", sql`${t.memoryPlace} in ('cloud', 'device')`),
+  check("households_journal_place_valid", sql`${t.journalPlace} in ('cloud', 'device')`),
+  check("households_canvas_place_valid", sql`${t.canvasPlace} in ('cloud', 'device')`),
   check("households_nudge_after_days_valid", sql`${t.nudgeAfterDays} is null or ${t.nudgeAfterDays} between 1 and 60`),
   check("households_ai_protocol_valid", sql`${t.aiProtocol} is null or ${t.aiProtocol} in ('anthropic', 'openai')`),
   check("households_ai_endpoint_together", sql`(${t.aiProvider} is null and ${t.aiProtocol} is null and ${t.aiBaseUrl} is null) or (${t.aiProvider} is not null and ${t.aiProtocol} is not null and ${t.aiBaseUrl} is not null)`),

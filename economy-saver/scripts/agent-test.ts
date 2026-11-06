@@ -28,6 +28,10 @@ import { savePot } from "@/db/pots";
 import { addMember } from "@/db/people";
 import { planFor, planLine } from "@/lib/money/plan";
 import { HouseholdSnapshot } from "@/lib/schema/household";
+import { InputError } from "@/db/input-error";
+import { DEVICE_MEMORY_WORDS } from "@/db/place";
+import type { MemoryItem } from "@/lib/schema/memory";
+import type { ConversationTurn } from "@/lib/schema/turn";
 
 type Block = Record<string, unknown>;
 const text = (value: string): Block => ({ type: "text", text: value });
@@ -1011,6 +1015,84 @@ async function main() {
       assert.equal(out.lowPointChangeMinor, out.lowPoint.amountMinor - out.now.lowPoint.amountMinor);
       assert.equal(out.sentence.startsWith(homeSentence(expected).text), true);
       assert.ok(bad.is_error && bad.content.includes("not in your records"));
+    });
+
+
+    // ---------------------------------------------------------------- 24B: this device only (D59)
+    await check("memory kept on the device: the question carries it into the system text, remember and forget come back as memoryChanges, and nothing is written", async () => {
+      const d = await seedBen(db, { isDemo: true });
+      const cloud = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ memoryPlace: "device", journalPlace: "device" }).where(eq(schema.households.id, d));
+      const item = (kind: MemoryItem["kind"], words: string): MemoryItem => ({ id: crypto.randomUUID(), kind, text: words, madeBy: "form", askId: null, createdAt: "2026-11-01T00:00:00.000Z", updatedAt: "2026-11-01T00:00:00.000Z" });
+      const held = [item("instruction", "Answer in a single short line"), item("fact", "The gym is shared")];
+      const turn = (question: string, replyText: string): ConversationTurn => ({
+        version: 1, id: crypto.randomUUID(), conversationId: crypto.randomUUID(), question, kind: "answer", reply: replyText, choices: null, recipe: null, sources: [], thumb: null, createdAt: new Date().toISOString(),
+      });
+      const recent = [turn("Earlier question", "Earlier reply")];
+      const rows = async () => ({
+        memories: (await db.select().from(schema.memories).where(eq(schema.memories.householdId, d))).length,
+        turns: (await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, d))).length,
+        events: (await db.select().from(schema.events).where(eq(schema.events.householdId, d))).length,
+      });
+      const before = await rows();
+      const ask = (hid: string, question: string, extra: Record<string, unknown>, fetch: typeof globalThis.fetch) =>
+        answerQuestion(db, hid, askInput.parse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: question, source: "manual", canvas: null, ...extra }), { fetch });
+
+      const one = transport([
+        () => reply("tool_use", [toolUse("r", "remember", { kind: "fact", text: "Rent goes up in April" }), toolUse("f", "forget", { id: held[1].id })]),
+        () => reply("end_turn", [text("I'll remember that rent goes up in April, and forgot the gym.")]),
+      ]);
+      logged.length = 0;
+      const answer = await ask(d, "Remember that rent goes up in April and forget the gym", { memory: held, recent }, one.fetch);
+      assert.equal(answer.kind, "answer");
+      const first = one.bodies[0];
+      assert.ok(first.system.includes("Answer in a single short line") && first.system.includes("The gym is shared"), "the carried memory is in the system text");
+      assert.ok(first.system.indexOf("Answer in a single short line") < first.system.indexOf("The gym is shared"), "instructions come first");
+      const userText = String(first.messages[0].content);
+      assert.ok(userText.includes("Earlier question") && userText.includes("Earlier reply"), "the carried turns are the context");
+      assert.equal(answer.memoryChanges.length, 2);
+      const [added, forgot] = answer.memoryChanges;
+      assert.ok(added.op === "add" && added.item.text === "Rent goes up in April" && added.item.madeBy === "ask" && added.item.askId === answer.id);
+      assert.deepEqual(forgot, { op: "forget", id: held[1].id });
+      assert.equal(answer.firstUse, null);
+      assert.deepEqual(await rows(), before, "no memory row, no turn row and no event: the server kept none of it");
+      const raw = JSON.stringify(logged);
+      for (const needle of ["Rent goes up in April", "Answer in a single short line", "Earlier question"]) assert.ok(!raw.includes(needle), `the log line leaks ${needle}`);
+
+      // a text that counts as a source: an amount in the carried memory passes the amount check
+      const amount = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Your trip fund is ¥300,000.")])]);
+      const withAmount = await ask(d, "How is my trip fund?", { memory: [item("goal", "¥300,000 for a trip in March")], recent: [] }, amount.fetch);
+      assert.equal(withAmount.text, "Your trip fund is ¥300,000.");
+
+      // never both places: the kind on the device must be carried, the kind in the cloud must not
+      const noModel = transport(() => reply("end_turn", [text("unused")]));
+      await assert.rejects(ask(d, "Hello?", { recent }, noModel.fetch), (e: unknown) => e instanceof InputError && /memory on this device/.test(e.message));
+      await assert.rejects(ask(d, "Hello?", { memory: held }, noModel.fetch), (e: unknown) => e instanceof InputError && /conversations on this device/.test(e.message));
+      await assert.rejects(ask(cloud, "Hello?", { memory: held }, noModel.fetch), (e: unknown) => e instanceof InputError && /memory in our cloud/.test(e.message));
+      await assert.rejects(ask(cloud, "Hello?", { recent }, noModel.fetch), (e: unknown) => e instanceof InputError && /conversations in our cloud/.test(e.message));
+      assert.equal(noModel.bodies.length, 0, "no model call for a refused question");
+      // the size limits are the schema's
+      assert.ok(!askInput.safeParse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "x", source: "manual", canvas: null, memory: Array(201).fill(held[0]) }).success);
+      assert.ok(!askInput.safeParse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "x", source: "manual", canvas: null, recent: Array(4).fill(recent[0]) }).success);
+      assert.ok(!askInput.safeParse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "x", source: "manual", canvas: null, memory: [{ ...held[0], extra: 1 }] }).success);
+
+      // the cloud household is unchanged: its Ask still stores its turn and carries no changes
+      const plain = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("You are fine.")])]);
+      const stored = await ask(cloud, "Where am I?", {}, plain.fetch);
+      assert.deepEqual(stored.memoryChanges, []);
+      assert.equal((await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, cloud))).length, 1);
+    });
+
+    await check("without the device's list (MCP, a stale page) recall answers in words and remember and forget refuse; the cloud is not read", async () => {
+      const d = await seedBen(db, { isDemo: true });
+      await db.insert(schema.memories).values({ householdId: d, kind: "fact", text: "Stale cloud row" });
+      await db.update(schema.households).set({ memoryPlace: "device" }).where(eq(schema.households.id, d));
+      const ctx = { madeBy: "mcp" as const, db, householdId: d, state: async () => loadMoneyState(db, d, await householdDate(db, d)), appUrl: APP };
+      const run = (name: string, input: unknown) => tools.find(t => t.name === name)!.run(ctx as never, input as never);
+      assert.equal(await run("recall", {}), DEVICE_MEMORY_WORDS);
+      await assert.rejects(run("remember", { kind: "fact", text: "Something new" }), (e: unknown) => e instanceof InputError && e.message === DEVICE_MEMORY_WORDS);
+      await assert.rejects(run("forget", { id: crypto.randomUUID() }), InputError);
+      assert.equal((await db.select().from(schema.memories).where(eq(schema.memories.householdId, d))).length, 1, "nothing was written");
     });
 
     console.log(`Agent checks passed (${passed}).`);

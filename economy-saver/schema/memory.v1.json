@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MemoryItem",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "fact",
+        "preference",
+        "goal",
+        "instruction",
+        "correction"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "madeBy": {
+      "type": "string",
+      "enum": [
+        "form",
+        "ask",
+        "mcp"
+      ]
+    },
+    "askId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "id",
+    "kind",
+    "text",
+    "madeBy",
+    "askId",
+    "createdAt",
+    "updatedAt"
+  ],
+  "additionalProperties": false
+}

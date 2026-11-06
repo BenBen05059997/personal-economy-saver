@@ -1,5 +1,5 @@
 // The one versioned shape of a household (D44). The database builds it (src/db/snapshot.ts), Settings exports it,
-// the `household_snapshot` tool hands it to the agent and MCP, and schema/household.v1.json is generated from it
+// the `household_snapshot` tool hands it to the agent and MCP, and schema/household.v2.json is generated from it
 // (npm run schema). Every object is strict, so a key that is not listed here is refused.
 //
 // Rules for every field: money is an integer count of minor units (whole yen, cents for USD) next to a 3-letter
@@ -8,8 +8,12 @@
 // token data, no webhook payloads, no storage paths or file bytes.
 import { z } from "zod";
 import { CategoryKeySchema } from "@/lib/money/categories";
+import { RecipeSchema } from "@/lib/canvas/schema";
+import { MemoryItem } from "@/lib/schema/memory";
+import { ConversationTurn } from "@/lib/schema/turn";
 
-export const SNAPSHOT_VERSION = 1;
+/** Version 2 keeps every version 1 field and adds the other stored kinds of D59 (memory, canvases, journal), in the export only. */
+export const SNAPSHOT_VERSION = 2;
 
 const id = z.string().uuid();
 const day = z.string().date().describe("A calendar day, YYYY-MM-DD.");
@@ -176,6 +180,15 @@ const Event = z.object({
   madeBy,
 }).strict();
 
+// A pinned canvas as exported: the recipe holds queries, never numbers (D57), so a restored pin draws today's numbers.
+const PinnedCanvasExport = z.object({
+  id,
+  title: z.string().min(1).max(80),
+  position: z.number().int().min(0).describe("0 is first on Home."),
+  recipe: RecipeSchema,
+  createdAt: moment,
+}).strict();
+
 const Truncated = z.object({
   bills: z.boolean(),
   charges: z.boolean(),
@@ -214,7 +227,10 @@ export const HouseholdSnapshot = z.object({
   documents: z.array(Document).describe("References only."),
   truncated: Truncated,
   events: z.array(Event).optional().describe("The household's audit trail, newest first. Only in the export."),
-}).strict().describe("A whole household at one moment: version 1 of the Personal Economy Saver household schema.");
+  memory: z.array(MemoryItem).optional().describe("What the assistant remembers (D58). Only in the export."),
+  canvases: z.array(PinnedCanvasExport).optional().describe("The canvases pinned to Home, in order (D57). Only in the export."),
+  journal: z.array(ConversationTurn).optional().describe("The conversation turns, oldest first (D60). Only in the export."),
+}).strict().describe("A whole household at one moment: version 2 of the Personal Economy Saver household schema. Version 2 adds memory, canvases and journal to version 1, in the export only.");
 
 export type HouseholdSnapshot = z.infer<typeof HouseholdSnapshot>;
 export type SnapshotMember = z.infer<typeof Member>;
@@ -229,3 +245,4 @@ export type SnapshotSettlement = z.infer<typeof Settlement>;
 export type SnapshotBalanceUpdate = z.infer<typeof BalanceUpdate>;
 export type SnapshotDocument = z.infer<typeof Document>;
 export type SnapshotEvent = z.infer<typeof Event>;
+export type SnapshotCanvas = z.infer<typeof PinnedCanvasExport>;

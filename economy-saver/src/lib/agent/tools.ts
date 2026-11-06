@@ -31,10 +31,12 @@ import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { clientPace } from "@/lib/money/pace";
 import { planFor, planLine } from "@/lib/money/plan";
 import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
+import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
 import { memoryTools } from "./memory-tools";
 import { splitBalance, splitSummary } from "@/lib/money/split";
 import type { Recipe } from "@/lib/canvas/schema";
+import type { DeviceMemory } from "@/lib/store/memory-ops";
 import type { MoneyState } from "@/lib/money/types";
 
 export type ToolContext = {
@@ -55,6 +57,8 @@ export type ToolContext = {
   onCanvas?: (recipe: Recipe) => void;
   onClarify?: (clarify: { question: string; choices: string[] }) => void;
   onOutOfScope?: (reason: "off_topic" | "not_offered") => void;
+  /** Ask only (D59): when the household keeps its memory on one device, the list the question carried and the changes `remember` and `forget` made to it (sent back in the reply, never stored). */
+  deviceMemory?: DeviceMemory;
 };
 
 const by = (ctx: ToolContext): Maker => ({ madeBy: ctx.madeBy, ...(ctx.askId && { askId: ctx.askId }) });
@@ -198,7 +202,7 @@ export const tools: Tool[] = [
         low: { date: lowest.date, amountMinor: minor(lowest.amount) },
         events: engineTimeline(state, kind).map(event => ({
           date: event.date, label: event.label, kind: event.kind, amountMinor: minor(event.amount),
-          currency: state.homeCurrency, balanceAfterMinor: minor(event.balance), ...(event.pending ? { pending: true } : {}), ...(event.estimated ? { estimated: true } : {}), ...(event.uncounted ? { uncounted: true } : {}),
+          currency: state.homeCurrency, direction: directionOf(minor(event.amount)), balanceAfterMinor: minor(event.balance), ...(event.pending ? { pending: true } : {}), ...(event.estimated ? { estimated: true } : {}), ...(event.uncounted ? { uncounted: true } : {}),
         })),
       });
     },
@@ -242,7 +246,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "household_snapshot", scope: "read", input: z.object({}).strict(),
-    description: `The whole household as one JSON document (schema version 1): household, members (with their shares of shared costs), cards, statements, charges, stored bills (a repeating bill appears once, with repeatUnit, repeatDay for a monthly one, and any nextAmountMinor from nextAmountFrom and cancelBy), clients, invoices, pots, settlements, bank balance updates and document references. Money is integer minor units next to a currency; dates are ISO strings. Use it as context for the household as a whole, to find ids and see what exists. It is not an answer: what the household can spend, what is due and how short it would be come from the engine tools (where_am_i, whats_due, can_i_spend, timeline). Rows with status pending are waiting in To check and count for nothing yet. Each of bills, charges, statements, invoices, balanceUpdates and documents holds at most its ${SNAPSHOT_TOOL_WINDOW} most recent rows, oldest first; truncated says which lists were cut. No audit-trail events and no secrets are included.`,
+    description: `The whole household as one JSON document (schema version 2; this tool gives the record only): household, members (with their shares of shared costs), cards, statements, charges, stored bills (a repeating bill appears once, with repeatUnit, repeatDay for a monthly one, and any nextAmountMinor from nextAmountFrom and cancelBy), clients, invoices, pots, settlements, bank balance updates and document references. Money is integer minor units next to a currency; dates are ISO strings. Use it as context for the household as a whole, to find ids and see what exists. It is not an answer: what the household can spend, what is due and how short it would be come from the engine tools (where_am_i, whats_due, can_i_spend, timeline). Rows with status pending are waiting in To check and count for nothing yet. Each of bills, charges, statements, invoices, balanceUpdates and documents holds at most its ${SNAPSHOT_TOOL_WINDOW} most recent rows, oldest first; truncated says which lists were cut. No audit-trail events and no secrets are included.`,
     run: async ctx => JSON.stringify(await loadHouseholdSnapshot(ctx.db, ctx.householdId, { events: false, recent: SNAPSHOT_TOOL_WINDOW })),
   }),
   defineTool({

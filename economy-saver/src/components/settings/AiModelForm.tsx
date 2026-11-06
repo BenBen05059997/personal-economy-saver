@@ -27,7 +27,7 @@ export function AiModelForm({ providers, tested, initial, demo }: {
     {!isDefault && <>
       <label className="ui-field">Model for questions<input name="textModel" list="ai-text-models" defaultValue={initial.textModel} spellCheck={false} maxLength={200} required />
         <datalist id="ai-text-models">{suggestions.map(t => <option key={t.model} value={t.model} />)}</datalist></label>
-      <label className="ui-field"><span><input name="sameForDocuments" type="checkbox" checked={same} onChange={event => setSame(event.target.checked)} /> Use the same model for documents</span></label>
+      <label className="settings-check"><input name="sameForDocuments" type="checkbox" checked={same} onChange={event => setSame(event.target.checked)} />Use the same model for documents</label>
       {!same && <label className="ui-field">Model for documents<input name="documentModel" defaultValue={initial.documentModel} spellCheck={false} maxLength={200} required /></label>}
       <label className="ui-field">Key{provider === "custom" ? " (optional)" : ""}
         <input ref={key} name="key" type="password" autoComplete="new-password" spellCheck={false} maxLength={500} required={provider !== "custom" && !initial.hint} placeholder={initial.hint ? `Saved: ${initial.hint}. Leave empty to keep it.` : ""} /></label>

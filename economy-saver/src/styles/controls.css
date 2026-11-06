@@ -26,6 +26,7 @@
 .ui-form > .ui-form-status:empty { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); }
 /* Remove with a confirm: the question and its two buttons open under the link. */
 .ui-remove > summary { cursor: pointer; font: 500 14px var(--sans); color: var(--accent); }
+@media (max-width: 899px) { .ui-remove > summary { padding-block: 14px; margin-block: -14px; } } /* 44px tall, the text stays where it was */
 .ui-remove[open] > summary { margin-bottom: var(--space-2); }
 .ui-remove p { margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
 .ui-remove-buttons { display: flex; gap: var(--space-3); }

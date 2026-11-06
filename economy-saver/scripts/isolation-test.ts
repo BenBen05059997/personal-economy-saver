@@ -17,6 +17,9 @@ import * as aiKeys from "@/db/ai-key";
 import * as askMod from "@/db/ask"; // D60 Ask
 import * as canvasesMod from "@/db/canvases"; // D57 pins
 import * as conversationMod from "@/db/conversation"; // D60 conversation
+import * as dataKindsMod from "@/db/data-kinds"; // D59 delete by kind
+import * as restoreMod from "@/db/restore"; // D59 import
+import * as placeMod from "@/db/place"; // D59 this device only
 import * as approval from "@/db/approval";
 import * as bankBalance from "@/db/bank-balance";
 import * as billsMod from "@/db/bills";
@@ -106,6 +109,10 @@ const covered = [
   // D57 pins: canvases.ts; D60 conversation: conversation.ts and ask.ts; rate-limit.ts
   "listCanvases", "pinCanvas", "updateCanvas", "moveCanvas", "unpinCanvas",
   "saveTurn", "recentTurns", "latestConversation", "allTurns", "setThumb", "conversationContext", "firstUseLine", "requestCount",
+  // D59 data-kinds.ts and restore.ts
+  "countKind", "countKinds", "deleteKind", "deleteOne", "deleteTurn", "deleteConversation", "deleteDocument", "restoreHousehold",
+  // D59 place.ts (24B)
+  "readPlaces", "requireCloud", "itemsToMove", "moveToDevice", "moveToCloud",
 ];
 
 const notApplicable: Record<string, string> = {
@@ -130,7 +137,9 @@ const notApplicable: Record<string, string> = {
   storeDocument: "creates a document keyed by a digest that includes the household id; needs Supabase Storage",
   parseReferenceRate: "pure parser of the ECB feed", fetchReferenceRate: "network fetch of the public ECB feed; no household id",
   sandboxRead: "PayPal sandbox HTTP reader; takes no household id",
+  isMovable: "pure check that a value is one of the three movable kind names", contextText: "pure text from turns passed in; conversationContext, which reads them, is covered above",
   seedBen: "creates a new household with a fresh id; touches no existing household",
+  isDataKind: "pure check that a value is one of the five kind names", readSnapshotFile: "pure parse of a file passed in; restoreHousehold, which calls it, is covered above",
 };
 
 // ------------------------------------------------------------------ helpers
@@ -178,6 +187,7 @@ async function main() {
     ...spendingMod, // Stage 17 spending
     ...memoryMod, // D58 memory
     ...askMod, ...canvasesMod, ...conversationMod, // D57 pins, D60 conversation
+    ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
   };
   const F = new Proxy(modules, {
     get(target, key: string) {
@@ -416,6 +426,7 @@ async function main() {
       seen("loadNavigationData", await F.loadNavigationData(store, hid));
       seen("loadWorkspaceData", await F.loadWorkspaceData(store, hid, false));
       seen("loadHouseholdSnapshot with events", await F.loadHouseholdSnapshot(store, hid, { events: true }));
+      seen("loadHouseholdSnapshot with the stored kinds", await F.loadHouseholdSnapshot(store, hid, { events: true, stored: true }));
       seen("loadHouseholdSnapshot recent", await F.loadHouseholdSnapshot(store, hid, { events: false, recent: 3 }));
       const review = await F.invoiceReview(store, hid, viewer.ids.invoiceSent);
       seen("invoiceReview", review);
@@ -599,6 +610,33 @@ async function main() {
         assert.deepEqual(leaks(drawn, needles), [], "a drawn canvas shows none of the other's data");
         await untouched("canvas drawn");
       });
+      await check(`${X.name} -> ${Y.name}: delete by kind and delete one (D59) count and remove only the caller's own, and Import refuses a household with data`, async () => {
+        const by = { madeBy: "form" } as const;
+        const noStorage = { remove: async () => { throw new Error("Storage must not be touched for another household's document"); } };
+        const counts = await F.countKinds(store, X.hid);
+        assert.deepEqual([counts.memory, counts.canvases, counts.journal], [1, 1, 1], "X counts its own items, not Y's");
+        assert.equal(await F.countKind(store, X.hid, "documents"), 3);
+        assert.equal(await F.deleteOne(store, X.hid, "memory", y.memory, by), false);
+        assert.equal(await F.deleteOne(store, X.hid, "canvases", y.canvas, by), false);
+        assert.equal(await F.deleteOne(store, X.hid, "journal", y.turn, by), false);
+        assert.equal(await F.deleteTurn(store, X.hid, y.turn), false);
+        assert.equal(await F.deleteConversation(store, X.hid, (await F.allTurns(store, Y.hid))[0].conversationId), 0);
+        for (const id of [y.document, y.documentFailed, y.documentRead]) {
+          assert.equal(await F.deleteOne(store, X.hid, "documents", id, by, noStorage), false);
+          assert.equal(await F.deleteDocument(store, X.hid, id, by, noStorage), false);
+        }
+        await untouched("data-kinds deletes of the other's ids");
+        await mustThrow("deleteKind record", () => F.deleteKind(store, X.hid, "record", by));
+        await mustThrow("deleteOne record", () => F.deleteOne(store, X.hid, "record", y.billConfirmed, by));
+        await untouched("the record is refused by kind");
+        assert.equal(await F.deleteKind(store, X.hid, "memory", by), 1, "X's kind delete removes only X's one item");
+        await untouched("deleteKind memory");
+        assert.equal((await F.addMemory(store, X.hid, { kind: "fact", text: `${X.name} remembers a quiet month` }, by)).kind, "fact");
+        await mustThrow("restoreHousehold into a household with data", () => F.restoreHousehold(store, X.hid, { version: 2 }));
+        const file = await F.loadHouseholdSnapshot(store, Y.hid, { events: false, stored: true });
+        await mustThrow("restoreHousehold of the other's file into a household with data", () => F.restoreHousehold(store, X.hid, JSON.parse(JSON.stringify(file))), /empty household/);
+        await untouched("restoreHousehold refused");
+      });
       await check(`${X.name} -> ${Y.name}: the Anthropic key (Vault) cannot be reached through a wrong pointer`, async () => {
         const own = one(await db.select({ id: schema.households.aiKeySecretId }).from(schema.households).where(eq(schema.households.id, X.hid))).id!;
         try {
@@ -627,6 +665,23 @@ async function main() {
         const rows = await F.pinCanvas(store, X.hid, { title: "Second", recipe: { version: 1, title: "Second", blocks: [{ type: "number", label: "Cash", query: { q: "cash" } }] } }, by);
         assert.equal(rows.position, 1, "X's second pin is X's second, whatever Y holds");
         await F.unpinCanvas(store, X.hid, rows.id, by);
+      });
+      await check(`${X.name} -> ${Y.name}: moving a kind to the device and back (D59) takes and sets only the caller's own, and a changed set moves nothing`, async () => {
+        const by = { madeBy: "form" } as const;
+        const taken = await F.itemsToMove(store, X.hid, "memory") as { id: string }[];
+        assert.ok(taken.length > 0 && taken.every(item => item.id !== y.memory), "X takes only its own items");
+        await refuse("moveToDevice with the other's ids", () => F.moveToDevice(store, X.hid, "memory", [y.memory], by));
+        await untouched("moveToDevice with the other's ids");
+        assert.equal((await F.readPlaces(store, X.hid)).memory, "cloud");
+        assert.equal(await F.moveToDevice(store, X.hid, "memory", taken.map(item => item.id), by), taken.length);
+        assert.deepEqual([(await F.readPlaces(store, X.hid)).memory, (await F.readPlaces(store, Y.hid)).memory], ["device", "cloud"], "only X's place changed");
+        await untouched("moveToDevice");
+        assert.ok((await F.listMemory(store, Y.hid)).length > 0, "Y's memory is still in the cloud");
+        await mustThrow("requireCloud for a kind on the device", () => F.requireCloud(store, X.hid, "memory"), /on this device only/);
+        await F.requireCloud(store, Y.hid, "memory");
+        assert.equal(await F.moveToCloud(store, X.hid, "memory", taken, by), taken.length);
+        assert.deepEqual((await F.listMemory(store, X.hid)).map(m => m.id).sort(), taken.map(item => item.id).sort(), "X's items are back, with their ids");
+        await untouched("moveToCloud");
       });
       await check(`${X.name} -> ${Y.name}: the agent's draft tools refuse the other household's ids`, async () => {
         const probe = { biller: "Isolation probe", amount: "100", due: "2026-11-20" };

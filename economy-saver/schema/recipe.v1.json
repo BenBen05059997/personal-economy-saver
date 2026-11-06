@@ -1,0 +1,658 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CanvasRecipe",
+  "description": "Version 1 of a canvas recipe: blocks that hold queries, never amounts.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "scenario": {
+      "type": "object",
+      "properties": {
+        "case": {
+          "type": "string",
+          "enum": [
+            "usual",
+            "late"
+          ],
+          "description": "usual: clients pay on their usual day. late: on their slowest."
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "client_late"
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "days": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 60,
+                    "description": "Days later than the client's own pace that all their invoices land."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "clientId",
+                  "days"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "remove_bill"
+                  },
+                  "billId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80,
+                    "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "billId"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "change_bill"
+                  },
+                  "billId": {
+                    "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
+                  },
+                  "amountMinor": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 100000000,
+                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "billId",
+                  "amountMinor"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "add_cost"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "amountMinor": {
+                    "$ref": "#/properties/scenario/properties/changes/items/anyOf/2/properties/amountMinor"
+                  },
+                  "date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+                    "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name",
+                  "amountMinor",
+                  "date"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "add_income"
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "amountMinor": {
+                    "$ref": "#/properties/scenario/properties/changes/items/anyOf/2/properties/amountMinor"
+                  },
+                  "date": {
+                    "$ref": "#/properties/scenario/properties/changes/items/anyOf/3/properties/date",
+                    "description": "The day the money lands, tomorrow or later."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "name",
+                  "amountMinor",
+                  "date"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "maxItems": 10
+        }
+      },
+      "required": [
+        "case",
+        "changes"
+      ],
+      "additionalProperties": false,
+      "description": "The recipe's own live scenario: any query that says `scenario: \"canvas\"` uses it, and the sliders change its client_late days."
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "sentence"
+              },
+              "query": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string",
+                    "const": "sentence"
+                  },
+                  "scenario": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/properties/scenario"
+                      },
+                      {
+                        "type": "string",
+                        "const": "canvas"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "q"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type",
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "number"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "query": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "q": {
+                        "type": "string",
+                        "const": "safe_to_spend"
+                      },
+                      "scenario": {
+                        "$ref": "#/properties/blocks/items/anyOf/0/properties/query/properties/scenario"
+                      }
+                    },
+                    "required": [
+                      "q"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "q": {
+                        "type": "string",
+                        "const": "cash"
+                      }
+                    },
+                    "required": [
+                      "q"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "q": {
+                        "type": "string",
+                        "const": "low_point"
+                      },
+                      "scenario": {
+                        "$ref": "#/properties/blocks/items/anyOf/0/properties/query/properties/scenario"
+                      }
+                    },
+                    "required": [
+                      "q"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "q": {
+                        "type": "string",
+                        "const": "month_total"
+                      },
+                      "month": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                        "description": "A calendar month, YYYY-MM, within the last twelve months or this one."
+                      }
+                    },
+                    "required": [
+                      "q",
+                      "month"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "type",
+              "label",
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "flow_chart"
+              },
+              "query": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string",
+                    "const": "flow"
+                  },
+                  "days": {
+                    "type": "integer",
+                    "minimum": 7,
+                    "maximum": 60,
+                    "description": "How many days from today; the usual 30 when left out."
+                  },
+                  "scenario": {
+                    "$ref": "#/properties/blocks/items/anyOf/0/properties/query/properties/scenario"
+                  }
+                },
+                "required": [
+                  "q"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type",
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "timeline"
+              },
+              "query": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string",
+                    "const": "events"
+                  },
+                  "days": {
+                    "$ref": "#/properties/blocks/items/anyOf/2/properties/query/properties/days"
+                  },
+                  "scenario": {
+                    "$ref": "#/properties/blocks/items/anyOf/0/properties/query/properties/scenario"
+                  }
+                },
+                "required": [
+                  "q"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "type",
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "table"
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "query": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/blocks/items/anyOf/3/properties/query"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "q": {
+                        "type": "string",
+                        "const": "month_by_category"
+                      },
+                      "month": {
+                        "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/3/properties/month"
+                      }
+                    },
+                    "required": [
+                      "q",
+                      "month"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "q": {
+                        "type": "string",
+                        "const": "compare_months"
+                      },
+                      "a": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                        "description": "The earlier month, the base."
+                      },
+                      "b": {
+                        "type": "string",
+                        "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                        "description": "The month compared with it; the change is b minus a."
+                      }
+                    },
+                    "required": [
+                      "q",
+                      "a",
+                      "b"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "q": {
+                        "type": "string",
+                        "const": "spending_search"
+                      },
+                      "text": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "months": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 12
+                      }
+                    },
+                    "required": [
+                      "q",
+                      "text",
+                      "months"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "q": {
+                        "type": "string",
+                        "const": "regular_costs"
+                      },
+                      "months": {
+                        "type": "integer",
+                        "minimum": 2,
+                        "maximum": 24
+                      }
+                    },
+                    "required": [
+                      "q"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "compare"
+              },
+              "query": {
+                "$ref": "#/properties/blocks/items/anyOf/4/properties/query/anyOf/2"
+              }
+            },
+            "required": [
+              "type",
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "progress"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "query": {
+                "anyOf": [
+                  {
+                    "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/0"
+                  },
+                  {
+                    "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/1"
+                  },
+                  {
+                    "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/3"
+                  }
+                ]
+              },
+              "targetMinor": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 100000000,
+                "description": "The person's own target, in minor units of the home currency."
+              }
+            },
+            "required": [
+              "type",
+              "label",
+              "query",
+              "targetMinor"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "note"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 600
+              },
+              "by": {
+                "type": "string",
+                "enum": [
+                  "you",
+                  "assistant"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "text",
+              "by"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "letter"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              }
+            },
+            "required": [
+              "type",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "sliders"
+              },
+              "controls": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "clientId": {
+                      "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
+                    },
+                    "maxDays": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 60
+                    }
+                  },
+                  "required": [
+                    "clientId",
+                    "maxDays"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 1,
+                "maxItems": 4
+              }
+            },
+            "required": [
+              "type",
+              "controls"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "action"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "href": {
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "type",
+              "label",
+              "href"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 12
+    }
+  },
+  "required": [
+    "version",
+    "title",
+    "blocks"
+  ],
+  "additionalProperties": false
+}

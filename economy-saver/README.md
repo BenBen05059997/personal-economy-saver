@@ -21,7 +21,9 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - Your AI model: Settings → Your AI model sets a provider (or any OpenAI-compatible address once signed in), the models and a key; Save and check runs three checks (uses tools, ignores an injected order, stays on money) and shows the host your questions go to. With no model of its own a household uses the server's `AI_` settings.
 - The same tool catalogue and rules serve MCP (the server's `instructions`), except `clarify` and `out_of_scope`, which only the Ask page offers. The same tool catalogue and rules serve MCP (the server's `instructions`). Each Ask and each MCP call writes one content-free JSON log line to standard output.
 - A family view by link: Settings → People makes a link that lasts 7 days (at most 5 live, stoppable at once; only its hash is stored, so the full link and a ready-to-paste LINE message show once). The page at `/family/<token>` needs no sign-in and has no actions: the sentence, the shared bills coming up and who owes whom. `APP_URL` sets the address in the link.
-- One versioned household schema: Settings has Export my data (a JSON download with the household's events), the `household_snapshot` read tool gives the agent and MCP the same picture without events, and `schema/household.v1.json` is generated from the same definition.
+- One versioned household schema: Settings has Export my data (a version 2 JSON download: the record with the household's events, plus memory, pinned canvases and the conversation), the `household_snapshot` read tool gives the agent and MCP the record without events, and the files in `schema/` (`household.v2.json`, `recipe.v1.json`, `memory.v1.json`, `turn.v1.json`, `cash-flow-event.v1.json`) are generated from the same zod definitions.
+- Your data: Settings → Your data lists five kinds (the record, memory, canvases, the conversation, documents) with where each is kept and how many there are. Memory, canvases and the conversation can be deleted all at once or one by one, and Ask has "Delete this conversation"; documents can be deleted too (confirmed bills and charges stay); "Delete everything" goes to the account page. Import reads a version 2 export into a household that has nothing in it yet: your own login stays, the file's events, documents, PayPal invoice ids and status, and the household's name, time zone, currency and exchange rate are not restored, a file in another currency is refused, and every restored row is marked as imported.
+- This device only: memory, canvases and the conversation can be kept in the browser instead of our cloud (Settings → Your data). The server then holds none of it: each question carries the memory and the last turns it needs, the server uses them for that answer and stores nothing, and pins on the device are drawn on Home by asking the engine. Other devices and MCP see none of it, clearing the browser deletes it, and Import is refused while anything is kept there. Export from that device adds its items to the file.
 - PayPal sandbox REST and Agent Toolkit integration, with the draft/read tools separate from the server approval path; verified webhook deliveries are idempotent; a read-only import of sandbox invoice history.
 - Rate limits on Try it, Ask (and five declined questions an hour), MCP, canvases, pins, thumbs, model changes, drafts, approvals, uploads, document reads, imports and exports; PayPal toolkit calls time out after 20 s.
 - A daily Cron route with an explicit household list (`CRON_HOUSEHOLD_IDS`). Its one standing rule is off until you set it in Settings: once a sent invoice is N days past due it records a "Nudge suggested" event and Home shows it as the one action; it never sends, the reminder still needs your tap.
@@ -83,13 +85,15 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all twenty-six suites: db, approve, mcp, reader, settings, agent, ai, refresh, doors, import, csv, pots, snapshot, split, category, spending, regular, varies, gaps, canvas, conversation, memory, cron, sweep, isolation, family
-npm run schema       # rewrites schema/household.v1.json from the zod definition (db:test fails when it is stale)
+npm run db:test      # all twenty-seven suites: db, approve, mcp, reader, settings, agent, ai, refresh, doors, import, csv, pots, snapshot, split, category, spending, regular, varies, gaps, canvas, conversation, memory, data, cron, sweep, isolation, family
+npm run schema       # rewrites the five files in schema/ from the zod definitions (db:test fails when one is stale)
 npx tsc --noEmit -p .
 npm run lint
 ```
 
-Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:canvas-test`, `db:conversation-test`, `db:memory-test`, `db:cron-test`, `db:sweep-test`, `db:isolation-test`, `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
+Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:canvas-test`, `db:conversation-test`, `db:memory-test`, `db:data-test`, `db:cron-test`, `db:sweep-test`, `db:isolation-test`, `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
+
+The model eval calls a real provider, so it is not part of `db:test`: `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` runs the real agent on Ben's fictional household in a throwaway database, reads the key from `EVAL_API_KEY` in `.env.local`, and prints one line per case and the `TESTED` line to add to `src/lib/ai/tested.ts`. Its graders are tested on the fake transport in `db:ai-test`.
 
 With the app running and Supabase configured, `node scripts/frontend-check.mjs --run http://127.0.0.1:3123` times the core household workflows. `--extra` covers Upload, Options and invoice draft retries; `--guards` covers integration rejection paths. They create fictional Try it households. Results and timings are in [PLAN.md](../PLAN.md).
 
@@ -117,14 +121,16 @@ src/lib/ai/              callModel, the one way the app calls a model (Anthropic
 src/lib/canvas/          the canvas recipe, its resolver and starters (components in src/components/canvas/; pins in src/db/canvases.ts)
 src/app/canvas/          the Ask page (components in src/components/ask/; turns in src/db/conversation.ts)
 src/db/memory.ts         what the assistant remembers (page /memory)
-src/lib/schema/          the one household schema (zod) and its JSON Schema generator
-schema/                  household.v1.json, the committed JSON Schema
+src/lib/schema/          the one household schema (zod, version 2) and its JSON Schema generator
+src/db/data-kinds.ts     the five kinds of stored data: count and delete; restore.ts is Import; place.ts is where memory, canvases and the conversation are kept
+src/lib/store/           this device only: the browser's IndexedDB store for those three
+schema/                  household.v2.json, recipe.v1.json, memory.v1.json, turn.v1.json, cash-flow-event.v1.json: the committed JSON Schemas
 src/lib/paypal/          sandbox client, toolkit, invoice listing and webhook verification
 src/lib/mcp/             Streamable HTTP server
 src/lib/catalogue/       the wealth-move catalogue engine (words and sources in src/data/catalogue/)
 src/lib/reader/          extraction, forwarding, storage
 scripts/                 isolated tests and explicit owner-operated checks
-drizzle/                 ordered schema migrations, twenty-two files (0000–0021)
+drizzle/                 ordered schema migrations, twenty-three files (0000–0022)
 worker.ts                Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
 samples/bills/           fictional sample bills for the reader
 ```

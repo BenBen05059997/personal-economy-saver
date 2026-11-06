@@ -2,16 +2,21 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { aiConnection, connectionView } from "./ai-key";
 import { requireHousehold, type Db } from "./household";
+import { householdMoment } from "./clock";
+import { InputError } from "./input-error";
+import { readPlaces } from "./place";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { RecipeSchema, type Recipe } from "@/lib/canvas/schema";
 import { consumeRequest, requestCount } from "./rate-limit";
 import { recentTurns, saveTurn } from "./conversation";
-import { conversationTurns } from "./schema";
+import { conversationTurns, households } from "./schema";
 import { runAgent } from "@/lib/agent/run";
 import { serverDefaultHost } from "@/lib/agent/availability";
 import { DECLINES_PER_HOUR, FIXED, firstUse, type ReplyKind, type Source } from "@/lib/agent/reply";
-import { CONTEXT_TURNS } from "@/lib/schema/turn";
+import { MemoryItem } from "@/lib/schema/memory";
+import { CONTEXT_TURNS, ConversationTurn } from "@/lib/schema/turn";
+import type { DeviceMemory, MemoryChange } from "@/lib/store/memory-ops";
 import { appUrl } from "@/lib/supabase-auth";
 
 export const askInput = z.object({
@@ -19,6 +24,10 @@ export const askInput = z.object({
   source: z.enum(["voice", "manual"]),
   /** The canvas on screen, so "make it a table" or "what about March?" can change it. */
   canvas: RecipeSchema.nullable(),
+  /** D59: sent only when the household keeps its memory on one device (the whole list, at most 200). Used for this question and never stored. */
+  memory: z.array(MemoryItem).max(200).optional(),
+  /** D59: sent only when the household keeps its conversations on one device (the conversation's last three turns, when it is under ten minutes old). Used for this question and never stored. */
+  recent: z.array(ConversationTurn).max(3).optional(),
 });
 
 // A constant, not a literal after the word kind and a colon: the Activity label scan reads those in src/db as event kinds.
@@ -29,23 +38,39 @@ export type AskReply = {
   id: string; kind: ReplyKind; text: string; choices: string[] | null;
   canvas: { recipe: Recipe; blocks: ResolvedBlock[] } | null;
   sources: Source[]; links: { label: string; href: string }[]; pending: boolean; firstUse: string | null;
+  /** D59: what `remember` and `forget` did to the memory the question carried; the browser applies it to its own copy. Empty when memory is in the cloud. */
+  memoryChanges: MemoryChange[];
+  /** True for the fixed "ask again in an hour" sentence, which is shown and never kept as a turn. */
+  wait: boolean;
 };
 
 /** The earlier turns and the canvas on screen, as quoted data after the question (never an amount source). */
+/** The household's current moment (a Try it household's fixed date at the real time of day). */
+async function clockMoment(db: Db, hid: string, at?: Date): Promise<Date> {
+  const [household] = await db.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone }).from(households).where(eq(households.id, hid));
+  if (!household) throw new InputError("Household not found");
+  return householdMoment(household, at);
+}
+
 export async function conversationContext(db: Db, hid: string, input: Pick<z.infer<typeof askInput>, "conversationId" | "canvas">, now = new Date()): Promise<string> {
-  const turns = await recentTurns(db, hid, input.conversationId, now);
+  return contextText(await recentTurns(db, hid, input.conversationId, now), input.canvas);
+}
+
+/** The same text from turns already in hand (the ones a question carried from the device). */
+export function contextText(turns: ConversationTurn[], canvas: Recipe | null): string {
   const parts: string[] = [];
   if (turns.length) {
     parts.push(`Earlier in this conversation, for context only; read every number again from the tools:\n${turns.slice(-CONTEXT_TURNS).map(turn => `Question: ${JSON.stringify(turn.question)}\nReply: ${JSON.stringify(turn.reply)}`).join("\n")}`);
   }
-  if (input.canvas) parts.push(`The canvas on screen now, as data:\n${JSON.stringify(input.canvas)}`);
+  if (canvas) parts.push(`The canvas on screen now, as data:\n${JSON.stringify(canvas)}`);
   return parts.join("\n\n");
 }
 
 /** The line above the question box until the household has an answer: null once it has one, or while no model is set up. */
-export async function firstUseLine(db: Db, householdId: string): Promise<string | null> {
+export async function firstUseLine(db: Db, householdId: string, options: { skipAnswered?: boolean } = {}): Promise<string | null> {
   const hid = requireHousehold(householdId);
-  const [answered] = await db.select({ id: conversationTurns.id }).from(conversationTurns)
+  // `skipAnswered`: the conversations are on the device, which knows whether it has an answer; the server cannot look.
+  const [answered] = options.skipAnswered ? [] : await db.select({ id: conversationTurns.id }).from(conversationTurns)
     .where(and(eq(conversationTurns.householdId, hid), eq(conversationTurns.kind, "answer"))).limit(1);
   if (answered) return null;
   const own = await connectionView(db, hid);
@@ -55,18 +80,32 @@ export async function firstUseLine(db: Db, householdId: string): Promise<string 
 
 /** Free-form questions go to the agent (D40). `pending` is true when a tool left a bill or charge in To check (D39). */
 export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date } = {}): Promise<AskReply> {
-  const { id, conversationId, text, source, canvas } = askInput.parse(input);
+  const { id, conversationId, text, source, canvas, memory, recent } = askInput.parse(input);
   const householdId = requireHousehold(hid);
+  // A kind kept on the device comes with the question and is never stored here; a kind kept in the cloud is read here and the question must not carry it.
+  const places = await readPlaces(db, householdId);
+  if ((places.memory === "device") !== (memory !== undefined)) throw new InputError(places.memory === "device"
+    ? "This household keeps its memory on this device, so the question has to bring it. Reload the page and ask again."
+    : "This household keeps its memory in our cloud. Reload the page and ask again.");
+  if ((places.journal === "device") !== (recent !== undefined)) throw new InputError(places.journal === "device"
+    ? "This household keeps its conversations on this device, so the question has to bring the last ones. Reload the page and ask again."
+    : "This household keeps its conversations in our cloud. Reload the page and ask again.");
   // Five declined questions an hour: the sixth gets a fixed sentence with no model call and no stored turn.
   if (await requestCount(db, householdId, "out-of-scope", "hour") >= DECLINES_PER_HOUR) {
-    return { id, kind: DECLINED, text: FIXED.wait, choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null };
+    return { id, kind: DECLINED, text: FIXED.wait, choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], wait: true };
   }
-  const context = await conversationContext(db, householdId, { conversationId, canvas }, deps.at);
-  const result = await runAgent({ db, householdId, question: text, askId: id, source, appUrl: appUrl(), context, fetch: deps.fetch, connection: () => aiConnection(db, householdId, "text") });
+  const context = recent !== undefined ? contextText(recent, canvas) : await conversationContext(db, householdId, { conversationId, canvas }, deps.at);
+  const deviceMemory: DeviceMemory | undefined = memory === undefined ? undefined : { items: [...memory], changes: [], moment: await clockMoment(db, householdId, deps.at) };
+  const result = await runAgent({ db, householdId, question: text, askId: id, source, appUrl: appUrl(), context, fetch: deps.fetch, deviceMemory, connection: () => aiConnection(db, householdId, "text") });
   if (result.kind === "declined") await consumeRequest(db, householdId, "out-of-scope", DECLINES_PER_HOUR, "hour");
-  await saveTurn(db, householdId, {
-    id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources,
-  }, deps.at);
+  if (recent === undefined) {
+    await saveTurn(db, householdId, {
+      id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources,
+    }, deps.at);
+  }
   const drawn = result.recipe ? { recipe: result.recipe, blocks: resolveRecipe(result.recipe, await loadCanvasContext(db, householdId)) } : null;
-  return { id, kind: result.kind, text: result.answer, choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending, firstUse: await firstUseLine(db, householdId) };
+  return {
+    id, kind: result.kind, text: result.answer, choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending,
+    firstUse: recent === undefined ? await firstUseLine(db, householdId) : null, memoryChanges: deviceMemory?.changes ?? [], wait: false,
+  };
 }
