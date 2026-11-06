@@ -3,6 +3,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import type { MoneyState } from "@/lib/money/types";
 import { addDays, closingOnOrAfter, cycle, daysBetween, dueItems, medianLow } from "@/lib/money/runway";
 import { dayLabel, money } from "@/lib/money/format";
+import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
 import { householdClock } from "./account";
 import { loadMoneyState, recordEvent, requireHousehold, type Db } from "./household";
 import { cardStatements, events, households, invoices } from "./schema";
@@ -61,7 +62,7 @@ export async function runDaily(db: Db, id: string, now = new Date()) {
       if (inserted.length) notes.push(`${card.label} closes at ${money(statement.openTotal, state.homeCurrency)}, due ${dayLabel(statement.dueOn)}.`);
     }
     for (const bill of dueItems(state, 4).filter(b => !b.pending && b.date === addDays(today, 3))) {
-      notes.push(`${bill.label} is due ${dayLabel(bill.date)}: ${money(bill.amount, state.homeCurrency)}, ${bill.covered ? "covered" : "short if clients pay late"}.`);
+      notes.push(`${bill.label} is due ${dayLabel(bill.date)}: ${bill.uncounted ? AMOUNT_NOT_KNOWN : bill.estimated ? "about " + money(bill.amount, state.homeCurrency) : money(bill.amount, state.homeCurrency)}, ${bill.covered ? "covered" : "short if clients pay late"}.`);
     }
     for (const invoice of state.invoices.filter(i => i.status === "sent" && i.sentOn)) {
       const client = state.clients.find(c => c.id === invoice.clientId);

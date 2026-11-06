@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
-import { readingForm } from "@/lib/reader/form";
+import { readingForm, readingUnknown } from "@/lib/reader/form";
 import { ReaderError } from "@/lib/reader/settings";
 import { reviewReading } from "@/db/readings";
 import { confirmPending } from "@/db/confirm";
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const decision = form.get("decision");
     if (decision !== "confirm" && decision !== "reject") return new Response("Invalid decision", { status: 400 });
     try {
-      await reviewReading(db(), hid, id.data, decision === "reject" ? null : readingForm(form));
+      await reviewReading(db(), hid, id.data, decision === "reject" ? null : readingForm(form), decision === "reject" ? {} : readingUnknown(form));
     } catch (error) {
       if (error instanceof ReaderError || error instanceof StatementChargeError) return new Response(error.message, { status: 400 });
       return new Response("Reading could not be saved. Try again.", { status: 503 });

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { MoneyState, Pot } from "@/lib/money/types";
 import { majorMoney } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
-import { HISTORY_MONTHS, monthName, monthsBack, SEARCH_QUERY_MAX, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
+import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, SEARCH_QUERY_MAX, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { monthYear, moneyInPotsLine, potLine, roomLine, roomNote } from "@/lib/money/plan";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
@@ -107,7 +107,7 @@ export function PlanView({ state, spending, ask, newPotId }: { state: MoneyState
     {previous && <Link href={planHref(previous, ask.current, query)} aria-label={`Previous month, ${label(previous)}`}>‹ {label(previous)}</Link>}
     {next && <Link className="plan-month-next" href={planHref(next, ask.current, query)} aria-label={`Next month, ${label(next)}`}>{label(next)} ›</Link>}
   </nav>;
-  const result = query ? searchSpending(spendingItems(spending, `${ask.oldest}-01`, ask.today), query, spending.homeCurrency, { from: `${ask.oldest}-01`, to: ask.today }) : null;
+  const result = query ? searchSpending(spendingItems(spending, `${ask.oldest}-01`, monthBounds(ask.current).last), query, spending.homeCurrency, { from: `${ask.oldest}-01`, to: ask.today, uncountedTo: monthBounds(ask.current).last }) : null;
   return <article className="plan">
     <h1 className="ui-title">Plan</h1>
     <p className="plan-room">{roomLine(state)}</p>

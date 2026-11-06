@@ -294,9 +294,9 @@ export const bills = pgTable(
     memberId: uuid("member_id").references(() => members.id, { onDelete: "set null" }), // null = shared
     paidByMemberId: uuid("paid_by_member_id"), // D45: who pays a shared bill (every occurrence); only with member_id null
     biller: text("biller").notNull(),
-    amountMinor: minor("amount_minor").notNull(),
+    amountMinor: minor("amount_minor"), // D55: null = not known yet (a one-off, or a monthly bill whose amount varies)
     currency: char("currency", { length: 3 }).notNull(),
-    due: date("due", { mode: "string" }).notNull(),
+    due: date("due", { mode: "string" }), // D55: null = not known yet (a one-off bill only)
     category: text("category").notNull(), // D46: a key from lib/money/categories.ts
     businessBp: integer("business_bp").notNull().default(0), // D46: business share in basis points; 0 = personal, 10000 = business
     status: confirmStatus("status").notNull().default("confirmed"),
@@ -321,6 +321,8 @@ export const bills = pgTable(
     check("bills_next_amount_pair", sql`(${t.nextAmountMinor} is null) = (${t.nextAmountFrom} is null)`),
     check("bills_amount_varies_monthly", sql`not ${t.amountVaries} or (${t.repeatUnit} is not distinct from 'month' and ${t.nextAmountMinor} is null)`),
     check("bills_series_one_off", sql`${t.seriesBillId} is null or ${t.repeatUnit} is null`),
+    check("bills_amount_unknown_shape", sql`${t.amountMinor} is not null or ((${t.repeatUnit} is null or ${t.amountVaries}) and ${t.nextAmountMinor} is null and ${t.previousAmountMinor} is null)`),
+    check("bills_due_unknown_one_off", sql`${t.due} is not null or (${t.repeatUnit} is null and ${t.seriesBillId} is null and ${t.cancelBy} is null)`),
     unique("bills_household_id_uq").on(t.householdId, t.id),
     index("bills_series_idx").on(t.householdId, t.seriesBillId),
     // D54: the series is a bill of the same household; removing it leaves its real bills as plain one-offs (only series_bill_id is cleared, see migration 0018).

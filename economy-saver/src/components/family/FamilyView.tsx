@@ -1,6 +1,8 @@
 import { MonthSplit } from "@/components/plan/MonthSplit";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { Sentence } from "@/components/home/Sentence";
+import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
+import { homeSentence } from "@/lib/money/sentence";
 import { sharedBillsComing } from "@/lib/money/family";
 import { aboutMoney, dayLabel, minorMoney } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
@@ -19,6 +21,7 @@ export function FamilyView({ name, state }: { name: string; state: MoneyState })
     <p className="home-note">{name} · family view</p>
     <time className="home-date" dateTime={state.today}>{date}</time>
     <h1><Sentence state={state} linked={false} /></h1>
+    {homeSentence(state).note && <p className="home-sentence-note">{homeSentence(state).note}</p>}
     <div className="home-panels">
       <div className="home-column">
         <div className="home-panel family-month"><MonthSplit view={monthByCategory(state, state.today)} people={state.split.members} /></div>
@@ -30,7 +33,7 @@ export function FamilyView({ name, state }: { name: string; state: MoneyState })
           {bills.map(bill => <div key={bill.key} className="home-row home-dated">
             <time dateTime={bill.date}>{dayLabel(bill.date)}</time>
             <div>{bill.biller}{bill.paidBy && <small className="family-bill-paid">Paid by {bill.paidBy}</small>}</div>
-            <div className="home-number">{bill.estimated ? aboutMoney(bill.amountMinor, state.homeCurrency) : minorMoney(bill.amountMinor, state.homeCurrency)}</div>
+            <div className="home-number">{bill.uncounted ? AMOUNT_NOT_KNOWN : bill.estimated ? aboutMoney(bill.amountMinor, state.homeCurrency) : minorMoney(bill.amountMinor, state.homeCurrency)}</div>
           </div>)}
         </section>
         {together && <section id="shared-costs" className="home-panel">

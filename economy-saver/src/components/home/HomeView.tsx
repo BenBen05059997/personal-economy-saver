@@ -4,6 +4,7 @@ import { ApiForm } from "@/components/ui/ApiForm";
 import { categoryLabel } from "@/lib/money/categories";
 import type { CancelNotice, MoneyState } from "@/lib/money/types";
 import { aboutMoney, dayLabel, formatter, minorPerUnit, repeatWords, usd } from "@/lib/money/format";
+import { AMOUNT_NOT_KNOWN, confirmedGaps, gapAmountWords, gapDateWords, gapMeanwhileWords, gapQuestion, openGaps } from "@/lib/money/gaps";
 import { addDays, arrivals, daysBetween, safeToSpend, series, statementItems, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { fundingOptions } from "@/lib/money/options";
 import { potSummary } from "@/lib/money/plan";
@@ -75,14 +76,20 @@ function Next30Days({ state, balanceId }: Props & { balanceId: string }) {
 
 function ToCheck({ state, inbox, forwarding }: Props & { inbox: ReaderInbox; forwarding: boolean }) {
   const rows = toCheck(state);
+  const missing = confirmedGaps(state); // D55: confirmed bills with a gap count here and are filled in on To check
+  const total = rows.length + inbox.readings.length + missing.length;
   return <section id="to-check" className="home-panel home-review">
-    <h2>To check{rows.length + inbox.readings.length > 0 && ` · ${rows.length + inbox.readings.length}`}</h2>
-    {!rows.length && !inbox.readings.length && !inbox.jobs.length && <PanelHint className="home-empty" href={forwarding ? "/settings#forwarding" : "/upload"} label={forwarding ? "Forward a bill or upload a receipt" : "Upload a receipt"}>Things the app read or drafted, waiting for your OK. Nothing here now.</PanelHint>}
+    <h2>To check{total > 0 && ` · ${total}`}</h2>
+    {total === 0 && !inbox.jobs.length && <PanelHint className="home-empty" href={forwarding ? "/settings#forwarding" : "/upload"} label={forwarding ? "Forward a bill or upload a receipt" : "Upload a receipt"}>Things the app read or drafted, waiting for your OK. Nothing here now.</PanelHint>}
     {inbox.jobs.map(job => <div key={job.id} className="home-row"><Link prefetch={false} href="/to-check?from=home">{job.status === "failed" ? "Document needs attention" : "Reading document…"}</Link></div>)}
     {inbox.readings.map(r => <div key={r.id} className="home-row"><span>{r.value.name || "Document"}</span><Link prefetch={false} href={`/to-check?from=home#reading-${r.id}`}>Review</Link></div>)}
+    {missing.map((gap) => <div key={gap.id} className="home-row home-check-row">
+      <div>{gapQuestion(gap)}<small>{gapMeanwhileWords(gap)}</small></div>
+      <div className="home-number"><Link prefetch={false} className="home-enter" href="/to-check">Enter it ›</Link></div>
+    </div>)}
     {rows.map((row) => <div key={row.id} className="home-row home-check-row">
       <div>{row.title}<small>{row.detail}</small></div>
-      <div className="home-number">{row.amount !== null && formatter(state.homeCurrency)(row.amount)}</div>
+      <div className="home-number">{row.amount !== null ? formatter(state.homeCurrency)(row.amount) : row.kind === "bill" && row.gap?.amount}</div>
       <ConfirmButton kind={row.kind} id={row.id} title={row.title} />
     </div>)}
   </section>;
@@ -173,7 +180,7 @@ function CancelRow({ notice, state }: { notice: CancelNotice; state: MoneyState 
   const what = notice.repeats ? "it renews at" : "it is charged";
   return <div className="home-row home-dated home-cancel">
     <time dateTime={notice.cancelBy}>{dayLabel(notice.cancelBy)}</time>
-    <div>Cancel {notice.biller} by {dateIn(notice.cancelBy, state.today)} or {what} {format(notice.amount)} on {dateIn(notice.renewsOn, state.today)}
+    <div>Cancel {notice.biller} by {dateIn(notice.cancelBy, state.today)} or {what}{notice.amount === null ? "" : ` ${format(notice.amount)}`} on {dateIn(notice.renewsOn, state.today)}{notice.amount === null ? ` (${AMOUNT_NOT_KNOWN})` : ""}
       <small>{categoryLabel(notice.category)} · reminder only</small></div>
     <div className="home-number" />
   </div>;
@@ -195,8 +202,12 @@ function ComingUp({ state, people, entryIds, added, addedId }: Props & { people:
     const billId = event.id.split("@")[0];
     if (event.kind === "bill" && !seenBills.has(billId)) { seenBills.add(billId); firstOfBill.add(index); }
   });
+  // D55: the gap of each stored bill, so an estimated or uncounted row says where its number came from; a series' later months say only "about".
+  const gaps = new Map(openGaps(state).filter(gap => gap.source === "bill").map(gap => [gap.id, gap]));
   const rows = usual.map((event, index) => {
       const payment = incoming.get(event.id);
+      const gap = event.kind === "bill" ? gaps.get(event.id.split("@")[0]) : undefined;
+      const gapRow = gap !== undefined && event.date === gap.countedOn ? gap : null; // the row the gap's own words belong to
       const i = daysBetween(state.today, event.date);
       const short = late[i] < 0;
       return <div key={event.id} id={firstOfBill.has(index) ? `bill-${event.id.split("@")[0]}` : undefined} className="home-row home-dated">
@@ -208,10 +219,13 @@ function ComingUp({ state, people, entryIds, added, addedId }: Props & { people:
             : event.pending ? <small>Awaiting confirmation</small>
             : carries[index] && <small className="home-short">Short by {format(-late[i])} if clients pay late</small>}
           {repeats.has(event.id) && <small>{repeats.get(event.id)}</small>}
+          {gapRow?.missing.includes("amount") && <small>{gapAmountWords(gapRow)}</small>}
+          {gapRow?.missing.includes("date") && <small>{gapDateWords(gapRow)}</small>}
         </div>
-        <div className="home-number">{payment ? `+${usd(payment.amountUsd)}` : event.estimated ? aboutMoney(Math.round(Math.abs(event.amount)) * minorPerUnit(state.homeCurrency), state.homeCurrency) : format(Math.abs(event.amount))}
+        <div className="home-number">{payment ? `+${usd(payment.amountUsd)}` : gapRow?.missing.includes("amount") ? <Link prefetch={false} className="home-enter" href="/to-check">Enter it ›</Link> : event.uncounted ? AMOUNT_NOT_KNOWN : event.estimated ? aboutMoney(Math.round(Math.abs(event.amount)) * minorPerUnit(state.homeCurrency), state.homeCurrency) : format(Math.abs(event.amount))}
           {payment && state.homeCurrency !== "USD" && <small>≈{format(payment.amountHome)}</small>}
-          {!payment && !event.pending && !short && <span className="home-covered-tick" title={DAY_COVERED} aria-label={DAY_COVERED}> ✓</span>}
+          {gapRow && !gapRow.missing.includes("amount") && <small><Link prefetch={false} className="home-enter" href="/to-check">Enter it ›</Link></small>}
+          {!payment && !event.pending && !short && !event.uncounted && <span className="home-covered-tick" title={DAY_COVERED} aria-label={DAY_COVERED}> ✓</span>}
         </div>
       </div>;
     });
@@ -252,7 +266,9 @@ export function addedLine(state: MoneyState, id: string | null): string | null {
   const occurrences = state.bills.filter((bill) => bill.id === id || bill.id.startsWith(`${id}@`)).sort((a, b) => (a.due < b.due ? -1 : 1));
   if (occurrences.length) {
     const next = occurrences.find((bill) => bill.due >= state.today) ?? occurrences[0];
-    return `Added ${next.biller} ${format(next.amount)}, due ${dateIn(next.due, state.today)}`;
+    const gap = openGaps(state).find((item) => item.id === id);
+    const amount = gap?.missing.includes("amount") ? `, ${gapAmountWords(gap)}` : ` ${format(next.amount)}`;
+    return `Added ${next.biller}${amount}, ${gap?.missing.includes("date") ? gapDateWords(gap) : `due ${dateIn(next.due, state.today)}`}`;
   }
   const charge = state.charges.find((item) => item.id === id);
   const card = charge && state.cards.find((item) => item.id === charge.cardId);
@@ -264,6 +280,7 @@ export function HomeView({ state, inbox, notice, people, entryIds, balanceId, de
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
     <h1><Sentence state={state} linked /></h1>
+    {homeSentence(state).note && <p className="home-sentence-note">{homeSentence(state).note}</p>}
     {demo && tryIt && <p className="home-demo">A fictional household that lives in this browser for seven days after your last change. <Link prefetch={false} href="/start">Start with my numbers ›</Link></p>}
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} forwarding={forwarding} />

@@ -9,6 +9,7 @@ import { householdDate } from "@/db/account";
 import { requireHousehold, type Db, type Maker } from "@/db/household";
 import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
+import { readerInbox } from "@/db/reader-inbox";
 import { chargeInput, insertCharge } from "@/db/charges";
 import { InputError } from "@/db/input-error";
 import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
@@ -19,6 +20,7 @@ import { loadSpending } from "@/db/spending";
 import { toMinor } from "@/db/money";
 import { clients, invoices } from "@/db/schema";
 import { minorPerUnit } from "@/lib/money/format";
+import { gapAmountWords, gapDateWords, gapQuestion, openGaps } from "@/lib/money/gaps";
 import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
 import { BusinessBp, CATEGORY_KEYS, CategoryKeySchema, categoryLabel } from "@/lib/money/categories";
 import { guessCategory } from "@/lib/money/categorise";
@@ -74,7 +76,9 @@ const categoryField = CategoryKeySchema.nullable().default(null)
 const businessField = BusinessBp.nullable().default(null)
   .describe("The business share in basis points: 0 personal, 10000 business, 3000 for 30% business. null = personal.");
 // D54's "amount varies" is set by the user on the form or in Settings, not by the agent; an agent's one-off still links on confirm.
-const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, amountVaries: true }).extend({
+const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true }).extend({
+  amount: z.string().trim().nullable().describe("A plain number in the household's home currency (3800 for ¥3,800), or null when the user does not know the amount yet (D55: the app estimates it from earlier bills of the same name and asks the user to fill it in)."),
+  due: z.string().date().nullable().describe("YYYY-MM-DD, or null when the user does not know the date yet (it counts as due today until the user fills it in). A bill that repeats, or has cancel_by, needs its date."),
   repeat: RepeatUnitSchema.nullable().default(null).describe("month = every month on the due date's day, year = every year on its month and day, null = a one-off."),
   next_amount: z.string().trim().nullable().default(null).describe("The amount from next_amount_from on, a plain number in the home currency (a price rise); needs repeat. null = unchanged."),
   next_amount_from: z.string().date().nullable().default(null).describe("YYYY-MM-DD, after the due date; the first date the next_amount applies on. null with no next_amount."),
@@ -109,7 +113,7 @@ async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>
   const { category, note } = categoryFor(bill.biller, given);
   return {
     biller: bill.biller, note, status: "pending" as const,
-    bill: { ...bill, category, businessBp: business_bp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by },
+    bill: { ...bill, amount: bill.amount ?? "", amountUnknown: bill.amount === null, dueUnknown: bill.due === null, category, businessBp: business_bp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by },
   };
 }
 
@@ -141,6 +145,19 @@ export const tools: Tool[] = [
     name: "whats_due", scope: "read", input: none,
     description: "The next confirmed bill or card statement due, and whether it is covered even if clients pay late.",
     run: async ctx => dueAnswer(await ctx.state()),
+  }),
+  defineTool({
+    name: "open_gaps", scope: "read", input: none,
+    description: "Bills and readings in To check that are missing an amount or a date (D55), urgent ones first. Each has missing (amount, date), the question to ask the user, amountWords (an estimate with its range and basis, or \"amount not known\"), dateWords, urgent and why (due_soon, or could_change_sentence when the estimate's high end or an uncounted amount could change the 30-day sentence). A missing amount is counted at the estimate, or for nothing when there is none; a missing date counts as due today. Quote the words as they are; the user fills a gap in To check.",
+    run: async ctx => {
+      const [state, inbox] = await Promise.all([ctx.state(), readerInbox(ctx.db, ctx.householdId)]);
+      const gaps = openGaps(state, inbox.readings.map(({ id, value }) => ({ id, value })));
+      return JSON.stringify({ gaps: gaps.map(gap => ({
+        source: gap.source, id: gap.id, name: gap.name, status: gap.status, missing: gap.missing, due: gap.due, countedOn: gap.countedOn,
+        question: gapQuestion(gap), ...(gap.missing.includes("amount") && { amountWords: gapAmountWords(gap) }), ...(gap.missing.includes("date") && { dateWords: gapDateWords(gap) }),
+        urgent: gap.urgent, why: gap.why,
+      })) });
+    },
   }),
   defineTool({
     name: "can_i_spend", scope: "read",
@@ -175,7 +192,7 @@ export const tools: Tool[] = [
         low: { date: lowest.date, amountMinor: minor(lowest.amount) },
         events: engineTimeline(state, kind).map(event => ({
           date: event.date, label: event.label, kind: event.kind, amountMinor: minor(event.amount),
-          currency: state.homeCurrency, balanceAfterMinor: minor(event.balance), ...(event.pending ? { pending: true } : {}), ...(event.estimated ? { estimated: true } : {}),
+          currency: state.homeCurrency, balanceAfterMinor: minor(event.balance), ...(event.pending ? { pending: true } : {}), ...(event.estimated ? { estimated: true } : {}), ...(event.uncounted ? { uncounted: true } : {}),
         })),
       });
     },
@@ -291,12 +308,13 @@ export const tools: Tool[] = [
       query: z.string().max(SEARCH_QUERY_MAX).default("").describe("Words to find in bill and charge names or categories (hotel, rent, travel, food); every word must match. An empty string lists everything."),
       months: z.number().int().min(1).max(HISTORY_MONTHS).nullable().default(null).describe(`How many calendar months to look back, 1 to ${HISTORY_MONTHS}, the current month included; null = 3.`),
     }),
-    description: `Where did the money go: confirmed bills (a repeating bill once per occurrence, at the amount of that day) and card charges up to today that match the query, by month, newest first, with totals per month and per category and the items. A word matches an item's name, its category key or its category label, so "hotel" and "travel" both find a hotel. Amounts are home-currency minor units (whole yen for JPY, cents for USD). Quote summary to the user as it is; it is built in code. Information only.`,
+    description: `Where did the money go: confirmed bills (a repeating bill once per occurrence, at the amount of that day) and card charges up to today that match the query (plus bills due later this month whose amount is not known, listed as "amount not known" and never summed), by month, newest first, with totals per month and per category and the items. A word matches an item's name, its category key or its category label, so "hotel" and "travel" both find a hotel. Amounts are home-currency minor units (whole yen for JPY, cents for USD). Quote summary to the user as it is; it is built in code. Information only.`,
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       const from = `${monthsBack(today.slice(0, 7), input.months ?? 3)}-01`;
-      const data = await loadSpending(ctx.db, ctx.householdId, { from, to: today });
-      const result = searchSpending(spendingItems(data, from, today), input.query, data.homeCurrency, { from, to: today });
+      const monthEnd = monthBounds(today.slice(0, 7)).last;
+      const data = await loadSpending(ctx.db, ctx.householdId, { from, to: monthEnd });
+      const result = searchSpending(spendingItems(data, from, monthEnd), input.query, data.homeCurrency, { from, to: today, uncountedTo: monthEnd });
       return JSON.stringify({ summary: searchLine(result), from, to: today, ...result });
     },
   }),
@@ -327,7 +345,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bill", scope: "draft", input: addBillInput,
-    description: `Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800). due is YYYY-MM-DD. memberId is null for a household bill. repeat is "month" when the bill repeats every month on the due date's day (rent, phone, a subscription), "year" when it repeats every year on the due date's month and day (insurance, a domain, an annual plan), null for a one-off; it only starts repeating once the user confirms it. next_amount with next_amount_from says the amount changes from that date (a rent increase, a price rise; needs repeat, and the date is after the due date). cancel_by is the last day to cancel before the bill is charged again: the app shows it as a dated reminder and never cancels anything; it must be before the next time the bill is charged. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the name and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
+    description: `Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800), or null when the user does not know it yet. due is YYYY-MM-DD, or null when the user does not know the date yet. A bill with a missing amount or date is saved anyway and shows in open_gaps until it is filled in. memberId is null for a household bill. repeat is "month" when the bill repeats every month on the due date's day (rent, phone, a subscription), "year" when it repeats every year on the due date's month and day (insurance, a domain, an annual plan), null for a one-off; it only starts repeating once the user confirms it. next_amount with next_amount_from says the amount changes from that date (a rent increase, a price rise; needs repeat, and the date is after the due date). cancel_by is the last day to cancel before the bill is charged again: the app shows it as a dated reminder and never cancels anything; it must be before the next time the bill is charged. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the name and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
     run: async (ctx, input) => {
       const { bill, status, biller, note } = await prepareBill(ctx, input);
       await insertBill(ctx.db, ctx.householdId, bill, status, by(ctx));

@@ -34,7 +34,19 @@ export type Bill = {
   ownerId?: string; // D52: the member whose bill it is; absent = shared. Only the month view reads it
   paidBy?: string; // shared bill (D45): the member who pays it; the engine ignores it
   madeBy?: MadeBy;
+  // D55: set by expandBills where the stored amount or date is not known yet.
+  amountUnknown?: true; // the stored amount is not known: `amount` is the estimate (with `estimated`, `amountHigh`, `basis`) or 0 with `uncounted`
+  amountHigh?: number; // the highest of the amounts the estimate averaged: what the late case counts
+  basis?: GapBasis; // what the estimate was made from
+  uncounted?: true; // amount not known and no history to estimate from: it counts for nothing and every face says "amount not known", never ¥0
+  dueUnknown?: true; // the stored date is not known: `due` is the state's today
 };
+
+/** D55: the real bills an estimate averaged, in the same units as `Bill.amount`; `from` says whether they are the bill's series or bills with its name. */
+export type GapBasis = { count: number; low: number; high: number; from: "bills" | "series" };
+
+/** A bill as stored: the amount or the date may be not known yet (D55). `expandBills` turns it into the `Bill` the engine reads. */
+export type StoredBill = Omit<Bill, "amount" | "due"> & { amount: number | null; due: string | null };
 
 export type Client = {
   id: string;
@@ -109,9 +121,10 @@ export type Pot = {
 export type SplitMember = { id: string; name: string; shareBp: number }; // the owner first; shares total 10,000
 // createdAt is an ISO instant: an item dated on the settlement day counts again only when it was created after the settlement.
 export type SplitBill = {
-  id: string; biller: string; amountMinor: number; due: string; paidBy: string; createdAt: string;
+  id: string; biller: string; amountMinor: number | null; due: string; paidBy: string; createdAt: string; // amountMinor null: not known yet (D55): no debt until it is known; a date not known is today
   repeatUnit: RepeatUnit | null; repeatDay: number | null; // D48: repeatDay for monthly only
   nextAmountMinor: number | null; nextAmountFrom: string | null; // an occurrence on or after nextAmountFrom splits nextAmountMinor
+  variesUnpriced?: string[]; // D55: with varies: the due dates of its confirmed linked bills whose amount is not known: they take their month but split nothing
   varies?: RealBill[]; // D54: present exactly on an amount-varies monthly bill: its confirmed linked real bills (any whose), home minor units
 };
 /** D54: one confirmed real bill linked to an amount-varies series: its due date and amount in whole minor units. */
@@ -127,7 +140,7 @@ export type SplitState = {
 };
 
 // A cancel-by date on a confirmed bill (D48): cancel by `cancelBy` or the bill is charged `amount` on `renewsOn`.
-export type CancelNotice = { billId: string; biller: string; category: CategoryKey; cancelBy: string; renewsOn: string; amount: number; repeats: boolean };
+export type CancelNotice = { billId: string; biller: string; category: CategoryKey; cancelBy: string; renewsOn: string; amount: number | null; repeats: boolean }; // amount null: not known and nothing to estimate it from (D55)
 
 export type MoneyState = {
   today: string;

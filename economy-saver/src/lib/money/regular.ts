@@ -68,7 +68,7 @@ export function regularCosts(items: SpendItem[], currency: Currency, today: stri
   const current = today.slice(0, 7);
   const window = Array.from({ length: months }, (_, i) => monthsBack(current, months - i)); // oldest first
   const from = `${window[0]}-01`, to = monthBounds(current).last;
-  const counted = items.filter(i => i.date >= from && i.date <= to && (i.kind === "bill" || i.date <= today));
+  const counted = items.filter(i => !i.uncounted && i.date >= from && i.date <= to && (i.kind === "bill" || i.date <= today)); // D55: an amount not known is no history
   const monthOver = today === to;
   const todayDay = Number(today.slice(8, 10));
   const lastDayOfMonth = Number(to.slice(8, 10));

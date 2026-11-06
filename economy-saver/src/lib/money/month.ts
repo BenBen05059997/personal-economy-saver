@@ -3,11 +3,12 @@
 // Amounts are integer minor units of the home currency (whole yen, cents for USD).
 import type { Currency } from "@/lib/catalogue/types";
 import { aboutMoney, dayLabel, minorMoney } from "./format";
+import { AMOUNT_NOT_KNOWN } from "./gaps";
 import { businessPart, CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
-import { monthBounds, monthName, spendingItems, type SpendingInput } from "./spending";
+import { allUncounted, monthBounds, monthName, spendingItems, type SpendingInput } from "./spending";
 
 /** D52: whose an item is: a member's id, or null for Shared (a bill with no owner, a charge marked shared or on a card nobody owns). */
-export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; ownerId: string | null; estimated?: true };
+export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; ownerId: string | null; estimated?: true; uncounted?: true /* D55: amount not known: amountMinor is 0 and means nothing */ };
 /** D52: a total split by whose it is. `byMember` has one entry per household member, in member order. */
 export type WhoseTotals = { sharedMinor: number; byMember: { id: string; minor: number }[] };
 export type MonthCategory = {
@@ -46,7 +47,7 @@ export function monthByCategory(state: SpendingInput, today: string, month: stri
   const categories: MonthCategory[] = [];
   for (const { key } of CATEGORIES) {
     const items = entries.filter(e => e.category === key)
-      .map(({ label, date, amountMinor, businessBp, ownerId, estimated }): MonthItem => ({ label, date, amountMinor, businessBp, ownerId, ...(estimated ? { estimated } : {}) }));
+      .map(({ label, date, amountMinor, businessBp, ownerId, estimated, uncounted }): MonthItem => ({ label, date, amountMinor, businessBp, ownerId, ...(estimated ? { estimated } : {}), ...(uncounted ? { uncounted } : {}) }));
     if (!items.length) continue;
     const totalMinor = items.reduce((sum, i) => sum + i.amountMinor, 0);
     const businessMinor = items.reduce((sum, i) => sum + businessPart(i.amountMinor, i.businessBp), 0);
@@ -86,8 +87,8 @@ export function monthText(view: MonthView, when = monthWhen()): string {
   const lines = [`${view.name}: ${money(view, view.totalMinor)} in total. ${businessLine(view, when)}.`];
   for (const c of view.categories) {
     const split = splitLine(view, c);
-    lines.push(`${c.label} ${money(view, c.totalMinor)}${split ? ` (${split})` : c.businessMinor ? " (all business)" : ""}: ${c.items.map(i =>
-      `${i.label} ${dayLabel(i.date)} ${i.estimated ? aboutMoney(i.amountMinor, view.currency) : money(view, i.amountMinor)}${i.businessBp > 0 && i.businessBp < 10_000 ? ` at ${i.businessBp / 100}% business` : ""}`).join("; ")}.`);
+    lines.push(`${c.label} ${allUncounted(c.items) ? AMOUNT_NOT_KNOWN : money(view, c.totalMinor)}${split ? ` (${split})` : c.businessMinor ? " (all business)" : ""}: ${c.items.map(i =>
+      `${i.label} ${dayLabel(i.date)} ${i.uncounted ? AMOUNT_NOT_KNOWN : i.estimated ? aboutMoney(i.amountMinor, view.currency) : money(view, i.amountMinor)}${i.businessBp > 0 && i.businessBp < 10_000 ? ` at ${i.businessBp / 100}% business` : ""}`).join("; ")}.`);
   }
   return lines.join("\n");
 }

@@ -14,6 +14,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - Pots on the Plan page: money set aside for a reason, taken off the cash every runway number starts from, optionally filled by a percentage of each client payment.
 - A household split: Settings → People sets each person's share, a bill or card charge can be shared, and Home shows who owes whom with Mark settled. It appears only with two or more people and does not change the runway.
 - Categories and a business share: fourteen fixed categories and a Personal / Business / Mixed share on every bill and charge (proposed from the name, confirmed by you); Plan shows "Where the month goes" for the current month. Neither moves any money.
+- Missing data: a bill can be saved with its amount or date not known yet; the forecast counts it at an estimate from the same name's last three real bills (the high end in the late case), says where the number came from, and To check → Missing asks only for the missing piece.
 - Document intake (upload and forwarded email) with confirmation before a reading changes money records.
 - An in-app agent: `/api/ask` runs Claude with tools over the engine (reads and drafts only). The same tool catalogue and rules serve MCP (the server's `instructions`). Each Ask and each MCP call writes one content-free JSON log line to standard output.
 - A family view by link: Settings → People makes a link that lasts 7 days (at most 5 live, stoppable at once; only its hash is stored, so the full link and a ready-to-paste LINE message show once). The page at `/family/<token>` needs no sign-in and has no actions: the sentence, the shared bills coming up and who owes whom. `APP_URL` sets the address in the link.
@@ -79,7 +80,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all twenty-one suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, csv, pots, snapshot, split, category, spending, regular, varies, cron, sweep, isolation, family
+npm run db:test      # all twenty-two suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, csv, pots, snapshot, split, category, spending, regular, varies, gaps, cron, sweep, isolation, family
 npm run schema       # rewrites schema/household.v1.json from the zod definition (db:test fails when it is stale)
 npx tsc --noEmit -p .
 npm run lint
@@ -116,7 +117,7 @@ src/lib/mcp/             Streamable HTTP server
 src/lib/catalogue/       the wealth-move catalogue engine (words and sources in src/data/catalogue/)
 src/lib/reader/          extraction, forwarding, storage
 scripts/                 isolated tests and explicit owner-operated checks
-drizzle/                 ordered schema migrations, nineteen files (0000–0018)
+drizzle/                 ordered schema migrations, twenty files (0000–0019)
 worker.ts                Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
 samples/bills/           fictional sample bills for the reader
 ```

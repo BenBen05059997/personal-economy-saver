@@ -161,6 +161,8 @@ if (args[0] === "--guards") {
     ["ai-key-without-household", "/api/settings/ai-key", { method: "POST" }, 401],
     ["export-without-household", "/api/export", { method: "POST" }, 401],
     ["people-without-household", "/api/people", { method: "POST" }, 401],
+    ["bill-fill-without-household", "/api/bills", { method: "POST", session: "", form: { kind: "fill", id: "x", amount: "1000", returnTo: "/to-check" } }, 401],
+    ["bill-fill-cross-origin", "/api/bills", { method: "POST", session: "", form: { kind: "fill", id: "x", amount: "1000", returnTo: "/to-check" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["bill-with-schedule-without-household", "/api/bills", { method: "POST", form: { id: "x", biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year", cancelBy: "2026-11-20" } }, 401],
     ["settle-without-household", "/api/settle", { method: "POST" }, 401],
     ["remove-without-household", "/api/remove", { method: "POST" }, 401],
@@ -318,7 +320,7 @@ if (args[0] === "--extra") {
   // Stage 18 varies (D54): a monthly bill whose amount varies is "about" its estimate on Home until that month's real bill is in;
   // one-offs with the same name key and category link to it (Activity says so) and a real bill for its month is counted once.
   {
-    const gasBill = (over) => ({ id: randomUUID(), biller: "Tokyo Gas", amount: "6,000", due: "2026-12-10", category: "utilities", businessShare: "personal", ...over });
+    const gasBill = (over) => ({ id: randomUUID(), biller: "Sakura Gas", amount: "6,000", due: "2026-12-10", category: "utilities", businessShare: "personal", ...over });
     const comingUp = async () => {
       const html = await page("/", /Coming up/);
       return plain(pageContent(html.slice(html.indexOf('id="coming-up"'))));
@@ -333,29 +335,29 @@ if (args[0] === "--extra") {
       expect((await comingUp()).includes("about ¥6,000"), "s18v-about-6000");
     });
     await step("action", "stage18-varies-past-real-bills-link-and-the-estimate-is-their-average", async () => {
-      const october = gasBill({ biller: "Tokyo Gas 10月分", amount: "5,400", due: "2026-10-12" });
-      const november = gasBill({ biller: "Tokyo Gas 11月分", amount: "6,600", due: "2026-11-12" });
+      const october = gasBill({ biller: "Sakura Gas 10月分", amount: "5,400", due: "2026-10-12" });
+      const november = gasBill({ biller: "Sakura Gas 11月分", amount: "6,600", due: "2026-11-12" });
       for (const bill of [october, november]) {
         const added = await request("/api/bills", { method: "POST", form: bill });
         expect(added.response.status === 303, "s18v-add-real");
-        expect(await linkedBody(bill.id) === "Linked to Tokyo Gas: counts toward its estimate", "s18v-linked-event");
+        expect(await linkedBody(bill.id) === "Linked to Sakura Gas: counts toward its estimate", "s18v-linked-event");
       }
-      await page("/activity", /Linked to Tokyo Gas: counts toward its estimate/);
+      await page("/activity", /Linked to Sakura Gas: counts toward its estimate/);
       expect((await comingUp()).includes("about ¥6,000"), "s18v-average-6000");
     });
     await step("action", "stage18-varies-a-real-bill-for-its-month-replaces-the-estimate-once", async () => {
       const december = gasBill({ amount: "7,100", due: "2026-12-08" });
       const added = await request("/api/bills", { method: "POST", form: december });
       expect(added.response.status === 303, "s18v-add-december");
-      expect(await linkedBody(december.id) === "Linked to Tokyo Gas: replaces December’s estimate", "s18v-replaces-event");
+      expect(await linkedBody(december.id) === "Linked to Sakura Gas: replaces December’s estimate", "s18v-replaces-event");
       const content = await comingUp();
       expect(!content.includes("about ¥"), "s18v-estimate-gone");
       expect((content.match(/¥7,100/g) ?? []).length === 1, "s18v-counted-once");
     });
     await step("page", "stage18-varies-settings-offers-part-of-and-the-box", async () => {
-      const html = await page("/settings", /Tokyo Gas/);
+      const html = await page("/settings", /Sakura Gas/);
       const content = plain(pageContent(html));
-      expect(/name="seriesBillId"/.test(html) && content.includes("Tokyo Gas (every month)"), "s18v-part-of");
+      expect(/name="seriesBillId"/.test(html) && content.includes("Sakura Gas (every month)"), "s18v-part-of");
       expect(/name="amountVaries"/.test(html) && content.includes("Amount changes every month (electricity, water, gas)"), "s18v-varies-box");
     });
   }
@@ -781,5 +783,68 @@ await step("action", "stage15b-three-field-bill-with-guessed-defaults", async ()
   expect(result.response.status === 303, "b-bill-result");
   await page("/", /Fictional rent b/);
 });
+// Stage 19 gaps (D55), V-A: a bill saved with its amount not known is counted at the average of the same name's real bills,
+// says so in Coming up, the "Added" line and To check → Missing, and filling the amount replaces the estimate.
+{
+  const unknownBill = (over) => ({ id: randomUUID(), biller: "Hikari Denki", due: "2026-11-25", category: "utilities", businessShare: "personal", amountUnknown: "on", ...over });
+  const content = async (path, expected) => plain(pageContent(await page(path, expected)));
+  const activityTitles = async (id) => (await events()).events.filter(event => event.refId === id).map(event => event.title);
+  const ESTIMATE = "about ¥9,330 (¥8,640–¥10,020, from your last 2 bills)";
+  const hikari = unknownBill();
+  await step("action", "stage19-gaps-a-try-it-session", async () => adopt(await request("/api/try", { session: "" })));
+  await step("action", "stage19-gaps-a-add-with-the-amount-not-known", async () => {
+    const added = await request("/api/bills", { method: "POST", form: hikari });
+    expect(added.response.status === 303, "s19a-add");
+    const home = plain(pageContent((await request(added.response.headers.get("location"))).body));
+    expect(home.includes(`Added Hikari Denki, ${ESTIMATE}, due Nov 25`), "s19a-added-line");
+    expect(home.includes("¥28,800 short on the 27th") && !home.includes("Not counted:"), "s19a-late-counts-the-high-end-and-no-note");
+    expect(home.slice(home.indexOf("Coming up")).includes(ESTIMATE) && home.includes("Enter it ›"), "s19a-coming-up-words");
+  });
+  await step("page", "stage19-gaps-a-to-check-missing-asks-for-the-amount", async () => {
+    const check = await content("/to-check", /Missing/);
+    expect(check.includes("Missing Hikari Denki, due Nov 25: how much?") && check.includes(`Counted at ${ESTIMATE}`), "s19a-missing-row");
+    expect(/name="kind"[^>]*value="fill"|value="fill"[^>]*name="kind"/.test((await request("/to-check")).body), "s19a-fill-form");
+    expect(!check.includes("Due soon") && !check.includes("Could change your forecast"), "s19a-not-urgent");
+  });
+  await step("action", "stage19-gaps-a-fill-the-amount-replaces-the-estimate", async () => {
+    const filled = await request("/api/bills", { method: "POST", form: { kind: "fill", id: hikari.id, amount: "11,220", returnTo: "/to-check" } });
+    expect(filled.response.status === 303 && filled.response.headers.get("location") === "/to-check", "s19a-fill");
+    expect(!(await content("/to-check", /To check/)).includes("Hikari Denki, due Nov 25: how much?"), "s19a-row-gone");
+    expect((await activityTitles(hikari.id)).includes("Hikari Denki: ¥11,220 (was about ¥9,330)"), "s19a-activity");
+    expect((await content("/", /short on the 27th/)).includes("¥30,000 short on the 27th"), "s19a-sentence-after");
+    const again = await request("/api/bills", { method: "POST", form: { kind: "fill", id: hikari.id, amount: "9,000", returnTo: "/to-check" } });
+    expect(again.response.status === 400 && again.body === "This bill has its amount and its date already", "s19a-fill-twice");
+  });
+  // V-B: no history means no estimate: the bill is named, not counted, and the sentence says so.
+  const gas = unknownBill({ biller: "Minato Gas", due: "2026-11-20" });
+  await step("action", "stage19-gaps-b-try-it-session", async () => adopt(await request("/api/try", { session: "" })));
+  await step("action", "stage19-gaps-b-add-with-no-history", async () => {
+    const added = await request("/api/bills", { method: "POST", form: gas });
+    expect(added.response.status === 303, "s19b-add");
+    const home = plain(pageContent((await request(added.response.headers.get("location"))).body));
+    expect(home.includes("Added Minato Gas, amount not known, due Nov 20"), "s19b-added-line");
+    expect(home.includes("¥18,780 short on the 27th") && home.includes("Not counted: Minato Gas (amount not known)."), "s19b-sentence-note");
+    expect(home.slice(home.indexOf("Coming up")).includes("amount not known"), "s19b-coming-up");
+  });
+  await step("page", "stage19-gaps-b-to-check-and-the-month-view", async () => {
+    const check = await content("/to-check", /Missing/);
+    expect(check.includes("Minato Gas, due Nov 20: how much?") && check.includes("Not counted until you enter it") && check.includes("Could change your forecast"), "s19b-missing-row");
+    const month = await content("/plan", /Where the month goes/);
+    expect(month.includes("1 bill not counted: Minato Gas (amount not known)") && !/Utilities\s*¥0/.test(month), "s19b-month-line");
+    const search = await content("/plan?q=gas", /Spending/);
+    expect(!search.includes("Nothing matches"), "s19b-search-not-empty");
+    expect(search.includes("Minato Gas Nov 20 amount not known") && search.includes("1 bill not counted: Minato Gas (amount not known)"), "s19b-search-row");
+    expect(search.includes("November amount not known") && !/Utilities\s*¥0/.test(search), "s19b-search-header-not-zero");
+  });
+  await step("action", "stage19-gaps-b-fill-removes-the-note", async () => {
+    const filled = await request("/api/bills", { method: "POST", form: { kind: "fill", id: gas.id, amount: "6,800", returnTo: "/" } });
+    expect(filled.response.status === 303, "s19b-fill");
+    const home = await content("/", /short on the 27th/);
+    expect(home.includes("¥25,580 short on the 27th") && !home.includes("Not counted:"), "s19b-sentence-after");
+    expect((await activityTitles(gas.id)).includes("Minato Gas: ¥6,800"), "s19b-activity");
+    const refused = await request("/api/bills", { method: "POST", form: { kind: "fill", id: randomUUID(), amount: "1,000", returnTo: "/" } });
+    expect(refused.response.status === 400 && refused.body === "Choose a bill of this household", "s19b-foreign-id");
+  });
+}
 console.log(`${failures ? "FAIL" : "PASS"} summary ${failures} failed`);
 process.exitCode = failures ? 1 : 0;

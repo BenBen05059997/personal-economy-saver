@@ -1,5 +1,6 @@
 import { fromMinor, toMinor } from "@/db/money";
 import { dayLabel, minorMoney } from "./format";
+import { AMOUNT_NOT_KNOWN, DATE_NOT_KNOWN } from "./gaps";
 import { dueItems, roomOnCard, safeToSpend } from "./runway";
 import { homeSentence } from "./sentence";
 import type { MoneyState } from "./types";
@@ -20,11 +21,12 @@ export function spendAnswer(state: MoneyState, amountMinor: number, cardId?: str
 export function dueAnswer(state: MoneyState) {
   const due = dueItems(state).find(item => !item.pending);
   if (!due) return "There are no confirmed bills or card statements due in the next 30 days.";
-  const amount = minorMoney(toMinor(due.amount, state.homeCurrency), state.homeCurrency);
-  return `${due.label} is due ${dayLabel(due.date)} for ${amount}, ${due.covered ? "covered even if clients pay late" : "short if clients pay late"}.`;
+  const minor = minorMoney(toMinor(due.amount, state.homeCurrency), state.homeCurrency);
+  const amount = due.uncounted ? AMOUNT_NOT_KNOWN : due.estimated ? `about ${minor}` : minor;
+  return `${due.label} is due ${due.dueUnknown ? `now (${DATE_NOT_KNOWN})` : dayLabel(due.date)}${due.uncounted ? `, ${amount}` : ` for ${amount}`}, ${due.covered ? "covered even if clients pay late" : "short if clients pay late"}.`;
 }
 
 export function statusAnswer(state: MoneyState) {
   const sentence = homeSentence(state);
-  return sentence.text;
+  return sentence.note === null ? sentence.text : `${sentence.text} ${sentence.note}`; // D55: the note beside the text
 }

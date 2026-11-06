@@ -7,6 +7,7 @@ import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { categoryLabel, CategoryKeySchema } from "@/lib/money/categories";
 import { guessCategory, guessRepeat } from "@/lib/money/categorise";
 import { AmountField } from "./AmountField";
+import { AmountWithUnknown, DueWithUnknown } from "./UnknownFields";
 import { CategoryFields } from "./CategoryFields";
 import { LABELS } from "./labels";
 import { MoreFields } from "./MoreFields";
@@ -111,18 +112,23 @@ function BillForm({ id, returnTo, today, currency, people }: FormProps) {
   const [repeat, setRepeat] = useState<Repeat | null>(null); // null = not chosen: it follows the name
   const [varies, setVaries] = useState(false); // D54: only saved while the bill repeats every month
   const [category, setCategory] = useState<string | null>(null);
+  const [nextAmount, setNextAmount] = useState("");
+  const [cancelBy, setCancelBy] = useState("");
   const repeats = repeat ?? guessRepeat(name);
+  // D55: the boxes are offered where the database accepts them: an unknown amount on a one-off or an amount-varies bill with no dated new amount, an unknown date on a one-off with no cancel-by date.
+  const amountOffered = nextAmount.trim() === "" && (repeats === "" || (repeats === "month" && varies));
+  const dueOffered = repeats === "" && cancelBy === "";
   const split = people.length >= 2; // D45: the split fields exist only for a household of two or more; alone, a bill is saved as shared (no owner), as before
   return <ApiForm action="/api/bills">
     <input type="hidden" name="id" value={id} />
     <input type="hidden" name="returnTo" value={returnTo} />
     <label className="ui-field">{LABELS.name}<input name="biller" maxLength={160} required placeholder={LABELS.namePlaceholder} value={name} onChange={event => setName(event.target.value)} /></label>
-    <label className="ui-field">{LABELS.amount}<AmountField name="amount" currency={currency} required /></label>
-    <label className="ui-field">{LABELS.dueDate}<CheckedInput name="due" type="date" value={due} onChange={event => setDue(event.target.value)} max={latestDate(today)} message={HORIZON_MESSAGE} required /></label>
+    <AmountWithUnknown currency={currency} offered={amountOffered} />
+    <DueWithUnknown today={today} value={due} onValue={setDue} offered={dueOffered} />
     <Guess words={[repeatWords(repeats || null), ...(repeats === "month" && varies ? ["varies"] : []), categoryWords(category, name)]} focus="select[name=repeat]" />
     <button className="ui-button primary">Add bill</button>
     <MoreFields>
-      <ScheduleFields id={id} today={today} currency={currency} name={name} due={due} flat chosen={repeat} onChoose={setRepeat} varies={varies} onVaries={setVaries} />
+      <ScheduleFields id={id} today={today} currency={currency} name={name} due={due} flat chosen={repeat} onChoose={setRepeat} varies={varies} onVaries={setVaries} onNextAmount={setNextAmount} onCancelBy={setCancelBy} />
       <CategoryFields name={name} guessed chosen={category} onChoose={setCategory} />
       {split && <label className="ui-field">{LABELS.whoFor}<select name="memberId" value={whose} onChange={event => setWhose(event.target.value)}>
         <option value="">Shared, split by shares</option>{people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>}

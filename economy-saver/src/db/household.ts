@@ -8,7 +8,7 @@ import { CategoryKeySchema as CategoryKey } from "@/lib/money/categories";
 import { cancelNotices, expandBills, RepeatUnitSchema } from "@/lib/money/repeat";
 import { countingFrom } from "@/lib/money/split";
 import { addDays, planWindow } from "@/lib/money/runway";
-import type { Bill, Card, Charge, Client, ClosedStatement, Invoice, MoneyState, Pot, SplitState } from "@/lib/money/types";
+import type { Card, Charge, Client, ClosedStatement, Invoice, MoneyState, Pot, SplitState, StoredBill } from "@/lib/money/types";
 import { convertMinor, fromMinor, fromRateMicro, toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
 import { deleteHouseholdKey } from "./ai-key";
@@ -91,10 +91,14 @@ export async function loadSplitState(
   const variesIds = billRows.filter(b => b.amountVaries).map(b => b.id);
   const realRows = variesIds.length === 0 ? [] : await db.select({ seriesBillId: s.bills.seriesBillId, due: s.bills.due, amountMinor: s.bills.amountMinor, currency: s.bills.currency })
     .from(s.bills).where(and(eq(s.bills.householdId, hid), eq(s.bills.status, "confirmed"), inArray(s.bills.seriesBillId, variesIds))).orderBy(s.bills.due, s.bills.id);
-  split.bills = billRows.map(b => ({ id: b.id, biller: b.biller, amountMinor: toHome(b.amountMinor, b.currency), due: b.due, paidBy: b.paidByMemberId!, createdAt: b.createdAt.toISOString(),
+  // D55: an amount not known is null (it splits nothing); a date not known is today. A linked real bill without an amount takes its month but is no part of the estimate.
+  split.bills = billRows.map(b => ({ id: b.id, biller: b.biller, amountMinor: b.amountMinor === null ? null : toHome(b.amountMinor, b.currency), due: b.due ?? today, paidBy: b.paidByMemberId!, createdAt: b.createdAt.toISOString(),
     repeatUnit: b.repeatUnit === null ? null : RepeatUnitSchema.parse(b.repeatUnit), repeatDay: b.repeatDay,
     nextAmountMinor: b.nextAmountMinor === null ? null : toHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom,
-    ...(b.amountVaries && { varies: realRows.filter(r => r.seriesBillId === b.id).map(r => ({ due: r.due, amountMinor: toHome(r.amountMinor, r.currency) })) }) }));
+    ...(b.amountVaries && {
+      varies: realRows.flatMap(r => (r.seriesBillId === b.id && r.due !== null && r.amountMinor !== null ? [{ due: r.due, amountMinor: toHome(r.amountMinor, r.currency) }] : [])),
+      variesUnpriced: realRows.flatMap(r => (r.seriesBillId === b.id && r.due !== null && r.amountMinor === null ? [r.due] : [])),
+    }) }));
   split.charges = chargeRows.map(({ charge: c, payer }) => {
     if (payer === null) throw new Error(`The shared charge ${c.merchant} is on a card that belongs to no member`);
     return { id: c.id, merchant: c.merchant, amountMinor: toHome(c.amountMinor, c.currency), date: c.date, paidBy: payer, createdAt: c.createdAt.toISOString() };
@@ -146,10 +150,10 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
 
   const paypalMinor = paypalTotalMinor(connections, home, fxPerUsd);
 
-  const storedBills: Bill[] = billRows.map((b) => ({
+  const storedBills: StoredBill[] = billRows.map((b) => ({
     id: b.id,
     biller: b.biller,
-    amount: inHome(b.amountMinor, b.currency),
+    amount: b.amountMinor === null ? null : inHome(b.amountMinor, b.currency),
     due: b.due,
     category: CategoryKey.parse(b.category),
     businessBp: b.businessBp,

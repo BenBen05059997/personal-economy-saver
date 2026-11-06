@@ -112,7 +112,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
               refType: "bill",
               refId: pending.id,
               notify: true,
-              occurredAt: at("2026-11-14T00:05:00"),
+              occurredAt: at("2026-11-14T00:00:00"), // the day's first moment: an event made at any time of the demo day sorts above it
             },
           ]
         : []),

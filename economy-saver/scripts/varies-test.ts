@@ -156,7 +156,7 @@ async function main() {
   const form = { madeBy: "form" as const };
   const add = (over: Partial<Parameters<typeof billInput.parse>[0]>) => {
     const id = randomUUID();
-    return insertBill(store, hid, billInput.parse({ id, biller: "Tokyo Gas", amount: "6000", due: "2026-12-10", category: "utilities", ...over }), "confirmed", form);
+    return insertBill(store, hid, billInput.parse({ id, biller: "Sakura Gas", amount: "6000", due: "2026-12-10", category: "utilities", ...over }), "confirmed", form);
   };
   const row = async (id: string) => (await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, hid), eq(schema.bills.id, id))))[0];
   const event = async (id: string) => (await db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.refId, id))).orderBy(schema.events.occurredAt)).at(-1)!;
@@ -184,25 +184,25 @@ async function main() {
   await check("insertBill (the form): the series says it varies; past one-offs with the same name key link and say so; the estimate is their average", async () => {
     assert.equal((await event(series1)).body, "Amount varies every month");
     assert.deepEqual(await gasOccurrences(series1), [["2026-12-10", 6_500, true]]);
-    oct = await add({ biller: "Tokyo Gas 10月分", amount: "5400", due: "2026-10-12" });
-    nov = await add({ biller: "Tokyo Gas 11月分", amount: "6600", due: "2026-11-12" });
+    oct = await add({ biller: "Sakura Gas 10月分", amount: "5400", due: "2026-10-12" });
+    nov = await add({ biller: "Sakura Gas 11月分", amount: "6600", due: "2026-11-12" });
     assert.equal((await row(oct)).seriesBillId, series1);
     assert.equal((await row(nov)).seriesBillId, series1);
-    assert.equal((await event(nov)).body, "Linked to Tokyo Gas: counts toward its estimate", "the series starts in December: November had no estimate");
+    assert.equal((await event(nov)).body, "Linked to Sakura Gas: counts toward its estimate", "the series starts in December: November had no estimate");
     assert.deepEqual(await gasOccurrences(series1), [["2026-12-10", 6_000, true]], "(5,400 + 6,600) / 2");
-    const other = await add({ biller: "Tokyo Gas 11月分", amount: "100", due: "2026-11-20", category: "other" });
+    const other = await add({ biller: "Sakura Gas 11月分", amount: "100", due: "2026-11-20", category: "other" });
     assert.equal((await row(other)).seriesBillId, null, "another category does not link");
   });
 
   await check("a real bill for December replaces its estimate and is counted once; a second one that month is its own bill", async () => {
     const before = await loadMoneyState(store, hid, TODAY);
-    dec = await add({ biller: "Tokyo Gas", amount: "7100", due: "2026-12-08" });
-    assert.equal((await event(dec)).body, "Linked to Tokyo Gas: replaces December’s estimate");
+    dec = await add({ biller: "Sakura Gas", amount: "7100", due: "2026-12-08" });
+    assert.equal((await event(dec)).body, "Linked to Sakura Gas: replaces December’s estimate");
     const after = await loadMoneyState(store, hid, TODAY);
     assert.deepEqual(after.bills.filter(b => b.id.startsWith(`${series1}@`)), [], "December's estimate is gone (January is past the window)");
     const last = (s: number[]) => s[s.length - 1];
     assert.equal(last(series(after, "worst")) - last(series(before, "worst")), -(7_100 - 6_000), "the month moves by the difference, never twice");
-    const second = await add({ biller: "Tokyo Gas", amount: "300", due: "2026-12-20" });
+    const second = await add({ biller: "Sakura Gas", amount: "300", due: "2026-12-20" });
     assert.equal((await row(second)).seriesBillId, null, "December already has its real bill");
     assert.equal((await event(second)).body, null);
     await removeBill(store, hid, second);
@@ -210,27 +210,27 @@ async function main() {
 
   await check("To check (confirmPending): an agent's pending bill links only once confirmed, and the confirm event says so", async () => {
     const id = randomUUID();
-    await insertBill(store, hid, billInput.parse({ id, biller: "Tokyo Gas 2027年1月分", amount: "6800", due: "2027-01-12", category: "utilities" }), "pending", { madeBy: "ask" });
+    await insertBill(store, hid, billInput.parse({ id, biller: "Sakura Gas 2027年1月分", amount: "6800", due: "2027-01-12", category: "utilities" }), "pending", { madeBy: "ask" });
     assert.equal((await row(id)).seriesBillId, null);
     assert.equal(await confirmPending(store, hid, "bill", id), true);
     assert.equal((await row(id)).seriesBillId, series1);
-    assert.equal((await event(id)).body, "Linked to Tokyo Gas: replaces January 2027’s estimate");
+    assert.equal((await event(id)).body, "Linked to Sakura Gas: replaces January 2027’s estimate");
     assert.equal(await linkToSeries(store, hid, id), null, "already linked: nothing again");
     await removeBill(store, hid, id);
   });
 
   await check("the reader: the review line is worked out before confirming, and confirming links the bill", async () => {
     const [document] = await db.insert(schema.documents).values({ householdId: hid, kind: "upload", storagePath: "fictional/varies.pdf", mime: "application/pdf", status: "read" }).returning();
-    const value = { kind: "bill" as const, name: "Tokyo Gas 2月分", date: "2027-02-12", amountMinor: 7_300, currency: "JPY" as const, category: "utilities" as const, cardId: null, businessBp: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null };
+    const value = { kind: "bill" as const, name: "Sakura Gas 2月分", date: "2027-02-12", amountMinor: 7_300, currency: "JPY" as const, category: "utilities" as const, cardId: null, businessBp: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null };
     const [reading] = await db.insert(schema.readings).values({ householdId: hid, documentId: document.id, extracted: { original: value, proposed: value }, target: "bill" }).returning();
     const inbox = await readerInbox(store, hid);
     assert.deepEqual(inbox.readings.find(item => item.id === reading.id)!.link,
-      { seriesId: series1, biller: "Tokyo Gas", month: "2027-02", estimateMinor: Math.round((5_400 + 6_600 + 7_100) / 3) }, "the review card's line, before any series occurrence is in the engine's window");
-    assert.equal(await previewLink(store, hid, { biller: "Tokyo Gas", category: "utilities", due: "2026-12-30" }), null, "December has its real bill");
+      { seriesId: series1, biller: "Sakura Gas", month: "2027-02", estimateMinor: Math.round((5_400 + 6_600 + 7_100) / 3) }, "the review card's line, before any series occurrence is in the engine's window");
+    assert.equal(await previewLink(store, hid, { biller: "Sakura Gas", category: "utilities", due: "2026-12-30" }), null, "December has its real bill");
     assert.equal(await reviewReading(store, hid, reading.id, value), true);
-    const [made] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, hid), eq(schema.bills.biller, "Tokyo Gas 2月分")));
+    const [made] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, hid), eq(schema.bills.biller, "Sakura Gas 2月分")));
     assert.equal(made.seriesBillId, series1);
-    assert.equal((await event(made.id)).body, "Linked to Tokyo Gas: replaces February 2027’s estimate");
+    assert.equal((await event(made.id)).body, "Linked to Sakura Gas: replaces February 2027’s estimate");
     await removeBill(store, hid, made.id);
   });
 
@@ -241,13 +241,13 @@ async function main() {
   await check("Settings → Edit: unlink, relink, a taken month and a category change are refused, varies off frees the real bills", async () => {
     assert.equal(await edit(dec, { seriesBillId: null }), true);
     assert.equal((await row(dec)).seriesBillId, null);
-    assert.equal((await event(dec)).body, "No longer part of Tokyo Gas");
+    assert.equal((await event(dec)).body, "No longer part of Sakura Gas");
     assert.deepEqual(await gasOccurrences(series1), [["2026-12-10", 6_000, true]], "December is estimated again");
     assert.equal(await edit(dec, { seriesBillId: series1 }), true);
-    assert.equal((await event(dec)).body, "Part of Tokyo Gas: replaces December’s estimate");
+    assert.equal((await event(dec)).body, "Part of Sakura Gas: replaces December’s estimate");
     assert.equal(await edit(dec, {}), true, "absent fields keep the link");
     assert.equal((await row(dec)).seriesBillId, series1);
-    const extra = await add({ biller: "Tokyo Gas", amount: "200", due: "2026-12-21" });
+    const extra = await add({ biller: "Sakura Gas", amount: "200", due: "2026-12-21" });
     await assert.rejects(edit(extra, { seriesBillId: series1 }), /already has a real bill for December/);
     await assert.rejects(edit(dec, { category: "other" }), /has its category, Utilities/);
     await assert.rejects(edit(series1, { seriesBillId: series1 }), /Only a one-off/);
@@ -276,14 +276,14 @@ async function main() {
   await check("a household's real bill never links to another household's series, and loadSpending reads linked bills before the range", async () => {
     const other = await seedBen(db, { isDemo: true });
     const s2 = randomUUID();
-    await insertBill(store, other, billInput.parse({ id: s2, biller: "Tokyo Gas", amount: "6000", due: "2026-12-10", category: "utilities", repeat: "month", amountVaries: true }), "confirmed", form);
-    const mine = await add({ biller: "Tokyo Gas", amount: "6100", due: "2027-01-08" });
+    await insertBill(store, other, billInput.parse({ id: s2, biller: "Sakura Gas", amount: "6000", due: "2026-12-10", category: "utilities", repeat: "month", amountVaries: true }), "confirmed", form);
+    const mine = await add({ biller: "Sakura Gas", amount: "6100", due: "2027-01-08" });
     assert.equal((await row(mine)).seriesBillId, null, "the only series is the other household's");
     const id = randomUUID();
-    await insertBill(store, other, billInput.parse({ id, biller: "Tokyo Gas 10月分", amount: "5000", due: "2026-10-12", category: "utilities" }), "confirmed", form);
+    await insertBill(store, other, billInput.parse({ id, biller: "Sakura Gas 10月分", amount: "5000", due: "2026-10-12", category: "utilities" }), "confirmed", form);
     const spending = await loadSpending(store, other, { from: "2026-12-01", to: "2026-12-31" });
     assert.ok(spending.bills.some(b => b.id === id), "the October bill is read for December's estimate");
-    assert.deepEqual(spendingItems(spending, "2026-12-01", "2026-12-31").filter(i => i.label === "Tokyo Gas").map(i => [i.id, i.amountMinor, i.estimated]), [[s2, 5_000, true]]);
+    assert.deepEqual(spendingItems(spending, "2026-12-01", "2026-12-31").filter(i => i.label === "Sakura Gas").map(i => [i.id, i.amountMinor, i.estimated]), [[s2, 5_000, true]]);
   });
 
   await check("the estimate flag travels: the family list, Where the month goes, Regular costs and the timeline, month_by_category and regular_costs tools all say about", async () => {

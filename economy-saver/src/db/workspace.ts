@@ -8,6 +8,7 @@ import { eventFeed } from "./event-feed";
 import { CHARGE_LOOKBACK_DAYS, householdOwnerName, loadMoneyState, requireHousehold, type Db } from "./household";
 
 import { addDays } from "@/lib/money/runway";
+import { confirmedGaps } from "@/lib/money/gaps";
 import { toCheck } from "@/lib/money/to-check";
 
 /** Navigation needs counts, not money conversions or reader payloads. Caller owns the read transaction. */
@@ -26,6 +27,7 @@ export async function loadNavigationData(tx: Db, householdId: string) {
       + (select count(*) from ${balanceUpdates} where ${balanceUpdates.householdId} = ${hid} and ${balanceUpdates.status} = 'pending')
       + (select count(*) from ${pots} where ${pots.householdId} = ${hid} and ${pots.status} = 'pending')
       + (select count(*) from ${readings} where ${readings.householdId} = ${hid} and ${readings.status} = 'to_check')
+      + (select count(*) from ${bills} where ${bills.householdId} = ${hid} and ${bills.status} = 'confirmed' and (${bills.amountMinor} is null or ${bills.due} is null))
     `.mapWith(Number) }).from(households).where(eq(households.id, hid)),
   ]);
   return { name, feed, pending: totals.pending, timeZone };
@@ -44,5 +46,5 @@ export async function loadWorkspaceData(tx: Db, hid: string, home = false,
   ]);
   if (home) await observeRunway(tx, hid, state, household);
   const feed = await eventFeed(tx, hid);
-  return { state, people, name, feed, timeZone, inbox, freshness, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length };
+  return { state, people, name, feed, timeZone, inbox, freshness, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length + confirmedGaps(state).length };
 }

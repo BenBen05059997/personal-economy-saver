@@ -1,10 +1,14 @@
+import { AMOUNT_NOT_KNOWN_YET, DATE_NOT_KNOWN_YET } from "@/lib/money/gaps";
+
 /** The plain words on every add form, in one place (D51). A label is changed here, in one line. */
 export const LABELS = {
   more: "More ›",
   name: "Name",
-  namePlaceholder: "e.g. Rent, Hikari Denki, Netflix",
+  namePlaceholder: "e.g. Rent, Hikari Denki, CloudBox Plus",
   amount: "Amount",
   dueDate: "Due date",
+  amountUnknown: AMOUNT_NOT_KNOWN_YET,
+  dueUnknown: DATE_NOT_KNOWN_YET,
   whatOrWhere: "What or where",
   whatOrWherePlaceholder: "e.g. Minato Fresh Market",
   date: "Date",

@@ -5,6 +5,7 @@ import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { Currency } from "@/lib/catalogue/types";
 import { aboutMoney, minorMoney, repeatWords } from "@/lib/money/format";
+import { AMOUNT_NOT_KNOWN, DATE_NOT_KNOWN } from "@/lib/money/gaps";
 import { closingBefore } from "@/lib/money/runway";
 import { amountOn, nextAmountOf, nextOccurrenceAfter } from "@/lib/money/repeat";
 import { CategoryFields } from "@/components/household/CategoryFields";
@@ -47,7 +48,7 @@ function billSummary(bill: SettingsData["bills"][number], people: SettingsData["
 /** Remove for one bill: asks first, and says when it repeats that the whole series goes. */
 function RemoveBill({ bill }: { bill: SettingsData["bills"][number] }) {
   const repeats = repeatWords(bill.repeatUnit === "year" ? "year" : "month").toLowerCase();
-  return <ConfirmRemove kind="bill" id={bill.id} returnTo="/settings" label={`${bill.biller} ${minorMoney(bill.amountMinor, Currency.parse(bill.currency))}`}
+  return <ConfirmRemove kind="bill" id={bill.id} returnTo="/settings" label={`${bill.biller} ${bill.amountMinor === null ? `(${AMOUNT_NOT_KNOWN})` : minorMoney(bill.amountMinor, Currency.parse(bill.currency))}`}
     note={bill.repeatUnit === null ? undefined : `It repeats ${repeats}, so ${repeats} goes.`} />;
 }
 /**
@@ -62,13 +63,13 @@ function EditBill({ bill, bills, people, today }: { bill: SettingsData["bills"][
   const series = repeat !== null ? [] : bills.filter(b => b.amountVaries && b.status === "confirmed" && (b.category === bill.category || b.id === bill.seriesBillId));
   const next = nextAmountOf(bill);
   const yesterday = new Date(Date.parse(today + "T00:00:00Z") - 86_400_000).toISOString().slice(0, 10);
-  const from = repeat === null ? null : nextOccurrenceAfter({ due: bill.due, repeatUnit: repeat, repeatDay: bill.repeatDay ?? undefined }, yesterday) ?? bill.due;
-  const amount = from === null || bill.amountVaries ? bill.amountMinor : amountOn(bill.amountMinor, next, from);
-  const fromHint = `Repeats ${repeatWords(repeat).toLowerCase()}: a new amount starts on this due date. Choose the first due date, ${dueLabel(bill.due, today)}, to correct every one.${next ? ` It changes to ${minorMoney(next.amount, currency)} from ${dueLabel(next.from, today)}.` : ""}`;
+  const from = repeat === null || bill.due === null ? null : nextOccurrenceAfter({ due: bill.due, repeatUnit: repeat, repeatDay: bill.repeatDay ?? undefined }, yesterday) ?? bill.due;
+  const amount = bill.amountMinor === null ? null : from === null || bill.amountVaries ? bill.amountMinor : amountOn(bill.amountMinor, next, from);
+  const fromHint = `Repeats ${repeatWords(repeat).toLowerCase()}: a new amount starts on this due date. Choose the first due date${bill.due === null ? "" : `, ${dueLabel(bill.due, today)},`} to correct every one.${next ? ` It changes to ${minorMoney(next.amount, currency)} from ${dueLabel(next.from, today)}.` : ""}`;
   return <details className="settings-edit"><summary aria-label={`Edit ${bill.biller}`}>Edit</summary>
     <ApiForm action="/api/bills"><input type="hidden" name="kind" value="edit" /><input type="hidden" name="id" value={bill.id} /><input type="hidden" name="returnTo" value="/settings" />
       <label className="ui-field">{LABELS.name}<input name="biller" maxLength={160} required defaultValue={bill.biller} /></label>
-      <EditAmounts id={bill.id} currency={bill.currency} amount={String(fromMinor(amount, currency))} from={from} fromHint={fromHint} due={bill.due} dueLabel={repeat === null ? LABELS.dueDate : "First due date"} today={today} repeat={repeat} varies={bill.amountVaries} />
+      <EditAmounts amountUnknown={bill.amountMinor === null} dueUnknown={bill.due === null} hasNext={next !== null} dueOffered={repeat === null && bill.seriesBillId === null && bill.cancelBy === null} id={bill.id} currency={bill.currency} amount={amount === null ? "" : String(fromMinor(amount, currency))} from={from} fromHint={fromHint} due={bill.due ?? ""} dueLabel={repeat === null ? LABELS.dueDate : "First due date"} today={today} repeat={repeat} varies={bill.amountVaries} />
       {series.length > 0 && <label className="ui-field">{LABELS.partOf}<select name="seriesBillId" defaultValue={bill.seriesBillId ?? ""}>
         <option value="">None</option>{series.map(s => <option key={s.id} value={s.id}>{`${s.biller} (${repeatWords("month").toLowerCase()})`}</option>)}</select>
         <small className="ui-hint">A real bill for that month: it replaces the month’s estimate and counts once.</small></label>}
@@ -81,7 +82,7 @@ function EditBill({ bill, bills, people, today }: { bill: SettingsData["bills"][
 /** One bill in Settings → Bills: its summary and amount ("about ¥6,000 · varies" for a monthly bill whose amount changes), Edit and Remove. */
 function BillRow({ bill, bills, people, today }: { bill: SettingsData["bills"][number]; bills: SettingsData["bills"]; people: SettingsData["people"]; today: string }) {
   const currency = Currency.parse(bill.currency);
-  return <div id={`bill-${bill.id}`} className="settings-bill"><p>{billSummary(bill, people)} · {bill.amountVaries ? `${aboutMoney(bill.amountMinor, currency)} · varies` : minorMoney(bill.amountMinor, currency)}</p>
+  return <div id={`bill-${bill.id}`} className="settings-bill"><p>{billSummary(bill, people)} · {bill.amountMinor === null ? AMOUNT_NOT_KNOWN : bill.amountVaries ? `${aboutMoney(bill.amountMinor, currency)} · varies` : minorMoney(bill.amountMinor, currency)}{bill.due === null ? ` · ${DATE_NOT_KNOWN}` : ""}</p>
     {bill.status === "confirmed" && <EditBill bill={bill} bills={bills} people={people} today={today} />}<RemoveBill bill={bill} /></div>;
 }
 /** Remove for one person who is not the owner: asks first and says where their bills and cards go (the rule is on `removeMember`). */
@@ -104,7 +105,7 @@ function CardFields({ data, card }: { data: SettingsData; card?: SettingsData["c
 
 export function SettingsView({ data, canImportPayPal = false, familyLinks }: { data: SettingsData; canImportPayPal?: boolean; familyLinks: FamilyLinkRow[] }) {
   const { household, people, cards, bills } = data;
-  const isPast = (bill: SettingsData["bills"][number]) => bill.status === "confirmed" && bill.repeatUnit === null && bill.due < data.today; // a one-off already due: history, kept below the rest
+  const isPast = (bill: SettingsData["bills"][number]) => bill.status === "confirmed" && bill.repeatUnit === null && bill.due !== null && bill.due < data.today; // a one-off already due: history, kept below the rest
   const current = bills.filter(bill => !isPast(bill));
   const past = bills.filter(isPast);
   const missingAsk = missingAskSetting(Boolean(household.aiKeyHint));

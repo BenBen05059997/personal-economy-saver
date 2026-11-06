@@ -15,7 +15,7 @@
 
 import type { Context, Currency, Moment, Profile } from "@/lib/catalogue/types";
 import { dayLabel as label, formatter, money, usd } from "./format";
-import type { Card, Charge, Client, Invoice, MoneyState } from "./types";
+import type { Bill, Card, Charge, Client, Invoice, MoneyState } from "./types";
 
 // ---------------------------------------------------------------- dates
 
@@ -161,6 +161,11 @@ export type Series = number[] & { startDate?: string };
 
 export type SeriesKind = "expected" | "worst";
 
+/** What a bill counts in a case (D55): the usual case its amount (the estimate, or 0 for an uncounted bill), the late case the high end of its estimate. */
+function billCounts(bill: Bill, kind: SeriesKind): number {
+  return kind === "expected" ? bill.amount : bill.amountHigh ?? bill.amount;
+}
+
 export type Arrival = {
   invoiceId: string;
   clientId: string;
@@ -216,7 +221,7 @@ export function series(state: MoneyState, kind: SeriesKind, days = WINDOW_DAYS):
   for (const b of state.bills) {
     if (b.status !== "confirmed") continue;
     const i = daysBetween(state.today, b.due);
-    if (i >= 0 && i < days) delta[i] -= b.amount;
+    if (i >= 0 && i < days) delta[i] -= billCounts(b, kind);
   }
   for (const st of statementItems(state)) {
     const i = daysBetween(state.today, st.dueOn);
@@ -266,6 +271,8 @@ export type DueItem = {
   expectedCovered: boolean;
   pending?: boolean; // a bill read by the AI and not confirmed yet; judged as if it were confirmed
   estimated?: true; // D54: an amount-varies bill's occurrence: the amount is the estimate ("about ¥9,330")
+  uncounted?: true; // D55: amount not known and nothing to estimate it from: it counts for nothing; say "amount not known", never ¥0
+  dueUnknown?: true; // D55: the date is not known: it counts as due today
   open?: boolean; // a statement whose cycle can still take charges
   cardId?: string;
 };
@@ -289,7 +296,7 @@ export function dueItems(state: MoneyState, days = WINDOW_DAYS): DueItem[] {
   };
   for (const b of state.bills) {
     const pending = b.status === "pending";
-    add({ id: b.id, kind: "bill", label: b.biller, amount: b.amount, date: b.due, ...(pending ? { pending } : {}) }, pending ? worstAll : worst, pending ? expectedAll : expected);
+    add({ id: b.id, kind: "bill", label: b.biller, amount: b.amount, date: b.due, ...(pending ? { pending } : {}), ...(b.estimated ? { estimated: true as const } : {}), ...(b.uncounted ? { uncounted: true as const } : {}), ...(b.dueUnknown ? { dueUnknown: true as const } : {}) }, pending ? worstAll : worst, pending ? expectedAll : expected);
   }
   for (const st of statementItems(state)) {
     add({ id: `st-${st.cardId}-${st.closesOn}`, kind: "statement", label: st.label, amount: st.amount, date: st.dueOn, open: st.open, cardId: st.cardId }, worst, expected);
@@ -481,6 +488,8 @@ export type TimelineEvent = {
   covered: boolean; // the balance at the end of that day is at least zero
   pending?: boolean; // a bill read by the AI and not confirmed yet; judged as if it were confirmed
   estimated?: true; // D54: an amount-varies bill's occurrence: the amount is the estimate ("about ¥9,330")
+  uncounted?: true; // D55: amount not known and nothing to estimate it from: the event is 0 and says "amount not known"
+  dueUnknown?: true; // D55: the date is not known: it counts as due today
   open?: boolean; // a statement whose cycle can still take charges
   cardId?: string;
   clientId?: string;
@@ -504,7 +513,7 @@ export function timeline(state: MoneyState, kind: SeriesKind, days = WINDOW_DAYS
   const drafts: Draft[] = [];
   for (const b of state.bills) {
     if (!inWindow(b.due)) continue;
-    drafts.push({ id: b.id, date: b.due, kind: "bill", label: b.biller, amount: -b.amount, ...(b.status === "pending" ? { pending: true } : {}), ...(b.estimated ? { estimated: true as const } : {}) });
+    drafts.push({ id: b.id, date: b.due, kind: "bill", label: b.biller, amount: -billCounts(b, kind), ...(b.status === "pending" ? { pending: true } : {}), ...(b.estimated ? { estimated: true as const } : {}), ...(b.uncounted ? { uncounted: true as const } : {}), ...(b.dueUnknown ? { dueUnknown: true as const } : {}) });
   }
   for (const st of statementItems(state)) {
     if (!inWindow(st.dueOn)) continue;

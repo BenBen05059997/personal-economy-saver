@@ -28,9 +28,10 @@ function scheduleWords(kind: "month" | "year", due?: string) {
  * D54: a form that passes `onVaries` (the add form) also shows "Amount changes every month" while Repeats is every month, posting
  * `amountVaries=on`; while it is ticked the dated new amount is not offered (a varying bill is forecast from its own past).
  */
-export function ScheduleFields({ id, today, currency, name = "", due, flat = false, chosen: held, onChoose, varies = false, onVaries }: {
+export function ScheduleFields({ id, today, currency, name = "", due, flat = false, chosen: held, onChoose, varies = false, onVaries, onNextAmount, onCancelBy }: {
   id: string; today: string; currency?: string; name?: string; due?: string; flat?: boolean; chosen?: Repeat | null; onChoose?: (repeat: Repeat) => void;
   varies?: boolean; onVaries?: (varies: boolean) => void;
+  onNextAmount?: (text: string) => void; onCancelBy?: (date: string) => void; // D55: the add form hides "not known yet" boxes while these are filled
 }) {
   const [own, setOwn] = useState<Repeat | null>(null);
   const chosen = onChoose ? held ?? null : own;
@@ -40,11 +41,11 @@ export function ScheduleFields({ id, today, currency, name = "", due, flat = fal
   const rare = <>
     {!varying && <>
       <label className="ui-field">{LABELS.changesTo}
-        {currency ? <AmountField name="nextAmount" currency={currency} /> : <input name="nextAmount" inputMode="decimal" maxLength={17} />}</label>
+        {currency ? <AmountField name="nextAmount" currency={currency} onInput={event => onNextAmount?.(event.currentTarget.value)} /> : <input name="nextAmount" inputMode="decimal" maxLength={17} onInput={event => onNextAmount?.(event.currentTarget.value)} />}</label>
       <label className="ui-field">{LABELS.changesFrom}<CheckedInput name="nextAmountFrom" type="date" max={latestDate(today)} message={HORIZON_MESSAGE} /></label>
       <small className="ui-hint add-entry-hint">The new amount applies to every charge on or after that date. Needs a repeat.</small>
     </>}
-    <CancelByField today={today} />
+    <CancelByField today={today} onChange={onCancelBy} />
   </>;
   return <>
     <label className="ui-field">{LABELS.repeats}<select name="repeat" value={repeat} onChange={event => setChosen(event.target.value as Repeat)} aria-describedby={`${id}-repeat`}>
@@ -56,9 +57,9 @@ export function ScheduleFields({ id, today, currency, name = "", due, flat = fal
 }
 
 /** D48: the "Last day to cancel" date and its hint, shared by the add form (through ScheduleFields) and Settings → Edit. Posts `cancelBy` (empty = none). */
-export function CancelByField({ today, defaultValue }: { today: string; defaultValue?: string }) {
+export function CancelByField({ today, defaultValue, onChange }: { today: string; defaultValue?: string; onChange?: (date: string) => void }) {
   return <>
-    <label className="ui-field">{LABELS.lastDayToCancel}<CheckedInput name="cancelBy" type="date" defaultValue={defaultValue} max={latestDate(today)} message={HORIZON_MESSAGE} /></label>
+    <label className="ui-field">{LABELS.lastDayToCancel}<CheckedInput name="cancelBy" type="date" defaultValue={defaultValue} onChange={event => onChange?.(event.target.value)} max={latestDate(today)} message={HORIZON_MESSAGE} /></label>
     <small className="ui-hint add-entry-hint">A dated reminder in Coming up before the next charge. The app never cancels or pays anything.</small>
   </>;
 }

@@ -32,7 +32,7 @@ export async function confirmPending(db: Db, householdId: string, kind: "bill" |
       kind: kind + "_confirmed",
       title: row.name + " confirmed",
       ...(linked && { body: linked }),
-      amount: { value: fromMinor(row.amount, row.currency), currency: row.currency },
+      ...(row.amount !== null && { amount: { value: fromMinor(row.amount, row.currency), currency: row.currency } }),
       ref: { type: kind, id },
     });
     await observeRunway(tx, hid);

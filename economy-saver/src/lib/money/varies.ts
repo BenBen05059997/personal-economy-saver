@@ -1,6 +1,7 @@
 // Which amount-varies series a real bill belongs to (D54). Pure: the one rule the database (linking a bill as it is saved or
 // confirmed) and the reader's review card (saying it will link) share. Names match by D54's one key, `nameKey`.
 import type { CategoryKey } from "./categories";
+import { gapEstimate } from "./gaps";
 import { occurrenceDates, variesEstimate } from "./repeat";
 import { monthBounds, nameKey } from "./spending";
 import type { RealBill } from "./types";
@@ -36,10 +37,12 @@ export type LinkPreview = { seriesId: string; biller: string; month: string; est
  * estimate it replaces there (minor units; null when the series has no occurrence that month). `series` are the household's
  * confirmed amount-varies bills with their stored amounts, `real` their confirmed linked real bills. Null when it would not link.
  */
-export function linkPreview(series: (VariesSeries & { storedMinor: number })[], real: (RealBill & { seriesBillId: string })[], bill: { biller: string; category: CategoryKey; due: string }): LinkPreview | null {
+export function linkPreview(series: (VariesSeries & { storedMinor: number | null })[], real: { seriesBillId: string; due: string; amountMinor: number | null }[], bill: { biller: string; category: CategoryKey; due: string }): LinkPreview | null {
   const match = seriesToJoin(series, real, bill);
   if (match === null) return null;
   const on = occurrenceInMonth(match, bill.due);
   const stored = series.find(s => s.id === match.id)!.storedMinor;
-  return { seriesId: match.id, biller: match.biller, month: bill.due.slice(0, 7), estimateMinor: on === null ? null : variesEstimate(real.filter(b => b.seriesBillId === match.id), stored, on) };
+  const priced = real.flatMap((b): RealBill[] => (b.seriesBillId === match.id && b.amountMinor !== null ? [{ due: b.due, amountMinor: b.amountMinor }] : [])); // D55: a real bill without an amount takes its month but is no part of the estimate
+  const estimate = on === null ? null : stored === null ? gapEstimate(priced, on)?.averageMinor ?? null : variesEstimate(priced, stored, on);
+  return { seriesId: match.id, biller: match.biller, month: bill.due.slice(0, 7), estimateMinor: estimate };
 }

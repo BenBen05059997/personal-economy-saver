@@ -1,5 +1,5 @@
-import { readAmount } from "@/lib/money/amount";
-import { MINOR_PLACES } from "@/lib/money/format";
+import { AMOUNT_LIMIT, limitMessage, readAmount } from "@/lib/money/amount";
+import { MINOR_PLACES, minorPerUnit } from "@/lib/money/format";
 import { InputError } from "./input-error";
 
 // Money in the database is an integer count of the currency's smallest unit (JPY: yen, USD: cents).
@@ -53,5 +53,14 @@ export function parseMinor(text: string, currency: string): number {
 export function parseAmountMinor(text: string, currency: string): number {
   const minor = parseMinor(text, currency);
   if (minor <= 0) throw new InputError("The amount must be more than zero");
+  return minor;
+}
+
+/** Checks an amount that is already in minor units (a bill's missing amount filled in later) like a typed one: whole, more than zero, within the limit. */
+export function checkAmountMinor(minor: number, currency: string): number {
+  digits(currency);
+  if (!Number.isSafeInteger(minor) || minor <= 0) throw new InputError("The amount must be more than zero");
+  const cur = currency as "JPY" | "USD";
+  if (minor > AMOUNT_LIMIT[cur] * minorPerUnit(cur)) throw new InputError(limitMessage(cur));
   return minor;
 }

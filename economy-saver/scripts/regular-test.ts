@@ -65,7 +65,7 @@ async function main() {
       "【11月分】Hikari Denki", "Hikari Denki Sept. 2026", "Hikari Denki November 25, 2026", "  hikari   denki  "];
     for (const name of hikari) assert.equal(nameKey(name), "hikari denki", name);
     assert.notEqual(nameKey("Rent"), nameKey("Rental car"));
-    assert.deepEqual(["Mayfair Bakery", "7-Eleven", "Tokyo Gas 2026-11-25", "11月分", "Kissa Midori café"].map(nameKey), ["mayfair bakery", "7-eleven", "tokyo gas", "11月分", "kissa midori café"],
+    assert.deepEqual(["Mayfair Bakery", "24-Mart", "Sakura Gas 2026-11-25", "11月分", "Kissa Midori café"].map(nameKey), ["mayfair bakery", "24-mart", "sakura gas", "11月分", "kissa midori café"],
       "a month name inside a word stays; a name that is only a date keeps its text");
     assert.equal(normalise("  Ｔｒａｖｅｌ 　 Hotel "), "travel hotel", "the one normaliser: NFKC, lower case, spaces made one");
   });

@@ -2,16 +2,17 @@ import { and, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
-import { fromMinor, parseAmountMinor } from "./money";
+import { checkAmountMinor, fromMinor, parseAmountMinor } from "./money";
 import { Currency } from "@/lib/catalogue/types";
-import { dayLabel, minorMoney, repeatWords } from "@/lib/money/format";
+import { dayLabel, minorMoney, minorPerUnit, repeatWords } from "@/lib/money/format";
 import { observeRunway } from "./runway-events";
 import { clockForHousehold } from "./clock";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
-import { amountOn, nextAmountOf, nextOccurrenceAfter, occurrenceDates, RepeatUnitSchema } from "@/lib/money/repeat";
-import type { RepeatUnit } from "@/lib/money/types";
+import { amountOn, nextAmountOf, nextOccurrenceAfter, occurrenceDates, RepeatUnitSchema, resolveBills } from "@/lib/money/repeat";
+import type { RepeatUnit, StoredBill } from "@/lib/money/types";
 import { memberCount } from "./people";
 import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
+import { AMOUNT_NOT_KNOWN_YET, DATE_NOT_KNOWN, NOT_KNOWN, NOT_KNOWN_YET } from "@/lib/money/gaps";
 import { monthName } from "@/lib/money/spending";
 import { linkPreview, occurrenceInMonth, seriesToJoin, type LinkPreview, type VariesSeries } from "@/lib/money/varies";
 import { bills, households, members } from "./schema";
@@ -24,8 +25,10 @@ export function dueLabel(due: string, today: string) {
 export const billInput = z.object({
   id: z.string().uuid(),
   biller: z.string().trim().min(1).max(160),
-  amount: z.string().trim(),
-  due: z.string().date(),
+  amount: z.string().trim().default(""), // empty is refused unless amountUnknown
+  due: z.string().date().nullable(), // null is refused unless dueUnknown
+  amountUnknown: z.boolean().default(false), // D55: the amount is not known yet (a one-off, or a monthly bill whose amount varies)
+  dueUnknown: z.boolean().default(false), // D55: the date is not known yet (a one-off without a last day to cancel); it counts as due today
   category: CategoryKeySchema, // D46: a key from lib/money/categories.ts
   businessBp: BusinessBp.default(0), // D46: business share in basis points
   memberId: z.string().uuid().nullable().default(null), // null = shared
@@ -42,6 +45,21 @@ export type BillSchedule = { repeat: RepeatUnit | null; nextAmountMinor: number 
 
 /** The day of the month a monthly bill repeats on: its due date's day; null for any other bill. */
 export const repeatDayFor = (due: string, repeat: RepeatUnit | null) => (repeat === "month" ? Number(due.slice(8, 10)) : null);
+
+/**
+ * D55: the amount and the date of a bill as saved, with what is not known as null. Refuses, in words, what the table's two checks
+ * would: an unknown amount on a bill that repeats on a fixed amount, an unknown date on a bill that repeats, has a last day to
+ * cancel or is part of a series, and a date or an amount left empty without saying it is not known.
+ */
+export function checkKnown(input: { amount: string; amountUnknown: boolean; due: string | null; dueUnknown: boolean }, currency: string, schedule: Pick<BillSchedule, "repeat" | "cancelBy" | "amountVaries">, series: string | null = null): { amountMinor: number | null; due: string | null } {
+  if (input.amountUnknown && schedule.repeat !== null && !schedule.amountVaries) throw new InputError("A bill that repeats needs its amount, unless the amount changes every month");
+  if (input.dueUnknown) {
+    if (schedule.repeat !== null) throw new InputError("A bill that repeats needs its due date");
+    if (schedule.cancelBy !== null) throw new InputError("A bill with a last day to cancel needs its due date");
+    if (series !== null) throw new InputError("A bill that is part of a monthly bill needs its due date");
+  } else if (input.due === null) throw new InputError("Enter the due date");
+  return { amountMinor: input.amountUnknown ? null : parseAmountMinor(input.amount, currency), due: input.dueUnknown ? null : input.due };
+}
 
 /** Refuses a schedule that does not hang together (D48), in words. `today` is the household's own date. */
 export function checkSchedule(due: string, today: string, schedule: BillSchedule) {
@@ -113,16 +131,17 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
     const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
-    const amountMinor = parseAmountMinor(data.amount, household.currency);
-    const { paidByName } = await checkWhose(tx, hid, data.memberId, data.paidByMemberId);
-    const repeatDay = repeatDayFor(data.due, data.repeat);
     const schedule: BillSchedule = {
       repeat: data.repeat, nextAmountMinor: data.nextAmount === null ? null : parseAmountMinor(data.nextAmount, household.currency),
       nextAmountFrom: data.nextAmountFrom, cancelBy: data.cancelBy, amountVaries: data.amountVaries,
     };
+    const { amountMinor, due } = checkKnown(data, household.currency, schedule);
+    if (amountMinor === null && schedule.nextAmountMinor !== null) throw new InputError("A bill whose amount is not known cannot change to a new amount");
+    const { paidByName } = await checkWhose(tx, hid, data.memberId, data.paidByMemberId);
+    const repeatDay = due === null ? null : repeatDayFor(due, data.repeat);
     const [existing] = await tx.select().from(bills).where(and(eq(bills.householdId, hid), eq(bills.id, data.id)));
     if (existing) {
-      if (existing.biller !== data.biller || existing.amountMinor !== amountMinor || existing.due !== data.due
+      if (existing.biller !== data.biller || existing.amountMinor !== amountMinor || existing.due !== due
         || existing.category !== data.category || existing.businessBp !== data.businessBp || existing.memberId !== data.memberId || existing.repeatDay !== repeatDay
         || existing.repeatUnit !== data.repeat || existing.nextAmountMinor !== schedule.nextAmountMinor || existing.nextAmountFrom !== data.nextAmountFrom || existing.cancelBy !== data.cancelBy
         || existing.paidByMemberId !== data.paidByMemberId || existing.amountVaries !== data.amountVaries) {
@@ -131,12 +150,14 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
       return data.id;
     }
     const { today } = clockForHousehold(household);
-    if (data.due > latestDate(today)) throw new InputError(HORIZON_MESSAGE);
-    checkSchedule(data.due, today, schedule);
+    if (due !== null) {
+      if (due > latestDate(today)) throw new InputError(HORIZON_MESSAGE);
+      checkSchedule(due, today, schedule);
+    }
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     await tx.insert(bills).values({
       id: data.id, householdId: hid, memberId: data.memberId, paidByMemberId: data.paidByMemberId, biller: data.biller, amountMinor,
-      currency: household.currency, due: data.due, category: data.category, businessBp: data.businessBp, status, repeatDay,
+      currency: household.currency, due, category: data.category, businessBp: data.businessBp, status, repeatDay,
       repeatUnit: data.repeat, nextAmountMinor: schedule.nextAmountMinor, nextAmountFrom: data.nextAmountFrom, cancelBy: data.cancelBy, amountVaries: data.amountVaries,
       madeBy: by.madeBy, askId: by.askId ?? null,
     });
@@ -144,11 +165,11 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
       await recordEvent(tx, hid, { ...by, kind: "to_check", title: `${data.biller} bill to check`, ref: { type: "bill", id: data.id }, notify: true });
     } else {
       const linked = await linkToSeries(tx, hid, data.id);
-      const body = [...(paidByName ? [`Shared, paid by ${paidByName}`] : []), ...scheduleWords(schedule, Currency.parse(household.currency), today), ...(linked ? [linked] : [])];
+      const body = [...(paidByName ? [`Shared, paid by ${paidByName}`] : []), ...(amountMinor === null ? [AMOUNT_NOT_KNOWN_YET] : []), ...scheduleWords(schedule, Currency.parse(household.currency), today), ...(linked ? [linked] : [])];
       await recordEvent(tx, hid, {
-        kind: "bill_added", ...by, title: `${data.biller} added, due ${dueLabel(data.due, today)}`,
+        kind: "bill_added", ...by, title: `${data.biller} added, ${due === null ? DATE_NOT_KNOWN : `due ${dueLabel(due, today)}`}`,
         ...(body.length > 0 && { body: body.join(" · ") }),
-        amount: { value: fromMinor(amountMinor, household.currency), currency: household.currency }, ref: { type: "bill", id: data.id },
+        ...(amountMinor !== null && { amount: { value: fromMinor(amountMinor, household.currency), currency: household.currency } }), ref: { type: "bill", id: data.id },
       });
       await observeRunway(tx, hid);
     }
@@ -159,25 +180,26 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
 /** "November", or "November 2027" when the month is in another year than today. */
 const monthWords = (date: string, today: string) => monthName(date.slice(0, 7)) + (date.slice(0, 4) === today.slice(0, 4) ? "" : ` ${date.slice(0, 4)}`);
 
-/** Activity's words for a real bill joining its series (D54): "Linked to Tokyo Gas: replaces November's estimate". */
+/** Activity's words for a real bill joining its series (D54): "Linked to Sakura Gas: replaces November's estimate". */
 function linkWords(series: VariesSeries, due: string, today: string) {
   return occurrenceInMonth(series, due) === null ? `Linked to ${series.biller}: counts toward its estimate` : `Linked to ${series.biller}: replaces ${monthWords(due, today)}’s estimate`;
 }
 
 /**
  * This household's confirmed amount-varies monthly bills in `category`, as `seriesToJoin` reads them (with their stored amounts),
- * and their confirmed linked real bills other than `except`. Bills are stored in the household's currency, so minor units add up.
+ * and their confirmed linked real bills other than `except` (a real bill whose amount is not known has `amountMinor` null: it takes its month, D55).
+ * Bills are stored in the household's currency, so minor units add up.
  */
 async function variesSeries(tx: Db, hid: string, category: CategoryKey, except: string | null) {
   const rows = await tx.select({ id: bills.id, biller: bills.biller, due: bills.due, repeatDay: bills.repeatDay, amountMinor: bills.amountMinor }).from(bills)
     .where(and(eq(bills.householdId, hid), eq(bills.amountVaries, true), eq(bills.status, "confirmed"), eq(bills.category, category)));
-  const series = rows.map((r): VariesSeries & { storedMinor: number } => {
-    if (r.repeatDay === null) throw new Error("An amount-varies bill repeats every month and has its day");
+  const series = rows.map((r): VariesSeries & { storedMinor: number | null } => {
+    if (r.repeatDay === null || r.due === null) throw new Error("An amount-varies bill repeats every month and has its day");
     return { id: r.id, biller: r.biller, category, due: r.due, repeatDay: r.repeatDay, storedMinor: r.amountMinor };
   });
   const takenRows = series.length === 0 ? [] : await tx.select({ seriesBillId: bills.seriesBillId, due: bills.due, amountMinor: bills.amountMinor }).from(bills)
     .where(and(eq(bills.householdId, hid), eq(bills.status, "confirmed"), inArray(bills.seriesBillId, series.map(r => r.id)), ...(except === null ? [] : [ne(bills.id, except)])));
-  return { series, taken: takenRows.flatMap(r => (r.seriesBillId === null ? [] : [{ seriesBillId: r.seriesBillId, due: r.due, amountMinor: r.amountMinor }])) };
+  return { series, taken: takenRows.flatMap(r => (r.seriesBillId === null || r.due === null ? [] : [{ seriesBillId: r.seriesBillId, due: r.due, amountMinor: r.amountMinor }])) };
 }
 
 /**
@@ -201,7 +223,7 @@ export async function linkToSeries(db: Db, householdId: string, billId: string):
   const id = z.string().uuid().parse(billId);
   const [row] = await db.select({ bill: bills, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone }).from(bills)
     .innerJoin(households, eq(households.id, bills.householdId)).where(and(eq(bills.householdId, hid), eq(bills.id, id)));
-  if (!row || row.bill.status !== "confirmed" || row.bill.repeatUnit !== null || row.bill.seriesBillId !== null) return null;
+  if (!row || row.bill.status !== "confirmed" || row.bill.repeatUnit !== null || row.bill.seriesBillId !== null || row.bill.due === null) return null;
   const category = CategoryKeySchema.parse(row.bill.category);
   const { series, taken } = await variesSeries(db, hid, category, id);
   const match = seriesToJoin(series, taken, { biller: row.bill.biller, category, due: row.bill.due });
@@ -226,9 +248,9 @@ export async function removeBill(db: Db, householdId: string, id: string): Promi
     const [row] = await tx.delete(bills).where(and(eq(bills.householdId, hid), eq(bills.id, billId))).returning();
     if (!row) return false;
     await recordEvent(tx, hid, { madeBy: "form",
-      kind: "bill_removed", title: `Removed bill ${row.biller} ${minorMoney(row.amountMinor, Currency.parse(row.currency))}`,
+      kind: "bill_removed", title: `Removed bill ${row.biller}${row.amountMinor === null ? "" : ` ${minorMoney(row.amountMinor, Currency.parse(row.currency))}`}`,
       ...(row.repeatUnit !== null && { body: `Every ${row.repeatUnit}, so every occurrence is gone` }),
-      amount: { value: fromMinor(row.amountMinor, row.currency), currency: row.currency }, ref: { type: "bill", id: billId },
+      ...(row.amountMinor !== null && { amount: { value: fromMinor(row.amountMinor, row.currency), currency: row.currency } }), ref: { type: "bill", id: billId },
     });
     if (row.status === "confirmed") await observeRunway(tx, hid);
     return true;
@@ -239,7 +261,7 @@ export async function removeBill(db: Db, householdId: string, id: string): Promi
  * What Settings → Bills → Edit sends: the same fields as `billInput` for what it can change (name, amount, due date, category,
  * business share, whose and who pays, the last day to cancel), plus `amountFrom` for a repeating bill: the occurrence the new amount starts at.
  */
-export const billEditInput = billInput.pick({ id: true, biller: true, amount: true, due: true, category: true, businessBp: true, memberId: true, paidByMemberId: true })
+export const billEditInput = billInput.pick({ id: true, biller: true, amount: true, amountUnknown: true, due: true, dueUnknown: true, category: true, businessBp: true, memberId: true, paidByMemberId: true })
   .extend({
     amountFrom: z.string().date().nullable().default(null),
     amountVaries: z.boolean().optional(), // D54, a monthly bill: absent = unchanged
@@ -276,30 +298,33 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
     if (bill.status !== "confirmed") throw new InputError("This bill is waiting in To check; correct it there");
     const currency = Currency.parse(bill.currency);
     const money = (minor: number) => minorMoney(minor, currency);
-    const amountMinor = parseAmountMinor(data.amount, bill.currency);
+    const repeat = bill.repeatUnit === null ? null : RepeatUnitSchema.parse(bill.repeatUnit);
+    const varies = data.amountVaries ?? bill.amountVaries;
+    const cancelBy = data.cancelBy === undefined ? bill.cancelBy : data.cancelBy;
+    const series = data.seriesBillId === undefined ? bill.seriesBillId : data.seriesBillId;
+    const { amountMinor, due } = checkKnown(data, bill.currency, { repeat, cancelBy, amountVaries: varies }, series);
     const { ownerName, paidByName } = await checkWhose(tx, hid, data.memberId, data.paidByMemberId, bill.paidByMemberId);
     const { today } = clockForHousehold(household);
-    if (data.due > latestDate(today)) throw new InputError(HORIZON_MESSAGE);
-    const repeat = bill.repeatUnit === null ? null : RepeatUnitSchema.parse(bill.repeatUnit);
-    const repeatDay = repeatDayFor(data.due, repeat);
+    if (due !== null && due > latestDate(today)) throw new InputError(HORIZON_MESSAGE);
+    const repeatDay = due === null ? null : repeatDayFor(due, repeat);
     const parts: string[] = [];
     if (bill.biller !== data.biller) parts.push(`Name ${bill.biller} → ${data.biller}`);
-    if (bill.due !== data.due) parts.push(`${repeat === null ? "Due" : "Starts"} ${dueLabel(bill.due, today)} → ${dueLabel(data.due, today)}`);
+    if (bill.due !== due) parts.push(`${repeat === null ? "Due" : "Starts"} ${bill.due === null ? NOT_KNOWN : dueLabel(bill.due, today)} → ${due === null ? NOT_KNOWN_YET : dueLabel(due, today)}`);
     let base = bill.amountMinor;
     let next = nextAmountOf(bill);
-    const varies = data.amountVaries ?? bill.amountVaries;
     if (varies && !bill.amountVaries && next !== null) {
       throw new InputError(`This bill already changes to ${money(next.amount)} from ${dueLabel(next.from, today)}; give it one amount from its first due date before marking it as changing every month`);
     }
     if (repeat === null || varies) {
-      if (amountMinor !== base) parts.push(`Amount ${money(base)} → ${money(amountMinor)}`);
+      if (amountMinor !== base) parts.push(`Amount ${base === null ? NOT_KNOWN : money(base)} → ${amountMinor === null ? NOT_KNOWN_YET : money(amountMinor)}`);
       base = amountMinor;
     } else {
-      const from = data.amountFrom ?? nextOccurrenceAfter({ due: data.due, repeatUnit: repeat, repeatDay: repeatDay ?? undefined }, bumpDay(today, -1)) ?? data.due;
+      if (due === null || amountMinor === null || base === null) throw new Error("A repeating bill with a fixed amount has its date and its amount");
+      const from = data.amountFrom ?? nextOccurrenceAfter({ due, repeatUnit: repeat, repeatDay: repeatDay ?? undefined }, bumpDay(today, -1)) ?? due;
       if (from > latestDate(today)) throw new InputError(HORIZON_MESSAGE);
       const before = amountOn(base, next, from);
       if (amountMinor !== before) {
-        if (from <= data.due) {
+        if (from <= due) {
           base = amountMinor;
           parts.push(`Amount ${money(before)} → ${money(amountMinor)} from the first due date`);
         } else if (next !== null && next.from < from) {
@@ -312,21 +337,19 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
       }
     }
     if (varies !== bill.amountVaries) parts.push(varies ? "Amount varies every month" : "Amount no longer varies");
-    const series = data.seriesBillId === undefined ? bill.seriesBillId : data.seriesBillId;
-    const seriesWords = await checkSeries(tx, hid, { id: data.id, repeat, due: data.due, category: data.category }, series, bill.seriesBillId, today);
+    const seriesWords = await checkSeries(tx, hid, { id: data.id, repeat, due, category: data.category }, series, bill.seriesBillId, today);
     if (series !== bill.seriesBillId) parts.push(seriesWords ?? `No longer part of ${await billerOf(tx, hid, bill.seriesBillId!)}`);
     if (bill.category !== data.category) parts.push(`Category ${categoryLabel(CategoryKeySchema.parse(bill.category))} → ${categoryLabel(data.category)}`);
     if (bill.businessBp !== data.businessBp) parts.push(`For work ${bpWords(bill.businessBp)} → ${bpWords(data.businessBp)}`);
     if (bill.memberId !== data.memberId || bill.paidByMemberId !== data.paidByMemberId) {
       parts.push(ownerName ? `Now ${ownerName}’s` : paidByName ? `Shared, paid by ${paidByName}` : "Shared");
     }
-    const cancelBy = data.cancelBy === undefined ? bill.cancelBy : data.cancelBy;
     if (cancelBy !== bill.cancelBy) {
       parts.push(cancelBy === null ? "No last day to cancel" : `Last day to cancel ${bill.cancelBy === null ? "" : `${dueLabel(bill.cancelBy, today)} → `}${dueLabel(cancelBy, today)}`);
     }
     if (parts.length === 0) return true;
     const schedule: BillSchedule = { repeat, nextAmountMinor: next?.amount ?? null, nextAmountFrom: next?.from ?? null, cancelBy, amountVaries: varies };
-    checkSchedule(data.due, today, schedule);
+    if (due !== null) checkSchedule(due, today, schedule);
     if (household.previous === null) await observeRunway(tx, hid);
     if (!varies && bill.amountVaries) {
       // Without "varies" its real bills would count next to the series' own amount; they stay as plain one-offs.
@@ -334,13 +357,13 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
       if (freed.length > 0) parts.push(`${freed.length} real ${freed.length === 1 ? "bill stays" : "bills stay"} as ${freed.length === 1 ? "a one-off" : "one-offs"}`);
     }
     await tx.update(bills).set({
-      biller: data.biller, amountMinor: base, due: data.due, repeatDay, category: data.category, businessBp: data.businessBp,
+      biller: data.biller, amountMinor: base, due, repeatDay, category: data.category, businessBp: data.businessBp,
       memberId: data.memberId, paidByMemberId: data.paidByMemberId, nextAmountMinor: schedule.nextAmountMinor, nextAmountFrom: schedule.nextAmountFrom,
       cancelBy, amountVaries: varies, seriesBillId: series,
     }).where(and(eq(bills.householdId, hid), eq(bills.id, data.id)));
     await recordEvent(tx, hid, {
       kind: "bill_changed", ...by, title: `${data.biller} bill changed`, body: parts.join(" · "),
-      amount: { value: fromMinor(amountMinor, bill.currency), currency: bill.currency }, ref: { type: "bill", id: data.id },
+      ...(amountMinor !== null && { amount: { value: fromMinor(amountMinor, bill.currency), currency: bill.currency } }), ref: { type: "bill", id: data.id },
     });
     await observeRunway(tx, hid);
     return true;
@@ -348,21 +371,92 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
 }
 
 /**
+ * What a bill of this household is estimated at while its amount is not known (D55), in minor units: the average of the real bills
+ * `resolveBills` finds for it (its series, or bills with its name), or null with none.
+ */
+async function estimateFor(tx: Db, hid: string, billId: string, today: string, currency: Currency): Promise<number | null> {
+  const rows = await tx.select().from(bills).where(eq(bills.householdId, hid));
+  const resolved = resolveBills(rows.map((r): StoredBill => ({
+    id: r.id, biller: r.biller, amount: r.amountMinor === null ? null : fromMinor(r.amountMinor, r.currency), due: r.due, category: CategoryKeySchema.parse(r.category), businessBp: r.businessBp, status: r.status,
+    ...(r.repeatUnit !== null && { repeatUnit: RepeatUnitSchema.parse(r.repeatUnit) }),
+    ...(r.repeatDay !== null && { repeatDay: r.repeatDay }),
+    ...(r.amountVaries && { amountVaries: true as const }),
+    ...(r.seriesBillId !== null && { seriesBillId: r.seriesBillId }),
+  })), today, currency).find(bill => bill.id === billId);
+  return resolved?.estimated ? Math.round(resolved.amount * minorPerUnit(currency)) : null;
+}
+
+/**
+ * Fills in what a bill of this household is missing (D55): its amount (`amountMinor`, whole minor units) and/or its due date. Only a
+ * piece that is missing can be given; a bill with nothing missing, or a call that gives nothing, is refused in words. The amount and
+ * the date are checked like a typed-in bill (more than zero and within the limit, not past the two-year horizon). A confirmed bill
+ * that now has a date is linked to its amount-varies series as on the form (D54). Records one `bill_changed` event that says what
+ * was filled ("Minato Gas: ¥9,800 (was about ¥9,330)", "Minato Gas: due Nov 25"). Works for a bill waiting in To check as well as a
+ * confirmed one. False when this household has no such bill.
+ */
+export async function fillGap(db: Db, householdId: string, billId: string, fill: { amountMinor?: number; due?: string }, by: Maker = { madeBy: "form" }): Promise<boolean> {
+  const hid = requireHousehold(householdId);
+  const id = z.string().uuid().parse(billId);
+  const due = fill.due === undefined ? undefined : z.string().date().parse(fill.due);
+  return db.transaction(async tx => {
+    const [household] = await tx.select({ id: households.id, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
+      .from(households).where(eq(households.id, hid)).for("update");
+    if (!household) throw new InputError("Household not found");
+    const [bill] = await tx.select().from(bills).where(and(eq(bills.householdId, hid), eq(bills.id, id))).for("update");
+    if (!bill) return false;
+    const currency = Currency.parse(bill.currency);
+    const money = (minor: number) => minorMoney(minor, currency);
+    if (bill.amountMinor !== null && bill.due !== null) throw new InputError("This bill has its amount and its date already");
+    if (fill.amountMinor === undefined && due === undefined) throw new InputError("Give the amount or the date");
+    if (fill.amountMinor !== undefined && bill.amountMinor !== null) throw new InputError("This bill has its amount already");
+    if (due !== undefined && bill.due !== null) throw new InputError("This bill has its date already");
+    const { today } = clockForHousehold(household);
+    if (due !== undefined && due > latestDate(today)) throw new InputError(HORIZON_MESSAGE);
+    const amountMinor = fill.amountMinor === undefined ? bill.amountMinor : checkAmountMinor(fill.amountMinor, bill.currency);
+    const was = fill.amountMinor === undefined ? null : await estimateFor(tx, hid, id, today, currency);
+    const words = [
+      ...(fill.amountMinor === undefined ? [] : [`${money(fill.amountMinor)}${was === null ? "" : ` (was about ${money(was)})`}`]),
+      ...(due === undefined ? [] : [`due ${dueLabel(due, today)}`]),
+    ];
+    if (household.previous === null && bill.status === "confirmed") await observeRunway(tx, hid);
+    await tx.update(bills).set({ ...(fill.amountMinor === undefined ? {} : { amountMinor }), ...(due === undefined ? {} : { due }) }).where(and(eq(bills.householdId, hid), eq(bills.id, id)));
+    const linked = bill.status === "confirmed" && due !== undefined ? await linkToSeries(tx, hid, id) : null;
+    await recordEvent(tx, hid, {
+      kind: "bill_changed", ...by, title: `${bill.biller}: ${words.join(", ")}`, ...(linked && { body: linked }),
+      ...(amountMinor !== null && { amount: { value: fromMinor(amountMinor, bill.currency), currency: bill.currency } }), ref: { type: "bill", id },
+    });
+    if (bill.status === "confirmed") await observeRunway(tx, hid);
+    return true;
+  });
+}
+
+/** `fillGap` for what a person typed: the amount as text (read in the household's currency like any typed amount), the date as YYYY-MM-DD; empty text is not given. */
+export async function fillGapFromText(db: Db, householdId: string, billId: string, typed: { amount?: string; due?: string }, by: Maker = { madeBy: "form" }): Promise<boolean> {
+  const hid = requireHousehold(householdId);
+  const [household] = await db.select({ currency: households.homeCurrency }).from(households).where(eq(households.id, hid));
+  if (!household) throw new InputError("Household not found");
+  const amount = typed.amount?.trim();
+  return fillGap(db, hid, billId, { ...(amount ? { amountMinor: parseAmountMinor(amount, household.currency) } : {}), ...(typed.due ? { due: typed.due } : {}) }, by);
+}
+
+/**
  * Checks the series an edited bill is to be part of (D54) and returns the words for its event when the link is new or its
  * month or category changed; null when nothing about the link needs saying. `stored` is the series it is part of now.
  */
-async function checkSeries(tx: Db, hid: string, bill: { id: string; repeat: RepeatUnit | null; due: string; category: CategoryKey }, series: string | null, stored: string | null, today: string): Promise<string | null> {
+async function checkSeries(tx: Db, hid: string, bill: { id: string; repeat: RepeatUnit | null; due: string | null; category: CategoryKey }, series: string | null, stored: string | null, today: string): Promise<string | null> {
   if (series === null) return null;
+  if (bill.due === null) throw new InputError("A bill that is part of a monthly bill needs its due date");
+  const billDue = bill.due;
   if (bill.repeat !== null) throw new InputError("Only a one-off bill can be part of a monthly bill whose amount changes");
   const [row] = await tx.select({ id: bills.id, biller: bills.biller, category: bills.category, due: bills.due, repeatDay: bills.repeatDay, amountVaries: bills.amountVaries, status: bills.status })
     .from(bills).where(and(eq(bills.householdId, hid), eq(bills.id, series)));
-  if (!row || !row.amountVaries || row.status !== "confirmed" || row.repeatDay === null) throw new InputError("Choose a monthly bill of this household whose amount changes every month");
+  if (!row || !row.amountVaries || row.status !== "confirmed" || row.repeatDay === null || row.due === null) throw new InputError("Choose a monthly bill of this household whose amount changes every month");
   const category = CategoryKeySchema.parse(row.category);
   if (category !== bill.category) throw new InputError(`A bill that is part of ${row.biller} has its category, ${categoryLabel(category)}; choose Part of: none to change it`);
   const { taken } = await variesSeries(tx, hid, category, bill.id);
-  if (taken.some(t => t.seriesBillId === series && t.due.slice(0, 7) === bill.due.slice(0, 7))) throw new InputError(`${row.biller} already has a real bill for ${monthWords(bill.due, today)}`);
+  if (taken.some(t => t.seriesBillId === series && t.due.slice(0, 7) === billDue.slice(0, 7))) throw new InputError(`${row.biller} already has a real bill for ${monthWords(billDue, today)}`);
   if (series === stored) return null;
-  return linkWords({ id: row.id, biller: row.biller, category, due: row.due, repeatDay: row.repeatDay }, bill.due, today).replace(/^Linked to /, "Part of ");
+  return linkWords({ id: row.id, biller: row.biller, category, due: row.due, repeatDay: row.repeatDay }, billDue, today).replace(/^Linked to /, "Part of ");
 }
 
 /** The name of a bill of this household (the series an edited bill leaves). */

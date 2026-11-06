@@ -42,3 +42,13 @@
   .household-table .kind-line { display: block; }
   .household-table :is(td, th) { padding-inline: var(--space-1); }
 }
+.check-missing { margin-bottom: var(--space-5); }
+.check-missing-title { margin: 0 0 var(--space-2); font: 500 16px var(--sans); }
+.check-gap { padding-block: var(--space-3); border-bottom: 1px solid var(--rule); }
+.check-gap p { margin: 0; }
+.check-gap-question { overflow-wrap: anywhere; }
+.check-gap-urgent { display: inline-block; margin-left: var(--space-2); padding: 1px 8px 2px; border-radius: 9px; background: var(--wash); color: var(--red); font-size: 12px; font-weight: 600; }
+.check-gap form, .check-row form.gap-fill { max-width: 22rem; }
+.check-row > .num { max-width: 12em; text-align: right; overflow-wrap: anywhere; }
+.check-row > div:first-child { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
+.check-row > .num.check-amount { flex: none; max-width: none; white-space: nowrap; overflow-wrap: normal; }

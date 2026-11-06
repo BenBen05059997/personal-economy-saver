@@ -5,7 +5,8 @@
 import { z } from "zod";
 import type { Currency } from "@/lib/catalogue/types";
 import { minorPerUnit } from "./format";
-import type { Bill, CancelNotice, RealBill, RepeatUnit } from "./types";
+import { estimatedFields, gapEstimate, nameHistory } from "./gaps";
+import type { Bill, CancelNotice, RealBill, RepeatUnit, StoredBill } from "./types";
 
 /** The repeat units a stored bill may have; no repeat at all (a one-off) is null in storage. */
 export const RepeatUnitSchema = z.enum(["month", "year"]);
@@ -81,39 +82,80 @@ export function realMonths(real: RealBill[]): Set<string> {
  * amount, when there are none. Only called for a month without its own real bill (that month is the real bill instead).
  */
 export function variesEstimate(real: RealBill[], storedMinor: number, date: string): number {
-  const last = real.filter(bill => bill.due < date)
-    .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : a.amountMinor - b.amountMinor)).slice(-3);
-  if (last.length === 0) return storedMinor;
-  return Math.round(last.reduce((sum, bill) => sum + bill.amountMinor, 0) / last.length);
+  return gapEstimate(real, date)?.averageMinor ?? storedMinor;
 }
 
 /**
  * The dates and amounts (minor units) an amount-varies series counts on from `from` to `to`: every occurrence in a month with no
- * real bill, at `variesEstimate`. A month with a real bill has no occurrence here; the real bill counts on its own date, once.
+ * real bill, at `variesEstimate` (null when the series has no amount of its own and no real bill before the date). A month with a
+ * real bill has no occurrence here; the real bill counts on its own date, once. `unpriced` are the due dates of the series' real
+ * bills whose amount is not known (D55): they take their month as the others do but are no part of any estimate.
  */
-export function variesOccurrences(series: { due: string; repeatDay: number | null; storedMinor: number }, real: RealBill[], from: string, to: string): { date: string; amountMinor: number }[] {
-  const months = realMonths(real);
+export function variesOccurrences(series: { due: string; repeatDay: number | null; storedMinor: number | null }, real: RealBill[], from: string, to: string, unpriced: string[] = []): { date: string; amountMinor: number | null }[] {
+  const months = new Set([...realMonths(real), ...unpriced.map(due => due.slice(0, 7))]);
   return occurrenceDates(series.due, "month", series.repeatDay, from, to)
     .filter(date => !months.has(date.slice(0, 7)))
-    .map(date => ({ date, amountMinor: variesEstimate(real, series.storedMinor, date) }));
+    .map(date => ({ date, amountMinor: series.storedMinor === null ? (gapEstimate(real, date)?.averageMinor ?? null) : variesEstimate(real, series.storedMinor, date) }));
 }
 
-/** The confirmed one-off real bills linked to each confirmed amount-varies series in `bills`, by series id, in minor units (`unit` per unit). */
-export function realBillsBySeries(bills: Bill[], unit: number): Map<string, RealBill[]> {
+/** The fields of a bill the series rules read: a stored bill, or an engine bill (D55: `amountUnknown` / `dueUnknown` say the same as a null). */
+type SeriesBill = Pick<StoredBill, "id" | "status" | "repeatUnit" | "seriesBillId" | "amountVaries" | "amount" | "due"> & { amountUnknown?: true; dueUnknown?: true };
+
+const priced = (bill: SeriesBill) => bill.amount !== null && !bill.amountUnknown && bill.due !== null && !bill.dueUnknown;
+
+function linkedReal(bills: SeriesBill[]) {
   const series = new Set(bills.filter(bill => bill.amountVaries && bill.status === "confirmed").map(bill => bill.id.split("@")[0]));
+  return bills.filter(bill => bill.status === "confirmed" && bill.repeatUnit === undefined && bill.seriesBillId !== undefined && series.has(bill.seriesBillId));
+}
+
+/** The confirmed one-off real bills linked to each confirmed amount-varies series in `bills`, by series id, in minor units (`unit` per unit). Real bills whose amount or date is not known are left out (D55). */
+export function realBillsBySeries(bills: SeriesBill[], unit: number): Map<string, RealBill[]> {
   const real = new Map<string, RealBill[]>();
-  for (const bill of bills) {
-    if (bill.status !== "confirmed" || bill.repeatUnit !== undefined || bill.seriesBillId === undefined || !series.has(bill.seriesBillId)) continue;
-    real.set(bill.seriesBillId, [...(real.get(bill.seriesBillId) ?? []), { due: bill.due, amountMinor: Math.round(bill.amount * unit) }]);
+  for (const bill of linkedReal(bills)) {
+    if (!priced(bill)) continue;
+    real.set(bill.seriesBillId!, [...(real.get(bill.seriesBillId!) ?? []), { due: bill.due!, amountMinor: Math.round(bill.amount! * unit) }]);
   }
   return real;
 }
 
+/** The due dates of each series' confirmed real bills whose amount is not known (D55), by series id: they replace that month's occurrence but are in no average. */
+export function unpricedBySeries(bills: SeriesBill[]): Map<string, string[]> {
+  const unpriced = new Map<string, string[]>();
+  for (const bill of linkedReal(bills)) {
+    if (priced(bill) || bill.due === null || bill.dueUnknown) continue;
+    unpriced.set(bill.seriesBillId!, [...(unpriced.get(bill.seriesBillId!) ?? []), bill.due]);
+  }
+  return unpriced;
+}
+
 /** The unit an amount-varies estimate rounds to; refuses to guess the currency when one is needed and not given. */
-function estimateUnit(bills: Bill[], currency: Currency | undefined): number {
+function estimateUnit(bills: StoredBill[], currency: Currency | undefined): number {
   if (currency !== undefined) return minorPerUnit(currency);
-  if (bills.some(bill => bill.amountVaries && bill.status === "confirmed")) throw new Error("A bill whose amount varies needs the home currency to round its estimate");
+  if (bills.some(bill => (bill.amountVaries && bill.status === "confirmed") || bill.amount === null)) throw new Error("A bill whose amount varies or is not known needs the home currency to round its estimate");
   return 1; // never read: no bill here has an estimate
+}
+
+/** One stored bill as the engine reads it (D55): an unknown date is `today`, an unknown amount is its estimate or, with no history, 0 and `uncounted`. */
+function resolveOne(bill: StoredBill, today: string, unit: number, bills: StoredBill[], real: Map<string, RealBill[]>): Bill {
+  if (bill.amount !== null && bill.due !== null) return bill as Bill;
+  const due = bill.due ?? today;
+  const date = bill.due === null ? { dueUnknown: true as const } : {};
+  if (bill.amount !== null) return { ...bill, amount: bill.amount, due, ...date };
+  // A repeating series has no amount of its own: its occurrences are estimated one by one (`expandBills`).
+  if (bill.repeatUnit !== undefined) return { ...bill, amount: 0, due, amountUnknown: true, uncounted: true, ...date };
+  const seriesId = bill.seriesBillId ?? (bill.amountVaries ? bill.id : undefined);
+  const history = seriesId !== undefined ? real.get(seriesId) ?? [] : nameHistory(bills, bill.biller, bill.category, unit);
+  return { ...bill, due, ...date, amountUnknown: true, ...estimatedFields(gapEstimate(history, bill.due), unit, seriesId !== undefined ? "series" : "bills") };
+}
+
+/**
+ * Stored bills as the engine reads them without expanding repeating ones: a bill whose amount or date is not known gets its estimate,
+ * or `uncounted`, and today as its date (`resolveOne`). `currency` is needed exactly when a bill's amount is not known.
+ */
+export function resolveBills(bills: StoredBill[], today: string, currency?: Currency): Bill[] {
+  const unit = estimateUnit(bills, currency);
+  const real = realBillsBySeries(bills, unit);
+  return bills.map(bill => resolveOne(bill, today, unit, bills, real));
 }
 
 /**
@@ -122,21 +164,32 @@ function estimateUnit(bills: Bill[], currency: Currency | undefined): number {
  * Anything else (one-off, or pending: it never repeats until confirmed) passes through unchanged.
  * An amount-varies monthly bill (D54) has no occurrence in a month that holds one of its real bills (the real bill, a one-off
  * here, is the month's amount, counted once on its own date); every other occurrence is `estimated` at `variesEstimate`.
+ * A bill whose amount or date is not known (D55) is resolved by `resolveOne`: the same rule for a one-off, and for an amount-varies
+ * series without an amount of its own each occurrence is estimated from the series' real bills before it, or `uncounted`.
  * `currency` (the home currency) is needed exactly when there is such a bill: the estimate is rounded to its minor unit.
  */
-export function expandBills(bills: Bill[], today: string, through: string, currency?: Currency): Bill[] {
+export function expandBills(bills: StoredBill[], today: string, through: string, currency?: Currency): Bill[] {
   const unit = estimateUnit(bills, currency);
   const real = realBillsBySeries(bills, unit);
+  const unpriced = unpricedBySeries(bills);
   const expanded = bills.flatMap((bill): Bill[] => {
-    if (bill.repeatUnit === undefined || bill.status !== "confirmed") return [bill];
-    const series = { startsOn: bill.due, startAmount: bill.amount };
+    if (bill.repeatUnit === undefined || bill.status !== "confirmed") return [resolveOne(bill, today, unit, bills, real)];
+    if (bill.due === null) throw new Error("A repeating bill has its date");
+    const series = { startsOn: bill.due, ...(bill.amount === null ? {} : { startAmount: bill.amount }) };
     if (bill.amountVaries) {
-      return variesOccurrences({ due: bill.due, repeatDay: bill.repeatDay ?? null, storedMinor: Math.round(bill.amount * unit) }, real.get(bill.id) ?? [], today, through)
-        .map(({ date, amountMinor }) => ({ ...bill, id: `${bill.id}@${date}`, due: date, amount: amountMinor / unit, estimated: true as const, ...series }));
+      const history = real.get(bill.id) ?? [];
+      return variesOccurrences({ due: bill.due, repeatDay: bill.repeatDay ?? null, storedMinor: bill.amount === null ? null : Math.round(bill.amount * unit) }, history, today, through, unpriced.get(bill.id) ?? [])
+        .map(({ date, amountMinor }) => {
+          const occurrence = { ...bill, id: `${bill.id}@${date}`, due: date, ...series };
+          if (bill.amount !== null) return { ...occurrence, amount: amountMinor! / unit, estimated: true as const };
+          return { ...occurrence, amountUnknown: true as const, ...estimatedFields(gapEstimate(history, date), unit, "series") };
+        });
     }
+    if (bill.amount === null) throw new Error("A repeating bill with a fixed amount has its amount");
+    const fixed = bill.amount;
     const next = nextAmountOf(bill);
-    return datesIn(bill, today, through)
-      .map(due => ({ ...bill, id: `${bill.id}@${due}`, due, amount: amountOn(bill.amount, next, due), ...series }));
+    return datesIn({ ...bill, due: bill.due }, today, through)
+      .map(due => ({ ...bill, id: `${bill.id}@${due}`, due, amount: amountOn(fixed, next, due), startsOn: bill.due!, startAmount: fixed }));
   });
   // The order the database gives stored bills: due date, then biller.
   return expanded.sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : a.biller < b.biller ? -1 : a.biller > b.biller ? 1 : 0));
@@ -145,18 +198,27 @@ export function expandBills(bills: Bill[], today: string, through: string, curre
 /**
  * The cancel-by rows of Coming up (D48): for each confirmed stored bill with a cancel-by date from `today` on, the date, and the
  * first occurrence after it with the amount that applies then (the renewal; for an amount-varies bill its estimate, D54, which
- * needs `currency` as `expandBills` does). Information only; sorted by cancel-by date.
+ * needs `currency` as `expandBills` does; null when the amount is not known and there is nothing to estimate it from, D55).
+ * Information only; sorted by cancel-by date.
  */
-export function cancelNotices(bills: Bill[], today: string, currency?: Currency): CancelNotice[] {
+export function cancelNotices(bills: StoredBill[], today: string, currency?: Currency): CancelNotice[] {
   const unit = estimateUnit(bills, currency);
   const real = realBillsBySeries(bills, unit);
   const notices: CancelNotice[] = [];
   for (const bill of bills) {
-    if (bill.status !== "confirmed" || bill.cancelBy === undefined || bill.cancelBy < today) continue;
-    const renewsOn = nextOccurrenceAfter(bill, bill.cancelBy);
+    if (bill.status !== "confirmed" || bill.cancelBy === undefined || bill.cancelBy < today || bill.due === null) continue;
+    const dated = { ...bill, due: bill.due };
+    const renewsOn = nextOccurrenceAfter(dated, bill.cancelBy);
     if (renewsOn === null) continue;
     const next = nextAmountOf(bill);
-    const amount = bill.amountVaries ? variesEstimate(real.get(bill.id) ?? [], Math.round(bill.amount * unit), renewsOn) / unit : amountOn(bill.amount, next, renewsOn);
+    let amount: number | null;
+    if (bill.amountVaries) {
+      const estimate = gapEstimate(real.get(bill.id) ?? [], renewsOn)?.averageMinor ?? (bill.amount === null ? null : Math.round(bill.amount * unit));
+      amount = estimate === null ? null : estimate / unit;
+    } else if (bill.amount === null) {
+      const resolved = resolveOne(bill, today, unit, bills, real);
+      amount = resolved.uncounted ? null : resolved.amount;
+    } else amount = amountOn(bill.amount, next, renewsOn);
     notices.push({ billId: bill.id, biller: bill.biller, category: bill.category, cancelBy: bill.cancelBy, renewsOn, amount, repeats: bill.repeatUnit !== undefined });
   }
   return notices.sort((a, b) => (a.cancelBy < b.cancelBy ? -1 : a.cancelBy > b.cancelBy ? 1 : a.biller < b.biller ? -1 : a.biller > b.biller ? 1 : 0));

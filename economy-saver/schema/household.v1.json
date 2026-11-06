@@ -477,10 +477,18 @@
             "type": "string"
           },
           "amountMinor": {
-            "type": "integer",
-            "minimum": -9007199254740991,
-            "maximum": 9007199254740991,
-            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stored amount; null = not known yet (a one-off, or a monthly bill whose amount varies). A bill with no amount counts as an estimate from the household's earlier bills of the same name, or for nothing when there are none."
           },
           "currency": {
             "type": "string",
@@ -488,9 +496,17 @@
             "description": "ISO 4217 code, for example JPY or USD."
           },
           "due": {
-            "type": "string",
-            "format": "date",
-            "description": "The stored due date. A repeating bill is one row here, not one per month."
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stored due date. A repeating bill is one row here, not one per month. Null = not known yet (a one-off only); it counts as due today."
           },
           "category": {
             "type": "string",

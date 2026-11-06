@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { aboutMoney, dayLabel, minorMoney } from "@/lib/money/format";
 import { shareLabel } from "@/lib/money/categories";
+import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "@/lib/money/gaps";
+import { allUncounted } from "@/lib/money/spending";
 import { businessLine, monthWhen, splitLine, type MonthView, type WhoseTotals } from "@/lib/money/month";
 import "./plan.css";
 
@@ -49,15 +51,16 @@ export function MonthSplit({ view, people, past, nav }: { view: MonthView; peopl
         return <details key={category.category} className="plan-cat">
           <summary>
             <span className="plan-cat-name">{category.label}</span>
-            <span className="num">{money(category.totalMinor)}{split && <small>{split}</small>}</span>
+            <span className="num">{allUncounted(category.items) ? AMOUNT_NOT_KNOWN : money(category.totalMinor)}{split && <small>{split}</small>}</span>
             {together && <span className="plan-whose">{whoseLine(view, category, people)}</span>}
           </summary>
           <ul>
             {category.items.map((item, index) => <li key={`${item.label}-${item.date}-${index}`}>
               <span>{item.label}<small>{dayLabel(item.date)}{together && ` · ${whoseName(item.ownerId, people)}`}</small></span>
-              <span className="num">{item.estimated ? aboutMoney(item.amountMinor, view.currency) : money(item.amountMinor)}{item.businessBp > 0 && <small>{shareLabel(item.businessBp)}</small>}</span>
+              <span className="num">{item.uncounted ? AMOUNT_NOT_KNOWN : item.estimated ? aboutMoney(item.amountMinor, view.currency) : money(item.amountMinor)}{item.businessBp > 0 && <small>{shareLabel(item.businessBp)}</small>}</span>
             </li>)}
           </ul>
+          {category.items.some(item => item.uncounted) && <p className="ui-hint plan-uncounted">{gapUncountedWords(category.items.filter(item => item.uncounted).map(item => item.label))}</p>}
         </details>;
       })}
     </>}

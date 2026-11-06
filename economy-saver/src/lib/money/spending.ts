@@ -3,9 +3,16 @@
 // only; it moves no money and nothing in the runway reads it. Amounts are integer minor units of the home currency.
 import type { Currency } from "@/lib/catalogue/types";
 import { minorMoney, minorPerUnit } from "./format";
+import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "./gaps";
 import { CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
-import { amountOn, datesIn, nextAmountOf, realBillsBySeries, variesOccurrences } from "./repeat";
+import { nameKey, normalise } from "./name-key";
+import { amountOn, datesIn, nextAmountOf, realBillsBySeries, unpricedBySeries, variesOccurrences } from "./repeat";
 import type { Bill, Card, Charge, RepeatUnit, SplitMember } from "./types";
+
+export { nameKey, normalise };
+
+/** D55: true when there are items and none of them has a known amount: a total of them is not ¥0, it is not known. */
+export const allUncounted = (items: readonly { uncounted?: true }[]): boolean => items.length > 0 && items.every(item => item.uncounted);
 
 /** One confirmed bill occurrence or card charge. `id` is the stored row's id (a repeating bill's occurrences share it; id and date are unique). */
 export type SpendItem = {
@@ -20,7 +27,8 @@ export type SpendItem = {
   ownerId: string | null; // D52: a member's id, or null for Shared
   documentId: string | null;
   cardId: string | null;
-  estimated?: true; // D54: an amount-varies bill in a month without its real bill: the amount is the estimate
+  estimated?: true; // D54, D55: an amount-varies bill in a month without its real bill, or a bill whose amount is not known and was estimated: the amount is the estimate
+  uncounted?: true; // D55: a bill whose amount is not known and has nothing to estimate it from: `amountMinor` is 0 and means nothing; say "amount not known", never ¥0
 };
 
 /**
@@ -92,23 +100,29 @@ export function spendingItems(input: SpendingInput, from: string, to: string): S
 
   const seenSeries = new Set<string>();
   const real = realBillsBySeries(input.bills, unit);
+  const unpriced = unpricedBySeries(input.bills);
   for (const bill of input.bills) {
     if (bill.status !== "confirmed") continue;
     const next = nextAmountOf(bill);
     const occurrence = bill.startsOn !== undefined && bill.id.includes("@");
     const id = occurrence ? bill.id.slice(0, bill.id.indexOf("@")) : bill.id;
     const startAmount = bill.startAmount ?? bill.amount;
-    const item = (date: string): SpendItem => ({
+    const base = (date: string): SpendItem => ({
       kind: "bill", id, label: bill.biller, repeat: bill.repeatUnit ?? null, date, amountMinor: minor(amountOn(startAmount, next, date)), category: bill.category,
       businessBp: bill.businessBp, ownerId: whose(bill.ownerId), documentId: bill.documentId ?? null, cardId: null,
+    });
+    const item = (date: string): SpendItem => ({
+      ...base(date), ...(bill.amountUnknown && bill.estimated ? { estimated: true as const } : {}), ...(bill.uncounted ? { uncounted: true as const } : {}),
     });
     if (bill.repeatUnit !== undefined) {
       // A repeating bill is one series; the engine's list may hold several occurrences of it, and none before today.
       if (seenSeries.has(id)) continue;
       seenSeries.add(id);
       if (bill.amountVaries) {
-        const series = { due: bill.startsOn ?? bill.due, repeatDay: bill.repeatDay ?? null, storedMinor: minor(startAmount) };
-        for (const { date, amountMinor } of variesOccurrences(series, real.get(id) ?? [], from, to)) items.push({ ...item(date), amountMinor, estimated: true });
+        const series = { due: bill.startsOn ?? bill.due, repeatDay: bill.repeatDay ?? null, storedMinor: bill.amountUnknown ? null : minor(startAmount) };
+        for (const { date, amountMinor } of variesOccurrences(series, real.get(id) ?? [], from, to, unpriced.get(id))) {
+          items.push(amountMinor === null ? { ...base(date), amountMinor: 0, uncounted: true } : { ...base(date), amountMinor, estimated: true });
+        }
         continue;
       }
     }
@@ -132,6 +146,7 @@ export type SpendingMonth = {
   items: SpendItem[]; // newest first
 };
 export type SpendingSearch = {
+  uncounted: string[]; // D55: the names of the matching bills whose amount is not known (listed, never summed)
   query: string; // as searched: NFKC, lower case, trimmed
   currency: Currency;
   /** The category the query names exactly ("travel", "Phone & internet"), or null. */
@@ -141,58 +156,16 @@ export type SpendingSearch = {
 };
 
 /**
- * The one text normaliser for names and queries (D53, D54): NFKC (full-width letters and digits become plain ones), lower
- * case, trimmed, runs of spaces made one. The search, the name key and anything that matches names by text use it.
- */
-export function normalise(text: string): string {
-  return text.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-// Month and date words in a name (read after `normalise`, so lower case and ASCII digits). Each is one whole token, never part of a word.
-const EN_MONTH = "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\.?";
-const EDGE_BEFORE = "(?<![\\p{L}\\p{N}])", EDGE_AFTER = "(?![\\p{L}\\p{N}])";
-const DATE_WORDS = [
-  // 令和8年11月分, 2026年11月25日, 11月分, 11月度, 11月: an optional year (Western or era), the month, an optional day, an optional 分/度.
-  /(?<!\p{N})(?:(?:令和|平成)\s*(?:\d{1,2}|元)\s*年\s*|\d{4}\s*年\s*)?\d{1,2}\s*月(?:\s*\d{1,2}\s*日)?(?:\s*[分度])?/gu,
-  // 2026/11, 2026-11, 2026.11 and a full date 2026-11-25 or 2026/11/25.
-  new RegExp(`${EDGE_BEFORE}\\d{4}[/.-]\\d{1,2}(?:[/.-]\\d{1,2})?${EDGE_AFTER}`, "gu"),
-  // 11/2026 and 11/25/2026.
-  new RegExp(`${EDGE_BEFORE}\\d{1,2}(?:/\\d{1,2})?/\\d{4}${EDGE_AFTER}`, "gu"),
-  // nov, november, sept., "nov 2026", "november 25, 2026", "2026 nov".
-  new RegExp(`${EDGE_BEFORE}(?:\\d{4}\\s+)?${EN_MONTH}(?:\\s+\\d{1,2}(?:st|nd|rd|th)?)?(?:,?\\s*\\d{4})?${EDGE_AFTER}`, "gu"),
-];
-const SEPARATOR = "[\\s\\-–—・:,/|]";
-
-/**
- * The key that says two bills or charges are the same cost (D54): `normalise`, then month and date words taken out
- * ("11月分", "2026年11月", "令和8年11月", "Nov", "November 2026", "2026/11", "2026-11", "11/2026"), brackets left empty
- * removed, separators left at either end (" - ", "・") dropped and doubled ones made one. So "Hikari Denki 10月分",
- * "Hikari Denki (11月分)" and "Hikari Denki" share a key, and "Rent" and "Rental car" do not. A name that is nothing but
- * a date keeps its normalised text as its key.
- */
-export function nameKey(label: string): string {
-  const base = normalise(label);
-  let key = base;
-  for (const words of DATE_WORDS) key = key.replace(words, " ");
-  key = key
-    .replace(/\(\s*\)|\[\s*\]|【\s*】|「\s*」|〔\s*〕/gu, " ")
-    .replace(new RegExp(`^${SEPARATOR}+|${SEPARATOR}+$`, "gu"), "")
-    .replace(new RegExp(`\\s*([\\-–—・:,/|])(?:\\s*[\\-–—・:,/|])+\\s*`, "gu"), " $1 ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return key === "" ? base : key;
-}
-
-/**
  * The items that match a query, grouped by month over the range `from`..`to` (newest month first; a month with nothing is
  * listed at 0). A query matches when each of its words is in the item's name, its category key or its category label, so
  * "hotel" and "travel" both find a hotel and a bare "food" lists the Food category. An empty query matches everything.
+ * Items count up to `to` (today); a bill whose amount is not known is listed up to `uncountedTo` (the month's end) as well, since it is owed and not yet known (D55).
  */
-export function searchSpending(items: SpendItem[], query: string, currency: Currency, range: { from: string; to: string }): SpendingSearch {
+export function searchSpending(items: SpendItem[], query: string, currency: Currency, range: { from: string; to: string; uncountedTo?: string }): SpendingSearch {
   const q = normalise(query);
   const terms = q.split(/\s+/).filter(Boolean);
   const matching = items.filter(item => {
-    if (item.date < range.from || item.date > range.to) return false;
+    if (item.date < range.from || item.date > (item.uncounted ? range.uncountedTo ?? range.to : range.to)) return false;
     const haystack = `${normalise(item.label)} ${item.category} ${item.category.replace(/_/g, " ")} ${normalise(categoryLabel(item.category))}`;
     return terms.every(term => haystack.includes(term));
   });
@@ -203,7 +176,7 @@ export function searchSpending(items: SpendItem[], query: string, currency: Curr
       .filter(c => inMonth.some(i => i.category === c.category));
     return { month, name: monthName(month), totalMinor: inMonth.reduce((sum, i) => sum + i.amountMinor, 0), byCategory, items: inMonth };
   });
-  return { query: q, currency, category: named?.key ?? null, totalMinor: months.reduce((sum, m) => sum + m.totalMinor, 0), months };
+  return { query: q, currency, uncounted: matching.filter(i => i.uncounted).map(i => i.label), category: named?.key ?? null, totalMinor: months.reduce((sum, m) => sum + m.totalMinor, 0), months };
 }
 
 /**
@@ -216,10 +189,12 @@ export function searchLine(result: SpendingSearch): string {
   const latestYear = result.months[0]?.month.slice(0, 4);
   const part = (m: SpendingSearch["months"][number]) => {
     const name = m.month.slice(0, 4) === latestYear ? m.name : `${m.name} ${m.month.slice(0, 4)}`;
-    return `${money(m.totalMinor)} in ${name}${m.items.length ? ` (${m.items.length} ${m.items.length === 1 ? "item" : "items"})` : ""}`;
+    return `${allUncounted(m.items) ? AMOUNT_NOT_KNOWN : money(m.totalMinor)} in ${name}${m.items.length ? ` (${m.items.length} ${m.items.length === 1 ? "item" : "items"})` : ""}`;
   };
   const used = result.months.filter(m => m.items.length);
   const listed = used.length ? used : result.months;
   const empty = used.length ? result.months.length - used.length : 0;
-  return `${what}: ${listed.map(part).join(", ")}${empty ? `; nothing in the other ${empty} ${empty === 1 ? "month" : "months"}` : ""}. ${money(result.totalMinor)} in all.`;
+  const uncounted = gapUncountedWords(result.uncounted);
+  const total = used.length > 0 && used.every(m => allUncounted(m.items)) ? "" : ` ${money(result.totalMinor)} in all.`;
+  return `${what}: ${listed.map(part).join(", ")}${empty ? `; nothing in the other ${empty} ${empty === 1 ? "month" : "months"}` : ""}.${total}${uncounted ? ` ${uncounted}.` : ""}`;
 }

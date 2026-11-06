@@ -1,0 +1,4 @@
+ALTER TABLE "bills" ALTER COLUMN "amount_minor" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "bills" ALTER COLUMN "due" DROP NOT NULL;--> statement-breakpoint
+ALTER TABLE "bills" ADD CONSTRAINT "bills_amount_unknown_shape" CHECK ("bills"."amount_minor" is not null or (("bills"."repeat_unit" is null or "bills"."amount_varies") and "bills"."next_amount_minor" is null and "bills"."previous_amount_minor" is null));--> statement-breakpoint
+ALTER TABLE "bills" ADD CONSTRAINT "bills_due_unknown_one_off" CHECK ("bills"."due" is not null or ("bills"."repeat_unit" is null and "bills"."series_bill_id" is null and "bills"."cancel_by" is null));

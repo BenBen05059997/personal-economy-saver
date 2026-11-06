@@ -93,6 +93,8 @@ const covered = [
   "loadSpending",
   // Stage 18 varies: bills.ts
   "linkToSeries", "previewLink",
+  // Stage 19 missing data (D55): bills.ts
+  "fillGap", "fillGapFromText",
 ];
 
 const notApplicable: Record<string, string> = {
@@ -106,6 +108,8 @@ const notApplicable: Record<string, string> = {
   paypalTotalMinor: "pure sum of balances passed in",
   linkDay: "pure date formatter", dueLabel: "pure date formatter", repeatDayFor: "pure date maths on a date passed in", checkSchedule: "pure check of a bill's dates and amount passed in; insertBill, which calls it, is covered above",
   scheduleWords: "pure formatter of a bill's schedule passed in",
+  checkKnown: "pure check of the amount and date a bill is saved with, passed in; insertBill and updateBill, which call it, are covered above",
+  checkAmountMinor: "pure check of an amount in minor units passed in; fillGap, which calls it, is covered below",
   toMinor: "pure money maths", fromMinor: "pure money maths", toRateMicro: "pure money maths", fromRateMicro: "pure money maths",
   convertMinor: "pure money maths", parseMinor: "pure money maths", parseAmountMinor: "pure money maths",
   parseShareBp: "pure text parser", equalShares: "pure share maths", parseFillBp: "pure text parser", percent: "pure formatter",
@@ -782,6 +786,18 @@ async function main() {
         { seriesId: aSeries.id, biller: "Fictional Varies Gas", month: "2026-12", estimateMinor: 5_400 });
       assert.deepEqual((await F.previewLink(store, B.hid, { biller: "Fictional Varies Gas", category: "utilities", due: "2026-12-04" }))?.estimateMinor, 6_000, "B's estimate reads none of A's real bills");
       assert.equal((await fingerprint(B.hid)).text, bStart.text, "household B changed");
+    });
+
+    // ---------------------------------------------------------------- Stage 19 missing data
+    await check("Stage 19 gaps (D55): fillGap and fillGapFromText fill only the household's own bill; another household's bill is not found and stays as it was", async () => {
+      const form = { madeBy: "form" as const };
+      const gap = billInput.parse({ id: randomUUID(), biller: "Fictional Gap Gas", amount: "", amountUnknown: true, due: "2026-12-10", category: "utilities" });
+      await F.insertBill(store, B.hid, gap, "confirmed", form);
+      const bStart = await fingerprint(B.hid);
+      assert.equal(await F.fillGap(store, A.hid, gap.id, { amountMinor: 9_800 }, form), false, "A cannot fill B's bill");
+      assert.equal(await F.fillGapFromText(store, A.hid, gap.id, { amount: "9800" }, form), false, "A cannot fill B's bill by text");
+      assert.equal((await fingerprint(B.hid)).text, bStart.text, "household B changed");
+      assert.equal(await F.fillGap(store, B.hid, gap.id, { amountMinor: 9_800 }, form), true, "B can fill its own");
     });
 
     // ---------------------------------------------------------------- the guard

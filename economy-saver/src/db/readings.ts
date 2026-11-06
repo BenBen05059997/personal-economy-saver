@@ -9,8 +9,9 @@ import { convertMinor, fromMinor, fromRateMicro } from "./money";
 import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { syncClosedStatementCharge } from "./statement-charge";
+import { normalise } from "@/lib/money/name-key";
 
-const ruleKey = (entry: Extracted) => entry.name ? entry.kind + ":" + entry.name.normalize("NFKC").trim().toLowerCase() : null;
+const ruleKey = (entry: Extracted) => entry.name ? entry.kind + ":" + normalise(entry.name) : null;
 const patchSchema = extractSchema.pick({ name: true, kind: true, category: true, businessBp: true, cardId: true }).partial();
 
 /** Called inside the transaction which finishes a document. Nothing here changes the runway. */
@@ -28,7 +29,11 @@ export async function proposeReadings(db: Db, id: string, documentId: string, it
   }
 }
 
-export async function reviewReading(db: Db, id: string, readingId: string, fields: Extracted | null) {
+/**
+ * Confirms a reading with the fields as the user corrected them, or dismisses it (`fields` null). A bill (never a charge) may be
+ * confirmed with its amount and/or its date not known yet (D55) when the caller says so in `unknown`; those fields are then null.
+ */
+export async function reviewReading(db: Db, id: string, readingId: string, fields: Extracted | null, unknown: { amount?: boolean; date?: boolean } = {}) {
   const hid = requireHousehold(id);
   return db.transaction(async tx => {
     const previous = await lockRunway(tx, hid);
@@ -46,10 +51,16 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     if (previous === null) await observeRunway(tx, hid);
     const value = extractSchema.parse(fields);
     const { name, date, amountMinor, currency } = value;
-    if (!name || !date || !amountMinor || !currency) throw new ReaderError("Enter the name, amount, currency and date.");
-    let amount = amountMinor, fx: number | null = null;
-    if (currency !== row.currency) {
-      const [rate] = await tx.select().from(fxRates).where(and(eq(fxRates.householdId, hid), eq(fxRates.base, "USD"), eq(fxRates.quote, "JPY"), lte(fxRates.date, date)))
+    const amountUnknown = unknown.amount === true, dateUnknown = unknown.date === true;
+    if ((amountUnknown || dateUnknown) && value.kind !== "bill") throw new ReaderError("A card charge needs its amount and its date.");
+    if ((amountUnknown && amountMinor !== null) || (dateUnknown && date !== null)) throw new ReaderError("Leave the amount or the date empty when it is not known yet.");
+    if (!name || (!date && !dateUnknown) || (!amountMinor && !amountUnknown) || (!currency && !amountUnknown)) throw new ReaderError("Enter the name, amount, currency and date.");
+    if (amountUnknown && (value.repeat !== null || value.nextAmountMinor !== null)) throw new ReaderError("A bill that repeats needs its amount.");
+    if (dateUnknown && (value.repeat !== null || value.cancelBy !== null)) throw new ReaderError("A bill that repeats or has a last day to cancel needs its due date.");
+    const { today } = clockForHousehold(row);
+    let amount: number | null = amountMinor, fx: number | null = null;
+    if (amountMinor !== null && currency !== null && currency !== row.currency) {
+      const [rate] = await tx.select().from(fxRates).where(and(eq(fxRates.householdId, hid), eq(fxRates.base, "USD"), eq(fxRates.quote, "JPY"), lte(fxRates.date, date ?? today)))
         .orderBy(desc(fxRates.date)).limit(1);
       if (!rate) throw new ReaderError("No household USD/JPY reference rate on or before this date.");
       fx = rate.rateMicro;
@@ -61,22 +72,23 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     let targetId: string;
     let linked: string | null = null;
     if (value.kind === "charge") {
+      if (amount === null || !date) throw new ReaderError("A card charge needs its amount and its date.");
       if (!value.cardId) throw new ReaderError("Select the card used for this charge.");
       const [card] = await tx.select({ id: cards.id }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, value.cardId)));
       if (!card) throw new ReaderError("Choose a card in this household.");
       const [charge] = await tx.insert(charges).values({
-        ...amounts, ...category, cardId: card.id, date, merchant: name, status: "confirmed", source: row.source === "email" ? "card_email" : "receipt",
+        ...amounts, amountMinor: amount, ...category, cardId: card.id, date, merchant: name, status: "confirmed", source: row.source === "email" ? "card_email" : "receipt",
         originalAmountMinor: fx === null ? null : amountMinor, originalCurrency: fx === null ? null : currency,
       }).returning({ id: charges.id });
       targetId = charge.id;
       await syncClosedStatementCharge(tx, hid, charge.id);
     } else {
       // D48: the schedule is checked like a typed-in bill; the new amount converts at the same rate as the amount.
-      const nextAmountMinor = value.nextAmountMinor === null ? null : fx === null ? value.nextAmountMinor : convertMinor(value.nextAmountMinor, currency, row.currency, fromRateMicro(fx));
-      try { checkSchedule(date, clockForHousehold(row).today, { repeat: value.repeat, nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy, amountVaries: false }); }
+      const nextAmountMinor = value.nextAmountMinor === null ? null : fx === null || currency === null ? value.nextAmountMinor : convertMinor(value.nextAmountMinor, currency, row.currency, fromRateMicro(fx));
+      try { if (date) checkSchedule(date, today, { repeat: value.repeat, nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy, amountVaries: false }); }
       catch (error) { throw error instanceof InputError ? new ReaderError(error.message) : error; }
       const [bill] = await tx.insert(bills).values({
-        ...amounts, ...category, due: date, biller: name, status: "confirmed", repeatUnit: value.repeat, repeatDay: repeatDayFor(date, value.repeat),
+        ...amounts, ...category, due: date, biller: name, status: "confirmed", repeatUnit: value.repeat, repeatDay: date ? repeatDayFor(date, value.repeat) : null,
         nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy,
       }).returning({ id: bills.id });
       targetId = bill.id;
@@ -96,7 +108,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     await tx.update(readings).set({ status: "confirmed", confirmedAt: new Date(), target: value.kind, extracted: { original, proposed, confirmed: value } })
       .where(and(eq(readings.householdId, hid), eq(readings.id, readingId)));
     await recordEvent(tx, hid, { madeBy: "reader", kind: value.kind + "_confirmed", title: name + " confirmed", ref: { type: value.kind, id: targetId }, ...(linked && { body: linked }),
-      amount: { value: fromMinor(amount, row.currency), currency: row.currency } });
+      ...(amount !== null && { amount: { value: fromMinor(amount, row.currency), currency: row.currency } }) });
     await observeRunway(tx, hid);
     return true;
   });

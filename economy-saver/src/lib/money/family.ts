@@ -14,6 +14,6 @@ export function sharedBillsComing(state: MoneyState) {
   const unit = minorPerUnit(state.homeCurrency);
   return state.bills
     .filter(bill => bill.status === "confirmed" && bill.ownerId === undefined && bill.due >= state.today && bill.due <= through)
-    .map(bill => ({ key: bill.id, biller: bill.biller, date: bill.due, paidBy: bill.paidBy ? names.get(bill.paidBy) ?? "" : "", amountMinor: Math.round(bill.amount * unit), ...(bill.estimated ? { estimated: true as const } : {}) }))
+    .map(bill => ({ key: bill.id, biller: bill.biller, date: bill.due, paidBy: bill.paidBy ? names.get(bill.paidBy) ?? "" : "", amountMinor: Math.round(bill.amount * unit), ...(bill.estimated ? { estimated: true as const } : {}), ...(bill.uncounted ? { uncounted: true as const } : {}) }))
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.biller < b.biller ? -1 : 1));
 }

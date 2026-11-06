@@ -65,7 +65,7 @@ async function main() {
     assert.ok(!/\btoday\b|JPY/i.test(instructions!), "the server cannot know the date or currency");
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "can_i_spend", "draft_invoice", "household_snapshot", "list_clients_and_cards", "list_invoices", "log_charge", "log_charges", "month_by_category", "options_when_short", "plan_for", "regular_costs", "search_spending", "timeline", "update_bank_balance", "whats_due", "where_am_i", "who_owes_whom"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "can_i_spend", "draft_invoice", "household_snapshot", "list_clients_and_cards", "list_invoices", "log_charge", "log_charges", "month_by_category", "open_gaps", "options_when_short", "plan_for", "regular_costs", "search_spending", "timeline", "update_bank_balance", "whats_due", "where_am_i", "who_owes_whom"]);
     stage = "tool execution";
     const outlook = await client.callTool({ name: "where_am_i", arguments: {} });
     assert.match(JSON.stringify(outlook.content), /18,780 short/);
