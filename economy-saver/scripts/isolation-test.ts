@@ -28,6 +28,7 @@ import * as clientsMod from "@/db/clients";
 import * as confirm from "@/db/confirm";
 import * as daily from "@/db/daily";
 import * as demo from "@/db/demo";
+import * as documentCardMod from "@/db/document-card"; // D61 Ask documents
 import * as documentCleanup from "@/db/document-cleanup";
 import * as eventFeed from "@/db/event-feed";
 import * as familyLinksMod from "@/db/family-links";
@@ -109,6 +110,8 @@ const covered = [
   // D57 pins: canvases.ts; D60 conversation: conversation.ts and ask.ts; rate-limit.ts
   "listCanvases", "pinCanvas", "updateCanvas", "moveCanvas", "unpinCanvas",
   "saveTurn", "recentTurns", "latestConversation", "allTurns", "setThumb", "conversationContext", "firstUseLine", "requestCount",
+  // D61 document-card.ts
+  "documentCard", "attachDocument",
   // D59 data-kinds.ts and restore.ts
   "countKind", "countKinds", "deleteKind", "deleteOne", "deleteTurn", "deleteConversation", "deleteDocument", "restoreHousehold",
   // D59 place.ts (24B)
@@ -186,7 +189,7 @@ async function main() {
     ...importChargesMod, // Stage 17 import
     ...spendingMod, // Stage 17 spending
     ...memoryMod, // D58 memory
-    ...askMod, ...canvasesMod, ...conversationMod, // D57 pins, D60 conversation
+    ...askMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
   };
   const F = new Proxy(modules, {
@@ -566,9 +569,10 @@ async function main() {
         assert.equal(toolCalls, 0, "no PayPal call was made for the other household's invoice");
       });
       await check(`${X.name} -> ${Y.name}: readings, documents, tokens, events, webhooks`, async () => {
-        const item = { kind: "charge" as const, name: "Isolation probe", date: "2026-11-12", amountMinor: 100, currency: "JPY" as const, category: "other" as const, businessBp: 0, cardId: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null };
+        const item = { kind: "charge" as const, name: "Isolation probe", date: "2026-11-12", amountMinor: 100, currency: "JPY" as const, category: "other" as const, businessBp: 0, cardId: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null, repeatUntil: null };
         await refuse("reviewReading reject", () => F.reviewReading(store, X.hid, y.reading, null));
         await refuse("reviewReading confirm", () => F.reviewReading(store, X.hid, y.reading, { ...item, cardId: x.card }));
+        await refuse("reviewReading confirm with answers (Ask)", () => F.reviewReading(store, X.hid, y.reading, { ...item, cardId: x.card }, {}, false, []));
         await refuse("reviewReading confirm and remember", () => F.reviewReading(store, X.hid, y.reading, { ...item, cardId: x.card }, {}, true));
         await mustThrow("proposeReadings on the other's document", () => F.proposeReadings(store, X.hid, y.documentRead, [item]));
         for (const id of [y.document, y.documentFailed]) await refuse("readDocument " + id, () => F.readDocument(store, X.hid, id, true));
@@ -665,6 +669,39 @@ async function main() {
         const rows = await F.pinCanvas(store, X.hid, { title: "Second", recipe: { version: 1, title: "Second", blocks: [{ type: "number", label: "Cash", query: { q: "cash" } }] } }, by);
         assert.equal(rows.position, 1, "X's second pin is X's second, whatever Y holds");
         await F.unpinCanvas(store, X.hid, rows.id, by);
+      });
+      await check(`${X.name} -> ${Y.name}: a file attached in Ask (D61) is X's own, the other's document card is gone, and the other's turn id is not taken over`, async () => {
+        const gone = await F.documentCard(store, X.hid, y.documentRead);
+        assert.equal(gone.status, "gone");
+        assert.equal(gone.words, "This file was deleted.");
+        assert.deepEqual(gone.items, []);
+        assert.ok(!JSON.stringify(gone).includes(Y.name) && !JSON.stringify(gone).includes("reading"), "nothing of the other's reading is in the card");
+        assert.equal((await F.documentCard(store, X.hid, "not-a-uuid")).status, "gone");
+        assert.equal((await F.documentCard(store, Y.hid, y.documentRead)).items.length, 1, "the owner sees its own reading");
+        const names = { SUPABASE_URL: "https://storage.example", SUPABASE_SERVICE_ROLE_KEY: "fictional-test-value", SUPABASE_DOCUMENT_BUCKET: "fictional-documents" };
+        const savedEnv = Object.fromEntries(Object.keys(names).map(k => [k, process.env[k]]));
+        const savedFetch = globalThis.fetch;
+        Object.assign(process.env, names);
+        globalThis.fetch = async (input, init) => {
+          const request = new Request(input, init);
+          if (request.url.includes("/bucket/")) return Response.json({ name: "fictional-documents", public: false });
+          if (request.method === "POST") { await request.blob(); return Response.json({ Key: "ok" }); }
+          throw new Error("Unexpected storage operation");
+        };
+        try {
+          const before = await fingerprint(Y.hid);
+          const bytes = new TextEncoder().encode("%PDF-1.7 isolation probe").buffer as ArrayBuffer;
+          const mine = await F.attachDocument(store, X.hid, { id: randomUUID(), conversationId: randomUUID(), text: null, mime: "application/pdf", bytes });
+          assert.equal((await fingerprint(Y.hid)).text, before.text, "attaching for X changed nothing of Y's rows");
+          assert.equal((await F.documentCard(store, X.hid, mine.documentId)).status, "reading");
+          assert.equal((await F.documentCard(store, Y.hid, mine.documentId)).status, "gone", "Y cannot see X's new document");
+          const stolen = await F.attachDocument(store, X.hid, { id: y.turn, conversationId: randomUUID(), text: "mine", mime: "application/pdf", bytes: new TextEncoder().encode("%PDF-1.7 isolation probe two").buffer as ArrayBuffer });
+          assert.equal(stolen.turn.id, y.turn);
+          assert.equal((await fingerprint(Y.hid)).text, before.text, "a turn id already used by Y leaves Y's rows exactly as they were");
+        } finally {
+          globalThis.fetch = savedFetch;
+          for (const [k, v] of Object.entries(savedEnv)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+        }
       });
       await check(`${X.name} -> ${Y.name}: moving a kind to the device and back (D59) takes and sets only the caller's own, and a changed set moves nothing`, async () => {
         const by = { madeBy: "form" } as const;

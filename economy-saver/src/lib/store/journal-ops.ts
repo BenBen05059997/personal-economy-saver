@@ -7,25 +7,30 @@ import { InputError } from "@/db/input-error";
 
 const byTime = (a: ConversationTurn, b: ConversationTurn) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 
+/** True when a turn of the conversation named a document the page knows is still waiting (being read, or a reading in To check). */
+const holdsWaiting = (turns: ConversationTurn[], waiting: ReadonlySet<string>): boolean => turns.some(turn => !!turn.documentId && waiting.has(turn.documentId));
+
 /** Adds one turn (a retried question has the same id, so it is one turn), oldest first, then drops the oldest beyond 200. */
 export function appendTurn(turns: ConversationTurn[], turn: ConversationTurn): ConversationTurn[] {
   const all = [...turns.filter(item => item.id !== turn.id), turn].sort(byTime);
   return all.slice(Math.max(0, all.length - TURN_LIMIT));
 }
 
-/** The conversation's last three turns, oldest first, when its latest turn is under ten minutes old; otherwise none. */
-export function recentOf(turns: ConversationTurn[], conversationId: string, now: Date): ConversationTurn[] {
+/** The conversation's last three turns, oldest first, when its latest turn is under ten minutes old (24 hours while a document attached in it is waiting); otherwise none. */
+export function recentOf(turns: ConversationTurn[], conversationId: string, now: Date, waiting: ReadonlySet<string> = new Set()): ConversationTurn[] {
   const own = turns.filter(turn => turn.conversationId === conversationId).sort(byTime);
-  if (own.length === 0 || !live(own[own.length - 1].createdAt, now)) return [];
+  if (own.length === 0 || !live(own[own.length - 1].createdAt, now, holdsWaiting(own, waiting))) return [];
   return own.slice(-CONTEXT_TURNS);
 }
 
 /** The newest conversation with all its turns, when its last turn is under ten minutes old; otherwise null. */
-export function latestOf(turns: ConversationTurn[], now: Date): { conversationId: string; turns: ConversationTurn[] } | null {
+export function latestOf(turns: ConversationTurn[], now: Date, waiting: ReadonlySet<string> = new Set()): { conversationId: string; turns: ConversationTurn[] } | null {
   const sorted = [...turns].sort(byTime);
   const last = sorted[sorted.length - 1];
-  if (!last || !live(last.createdAt, now)) return null;
-  return { conversationId: last.conversationId, turns: sorted.filter(turn => turn.conversationId === last.conversationId) };
+  if (!last) return null;
+  const own = sorted.filter(turn => turn.conversationId === last.conversationId);
+  if (!live(last.createdAt, now, holdsWaiting(own, waiting))) return null;
+  return { conversationId: last.conversationId, turns: own };
 }
 
 /** A canvas pinned on this device: the saved layout and nothing else. */

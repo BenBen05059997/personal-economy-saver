@@ -10,7 +10,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { createHousehold, householdDate, setupForm } from "@/db/account";
 import { tryItKind } from "@/db/demo";
-import { insertBill, billInput, removeBill } from "@/db/bills";
+import { insertBill, billInput, removeBill, updateBill, billEditInput } from "@/db/bills";
 import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { insertCharge, removeCharge } from "@/db/charges";
 import { clientInput, insertClient } from "@/db/clients";
@@ -23,7 +23,7 @@ import { returnPath } from "@/lib/door";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { seedBen } from "@/db/seed";
 import { loadMoneyState } from "@/db/household";
-import { cancelNotices, expandBills, occurrenceDates } from "@/lib/money/repeat";
+import { cancelNotices, expandBills, lastOneWords, lastPayment, nextOccurrenceAfter, occurrenceDates } from "@/lib/money/repeat";
 import { loadNavigationData } from "@/db/workspace";
 import { draftedLabel, toCheck } from "@/lib/money/to-check";
 import { clientPace, paceLine } from "@/lib/money/pace";
@@ -783,6 +783,64 @@ async function main() {
       await assert.rejects(pg.query("update households set nudge_after_days = 61 where id = $1", [a]), /households_nudge_after_days_valid/);
       assert.equal(await read(), null);
       assert.equal((await loadSettings(db, b)).household.nudgeAfterDays, null, "another household is untouched");
+    });
+
+    await check("a last payment (D41): the expansion stops after it, the refusals use their words, edits say what changed, and the table refuses a one-off with one", async () => {
+      // pure
+      assert.deepEqual(occurrenceDates("2026-08-27", "month", 27, "2026-08-27", "2027-03-01", "2026-12-27"), ["2026-08-27", "2026-09-27", "2026-10-27", "2026-11-27", "2026-12-27"], "until on an occurrence keeps it");
+      assert.deepEqual(occurrenceDates("2026-08-27", "month", 27, "2026-08-27", "2027-03-01", "2026-12-20"), ["2026-08-27", "2026-09-27", "2026-10-27", "2026-11-27"], "until between two occurrences drops the later one");
+      assert.deepEqual(occurrenceDates("2026-08-27", "month", 27, "2026-08-01", "2027-03-01", "2026-08-27"), ["2026-08-27"], "until equal to due is one date");
+      assert.deepEqual(occurrenceDates("2025-03-01", "year", null, "2025-03-01", "2030-01-01", "2027-03-01"), ["2025-03-01", "2026-03-01", "2027-03-01"], "yearly");
+      assert.equal(lastPayment({ due: "2026-08-27", repeatUnit: "month", repeatDay: 27, repeatUntil: "2026-12-30" }), "2026-12-27");
+      assert.equal(lastOneWords({ due: "2026-08-27", repeatUnit: "month", repeatDay: 27, repeatUntil: "2026-12-27" }, "2026-11-14"), "last one Dec 27");
+      assert.equal(lastOneWords({ due: "2026-08-27", repeatUnit: "month", repeatDay: 27, repeatUntil: "2027-12-27" }, "2026-11-14"), "last one Dec 27, 2027");
+      assert.equal(lastOneWords({ due: "2026-08-27", repeatUnit: "month", repeatDay: 27 }, "2026-11-14"), null);
+      const gym = { id: "g", biller: "Kawa Gym", amount: 6000, due: "2026-08-27", category: "other" as const, businessBp: 0, status: "confirmed" as const, repeatUnit: "month" as const, repeatDay: 27, repeatUntil: "2026-12-27", cancelBy: "2026-12-20" };
+      const expanded = expandBills([gym], "2026-11-14", "2027-03-31", "JPY").map(x => x.due);
+      assert.deepEqual(expanded, ["2026-11-27", "2026-12-27"], "Nov 27 and Dec 27 counted, nothing after");
+      assert.equal(nextOccurrenceAfter(gym, "2026-12-27"), null);
+      assert.equal(nextOccurrenceAfter(gym, "2026-11-27"), "2026-12-27");
+      assert.equal(cancelNotices([gym], "2026-11-14", "JPY").length, 1, "the renewal on Dec 27 is the last payment: a notice");
+      assert.deepEqual(cancelNotices([{ ...gym, cancelBy: "2026-12-28" }], "2026-11-14", "JPY"), [], "the renewal would fall after the last payment: no notice");
+      assert.equal(cancelNotices([{ ...gym, cancelBy: "2026-12-28", repeatUntil: undefined }], "2026-11-14", "JPY").length, 1);
+      // the database
+      const before = await loadMoneyState(db, a, TODAY);
+      const lowBefore = low(series(before, "worst")).amount;
+      const sentenceBefore = lines(homeSentence(before));
+      const id = randomUUID();
+      const input = bill({ id, biller: "Kawa Gym", amount: "6000", due: "2026-11-27", category: "other", repeat: "month", repeatUntil: "2026-12-27" });
+      await insertBill(db, a, input, "confirmed", { madeBy: "form" });
+      await insertBill(db, a, input, "confirmed", { madeBy: "form" });
+      await assert.rejects(insertBill(db, a, { ...input, repeatUntil: "2026-12-28" }, "confirmed", { madeBy: "form" }), (e: unknown) => e instanceof InputError && e.message === "This bill identifier is already in use");
+      assert.match((await events(a, "bill_added")).at(-1)?.body ?? "", /Last one Dec 27$/);
+      const state = await loadMoneyState(db, a, TODAY);
+      assert.deepEqual(state.bills.filter(x => x.id.startsWith(id)).map(x => x.due), ["2026-11-27", "2026-12-27"]);
+      assert.equal(low(series(state, "worst")).amount, lowBefore - 6_000, "the late-case lowest point falls by the gym bill");
+      // the refusals
+      const refuse = (over: Partial<ReturnType<typeof billInput.parse>>, words: string) => assert.rejects(insertBill(db, a, bill({ biller: "Kawa Refused", ...over }), "confirmed", { madeBy: "form" }), (e: unknown) => e instanceof InputError && e.message === words, words);
+      await refuse({ repeat: null, repeatUntil: "2026-12-27" }, "A last payment needs a bill that repeats: choose Every month or Every year");
+      await refuse({ repeat: "month", due: "2026-11-27", repeatUntil: "2026-11-26" }, "The last payment must be on or after the first due date");
+      await refuse({ repeat: "month", due: "2026-11-27", repeatUntil: latestDate(TODAY).replace(/\d{4}/, y => String(Number(y) + 3)) }, HORIZON_MESSAGE);
+      await refuse({ repeat: "month", due: "2026-11-27", repeatUntil: "2026-12-27", nextAmount: "7000", nextAmountFrom: "2027-01-27" }, "The new amount must start on or before the last payment");
+      // edits
+      const edit = (repeatUntil?: string | null) => billEditInput.parse({ id, biller: "Kawa Gym", amount: "6000", due: "2026-11-27", category: "other", ...(repeatUntil === undefined ? {} : { repeatUntil }) });
+      await updateBill(db, a, edit("2027-01-27"), { madeBy: "form" });
+      assert.match((await events(a, "bill_changed")).at(-1)?.body ?? "", /^Last payment Dec 27 → Jan 27/);
+      const count = (await events(a, "bill_changed")).length;
+      await updateBill(db, a, edit(), { madeBy: "form" });
+      assert.equal((await events(a, "bill_changed")).length, count, "absent = unchanged");
+      await updateBill(db, a, edit(null), { madeBy: "form" });
+      assert.equal((await events(a, "bill_changed")).at(-1)?.body, "No last payment");
+      await updateBill(db, a, edit("2026-12-27"), { madeBy: "form" });
+      assert.match((await events(a, "bill_changed")).at(-1)?.body ?? "", /^Last payment Dec 27$/);
+      await assert.rejects(updateBill(db, a, edit("2026-11-01"), { madeBy: "form" }), (e: unknown) => e instanceof InputError && e.message === "The last payment must be on or after the first due date");
+      // the table
+      const oneOff = randomUUID();
+      await insertBill(db, a, bill({ id: oneOff, biller: "Kawa Once", due: "2026-11-27" }), "confirmed", { madeBy: "form" });
+      await assert.rejects(pg.query("update bills set repeat_until = '2027-01-01' where id = $1", [oneOff]), /bills_repeat_until_valid/);
+      await removeBill(db, a, id); await removeBill(db, a, oneOff);
+      const after = await loadMoneyState(db, a, TODAY);
+      assert.deepEqual(lines(homeSentence(after)), sentenceBefore, "Ben's sentence is unchanged once the gym is removed");
     });
 
     await check("every new function throws without a household id", async () => {

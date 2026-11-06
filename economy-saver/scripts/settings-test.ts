@@ -317,7 +317,7 @@ async function main() {
       await Promise.all([runDaily(db, hid), confirmPending(db, hid, "charge", next.id), confirmPending(db, hid, "charge", next.id)]);
       assert.equal((await get()).amountMinor, before + 1234 + 4321);
       const [document] = await db.insert(schema.documents).values({ householdId: hid, kind: "upload", storagePath: hid + "/test-reading", mime: "image/png" }).returning();
-      const value = { kind: "charge" as const, name: "Fictional receipt", date: "2026-11-14", amountMinor: 567, currency: "JPY" as const, category: "other" as const, businessBp: 0, cardId: card.id, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null };
+      const value = { kind: "charge" as const, name: "Fictional receipt", date: "2026-11-14", amountMinor: 567, currency: "JPY" as const, category: "other" as const, businessBp: 0, cardId: card.id, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null, repeatUntil: null };
       const [reading] = await db.insert(schema.readings).values({ householdId: hid, documentId: document.id, target: "charge", extracted: { original: value, proposed: value } }).returning();
       await Promise.all([runDaily(db, hid), reviewReading(db, hid, reading.id, value), reviewReading(db, hid, reading.id, value)]);
       assert.equal((await get()).amountMinor, before + 1234 + 4321 + 567);

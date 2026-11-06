@@ -329,6 +329,10 @@
                   "q"
                 ],
                 "additionalProperties": false
+              },
+              "mark": {
+                "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId",
+                "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
               }
             },
             "required": [
@@ -362,6 +366,9 @@
                   "q"
                 ],
                 "additionalProperties": false
+              },
+              "mark": {
+                "$ref": "#/properties/blocks/items/anyOf/2/properties/mark"
               }
             },
             "required": [

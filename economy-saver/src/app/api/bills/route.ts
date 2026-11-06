@@ -42,13 +42,14 @@ export async function POST(request: Request) {
         amountVaries: form.has("variesShown") ? form.get("amountVaries") === "on" : undefined,
         seriesBillId: form.has("seriesBillId") ? form.get("seriesBillId") || null : undefined,
         cancelBy: form.has("cancelBy") ? form.get("cancelBy") || null : undefined,
+        repeatUntil: form.has("repeatUntil") ? form.get("repeatUntil") || null : undefined,
       });
       if (!data.success) return badFields();
       if (!await updateBill(db(), hid, data.data, { madeBy: "form" })) return text("Choose a bill of this household", 400);
       return redirectTo(returnPath(form.get("returnTo")), request);
     }
     const data = billInput.safeParse({
-      ...fields, repeat: form.get("repeat") || null, nextAmount: form.get("nextAmount") || null, nextAmountFrom: form.get("nextAmountFrom") || null, cancelBy: form.get("cancelBy") || null,
+      ...fields, repeat: form.get("repeat") || null, nextAmount: form.get("nextAmount") || null, nextAmountFrom: form.get("nextAmountFrom") || null, cancelBy: form.get("cancelBy") || null, repeatUntil: form.get("repeatUntil") || null,
       amountVaries: form.get("amountVaries") === "on",
     });
     if (!data.success) return badFields();

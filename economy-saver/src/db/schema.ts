@@ -328,6 +328,7 @@ export const bills = pgTable(
     nextAmountMinor: minor("next_amount_minor"), // D48: the amount from next_amount_from on (occurrences on or after it)
     nextAmountFrom: date("next_amount_from", { mode: "string" }),
     cancelBy: date("cancel_by", { mode: "string" }), // D48: information only: the date to act by before the next occurrence charges
+    repeatUntil: date("repeat_until", { mode: "string" }), // D41: the last day an occurrence may fall on (the last payment); only on a bill that repeats
     amountVaries: boolean("amount_varies").notNull().default(false), // D54: a monthly bill forecast from its own past; only with repeat_unit = 'month', never with a next amount
     seriesBillId: uuid("series_bill_id"), // D54: the amount-varies series this one-off real bill belongs to (same household); it replaces that month's estimate
     madeBy: madeByColumn(),
@@ -340,6 +341,7 @@ export const bills = pgTable(
     check("bills_repeat_day_monthly", sql`(${t.repeatUnit} is not distinct from 'month') = (${t.repeatDay} is not null)`),
     check("bills_next_amount_pair", sql`(${t.nextAmountMinor} is null) = (${t.nextAmountFrom} is null)`),
     check("bills_amount_varies_monthly", sql`not ${t.amountVaries} or (${t.repeatUnit} is not distinct from 'month' and ${t.nextAmountMinor} is null)`),
+    check("bills_repeat_until_valid", sql`${t.repeatUntil} is null or (${t.repeatUnit} is not null and ${t.due} is not null and ${t.repeatUntil} >= ${t.due})`),
     check("bills_series_one_off", sql`${t.seriesBillId} is null or ${t.repeatUnit} is null`),
     check("bills_amount_unknown_shape", sql`${t.amountMinor} is not null or ((${t.repeatUnit} is null or ${t.amountVaries}) and ${t.nextAmountMinor} is null and ${t.previousAmountMinor} is null)`),
     check("bills_due_unknown_one_off", sql`${t.due} is not null or (${t.repeatUnit} is null and ${t.seriesBillId} is null and ${t.cancelBy} is null)`),
@@ -580,7 +582,8 @@ export const conversationTurns = pgTable(
     householdId: householdId(),
     conversationId: uuid("conversation_id").notNull(),
     question: text("question").notNull(),
-    kind: text("kind").notNull(), // answer, clarify or declined
+    kind: text("kind").notNull(), // answer, clarify, declined or document
+    documentId: uuid("document_id"), // D60: the file attached in Ask (kind document); looked up by household; a deleted document leaves it pointing nowhere
     reply: text("reply").notNull(),
     choices: jsonb("choices"), // clarify only
     recipe: jsonb("recipe"),
@@ -591,7 +594,7 @@ export const conversationTurns = pgTable(
   (t) => [
     index("conversation_turns_household_idx").on(t.householdId, t.conversationId, t.createdAt),
     check("conversation_turns_question_valid", sql`char_length(${t.question}) between 1 and 320`),
-    check("conversation_turns_kind_valid", sql`${t.kind} in ('answer', 'clarify', 'declined')`),
+    check("conversation_turns_kind_valid", sql`${t.kind} in ('answer', 'clarify', 'declined', 'document')`),
     check("conversation_turns_thumb_valid", sql`${t.thumb} is null or ${t.thumb} in (-1, 1)`),
   ],
 ).enableRLS();

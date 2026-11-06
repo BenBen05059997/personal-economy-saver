@@ -38,9 +38,9 @@ export function TimelineBlock({ data }: { data: TimelineData }) {
   return <>
     <p className="canvas-sub">{data.caption}</p>
     <ul className="canvas-rows">
-      {data.rows.map(row => <li key={row.id + row.date} className="canvas-row">
+      {data.rows.map(row => <li key={row.id + row.date} className={row.marked ? "canvas-row is-marked" : "canvas-row"}>
         <time dateTime={row.date}>{row.dateLabel}</time>
-        <span className="canvas-what">{row.label}{row.flag && <small>{row.flag}</small>}{!row.covered && <small className="is-short">Short that day</small>}</span>
+        <span className="canvas-what">{row.label}{row.marked && <small>This bill</small>}{row.flag && <small>{row.flag}</small>}{!row.covered && <small className="is-short">Short that day</small>}</span>
         <span className={`canvas-amount ${row.incoming ? "is-in" : ""}`}>{row.amountLabel}</span>
         <span className="canvas-balance">{row.balanceLabel}</span>
       </li>)}

@@ -17,6 +17,7 @@ export const LABELS = {
   changesTo: "Changes to, optional",
   changesFrom: "from",
   lastDayToCancel: "Last day to cancel, optional",
+  lastPayment: "Last payment, optional",
   amountVaries: "Amount changes every month (electricity, water, gas)",
   amountVariesHint: "Each month is forecast as the average of its last three real bills; until one is in, the amount above.",
   partOf: "Part of",

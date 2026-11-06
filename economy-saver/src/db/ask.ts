@@ -10,10 +10,12 @@ import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { RecipeSchema, type Recipe } from "@/lib/canvas/schema";
 import { consumeRequest, requestCount } from "./rate-limit";
 import { recentTurns, saveTurn } from "./conversation";
+import { documentCard } from "./document-card";
 import { conversationTurns, households } from "./schema";
 import { runAgent } from "@/lib/agent/run";
 import { serverDefaultHost } from "@/lib/agent/availability";
 import { DECLINES_PER_HOUR, FIXED, firstUse, type ReplyKind, type Source } from "@/lib/agent/reply";
+import { cardContext, type DocumentCard } from "@/lib/reader/document-card";
 import { MemoryItem } from "@/lib/schema/memory";
 import { CONTEXT_TURNS, ConversationTurn } from "@/lib/schema/turn";
 import type { DeviceMemory, MemoryChange } from "@/lib/store/memory-ops";
@@ -53,14 +55,24 @@ async function clockMoment(db: Db, hid: string, at?: Date): Promise<Date> {
 }
 
 export async function conversationContext(db: Db, hid: string, input: Pick<z.infer<typeof askInput>, "conversationId" | "canvas">, now = new Date()): Promise<string> {
-  return contextText(await recentTurns(db, hid, input.conversationId, now), input.canvas);
+  const turns = await recentTurns(db, hid, input.conversationId, now);
+  return contextText(turns, input.canvas, await documentCards(db, hid, turns));
+}
+
+/** The cards of the document turns among these turns (D61), without the money state: their words and read lines only. */
+async function documentCards(db: Db, hid: string, turns: ConversationTurn[]): Promise<Map<string, DocumentCard>> {
+  const ids = [...new Set(turns.slice(-CONTEXT_TURNS).flatMap(turn => (turn.kind === "document" && turn.documentId ? [turn.documentId] : [])))];
+  return new Map(await Promise.all(ids.map(async id => [id, await documentCard(db, hid, id, { draw: false })] as const)));
 }
 
 /** The same text from turns already in hand (the ones a question carried from the device). */
-export function contextText(turns: ConversationTurn[], canvas: Recipe | null): string {
+export function contextText(turns: ConversationTurn[], canvas: Recipe | null, cards: ReadonlyMap<string, DocumentCard> = new Map()): string {
   const parts: string[] = [];
   if (turns.length) {
-    parts.push(`Earlier in this conversation, for context only; read every number again from the tools:\n${turns.slice(-CONTEXT_TURNS).map(turn => `Question: ${JSON.stringify(turn.question)}\nReply: ${JSON.stringify(turn.reply)}`).join("\n")}`);
+    parts.push(`Earlier in this conversation, for context only; read every number again from the tools:\n${turns.slice(-CONTEXT_TURNS).map(turn => {
+      const card = turn.kind === "document" && turn.documentId ? cards.get(turn.documentId) : undefined;
+      return `Question: ${JSON.stringify(turn.question)}\nReply: ${JSON.stringify(card ? cardContext(card) : turn.reply)}`;
+    }).join("\n")}`);
   }
   if (canvas) parts.push(`The canvas on screen now, as data:\n${JSON.stringify(canvas)}`);
   return parts.join("\n\n");
@@ -94,7 +106,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   if (await requestCount(db, householdId, "out-of-scope", "hour") >= DECLINES_PER_HOUR) {
     return { id, kind: DECLINED, text: FIXED.wait, choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], wait: true };
   }
-  const context = recent !== undefined ? contextText(recent, canvas) : await conversationContext(db, householdId, { conversationId, canvas }, deps.at);
+  const context = recent !== undefined ? contextText(recent, canvas, await documentCards(db, householdId, recent)) : await conversationContext(db, householdId, { conversationId, canvas }, deps.at);
   const deviceMemory: DeviceMemory | undefined = memory === undefined ? undefined : { items: [...memory], changes: [], moment: await clockMoment(db, householdId, deps.at) };
   const result = await runAgent({ db, householdId, question: text, askId: id, source, appUrl: appUrl(), context, fetch: deps.fetch, deviceMemory, connection: () => aiConnection(db, householdId, "text") });
   if (result.kind === "declined") await consumeRequest(db, householdId, "out-of-scope", DECLINES_PER_HOUR, "hour");

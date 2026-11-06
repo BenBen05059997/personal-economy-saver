@@ -23,6 +23,7 @@ export type Bill = {
   previousAmount?: number;
   repeatUnit?: RepeatUnit; // D48: absent = one-off; the engine sees one Bill per occurrence
   repeatDay?: number; // monthly bill (D41): the day of the month it falls due; only with repeatUnit "month"
+  repeatUntil?: string; // D41: the last day an occurrence may fall on; only with repeatUnit
   nextAmount?: number; // D48: the amount an occurrence on or after nextAmountFrom has; absent together with nextAmountFrom
   nextAmountFrom?: string; // YYYY-MM-DD
   cancelBy?: string; // D48: information only: the date to act by before the renewal; the app never cancels anything
@@ -124,6 +125,7 @@ export type SplitMember = { id: string; name: string; shareBp: number }; // the 
 export type SplitBill = {
   id: string; biller: string; amountMinor: number | null; due: string; paidBy: string; createdAt: string; // amountMinor null: not known yet (D55): no debt until it is known; a date not known is today
   repeatUnit: RepeatUnit | null; repeatDay: number | null; // D48: repeatDay for monthly only
+  repeatUntil: string | null; // D41: no occurrence after this day
   nextAmountMinor: number | null; nextAmountFrom: string | null; // an occurrence on or after nextAmountFrom splits nextAmountMinor
   variesUnpriced?: string[]; // D55: with varies: the due dates of its confirmed linked bills whose amount is not known: they take their month but split nothing
   varies?: RealBill[]; // D54: present exactly on an amount-varies monthly bill: its confirmed linked real bills (any whose), home minor units

@@ -46,6 +46,7 @@ export function ScheduleFields({ id, today, currency, name = "", due, flat = fal
       <small className="ui-hint add-entry-hint">The new amount applies to every charge on or after that date. Needs a repeat.</small>
     </>}
     <CancelByField today={today} onChange={onCancelBy} />
+    {repeat !== "" && <RepeatUntilField today={today} />}
   </>;
   return <>
     <label className="ui-field">{LABELS.repeats}<select name="repeat" value={repeat} onChange={event => setChosen(event.target.value as Repeat)} aria-describedby={`${id}-repeat`}>
@@ -61,6 +62,14 @@ export function CancelByField({ today, defaultValue, onChange }: { today: string
   return <>
     <label className="ui-field">{LABELS.lastDayToCancel}<CheckedInput name="cancelBy" type="date" defaultValue={defaultValue} onChange={event => onChange?.(event.target.value)} max={latestDate(today)} message={HORIZON_MESSAGE} /></label>
     <small className="ui-hint add-entry-hint">A dated reminder in Coming up before the next charge. The app never cancels or pays anything.</small>
+  </>;
+}
+
+/** D41: the "Last payment" date and its hint, shared by the add form and the review card (through ScheduleFields) and Settings → Edit. Posts `repeatUntil` (empty = it goes on); shown only for a bill that repeats. */
+export function RepeatUntilField({ today, defaultValue, onChange }: { today: string; defaultValue?: string; onChange?: (date: string) => void }) {
+  return <>
+    <label className="ui-field">{LABELS.lastPayment}<CheckedInput name="repeatUntil" type="date" defaultValue={defaultValue} onChange={event => onChange?.(event.target.value)} max={latestDate(today)} message={HORIZON_MESSAGE} /></label>
+    <small className="ui-hint add-entry-hint">The last time it is charged. Nothing after it is counted.</small>
   </>;
 }
 

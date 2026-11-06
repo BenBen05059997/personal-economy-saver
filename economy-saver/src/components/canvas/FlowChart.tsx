@@ -17,6 +17,10 @@ export function FlowChart({ data }: { data: FlowData }) {
         <path className="canvas-line" d={path} />
       </svg>
       <span className="canvas-zero" style={{ top: `${y(0)}%` }}>{data.zeroLabel}</span>
+      {data.mark && <>
+        <span className="canvas-mark" style={{ left: `${x(data.mark.index)}%`, top: `${y(points[data.mark.index] ?? 0)}%` }} />
+        <span className="canvas-mark-label" style={{ left: `clamp(7em, ${x(data.mark.index)}%, 100% - 7em)`, top: `max(24px, ${y(points[data.mark.index] ?? 0)}%)` }}>{data.mark.label}</span>
+      </>}
       <span className={`canvas-dot ${data.short ? "is-short" : ""}`} style={{ left: `${x(data.lowIndex)}%`, top: `${y(lowAmount)}%` }} />
       <span className={`canvas-low ${data.short ? "is-short" : ""}`} style={{ left: `clamp(5em, ${x(data.lowIndex)}%, 100% - 5em)`, top: `${y(lowAmount)}%` }}>{data.lowLabel}</span>
     </div>

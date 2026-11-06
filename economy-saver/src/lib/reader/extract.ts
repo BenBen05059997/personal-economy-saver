@@ -21,6 +21,7 @@ export const extractSchema = z.object({
   nextAmountMinor: z.number().int().positive().safe().nullable().default(null), // in the reading's currency, from nextAmountFrom on
   nextAmountFrom: z.string().date().nullable().default(null),
   cancelBy: z.string().date().nullable().default(null),
+  repeatUntil: z.string().date().nullable().default(null), // D41: the last payment; the reader never proposes it (D61 asks), the user sets it on the review card
 }).strict();
 export type Extracted = z.infer<typeof extractSchema>;
 const recordsSchema = z.object({ items: z.array(extractSchema).max(12) });

@@ -305,10 +305,10 @@ async function main() {
     const split: SplitState = {
       members: [{ id: "a", name: "Aoi", shareBp: 5_000 }, { id: "b", name: "Ren", shareBp: 5_000 }], since: "2026-09-01", settledThrough: null, settledAt: null, charges: [],
       bills: [
-        { id: "x", biller: "Minato Gas", amountMinor: null, due: "2026-10-12", paidBy: "a", createdAt: "2026-10-01T00:00:00.000Z", repeatUnit: null, repeatDay: null, nextAmountMinor: null, nextAmountFrom: null },
-        { id: "y", biller: "Minato Rent", amountMinor: 80_000, due: "2026-10-01", paidBy: "a", createdAt: "2026-10-01T00:00:00.000Z", repeatUnit: null, repeatDay: null, nextAmountMinor: null, nextAmountFrom: null },
-        { id: "o", biller: "Minato Water 10月分", amountMinor: 5_000, due: "2026-10-05", paidBy: "a", createdAt: "2026-10-01T00:00:00.000Z", repeatUnit: null, repeatDay: null, nextAmountMinor: null, nextAmountFrom: null },
-        { id: "s", biller: "Minato Water", amountMinor: null, due: "2026-09-10", paidBy: "a", createdAt: "2026-09-01T00:00:00.000Z", repeatUnit: "month", repeatDay: 10, nextAmountMinor: null, nextAmountFrom: null, varies: [r("2026-10-05", 5_000)], variesUnpriced: ["2026-11-03"] },
+        { id: "x", biller: "Minato Gas", amountMinor: null, due: "2026-10-12", paidBy: "a", createdAt: "2026-10-01T00:00:00.000Z", repeatUnit: null, repeatDay: null, repeatUntil: null, nextAmountMinor: null, nextAmountFrom: null },
+        { id: "y", biller: "Minato Rent", amountMinor: 80_000, due: "2026-10-01", paidBy: "a", createdAt: "2026-10-01T00:00:00.000Z", repeatUnit: null, repeatDay: null, repeatUntil: null, nextAmountMinor: null, nextAmountFrom: null },
+        { id: "o", biller: "Minato Water 10月分", amountMinor: 5_000, due: "2026-10-05", paidBy: "a", createdAt: "2026-10-01T00:00:00.000Z", repeatUnit: null, repeatDay: null, repeatUntil: null, nextAmountMinor: null, nextAmountFrom: null },
+        { id: "s", biller: "Minato Water", amountMinor: null, due: "2026-09-10", paidBy: "a", createdAt: "2026-09-01T00:00:00.000Z", repeatUnit: "month", repeatDay: 10, repeatUntil: null, nextAmountMinor: null, nextAmountFrom: null, varies: [r("2026-10-05", 5_000)], variesUnpriced: ["2026-11-03"] },
       ],
     };
     const balance = splitBalance(split, TODAY);
@@ -462,7 +462,7 @@ async function main() {
   // ---------------------------------------------------------------- the reader
   await check("the reader: a reading confirmed as a bill with no amount or no date stores it that way; a charge needs both; the flags must match the fields", async () => {
     const [document] = await db.insert(schema.documents).values({ householdId: hid, kind: "upload", storagePath: "fictional/gap.pdf", mime: "application/pdf", status: "read" }).returning();
-    const value = { kind: "bill" as const, name: "Minato Phone", date: "2026-12-12", amountMinor: null, currency: "JPY" as const, category: "phone_internet" as const, cardId: null, businessBp: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null };
+    const value = { kind: "bill" as const, name: "Minato Phone", date: "2026-12-12", amountMinor: null, currency: "JPY" as const, category: "phone_internet" as const, cardId: null, businessBp: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null, repeatUntil: null };
     const reading = async (v: object) => {
       const [made] = await db.insert(schema.readings).values({ householdId: hid, documentId: document.id, extracted: { original: v, proposed: v }, target: "bill" }).returning();
       return made.id;

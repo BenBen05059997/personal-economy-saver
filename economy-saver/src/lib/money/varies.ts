@@ -7,7 +7,7 @@ import { monthBounds, nameKey } from "./spending";
 import type { RealBill } from "./types";
 
 /** A confirmed amount-varies monthly bill, as stored: where its series starts and its own amount (minor units). */
-export type VariesSeries = { id: string; biller: string; category: CategoryKey; due: string; repeatDay: number };
+export type VariesSeries = { id: string; biller: string; category: CategoryKey; due: string; repeatDay: number; until?: string | null }; // until: D41, the series' last payment day
 
 /**
  * The series a one-off bill named `bill.biller` in `bill.category`, due `bill.due`, joins: the only amount-varies series with the
@@ -17,7 +17,7 @@ export type VariesSeries = { id: string; biller: string; category: CategoryKey; 
  */
 export function seriesToJoin(series: VariesSeries[], taken: { seriesBillId: string; due: string }[], bill: { biller: string; category: CategoryKey; due: string }): VariesSeries | null {
   const key = nameKey(bill.biller);
-  const matches = series.filter(s => s.category === bill.category && nameKey(s.biller) === key);
+  const matches = series.filter(s => s.category === bill.category && nameKey(s.biller) === key && (s.until === undefined || s.until === null || bill.due <= s.until)); // D41: a bill after the last payment is its own
   if (matches.length !== 1) return null;
   const [match] = matches;
   const month = bill.due.slice(0, 7);
@@ -25,9 +25,9 @@ export function seriesToJoin(series: VariesSeries[], taken: { seriesBillId: stri
 }
 
 /** The occurrence of a series in the month of `date` (YYYY-MM-DD), or null when the series has none there (it starts later). */
-export function occurrenceInMonth(series: Pick<VariesSeries, "due" | "repeatDay">, date: string): string | null {
+export function occurrenceInMonth(series: Pick<VariesSeries, "due" | "repeatDay" | "until">, date: string): string | null {
   const { first, last } = monthBounds(date.slice(0, 7));
-  return occurrenceDates(series.due, "month", series.repeatDay, first, last)[0] ?? null;
+  return occurrenceDates(series.due, "month", series.repeatDay, first, last, series.until ?? null)[0] ?? null;
 }
 
 export type LinkPreview = { seriesId: string; biller: string; month: string; estimateMinor: number | null };

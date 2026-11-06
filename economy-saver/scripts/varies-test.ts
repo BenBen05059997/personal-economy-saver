@@ -121,8 +121,8 @@ async function main() {
     const split: SplitState = {
       members: [{ id: "a", name: "Aoi", shareBp: 5_000 }, { id: "b", name: "Ren", shareBp: 5_000 }], since: "2026-09-01", settledThrough: null, settledAt: null, charges: [],
       bills: [
-        { id: "gas", biller: "Fictional Gas", amountMinor: 6_500, due: "2026-08-10", paidBy: "a", createdAt: "2026-08-01T00:00:00.000Z", repeatUnit: "month", repeatDay: 10, nextAmountMinor: null, nextAmountFrom: null, varies: [r("2026-10-12", 5_000)] },
-        { id: "g10", biller: "Fictional Gas 10月分", amountMinor: 5_000, due: "2026-10-12", paidBy: "a", createdAt: "2026-10-01T00:00:00.000Z", repeatUnit: null, repeatDay: null, nextAmountMinor: null, nextAmountFrom: null },
+        { id: "gas", biller: "Fictional Gas", amountMinor: 6_500, due: "2026-08-10", paidBy: "a", createdAt: "2026-08-01T00:00:00.000Z", repeatUnit: "month", repeatDay: 10, repeatUntil: null, nextAmountMinor: null, nextAmountFrom: null, varies: [r("2026-10-12", 5_000)] },
+        { id: "g10", biller: "Fictional Gas 10月分", amountMinor: 5_000, due: "2026-10-12", paidBy: "a", createdAt: "2026-10-01T00:00:00.000Z", repeatUnit: null, repeatDay: null, repeatUntil: null, nextAmountMinor: null, nextAmountFrom: null },
       ],
     };
     const balance = splitBalance(split, TODAY);
@@ -169,7 +169,7 @@ async function main() {
   });
 
   await check("D48 and varies together are refused in words, on the form and in the database; a yearly or one-off bill cannot vary", async () => {
-    const schedule = { repeat: "month" as const, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null, amountVaries: true };
+    const schedule = { repeat: "month" as const, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null, repeatUntil: null, amountVaries: true };
     assert.doesNotThrow(() => checkSchedule("2026-12-10", TODAY, schedule));
     assert.throws(() => checkSchedule("2026-12-10", TODAY, { ...schedule, nextAmountMinor: 7_000, nextAmountFrom: "2027-01-10" }), /leave the new amount empty/);
     assert.throws(() => checkSchedule("2026-12-10", TODAY, { ...schedule, repeat: "year" }), /repeats every month/);
@@ -221,7 +221,7 @@ async function main() {
 
   await check("the reader: the review line is worked out before confirming, and confirming links the bill", async () => {
     const [document] = await db.insert(schema.documents).values({ householdId: hid, kind: "upload", storagePath: "fictional/varies.pdf", mime: "application/pdf", status: "read" }).returning();
-    const value = { kind: "bill" as const, name: "Sakura Gas 2月分", date: "2027-02-12", amountMinor: 7_300, currency: "JPY" as const, category: "utilities" as const, cardId: null, businessBp: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null };
+    const value = { kind: "bill" as const, name: "Sakura Gas 2月分", date: "2027-02-12", amountMinor: 7_300, currency: "JPY" as const, category: "utilities" as const, cardId: null, businessBp: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null, repeatUntil: null };
     const [reading] = await db.insert(schema.readings).values({ householdId: hid, documentId: document.id, extracted: { original: value, proposed: value }, target: "bill" }).returning();
     const inbox = await readerInbox(store, hid);
     assert.deepEqual(inbox.readings.find(item => item.id === reading.id)!.link,
@@ -238,6 +238,14 @@ async function main() {
     const b = await row(id);
     return updateBill(store, hid, billEditInput.parse({ id, biller: b.biller, amount: String(b.amountMinor), due: b.due, category: b.category, businessBp: b.businessBp, ...over }), form);
   };
+  await check("a last payment (D41): a series has no estimate after it and a real bill dated after it does not link", () => {
+    const ended = bill({ id: "gas", biller: "Fictional Gas", amount: 6_500, due: "2026-08-10", repeatUnit: "month", repeatDay: 10, amountVaries: true, repeatUntil: "2026-12-10" });
+    assert.deepEqual(expandBills([ended], "2026-11-14", "2027-03-31", "JPY").map(b => b.due), ["2026-12-10"], "Dec 10 is the last estimate");
+    const s = { id: "gas", biller: "Fictional Gas", category: "utilities" as const, due: "2026-08-10", repeatDay: 10, until: "2026-12-10" };
+    assert.equal(seriesToJoin([s], [], { biller: "Fictional Gas", category: "utilities", due: "2026-12-05" })?.id, "gas");
+    assert.equal(seriesToJoin([s], [], { biller: "Fictional Gas", category: "utilities", due: "2027-01-05" }), null, "after the last payment it is its own bill");
+  });
+
   await check("Settings → Edit: unlink, relink, a taken month and a category change are refused, varies off frees the real bills", async () => {
     assert.equal(await edit(dec, { seriesBillId: null }), true);
     assert.equal((await row(dec)).seriesBillId, null);

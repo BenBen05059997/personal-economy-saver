@@ -47,12 +47,13 @@ async function AskContent({ search }: { search: Search }) {
   const last = conversation?.turns.findLast(turn => turn.recipe !== null);
   const shown = pinned ? draw(`pin-${pinned.id}`, pinned.recipe, context) : last?.recipe ? draw(last.id, last.recipe, context) : null;
   const turns: TurnView[] = (conversation?.turns ?? []).map(turn => ({
-    id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, sources: turn.sources, links: [], thumb: turn.thumb,
+    id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, sources: turn.sources, links: [], thumb: turn.thumb, documentId: turn.documentId ?? null,
   }));
   const missing = missingAskSetting(own !== null);
 
   return <WorkspaceFrame workspace={workspace} section="canvas">
     <AskPage householdId={hid} places={places} pinId={typeof pinParam === "string" ? pinParam : null} conversationId={conversation?.conversationId ?? crypto.randomUUID()} turns={turns} starters={starters} shown={shown}
+      form={{ today: state.today, homeCurrency: state.homeCurrency, cards: state.cards.map(c => ({ id: c.id, label: c.label })) }}
       pin={pinned && shown ? { id: pinned.id, title: pinned.title } : null} firstUse={firstUse} unavailable={missing ? askUnavailable(missing) : null} />
   </WorkspaceFrame>;
 }

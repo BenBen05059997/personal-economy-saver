@@ -60,6 +60,8 @@ async function main() {
   await check("month helpers: bounds, names, months back across a year, and a bad month refused", () => {
     assert.deepEqual(monthBounds("2026-02"), { first: "2026-02-01", last: "2026-02-28" });
     assert.deepEqual(monthBounds("2028-02"), { first: "2028-02-01", last: "2028-02-29" });
+    const ended: SpendingInput = { ...mio, charges: [], bills: [{ id: "kawa", biller: "Kawa Gym", amount: 6_000, due: "2026-08-27", category: "health", businessBp: 0, status: "confirmed", repeatUnit: "month", repeatDay: 27, repeatUntil: "2026-10-27" }] };
+    assert.deepEqual(spendingItems(ended, "2026-08-01", "2026-12-31").map(i => i.date), ["2026-08-27", "2026-09-27", "2026-10-27"], "D41: a repeating bill with a last payment has no item after it");
     assert.equal(monthName("2026-11"), "November");
     assert.deepEqual([monthsBack("2026-11", 1), monthsBack("2026-11", 3), monthsBack("2026-02", 3), monthsBack("2026-11", 12)], ["2026-11", "2026-09", "2025-12", "2025-12"]);
     for (const bad of ["2026-13", "2026-1", "26-11", "2026-11-01", ""]) assert.throws(() => monthBounds(bad), /YYYY-MM/, bad);

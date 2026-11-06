@@ -10,6 +10,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { aiConnection, AiKeyError } from "@/db/ai-key";
 import { householdDate } from "@/db/account";
+import { removeBill } from "@/db/bills";
+import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { AgentError, runAgent } from "@/lib/agent/run";
@@ -175,8 +177,8 @@ async function main() {
       }
       const spend = toolInputSchema(tools.find(t => t.name === "can_i_spend")!) as { properties: { card_id: { anyOf: { type: string }[] } } };
       assert.ok(spend.properties.card_id.anyOf.some(v => v.type === "null"));
-      const addBill = toolInputSchema(tools.find(t => t.name === "add_bill")!) as { properties: { repeat: unknown; next_amount: unknown; next_amount_from: unknown; cancel_by: unknown }; required: string[] };
-      assert.ok(["repeat", "next_amount", "next_amount_from", "cancel_by"].every(key => key in addBill.properties && addBill.required.includes(key)), "the D48 fields are required properties (nullable) of add_bill");
+      const addBill = toolInputSchema(tools.find(t => t.name === "add_bill")!) as { properties: { repeat: unknown; next_amount: unknown; next_amount_from: unknown; cancel_by: unknown; repeat_until: unknown }; required: string[] };
+      assert.ok(["repeat", "next_amount", "next_amount_from", "cancel_by", "repeat_until"].every(key => key in addBill.properties && addBill.required.includes(key)), "the D48 fields are required properties (nullable) of add_bill");
       assert.ok(!("monthly" in addBill.properties));
     });
 
@@ -340,6 +342,23 @@ async function main() {
       const error = toolResults(bad.bodies[1])[0];
       assert.equal(error.is_error, true);
       assert.match(JSON.stringify(error.content), /needs a bill that repeats/);
+    });
+
+    await check("add_bill takes repeat_until (D41): a gym that ends waits in To check with it, a one-off with a last payment is an error the model can read, and after Confirm it counts to the last payment only", async () => {
+      const billId = crypto.randomUUID();
+      const gym = { id: billId, biller: "Fictional Kawa Gym", amount: "6000", due: "2026-11-27", category: "health", memberId: null, repeat: "month", repeat_until: "2026-12-27" };
+      const run = transport([() => reply("tool_use", [toolUse("g", "add_bill", gym)]), () => reply("end_turn", [text("Waiting in To check.")])]);
+      const result = await ask(a, "Kawa Gym is 6000 a month and ends after December.", run.fetch);
+      assert.equal(result.pending, true);
+      const [row] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.id, billId)));
+      assert.deepEqual([row.status, row.repeatUnit, row.repeatUntil], ["pending", "month", "2026-12-27"]);
+      assert.ok((await loadMoneyState(db, a, "2026-11-14")).bills.filter(b => b.id.startsWith(billId)).every(b => b.status === "pending"), "it counts for nothing until confirmed");
+      const bad = transport([() => reply("tool_use", [toolUse("h", "add_bill", { ...gym, id: crypto.randomUUID(), repeat: null })]), () => reply("end_turn", [text("Done.")])]);
+      await ask(a, "Add it as a one-off with a last payment.", bad.fetch);
+      assert.match(JSON.stringify(toolResults(bad.bodies[1])[0].content), /A last payment needs a bill that repeats/);
+      await confirmPending(db, a, "bill", billId);
+      assert.deepEqual((await loadMoneyState(db, a, "2026-11-14")).bills.filter(b => b.id.startsWith(billId)).map(b => [b.status, b.due]), [["confirmed", "2026-11-27"]], "counted after Confirm (the plan window ends before Dec 27; the stop itself is in doors-test)");
+      await removeBill(db, a, billId);
     });
 
     await check("update_bank_balance leaves a pending update in To check, not a new balance, and a retry adds nothing", async () => {

@@ -181,7 +181,7 @@ export function gapDateWords(gap: Pick<Gap, "missing">): string {
 }
 
 /** The one question To check asks: "Minato Gas, due Nov 25: how much?", "Minato Gas, ¥9,800: when is it due?", "Minato Gas: how much, and when is it due?". */
-export function gapQuestion(gap: Gap): string {
+export function gapQuestion(gap: Pick<Gap, "name" | "missing" | "due" | "amountMinor" | "currency"> & Partial<Gap>): string {
   const amount = gap.missing.includes("amount"), date = gap.missing.includes("date");
   if (amount && date) return `${gap.name}: how much, and when is it due?`;
   if (amount) return `${gap.name}, due ${dayLabel(gap.due!)}: how much?`;

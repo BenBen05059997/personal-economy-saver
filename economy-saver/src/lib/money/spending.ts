@@ -119,14 +119,14 @@ export function spendingItems(input: SpendingInput, from: string, to: string): S
       if (seenSeries.has(id)) continue;
       seenSeries.add(id);
       if (bill.amountVaries) {
-        const series = { due: bill.startsOn ?? bill.due, repeatDay: bill.repeatDay ?? null, storedMinor: bill.amountUnknown ? null : minor(startAmount) };
+        const series = { due: bill.startsOn ?? bill.due, repeatDay: bill.repeatDay ?? null, storedMinor: bill.amountUnknown ? null : minor(startAmount), until: bill.repeatUntil ?? null };
         for (const { date, amountMinor } of variesOccurrences(series, real.get(id) ?? [], from, to, unpriced.get(id))) {
           items.push(amountMinor === null ? { ...base(date), amountMinor: 0, uncounted: true } : { ...base(date), amountMinor, estimated: true });
         }
         continue;
       }
     }
-    for (const date of datesIn({ due: bill.startsOn ?? bill.due, repeatUnit: bill.repeatUnit, repeatDay: bill.repeatDay }, from, to)) items.push(item(date));
+    for (const date of datesIn({ due: bill.startsOn ?? bill.due, repeatUnit: bill.repeatUnit, repeatDay: bill.repeatDay, repeatUntil: bill.repeatUntil }, from, to)) items.push(item(date));
   }
   for (const charge of input.charges) {
     if (charge.status !== "confirmed" || charge.date < from || charge.date > to) continue;

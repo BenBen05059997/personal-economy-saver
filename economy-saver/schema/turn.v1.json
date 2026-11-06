@@ -25,7 +25,8 @@
       "enum": [
         "answer",
         "clarify",
-        "declined"
+        "declined",
+        "document"
       ]
     },
     "reply": {
@@ -1048,6 +1049,12 @@
                           "q"
                         ],
                         "additionalProperties": false
+                      },
+                      "mark": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80,
+                        "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
                       }
                     },
                     "required": [
@@ -1251,6 +1258,12 @@
                           "q"
                         ],
                         "additionalProperties": false
+                      },
+                      "mark": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80,
+                        "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
                       }
                     },
                     "required": [
@@ -1990,6 +2003,17 @@
         ],
         "additionalProperties": false
       }
+    },
+    "documentId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "thumb": {
       "anyOf": [

@@ -8,7 +8,7 @@ import { CATEGORIES, categoryLabel } from "@/lib/money/categories";
 import { monthByCategory, type MonthView } from "@/lib/money/month";
 import { paceLine } from "@/lib/money/pace";
 import { regularCosts, REGULAR_MONTHS, type RegularCost } from "@/lib/money/regular";
-import { addDays, availableCash, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { addDays, availableCash, daysBetween, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { allUncounted, HISTORY_MONTHS, monthBounds, monthName, monthsBack, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import type { MoneyState } from "@/lib/money/types";
@@ -25,11 +25,13 @@ export type CanvasContext = { state: MoneyState; spending: SpendingInput };
 
 export type SentenceData = { text: string; leadParts: (string | { id: string; name: string })[]; before: string; on: string | null; short: boolean; note: string | null };
 export type NumberData = { label: string; value: string; sub: string | null; note: string | null; tone: "short" | "plain" };
+export type FlowMark = { index: number; label: string };
 export type FlowData = {
   points: number[]; // the end-of-day balances in the home currency, to draw
   lowIndex: number; lowLabel: string; short: boolean; zeroLabel: string; startLabel: string; endLabel: string; caption: string; aria: string;
+  mark: FlowMark | null; // the first day the block's marked bill falls on in the window; null when there is no mark or no such bill in it
 };
-export type TimelineRow = { id: string; date: string; dateLabel: string; label: string; amountLabel: string; incoming: boolean; balanceLabel: string; covered: boolean; flag: string | null };
+export type TimelineRow = { id: string; date: string; dateLabel: string; label: string; amountLabel: string; incoming: boolean; balanceLabel: string; covered: boolean; flag: string | null; marked: boolean };
 export type TimelineData = { caption: string; rows: TimelineRow[]; empty: string | null };
 export type TableRow = { cells: string[]; tone: "short" | "up" | "down" | "plain" };
 export type TableData = { title: string | null; caption: string | null; head: string[]; rows: TableRow[]; foot: string[] | null; empty: string | null };
@@ -68,6 +70,10 @@ const FORECASTS = new Set<Query["q"]>(["sentence", "safe_to_spend", "low_point",
 function ownScenario(query: Query): ScenarioRef { return "scenario" in query ? query.scenario : undefined; }
 
 // ---------------------------------------------------------------- the resolver
+
+/** A stored bill's id; an occurrence of a repeating bill is `<id>@<date>`. */
+const storedId = (id: string) => id.split("@")[0];
+const isMarked = (event: { id: string; kind: string }, mark: string) => event.kind === "bill" && storedId(event.id) === storedId(mark);
 
 export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasScenario?: Scenario): ResolvedBlock[] {
   const parsed = RecipeSchema.safeParse(recipeIn);
@@ -263,10 +269,15 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
         const point = low(balances);
         const days = balances.length;
         const caption = `${format(point.amount)} · ${dayLabel(point.date)}`;
+        const marked = block.mark === undefined ? undefined : timeline(stateFor(scenario), kindOf(scenario), days).find(event => isMarked(event, block.mark!));
+        const mark: FlowMark | null = marked ? {
+          index: daysBetween(state.today, marked.date),
+          label: `${marked.label} ${marked.uncounted ? AMOUNT_NOT_KNOWN : marked.estimated ? aboutMoney(Math.round(-marked.amount * unit), currency) : minor(Math.round(-marked.amount * unit))} · ${dayLabel(marked.date)}`,
+        } : null;
         return { ...common("worked"), type: "flow_chart", data: {
           points: [...balances], lowIndex: point.dayIndex, lowLabel: caption, short: point.amount < 0, zeroLabel: format(0), startLabel: dayLabel(state.today),
           endLabel: dayLabel(addDays(state.today, days - 1)),
-          caption: caseWords(scenario), aria: `${days}-day cash balance. ${caseWords(scenario)}. Lowest point ${caption}.`,
+          caption: caseWords(scenario), aria: `${days}-day cash balance. ${caseWords(scenario)}. Lowest point ${caption}.${mark ? ` Marked: ${mark.label}.` : ""}`, mark,
         } };
       }
       case "timeline": {
@@ -277,6 +288,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
           rows: events.map(event => ({
             id: event.id, date: event.date, dateLabel: dayLabel(event.date), label: event.label, amountLabel: amountOf(event), incoming: event.amount > 0, balanceLabel: format(event.balance), covered: event.covered,
             flag: event.pending ? "Awaiting confirmation" : event.dueUnknown ? "Date not known" : null,
+            marked: block.mark !== undefined && isMarked(event, block.mark),
           })),
         } };
       }

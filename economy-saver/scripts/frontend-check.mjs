@@ -165,6 +165,9 @@ if (args[0] === "--guards") {
     ["canvases-cross-origin", "/api/canvases", { method: "POST", session: "", form: { kind: "unpin", id: "x", returnTo: "/" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["ask-thumb-without-household", "/api/ask/thumb", { method: "POST", session: "", json: { id: "x", thumb: "up" } }, 401],
     ["ask-thumb-cross-origin", "/api/ask/thumb", { method: "POST", session: "", json: { id: "x", thumb: "up" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["ask-document-without-household", "/api/ask/document", { method: "POST", session: "" }, 401],
+    ["ask-document-get-without-household", "/api/ask/document?id=00000000-0000-4000-8000-000000000000", { session: "" }, 401],
+    ["ask-document-cross-origin", "/api/ask/document", { method: "POST", session: "", extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["ask-without-household", "/api/ask", { method: "POST", session: "", json: { id: "x" } }, 401],
     ["confirm-and-remember-without-household", "/api/confirm", { method: "POST", session: "", form: { kind: "reading", id: "00000000-0000-4000-8000-000000000000", remember: "on" } }, 401],
     ["confirm-and-remember-cross-origin", "/api/confirm", { method: "POST", session: "", form: { kind: "reading", id: "00000000-0000-4000-8000-000000000000", remember: "on" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
@@ -216,6 +219,19 @@ if (args[0] === "--extra") {
   await step("guard", "authenticated-invalid-upload", async () => {
     const result = await request("/api/upload", { method: "POST", form: {} });
     expect(result.response.status === 400 && result.body === "Select a file to upload.", "invalid-upload-result");
+  });
+  await step("guard", "authenticated-invalid-ask-document", async () => {
+    const result = await request("/api/ask/document", { method: "POST", form: {} });
+    expect(result.response.status === 400 && result.body === "Select a file to upload.", "invalid-ask-document-result");
+  });
+  await step("guard", "ask-document-bad-id", async () => {
+    const result = await request("/api/ask/document?id=abc");
+    expect(result.response.status === 400 && result.body === "Invalid item", "ask-document-bad-id-result");
+  });
+  await step("guard", "ask-document-unknown-id-is-gone", async () => {
+    const result = await request("/api/ask/document?id=2f7d3c1e-8a4b-4c6d-9e5f-0a1b2c3d4e5f");
+    const card = JSON.parse(result.body).card;
+    expect(result.response.status === 200 && card.status === "gone" && card.words === "This file was deleted.", "ask-document-gone-result");
   });
   for (const [label, path] of [["clients", "/api/clients"], ["remove", "/api/remove"]]) {
     await step("guard", "json-body-to-" + label, async () => {
@@ -535,6 +551,9 @@ await refused("bill-new-amount-on-a-one-off-refused-with-message", { nextAmount:
 await refused("bill-new-amount-on-or-before-due-refused-with-message", { repeat: "year", nextAmount: "13000", nextAmountFrom: "2026-11-20" }, "The new amount must start after the due date");
 await refused("bill-cancel-by-after-the-renewal-refused-with-message", { repeat: "year", cancelBy: "2026-11-21" }, "Choose a cancel-by date before the bill is next charged on Nov 20");
 await refused("bill-cancel-by-over-two-years-refused-with-message", { cancelBy: "2029-01-01" }, "Choose a date within the next two years");
+// D41: a last payment that does not hang together is refused with its words.
+await refused("bill-last-payment-on-a-one-off-refused-with-message", { repeatUntil: "2026-12-27" }, "A last payment needs a bill that repeats: choose Every month or Every year");
+await refused("bill-last-payment-before-the-due-date-refused-with-message", { repeat: "month", repeatUntil: "2026-11-19" }, "The last payment must be on or after the first due date");
 await refused("bill-new-amount-over-yen-limit-refused-with-message", { repeat: "year", nextAmount: "100,000,001", nextAmountFrom: "2027-11-20" }, "Enter an amount up to ¥100,000,000");
 await refused("bill-with-an-unknown-repeat-refused", { repeat: "week" }, "Check the required fields and try again.");
 await step("action", "bill-with-thousands-separator-saved-and-removed", async () => {
@@ -764,7 +783,7 @@ await step("page", "start-blank-home-after-bill", async () => {
 // same door the form uses; Coming up says "Yearly" and has the cancel-by row, Activity names what the bill carries.
 await step("action", "start-blank-add-yearly-bill-with-cancel-by", async () => {
   const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional Cloud", amount: "12,000", due: "2026-12-01", category: "subscriptions", businessShare: "personal",
-    repeat: "year", nextAmount: "13,000", nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20" } });
+    repeat: "year", nextAmount: "13,000", nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20", repeatUntil: "2028-06-01" } });
   expect(result.response.status === 303 && /^\/\?added=[0-9a-f-]{36}#coming-up$/.test(result.response.headers.get("location") ?? ""), "yearly-bill-result");
 });
 await step("page", "start-blank-coming-up-says-yearly-and-has-the-cancel-by-row", async () => {
@@ -772,11 +791,12 @@ await step("page", "start-blank-coming-up-says-yearly-and-has-the-cancel-by-row"
   expect(content.includes("Cancel Fictional Cloud by Nov 20 or it renews at ¥12,000 on Dec 1"), "cancel-by-row-text");
   expect(/Subscriptions · reminder only/.test(content), "cancel-by-row-category");
   expect(/Fictional Cloud[^]*?Yearly/.test(content), "yearly-row-says-yearly");
+  expect(content.includes("Yearly · last one Dec 1, 2027"), "yearly-row-says-the-last-payment");
   expect(content.indexOf("Cancel Fictional Cloud") < content.indexOf("Fictional rent"), "cancel-by-row-in-date-order");
 });
 await step("page", "start-blank-activity-names-the-yearly-bill", async () => {
   const content = plain(pageContent(await page("/activity", /Fictional Cloud added, due Dec 1/)));
-  expect(content.includes("Every year · Changes to ¥13,000 from Dec 1, 2027 · Cancel by Nov 20"), "yearly-activity-line");
+  expect(content.includes("Every year · Changes to ¥13,000 from Dec 1, 2027 · Cancel by Nov 20 · Last one Dec 1, 2027"), "yearly-activity-line");
 });
 await step("page", "start-blank-plan-month-counts-the-yearly-bill-in-its-month-only", async () => {
   const content = plain(pageContent(await page("/plan", /Where the month goes/)));

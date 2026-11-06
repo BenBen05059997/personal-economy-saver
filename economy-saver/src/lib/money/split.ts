@@ -93,7 +93,7 @@ export function splitBalance(split: SplitState, today: string): SplitBalance {
     for (const bill of split.bills) {
       if (bill.varies !== undefined) {
         // D54: a month with a real bill splits that bill (when it is shared and names who pays); any other month splits the estimate.
-        for (const { date, amountMinor } of variesOccurrences({ due: bill.due, repeatDay: bill.repeatDay, storedMinor: bill.amountMinor }, bill.varies, from, today, bill.variesUnpriced)) {
+        for (const { date, amountMinor } of variesOccurrences({ due: bill.due, repeatDay: bill.repeatDay, storedMinor: bill.amountMinor, until: bill.repeatUntil }, bill.varies, from, today, bill.variesUnpriced)) {
           if (amountMinor !== null && unsettled(split, date, bill.createdAt)) count(amountMinor, bill.paidBy);
         }
         continue;

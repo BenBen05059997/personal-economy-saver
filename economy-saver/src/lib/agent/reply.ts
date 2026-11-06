@@ -33,6 +33,7 @@ const TOOL_SOURCES: Record<string, Source> = {
   regular_costs: { label: "Plan", href: "/plan" },
   who_owes_whom: { label: "Shared costs", href: "/#shared-costs" },
   open_gaps: { label: "To check", href: "/to-check" },
+  to_check: { label: "To check", href: "/to-check" },
   remember: { label: "Memory", href: "/memory" },
   forget: { label: "Memory", href: "/memory" },
   recall: { label: "Memory", href: "/memory" },

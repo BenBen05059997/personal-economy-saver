@@ -93,7 +93,7 @@ export async function loadSplitState(
     .from(s.bills).where(and(eq(s.bills.householdId, hid), eq(s.bills.status, "confirmed"), inArray(s.bills.seriesBillId, variesIds))).orderBy(s.bills.due, s.bills.id);
   // D55: an amount not known is null (it splits nothing); a date not known is today. A linked real bill without an amount takes its month but is no part of the estimate.
   split.bills = billRows.map(b => ({ id: b.id, biller: b.biller, amountMinor: b.amountMinor === null ? null : toHome(b.amountMinor, b.currency), due: b.due ?? today, paidBy: b.paidByMemberId!, createdAt: b.createdAt.toISOString(),
-    repeatUnit: b.repeatUnit === null ? null : RepeatUnitSchema.parse(b.repeatUnit), repeatDay: b.repeatDay,
+    repeatUnit: b.repeatUnit === null ? null : RepeatUnitSchema.parse(b.repeatUnit), repeatDay: b.repeatDay, repeatUntil: b.repeatUntil,
     nextAmountMinor: b.nextAmountMinor === null ? null : toHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom,
     ...(b.amountVaries && {
       varies: realRows.flatMap(r => (r.seriesBillId === b.id && r.due !== null && r.amountMinor !== null ? [{ due: r.due, amountMinor: toHome(r.amountMinor, r.currency) }] : [])),
@@ -163,6 +163,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
     ...(b.nextAmountMinor !== null && b.nextAmountFrom !== null && { nextAmount: inHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }),
     ...(b.cancelBy !== null && { cancelBy: b.cancelBy }),
+    ...(b.repeatUntil !== null && { repeatUntil: b.repeatUntil }),
     ...(b.amountVaries && { amountVaries: true as const }),
     ...(b.seriesBillId !== null && { seriesBillId: b.seriesBillId }),
     ...(b.memberId !== null && { ownerId: b.memberId }),

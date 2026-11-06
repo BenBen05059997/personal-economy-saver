@@ -2,6 +2,7 @@ import { categoryLabel, shareLabel } from "./categories";
 import { DATE_NOT_KNOWN, gapAmountWords, gapDateWords, gapQuestion, openGaps } from "./gaps";
 import { dayLabel, minorMoney, minorPerUnit, repeatWords } from "./format";
 import { monthYear } from "./plan";
+import { lastOneWords } from "./repeat";
 import { pendingCharges } from "./runway";
 import type { MadeBy, MoneyState } from "./types";
 
@@ -31,7 +32,7 @@ export function toCheck(state: MoneyState) {
       // D55: a bill with its amount not known has no amount here (never ¥0); `gap` holds the words and the question for the missing piece.
       kind: "bill" as const, id: bill.id, amount: bill.amountUnknown ? null : bill.amount, title: bill.biller, madeBy: bill.madeBy,
       gap: gap && { question: gapQuestion(gap), amount: gap.missing.includes("amount") ? gapAmountWords(gap) : null, date: gap.missing.includes("date") ? gapDateWords(gap) : null },
-      detail: `${categoryLabel(bill.category)} · ${shareLabel(bill.businessBp)} · ${bill.dueUnknown ? DATE_NOT_KNOWN : `due ${dayLabel(bill.due)}`}${bill.repeatUnit === undefined ? "" : ` · ${repeatWords(bill.repeatUnit).toLowerCase()}`}${bill.nextAmount === undefined || bill.nextAmountFrom === undefined ? "" : ` · ${minorMoney(minor(bill.nextAmount), state.homeCurrency)} from ${dayLabel(bill.nextAmountFrom)}`}${bill.cancelBy === undefined ? "" : ` · cancel by ${dayLabel(bill.cancelBy)}`}${bill.paidBy === undefined ? "" : ` · shared, paid by ${payer(bill.paidBy)}`}`,
+      detail: `${categoryLabel(bill.category)} · ${shareLabel(bill.businessBp)} · ${bill.dueUnknown ? DATE_NOT_KNOWN : `due ${dayLabel(bill.due)}`}${bill.repeatUnit === undefined ? "" : ` · ${repeatWords(bill.repeatUnit).toLowerCase()}${bill.dueUnknown ? "" : ` · ${lastOneWords(bill, state.today) ?? ""}`.replace(/ · $/, "")}`}${bill.nextAmount === undefined || bill.nextAmountFrom === undefined ? "" : ` · ${minorMoney(minor(bill.nextAmount), state.homeCurrency)} from ${dayLabel(bill.nextAmountFrom)}`}${bill.cancelBy === undefined ? "" : ` · cancel by ${dayLabel(bill.cancelBy)}`}${bill.paidBy === undefined ? "" : ` · shared, paid by ${payer(bill.paidBy)}`}`,
     }; }),
     ...pendingCharges(state).map(charge => {
       const card = state.cards.find(card => card.id === charge.cardId);

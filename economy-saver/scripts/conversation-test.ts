@@ -14,6 +14,10 @@ import { deleteHousehold, listEvents, type Db } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { RECIPE_VERSION, type Recipe } from "@/lib/canvas/schema";
 import { ConversationTurn } from "@/lib/schema/turn";
+import { appendTurn, latestOf, recentOf } from "@/lib/store/journal-ops";
+import { loadHouseholdSnapshot } from "@/db/snapshot";
+import { restoreHousehold } from "@/db/restore";
+import { HouseholdSnapshot } from "@/lib/schema/household";
 
 const T0 = new Date("2026-11-06T09:00:00Z");
 const at = (minutes: number) => new Date(T0.getTime() + minutes * 60_000);
@@ -96,11 +100,102 @@ async function main() {
       assert.equal((await allTurns(db, b)).length, 1);
     });
 
-    await check("the question is 1 to 320 characters and the kind is one of three", async () => {
+    await check("the question is 1 to 320 characters and the kind is one of four", async () => {
       await assert.rejects(saveTurn(db, b, turn(conv, ""), at(1)));
       await assert.rejects(saveTurn(db, b, turn(conv, "x".repeat(321)), at(1)));
       await assert.rejects(saveTurn(db, b, turn(conv, "ok", { kind: "other" as never }), at(1)));
     });
+
+
+    // ------------------------------------------------------------ D60: a turn that holds a file
+    const waitingSet = async (hid: string, status: "queued" | "reading" | "read" | "failed", reading?: "to_check" | "confirmed" | "rejected") => {
+      const [doc] = await db.insert(schema.documents).values({ householdId: hid, kind: "upload", storagePath: `${hid}/${crypto.randomUUID()}.pdf`, mime: "application/pdf", status }).returning();
+      if (reading) await db.insert(schema.readings).values({ householdId: hid, documentId: doc.id, extracted: {}, status: reading, target: "bill" });
+      return doc.id;
+    };
+    const documentTurn = (conversationId: string, documentId: string) => turn(conversationId, "Here's my bill", { kind: "document", reply: "Reading your bill…", documentId });
+
+    await check("a document turn saves and reads back with its documentId; an ordinary turn has no documentId key; the database refuses other kinds", async () => {
+      const c = crypto.randomUUID(), doc = await waitingSet(a, "queued");
+      const t = documentTurn(c, doc);
+      await saveTurn(db, a, t, at(1000));
+      await saveTurn(db, a, turn(c, "Plain"), at(1001));
+      const [back, plain] = (await allTurns(db, a)).filter(x => x.conversationId === c);
+      assert.equal(back.kind, "document");
+      assert.equal(back.documentId, doc);
+      assert.doesNotThrow(() => ConversationTurn.parse(back));
+      assert.equal("documentId" in plain, false);
+      assert.doesNotThrow(() => ConversationTurn.parse(plain));
+      await assert.rejects(saveTurn(db, b, turn(c, "no", { kind: "other" as never }), at(1)));
+    });
+
+    await check("a conversation stays live up to 24 hours while its document is queued, reading or has a reading in To check", async () => {
+      const cases: [string, "queued" | "reading" | "read" | "failed", ("to_check" | "confirmed" | "rejected")?][] = [
+        ["queued", "queued"], ["reading", "reading"], ["read with a reading to check", "read", "to_check"],
+      ];
+      let base = 2000;
+      for (const [name, status, reading] of cases) {
+        const c = crypto.randomUUID(), doc = await waitingSet(a, status, reading);
+        await saveTurn(db, a, documentTurn(c, doc), at(base));
+        assert.equal((await recentTurns(db, a, c, at(base + 11))).length, 1, `${name}: 11 minutes`);
+        assert.equal((await recentTurns(db, a, c, at(base + 24 * 60 - 1))).length, 1, `${name}: just under 24 hours`);
+        assert.equal((await recentTurns(db, a, c, at(base + 25 * 60))).length, 0, `${name}: 25 hours`);
+        assert.equal((await latestConversation(db, a, at(base + 11)))?.conversationId, c, `${name}: latest`);
+        base += 3000;
+      }
+      for (const [name, status, reading] of [["confirmed", "read", "confirmed"], ["rejected", "read", "rejected"], ["failed", "failed", undefined]] as const) {
+        const c = crypto.randomUUID(), doc = await waitingSet(a, status, reading);
+        await saveTurn(db, a, documentTurn(c, doc), at(base));
+        assert.equal((await recentTurns(db, a, c, at(base + 11))).length, 0, `${name}: not live`);
+        assert.equal(await latestConversation(db, a, at(base + 11)), null, `${name}: no latest`);
+        base += 3000;
+      }
+    });
+
+    await check("another household's waiting document never keeps a conversation live; the ten-minute rule holds without one", async () => {
+      const c = crypto.randomUUID(), theirs = await waitingSet(b, "queued");
+      await saveTurn(db, a, documentTurn(c, theirs), at(20_000));
+      assert.equal((await recentTurns(db, a, c, at(20_011))).length, 0);
+      assert.equal(await latestConversation(db, a, at(20_011)), null);
+      const plain = crypto.randomUUID();
+      await saveTurn(db, a, turn(plain, "Plain question"), at(21_000));
+      assert.equal((await recentTurns(db, a, plain, at(21_009))).length, 1);
+      assert.equal((await recentTurns(db, a, plain, at(21_011))).length, 0);
+    });
+
+    await check("the device journal: recentOf and latestOf honour the waiting set", () => {
+      const doc = crypto.randomUUID(), c = crypto.randomUUID();
+      const base = ConversationTurn.parse({ version: 1, id: crypto.randomUUID(), conversationId: c, question: "Here's my bill", kind: "document", reply: "Reading your bill…", choices: null, recipe: null, sources: [], thumb: null, documentId: doc, createdAt: at(0).toISOString() });
+      const turns = appendTurn([], base);
+      assert.equal(recentOf(turns, c, at(11)).length, 0);
+      assert.equal(recentOf(turns, c, at(11), new Set([doc])).length, 1);
+      assert.equal(recentOf(turns, c, at(11), new Set([crypto.randomUUID()])).length, 0);
+      assert.equal(recentOf(turns, c, at(25 * 60), new Set([doc])).length, 0);
+      assert.equal(latestOf(turns, at(11)), null);
+      assert.equal(latestOf(turns, at(11), new Set([doc]))?.conversationId, c);
+      assert.equal(latestOf(turns, at(9))?.turns.length, 1);
+    });
+
+    await check("a household file with a document turn parses, and Import keeps the kind but not the document", async () => {
+      const c = crypto.randomUUID(), doc = await waitingSet(a, "queued");
+      await saveTurn(db, a, documentTurn(c, doc), at(30_000));
+      const exported = await loadHouseholdSnapshot(db, a, { events: true, stored: true });
+      assert.ok(exported.journal!.some(t => t.kind === "document" && t.documentId === doc));
+      const file = JSON.parse(JSON.stringify(exported));
+      assert.doesNotThrow(() => HouseholdSnapshot.parse(file));
+      const [h] = await db.insert(schema.households).values({ name: "Fictional Importer", homeCurrency: "JPY", bankBalanceMinor: 1, isDemo: false }).returning();
+      const [owner] = await db.insert(schema.members).values({ householdId: h.id, displayName: "Fictional Importer", role: "owner", shareBp: 10_000 }).returning();
+      await db.insert(schema.paypalConnections).values({ householdId: h.id, memberId: owner.id, balanceCurrency: "JPY" });
+      await db.insert(schema.cards).values({ householdId: h.id, memberId: owner.id, label: "Setup card", currency: "JPY", closingDay: 25, dueDay: 10 });
+      await db.insert(schema.fxRates).values({ householdId: h.id, date: "2026-11-01", base: "USD", quote: "JPY", rateMicro: 150_000_000 });
+      await restoreHousehold(db, h.id, file);
+      const back = (await allTurns(db, h.id)).filter(t => t.kind === "document");
+      assert.ok(back.length >= 1);
+      assert.ok(back.every(t => !("documentId" in t)));
+    });
+
+    // The test documents have no stored file; remove them (their readings go with them) so deleting a household needs no storage.
+    await db.delete(schema.documents);
 
     // ------------------------------------------------------------ pins
     await check("pins keep their order, the ninth is refused, and every change records its event", async () => {

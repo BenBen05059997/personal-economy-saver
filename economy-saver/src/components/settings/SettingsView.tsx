@@ -7,11 +7,11 @@ import { Currency } from "@/lib/catalogue/types";
 import { aboutMoney, minorMoney, repeatWords } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN, DATE_NOT_KNOWN } from "@/lib/money/gaps";
 import { closingBefore } from "@/lib/money/runway";
-import { amountOn, nextAmountOf, nextOccurrenceAfter } from "@/lib/money/repeat";
+import { amountOn, lastOneWords, nextAmountOf, nextOccurrenceAfter } from "@/lib/money/repeat";
 import { CategoryFields } from "@/components/household/CategoryFields";
 import { PayerOptions } from "@/components/household/PayerOptions";
 import { LABELS } from "@/components/household/labels";
-import { CancelByField } from "@/components/household/ScheduleFields";
+import { CancelByField, RepeatUntilField } from "@/components/household/ScheduleFields";
 import { dueLabel } from "@/db/bills";
 import { Suspense } from "react";
 import { AiModelPanel } from "./AiModelPanel";
@@ -65,7 +65,7 @@ function EditBill({ bill, bills, people, today }: { bill: SettingsData["bills"][
   const series = repeat !== null ? [] : bills.filter(b => b.amountVaries && b.status === "confirmed" && (b.category === bill.category || b.id === bill.seriesBillId));
   const next = nextAmountOf(bill);
   const yesterday = new Date(Date.parse(today + "T00:00:00Z") - 86_400_000).toISOString().slice(0, 10);
-  const from = repeat === null || bill.due === null ? null : nextOccurrenceAfter({ due: bill.due, repeatUnit: repeat, repeatDay: bill.repeatDay ?? undefined }, yesterday) ?? bill.due;
+  const from = repeat === null || bill.due === null ? null : nextOccurrenceAfter({ due: bill.due, repeatUnit: repeat, repeatDay: bill.repeatDay ?? undefined, ...(bill.repeatUntil !== null && { repeatUntil: bill.repeatUntil }) }, yesterday) ?? bill.due;
   const amount = bill.amountMinor === null ? null : from === null || bill.amountVaries ? bill.amountMinor : amountOn(bill.amountMinor, next, from);
   const fromHint = `Repeats ${repeatWords(repeat).toLowerCase()}: a new amount starts on this due date. Choose the first due date${bill.due === null ? "" : `, ${dueLabel(bill.due, today)},`} to correct every one.${next ? ` It changes to ${minorMoney(next.amount, currency)} from ${dueLabel(next.from, today)}.` : ""}`;
   return <details className="settings-edit"><summary aria-label={`Edit ${bill.biller}`}>Edit</summary>
@@ -76,15 +76,20 @@ function EditBill({ bill, bills, people, today }: { bill: SettingsData["bills"][
         <option value="">None</option>{series.map(s => <option key={s.id} value={s.id}>{`${s.biller} (${repeatWords("month").toLowerCase()})`}</option>)}</select>
         <small className="ui-hint">A real bill for that month: it replaces the month’s estimate and counts once.</small></label>}
       <CancelByField today={today} defaultValue={bill.cancelBy ?? undefined} />
+      {repeat !== null && <RepeatUntilField today={today} defaultValue={bill.repeatUntil ?? undefined} />}
       <CategoryFields name={bill.biller} defaultCategory={bill.category} defaultBp={bill.businessBp} />
       {people.length < 2 ? <><input type="hidden" name="memberId" value={bill.memberId ?? ""} /><input type="hidden" name="paidByMemberId" value={bill.paidByMemberId ?? ""} /></>
         : <><Person people={people} selected={bill.memberId} shared /><PaidBy people={people} selected={bill.paidByMemberId} /></>}
       <button className="ui-button primary">Save bill</button></ApiForm></details>;
 }
+/** D41: "last one Dec 27" for a repeating bill with a last payment, else null. */
+function lastOne(bill: SettingsData["bills"][number], today: string) {
+  return bill.due === null || (bill.repeatUnit !== "month" && bill.repeatUnit !== "year") ? null : lastOneWords({ due: bill.due, repeatUnit: bill.repeatUnit, repeatDay: bill.repeatDay, repeatUntil: bill.repeatUntil }, today);
+}
 /** One bill in Settings → Bills: its summary and amount ("about ¥6,000 · varies" for a monthly bill whose amount changes), Edit and Remove. */
 function BillRow({ bill, bills, people, today }: { bill: SettingsData["bills"][number]; bills: SettingsData["bills"]; people: SettingsData["people"]; today: string }) {
   const currency = Currency.parse(bill.currency);
-  return <div id={`bill-${bill.id}`} className="settings-bill"><p>{billSummary(bill, people)} · {bill.amountMinor === null ? AMOUNT_NOT_KNOWN : bill.amountVaries ? `${aboutMoney(bill.amountMinor, currency)} · varies` : minorMoney(bill.amountMinor, currency)}{bill.due === null ? ` · ${DATE_NOT_KNOWN}` : ""}</p>
+  return <div id={`bill-${bill.id}`} className="settings-bill"><p>{billSummary(bill, people)} · {bill.amountMinor === null ? AMOUNT_NOT_KNOWN : bill.amountVaries ? `${aboutMoney(bill.amountMinor, currency)} · varies` : minorMoney(bill.amountMinor, currency)}{bill.due === null ? ` · ${DATE_NOT_KNOWN}` : ""}{lastOne(bill, today) === null ? "" : ` · ${lastOne(bill, today)}`}</p>
     {bill.status === "confirmed" && <EditBill bill={bill} bills={bills} people={people} today={today} />}<RemoveBill bill={bill} /></div>;
 }
 /** Remove for one person who is not the owner: asks first and says where their bills and cards go (the rule is on `removeMember`). */

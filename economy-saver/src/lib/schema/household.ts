@@ -92,6 +92,7 @@ const Bill = z.object({
   nextAmountMinor: minor.nullable().optional().describe("The amount an occurrence on or after nextAmountFrom costs, in the bill's currency; null or absent = the amount never changes. Set together with nextAmountFrom."),
   nextAmountFrom: day.nullable().optional().describe("The first date nextAmountMinor applies on."),
   cancelBy: day.nullable().optional().describe("Information only: the last day to cancel or change the bill before its next occurrence charges. The app never cancels anything."),
+  repeatUntil: day.nullable().optional().describe("The last day an occurrence may fall on (the last payment); null or absent = it goes on. Only on a bill that repeats."),
   amountVaries: z.boolean().optional().describe("A monthly bill whose amount changes every month (electricity, water, gas): a month without its real bill is forecast as the average of the last three real bills linked to it (amountMinor when there are none). Absent = false."),
   seriesBillId: id.nullable().optional().describe("On a one-off real bill: the id of the amount-varies monthly bill it belongs to; it replaces that series' estimate in its due month. Null or absent = not linked."),
   documentId: id.nullable(),

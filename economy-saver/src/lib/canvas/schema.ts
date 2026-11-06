@@ -16,6 +16,7 @@ const day = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "A
   .describe("A calendar day, YYYY-MM-DD, within the app's two-year horizon.");
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "A month is YYYY-MM").describe("A calendar month, YYYY-MM, within the last twelve months or this one.");
 const id = z.string().min(1).max(80);
+const mark = id.optional().describe("Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window.");
 const minorAmount = z.number().int("An amount is a whole number of minor units").positive("An amount is more than zero").max(100_000_000, "That amount is too large")
   .describe("Positive integer minor units of the home currency: whole yen, or cents for USD.");
 
@@ -78,8 +79,8 @@ export function isAppPath(href: string): boolean {
 export const BlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("sentence"), query: SentenceQuery }).strict(),
   z.object({ type: z.literal("number"), label: z.string().min(1).max(60), query: NumberQuery, note: z.string().max(200).optional() }).strict(),
-  z.object({ type: z.literal("flow_chart"), query: FlowQuery }).strict(),
-  z.object({ type: z.literal("timeline"), query: EventsQuery }).strict(),
+  z.object({ type: z.literal("flow_chart"), query: FlowQuery, mark }).strict(),
+  z.object({ type: z.literal("timeline"), query: EventsQuery, mark }).strict(),
   z.object({ type: z.literal("table"), title: z.string().max(80).optional(), query: TableQuery }).strict(),
   z.object({ type: z.literal("compare"), query: CompareMonthsQuery }).strict(),
   z.object({ type: z.literal("progress"), label: z.string().min(1).max(60), query: ProgressQuery, targetMinor: minorAmount.describe("The person's own target, in minor units of the home currency.") }).strict(),

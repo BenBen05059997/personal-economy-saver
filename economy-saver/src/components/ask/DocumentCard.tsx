@@ -1,0 +1,142 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import type { Currency } from "@/lib/catalogue/types";
+import type { Check, CheckChoice, CheckKind } from "@/lib/money/checks";
+import { DOCUMENT_WORDS, type DocumentCard as Card, type DocumentCardItem } from "@/lib/reader/document-card";
+import { ApiForm } from "@/components/ui/ApiForm";
+import type { Repeat } from "@/components/household/ScheduleFields";
+import { majorText, ReadingForm } from "@/components/reader/ReadingForm";
+
+export type CardForm = { today: string; homeCurrency: Currency; cards: { id: string; label: string }[] };
+type Answers = { kinds: CheckKind[]; repeat?: Repeat; date?: string; amountUnknown?: boolean; dueUnknown?: boolean };
+
+const POLL_MS = 2000, GIVE_UP_MS = 60_000;
+
+/** D61: the card under a document turn in Ask. Every word on it is written by code. It reads (polling), asks each failed check one at a time, then offers Confirm, Edit and Don't add it for every item. */
+export function DocumentCard({ documentId, initial, form, onCard, onCanvas }: {
+  documentId: string; initial: Card | null; form: CardForm;
+  onCard: (card: Card) => void; onCanvas: (canvas: NonNullable<Card["canvas"]>) => void;
+}) {
+  const [card, setCard] = useState<Card | null>(initial);
+  const [gaveUp, setGaveUp] = useState(false);
+  const started = useRef<number | null>(null);
+  const callbacks = useRef({ onCard, onCanvas });
+  useEffect(() => { callbacks.current = { onCard, onCanvas }; });
+
+  async function load(afterPost = false) {
+    try {
+      const response = await fetch(`/api/ask/document?id=${encodeURIComponent(documentId)}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const next = (await response.json() as { card: Card }).card;
+      setCard(next);
+      callbacks.current.onCard(next);
+      if (afterPost && next.canvas) callbacks.current.onCanvas(next.canvas);
+    } catch { /* the next poll or the next action asks again */ }
+  }
+  const loadRef = useRef(load);
+  useEffect(() => { loadRef.current = load; });
+
+  useEffect(() => { if (initial === null) void loadRef.current(); }, [initial]);
+
+  const reading = card?.status === "reading";
+  useEffect(() => {
+    if (!reading || gaveUp) return;
+    started.current ??= Date.now();
+    const poll = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - (started.current ?? Date.now()) > GIVE_UP_MS) { setGaveUp(true); return; }
+      void loadRef.current();
+    };
+    const timer = window.setInterval(poll, POLL_MS);
+    const visible = () => { if (document.visibilityState === "visible") poll(); };
+    document.addEventListener("visibilitychange", visible);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", visible); };
+  }, [reading, gaveUp]);
+
+  if (card === null) return <p className="ui-hint ask-document" role="status">Opening…</p>;
+  const words = reading && gaveUp ? DOCUMENT_WORDS.stillReading : card.words;
+  return <div className="ask-document">
+    <p className="ask-document-words" aria-live="polite">{words}</p>
+    {reading && gaveUp && <p className="ask-document-link"><Link prefetch={false} href="/to-check">To check</Link></p>}
+    {card.status === "read" && card.items.length > 0 && <ul className="ask-document-items">
+      {card.items.map(item => <li key={item.readingId} className="ask-document-item">
+        <Item item={item} form={form} onDone={() => void load(true)} />
+      </li>)}
+    </ul>}
+  </div>;
+}
+
+function Item({ item, form, onDone }: { item: DocumentCardItem; form: CardForm; onDone: () => void }) {
+  const [answers, setAnswers] = useState<Answers>({ kinds: [] });
+  const [editing, setEditing] = useState<{ focus?: "amount" | "date" } | null>(null);
+  const { value } = item;
+  if (item.status !== "to_check") return <>
+    <p className="ask-document-read">{item.read}</p>
+    <p className="ui-hint ask-document-status">{item.status === "confirmed" ? DOCUMENT_WORDS.added : DOCUMENT_WORDS.notAdded}</p>
+  </>;
+
+  const next = item.checks.find(check => !answers.kinds.includes(check.kind));
+  const answer = (check: Check, choice: CheckChoice) => {
+    const step = choice.step;
+    setAnswers(current => {
+      const kinds = current.kinds.includes(check.kind) ? current.kinds : [...current.kinds, check.kind];
+      if (step.do === "repeat") return { ...current, kinds, repeat: step.repeat ?? "" };
+      if (step.do === "date") return { ...current, kinds, date: step.date };
+      if (step.do === "unknown") return { ...current, kinds, amountUnknown: current.amountUnknown || step.fields.includes("amount"), dueUnknown: current.dueUnknown || step.fields.includes("date") };
+      return { ...current, kinds };
+    });
+    if (step.do === "edit") setEditing({ focus: step.field });
+  };
+  const hidden = <>
+    <input type="hidden" name="from" value="ask" /><input type="hidden" name="returnTo" value="/canvas" />
+    {answers.kinds.map(kind => <input key={kind} type="hidden" name="answered" value={kind} />)}
+  </>;
+  const preset = { repeat: answers.repeat ?? value.repeat ?? "", date: answers.date, amountUnknown: answers.amountUnknown, dueUnknown: answers.dueUnknown };
+  const reading = { id: item.readingId, value, link: item.link };
+  const needsForm = !value.category || !value.name || (value.kind === "charge" && !value.cardId);
+  const full = (focus?: "amount" | "date") => <ReadingForm key={`${answers.kinds.join()}-${focus ?? ""}`} reading={reading} today={form.today} homeCurrency={form.homeCurrency} cards={form.cards}
+    hidden={hidden} preset={preset} focus={focus} onDone={onDone} />;
+
+  return <>
+    <p className="ask-document-read">{item.read}</p>
+    {editing ? full(editing.focus)
+      : next ? <div className="check-line ask-document-question" role="group" aria-label={next.words}>
+        <p className="check-line-words">{next.words}</p>
+        {next.choices.some(choice => choice.step.do === "dismiss") ? <ApiForm action="/api/confirm" onDone={onDone}>
+          <input type="hidden" name="kind" value="reading" /><input type="hidden" name="id" value={item.readingId} /><input type="hidden" name="decision" value="reject" />
+          <Choices check={next} onChoose={answer} />
+        </ApiForm> : <Choices check={next} onChoose={answer} />}
+      </div>
+      : needsForm ? full()
+      : <ConfirmRow item={item} answers={answers} hidden={hidden} onEdit={() => setEditing({})} onDone={onDone} />}
+  </>;
+}
+
+function Choices({ check, onChoose }: { check: Check; onChoose: (check: Check, choice: CheckChoice) => void }) {
+  return <div className="check-line-choices ask-choices">{check.choices.map(choice => choice.step.do === "dismiss"
+    ? <button key={choice.label} type="submit" className="ui-button" formNoValidate>{choice.label}</button>
+    : <button key={choice.label} type="button" className="ui-button" onClick={() => onChoose(check, choice)}>{choice.label}</button>)}</div>;
+}
+
+function ConfirmRow({ item, answers, hidden, onEdit, onDone }: { item: DocumentCardItem; answers: Answers; hidden: React.ReactNode; onEdit: () => void; onDone: () => void }) {
+  const { value } = item;
+  const bp = value.businessBp ?? 0;
+  const share = bp <= 0 ? "personal" : bp >= 10000 ? "business" : "mixed";
+  const amountUnknown = answers.amountUnknown === true, dueUnknown = answers.dueUnknown === true;
+  const field = (name: string, text: string) => <input type="hidden" name={name} value={text} />;
+  return <ApiForm action="/api/confirm" onDone={onDone} className="ask-document-confirm">
+    {field("kind", "reading")}{field("id", item.readingId)}{field("target", value.kind)}{field("name", value.name ?? "")}
+    {field("amount", amountUnknown ? "" : majorText(value))}{field("currency", value.currency ?? "")}{field("date", dueUnknown ? "" : answers.date ?? value.date ?? "")}
+    {field("category", value.category ?? "")}{field("businessShare", share)}{share === "mixed" && field("businessPercent", String(bp / 100))}
+    {field("cardId", value.cardId ?? "")}{field("repeat", answers.repeat ?? value.repeat ?? "")}
+    {amountUnknown && field("amountUnknown", "on")}{dueUnknown && field("dueUnknown", "on")}
+    {hidden}
+    <div className="check-line-choices ask-choices">
+      <button className="ui-button primary" name="decision" value="confirm">Confirm</button>
+      <button type="button" className="ui-button" onClick={onEdit}>Edit</button>
+      <button className="ui-button" name="decision" value="reject" formNoValidate>Don&rsquo;t add it</button>
+    </div>
+  </ApiForm>;
+}

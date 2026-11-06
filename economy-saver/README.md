@@ -16,7 +16,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - Categories and a business share: fourteen fixed categories and a Personal / Business / Mixed share on every bill and charge (proposed from the name, confirmed by you); Plan shows "Where the month goes" for the current month. Neither moves any money.
 - Missing data: a bill can be saved with its amount or date not known yet; the forecast counts it at an estimate from the same name's last three real bills (the high end in the late case), says where the number came from, and To check → Missing asks only for the missing piece.
 - Document intake (upload and forwarded email) with confirmation before a reading changes money records.
-- Ask: the page `/canvas` (sidebar label Ask; the top bar links to it, voice where the browser supports it). `/api/ask` runs a model of your choice (D56) with tools over the engine (reads and drafts only). A reply is an answer, a clarifying question with choices to tap, or a decline for what is not about your money; code chooses which. An answer can come with a canvas: blocks that each hold a question, never a number, which the engine fills from your records, with "Show the recipe", "Based on" links and Helpful / Not helpful. "What if a client pays two weeks late?" runs the engine on a copy of your numbers and saves nothing. "Pin to Home" keeps a canvas (at most 8) under Home's sentence, drawn by the engine with no model call. The last 200 questions and replies are kept.
+- Ask: the page `/canvas` (sidebar label Ask; the top bar links to it, voice where the browser supports it). `/api/ask` runs a model of your choice (D56) with tools over the engine (reads and drafts only). A reply is an answer, a clarifying question with choices to tap, or a decline for what is not about your money; code chooses which. An answer can come with a canvas: blocks that each hold a question, never a number, which the engine fills from your records, with "Show the recipe", "Based on" links and Helpful / Not helpful. "What if a client pays two weeks late?" runs the engine on a copy of your numbers and saves nothing. "Pin to Home" keeps a canvas (at most 8) under Home's sentence, drawn by the engine with no model call. A bill, receipt or card email can be attached in Ask ("Attach a bill"): the app reads it, asks what is unclear one question at a time, and adds it only when you confirm, then draws your month with it. The last 200 questions and replies are kept.
 - Memory: the page `/memory` lists what the assistant remembers (each item says where it came from), and you can add, edit, delete or Forget everything. The assistant can `remember` and `forget` when you ask; a text with a run of 12 or more digits is refused. A To check card with a corrected name, category, work share or card offers "Also tell the assistant".
 - Your AI model: Settings → Your AI model sets a provider (or any OpenAI-compatible address once signed in), the models and a key; Save and check runs three checks (uses tools, ignores an injected order, stays on money) and shows the host your questions go to. With no model of its own a household uses the server's `AI_` settings.
 - The same tool catalogue and rules serve MCP (the server's `instructions`), except `clarify` and `out_of_scope`, which only the Ask page offers. Each Ask and each MCP call writes one content-free JSON log line to standard output.
@@ -85,13 +85,13 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all twenty-seven suites (listed below)
+npm run db:test      # all twenty-nine suites (listed below)
 npm run schema       # rewrites the five files in schema/ from the zod definitions (db:test fails when one is stale)
 npx tsc --noEmit -p .
 npm run lint
 ```
 
-Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:canvas-test`, `db:conversation-test`, `db:memory-test`, `db:data-test`, `db:cron-test`, `db:sweep-test`, `db:isolation-test`, `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
+Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:checks-test`, `db:canvas-test`, `db:conversation-test`, `db:ask-document-test`, `db:memory-test`, `db:data-test`, `db:cron-test`, `db:sweep-test`, `db:isolation-test`, `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
 
 The model eval calls a real provider, so it is not part of `db:test`: `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` runs the real agent on Ben's fictional household in a throwaway database, reads the key from `EVAL_API_KEY` in `.env.local`, and prints one line per case and the `TESTED` line to add to `src/lib/ai/tested.ts`. Its graders are tested on the fake transport in `db:ai-test`.
 
@@ -117,7 +117,7 @@ src/db/                     schema, household-scoped queries, seeds, rate limits
 src/lib/                    money (the engine), agent, ai, canvas, schema, paypal, mcp, reader, catalogue
 schema/                     the committed JSON Schemas (npm run schema)
 scripts/                    isolated tests and explicit owner-operated checks
-drizzle/                    ordered schema migrations, twenty-three files (0000–0022)
+drizzle/                    ordered schema migrations, twenty-four files (0000–0023)
 worker.ts                   Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
 samples/bills/              fictional sample bills for the reader
 ```

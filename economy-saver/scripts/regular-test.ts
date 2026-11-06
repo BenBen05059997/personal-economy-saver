@@ -115,6 +115,13 @@ async function main() {
     assert.deepEqual(regularCosts(itemsOf(late), "JPY", TODAY).items.map(brief), [["Fictional Net", "same", [0, 5_000, 5_000], 0]]);
   });
 
+  await check("a last payment (D41): the month after it lists nothing for the bill and Regular costs says it stopped", () => {
+    const ended: SpendingInput = { ...kenji, charges: [], bills: [bill({ id: "kawa", biller: "Kawa Gym", amount: 6_000, due: "2026-08-27", category: "health", repeatUnit: "month", repeatDay: 27, repeatUntil: "2026-10-27" })] };
+    assert.deepEqual(itemsOf(ended, "2026-09-01", "2026-11-30").map(i => i.date), ["2026-09-27", "2026-10-27"], "nothing after the last payment");
+    assert.equal(itemsOf(ended, "2026-11-01", "2026-11-30").length, 0);
+    assert.equal(regularCosts(itemsOf(ended), "JPY", TODAY).changedLine, "Kawa Gym stopped");
+  });
+
   await check("a D48 amount change on a repeating bill shows as up in the month it applies, same after; a six-month window and a two-month one", () => {
     const december = regularCosts(itemsOf(kenji, "2026-10-01", "2026-12-31"), "JPY", "2026-12-14");
     assert.deepEqual(brief(december.items.find(c => c.label === "Fictional Heights rent")!), ["Fictional Heights rent", "same", [90_000, 95_000, 95_000], 0]);

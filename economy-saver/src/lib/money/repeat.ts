@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import type { Currency } from "@/lib/catalogue/types";
-import { minorPerUnit } from "./format";
+import { dayLabel, minorPerUnit } from "./format";
 import { estimatedFields, gapEstimate, nameHistory } from "./gaps";
 import type { Bill, CancelNotice, RealBill, RepeatUnit, StoredBill } from "./types";
 
@@ -28,8 +28,9 @@ function monthDay(year: number, month: number, day: number): string {
  * a yearly bill the same month and day of each following year (29 February becomes the 28th in a common year).
  * `repeatDay` is the day of the month for a monthly bill and is not read for a yearly one.
  */
-export function occurrenceDates(due: string, unit: RepeatUnit, repeatDay: number | null, today: string, through: string): string[] {
+export function occurrenceDates(due: string, unit: RepeatUnit, repeatDay: number | null, today: string, through: string, until: string | null = null): string[] {
   const dates: string[] = [];
+  if (until !== null && until < through) through = until; // D41: nothing after the last payment
   const year = Number(due.slice(0, 4));
   const month = Number(due.slice(5, 7));
   if (unit === "month" && repeatDay === null) throw new Error("A monthly bill needs its day of the month");
@@ -54,19 +55,34 @@ export function nextAmountOf(bill: { nextAmount?: number | null; nextAmountMinor
 }
 
 /** The dates a bill falls due on from `from` to `to`, both included: its due date when it is a one-off in range, else every occurrence in range. */
-export function datesIn(bill: { due: string; repeatUnit?: RepeatUnit | null; repeatDay?: number | null }, from: string, to: string): string[] {
+export function datesIn(bill: { due: string; repeatUnit?: RepeatUnit | null; repeatDay?: number | null; repeatUntil?: string | null }, from: string, to: string): string[] {
   if (bill.repeatUnit === undefined || bill.repeatUnit === null) return bill.due >= from && bill.due <= to ? [bill.due] : [];
-  return occurrenceDates(bill.due, bill.repeatUnit, bill.repeatDay ?? null, from, to);
+  return occurrenceDates(bill.due, bill.repeatUnit, bill.repeatDay ?? null, from, to, bill.repeatUntil ?? null);
 }
 
 const bump = (iso: string, days: number) => new Date(Date.parse(iso + "T00:00:00Z") + days * 86_400_000).toISOString().slice(0, 10);
 
 /** The first date after `after` that a stored bill falls due on, or null when it never does (a one-off already past). */
-export function nextOccurrenceAfter(bill: Pick<Bill, "due" | "repeatUnit" | "repeatDay">, after: string): string | null {
+export function nextOccurrenceAfter(bill: Pick<Bill, "due" | "repeatUnit" | "repeatDay" | "repeatUntil">, after: string): string | null {
   if (bill.repeatUnit === undefined) return bill.due > after ? bill.due : null;
   // The series starts at the stored due date; a yearly one has an occurrence within 13 months, a monthly one within 32 days.
   const through = bump(after, bill.repeatUnit === "year" ? 400 : 40);
-  return occurrenceDates(bill.due, bill.repeatUnit, bill.repeatDay ?? null, bump(after, 1), through)[0] ?? null;
+  return occurrenceDates(bill.due, bill.repeatUnit, bill.repeatDay ?? null, bump(after, 1), through, bill.repeatUntil ?? null)[0] ?? null;
+}
+
+/** The last occurrence of a repeating bill on or before its last payment day (D41); never empty, because `repeatUntil >= due`. */
+export function lastPayment(bill: { due: string; repeatUnit: RepeatUnit; repeatDay?: number | null; repeatUntil: string }): string {
+  const dates = occurrenceDates(bill.due, bill.repeatUnit, bill.repeatDay ?? null, bill.due, bill.repeatUntil, bill.repeatUntil);
+  const last = dates[dates.length - 1];
+  if (last === undefined) throw new Error("A last payment is on or after the first due date");
+  return last;
+}
+
+/** "last one Dec 27", or "last one Dec 1, 2027" when the year is not today's; null without a last payment. The one place these words are written. */
+export function lastOneWords(bill: { due: string; repeatUnit?: RepeatUnit | null; repeatDay?: number | null; repeatUntil?: string | null }, today: string): string | null {
+  if (bill.repeatUnit === undefined || bill.repeatUnit === null || bill.repeatUntil === undefined || bill.repeatUntil === null) return null;
+  const last = lastPayment({ due: bill.due, repeatUnit: bill.repeatUnit, repeatDay: bill.repeatDay, repeatUntil: bill.repeatUntil });
+  return `last one ${dayLabel(last)}${last.slice(0, 4) === today.slice(0, 4) ? "" : ", " + last.slice(0, 4)}`;
 }
 
 // ---------------------------------------------------------------- D54: a monthly bill whose amount varies
@@ -91,9 +107,9 @@ export function variesEstimate(real: RealBill[], storedMinor: number, date: stri
  * real bill has no occurrence here; the real bill counts on its own date, once. `unpriced` are the due dates of the series' real
  * bills whose amount is not known (D55): they take their month as the others do but are no part of any estimate.
  */
-export function variesOccurrences(series: { due: string; repeatDay: number | null; storedMinor: number | null }, real: RealBill[], from: string, to: string, unpriced: string[] = []): { date: string; amountMinor: number | null }[] {
+export function variesOccurrences(series: { due: string; repeatDay: number | null; storedMinor: number | null; until?: string | null }, real: RealBill[], from: string, to: string, unpriced: string[] = []): { date: string; amountMinor: number | null }[] {
   const months = new Set([...realMonths(real), ...unpriced.map(due => due.slice(0, 7))]);
-  return occurrenceDates(series.due, "month", series.repeatDay, from, to)
+  return occurrenceDates(series.due, "month", series.repeatDay, from, to, series.until ?? null)
     .filter(date => !months.has(date.slice(0, 7)))
     .map(date => ({ date, amountMinor: series.storedMinor === null ? (gapEstimate(real, date)?.averageMinor ?? null) : variesEstimate(real, series.storedMinor, date) }));
 }
@@ -178,7 +194,7 @@ export function expandBills(bills: StoredBill[], today: string, through: string,
     const series = { startsOn: bill.due, ...(bill.amount === null ? {} : { startAmount: bill.amount }) };
     if (bill.amountVaries) {
       const history = real.get(bill.id) ?? [];
-      return variesOccurrences({ due: bill.due, repeatDay: bill.repeatDay ?? null, storedMinor: bill.amount === null ? null : Math.round(bill.amount * unit) }, history, today, through, unpriced.get(bill.id) ?? [])
+      return variesOccurrences({ due: bill.due, repeatDay: bill.repeatDay ?? null, storedMinor: bill.amount === null ? null : Math.round(bill.amount * unit), until: bill.repeatUntil ?? null }, history, today, through, unpriced.get(bill.id) ?? [])
         .map(({ date, amountMinor }) => {
           const occurrence = { ...bill, id: `${bill.id}@${date}`, due: date, ...series };
           if (bill.amount !== null) return { ...occurrence, amount: amountMinor! / unit, estimated: true as const };
@@ -208,7 +224,7 @@ export function cancelNotices(bills: StoredBill[], today: string, currency?: Cur
   for (const bill of bills) {
     if (bill.status !== "confirmed" || bill.cancelBy === undefined || bill.cancelBy < today || bill.due === null) continue;
     const dated = { ...bill, due: bill.due };
-    const renewsOn = nextOccurrenceAfter(dated, bill.cancelBy);
+    const renewsOn = nextOccurrenceAfter(dated, bill.cancelBy); // null after the last payment (D41): no notice
     if (renewsOn === null) continue;
     const next = nextAmountOf(bill);
     let amount: number | null;

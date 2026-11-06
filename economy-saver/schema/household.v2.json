@@ -638,6 +638,19 @@
             ],
             "description": "Information only: the last day to cancel or change the bill before its next occurrence charges. The app never cancels anything."
           },
+          "repeatUntil": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The last day an occurrence may fall on (the last payment); null or absent = it goes on. Only on a bill that repeats."
+          },
           "amountVaries": {
             "type": "boolean",
             "description": "A monthly bill whose amount changes every month (electricity, water, gas): a month without its real bill is forecast as the average of the last three real bills linked to it (amountMinor when there are none). Absent = false."
@@ -2392,6 +2405,12 @@
                             "q"
                           ],
                           "additionalProperties": false
+                        },
+                        "mark": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80,
+                          "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
                         }
                       },
                       "required": [
@@ -2595,6 +2614,12 @@
                             "q"
                           ],
                           "additionalProperties": false
+                        },
+                        "mark": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80,
+                          "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
                         }
                       },
                       "required": [
@@ -3351,7 +3376,8 @@
             "enum": [
               "answer",
               "clarify",
-              "declined"
+              "declined",
+              "document"
             ]
           },
           "reply": {
@@ -4374,6 +4400,12 @@
                                 "q"
                               ],
                               "additionalProperties": false
+                            },
+                            "mark": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80,
+                              "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
                             }
                           },
                           "required": [
@@ -4577,6 +4609,12 @@
                                 "q"
                               ],
                               "additionalProperties": false
+                            },
+                            "mark": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 80,
+                              "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
                             }
                           },
                           "required": [
@@ -5316,6 +5354,17 @@
               ],
               "additionalProperties": false
             }
+          },
+          "documentId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "thumb": {
             "anyOf": [

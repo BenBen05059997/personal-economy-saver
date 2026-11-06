@@ -34,6 +34,7 @@ import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
 import { memoryTools } from "./memory-tools";
+import { checkTools } from "./check-tools";
 import { splitBalance, splitSummary } from "@/lib/money/split";
 import type { Recipe } from "@/lib/canvas/schema";
 import type { DeviceMemory } from "@/lib/store/memory-ops";
@@ -86,13 +87,14 @@ const categoryField = CategoryKeySchema.nullable().default(null)
 const businessField = BusinessBp.nullable().default(null)
   .describe("The business share in basis points: 0 personal, 10000 business, 3000 for 30% business. null = personal.");
 // D54's "amount varies" is set by the user on the form or in Settings, not by the agent; an agent's one-off still links on confirm.
-const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true }).extend({
+const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, repeatUntil: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true }).extend({
   amount: z.string().trim().nullable().describe("A plain number in the household's home currency (3800 for ¥3,800), or null when the user does not know the amount yet (D55: the app estimates it from earlier bills of the same name and asks the user to fill it in)."),
   due: z.string().date().nullable().describe("YYYY-MM-DD, or null when the user does not know the date yet (it counts as due today until the user fills it in). A bill that repeats, or has cancel_by, needs its date."),
   repeat: RepeatUnitSchema.nullable().default(null).describe("month = every month on the due date's day, year = every year on its month and day, null = a one-off."),
   next_amount: z.string().trim().nullable().default(null).describe("The amount from next_amount_from on, a plain number in the home currency (a price rise); needs repeat. null = unchanged."),
   next_amount_from: z.string().date().nullable().default(null).describe("YYYY-MM-DD, after the due date; the first date the next_amount applies on. null with no next_amount."),
   cancel_by: z.string().date().nullable().default(null).describe("YYYY-MM-DD, before the next time the bill is charged: the last day to cancel or change it. null = none."),
+  repeat_until: z.string().date().nullable().default(null).describe("YYYY-MM-DD: the last time a repeating bill is charged (a gym membership that ends after December: its December due date); null = it goes on. Needs repeat; on or after due."),
   category: categoryField,
   business_bp: businessField,
   shared: z.boolean().nullable().default(null),
@@ -111,7 +113,7 @@ function categoryFor(name: string, given: z.infer<typeof categoryField>): { cate
 
 /** Checks one add_bill item and turns it into what insertBill takes. Throws an InputError the model can read. */
 async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>) {
-  const { shared, paidBy, category: given, business_bp, next_amount, next_amount_from, cancel_by, ...bill } = input;
+  const { shared, paidBy, category: given, business_bp, next_amount, next_amount_from, cancel_by, repeat_until, ...bill } = input;
   let paidByMemberId: string | null = null;
   if (paidBy !== null && !shared) throw new InputError("paidBy names who pays a shared bill; set shared to true");
   if (shared) {
@@ -123,7 +125,7 @@ async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>
   const { category, note } = categoryFor(bill.biller, given);
   return {
     biller: bill.biller, note, status: "pending" as const,
-    bill: { ...bill, amount: bill.amount ?? "", amountUnknown: bill.amount === null, dueUnknown: bill.due === null, category, businessBp: business_bp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by },
+    bill: { ...bill, amount: bill.amount ?? "", amountUnknown: bill.amount === null, dueUnknown: bill.due === null, category, businessBp: business_bp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by, repeatUntil: repeat_until },
   };
 }
 
@@ -246,7 +248,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "household_snapshot", scope: "read", input: z.object({}).strict(),
-    description: `The whole household as one JSON document (schema version 2; this tool gives the record only): household, members (with their shares of shared costs), cards, statements, charges, stored bills (a repeating bill appears once, with repeatUnit, repeatDay for a monthly one, and any nextAmountMinor from nextAmountFrom and cancelBy), clients, invoices, pots, settlements, bank balance updates and document references. Money is integer minor units next to a currency; dates are ISO strings. Use it as context for the household as a whole, to find ids and see what exists. It is not an answer: what the household can spend, what is due and how short it would be come from the engine tools (where_am_i, whats_due, can_i_spend, timeline). Rows with status pending are waiting in To check and count for nothing yet. Each of bills, charges, statements, invoices, balanceUpdates and documents holds at most its ${SNAPSHOT_TOOL_WINDOW} most recent rows, oldest first; truncated says which lists were cut. No audit-trail events and no secrets are included.`,
+    description: `The whole household as one JSON document (schema version 2; this tool gives the record only): household, members (with their shares of shared costs), cards, statements, charges, stored bills (a repeating bill appears once, with repeatUnit, repeatDay for a monthly one, and any nextAmountMinor from nextAmountFrom, cancelBy and repeatUntil, the last payment), clients, invoices, pots, settlements, bank balance updates and document references. Money is integer minor units next to a currency; dates are ISO strings. Use it as context for the household as a whole, to find ids and see what exists. It is not an answer: what the household can spend, what is due and how short it would be come from the engine tools (where_am_i, whats_due, can_i_spend, timeline). Rows with status pending are waiting in To check and count for nothing yet. Each of bills, charges, statements, invoices, balanceUpdates and documents holds at most its ${SNAPSHOT_TOOL_WINDOW} most recent rows, oldest first; truncated says which lists were cut. No audit-trail events and no secrets are included.`,
     run: async ctx => JSON.stringify(await loadHouseholdSnapshot(ctx.db, ctx.householdId, { events: false, recent: SNAPSHOT_TOOL_WINDOW })),
   }),
   defineTool({
@@ -355,7 +357,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bill", scope: "draft", input: addBillInput,
-    description: `Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800), or null when the user does not know it yet. due is YYYY-MM-DD, or null when the user does not know the date yet. A bill with a missing amount or date is saved anyway and shows in open_gaps until it is filled in. memberId is null for a household bill. repeat is "month" when the bill repeats every month on the due date's day (rent, phone, a subscription), "year" when it repeats every year on the due date's month and day (insurance, a domain, an annual plan), null for a one-off; it only starts repeating once the user confirms it. next_amount with next_amount_from says the amount changes from that date (a rent increase, a price rise; needs repeat, and the date is after the due date). cancel_by is the last day to cancel before the bill is charged again: the app shows it as a dated reminder and never cancels anything; it must be before the next time the bill is charged. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the name and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
+    description: `Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800), or null when the user does not know it yet. due is YYYY-MM-DD, or null when the user does not know the date yet. A bill with a missing amount or date is saved anyway and shows in open_gaps until it is filled in. memberId is null for a household bill. repeat is "month" when the bill repeats every month on the due date's day (rent, phone, a subscription), "year" when it repeats every year on the due date's month and day (insurance, a domain, an annual plan), null for a one-off; it only starts repeating once the user confirms it. next_amount with next_amount_from says the amount changes from that date (a rent increase, a price rise; needs repeat, and the date is after the due date). cancel_by is the last day to cancel before the bill is charged again: the app shows it as a dated reminder and never cancels anything; it must be before the next time the bill is charged. repeat_until is the last day a repeating bill may be charged (a gym that ends after December: its December due date); nothing after it counts; null = it goes on. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the name and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
     run: async (ctx, input) => {
       const { bill, status, biller, note } = await prepareBill(ctx, input);
       await insertBill(ctx.db, ctx.householdId, bill, status, by(ctx));
@@ -419,6 +421,7 @@ export const tools: Tool[] = [
     },
   }),
   ...canvasTools,
+  ...checkTools,
   ...memoryTools,
 ];
 

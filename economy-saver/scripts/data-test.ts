@@ -186,7 +186,7 @@ async function main() {
     await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Internet", amountMinor: 5000, currency: "JPY", due: "2026-12-10", category: "utilities", memberId: null, paidByMemberId: partner.id });
     await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Partner Phone", amountMinor: 3000, currency: "JPY", due: "2026-12-11", category: "utilities", memberId: partner.id });
     await db.insert(schema.settlements).values({ householdId: a, fromMemberId: partner.id, toMemberId: aOwner.id, amountMinor: 1200, currency: "JPY", through: "2026-10-31" });
-    const [varies] = await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Power", amountMinor: 9000, currency: "JPY", due: "2026-12-15", category: "utilities", repeatUnit: "month", repeatDay: 15, amountVaries: true }).returning();
+    const [varies] = await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Power", amountMinor: 9000, currency: "JPY", due: "2026-12-15", category: "utilities", repeatUnit: "month", repeatDay: 15, repeatUntil: "2027-06-15", amountVaries: true }).returning();
     await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Power Nov", amountMinor: 9400, currency: "JPY", due: "2026-11-15", category: "utilities", seriesBillId: varies.id });
     await addMemory(db, a, { kind: "fact", text: "Rent goes up in April" }, form);
     await addMemory(db, a, { kind: "goal", text: "¥300,000 for a trip in March" }, { madeBy: "ask", askId: randomUUID() });
@@ -257,6 +257,7 @@ async function main() {
       assert.ok(back.bills.every(x => (x.memberId === null || memberIds.has(x.memberId)) && (x.paidByMemberId === null || memberIds.has(x.paidByMemberId)) && (!x.seriesBillId || billIds.has(x.seriesBillId))));
       assert.ok(back.settlements.every(x => memberIds.has(x.fromMemberId) && memberIds.has(x.toMemberId)));
       assert.equal(back.bills.find(x => x.biller === "Fictional Power Nov")!.seriesBillId, back.bills.find(x => x.biller === "Fictional Power")!.id, "the amount-varies link survived");
+      assert.equal(back.bills.find(x => x.biller === "Fictional Power")!.repeatUntil, "2027-06-15", "the last payment survived Import (D41)");
       assert.equal(back.settlements[0].toMemberId, c.owner);
       const slidersPin = back.canvases!.find(p => p.title === "Sliders")!;
       const sliderClient = (slidersPin.recipe.blocks[0] as { controls: { clientId: string }[] }).controls[0].clientId;

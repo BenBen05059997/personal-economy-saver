@@ -1,6 +1,6 @@
 import { lockRunway, observeRunway } from "./runway-events";
 import { and, desc, eq, lte, sql } from "drizzle-orm";
-import { type Db, recordEvent, requireHousehold } from "./household";
+import { type Db, loadMoneyState, recordEvent, requireHousehold } from "./household";
 import { bills, cards, charges, documents, fxRates, households, readings, rules } from "./schema";
 import { checkSchedule, linkToSeries, repeatDayFor } from "./bills";
 import { clockForHousehold } from "./clock";
@@ -12,6 +12,8 @@ import { syncClosedStatementCharge } from "./statement-charge";
 import { normalise } from "@/lib/money/name-key";
 import { correctionText } from "@/lib/reader/correction";
 import { addMemory } from "./memory";
+import { checksFor, readingProposal, type CheckKind } from "@/lib/money/checks";
+import { DOCUMENT_WORDS } from "@/lib/reader/document-card";
 
 const ruleKey = (entry: Extracted) => entry.name ? entry.kind + ":" + normalise(entry.name) : null;
 const patchSchema = extractSchema.pick({ name: true, kind: true, category: true, businessBp: true, cardId: true }).partial();
@@ -38,8 +40,9 @@ export async function proposeReadings(db: Db, id: string, documentId: string, it
  * Confirms a reading with the fields as the user corrected them, or dismisses it (`fields` null). A bill (never a charge) may be
  * confirmed with its amount and/or its date not known yet (D55) when the caller says so in `unknown`; those fields are then null.
  * With `remember` (the card's ticked box, D58) a changed name, category, share or card is also kept as a correction in memory, in the same transaction.
+ * With `answered` (D61, a Confirm from Ask) a check the card asked, which still fails on the final fields, must be among the kinds answered or the confirm is refused.
  */
-export async function reviewReading(db: Db, id: string, readingId: string, fields: Extracted | null, unknown: { amount?: boolean; date?: boolean } = {}, remember = false) {
+export async function reviewReading(db: Db, id: string, readingId: string, fields: Extracted | null, unknown: { amount?: boolean; date?: boolean } = {}, remember = false, answered?: readonly CheckKind[]) {
   const hid = requireHousehold(id);
   return db.transaction(async tx => {
     const previous = await lockRunway(tx, hid);
@@ -62,8 +65,17 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     if ((amountUnknown && amountMinor !== null) || (dateUnknown && date !== null)) throw new ReaderError("Leave the amount or the date empty when it is not known yet.");
     if (!name || (!date && !dateUnknown) || (!amountMinor && !amountUnknown) || (!currency && !amountUnknown)) throw new ReaderError("Enter the name, amount, currency and date.");
     if (amountUnknown && (value.repeat !== null || value.nextAmountMinor !== null)) throw new ReaderError("A bill that repeats needs its amount.");
-    if (dateUnknown && (value.repeat !== null || value.cancelBy !== null)) throw new ReaderError("A bill that repeats or has a last day to cancel needs its due date.");
+    if (dateUnknown && (value.repeat !== null || value.cancelBy !== null || value.repeatUntil !== null)) throw new ReaderError("A bill that repeats or has a last day to cancel needs its due date.");
     const { today } = clockForHousehold(row);
+    if (answered !== undefined) {
+      const state = await loadMoneyState(tx, hid, today);
+      const waiting = (await tx.select({ id: readings.id, data: readings.extracted }).from(readings).where(and(eq(readings.householdId, hid), eq(readings.status, "to_check"))))
+        .map(other => readingProposal({ id: other.id, value: extractSchema.parse((other.data as { proposed: unknown }).proposed) }));
+      const asked = checksFor(readingProposal({ id: readingId, value: extractSchema.parse((row.data as { proposed: unknown }).proposed) }), state, waiting).map(check => check.kind);
+      const final = { ...value, amountMinor: amountUnknown ? null : amountMinor, date: dateUnknown ? null : date };
+      const open = checksFor(readingProposal({ id: readingId, value: final }), state, waiting).find(check => asked.includes(check.kind) && !answered.includes(check.kind));
+      if (open) throw new ReaderError(DOCUMENT_WORDS.answerFirst(open.words));
+    }
     let amount: number | null = amountMinor, fx: number | null = null;
     if (amountMinor !== null && currency !== null && currency !== row.currency) {
       const [rate] = await tx.select().from(fxRates).where(and(eq(fxRates.householdId, hid), eq(fxRates.base, "USD"), eq(fxRates.quote, "JPY"), lte(fxRates.date, date ?? today)))
@@ -91,11 +103,11 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     } else {
       // D48: the schedule is checked like a typed-in bill; the new amount converts at the same rate as the amount.
       const nextAmountMinor = value.nextAmountMinor === null ? null : fx === null || currency === null ? value.nextAmountMinor : convertMinor(value.nextAmountMinor, currency, row.currency, fromRateMicro(fx));
-      try { if (date) checkSchedule(date, today, { repeat: value.repeat, nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy, amountVaries: false }); }
+      try { if (date) checkSchedule(date, today, { repeat: value.repeat, nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy, amountVaries: false, repeatUntil: value.repeatUntil }); }
       catch (error) { throw error instanceof InputError ? new ReaderError(error.message) : error; }
       const [bill] = await tx.insert(bills).values({
         ...amounts, ...category, due: date, biller: name, status: "confirmed", repeatUnit: value.repeat, repeatDay: date ? repeatDayFor(date, value.repeat) : null,
-        nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy,
+        nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy, repeatUntil: value.repeatUntil,
       }).returning({ id: bills.id });
       targetId = bill.id;
       linked = await linkToSeries(tx, hid, bill.id); // D54: a one-off joins its amount-varies series, as on the form
@@ -117,7 +129,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
       try { if (line) await addMemory(tx, hid, { text: line, kind: CORRECTION }, { madeBy: "form" }); }
       catch (error) { throw error instanceof InputError ? new ReaderError(error.message + " Untick “Also tell the assistant” to confirm without it.") : error; }
     }
-    await tx.update(readings).set({ status: "confirmed", confirmedAt: new Date(), target: value.kind, extracted: { original, proposed, confirmed: value } })
+    await tx.update(readings).set({ status: "confirmed", confirmedAt: new Date(), target: value.kind, extracted: { original, proposed, confirmed: value, targetId } })
       .where(and(eq(readings.householdId, hid), eq(readings.id, readingId)));
     await recordEvent(tx, hid, { madeBy: "reader", kind: value.kind + "_confirmed", title: name + " confirmed", ref: { type: value.kind, id: targetId }, ...(linked && { body: linked }),
       ...(amount !== null && { amount: { value: fromMinor(amount, row.currency), currency: row.currency } }) });

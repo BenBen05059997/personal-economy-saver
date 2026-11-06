@@ -43,7 +43,7 @@ const state2 = (over: Partial<SplitState> = {}): SplitState => ({
   settledAt: over.settledAt !== undefined ? over.settledAt : over.settledThrough ? LATER : null, // a settlement is after the items made before it
 });
 const bill = (over: Partial<SplitState["bills"][number]> = {}) =>
-  ({ id: "b", biller: "Rent", amountMinor: 80_000, due: "2026-10-27", repeatUnit: null, repeatDay: null, nextAmountMinor: null, nextAmountFrom: null, paidBy: "ben", createdAt: CREATED, ...over });
+  ({ id: "b", biller: "Rent", amountMinor: 80_000, due: "2026-10-27", repeatUnit: null, repeatDay: null, repeatUntil: null, nextAmountMinor: null, nextAmountFrom: null, paidBy: "ben", createdAt: CREATED, ...over });
 const charge = (over: Partial<SplitState["charges"][number]> = {}) =>
   ({ id: "c", merchant: "Market", amountMinor: 5_000, date: "2026-11-05", paidBy: "aki", createdAt: CREATED, ...over });
 const net = (state: SplitState, today = TODAY) => Object.fromEntries(splitBalance(state, today).members.map(m => [m.id, m.netMinor]));
@@ -134,6 +134,8 @@ async function main() {
       assert.equal(net(state2({ ...settled, bills: [after] })).ben, 2_000, "made after settling, dated that day: counts (Ben paid 5,000 and owes 3,000)");
       assert.equal(splitBalance(state2({ ...settled, bills: [before, after] }), TODAY).items, 1);
       assert.equal(splitBalance(state2({ ...settled, charges: [charge({ date: "2026-11-10", createdAt: "2026-11-10T10:00:00.000Z" }), charge({ date: "2026-11-10", createdAt: "2026-11-10T08:00:00.000Z" }), charge({ date: "2026-11-09", createdAt: "2026-11-10T10:00:00.000Z" })] }), TODAY).items, 1, "a charge dated before the settlement day is settled whenever it was made");
+      const gymEnds = bill({ amountMinor: 6_000, due: "2026-09-10", repeatUnit: "month", repeatDay: 10, repeatUntil: "2026-10-10", createdAt: "2026-09-01T00:00:00.000Z" });
+      assert.equal(splitBalance(state2({ since: "2026-09-01", bills: [gymEnds] }), "2026-12-10").items, 2, "D41: a shared monthly bill splits nothing after its last payment");
       const monthly = (createdAt: string) => bill({ amountMinor: 80_000, due: "2026-09-10", repeatUnit: "month", repeatDay: 10, createdAt });
       assert.equal(splitBalance(state2({ since: "2026-09-01", ...settled, bills: [monthly("2026-11-10T08:00:00.000Z")] }), TODAY).items, 0, "the Nov 10 occurrence of a bill made before settling is settled");
       assert.equal(splitBalance(state2({ since: "2026-09-01", ...settled, bills: [monthly("2026-11-10T10:00:00.000Z")] }), TODAY).items, 1, "...and counts when the bill row was made after; Sep 10 and Oct 10 are settled either way");
@@ -158,7 +160,7 @@ async function main() {
       assert.equal(splitBalance(state2({ since: "2024-01-01", bills: [cover] }), "2026-11-14").items, 3, "Feb 29 2024, Feb 28 2025, Feb 28 2026");
       assert.equal(splitBalance(state2({ since: "2024-01-01", bills: [cover] }), "2025-02-27").items, 1, "Feb 28 2025 has not come");
       assert.equal(splitBalance(state2({ since: "2025-06-01", bills: [cover] }), "2026-11-14").items, 1, "from the split day: only Feb 28 2026");
-      const rise = bill({ amountMinor: 80_000, due: "2026-08-27", repeatUnit: "month", repeatDay: 27, nextAmountMinor: 90_000, nextAmountFrom: "2026-10-01" });
+      const rise = bill({ amountMinor: 80_000, due: "2026-08-27", repeatUnit: "month", repeatDay: 27, repeatUntil: null, nextAmountMinor: 90_000, nextAmountFrom: "2026-10-01" });
       assert.equal(splitBalance(state2({ since: "2026-08-01", bills: [rise] }), TODAY).items, 3, "Aug 27, Sep 27, Oct 27");
       assert.equal(net(state2({ since: "2026-08-01", bills: [rise] })).ben, 100_000, "Ben paid 80,000 + 80,000 + 90,000 = 250,000 and owes 60% of it: 150,000");
     });
@@ -314,9 +316,9 @@ async function main() {
       assert.equal(tool("who_owes_whom").scope, "read");
       assert.deepEqual(Object.keys(tool("who_owes_whom").input.shape), []);
       assert.deepEqual([...(toolInputSchema(tool("add_bill")) as unknown as { required: string[] }).required].sort(),
-        ["amount", "biller", "business_bp", "cancel_by", "category", "due", "id", "memberId", "next_amount", "next_amount_from", "paidBy", "repeat", "shared"]);
+        ["amount", "biller", "business_bp", "cancel_by", "category", "due", "id", "memberId", "next_amount", "next_amount_from", "paidBy", "repeat", "repeat_until", "shared"]);
       assert.ok((toolInputSchema(tool("log_charge")) as unknown as { required: string[] }).required.includes("shared"));
-      assert.equal(tools.filter(t => t.scope === "read").length, 17);
+      assert.equal(tools.filter(t => t.scope === "read").length, 18);
 
       const mine = JSON.parse(await run(a, "who_owes_whom", {}));
       assert.deepEqual([mine.summary, mine.currency, mine.split, mine.transfers.length], ["Aki owes Ben ¥9,000.", "JPY", true, 1]);

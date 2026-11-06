@@ -84,8 +84,8 @@ export async function forgetDeviceMemory(householdId: string, id: string): Promi
 export async function saveDeviceTurn(householdId: string, turn: ConversationTurn): Promise<void> {
   await replaceDevice(householdId, "journal", appendTurn(await listDevice(householdId, "journal"), turn));
 }
-export const deviceRecent = async (householdId: string, conversationId: string, now = new Date()) => recentOf(await listDevice(householdId, "journal"), conversationId, now);
-export const deviceLatest = async (householdId: string, now = new Date()) => latestOf(await listDevice(householdId, "journal"), now);
+export const deviceRecent = async (householdId: string, conversationId: string, now = new Date(), waiting: ReadonlySet<string> = new Set()) => recentOf(await listDevice(householdId, "journal"), conversationId, now, waiting);
+export const deviceLatest = async (householdId: string, now = new Date(), waiting: ReadonlySet<string> = new Set()) => latestOf(await listDevice(householdId, "journal"), now, waiting);
 export async function setDeviceThumb(householdId: string, id: string, thumb: 1 | -1 | null): Promise<boolean> {
   const turns = await listDevice(householdId, "journal");
   if (!turns.some(turn => turn.id === id)) return false;

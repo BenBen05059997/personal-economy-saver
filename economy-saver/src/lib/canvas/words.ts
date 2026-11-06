@@ -34,8 +34,8 @@ export function blockWords(block: Block): string {
   switch (block.type) {
     case "sentence": return `Sentence: ${queryWords(block.query)}`;
     case "number": return `Number "${block.label}": ${queryWords(block.query)}`;
-    case "flow_chart": return `Chart: ${queryWords(block.query)}`;
-    case "timeline": return `Timeline: ${queryWords(block.query)}`;
+    case "flow_chart": return `Chart: ${queryWords(block.query)}${block.mark ? ", one bill marked" : ""}`;
+    case "timeline": return `Timeline: ${queryWords(block.query)}${block.mark ? ", one bill marked" : ""}`;
     case "table": return `Table${block.title ? ` "${block.title}"` : ""}: ${queryWords(block.query)}`;
     case "compare": return `Comparison: ${queryWords(block.query)}`;
     case "progress": return `Progress "${block.label}": ${queryWords(block.query)}, against the target you set`;

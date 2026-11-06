@@ -162,6 +162,13 @@
       "when": 1793946403934,
       "tag": "0022_parallel_princess_powerful",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793969597587,
+      "tag": "0023_cuddly_gertrude_yorkes",
+      "breakpoints": true
     }
   ]
 }

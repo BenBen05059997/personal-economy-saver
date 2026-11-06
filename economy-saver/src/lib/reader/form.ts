@@ -38,7 +38,8 @@ export function readingForm(form: FormData) {
   }
   const result = extractSchema.safeParse({ kind: form.get("target"), name: form.get("name"), date: unknown.date ? null : form.get("date"),
     amountMinor, currency, category: form.get("category") || null, businessBp, cardId: form.get("cardId") || null,
-    repeat: isBill ? form.get("repeat") || null : null, nextAmountMinor, nextAmountFrom: isBill ? form.get("nextAmountFrom") || null : null, cancelBy: isBill ? form.get("cancelBy") || null : null });
+    repeat: isBill ? form.get("repeat") || null : null, nextAmountMinor, nextAmountFrom: isBill ? form.get("nextAmountFrom") || null : null, cancelBy: isBill ? form.get("cancelBy") || null : null,
+    repeatUntil: isBill && form.get("repeat") ? form.get("repeatUntil") || null : null });
   if (!result.success) throw new ReaderError(result.error.issues.some(issue => issue.path[0] === "category") ? "Choose a category from the list." : "Check the reading fields and enter a valid date and amount.");
   return result.data;
 }

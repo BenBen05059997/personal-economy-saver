@@ -189,14 +189,14 @@ async function test() {
     console.log("✓ Missing model fails clearly; retry uses one more reserved AI call");
 
     const plan = (await readerInbox(db, a)).readings[0];
-    assert.deepEqual([plan.value.repeat, plan.value.nextAmountMinor, plan.value.nextAmountFrom, plan.value.cancelBy], [null, null, null, null], "the reader never proposes a repeat, a new amount or a cancel-by date");
-    for (const [change, message] of [[{ cancelBy: "2026-12-02" }, /before the bill is next charged on Dec 1/], [{ nextAmountMinor: 13_000 }, /together with the date/], [{ nextAmountFrom: "2027-12-01" }, /together with the date/], [{ repeat: null, nextAmountMinor: 13_000, nextAmountFrom: "2027-12-01" }, /needs a bill that repeats/]] as const) {
-      await assert.rejects(reviewReading(db, a, plan.id, { ...plan.value, repeat: "year", ...change }), message);
+    assert.deepEqual([plan.value.repeat, plan.value.nextAmountMinor, plan.value.nextAmountFrom, plan.value.cancelBy, plan.value.repeatUntil], [null, null, null, null, null], "the reader never proposes a repeat, a new amount, a cancel-by date or a last payment");
+    for (const [change, message] of [[{ repeat: null, repeatUntil: "2027-12-01" }, /A last payment needs a bill that repeats: choose Every month or Every year/], [{ repeatUntil: "2026-11-30" }, /The last payment must be on or after the first due date/], [{ cancelBy: "2026-12-02" }, /before the bill is next charged on Dec 1/], [{ nextAmountMinor: 13_000 }, /together with the date/], [{ nextAmountFrom: "2027-12-01" }, /together with the date/], [{ repeat: null, nextAmountMinor: 13_000, nextAmountFrom: "2027-12-01" }, /needs a bill that repeats/]] as const) {
+      await assert.rejects(reviewReading(db, a, plan.id, { ...plan.value, repeat: "year", ...(change as object) }), message);
     }
     assert.equal((await readerInbox(db, a)).readings.some(r => r.id === plan.id), true, "a refused review leaves the reading in To check");
-    assert.equal(await reviewReading(db, a, plan.id, { ...plan.value, repeat: "year", nextAmountMinor: 13_000, nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20" }), true);
+    assert.equal(await reviewReading(db, a, plan.id, { ...plan.value, repeat: "year", nextAmountMinor: 13_000, nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20", repeatUntil: "2028-06-01" }), true);
     const [planRow] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.documentId, retry)));
-    assert.deepEqual([planRow.status, planRow.repeatUnit, planRow.repeatDay, planRow.amountMinor, planRow.nextAmountMinor, planRow.nextAmountFrom, planRow.cancelBy], ["confirmed", "year", null, 12_000, 13_000, "2027-12-01", "2026-11-20"]);
+    assert.deepEqual([planRow.status, planRow.repeatUnit, planRow.repeatDay, planRow.amountMinor, planRow.nextAmountMinor, planRow.nextAmountFrom, planRow.cancelBy, planRow.repeatUntil], ["confirmed", "year", null, 12_000, 13_000, "2027-12-01", "2026-11-20", "2028-06-01"]);
     assert.deepEqual((await loadMoneyState(db, a, "2026-11-14")).cancelNotices.map(n => [n.biller, n.renewsOn, n.amount]), [["Fictional Cloud", "2026-12-01", 12_000]]);
     console.log("✓ The review card's repeat, new amount and cancel-by date are checked like a typed-in bill and stored with the confirmed bill");
 

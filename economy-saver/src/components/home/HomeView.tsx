@@ -10,7 +10,7 @@ import { fundingOptions } from "@/lib/money/options";
 import { potSummary } from "@/lib/money/plan";
 import { toCheck } from "@/lib/money/to-check";
 import { splitBalance, transferLine } from "@/lib/money/split";
-import { datesIn } from "@/lib/money/repeat";
+import { datesIn, lastOneWords } from "@/lib/money/repeat";
 import { ADD_BILL, ADD_CHARGE, SETTINGS_CARDS, SETTINGS_PEOPLE, hrefFor } from "@/lib/links";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { BankBalance } from "./BankBalance";
@@ -193,7 +193,7 @@ function ComingUp({ state, people, entryIds, added, addedId }: Props & { people:
   const usual = timeline(state, "expected");
   const late = series(state, "worst");
   const incoming = new Map(arrivals(state).map((item) => [`${item.invoiceId}-expected`, item]));
-  const repeats = new Map(state.bills.filter((bill) => bill.repeatUnit !== undefined).map((bill) => [bill.id, bill.repeatUnit === "year" ? "Yearly" : repeatWords("month")])); // an event's id is its bill's id
+  const repeats = new Map(state.bills.filter((bill) => bill.repeatUnit !== undefined).map((bill) => [bill.id, [bill.repeatUnit === "year" ? "Yearly" : repeatWords("month"), lastOneWords({ ...bill, due: bill.startsOn ?? bill.due }, state.today)].filter(Boolean).join(" · ")])); // an event's id is its bill's id
   // A short day says "Short by …" once, on its last row that can carry it (not a client's payment, not a pending bill).
   const canCarry = (event: (typeof usual)[number]) => !incoming.has(event.id) && !event.pending && late[daysBetween(state.today, event.date)] < 0;
   const carries = usual.map((event, index) => canCarry(event) && !usual.slice(index + 1).some((later) => later.date === event.date && canCarry(later)));
