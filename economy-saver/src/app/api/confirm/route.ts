@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const decision = form.get("decision");
     if (decision !== "confirm" && decision !== "reject") return new Response("Invalid decision", { status: 400 });
     try {
-      await reviewReading(db(), hid, id.data, decision === "reject" ? null : readingForm(form), decision === "reject" ? {} : readingUnknown(form));
+      await reviewReading(db(), hid, id.data, decision === "reject" ? null : readingForm(form), decision === "reject" ? {} : readingUnknown(form), decision === "confirm" && form.get("remember") === "on");
     } catch (error) {
       if (error instanceof ReaderError || error instanceof StatementChargeError) return new Response(error.message, { status: 400 });
       return new Response("Reading could not be saved. Try again.", { status: 503 });

@@ -1,0 +1,6 @@
+/* The Ask bar in the top bar is a link to the Ask page, styled like the button it replaces. */
+.shell-bar a.shell-ask {
+  display: inline-flex; align-items: center; gap: 10px; flex: 1; min-width: 0; height: 36px; padding: 0 12px;
+  border: 1px solid var(--rule); border-radius: var(--radius-control); background: var(--wash); color: var(--muted); text-decoration: none;
+}
+a.shell-phone-ask { text-decoration: none; }

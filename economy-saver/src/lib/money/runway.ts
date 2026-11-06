@@ -192,9 +192,10 @@ export function project(state: MoneyState, invoice: Invoice, sentOn: string = in
   const history = client?.daysToPay ?? [];
   const tomorrow = addDays(state.today, 1);
   const later = (iso: string) => (iso < tomorrow ? tomorrow : iso);
-  const fallback = invoice.dueOn ?? addDays(sentOn, client?.termsDays ?? 0);
-  const expectedOn = later(history.length ? addDays(sentOn, medianLow(history)) : fallback);
-  const worstOn = later(history.length ? addDays(sentOn, Math.max(...history)) : fallback);
+  const extra = client?.lateDays ?? 0; // D57: a what-if's "this client pays N days late"; 0 (a no-op) in every real state
+  const fallback = addDays(invoice.dueOn ?? addDays(sentOn, client?.termsDays ?? 0), extra);
+  const expectedOn = later(history.length ? addDays(sentOn, medianLow(history) + extra) : fallback);
+  const worstOn = later(history.length ? addDays(sentOn, Math.max(...history) + extra) : fallback);
   return {
     invoiceId: invoice.id,
     clientId: invoice.clientId,

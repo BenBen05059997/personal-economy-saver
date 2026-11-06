@@ -17,6 +17,8 @@ import { BankBalance } from "./BankBalance";
 import { RunwayChart } from "./RunwayChart";
 import { homeSentence } from "@/lib/money/sentence";
 import { paceLine } from "@/lib/money/pace";
+import { Suspense } from "react";
+import { Pinned } from "./Pinned";
 import { Sentence } from "./Sentence";
 import { cardSummary } from "./card-summary";
 import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
@@ -284,6 +286,7 @@ export function HomeView({ state, inbox, notice, people, entryIds, balanceId, de
     {demo && tryIt && <p className="home-demo">A fictional household that lives in this browser for seven days after your last change. <Link prefetch={false} href="/start">Start with my numbers ›</Link></p>}
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} forwarding={forwarding} />
+    <Suspense fallback={null}><Pinned state={state} /></Suspense>
     <div className="home-panels">
       <div className="home-column"><Next30Days state={state} balanceId={balanceId} /><Cards state={state} /><SharedCosts state={state} /></div>
       <div className="home-column"><FirstSteps state={state} tryIt={tryIt} /><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><ComingUp state={state} people={people} entryIds={entryIds} added={addedLine(state, added)} addedId={added} /></div>

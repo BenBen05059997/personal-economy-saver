@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { requireHousehold, recordEvent, type Db } from "./household";
 import { householdClock } from "./account";
-import { AiKeyError, aiKey } from "./ai-key";
+import { AiKeyError, aiConnection } from "./ai-key";
 import { consumeRequest } from "./rate-limit";
 import { cards, documents, households } from "./schema";
 import { proposeReadings } from "./readings";
@@ -80,7 +80,7 @@ export async function readDocument(db: Db, id: string, documentId: string, retry
       db.select({ id: cards.id, label: cards.label }).from(cards).where(eq(cards.householdId, hid)),
     ]);
     const items = await extractDocument(await data.arrayBuffer(), doc.mime,
-      { today: clock.today, currency: household[0].currency, cards: knownCards }, () => aiKey(db, hid));
+      { today: clock.today, currency: household[0].currency, cards: knownCards }, need => aiConnection(db, hid, need));
     await db.transaction(async tx => {
       await lockHousehold(tx, hid);
       const completed = await tx.update(documents).set({ status: "read" }).where(claim).returning({ id: documents.id });

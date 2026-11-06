@@ -8,17 +8,22 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq, inArray } from "drizzle-orm";
 import * as schema from "@/db/schema";
-import { aiKey, AiKeyError } from "@/db/ai-key";
+import { aiConnection, AiKeyError } from "@/db/ai-key";
 import { householdDate } from "@/db/account";
 import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { AgentError, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { dueAnswer, statusAnswer } from "@/lib/money/ask";
-import { addDays, medianLow } from "@/lib/money/runway";
+import { addDays, low, medianLow, safeToSpend, series } from "@/lib/money/runway";
 import { createHousehold, setupForm } from "@/db/account";
 import { billInput, insertBill } from "@/db/bills";
 import { MODEL_RULES } from "@/lib/agent/rules";
+import { answerQuestion, askInput } from "@/db/ask";
+import { whatIf } from "@/lib/money/whatif";
+import { homeSentence } from "@/lib/money/sentence";
+import { minorPerUnit } from "@/lib/money/format";
+import { FIXED } from "@/lib/agent/reply";
 import { savePot } from "@/db/pots";
 import { addMember } from "@/db/people";
 import { planFor, planLine } from "@/lib/money/plan";
@@ -53,21 +58,51 @@ type Body = { model: string; max_tokens: number; system: string; tool_choice: un
 const toolResults = (body: Body) => (body.messages.at(-1)!.content as Block[]).filter(b => b.type === "tool_result") as
   { tool_use_id: string; content: string; is_error?: boolean }[];
 
+// The OpenAI-compatible protocol (D56): Chat Completions, with a household-chosen address.
+const OPENAI_HOST = "llm.example", OPENAI_BASE = "https://llm.example/v1", OPENAI_KEY = "fictional-openai-key-" + "b".repeat(20);
+type ChatBody = { model: string; max_tokens?: number; max_completion_tokens?: number; tool_choice?: unknown;
+  tools?: { type: string; function: { name: string; description: string; parameters: Record<string, unknown> } }[];
+  messages: { role: string; content?: string | Block[] | null; tool_calls?: { id: string; type: string; function: { name: string; arguments: string } }[]; tool_call_id?: string }[] };
+const chatCall = (id: string, name: string, args: unknown) => ({ id, type: "function", function: { name, arguments: typeof args === "string" ? args : JSON.stringify(args) } });
+const chat = (finish_reason: string, content: string | null, tool_calls?: unknown[]) => Response.json({
+  id: "chatcmpl-fixture", object: "chat.completion", created: 1, model: "fixture-text",
+  choices: [{ index: 0, finish_reason, message: { role: "assistant", content, ...(tool_calls && { tool_calls }) } }],
+  usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+});
+function chatTransport(script: ((bodies: ChatBody[]) => Response)[] | ((bodies: ChatBody[]) => Response)) {
+  const bodies: ChatBody[] = [];
+  const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const request = new Request(input, init);
+    assert.equal(new URL(request.url).host, OPENAI_HOST);
+    assert.equal(new URL(request.url).pathname, "/v1/chat/completions");
+    assert.equal(request.method, "POST");
+    assert.equal(request.headers.get("authorization"), "Bearer " + OPENAI_KEY);
+    bodies.push(await request.json());
+    const next = Array.isArray(script) ? script[bodies.length - 1] : script;
+    assert.ok(next, "unexpected extra model call");
+    return next(bodies);
+  }) as typeof globalThis.fetch;
+  return { fetch, bodies };
+}
+const toolMessages = (body: ChatBody) => body.messages.filter(m => m.role === "tool") as { tool_call_id: string; content: string }[];
+
+const AI_NAMES = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_TEXT_MODEL"];
 const KEY = "sk-ant-fictional-" + "a".repeat(40);
 const APP = new URL("http://127.0.0.1:3123");
 
 async function main() {
   const pg = new PGlite();
   const db = drizzle(pg, { schema });
-  const saved = { key: process.env.ANTHROPIC_API_KEY, limit: process.env.ANTHROPIC_DAILY_READ_LIMIT, model: process.env.ANTHROPIC_TEXT_MODEL };
+  const saved = Object.fromEntries(AI_NAMES.map(name => [name, process.env[name]]));
   let passed = 0;
   const realInfo = console.info;
   async function check(name: string, run: () => Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });
-    process.env.ANTHROPIC_API_KEY = KEY;
-    process.env.ANTHROPIC_DAILY_READ_LIMIT = "500";
-    process.env.ANTHROPIC_TEXT_MODEL = "fixture-text";
+    process.env.AI_PROTOCOL = "anthropic";
+    process.env.AI_API_KEY = KEY;
+    process.env.AI_DAILY_LIMIT = "500";
+    process.env.AI_TEXT_MODEL = "fixture-text";
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     await db.update(schema.clients).set({ name: "ZZ Secret Client" }).where(eq(schema.clients.householdId, b));
     const stateOf = async (hid: string) => loadMoneyState(db, hid, await householdDate(db, hid));
@@ -77,7 +112,7 @@ async function main() {
     const logged: Record<string, unknown>[] = [];
     console.info = (...args: unknown[]) => { const first = String(args[0]); if (first.startsWith('{"at":')) logged.push(JSON.parse(first)); else realInfo(...args); };
     const ask = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { now?: () => number; source?: "voice" | "manual"; askId?: string } = {}) =>
-      runAgent({ db, householdId: hid, question, askId: extra.askId ?? crypto.randomUUID(), appUrl: APP, key: () => aiKey(db, hid), fetch, ...extra });
+      runAgent({ db, householdId: hid, question, askId: extra.askId ?? crypto.randomUUID(), appUrl: APP, connection: () => aiConnection(db, hid, "text"), fetch, ...extra });
 
     await check("a question runs a tool, feeds the engine's own answer back and reserves one allowance unit per model call", async () => {
       const { fetch, bodies } = transport([
@@ -86,7 +121,7 @@ async function main() {
       ]);
       const before = await reads(a);
       const result = await ask(a, "What's due?", fetch);
-      assert.deepEqual(result, { answer: "Rent is due soon and covered.", links: [], pending: false });
+      assert.deepEqual(result, { kind: "answer", answer: "Rent is due soon and covered.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false });
       assert.equal(await reads(a), before + 2);
       assert.equal(bodies.length, 2);
       const [first, second] = bodies;
@@ -225,19 +260,19 @@ async function main() {
       const unauthorised = transport(() => Response.json({ type: "error", error: { type: "authentication_error", message: KEY } }, { status: 401 }));
       await assert.rejects(ask(a, "x", unauthorised.fetch), (error: Error) => error instanceof AgentError && !error.message.includes("sk-ant") && /not accepted/.test(error.message));
       assert.equal(unauthorised.bodies.length, 1, "no retry");
-      process.env.ANTHROPIC_DAILY_READ_LIMIT = "1";
+      process.env.AI_DAILY_LIMIT = "1";
       const d = await seedBen(db, { isDemo: true });
       const { fetch } = transport([() => reply("tool_use", [toolUse("q", "where_am_i", {})]), () => reply("end_turn", [text("never")])]);
       await assert.rejects(ask(d, "x", fetch), AiKeyError);
-      process.env.ANTHROPIC_DAILY_READ_LIMIT = "500";
+      process.env.AI_DAILY_LIMIT = "500";
     });
 
     await check("a missing model setting stops before any allowance is reserved", async () => {
-      delete process.env.ANTHROPIC_TEXT_MODEL;
+      delete process.env.AI_TEXT_MODEL;
       const before = await reads(a);
-      await assert.rejects(ask(a, "x", transport(() => reply("end_turn", [text("no")])).fetch), /ANTHROPIC_TEXT_MODEL is not set/);
+      await assert.rejects(ask(a, "x", transport(() => reply("end_turn", [text("no")])).fetch), /AI_TEXT_MODEL is not set/);
       assert.equal(await reads(a), before);
-      process.env.ANTHROPIC_TEXT_MODEL = "fixture-text";
+      process.env.AI_TEXT_MODEL = "fixture-text";
     });
 
     await check("draft_invoice saves a draft in the asking household only and the answer carries the review link", async () => {
@@ -348,7 +383,7 @@ async function main() {
         () => reply("end_turn", [text("It takes about ¥300,000 a month.")]),
       ]);
       const asked = await ask(a, "Can I save ¥1,200,000 for a car by March 2027?", plan.fetch);
-      assert.deepEqual(asked, { answer: "It takes about ¥300,000 a month.", links: [], pending: false });
+      assert.deepEqual(asked, { kind: "answer", answer: "It takes about ¥300,000 a month.", choices: null, recipe: null, sources: [{ label: "Plan", href: "/plan" }], links: [], pending: false });
       const [out] = toolResults(plan.bodies[1]);
       assert.ok(!out.is_error);
       const result = JSON.parse(out.content);
@@ -568,8 +603,9 @@ async function main() {
       await ask(a, question, run.fetch, { askId, source: "manual" });
       assert.equal(logged.length, 1);
       const [line] = logged;
-      assert.deepEqual(Object.keys(line).sort(), ["askId", "at", "householdId", "inputTokens", "ms", "outcome", "outputTokens", "source", "stop", "tools", "turns"]);
-      assert.deepEqual([line.at, line.householdId, line.askId, line.source, line.stop, line.turns, line.outcome, line.inputTokens, line.outputTokens], ["ask", a, askId, "manual", "end_turn", 2, "answer", 2, 2]);
+      assert.deepEqual(Object.keys(line).sort(), ["askId", "at", "canvas", "householdId", "inputTokens", "kind", "ms", "outcome", "outputTokens", "own", "protocol", "source", "stop", "tools", "turns"]);
+      assert.deepEqual([line.kind, line.canvas], ["answer", false]);
+      assert.deepEqual([line.at, line.householdId, line.askId, line.source, line.stop, line.turns, line.outcome, line.inputTokens, line.outputTokens, line.protocol, line.own], ["ask", a, askId, "manual", "end", 2, "answer", 2, 2, "anthropic", false]);
       const lineTools = line.tools as { name: string; ok: boolean; ms: number }[];
       assert.deepEqual(lineTools.map(t => [t.name, t.ok]), [["where_am_i", true], ["can_i_spend", false]]);
       assert.ok(lineTools.every(t => Number.isInteger(t.ms)) && Number.isInteger(line.ms));
@@ -584,7 +620,7 @@ async function main() {
       await assert.rejects(ask(a, question, transport(() => reply("end_turn", [])).fetch));
       await assert.rejects(ask(a, question, transport(() => reply("tool_use", [toolUse("again", "where_am_i", {})])).fetch), AgentError);
       await assert.rejects(ask(a, question, transport(() => Response.json({ type: "error", error: { type: "authentication_error", message: KEY + " provider words" } }, { status: 401 })).fetch));
-      assert.deepEqual(logged.map(l => [l.outcome, l.stop]), [["refusal", "refusal"], ["empty", "end_turn"], ["turns", "tool_use"], ["api_error", "api_error"]]);
+      assert.deepEqual(logged.map(l => [l.outcome, l.stop]), [["refusal", "refusal"], ["empty", "end"], ["turns", "tools"], ["api_error", "api_error"]]);
       assert.equal((logged[2].tools as unknown[]).length, 4);
       for (const l of logged) {
         const text2 = JSON.stringify(l);
@@ -667,10 +703,320 @@ async function main() {
       assert.match(p.summary, /\$1,500/);
     });
 
+
+    // The same Ask code on the other protocol: only the connection and the wire format differ (D56).
+    const onOpenai = async (run: () => Promise<void>) => {
+      process.env.AI_PROTOCOL = "openai"; process.env.AI_BASE_URL = OPENAI_BASE; process.env.AI_API_KEY = OPENAI_KEY;
+      try { await run(); } finally { process.env.AI_PROTOCOL = "anthropic"; process.env.AI_API_KEY = KEY; delete process.env.AI_BASE_URL; }
+    };
+
+    await check("openai protocol: a read answer and a tool round; the request shape, the tool result and the allowance", async () => {
+      await onOpenai(async () => {
+        const read = chatTransport([() => chat("stop", "You are fine.")]);
+        const plain = await ask(a, "Am I fine?", read.fetch);
+        assert.deepEqual([plain.kind, plain.answer], ["declined", FIXED.off_topic], "the model ended with text and used no tool: the fixed sentence, not its words");
+        const [first] = read.bodies;
+        assert.equal(first.model, "fixture-text");
+        assert.equal(first.max_tokens, 16000, "an unlisted address gets max_tokens");
+        assert.equal(first.max_completion_tokens, undefined);
+        assert.equal(first.tool_choice, undefined);
+        assert.deepEqual(first.messages.map(m => m.role), ["system", "user"]);
+        assert.ok(String(first.messages[0].content).includes(aState.today));
+        assert.equal(first.messages[1].content, "Am I fine?");
+        assert.deepEqual(first.tools!.map(t => t.function.name).sort(), tools.map(t => t.name).sort());
+        assert.ok(first.tools!.every(t => t.type === "function" && t.function.parameters.additionalProperties === false));
+
+        const c = await seedBen(db, { isDemo: true }), cState = await stateOf(c);
+        const before = await reads(c);
+        const { fetch, bodies } = chatTransport([
+          () => chat("tool_calls", "Checking.", [chatCall("call_1", "whats_due", {})]),
+          () => chat("stop", "Rent is due soon and covered."),
+        ]);
+        assert.deepEqual(await ask(c, "What's due?", fetch), { kind: "answer", answer: "Rent is due soon and covered.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false });
+        assert.equal(await reads(c), before + 2, "the server default connection reserves one unit per call");
+        const second = bodies[1];
+        assert.deepEqual(second.messages.map(m => m.role), ["system", "user", "assistant", "tool"]);
+        assert.deepEqual(second.messages[2].tool_calls, [chatCall("call_1", "whats_due", {})]);
+        assert.deepEqual(toolMessages(second), [{ role: "tool", tool_call_id: "call_1", content: dueAnswer(cState) }]);
+      });
+    });
+
+    await check("openai protocol: a draft tool, an unknown tool and invalid arguments", async () => {
+      await onOpenai(async () => {
+        const draftId = crypto.randomUUID();
+        const input = { id: draftId, clientId: aState.clients[0].id, item: "Poster layout", amount: "18.52", note: "" };
+        const draft = chatTransport([() => chat("tool_calls", null, [chatCall("d", "draft_invoice", input)]), () => chat("stop", "I drafted it; review it before sending.")]);
+        const result = await ask(a, "Draft an invoice for Poster layout.", draft.fetch);
+        assert.deepEqual(result.links, [{ label: "Review invoice draft", href: `http://127.0.0.1:3123/invoices/${draftId}` }]);
+        const [row] = await db.select().from(schema.invoices).where(and(eq(schema.invoices.householdId, a), eq(schema.invoices.id, draftId)));
+        assert.equal(row.status, "draft");
+
+        const { fetch, bodies } = chatTransport([
+          () => chat("tool_calls", null, [chatCall("u1", "send_invoice", { id: "x" }), chatCall("u2", "can_i_spend", { amount_minor: -5, card_id: null }),
+            chatCall("u3", "where_am_i", {}), chatCall("u4", "can_i_spend", "{not json")]),
+          () => chat("stop", "I could only check your status."),
+        ]);
+        assert.equal((await ask(a, "Send the invoice now.", fetch)).answer, "I could only check your status.");
+        const results = toolMessages(bodies[1]);
+        assert.deepEqual(results.map(r => r.tool_call_id), ["u1", "u2", "u3", "u4"]);
+        assert.deepEqual(results.map(r => r.content.startsWith("Error: ")), [true, true, false, true]);
+        assert.equal(results[0].content, "Error: Unknown tool.");
+        assert.match(results[3].content, /^Error: Invalid input for this tool: \(input\)$/, "arguments that are not JSON name the input, never its text");
+      });
+    });
+
+    await check("openai protocol: the turn limit, a length stop, a refusal and a timeout", async () => {
+      await onOpenai(async () => {
+        const loop = chatTransport(() => chat("tool_calls", null, [chatCall("again", "where_am_i", {})]));
+        await assert.rejects(ask(a, "Loop forever.", loop.fetch), AgentError);
+        assert.equal(loop.bodies.length, 5);
+        await assert.rejects(ask(a, "x", chatTransport(() => chat("length", "part")).fetch), /cut off/);
+        await assert.rejects(ask(a, "x", chatTransport(() => chat("content_filter", null)).fetch), /declined/);
+        await assert.rejects(ask(a, "x", chatTransport(() => chat("stop", "")).fetch), /no answer/);
+        await assert.rejects(ask(a, "x", chatTransport(() => Response.json({ error: { message: OPENAI_KEY + " provider words" } }, { status: 401 })).fetch),
+          (error: Error) => error instanceof AgentError && /not accepted/.test(error.message) && !error.message.includes(OPENAI_KEY));
+        await assert.rejects(ask(a, "x", chatTransport(() => Response.json({}, { status: 429 })).fetch), /busy/);
+        let n = 0;
+        const hang = (async (_input: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        })) as typeof globalThis.fetch;
+        logged.length = 0;
+        // 10 ms of the 20 s budget left when the call starts
+        await assert.rejects(ask(a, "x", hang, { now: () => (n++ < 2 ? 0 : 19_990) }), /too long/);
+        assert.deepEqual([logged[0].outcome, logged[0].stop], ["api_error", "api_error"]);
+      });
+    });
+
+    await check("the amount check, on both protocols: a confirmed amount passes, an invented one is refused and logged", async () => {
+      const refusal = "The model gave an amount the app could not confirm from your numbers, so the answer is not shown. Ask again, or choose another model in Settings.";
+      const question = "Can I spend ¥4,000 today?";
+      const invented = "You have ¥123,457 left, so ¥4,000 is fine.";
+      // anthropic
+      const okA = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Yes, ¥4,000 is fine.")])]);
+      assert.equal((await ask(a, question, okA.fetch)).answer, "Yes, ¥4,000 is fine.");
+      const badA = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text(invented)])]);
+      logged.length = 0;
+      await assert.rejects(ask(a, question, badA.fetch), (error: Error) => error instanceof AgentError && error.message === refusal && error.outcome === "unconfirmed_amount");
+      assert.deepEqual([logged[0].outcome, logged[0].protocol, logged[0].own], ["unconfirmed_amount", "anthropic", false]);
+      // an amount that is in a tool result of this Ask passes
+      const figures = await (async () => { const t = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("ok")])]); await ask(a, "x", t.fetch); return toolResults(t.bodies[1])[0].content; })();
+      const known = /¥([\d,]+)/.exec(figures)?.[0];
+      assert.ok(known, "where_am_i names a yen amount");
+      const okTool = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text(`You have ${known}.`)])]);
+      assert.equal((await ask(a, "Where am I?", okTool.fetch)).answer, `You have ${known}.`);
+      // openai
+      await onOpenai(async () => {
+        const ok = chatTransport([() => chat("tool_calls", null, [chatCall("w", "where_am_i", {})]), () => chat("stop", "Yes, ¥4,000 is fine.")]);
+        assert.equal((await ask(a, question, ok.fetch)).answer, "Yes, ¥4,000 is fine.");
+        const bad = chatTransport([() => chat("tool_calls", null, [chatCall("w", "where_am_i", {})]), () => chat("stop", invented)]);
+        logged.length = 0;
+        await assert.rejects(ask(a, question, bad.fetch), (error: Error) => error instanceof AgentError && error.message === refusal && error.outcome === "unconfirmed_amount");
+        assert.deepEqual([logged[0].outcome, logged[0].protocol, logged[0].own, logged[0].stop], ["unconfirmed_amount", "openai", false, "end"]);
+        const raw = JSON.stringify(logged[0]);
+        for (const needle of [OPENAI_BASE, OPENAI_HOST, OPENAI_KEY, "fixture-text", question, "123,457"]) assert.ok(!raw.includes(needle), `the log line leaks ${needle}`);
+      });
+    });
+
+
+    // ---------------------------------------------------------------- the reply kinds, the conversation and the decline limit (D60)
+    process.env.APP_URL = APP.href;
+    const conversation = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { conversationId?: string; canvas?: unknown; at?: Date } = {}) =>
+      answerQuestion(db, hid, askInput.parse({ id: crypto.randomUUID(), conversationId: extra.conversationId ?? crypto.randomUUID(), text: question, source: "manual", canvas: extra.canvas ?? null }), { fetch, at: extra.at });
+    const cashCanvas = (extra: unknown[] = []) => JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }, ...extra] });
+    const clarifyInput = { question: "Which Acme do you mean?", choices: ["Acme Studio", "Acme Labs"] };
+
+    await check("each kind of reply on the anthropic protocol: answer with a canvas, clarify, both declines and a plain text with no tool", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      logged.length = 0;
+      const withCanvas = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas([{ type: "note", text: "A quiet month.", by: "you" }]) }), toolUse("w", "where_am_i", {})]),
+        () => reply("end_turn", [text("Here is your cash.")]),
+      ]);
+      const shown = await conversation(c, "Show my cash", withCanvas.fetch);
+      assert.equal(shown.kind, "answer");
+      assert.equal(shown.text, "Here is your cash.");
+      assert.equal(shown.canvas?.recipe.title, "Cash");
+      assert.equal(shown.canvas?.blocks.length, 2, "the engine drew the blocks");
+      assert.deepEqual(shown.sources, [{ label: "Your next 30 days", href: "/#next-30-days" }], "make_canvas adds no source; where_am_i adds its own");
+      const note = shown.canvas!.recipe.blocks[1];
+      assert.deepEqual(note.type === "note" ? note.by : null, "assistant", "a note the model wrote is always the assistant's");
+      const summary = toolResults(withCanvas.bodies[1]).find(r => r.tool_use_id === "m")!.content;
+      assert.ok(summary.includes("Cash today") && !summary.includes("A quiet month."), "the summary names the block and never a note's text");
+      assert.deepEqual([logged.at(-1)!.kind, logged.at(-1)!.canvas], ["answer", true]);
+
+      // an invalid recipe comes back as words and the last valid one is the canvas
+      const bad = transport([
+        () => reply("tool_use", [toolUse("m1", "make_canvas", { recipe: JSON.stringify({ version: 1, title: "X", blocks: [{ type: "number", label: "Cash", amount: 5, query: { q: "cash" } }] }) })]),
+        () => reply("tool_use", [toolUse("m2", "make_canvas", { recipe: "{not json" })]),
+        () => reply("tool_use", [toolUse("m3", "make_canvas", { recipe: cashCanvas() })]),
+        () => reply("end_turn", [text("Done.")]),
+      ]);
+      const fixed = await conversation(c, "Show cash", bad.fetch);
+      assert.ok(toolResults(bad.bodies[1])[0].is_error && toolResults(bad.bodies[2])[0].is_error);
+      assert.equal(fixed.kind, "answer");
+      assert.equal(fixed.canvas?.recipe.title, "Cash");
+
+      const ask1 = transport([() => reply("tool_use", [toolUse("c", "clarify", clarifyInput)])]);
+      const clarified = await conversation(c, "Invoice Acme", ask1.fetch);
+      assert.deepEqual([clarified.kind, clarified.text, clarified.choices, clarified.canvas, clarified.sources], ["clarify", clarifyInput.question, clarifyInput.choices, null, []]);
+      assert.equal(ask1.bodies.length, 1, "a clarifying question ends the question: no second model call");
+      assert.deepEqual([logged.at(-1)!.kind, logged.at(-1)!.canvas], ["clarify", false]);
+
+      for (const reason of ["off_topic", "not_offered"] as const) {
+        const t = transport([() => reply("tool_use", [toolUse("o", "out_of_scope", { reason })])]);
+        const declined = await conversation(c, "Tell me about a stock", t.fetch);
+        assert.deepEqual([declined.kind, declined.text, declined.canvas, declined.sources, t.bodies.length], ["declined", FIXED[reason], null, [], 1]);
+      }
+      const none = transport([() => reply("end_turn", [text("Paris is lovely.")])]);
+      const talk = await conversation(c, "Where should I travel?", none.fetch);
+      assert.deepEqual([talk.kind, talk.text], ["declined", FIXED.off_topic], "text with no tool is replaced by the fixed sentence");
+      assert.ok(!JSON.stringify(logged).includes("Paris"));
+      assert.ok(tools.find(t => t.name === "clarify")!.scope === "ask" && tools.find(t => t.name === "out_of_scope")!.scope === "ask");
+    });
+
+    await check("each kind of reply on the openai protocol", async () => {
+      await onOpenai(async () => {
+        const c = await seedBen(db, { isDemo: true });
+        const withCanvas = chatTransport([
+          () => chat("tool_calls", null, [chatCall("m", "make_canvas", { recipe: cashCanvas() })]),
+          () => chat("stop", "Here is your cash."),
+        ]);
+        const shown = await conversation(c, "Show my cash", withCanvas.fetch);
+        assert.deepEqual([shown.kind, shown.canvas?.recipe.title], ["answer", "Cash"]);
+        const ask1 = chatTransport([() => chat("tool_calls", null, [chatCall("c", "clarify", clarifyInput)])]);
+        const clarified = await conversation(c, "Invoice Acme", ask1.fetch);
+        assert.deepEqual([clarified.kind, clarified.choices, ask1.bodies.length], ["clarify", clarifyInput.choices, 1]);
+        const off = chatTransport([() => chat("tool_calls", null, [chatCall("o", "out_of_scope", { reason: "not_offered" })])]);
+        assert.deepEqual((({ kind, text: words }) => [kind, words])(await conversation(c, "Which fund?", off.fetch)), ["declined", FIXED.not_offered]);
+        const none = chatTransport([() => chat("stop", "Paris is lovely.")]);
+        assert.equal((await conversation(c, "Where should I travel?", none.fetch)).kind, "declined");
+      });
+    });
+
+    await check("clarify stops the other calls in its turn", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      logged.length = 0;
+      const before = await reads(c);
+      const t = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {}), toolUse("c", "clarify", clarifyInput), toolUse("d", "whats_due", {})])]);
+      const result = await conversation(c, "What about Acme?", t.fetch);
+      assert.equal(result.kind, "clarify");
+      assert.equal(t.bodies.length, 1);
+      assert.equal(await reads(c), before + 1);
+      assert.deepEqual((logged.at(-1)!.tools as { name: string }[]).map(x => x.name), ["clarify"], "only the clarify call ran");
+      assert.deepEqual(result.sources, [], "a tool that did not run adds no source");
+    });
+
+    await check("an amount in a letter no tool gave refuses the reply; one from this question's tools passes", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const letter = (words: string) => cashCanvas([{ type: "letter", text: words }]);
+      const bad = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: letter("Please send $12,345 by Friday.") }), toolUse("w", "where_am_i", {})]),
+        () => reply("end_turn", [text("The letter is on the canvas.")]),
+      ]);
+      await assert.rejects(conversation(c, "Write a letter to Acme", bad.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      const known = /¥([\d,]+)/.exec(statusAnswer(await stateOf(c)))?.[0];
+      assert.ok(known);
+      const good = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: letter(`I have ${known} on hand.`) }), toolUse("w", "where_am_i", {})]),
+        () => reply("end_turn", [text("The letter is on the canvas.")]),
+      ]);
+      assert.equal((await conversation(c, "Write a letter to Acme", good.fetch)).kind, "answer");
+    });
+
+    await check("three earlier turns go in only within ten minutes, with the canvas on screen; an amount from an earlier reply confirms nothing", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const conversationId = crypto.randomUUID();
+      const t0 = new Date("2026-11-06T09:00:00Z");
+      const minutes = (n: number) => new Date(t0.getTime() + n * 60_000);
+      const round = async (question: string, at: Date, canvas: unknown = null) => {
+        const t = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Fine.")])]);
+        await conversation(c, question, t.fetch, { conversationId, at, canvas });
+        return JSON.stringify(t.bodies[0].messages[0]);
+      };
+      assert.ok(!(await round("first question", t0)).includes("Earlier in this conversation"), "the first turn has no history");
+      await round("second question", minutes(1));
+      await round("third question", minutes(2));
+      await round("fourth question", minutes(3));
+      const fifth = await round("fifth question", minutes(5), JSON.parse(cashCanvas()));
+      assert.ok(fifth.includes("Earlier in this conversation, for context only; read every number again from the tools:"));
+      for (const q of ["second question", "third question", "fourth question"]) assert.ok(fifth.includes(q), q);
+      assert.ok(!fifth.includes("first question"), "only the last three turns");
+      assert.ok(fifth.includes("The canvas on screen now, as data:") && fifth.includes("Cash today"));
+      const late = await round("late question", minutes(5 + 11));
+      assert.ok(!late.includes("Earlier in this conversation"), "ten minutes after the last turn the conversation starts over");
+
+      // an amount only an earlier reply held is not confirmed
+      const d = await seedBen(db, { isDemo: true });
+      const thread = crypto.randomUUID();
+      const first = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Did you mean the ¥7,777 bill?", choices: ["Yes", "No"] })])]);
+      await conversation(d, "Which bill?", first.fetch, { conversationId: thread, at: t0 });
+      const second = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Yes, the ¥7,777 bill is covered.")])]);
+      await assert.rejects(conversation(d, "Yes", second.fetch, { conversationId: thread, at: minutes(1) }), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      assert.ok(JSON.stringify(second.bodies[0].messages[0]).includes("7,777"), "the earlier reply was shown to the model as context");
+    });
+
+    await check("the fifth decline an hour is allowed, the sixth gets the wait sentence with no model call and no stored turn", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const decline = () => transport([() => reply("tool_use", [toolUse("o", "out_of_scope", { reason: "off_topic" })])]);
+      for (let i = 0; i < 5; i++) assert.equal((await conversation(c, `Off topic ${i}`, decline().fetch)).text, FIXED.off_topic);
+      const never = (async () => { throw new Error("no model call expected"); }) as typeof globalThis.fetch;
+      const before = await reads(c);
+      logged.length = 0;
+      const waited = await conversation(c, "Off topic again", never);
+      assert.deepEqual([waited.kind, waited.text, waited.canvas, waited.sources], ["declined", FIXED.wait, null, []]);
+      assert.equal(await reads(c), before);
+      assert.equal(logged.length, 0);
+      const stored = await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, c));
+      assert.equal(stored.length, 5, "the waiting sentence is not stored");
+      // an answer is not a decline: a household with five declines spent can still not ask, but one that answers never spends
+      const e = await seedBen(db, { isDemo: true });
+      for (let i = 0; i < 6; i++) {
+        const t = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Fine.")])]);
+        assert.equal((await conversation(e, `Question ${i}`, t.fetch)).kind, "answer");
+      }
+    });
+
+    await check("the Ask log line carries kind and canvas and never the question, the reply, a note or a letter", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      logged.length = 0;
+      const t = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas([{ type: "note", text: "Distinctive note words", by: "assistant" }]) }), toolUse("w", "where_am_i", {})]),
+        () => reply("end_turn", [text("Distinctive reply words.")]),
+      ]);
+      await conversation(c, "Distinctive question words", t.fetch);
+      const [line] = logged;
+      assert.deepEqual([line.at, line.kind, line.canvas, line.outcome], ["ask", "answer", true, "answer"]);
+      const raw = JSON.stringify(line);
+      for (const needle of ["Distinctive", "Cash today", KEY]) assert.ok(!raw.includes(needle), `the log line leaks ${needle}`);
+    });
+
+    await check("what_if returns the engine's numbers in minor units; a bad client is an error the model can read", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const state = await stateOf(c);
+      const client = state.clients[0];
+      const changes = [{ kind: "client_late", clientId: client.id, days: 14 }];
+      const t = transport([
+        () => reply("tool_use", [toolUse("a", "what_if", { case: "late", changes }), toolUse("b", "what_if", { case: "late", changes: [{ kind: "client_late", clientId: "nobody", days: 3 }] })]),
+        () => reply("end_turn", [text("Done.")]),
+      ]);
+      await conversation(c, "What if a client pays two weeks late?", t.fetch);
+      const [ok, bad] = toolResults(t.bodies[1]);
+      const out = JSON.parse(ok.content);
+      const expected = whatIf(state, changes as never);
+      const unit = minorPerUnit(state.homeCurrency);
+      const point = low(series(expected, "worst"), state.today);
+      assert.equal(out.lowPoint.amountMinor, Math.round(point.amount * unit));
+      assert.equal(out.lowPoint.date, point.date);
+      assert.equal(out.safeToSpendMinor, Math.round(safeToSpend(expected, 0).amount * unit));
+      assert.equal(out.lowPointChangeMinor, out.lowPoint.amountMinor - out.now.lowPoint.amountMinor);
+      assert.equal(out.sentence.startsWith(homeSentence(expected).text), true);
+      assert.ok(bad.is_error && bad.content.includes("not in your records"));
+    });
+
     console.log(`Agent checks passed (${passed}).`);
   } finally {
     console.info = realInfo;
-    for (const [name, value] of Object.entries({ ANTHROPIC_API_KEY: saved.key, ANTHROPIC_DAILY_READ_LIMIT: saved.limit, ANTHROPIC_TEXT_MODEL: saved.model })) {
+    for (const [name, value] of Object.entries(saved)) {
       if (value === undefined) delete process.env[name]; else process.env[name] = value;
     }
     await pg.close();

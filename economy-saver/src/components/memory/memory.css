@@ -1,0 +1,17 @@
+.memory-page { display: grid; gap: var(--space-5); max-width: 760px; padding-bottom: var(--space-4); }
+.memory-page .ui-title { margin: 4px 0 8px; }
+.memory-page h2 { margin: 0 0 var(--space-1); font: 500 18px/1.4 var(--sans); }
+.memory-page ul { margin: 0; padding: 0; list-style: none; }
+.memory-page .ui-panel, .memory-item { overflow-wrap: anywhere; }
+.memory-empty ul { display: grid; gap: var(--space-2); margin-top: var(--space-3); }
+.memory-item { padding-block: var(--space-3); border-bottom: 1px solid var(--rule); }
+.memory-item p { margin: 0; }
+.memory-item .ui-hint { margin-top: var(--space-1); }
+.memory-actions { display: flex; flex-wrap: wrap; gap: var(--space-5); margin-top: var(--space-2); }
+.memory-edit summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; font: 500 14px var(--sans); color: var(--accent); }
+.memory-edit[open] { flex-basis: 100%; }
+.memory-edit form { max-width: 28rem; margin-top: var(--space-2); }
+.memory-edit fieldset, .memory-add fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
+.memory-edit textarea, .memory-add textarea { resize: vertical; font: inherit; }
+.memory-page .ui-button { margin-top: var(--space-2); }
+.memory-forget { padding-bottom: var(--space-4); }

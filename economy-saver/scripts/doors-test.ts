@@ -19,6 +19,7 @@ import { confirmPending } from "@/db/confirm";
 import { InputError } from "@/db/input-error";
 import { parseAmountMinor, parseMinor } from "@/db/money";
 import { amountProblem } from "@/lib/money/amount";
+import { returnPath } from "@/lib/door";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { seedBen } from "@/db/seed";
 import { loadMoneyState } from "@/db/household";
@@ -699,6 +700,23 @@ async function main() {
       await insertCharge(db, theirs, stillThere as never, "confirmed", "manual", { madeBy: "form" });
       assert.equal(await removeCharge(db, mine, stillThere.id as string), false);
       assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, stillThere.id as string))).length, 1);
+    });
+
+    await check("D57/D58 doors: /api/canvas/resolve and /api/memory start with the same-origin and session guard, and the return path lists /memory and /canvas", async () => {
+      for (const route of ["./src/app/api/canvas/resolve/route.ts", "./src/app/api/memory/route.ts"]) {
+        const source = readFileSync(route, "utf8");
+        const guard = source.indexOf("await householdRequest(request)");
+        assert.ok(guard > 0 && source.includes("hid instanceof Response"), `${route} must call the household guard and return its response`);
+        for (const later of ["request.text()", "request.formData()", "formOf(request)", "db()"]) {
+          const at = source.indexOf(later);
+          assert.ok(at === -1 || at > guard, `${route} reads ${later} before the guard`);
+        }
+      }
+      for (const page of ["/memory", "/canvas", "/settings", "/plan", "/to-check"]) assert.equal(returnPath(page), page);
+      assert.equal(returnPath("/api/memory"), "/");
+      assert.equal(returnPath("//cross-origin.test"), "/");
+      assert.equal(returnPath("/memory/../x"), "/");
+      assert.equal(returnPath(null), "/");
     });
 
     await check("every Activity event kind the app writes has words in the Type column", async () => {

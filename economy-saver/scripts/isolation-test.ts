@@ -14,6 +14,9 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import * as account from "@/db/account";
 import * as aiKeys from "@/db/ai-key";
+import * as askMod from "@/db/ask"; // D60 Ask
+import * as canvasesMod from "@/db/canvases"; // D57 pins
+import * as conversationMod from "@/db/conversation"; // D60 conversation
 import * as approval from "@/db/approval";
 import * as bankBalance from "@/db/bank-balance";
 import * as billsMod from "@/db/bills";
@@ -30,6 +33,7 @@ import * as importChargesMod from "@/db/import-charges"; // Stage 17 import
 import * as invoiceDraft from "@/db/invoice-draft";
 import * as invoicePaid from "@/db/invoice-paid";
 import * as mcpTokens from "@/db/mcp-tokens";
+import * as memoryMod from "@/db/memory"; // D58 memory
 import * as paypalImport from "@/db/paypal-import";
 import * as paypalRefresh from "@/db/paypal-refresh";
 import * as people from "@/db/people";
@@ -56,6 +60,8 @@ import { AiKeyError } from "@/db/ai-key";
 import { potInput } from "@/db/pots";
 import { seedBen } from "@/db/seed";
 import { tools, type ToolContext } from "@/lib/agent/tools";
+import { resolveCanvasRequest } from "@/lib/canvas/request"; // D57 canvas
+import { CanvasError } from "@/lib/canvas/resolve";
 
 // ------------------------------------------------------------------ what the guard compares against
 // Every exported function in src/db, in exactly one of the two lists. `covered` names are also checked to have been
@@ -64,7 +70,7 @@ const covered = [
   // account.ts
   "householdClock", "householdDate", "accountHousehold", "createHousehold", "finishSetup", "deleteOwnedHousehold",
   // ai-key.ts
-  "aiKey", "saveHouseholdKey", "deleteHouseholdKey",
+  "aiConnection", "saveHouseholdConnection", "deleteHouseholdConnection", "connectionView", "deleteHouseholdKey",
   // approval.ts
   "invoiceReview", "approveInvoice",
   // bank-balance.ts, bills.ts, charges.ts, clients.ts, confirm.ts
@@ -95,6 +101,11 @@ const covered = [
   "linkToSeries", "previewLink",
   // Stage 19 missing data (D55): bills.ts
   "fillGap", "fillGapFromText",
+  // D58 memory: memory.ts
+  "listMemory", "addMemory", "editMemory", "deleteMemory", "forgetEverything",
+  // D57 pins: canvases.ts; D60 conversation: conversation.ts and ask.ts; rate-limit.ts
+  "listCanvases", "pinCanvas", "updateCanvas", "moveCanvas", "unpinCanvas",
+  "saveTurn", "recentTurns", "latestConversation", "allTurns", "setThumb", "conversationContext", "firstUseLine", "requestCount",
 ];
 
 const notApplicable: Record<string, string> = {
@@ -129,7 +140,7 @@ type Ids = {
   owner: string; aki: string; card: string; client: string; billConfirmed: string; billPending: string; charge: string; chargePending: string;
   pot: string; potPending: string; balanceConfirmed: string; balancePending: string; invoiceDraft: string; invoiceSent: string; approveKey: string;
   paypalInvoice: string; document: string; documentFailed: string; documentRead: string; reading: string; settlement: string; token: string;
-  statement: string; webhookEvent: string; secret: string; user: string; familyLink: string;
+  statement: string; webhookEvent: string; secret: string; user: string; familyLink: string; memory: string; canvas: string; turn: string;
 };
 type Tenant = {
   hid: string; tag: "A" | "B"; name: string; bankYen: number; rateMicro: number; key: string; tokenString: string; familyToken: string; ids: Ids; akiName: string;
@@ -165,6 +176,8 @@ async function main() {
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
     ...importChargesMod, // Stage 17 import
     ...spendingMod, // Stage 17 spending
+    ...memoryMod, // D58 memory
+    ...askMod, ...canvasesMod, ...conversationMod, // D57 pins, D60 conversation
   };
   const F = new Proxy(modules, {
     get(target, key: string) {
@@ -174,11 +187,12 @@ async function main() {
     },
   });
 
-  const saved = Object.fromEntries(["PAYPAL_ENVIRONMENT", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "MCP_TOKEN_KEY", "PAYPAL_BALANCE_HOUSEHOLD_ID"].map(k => [k, process.env[k]]));
+  const saved = Object.fromEntries(["PAYPAL_ENVIRONMENT", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "MCP_TOKEN_KEY", "PAYPAL_BALANCE_HOUSEHOLD_ID", "AI_TEXT_MODEL"].map(k => [k, process.env[k]]));
   try {
     process.env.PAYPAL_ENVIRONMENT = "SANDBOX";
     process.env.PAYPAL_CLIENT_ID = "fictional-test-client";
     process.env.PAYPAL_CLIENT_SECRET = "fictional-test-secret";
+    process.env.AI_TEXT_MODEL = "fixture-text";
     process.env.MCP_TOKEN_KEY = randomBytes(32).toString("base64url");
     delete process.env.PAYPAL_BALANCE_HOUSEHOLD_ID;
 
@@ -278,15 +292,22 @@ async function main() {
       const issued = await F.issueMcpToken(db, hid, { name: `${T} token`, scopes: ["read"] });
       const family = await F.createFamilyLink(db, hid);
       const key = `sk-ant-isolation-${l}-${"k".repeat(24)}`;
-      await F.saveHouseholdKey(db, hid, key);
+      await F.saveHouseholdConnection(db, hid, { provider: "openai", baseUrl: "", textModel: `iso-text-${l}`, documentModel: "", sameForDocuments: true, key }, { signedIn: true, check: async () => ({ at: new Date().toISOString(), passed: ["uses_tools", "ignores_injection", "stays_on_money"], failed: [] }) });
       const secret = one(await db.select({ id: schema.households.aiKeySecretId }).from(schema.households).where(eq(schema.households.id, hid))).id!;
       await F.consumeRequest(db, hid, "ask");
+      const memory = (await F.addMemory(db, hid, { kind: "fact", text: `${T} remembers a quiet month` }, { madeBy: "form" })).id;
+      const canvas = (await F.pinCanvas(db, hid, { title: `${T} canvas`, recipe: { version: 1, title: `${T} canvas`, blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] } }, { madeBy: "form" })).id;
+      const turn = crypto.randomUUID();
+      await F.saveTurn(db, hid, { id: turn, conversationId: crypto.randomUUID(), question: `${T} asks`, kind: "declined", reply: `${T} reply`, choices: null, recipe: null, sources: [] });
+      await F.setThumb(db, hid, turn, 1);
+      await F.consumeRequest(db, hid, "out-of-scope", 5, "hour");
+      assert.equal(await F.requestCount(db, hid, "out-of-scope", "hour"), 1);
       await F.recordEvent(db, hid, { madeBy: "form", kind: `isolation_${l}_event`, title: `${T} event`, body: `${T} event body`, notify: true });
       return {
         hid, tag, name: T, bankYen, rateMicro, key, tokenString: issued.token, familyToken: family.token, akiName,
         ids: { owner: ownerRow.id, aki, card: card.id, client, billConfirmed, billPending, charge, chargePending, pot, potPending, balanceConfirmed, balancePending,
           invoiceDraft, invoiceSent: sent.id, approveKey: sent.approveKey, paypalInvoice, document, documentFailed, documentRead, reading, settlement, token: issued.info.id,
-          statement, webhookEvent, secret, user, familyLink: family.info.id },
+          statement, webhookEvent, secret, user, familyLink: family.info.id, memory, canvas, turn },
       };
     }
     const A = await populate("A", 5_550_001, 149_876_543);
@@ -402,10 +423,33 @@ async function main() {
       assert.equal(await F.invoiceReview(store, hid, other.ids.invoiceSent), undefined);
       assert.equal(await F.invoiceReview(store, hid, other.ids.invoiceDraft), undefined);
       assert.equal(await F.canImportPayPal(store, hid), false);
+      const memory = await F.listMemory(store, hid);
+      seen("listMemory", memory);
+      const pins = await F.listCanvases(store, hid);
+      seen("listCanvases", pins);
+      assert.deepEqual(pins.map(p => p.id), [viewer.ids.canvas], "the viewer's pins are the viewer's alone");
+      const turns = await F.allTurns(store, hid);
+      seen("allTurns", turns);
+      assert.deepEqual(turns.map(t => t.id), [viewer.ids.turn], "the viewer's turns are the viewer's alone");
+      const mine = await F.latestConversation(store, hid);
+      seen("latestConversation", mine);
+      assert.deepEqual(mine?.turns.map(t => t.id), [viewer.ids.turn]);
+      assert.deepEqual(await F.recentTurns(store, hid, other.ids.turn), [], "another household's conversation id reads nothing");
+      assert.deepEqual(await F.conversationContext(store, hid, { conversationId: mine!.conversationId, canvas: null }), `Earlier in this conversation, for context only; read every number again from the tools:\nQuestion: ${JSON.stringify(turns[0].question)}\nReply: ${JSON.stringify(turns[0].reply)}`);
+      seen("conversationContext", turns);
+      seen("firstUseLine", await F.firstUseLine(store, hid));
+      const view = await F.connectionView(store, hid);
+      seen("connectionView", view);
+      assert.equal(view?.textModel, `iso-text-${viewer.tag.toLowerCase()}`);
+      assert.deepEqual(memory.map(m => m.id), [viewer.ids.memory], "the viewer's memory is the viewer's alone");
       // The agent's read tools, with this household's context.
-      for (const tool of tools.filter(x => x.scope === "read")) {
-        seen(`agent tool ${tool.name}`, await runTool(viewer, tool.name, toolInputs[tool.name] ?? {}));
+      for (const tool of tools.filter(x => x.scope === "read" && x.name !== "make_canvas")) {
+        const input = tool.name === "what_if" ? { case: "late", changes: [{ kind: "client_late", clientId: viewer.ids.client, days: 3 }] } : toolInputs[tool.name] ?? {};
+        seen(`agent tool ${tool.name}`, await runTool(viewer, tool.name, input));
       }
+      seen("agent tool make_canvas", await runTool(viewer, "make_canvas", { recipe: JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }, { type: "sliders", controls: [{ clientId: viewer.ids.client, maxDays: 14 }] }] }) }));
+      await assert.rejects(runTool(viewer, "what_if", { case: "late", changes: [{ kind: "client_late", clientId: other.ids.client, days: 3 }] }), /not in your records/);
+      await assert.rejects(runTool(viewer, "make_canvas", { recipe: JSON.stringify({ version: 1, title: "x", blocks: [{ type: "sliders", controls: [{ clientId: other.ids.client, maxDays: 14 }] }] }) }), /client/);
       seen("agent tool plan_for with its own pot", await runTool(viewer, "plan_for", { pot_id: viewer.ids.pot }));
       await assert.rejects(runTool(viewer, "plan_for", { pot_id: other.ids.pot }), /Unknown pot/);
       await assert.rejects(runTool(viewer, "can_i_spend", { amount_minor: 1_000, card_id: other.ids.card }), /Unknown card/);
@@ -514,6 +558,7 @@ async function main() {
         const item = { kind: "charge" as const, name: "Isolation probe", date: "2026-11-12", amountMinor: 100, currency: "JPY" as const, category: "other" as const, businessBp: 0, cardId: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null };
         await refuse("reviewReading reject", () => F.reviewReading(store, X.hid, y.reading, null));
         await refuse("reviewReading confirm", () => F.reviewReading(store, X.hid, y.reading, { ...item, cardId: x.card }));
+        await refuse("reviewReading confirm and remember", () => F.reviewReading(store, X.hid, y.reading, { ...item, cardId: x.card }, {}, true));
         await mustThrow("proposeReadings on the other's document", () => F.proposeReadings(store, X.hid, y.documentRead, [item]));
         for (const id of [y.document, y.documentFailed]) await refuse("readDocument " + id, () => F.readDocument(store, X.hid, id, true));
         await refuse("revokeMcpToken", () => F.revokeMcpToken(store, X.hid, y.token));
@@ -525,21 +570,63 @@ async function main() {
         await untouched("recordWebhookDelivery replay");
         await refuse("authenticateMcpToken is not given the other's token by the revoke", async () => (await F.revokeMcpToken(store, X.hid, y.token)));
       });
+      await check(`${X.name} -> ${Y.name}: memory (edit, delete, forget everything) and the canvas route's function refuse the other's ids`, async () => {
+        const by = { madeBy: "form" } as const;
+        await refuse("editMemory text", () => F.editMemory(store, X.hid, y.memory, { text: "Isolation probe" }, by));
+        await refuse("editMemory kind", () => F.editMemory(store, X.hid, y.memory, { kind: "goal" }, by));
+        await refuse("deleteMemory", () => F.deleteMemory(store, X.hid, y.memory, by));
+        assert.deepEqual((await F.listMemory(store, X.hid)).map(m => m.id), [x.memory], "X still sees only its own item");
+        const yText = (await F.listMemory(store, Y.hid)).map(m => m.text);
+        const added = await F.addMemory(store, X.hid, { kind: "fact", text: yText[0] }, by);
+        assert.notEqual(added.id, y.memory, "the same words in X are X's own item, not Y's");
+        await untouched("addMemory with the other's words");
+        assert.equal(await F.deleteMemory(store, X.hid, added.id, by), true);
+        assert.equal(await F.forgetEverything(store, X.hid, by), 1, "forgetEverything counts only X's items");
+        await untouched("forgetEverything");
+        assert.equal((await F.addMemory(store, X.hid, { kind: "fact", text: `${X.name} remembers a quiet month` }, by)).kind, "fact");
+        const recipe = (change: object) => ({ recipe: { version: 1, title: "Probe", blocks: [{ type: "sentence", query: { q: "sentence", scenario: { case: "usual", changes: [change] } } }] } });
+        const refusedCanvas = async (name: string, body: unknown) => {
+          const outcome = await attempt(() => resolveCanvasRequest(store, X.hid, body));
+          assert.ok(outcome.threw && outcome.error instanceof CanvasError, label("canvas " + name) + " was not refused");
+          await untouched("canvas " + name);
+        };
+        await refusedCanvas("client_late for the other's client", recipe({ kind: "client_late", clientId: y.client, days: 3 }));
+        await refusedCanvas("remove_bill of the other's bill", recipe({ kind: "remove_bill", billId: y.billConfirmed }));
+        await refusedCanvas("change_bill of the other's bill", recipe({ kind: "change_bill", billId: y.billPending, amountMinor: 5 }));
+        await refusedCanvas("a slider on the other's client", { recipe: { version: 1, title: "Probe", blocks: [{ type: "sliders", controls: [{ clientId: y.client, maxDays: 10 }] }] } });
+        assert.ok((await resolveCanvasRequest(store, X.hid, recipe({ kind: "client_late", clientId: x.client, days: 3 }))).length === 1, "its own client is accepted");
+        const drawn = JSON.stringify(await resolveCanvasRequest(store, X.hid, { recipe: { version: 1, title: "Probe", blocks: [{ type: "sentence", query: { q: "sentence" } }, { type: "timeline", query: { q: "events" } }] } }));
+        assert.deepEqual(leaks(drawn, needles), [], "a drawn canvas shows none of the other's data");
+        await untouched("canvas drawn");
+      });
       await check(`${X.name} -> ${Y.name}: the Anthropic key (Vault) cannot be reached through a wrong pointer`, async () => {
         const own = one(await db.select({ id: schema.households.aiKeySecretId }).from(schema.households).where(eq(schema.households.id, X.hid))).id!;
         try {
           // Corrupt X's pointer so that it names the other household's secret; every path must still refuse.
           await db.update(schema.households).set({ aiKeySecretId: y.secret }).where(eq(schema.households.id, X.hid));
-          const reading = await attempt(() => F.aiKey(store, X.hid));
-          assert.ok(reading.threw && reading.error instanceof AiKeyError, "aiKey must not return the other household's key");
-          await untouched("aiKey through a wrong pointer");
-          await mustThrow("saveHouseholdKey through a wrong pointer", () => F.saveHouseholdKey(store, X.hid, "sk-ant-probe-" + "z".repeat(24)), /ownership/);
+          const reading = await attempt(() => F.aiConnection(store, X.hid, "text"));
+          assert.ok(reading.threw && reading.error instanceof AiKeyError, "aiConnection must not return the other household's key");
+          await untouched("aiConnection through a wrong pointer");
+          await mustThrow("saveHouseholdConnection through a wrong pointer", () => F.saveHouseholdConnection(store, X.hid, { provider: "openai", baseUrl: "", textModel: "iso-text", documentModel: "", sameForDocuments: true, key: "probe-" + "z".repeat(24) }, { signedIn: true, check: async () => ({ at: new Date().toISOString(), passed: ["uses_tools", "ignores_injection", "stays_on_money"], failed: [] }) }), /ownership/);
           await mustThrow("deleteHouseholdKey through a wrong pointer", () => db.transaction(tx => F.deleteHouseholdKey(tx as unknown as Db, X.hid)), /ownership/);
         } finally {
           await db.update(schema.households).set({ aiKeySecretId: own }).where(eq(schema.households.id, X.hid));
         }
-        assert.equal(await F.aiKey(store, X.hid), X.key, "the household's own key is returned when the pointer is right");
-        assert.notEqual(await F.aiKey(store, X.hid), Y.key);
+        assert.equal((await F.aiConnection(store, X.hid, "text")).key, X.key, "the household's own key is returned when the pointer is right");
+        assert.notEqual((await F.aiConnection(store, X.hid, "text")).key, Y.key);
+      });
+      await check(`${X.name} -> ${Y.name}: pins and turns refuse the other's ids, and thumbs, moves and unpins change nothing there`, async () => {
+        const by = { madeBy: "form" } as const;
+        assert.equal(await F.updateCanvas(store, X.hid, y.canvas, { version: 1, title: "Hijack", blocks: [{ type: "number", label: "Cash", query: { q: "cash" } }] }, by), false);
+        assert.equal(await F.moveCanvas(store, X.hid, y.canvas, "down", by), false);
+        assert.equal(await F.unpinCanvas(store, X.hid, y.canvas, by), false);
+        assert.equal(await F.setThumb(store, X.hid, y.turn, -1), false);
+        assert.deepEqual((await F.listCanvases(store, X.hid)).map(p => p.id), [x.canvas]);
+        assert.deepEqual((await F.listCanvases(store, Y.hid)).map(p => p.id), [y.canvas], "Y's pin is still there");
+        assert.equal((await F.allTurns(store, Y.hid))[0].thumb, 1, "Y's thumb is unchanged");
+        const rows = await F.pinCanvas(store, X.hid, { title: "Second", recipe: { version: 1, title: "Second", blocks: [{ type: "number", label: "Cash", query: { q: "cash" } }] } }, by);
+        assert.equal(rows.position, 1, "X's second pin is X's second, whatever Y holds");
+        await F.unpinCanvas(store, X.hid, rows.id, by);
       });
       await check(`${X.name} -> ${Y.name}: the agent's draft tools refuse the other household's ids`, async () => {
         const probe = { biller: "Isolation probe", amount: "100", due: "2026-11-20" };
@@ -798,6 +885,14 @@ async function main() {
       assert.equal(await F.fillGapFromText(store, A.hid, gap.id, { amount: "9800" }, form), false, "A cannot fill B's bill by text");
       assert.equal((await fingerprint(B.hid)).text, bStart.text, "household B changed");
       assert.equal(await F.fillGap(store, B.hid, gap.id, { amountMinor: 9_800 }, form), true, "B can fill its own");
+    });
+
+    await check("removing A's own model connection changes nothing of B's", async () => {
+      const before = await fingerprint(B.hid);
+      await F.deleteHouseholdConnection(store, A.hid);
+      assert.equal(await F.connectionView(store, A.hid), null);
+      assert.equal((await fingerprint(B.hid)).text, before.text);
+      assert.ok(await F.connectionView(store, B.hid));
     });
 
     // ---------------------------------------------------------------- the guard

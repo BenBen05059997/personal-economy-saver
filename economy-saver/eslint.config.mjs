@@ -2,20 +2,29 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
+const modelSdk = { group: ["@anthropic-ai/*", "@ai-sdk/*", "openai", "openai/*"], message: "Call models through callModel in src/lib/ai (D56)." };
+const modelPath = { name: "ai", message: "Call models through callModel in src/lib/ai (D56)." };
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   // Sending to PayPal happens in one place (D12): only the approve route may import the send-capable runner.
+  // Every model call goes through src/lib/ai (D56): nothing else imports a model SDK. One rule entry per file, so the
+  // two restrictions are written together.
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/app/api/approve/route.ts"],
+    ignores: ["src/app/api/approve/route.ts", "src/lib/ai/**"],
     rules: {
       "no-restricted-imports": ["error", { paths: [{
         name: "@/lib/paypal/toolkit",
         importNames: ["runTool", "deleteSmokeDraft"],
         message: "Only src/app/api/approve/route.ts may send to PayPal (D12).",
-      }] }],
+      }, modelPath], patterns: [modelSdk] }],
     },
+  },
+  {
+    files: ["src/app/api/approve/route.ts"],
+    rules: { "no-restricted-imports": ["error", { paths: [modelPath], patterns: [modelSdk] }] },
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

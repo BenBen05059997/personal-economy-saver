@@ -1,6 +1,7 @@
 .reader-card { margin-top: var(--space-4); max-width: 720px; }
 .reader-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--space-4); }
 .reader-card summary { font-weight: 600; cursor: pointer; }
+.reader-remember { display: flex; align-items: flex-start; gap: var(--space-2); margin-block: var(--space-3); }
 .reader-buttons { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .reader-upload { max-width: 600px; }
 .reader-address { overflow-wrap: anywhere; }

@@ -13,7 +13,8 @@ import { PayerOptions } from "@/components/household/PayerOptions";
 import { LABELS } from "@/components/household/labels";
 import { CancelByField } from "@/components/household/ScheduleFields";
 import { dueLabel } from "@/db/bills";
-import { askUnavailable, missingAskSetting } from "@/lib/agent/availability";
+import { Suspense } from "react";
+import { AiModelPanel } from "./AiModelPanel";
 import { EditAmounts } from "./EditAmounts";
 import { FamilyShare, type FamilyLinkRow } from "./FamilyShare";
 import { ResetDemo } from "./ResetDemo";
@@ -108,7 +109,6 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks }: { d
   const isPast = (bill: SettingsData["bills"][number]) => bill.status === "confirmed" && bill.repeatUnit === null && bill.due !== null && bill.due < data.today; // a one-off already due: history, kept below the rest
   const current = bills.filter(bill => !isPast(bill));
   const past = bills.filter(isPast);
-  const missingAsk = missingAskSetting(Boolean(household.aiKeyHint));
   return <><header><p className="ui-hint">YOUR HOUSEHOLD</p><h1 className="ui-title">Settings</h1><p className="ui-hint">Keep your balances, cards and bill ownership up to date.</p></header>
     <section className="ui-panel"><h2>Household & bank</h2>
       <ApiForm><input type="hidden" name="kind" value="household" />
@@ -153,15 +153,8 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks }: { d
       <p className="ui-hint">Add the clients and invoices from your PayPal sandbox account. This only reads from PayPal and never changes your balance.</p>
       <form method="post" action="/api/paypal/import"><button className="ui-button">Import clients and invoices from PayPal</button></form>
     </section>}
-    <section className="ui-panel" id="ai-key"><h2>Your own Claude key</h2>
-      <p className="ui-hint">{missingAsk ? askUnavailable(missingAsk) : household.aiKeyHint ? `Saved key: ${household.aiKeyHint}. Model calls use your Anthropic account.` : "Using the app’s default key, with a daily household allowance. Add your own Claude key to use your account."}</p>
-      {!household.aiKeyHint && <p className="ui-hint">{household.aiReadsDay ? `${household.aiReadsToday} default calls recorded on ${household.aiReadsDay}.` : "No default calls recorded."} The allowance resets at midnight in {household.timeZone}.</p>}
-      <ApiForm action="/api/settings/ai-key" secret><label className="ui-field">Anthropic API key<input name="key" type="password" autoComplete="new-password" spellCheck={false} maxLength={507} required /></label>
-        <button className="ui-button">{household.aiKeyHint ? "Replace key" : "Save key"}</button></ApiForm>
-      {household.aiKeyHint && <ApiForm action="/api/settings/ai-key"><input type="hidden" name="remove" value="yes" /><button className="ui-button">Remove saved key</button></ApiForm>}
-      <details className="settings-dev"><summary>For developers</summary>
-        <p className="ui-hint">A saved key is encrypted in Supabase Vault and only its last four characters are shown. Without one, the server’s ANTHROPIC_API_KEY, ANTHROPIC_TEXT_MODEL and ANTHROPIC_DAILY_READ_LIMIT settings apply.</p></details>
-    </section>
+    <Suspense fallback={<section className="ui-panel" id="ai-model"><h2>Your AI model</h2><p className="ui-hint">Loading…</p></section>}>
+      <AiModelPanel demo={household.demo} timeZone={household.timeZone} readsDay={household.aiReadsDay} readsToday={household.aiReadsToday} /></Suspense>
     <section className="ui-panel" id="export"><h2>Export my data</h2>
       <p className="ui-hint">Download everything in this household as one JSON file: balances, cards, charges, bills, clients, invoices, pots and your activity history. It has no AI key, sign-in details or uploaded files.</p>
       <form method="post" action="/api/export"><button className="ui-button">Export my data</button></form>

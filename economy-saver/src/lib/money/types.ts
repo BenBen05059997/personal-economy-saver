@@ -54,6 +54,7 @@ export type Client = {
   email: string;
   termsDays: number; // 0 = due on receipt
   daysToPay: number[]; // history: days from sending to paid, one per paid invoice
+  lateDays?: number; // D57: set only by a what-if (whatif.ts): this many days are added to when every invoice of this client lands; absent everywhere else
 };
 
 export type Invoice = {

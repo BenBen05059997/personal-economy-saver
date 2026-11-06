@@ -45,7 +45,8 @@ export async function mcpRequest(request: Request, connection: () => Db) {
   const state = async () => loadMoneyState(db, hid, await householdDate(db, hid));
   const ctx = { madeBy: "mcp" as const, db, householdId: hid, state, appUrl: endpoint };
   for (const tool of tools) {
-    if (!scopes.includes(tool.scope)) continue;
+    // Ask-only tools (clarify, out_of_scope) end an Ask turn and mean nothing to another client: never offered, whatever the token holds.
+    if (tool.scope === "ask" || !scopes.includes(tool.scope)) continue;
     server.registerTool(tool.name, { description: tool.description, inputSchema: tool.input.shape },
       params => answer(hid, tool.name, () => tool.run(ctx, params as never)));
   }

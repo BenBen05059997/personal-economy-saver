@@ -1,9 +1,8 @@
 // One tool catalogue for the in-app agent and the MCP server (D40). Tools read the engine or call the same
 // src/db functions as the forms. They never send: sending is the tap in src/app/api/approve/route.ts (D12).
-import type Anthropic from "@anthropic-ai/sdk";
 import { and, desc, eq } from "drizzle-orm";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { transformJSONSchema } from "@anthropic-ai/sdk/lib/transform-json-schema";
+import { strictJsonSchema } from "@/lib/ai/schema";
 import { z } from "zod";
 import { householdDate } from "@/db/account";
 import { requireHousehold, type Db, type Maker } from "@/db/household";
@@ -32,7 +31,10 @@ import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { clientPace } from "@/lib/money/pace";
 import { planFor, planLine } from "@/lib/money/plan";
 import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
+import { canvasTools } from "./canvas-tools";
+import { memoryTools } from "./memory-tools";
 import { splitBalance, splitSummary } from "@/lib/money/split";
+import type { Recipe } from "@/lib/canvas/schema";
 import type { MoneyState } from "@/lib/money/types";
 
 export type ToolContext = {
@@ -49,6 +51,10 @@ export type ToolContext = {
   addLink?: (link: { label: string; href: string }) => void;
   /** Called when a tool leaves a row waiting in To check. */
   onPending?: () => void;
+  /** Ask only (D60): `make_canvas` hands over its last valid recipe; `clarify` and `out_of_scope` end the question. */
+  onCanvas?: (recipe: Recipe) => void;
+  onClarify?: (clarify: { question: string; choices: string[] }) => void;
+  onOutOfScope?: (reason: "off_topic" | "not_offered") => void;
 };
 
 const by = (ctx: ToolContext): Maker => ({ madeBy: ctx.madeBy, ...(ctx.askId && { askId: ctx.askId }) });
@@ -57,13 +63,13 @@ export type Tool = {
   name: string;
   description: string;
   input: z.ZodObject<z.ZodRawShape>;
-  scope: "read" | "draft";
+  scope: "read" | "draft" | "ask";
   /** `input` is already validated against `input`. */
   run: (ctx: ToolContext, input: never) => Promise<string>;
 };
 
 function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
-  name: string; description: string; input: S; scope: "read" | "draft";
+  name: string; description: string; input: S; scope: "read" | "draft" | "ask";
   run: (ctx: ToolContext, input: z.infer<S>) => Promise<string>;
 }): Tool {
   return tool as unknown as Tool;
@@ -408,16 +414,18 @@ export const tools: Tool[] = [
       return "The new bank balance is waiting in To check for the user to confirm.";
     },
   }),
+  ...canvasTools,
+  ...memoryTools,
 ];
 
 /**
  * The tool's input as a JSON Schema for the Messages API with strict tool use: every property required (optional
  * ones are nullable in the zod schema), no extra properties, constraints the API ignores moved into descriptions.
  */
-export function toolInputSchema(tool: Tool): Anthropic.Tool.InputSchema {
+export function toolInputSchema(tool: Tool): Record<string, unknown> {
   const raw = zodToJsonSchema(tool.input, { $refStrategy: "none" }) as Record<string, unknown>;
   delete raw.$schema;
-  return transformJSONSchema(strictShape(raw)) as Anthropic.Tool.InputSchema;
+  return strictJsonSchema(strictShape(raw));
 }
 
 // type: ["string", "null"] becomes anyOf, and every object lists all of its properties as required.

@@ -10,11 +10,16 @@ import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { syncClosedStatementCharge } from "./statement-charge";
 import { normalise } from "@/lib/money/name-key";
+import { correctionText } from "@/lib/reader/correction";
+import { addMemory } from "./memory";
 
 const ruleKey = (entry: Extracted) => entry.name ? entry.kind + ":" + normalise(entry.name) : null;
 const patchSchema = extractSchema.pick({ name: true, kind: true, category: true, businessBp: true, cardId: true }).partial();
 
 /** Called inside the transaction which finishes a document. Nothing here changes the runway. */
+// A memory kind, not an Activity event kind: written as a constant so the doors scan for `kind: "…"` does not take it for one.
+const CORRECTION = "correction";
+
 export async function proposeReadings(db: Db, id: string, documentId: string, items: Extracted[]) {
   const hid = requireHousehold(id);
   for (const original of items) {
@@ -32,8 +37,9 @@ export async function proposeReadings(db: Db, id: string, documentId: string, it
 /**
  * Confirms a reading with the fields as the user corrected them, or dismisses it (`fields` null). A bill (never a charge) may be
  * confirmed with its amount and/or its date not known yet (D55) when the caller says so in `unknown`; those fields are then null.
+ * With `remember` (the card's ticked box, D58) a changed name, category, share or card is also kept as a correction in memory, in the same transaction.
  */
-export async function reviewReading(db: Db, id: string, readingId: string, fields: Extracted | null, unknown: { amount?: boolean; date?: boolean } = {}) {
+export async function reviewReading(db: Db, id: string, readingId: string, fields: Extracted | null, unknown: { amount?: boolean; date?: boolean } = {}, remember = false) {
   const hid = requireHousehold(id);
   return db.transaction(async tx => {
     const previous = await lockRunway(tx, hid);
@@ -104,6 +110,12 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
       await tx.insert(rules).values({ householdId: hid, matchBiller: key, patch }).onConflictDoUpdate({
         target: [rules.householdId, rules.matchBiller], set: { patch: sql`${rules.patch} || excluded.patch` },
       });
+    }
+    if (remember) {
+      const [card] = value.cardId ? await tx.select({ label: cards.label }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, value.cardId))) : [];
+      const line = correctionText(proposed, value, card?.label);
+      try { if (line) await addMemory(tx, hid, { text: line, kind: CORRECTION }, { madeBy: "form" }); }
+      catch (error) { throw error instanceof InputError ? new ReaderError(error.message + " Untick “Also tell the assistant” to confirm without it.") : error; }
     }
     await tx.update(readings).set({ status: "confirmed", confirmedAt: new Date(), target: value.kind, extracted: { original, proposed, confirmed: value } })
       .where(and(eq(readings.householdId, hid), eq(readings.id, readingId)));

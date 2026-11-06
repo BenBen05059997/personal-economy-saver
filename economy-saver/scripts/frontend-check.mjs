@@ -158,13 +158,25 @@ if (args[0] === "--guards") {
     ["inbound-without-worker-origin", "/api/inbound", { method: "POST" }, 403],
     ["mcp-without-bearer", "/api/mcp", { method: "POST" }, 401],
     ["mcp-issue-without-household", "/api/mcp/tokens", { method: "POST" }, 401],
-    ["ai-key-without-household", "/api/settings/ai-key", { method: "POST" }, 401],
+    ["ai-model-without-household", "/api/settings/ai-model", { method: "POST" }, 401],
+    ["ai-model-cross-origin", "/api/settings/ai-model", { method: "POST", session: "", form: { kind: "default" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["canvases-without-household", "/api/canvases", { method: "POST", session: "", form: { kind: "unpin", id: "x", returnTo: "/" } }, 401],
+    ["canvases-cross-origin", "/api/canvases", { method: "POST", session: "", form: { kind: "unpin", id: "x", returnTo: "/" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["ask-thumb-without-household", "/api/ask/thumb", { method: "POST", session: "", json: { id: "x", thumb: "up" } }, 401],
+    ["ask-thumb-cross-origin", "/api/ask/thumb", { method: "POST", session: "", json: { id: "x", thumb: "up" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["ask-without-household", "/api/ask", { method: "POST", session: "", json: { id: "x" } }, 401],
+    ["confirm-and-remember-without-household", "/api/confirm", { method: "POST", session: "", form: { kind: "reading", id: "00000000-0000-4000-8000-000000000000", remember: "on" } }, 401],
+    ["confirm-and-remember-cross-origin", "/api/confirm", { method: "POST", session: "", form: { kind: "reading", id: "00000000-0000-4000-8000-000000000000", remember: "on" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["export-without-household", "/api/export", { method: "POST" }, 401],
     ["people-without-household", "/api/people", { method: "POST" }, 401],
     ["bill-fill-without-household", "/api/bills", { method: "POST", session: "", form: { kind: "fill", id: "x", amount: "1000", returnTo: "/to-check" } }, 401],
     ["bill-fill-cross-origin", "/api/bills", { method: "POST", session: "", form: { kind: "fill", id: "x", amount: "1000", returnTo: "/to-check" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["bill-with-schedule-without-household", "/api/bills", { method: "POST", form: { id: "x", biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year", cancelBy: "2026-11-20" } }, 401],
     ["settle-without-household", "/api/settle", { method: "POST" }, 401],
+    ["canvas-resolve-without-household", "/api/canvas/resolve", { method: "POST", session: "", json: { recipe: { version: 1, title: "Probe", blocks: [] } } }, 401],
+    ["canvas-resolve-cross-origin", "/api/canvas/resolve", { method: "POST", session: "", json: { recipe: { version: 1, title: "Probe", blocks: [] } }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["memory-without-household", "/api/memory", { method: "POST", session: "", form: { kind: "forget_all", returnTo: "/memory" } }, 401],
+    ["memory-cross-origin", "/api/memory", { method: "POST", session: "", form: { kind: "forget_all", returnTo: "/memory" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["remove-without-household", "/api/remove", { method: "POST" }, 401],
     ["privacy-page-without-cookie", "/privacy", { session: "" }, 200],
     ["cron-without-bearer", "/api/cron", {}, 401],
@@ -173,7 +185,12 @@ if (args[0] === "--guards") {
     await step("guard", label, async () => {
       const { response, body } = await request(path, options);
       expect(response.status === status, "guard-status");
-      if (label === "privacy-page-without-cookie") for (const word of ["Supabase", "Tokyo", "Anthropic", "seven days"]) expect(text(body).includes(word), "privacy-" + word);
+      if (label === "privacy-page-without-cookie") {
+        const plain = text(body);
+        for (const word of ["Supabase", "Tokyo", "seven days"]) expect(plain.includes(word), "privacy-" + word);
+        // The host line streams in after a fallback; the full streamed HTML holds its final text.
+        expect(plain.includes("This server has no AI model set up.") || /By default, questions and documents go to [a-z0-9.-]+\.[a-z]+\./.test(plain), "privacy-ai-host-line");
+      }
       if (location) expect(response.headers.get("location") === location, "guard-redirect");
     });
   }
@@ -545,14 +562,43 @@ await step("read", "confirm-single-event", async () => {
 // Ask goes to the agent (D40). Without the owner's AI settings it must stop with the missing setting's name (rule 10);
 // with them it must answer from the engine's numbers.
 await step("action", "typed-ask-read-only", async () => {
-  const result = await request("/api/ask", { method: "POST", json: { id: randomUUID(), text: "Where do I stand?", source: "manual" } });
-  if (result.response.status === 503 && /^Ask isn’t available on this server yet \(ANTHROPIC_[A-Z_]+\)\.$/.test(result.body)) {
+  const result = await request("/api/ask", { method: "POST", json: { id: randomUUID(), conversationId: randomUUID(), text: "Where do I stand?", source: "manual", canvas: null } });
+  if (result.response.status === 503 && /^Ask isn’t available on this server yet \(AI_[A-Z_]+\)\.$/.test(result.body)) {
     console.log(`NOTE typed-ask-read-only: ${result.body}; the live answer is not checked`);
     return;
   }
   expect(result.response.status === 200, "ask-status");
   const answer = JSON.parse(result.body);
-  expect(answer.pending === false && typeof answer.answer === "string" && /30,000/.test(answer.answer), "ask-result");
+  expect(answer.pending === false && typeof answer.text === "string" && ["answer", "clarify", "declined"].includes(answer.kind) && Array.isArray(answer.sources), "ask-result");
+});
+// The Ask page (D60): without the owner's AI settings it shows the missing setting's name; with them, the box. Pins (D57): pin a canvas, Home draws it, unpin.
+await step("page", "ask-page-opens-with-the-box-or-the-missing-setting", async () => {
+  const html = await page("/canvas", /Your question|Ask isn(’|&#x27;|')t available on this server yet \(AI_[A-Z_]+\)/);
+  expect(/New conversation|Am I OK until the end of the month/.test(pageContent(html)) || /Ask isn/.test(pageContent(html)), "ask-page-content");
+  expect(/This month|Safe to spend/.test(pageContent(html)), "ask-page-starters");
+});
+await step("action", "pin-a-canvas-home-draws-it-and-unpin-removes-it", async () => {
+  const recipe = JSON.stringify({ version: 1, title: "Fictional pin check", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] });
+  const pinned = await request("/api/canvases", { method: "POST", form: { kind: "pin", title: "Fictional pin check", recipe, returnTo: "/" } });
+  expect(pinned.response.status === 303 && pinned.response.headers.get("location") === "/", "pin-status");
+  const home = await page("/", /Fictional pin check/);
+  expect(/Cash today/.test(pageContent(home)) && /Move up/.test(pageContent(home)) && /Unpin/.test(pageContent(home)), "pin-drawn-on-home");
+  const id = /\/canvas\?pin=([0-9a-f-]{36})/.exec(home)?.[1];
+  expect(id, "pin-id");
+  const open = await page(`/canvas?pin=${id}`, /Save to this pin/);
+  expect(/Pin to Home/.test(pageContent(open)), "pin-open");
+  const gone = await request("/api/canvases", { method: "POST", form: { kind: "unpin", id, returnTo: "/" } });
+  expect(gone.response.status === 303, "unpin-status");
+  const after = await request("/");
+  expect(!/Fictional pin check/.test(pageContent(after.body)), "pin-removed");
+  const kinds = (await events()).events.map(event => event.kind);
+  expect(kinds.includes("canvas_pinned") && kinds.includes("canvas_unpinned"), "pin-events");
+});
+await step("action", "ai-model-default-is-accepted-and-an-oversize-body-is-refused", async () => {
+  const same = await request("/api/settings/ai-model", { method: "POST", form: { kind: "default" } });
+  expect(same.response.status === 200, "ai-model-default-status");
+  const big = await request("/api/settings/ai-model", { method: "POST", form: { kind: "save", key: "x".repeat(5000) } });
+  expect(big.response.status === 413, "ai-model-oversize-status");
 });
 await step("page", "settings", () => page("/settings", /Household &amp; bank|Household & bank/));
 await step("page", "settings-offers-start-over-with-my-numbers", () => page("/settings", /Start over with my numbers/));

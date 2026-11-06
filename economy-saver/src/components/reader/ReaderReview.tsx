@@ -4,6 +4,7 @@ import type { Extracted } from "@/lib/reader/extract";
 import { CategoryFields } from "@/components/household/CategoryFields";
 import { ScheduleFields } from "@/components/household/ScheduleFields";
 import { ApiForm } from "@/components/ui/ApiForm";
+import { CorrectionOffer } from "./CorrectionOffer";
 import { ReadingFields } from "./ReadingFields";
 import { minorMoney } from "@/lib/money/format";
 import { monthName } from "@/lib/money/spending";
@@ -44,6 +45,7 @@ export function ReaderReview({ inbox, state }: { inbox: ReaderInbox; state: Mone
           <CategoryFields name={value.name ?? ""} defaultCategory={value.category} defaultBp={value.businessBp ?? 0} />
           <label className="ui-field">Card for a charge<select name="cardId" defaultValue={value.cardId ?? ""}><option value="">Choose card</option>{state.cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
         </div>
+        <CorrectionOffer read={{ kind: value.kind, name: value.name, category: value.category, businessBp: value.businessBp, cardId: value.cardId }} cards={state.cards.map(c => ({ id: c.id, label: c.label }))} />
         <div className="reader-buttons"><button className="ui-button primary" name="decision" value="confirm">Confirm reading</button><button className="ui-button" name="decision" value="reject" formNoValidate>Dismiss</button></div>
       </ApiForm>
     </details>)}

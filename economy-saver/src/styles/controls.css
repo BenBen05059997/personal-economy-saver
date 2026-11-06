@@ -18,7 +18,7 @@
 }
 /* A required field carries a hanging asterisk beside its label. */
 .ui-field { position: relative; }
-.ui-field:has(> :is(input, select, textarea):required)::before { content: "*" / ""; position: absolute; left: calc(-1 * var(--space-3)); color: var(--red); font-weight: 600; }
+.ui-field:has(> :is(input, select, textarea):required, > .amount-field > input:required)::before { content: "*" / ""; position: absolute; left: calc(-1 * var(--space-3)); color: var(--red); font-weight: 600; }
 /* The shared form (components/ui/ApiForm): its fieldset only carries `disabled`, so it takes no box of its own, and its
    status line sits under the fields; while it is empty it takes no room at all (it stays in the page for screen readers). */
 .ui-form > fieldset { display: contents; }

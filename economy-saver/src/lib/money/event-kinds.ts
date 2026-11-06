@@ -2,11 +2,15 @@
 // in src/db or src/lib/events.ts has a line here; the doors test reads those files and fails on one that is missing.
 
 export const EVENT_KIND_LABELS = {
+  ai_model_changed: "AI model changed",
   bank_balance: "Bank balance changed",
   bill_added: "Bill added",
   bill_changed: "Bill changed",
   bill_confirmed: "Bill confirmed",
   bill_removed: "Bill removed",
+  canvas_changed: "Pinned canvas changed",
+  canvas_pinned: "Pinned to Home",
+  canvas_unpinned: "Unpinned from Home",
   charge_added: "Card charge added",
   charge_confirmed: "Card charge confirmed",
   charge_removed: "Card charge removed",
@@ -22,6 +26,7 @@ export const EVENT_KIND_LABELS = {
   invoice_sent: "Invoice sent",
   family_link_created: "Family view shared",
   family_link_stopped: "Family view stopped",
+  memory_changed: "Assistant memory changed",
   member_added: "Person added",
   member_renamed: "Person renamed",
   person_removed: "Person removed",

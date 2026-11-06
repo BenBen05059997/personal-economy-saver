@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const local = new URL("../.env.local", import.meta.url);
 if (existsSync(local)) process.loadEnvFile(fileURLToPath(local));
 const names = ["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_WEBHOOK_ID", "SANDBOX_CLIENT_EMAIL",
-  "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "DATABASE_URL", "ANTHROPIC_API_KEY",
+  "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "DATABASE_URL", "AI_API_KEY",
   "INBOUND_ADDRESS_KEY", "INBOUND_WORKER_SECRET", "CRON_SECRET", "MCP_TOKEN_KEY"];
 for (const file of ["worker.js", "worker.js.map"]) {
   const path = new URL("../.wrangler/dryout/" + file, import.meta.url);

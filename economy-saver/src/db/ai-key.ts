@@ -1,15 +1,24 @@
 import { and, eq, sql } from "drizzle-orm";
 import { pgSchema, text, uuid } from "drizzle-orm/pg-core";
-import { requireHousehold, type Db } from "./household";
+import { InputError } from "./input-error";
+import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
+import { readCheck, type ConnectionCheck } from "@/lib/ai/check";
+import { providerById } from "@/lib/ai/providers";
+import { isTested } from "@/lib/ai/tested";
+import type { Connection } from "@/lib/ai/types";
+import { recordEvent, requireHousehold, type Db } from "./household";
 import { households } from "./schema";
 
 /** Messages contain configuration names and fixed text only; safe for a response. */
 export class AiKeyError extends Error {}
+const anthropicHost = "https://api.anthropic.com";
+// The Vault secret keeps the name it was first saved under, so keys saved earlier keep working.
 const secretName = (hid: string) => `household:${hid}:anthropic`;
 // Vault is an existing private extension schema, outside the application's migrations.
 const vault = pgSchema("vault");
 const secrets = vault.table("secrets", { id: uuid("id").notNull(), name: text("name") });
 const decrypted = vault.table("decrypted_secrets", { id: uuid("id").notNull(), name: text("name"), key: text("decrypted_secret") });
+const STORAGE_DOWN = "AI key storage is unavailable. Check DATABASE_URL and Supabase Vault permissions.";
 
 async function lockedHousehold(db: Db, hid: string) {
   const [household] = await db.select().from(households).where(eq(households.id, hid)).for("update");
@@ -17,78 +26,203 @@ async function lockedHousehold(db: Db, hid: string) {
   return household;
 }
 
-/** Call immediately before EACH provider invocation, including retries. Never log the return value. */
-export async function aiKey(db: Db, householdId: string, now = new Date()): Promise<string> {
+const settingOf = (name: string) => {
+  const value = process.env[name]?.trim();
+  if (!value) throw new AiKeyError(`${name} is not set`);
+  return value;
+};
+
+/** The app's own address decides whether a model on this machine may be used (lib/ai/endpoint.ts). */
+const allowLocal = () => { const raw = process.env.APP_URL?.trim(); return raw ? localAllowed(new URL(raw)) : false; };
+
+async function vaultKey(tx: Db, hid: string): Promise<string | null> {
+  const [secret] = await tx.select({ key: decrypted.key }).from(decrypted)
+    .innerJoin(households, eq(households.aiKeySecretId, decrypted.id))
+    .where(and(eq(households.id, hid), eq(decrypted.name, secretName(hid))));
+  return secret?.key ?? null;
+}
+
+/** Which model the caller will use; the setting is checked before any allowance is reserved. */
+export type ModelNeed = "text" | "document";
+
+const NO_MODEL = (need: ModelNeed) => new AiKeyError(`Your AI model has no model for ${need === "text" ? "questions" : "documents"}. Choose one in Settings.`);
+
+/**
+ * The connection for ONE model call (D56). Call immediately before EACH call, including retries. A household with its own
+ * model (ai_protocol set) gets it: its saved address (checked again here), its Vault key or none, the model for the need,
+ * no allowance. Any other household gets the server default from the AI_ settings, which reserves one unit of the
+ * household's daily allowance. Never log the return value.
+ */
+export async function aiConnection(db: Db, householdId: string, need: ModelNeed, now = new Date()): Promise<Connection> {
   const hid = requireHousehold(householdId);
   try {
     return await db.transaction(async tx => {
       const household = await lockedHousehold(tx, hid);
-      if (household.aiKeySecretId) {
-        const [secret] = await tx.select({ key: decrypted.key }).from(decrypted)
-          .innerJoin(households, eq(households.aiKeySecretId, decrypted.id))
-          .where(and(eq(households.id, hid), eq(decrypted.name, secretName(hid))));
-        if (!secret?.key) throw new AiKeyError("Saved AI key is unavailable. Replace it in Settings.");
-        return secret.key;
+      if (household.aiProtocol && household.aiBaseUrl) {
+        const model = need === "text" ? household.aiTextModel : household.aiDocumentModel;
+        if (!model) throw NO_MODEL(need);
+        let baseUrl: string;
+        try { baseUrl = checkBaseUrl(household.aiBaseUrl, { allowLocal: allowLocal() }); }
+        catch (error) { if (error instanceof InputError) throw new AiKeyError("Your AI model's address can't be used. Choose it again in Settings."); throw error; }
+        const key = household.aiKeySecretId ? await vaultKey(tx, hid) : null;
+        if (household.aiKeySecretId && !key) throw new AiKeyError("Saved AI key is unavailable. Replace it in Settings.");
+        if (!key && household.aiProvider !== "custom") throw new AiKeyError("Your AI model has no key. Add one in Settings.");
+        return { protocol: household.aiProtocol as Connection["protocol"], baseUrl, key,
+          textModel: household.aiTextModel, documentModel: household.aiDocumentModel, own: true } satisfies Connection;
       }
-      const key = process.env.ANTHROPIC_API_KEY?.trim();
-      if (!key) throw new AiKeyError("ANTHROPIC_API_KEY is not set");
-      const rawLimit = process.env.ANTHROPIC_DAILY_READ_LIMIT;
-      if (!rawLimit?.trim()) throw new AiKeyError("ANTHROPIC_DAILY_READ_LIMIT is not set");
+      const wanted = settingOf(need === "text" ? "AI_TEXT_MODEL" : "AI_DOCUMENT_MODEL");
+      const models = {
+        textModel: need === "text" ? wanted : process.env.AI_TEXT_MODEL?.trim() || null,
+        documentModel: need === "document" ? wanted : process.env.AI_DOCUMENT_MODEL?.trim() || null,
+      };
+      const protocol = settingOf("AI_PROTOCOL");
+      if (protocol !== "anthropic" && protocol !== "openai") throw new AiKeyError("AI_PROTOCOL must be anthropic or openai");
+      const baseUrl = protocol === "anthropic" ? anthropicHost : settingOf("AI_BASE_URL");
+      const key = settingOf("AI_API_KEY");
+      const rawLimit = settingOf("AI_DAILY_LIMIT");
       const limit = Number(rawLimit);
-      if (!Number.isSafeInteger(limit) || limit < 1) throw new AiKeyError("ANTHROPIC_DAILY_READ_LIMIT must be a positive integer");
+      if (!Number.isSafeInteger(limit) || limit < 1) throw new AiKeyError("AI_DAILY_LIMIT must be a positive integer");
       // Actual local date, including for the date-anchored demo. Quota resets at local midnight.
       const day = new Intl.DateTimeFormat("en-CA", { timeZone: household.timeZone,
         year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
       const used = household.aiReadsDay === day ? household.aiReadsToday : 0;
-      if (used >= limit) throw new AiKeyError("Daily AI allowance reached. Add your own key in Settings or try after local midnight.");
+      if (used >= limit) throw new AiKeyError("Daily AI allowance reached. Choose your own model in Settings or try after local midnight.");
       await tx.update(households).set({ aiReadsDay: day, aiReadsToday: used + 1 }).where(eq(households.id, hid));
-      return key;
+      return { protocol, baseUrl, key, ...models, own: false } satisfies Connection;
     });
   } catch (error) {
     if (error instanceof AiKeyError) throw error;
-    throw new AiKeyError("AI key storage is unavailable. Check DATABASE_URL and Supabase Vault permissions.");
+    throw new AiKeyError(STORAGE_DOWN);
   }
 }
 
-export async function saveHouseholdKey(db: Db, householdId: string, key: string) {
+export type ConnectionInput = {
+  provider: string; baseUrl: string; textModel: string; documentModel: string; sameForDocuments: boolean; key: string;
+};
+type CheckFn = (connection: Connection) => Promise<ConnectionCheck>;
+
+const MODEL_SHAPE = /^[^\s\u0000-\u001f\u007f]{1,200}$/;
+const modelName = (value: string, what: string) => {
+  const v = value.trim();
+  if (!MODEL_SHAPE.test(v)) throw new AiKeyError(`Enter the model for ${what} (up to 200 characters, no spaces).`);
+  return v;
+};
+const KEY_SHAPE = /^[^\s\u0000-\u001f\u007f]{1,500}$/;
+const hintOf = (key: string) => `…${key.slice(-4)}`;
+
+async function writeSecret(tx: Db, household: typeof households.$inferSelect, hid: string, key: string) {
+  const name = secretName(hid);
+  if (household.aiKeySecretId) {
+    // The id pointer alone cannot authorize changing another household's secret.
+    const existing = await tx.select({ id: secrets.id }).from(secrets)
+      .innerJoin(households, eq(households.aiKeySecretId, secrets.id))
+      .where(and(eq(households.id, hid), eq(secrets.name, name)));
+    if (!existing.length) throw new AiKeyError("Saved AI key ownership could not be verified");
+    await tx.select({ updated: sql`updated` }).from(sql`(select vault.update_secret(${household.aiKeySecretId}::uuid, ${key}, ${name}) as updated) as changed_secret`);
+  } else {
+    const [secret] = await tx.select({ id: sql<string>`id` }).from(sql`(select vault.create_secret(${key}, ${name}, 'Household AI key') as id) as created_secret`);
+    await tx.update(households).set({ aiKeySecretId: secret.id }).where(eq(households.id, hid));
+  }
+}
+
+/**
+ * Saves the household's own model (D56): validates, checks the connection with the three cases (a model that is on the
+ * tested list is not asked again), stores the result, and records one event naming the provider and model, never the key.
+ * A model that does not call tools is refused and nothing is stored. The check runs before the household row is locked.
+ * `signedIn` is false for Try it households, which may use the listed providers only.
+ */
+export async function saveHouseholdConnection(db: Db, householdId: string, input: ConnectionInput, opts: { signedIn: boolean; check: CheckFn }) {
   const hid = requireHousehold(householdId);
-  if (!/^sk-ant-[A-Za-z0-9_-]{20,500}$/.test(key)) throw new AiKeyError("Enter a valid Anthropic API key");
+  const provider = providerById(input.provider);
+  if (!provider) throw new AiKeyError("Choose a provider.");
+  if (provider.id === "custom" && !opts.signedIn) throw new AiKeyError("A custom address needs an account. Sign in from Settings → Account.");
+  let baseUrl: string;
+  try { baseUrl = checkBaseUrl(provider.baseUrl ?? input.baseUrl, { allowLocal: allowLocal() }); }
+  catch (error) { if (error instanceof InputError) throw new AiKeyError(error.message); throw error; }
+  const textModel = modelName(input.textModel, "questions");
+  const documentModel = input.sameForDocuments ? textModel : modelName(input.documentModel, "documents");
+  const newKey = input.key.trim();
+  if (newKey && !KEY_SHAPE.test(newKey)) throw new AiKeyError("The key must be 1 to 500 characters with no spaces.");
   try {
+    const [before] = await db.select().from(households).where(eq(households.id, hid));
+    if (!before) throw new AiKeyError("Household no longer exists");
+    // Without a new key, the saved one is kept only for the same provider and address; a key never moves to another host.
+    const sameHost = before.aiProvider === provider.id && before.aiBaseUrl === baseUrl;
+    const key = newKey || (sameHost && before.aiKeySecretId ? await db.transaction(tx => vaultKey(tx, hid)) : null);
+    if (!key && provider.id !== "custom") throw new AiKeyError("Enter the key for this provider.");
+    const connection: Connection = { protocol: provider.protocol, baseUrl, key, textModel, documentModel, own: true };
+    const tested = isTested(provider.id, textModel);
+    const result = tested ? null : await opts.check(connection);
+    const refused = result?.failed.find(f => f.name === "uses_tools");
+    if (refused) throw new AiKeyError(`This model can't be used: it did not call the app's tools, so it can't answer from your numbers. ${refused.why} Choose a model that supports tool calling.`);
     await db.transaction(async tx => {
       const household = await lockedHousehold(tx, hid);
-      const name = secretName(hid);
-      if (household.aiKeySecretId) {
-        // The id pointer alone cannot authorize changing another household's secret.
-        const existing = await tx.select({ id: secrets.id }).from(secrets)
-          .innerJoin(households, eq(households.aiKeySecretId, secrets.id))
-          .where(and(eq(households.id, hid), eq(secrets.name, name)));
-        if (!existing.length) throw new AiKeyError("Saved AI key ownership could not be verified");
-        await tx.select({ updated: sql`updated` }).from(sql`(select vault.update_secret(${household.aiKeySecretId}::uuid, ${key}, ${name}) as updated) as changed_secret`);
-      } else {
-        const [secret] = await tx.select({ id: sql<string>`id` }).from(sql`(select vault.create_secret(${key}, ${name}, 'Household Anthropic key') as id) as created_secret`);
-        await tx.update(households).set({ aiKeySecretId: secret.id }).where(eq(households.id, hid));
-      }
-      await tx.update(households).set({ aiKeyHint: `sk-ant-…${key.slice(-4)}` }).where(eq(households.id, hid));
+      if (newKey) await writeSecret(tx, household, hid, newKey);
+      else if (!key && household.aiKeySecretId) await dropSecret(tx, household, hid);
+      await tx.update(households).set({
+        aiProvider: provider.id, aiProtocol: provider.protocol, aiBaseUrl: baseUrl, aiTextModel: textModel, aiDocumentModel: documentModel,
+        aiCheck: result, aiKeyHint: key ? hintOf(key) : null, ...(!key && { aiKeySecretId: null }),
+      }).where(eq(households.id, hid));
+      await recordEvent(tx, hid, { madeBy: "form", kind: "ai_model_changed", title: `AI model changed to ${provider.label}, ${textModel}` });
     });
   } catch (error) {
     if (error instanceof AiKeyError) throw error;
-    throw new AiKeyError("AI key storage is unavailable. Check DATABASE_URL and Supabase Vault permissions.");
+    throw new AiKeyError(STORAGE_DOWN);
   }
 }
 
-/** Caller must hold the household row lock in its transaction. Safe to call when no key is saved. */
+async function dropSecret(tx: Db, household: typeof households.$inferSelect, hid: string) {
+  if (!household.aiKeySecretId) return;
+  const deleted = await tx.delete(secrets).where(and(eq(secrets.id, household.aiKeySecretId), eq(secrets.name, secretName(hid)),
+    sql`exists (select 1 from ${households} where ${households.id} = ${hid}::uuid and ${households.aiKeySecretId} = ${secrets.id})`)).returning({ id: secrets.id });
+  if (deleted.length !== 1) throw new AiKeyError("Saved AI key ownership could not be verified");
+}
+
+/**
+ * Removes the household's own model: its key from Vault and every ai_ connection column. Caller must hold the household
+ * row lock in its transaction (Reset, upgrade, the sweeper and deletion call this). Safe when nothing is saved.
+ */
 export async function deleteHouseholdKey(tx: Db, householdId: string) {
   const hid = requireHousehold(householdId);
   try {
     const household = await lockedHousehold(tx, hid);
-    if (household.aiKeySecretId) {
-      const deleted = await tx.delete(secrets).where(and(eq(secrets.id, household.aiKeySecretId), eq(secrets.name, secretName(hid)),
-        sql`exists (select 1 from ${households} where ${households.id} = ${hid}::uuid and ${households.aiKeySecretId} = ${secrets.id})`)).returning({ id: secrets.id });
-      if (deleted.length !== 1) throw new AiKeyError("Saved AI key ownership could not be verified");
-    }
-    await tx.update(households).set({ aiKeySecretId: null, aiKeyHint: null }).where(eq(households.id, hid));
+    await dropSecret(tx, household, hid);
+    await tx.update(households).set({ aiKeySecretId: null, aiKeyHint: null, aiProvider: null, aiProtocol: null, aiBaseUrl: null,
+      aiTextModel: null, aiDocumentModel: null, aiCheck: null }).where(eq(households.id, hid));
   } catch (error) {
     if (error instanceof AiKeyError) throw error;
     throw new AiKeyError("AI key deletion is unavailable. Check Supabase Vault permissions.");
   }
+}
+
+/** Settings → "Use this app's default": clears the household's own model and records one event. */
+export async function deleteHouseholdConnection(db: Db, householdId: string) {
+  const hid = requireHousehold(householdId);
+  try {
+    await db.transaction(async tx => {
+      const household = await lockedHousehold(tx, hid);
+      if (!household.aiProtocol && !household.aiKeySecretId) return;
+      await deleteHouseholdKey(tx, hid);
+      await recordEvent(tx, hid, { madeBy: "form", kind: "ai_model_changed", title: "AI model changed to this app's default" });
+    });
+  } catch (error) {
+    if (error instanceof AiKeyError) throw error;
+    throw new AiKeyError(STORAGE_DOWN);
+  }
+}
+
+export type ConnectionView = {
+  provider: string; label: string; host: string; baseUrl: string; textModel: string | null; documentModel: string | null;
+  sameForDocuments: boolean; hint: string | null; tested: boolean; check: ConnectionCheck | null;
+};
+
+/** What Settings shows about the household's own model, or null when it uses the default. Never the key. */
+export async function connectionView(db: Db, householdId: string): Promise<ConnectionView | null> {
+  const hid = requireHousehold(householdId);
+  const [h] = await db.select({ provider: households.aiProvider, baseUrl: households.aiBaseUrl, text: households.aiTextModel,
+    doc: households.aiDocumentModel, hint: households.aiKeyHint, check: households.aiCheck }).from(households).where(eq(households.id, hid));
+  if (!h?.provider || !h.baseUrl) return null;
+  return { provider: h.provider, label: providerById(h.provider)?.label ?? h.provider, host: new URL(h.baseUrl).host, baseUrl: h.baseUrl,
+    textModel: h.text, documentModel: h.doc, sameForDocuments: h.text === h.doc, hint: h.hint,
+    tested: Boolean(h.text) && isTested(h.provider, h.text!), check: readCheck(h.check) };
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { AskPanel } from "@/components/ask/AskPanel";
+import { useRouter } from "next/navigation";
+import { DRAFT_EVENT, DRAFT_KEY } from "@/components/ask/draft";
+import "@/components/ask/ask-bar.css";
 import React, { type ReactNode } from "react";
 import { hrefForRef } from "@/lib/links";
 import type { EventFeed } from "@/db/event-feed";
@@ -27,25 +29,27 @@ function Icon({ name }: { name: keyof typeof iconPaths }) {
 }
 
 const destinations = [
-  { icon: "home", label: "Home", href: "/" },
-  { icon: "check", label: "To check", href: "/to-check" },
-  { icon: "activity", label: "Activity", href: "/activity" },
-  { icon: "cards", label: "Cards", href: "/cards" },
-  { icon: "clients", label: "Clients", href: "/clients" },
-  { icon: "plan", label: "Plan", href: "/plan" },
+  { section: "home", icon: "home", label: "Home", href: "/" },
+  { section: "canvas", icon: "plan", label: "Ask", href: "/canvas" }, // no icon of its own: the bars icon is the closest to a drawn chart
+  { section: "check", icon: "check", label: "To check", href: "/to-check" },
+  { section: "activity", icon: "activity", label: "Activity", href: "/activity" },
+  { section: "cards", icon: "cards", label: "Cards", href: "/cards" },
+  { section: "clients", icon: "clients", label: "Clients", href: "/clients" },
+  { section: "plan", icon: "plan", label: "Plan", href: "/plan" },
 ] as const;
 
-export type Section = typeof destinations[number]["icon"] | "settings" | "invoices" | "options" | "upload";
+export type Section = typeof destinations[number]["section"] | "memory" | "settings" | "invoices" | "options" | "upload";
 
 function Navigation({ pending, name, section }: { pending: number; name: string; section: Section }) {
   return <>
     <Link prefetch={false} className="shell-brand" href="/"><span aria-hidden="true">¥</span>Money</Link>
     <nav className="shell-links" aria-label="Main navigation">
-      {destinations.map(({ icon, label, href }) => <Link prefetch={false} key={icon} href={href} aria-current={icon === section ? "page" : undefined}>
-        <Icon name={icon} />{label}{icon === "check" && pending > 0 && <span className="shell-badge">{pending}</span>}
+      {destinations.map(({ section: target, icon, label, href }) => <Link prefetch={false} key={target} href={href} aria-current={target === section ? "page" : undefined}>
+        <Icon name={icon} />{label}{target === "check" && pending > 0 && <span className="shell-badge">{pending}</span>}
       </Link>)}
     </nav>
     <footer className="shell-footer">
+      <Link prefetch={false} aria-current={section === "memory" ? "page" : undefined} href="/memory"><Icon name="activity" />Memory</Link>
       <Link prefetch={false} aria-current={section === "settings" ? "page" : undefined} href="/settings"><Icon name="settings" />Settings</Link>
       <div className="shell-person"><span aria-hidden="true">{name.slice(0, 1)}</span>{name}</div>
     </footer>
@@ -64,6 +68,15 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
 }) {
   const { mark, marking, error } = useEventFeed(feed, section === "home" || section === "check");
   const { notifications, unread } = feed;
+  const router = useRouter();
+  // A character typed while the Ask bar has focus starts the question on the Ask page: it travels in sessionStorage (read once there), never in the address.
+  function typedOnBar(event: React.KeyboardEvent<HTMLAnchorElement>) {
+    if (event.key.length !== 1 || event.key === " " || event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    try { window.sessionStorage.setItem(DRAFT_KEY, event.key); } catch { /* storage can be blocked: the page opens with an empty box */ }
+    router.push("/canvas#ask");
+    window.dispatchEvent(new Event(DRAFT_EVENT));
+  }
   return <div className="money-shell" onClick={event => {
     if (event.target instanceof Element) {
       const link = event.target.closest("a");
@@ -76,9 +89,9 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
       <header className="shell-bar">
         <button className="shell-mobile-toggle" popoverTarget="shell-nav" aria-label="Open navigation"><Icon name="activity" /></button>
         <Link prefetch={false} className="shell-mobile-brand" href="/">Money</Link>
-        <button className="shell-ask" popoverTarget="shell-questions">
+        <Link prefetch={false} className="shell-ask" href="/canvas#ask" onKeyDown={typedOnBar}>
           <Icon name="mic" /><span>Ask or say: {askPrompt}</span><b>Ask</b>
-        </button>
+        </Link>
         <button className="shell-bell" popoverTarget="shell-notifications" aria-label={`Notifications, ${unread} unread`}>
           <Icon name="bell" />{unread > 0 && <span className="shell-badge">{unread}</span>}
         </button>
@@ -87,9 +100,9 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
       <main id="shell-main" className="shell-main" tabIndex={-1}>
         <div className="shell-content">{children}</div>
       </main>
-      <button className="shell-phone-ask" popoverTarget="shell-questions">
+      {section !== "canvas" && <Link prefetch={false} className="shell-phone-ask" href="/canvas#ask">
         <span><Icon name="mic" /></span>Ask or tell me: “{askPrompt}”
-      </button>
+      </Link>}
     </div>
     <aside id="shell-nav" popover="auto" className="shell-nav-popover">
       <button className="shell-nav-close" popoverTarget="shell-nav" popoverTargetAction="hide" aria-label="Close navigation"><Icon name="close" /></button>
@@ -115,7 +128,6 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
       <Link prefetch={false} href="/upload">Upload a receipt</Link>
       <Link prefetch={false} href="/invoices/new">New invoice</Link>
     </nav>
-    <AskPanel />
   </div>;
 }
 export default Shell;

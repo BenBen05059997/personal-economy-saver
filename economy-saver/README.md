@@ -2,13 +2,13 @@
 
 A money assistant for people paid through PayPal. The example follows Ben, a fictional freelance designer in Tokyo whose clients pay in US dollars. Home gives a 30-day runway as one dated sentence, safe to spend, what needs checking and one PayPal action: invoice finished work or nudge a late client. The user must approve before the server sends anything through PayPal Sandbox.
 
-This is a private hackathon project in development. Next.js dev and the local Worker render a fictional household from the Supabase project in Tokyo (`ap-northeast-1`). Not yet verified live: the deployed Worker, a Claude call, magic-link delivery, Email Routing and a real PayPal sandbox send with its signed webhook.
+This is a private hackathon project in development. Next.js dev and the local Worker render a fictional household from the Supabase project in Tokyo (`ap-northeast-1`). Not yet verified live: the deployed Worker, a live model call, magic-link delivery, Email Routing and a real PayPal sandbox send with its signed webhook.
 
 ## What is implemented
 
 - A Next.js 16 app with household-scoped Postgres/Drizzle data and a fictional Ben seed.
 - A deterministic runway and sentence from stored bills, cards, charges, invoices, FX rates and client payment history.
-- Screens: Home, invoice review, To check, Activity, Cards, Clients, Plan, Options, Settings, Upload and document review.
+- Screens: Home, invoice review, To check, Activity, Cards, Clients, Plan, Options, Settings, Upload and document review, Ask (`/canvas`: the conversation and the canvas beside it) and Memory.
 - A Try it household flow (with Reset to Ben's starting numbers in Settings), Start with my numbers (`/start`, also offered in Settings, posts the setup form to `/api/try/blank`: a new blank demo household that replaces any Try it one whose Home says what to add and shows First steps until a bill, a client and a card charge exist) and passwordless email sign-in.
 - Typed-in data: clients, bills (optionally repeating monthly), card charges, a one-line bank balance, and invoices marked paid outside PayPal. Amounts take thousands separators and stop at ¥100,000,000 or $1,000,000; dates stop two years ahead. A mistyped bill (a monthly one as a whole series) or card charge is removed with Remove, after an in-page confirm. A refused form shows its message beside the form and keeps what you typed.
 - Pots on the Plan page: money set aside for a reason, taken off the cash every runway number starts from, optionally filled by a percentage of each client payment.
@@ -16,14 +16,17 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - Categories and a business share: fourteen fixed categories and a Personal / Business / Mixed share on every bill and charge (proposed from the name, confirmed by you); Plan shows "Where the month goes" for the current month. Neither moves any money.
 - Missing data: a bill can be saved with its amount or date not known yet; the forecast counts it at an estimate from the same name's last three real bills (the high end in the late case), says where the number came from, and To check → Missing asks only for the missing piece.
 - Document intake (upload and forwarded email) with confirmation before a reading changes money records.
-- An in-app agent: `/api/ask` runs Claude with tools over the engine (reads and drafts only). The same tool catalogue and rules serve MCP (the server's `instructions`). Each Ask and each MCP call writes one content-free JSON log line to standard output.
+- Ask: the page `/canvas` (sidebar label Ask; the top bar links to it, voice where the browser supports it). `/api/ask` runs a model of your choice (D56) with tools over the engine (reads and drafts only). A reply is an answer, a clarifying question with choices to tap, or a decline for what is not about your money; code chooses which. An answer can come with a canvas: blocks that each hold a question, never a number, which the engine fills from your records, with "Show the recipe", "Based on" links and Helpful / Not helpful. "What if a client pays two weeks late?" runs the engine on a copy of your numbers and saves nothing. "Pin to Home" keeps a canvas (at most 8) under Home's sentence, drawn by the engine with no model call. The last 200 questions and replies are kept.
+- Memory: the page `/memory` lists what the assistant remembers (each item says where it came from), and you can add, edit, delete or Forget everything. The assistant can `remember` and `forget` when you ask; a text with a run of 12 or more digits is refused. A To check card with a corrected name, category, work share or card offers "Also tell the assistant".
+- Your AI model: Settings → Your AI model sets a provider (or any OpenAI-compatible address once signed in), the models and a key; Save and check runs three checks (uses tools, ignores an injected order, stays on money) and shows the host your questions go to. With no model of its own a household uses the server's `AI_` settings.
+- The same tool catalogue and rules serve MCP (the server's `instructions`), except `clarify` and `out_of_scope`, which only the Ask page offers. The same tool catalogue and rules serve MCP (the server's `instructions`). Each Ask and each MCP call writes one content-free JSON log line to standard output.
 - A family view by link: Settings → People makes a link that lasts 7 days (at most 5 live, stoppable at once; only its hash is stored, so the full link and a ready-to-paste LINE message show once). The page at `/family/<token>` needs no sign-in and has no actions: the sentence, the shared bills coming up and who owes whom. `APP_URL` sets the address in the link.
 - One versioned household schema: Settings has Export my data (a JSON download with the household's events), the `household_snapshot` read tool gives the agent and MCP the same picture without events, and `schema/household.v1.json` is generated from the same definition.
 - PayPal sandbox REST and Agent Toolkit integration, with the draft/read tools separate from the server approval path; verified webhook deliveries are idempotent; a read-only import of sandbox invoice history.
-- Rate limits on Try it, Ask, MCP, drafts, approvals, uploads, document reads, imports and exports; PayPal toolkit calls time out after 20 s.
+- Rate limits on Try it, Ask (and five declined questions an hour), MCP, canvases, pins, thumbs, model changes, drafts, approvals, uploads, document reads, imports and exports; PayPal toolkit calls time out after 20 s.
 - A daily Cron route with an explicit household list (`CRON_HOUSEHOLD_IDS`). Its one standing rule is off until you set it in Settings: once a sent invoice is N days past due it records a "Nudge suggested" event and Home shows it as the one action; it never sends, the reminder still needs your tap.
 - Every row and event records who made it (`made_by`); To check and Activity say "Drafted by Ask" or "Drafted through MCP" after what the agent drafted. The invoice review and the client panel show how fast a client usually pays.
-- Isolated PGlite test suites for schema/seed/engine, approval and webhook behaviour, MCP, reader, settings, agent, PayPal refresh, typed-in data, import, pots, the household snapshot, the household split, the categories with the business share and the daily nudge rule. They do not show that hosted services are configured.
+- Isolated PGlite test suites for schema/seed/engine, approval and webhook behaviour, MCP, reader, settings, agent, the model layer, PayPal refresh, typed-in data, import, pots, the household snapshot, the household split, the canvas, memory, the categories with the business share and the daily nudge rule. They do not show that hosted services are configured.
 
 ## Safety
 
@@ -51,7 +54,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 
    - **Database-backed routes:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (the transaction pooler string, port 6543) and `APP_URL`. Sign-in links return to `APP_URL` (never to the request's Origin header), and it must be listed under the project's Authentication → URL Configuration. Locally it is `http://127.0.0.1:3123`; in the Worker preview `http://localhost:8787`.
    - **PayPal actions:** `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `SANDBOX_CLIENT_EMAIL`. A webhook also needs `PAYPAL_WEBHOOK_ID` once the owner has registered it. Refreshing the stored balance and importing invoice history for a non-demo household need `PAYPAL_BALANCE_HOUSEHOLD_ID`.
-   - **Claude (Ask and the reader):** `ANTHROPIC_API_KEY`, a positive `ANTHROPIC_DAILY_READ_LIMIT`, `ANTHROPIC_TEXT_MODEL` (Ask and plain forwarded mail) and `ANTHROPIC_DOCUMENT_MODEL` (photos, PDFs and mail with attachments).
+   - **AI model (Ask and the reader), the server default:** `AI_PROTOCOL` (`anthropic` or `openai`, the OpenAI-compatible Chat Completions protocol), `AI_BASE_URL` (required for `openai`), `AI_API_KEY`, a positive `AI_DAILY_LIMIT`, `AI_TEXT_MODEL` (Ask and plain forwarded mail) and `AI_DOCUMENT_MODEL` (photos, PDFs and mail with attachments; it must accept images). A household can choose its own model in Settings instead; then it needs none of these for its own questions and documents.
    - **Reader storage and forwarding:** `SUPABASE_DOCUMENT_BUCKET` (a private bucket; `household-documents` on the Tokyo project), `FORWARDING_DOMAIN`, `INBOUND_ADDRESS_KEY`, `INBOUND_WORKER_SECRET`.
    - **MCP tokens:** `MCP_TOKEN_KEY`, a dedicated random 32-byte key as unpadded base64url. Keep the same key across instances; rotating it invalidates tokens.
    - **Cron:** `CRON_SECRET` and `CRON_HOUSEHOLD_IDS` (comma-separated household UUIDs).
@@ -80,17 +83,17 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all twenty-two suites: db, approve, mcp, reader, settings, agent, refresh, doors, import, csv, pots, snapshot, split, category, spending, regular, varies, gaps, cron, sweep, isolation, family
+npm run db:test      # all twenty-six suites: db, approve, mcp, reader, settings, agent, ai, refresh, doors, import, csv, pots, snapshot, split, category, spending, regular, varies, gaps, canvas, conversation, memory, cron, sweep, isolation, family
 npm run schema       # rewrites schema/household.v1.json from the zod definition (db:test fails when it is stale)
 npx tsc --noEmit -p .
 npm run lint
 ```
 
-Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:cron-test`, `db:sweep-test`, `db:isolation-test`, `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
+Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:canvas-test`, `db:conversation-test`, `db:memory-test`, `db:cron-test`, `db:sweep-test`, `db:isolation-test`, `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
 
 With the app running and Supabase configured, `node scripts/frontend-check.mjs --run http://127.0.0.1:3123` times the core household workflows. `--extra` covers Upload, Options and invoice draft retries; `--guards` covers integration rejection paths. They create fictional Try it households. Results and timings are in [PLAN.md](../PLAN.md).
 
-Cloudflare: `npm run cf:preview` builds and previews the Worker on port 8787 (reads `.dev.vars`); `npm run cf:size` builds, reports the bundle size (the free plan's limit is 3 MiB gzip) and scans the Worker for credentials. Deploying (`npm run cf:deploy`) is owner-managed.
+Cloudflare: `npm run cf:preview` builds and previews the Worker on port 8787 (reads `.dev.vars`); `npm run cf:size` builds, reports the bundle size (the limit is 64 MiB uncompressed and a startup under 1 s) and scans the Worker for credentials. Deploying (`npm run cf:deploy`) is owner-managed.
 
 ## PayPal sandbox
 
@@ -98,7 +101,7 @@ Use only an owner-configured PayPal Developer Sandbox app and sandbox recipients
 
 ## Ask, voice and MCP
 
-The Ask panel accepts typed text and, where the browser supports it, speech. The agent answers from the runway engine and can only read or draft: a spoken or typed bill, card charge, bank balance update, pot or invoice waits for confirmation (in To check, or on the invoice review page). Without the Anthropic settings Ask shows a clear missing-setting error.
+The Ask page accepts typed text and, where the browser supports it, speech. A character typed in the top bar's Ask box carries over to the page. The agent answers from the runway engine and can only read or draft: a spoken or typed bill, card charge, bank balance update, pot or invoice waits for confirmation (in To check, or on the invoice review page). Without a model (the server's AI settings, or the household's own) the Ask page names the missing setting.
 
 To issue household-scoped MCP tokens, set `MCP_TOKEN_KEY`, then use Settings. Connect a Streamable HTTP MCP client to `/api/mcp` with the token as a Bearer credential. The token supports household reads and drafts (the same tools as the agent); approval and sending stay in the app. `npm run mcp:demo` runs a finite protocol demonstration on loopback with an isolated PGlite household and an in-memory key.
 
@@ -109,7 +112,11 @@ src/app/                 pages and API routes
 src/components/          UI by area: shell, home, household, plan, invoices, reader, settings, ask, auth, mcp, ui
 src/db/                  schema, household-scoped queries, seeds, rate limits
 src/lib/money/           pure runway, plans, repeating bills, sentence and options logic
-src/lib/agent/           the tool catalogue and the Claude runner
+src/lib/agent/           the tool catalogue (reads, drafts, canvas and memory tools), the runner and the reply choice
+src/lib/ai/              callModel, the one way the app calls a model (Anthropic and OpenAI-compatible)
+src/lib/canvas/          the canvas recipe, its resolver and starters (components in src/components/canvas/; pins in src/db/canvases.ts)
+src/app/canvas/          the Ask page (components in src/components/ask/; turns in src/db/conversation.ts)
+src/db/memory.ts         what the assistant remembers (page /memory)
 src/lib/schema/          the one household schema (zod) and its JSON Schema generator
 schema/                  household.v1.json, the committed JSON Schema
 src/lib/paypal/          sandbox client, toolkit, invoice listing and webhook verification
@@ -117,7 +124,7 @@ src/lib/mcp/             Streamable HTTP server
 src/lib/catalogue/       the wealth-move catalogue engine (words and sources in src/data/catalogue/)
 src/lib/reader/          extraction, forwarding, storage
 scripts/                 isolated tests and explicit owner-operated checks
-drizzle/                 ordered schema migrations, twenty files (0000–0019)
+drizzle/                 ordered schema migrations, twenty-two files (0000–0021)
 worker.ts                Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
 samples/bills/           fictional sample bills for the reader
 ```

@@ -20,6 +20,7 @@ import {
   index,
   integer,
   jsonb,
+  smallint,
   pgEnum,
   pgTable,
   primaryKey,
@@ -52,6 +53,7 @@ export const readingTarget = pgEnum("reading_target", ["bill", "charge"]);
 export const madeBy = pgEnum("made_by", ["form", "ask", "mcp", "reader", "cron", "paypal", "import"]);
 const madeByColumn = () => madeBy("made_by").notNull().default("form");
 const askIdColumn = () => uuid("ask_id");
+export const memoryKind = pgEnum("memory_kind", ["fact", "preference", "goal", "instruction", "correction"]);
 
 export const households = pgTable("households", {
   id: id(),
@@ -68,10 +70,21 @@ export const households = pgTable("households", {
   splitSince: date("split_since", { mode: "string" }), // D45: the day the household got its second member; null while it has one
   aiKeySecretId: uuid("ai_key_secret_id"), // the user's own key lives in Supabase Vault (D33); this is its id
   aiKeyHint: text("ai_key_hint"), // prefix…suffix only
+  // D56: the household's own model. Provider, protocol and base URL are all null or all set.
+  aiProvider: text("ai_provider"), // an id from PROVIDERS
+  aiProtocol: text("ai_protocol"),
+  aiBaseUrl: text("ai_base_url"),
+  aiTextModel: text("ai_text_model"),
+  aiDocumentModel: text("ai_document_model"),
+  aiCheck: jsonb("ai_check"),
   aiReadsToday: integer("ai_reads_today").notNull().default(0),
   aiReadsDay: date("ai_reads_day", { mode: "string" }),
   createdAt: createdAt(),
-}, (t) => [check("households_nudge_after_days_valid", sql`${t.nudgeAfterDays} is null or ${t.nudgeAfterDays} between 1 and 60`)]).enableRLS();
+}, (t) => [
+  check("households_nudge_after_days_valid", sql`${t.nudgeAfterDays} is null or ${t.nudgeAfterDays} between 1 and 60`),
+  check("households_ai_protocol_valid", sql`${t.aiProtocol} is null or ${t.aiProtocol} in ('anthropic', 'openai')`),
+  check("households_ai_endpoint_together", sql`(${t.aiProvider} is null and ${t.aiProtocol} is null and ${t.aiBaseUrl} is null) or (${t.aiProvider} is not null and ${t.aiProtocol} is not null and ${t.aiBaseUrl} is not null)`),
+]).enableRLS();
 
 // Daily reference rates for each household: how many `quote` per 1 `base`.
 export const fxRates = pgTable(
@@ -518,3 +531,60 @@ export const requestBuckets = pgTable("request_buckets", {
   window: timestamp("window", { withTimezone: true }).notNull(),
   count: integer("count").notNull(),
 }, t => [primaryKey({ columns: [t.householdId, t.purpose] })]).enableRLS();
+
+// D58: what the assistant remembers. Plain text the person can read, edit and delete; delete is real (D59).
+export const memories = pgTable(
+  "memories",
+  {
+    id: id(),
+    householdId: householdId(),
+    kind: memoryKind("kind").notNull(),
+    text: text("text").notNull(),
+    madeBy: madeByColumn(),
+    askId: askIdColumn(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("memories_household_idx").on(t.householdId), check("memories_text_valid", sql`char_length(${t.text}) between 1 and 400`)],
+).enableRLS();
+
+// D57: a canvas pinned to Home. The recipe holds queries, never numbers; `position` 0 is first.
+export const canvases = pgTable(
+  "canvases",
+  {
+    id: id(),
+    householdId: householdId(),
+    title: text("title").notNull(),
+    recipe: jsonb("recipe").notNull(), // a RecipeSchema value; its version is inside
+    position: integer("position").notNull(),
+    madeBy: madeByColumn(),
+    askId: askIdColumn(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("canvases_household_position_idx").on(t.householdId, t.position), check("canvases_title_valid", sql`char_length(${t.title}) between 1 and 80`)],
+).enableRLS();
+
+// D60: one question and its reply. `id` is the question's ask_id, so a retried question is one row.
+export const conversationTurns = pgTable(
+  "conversation_turns",
+  {
+    id: uuid("id").primaryKey(),
+    householdId: householdId(),
+    conversationId: uuid("conversation_id").notNull(),
+    question: text("question").notNull(),
+    kind: text("kind").notNull(), // answer, clarify or declined
+    reply: text("reply").notNull(),
+    choices: jsonb("choices"), // clarify only
+    recipe: jsonb("recipe"),
+    sources: jsonb("sources").notNull().default(sql`'[]'::jsonb`), // { label, href }[]
+    thumb: smallint("thumb"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("conversation_turns_household_idx").on(t.householdId, t.conversationId, t.createdAt),
+    check("conversation_turns_question_valid", sql`char_length(${t.question}) between 1 and 320`),
+    check("conversation_turns_kind_valid", sql`${t.kind} in ('answer', 'clarify', 'declined')`),
+    check("conversation_turns_thumb_valid", sql`${t.thumb} is null or ${t.thumb} in (-1, 1)`),
+  ],
+).enableRLS();

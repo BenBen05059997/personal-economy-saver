@@ -1,0 +1,35 @@
+/* Ask (D60): the conversation (about 330px) beside the canvas at desktop width; stacked on a phone. App tokens only. */
+.ask-page { display: grid; gap: var(--space-5); align-items: start; min-width: 0; }
+@media (min-width: 900px) {
+  .ask-page { grid-template-columns: 330px minmax(0, 1fr); gap: var(--space-6); }
+  .ask-conversation { position: sticky; top: var(--space-4); max-height: calc(100dvh - 2 * var(--space-4)); overflow-y: auto; }
+}
+.ask-conversation, .ask-canvas { display: grid; gap: var(--space-3); min-width: 0; align-content: start; }
+.ask-canvas { scroll-margin-top: var(--space-4); }
+.ask-canvas:focus { outline: none; }
+.ask-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.ask-head .ui-title { margin: 0; }
+.ask-empty, .ask-turn { display: grid; gap: var(--space-2); }
+.ask-examples { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.ask-examples .ui-button { width: 100%; text-align: left; height: auto; min-height: 36px; white-space: normal; }
+.ask-turns { display: grid; gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.ask-turn { padding-bottom: var(--space-3); border-bottom: 1px solid var(--rule); }
+.ask-question { margin: 0; color: var(--muted); font: 500 13px/1.4 var(--sans); overflow-wrap: anywhere; }
+.ask-reply { margin: 0; font: 400 15px/1.5 var(--sans); overflow-wrap: anywhere; }
+.ask-reply.is-declined { color: var(--muted); }
+.ask-choices, .ask-links, .ask-thumbs, .ask-buttons, .ask-pin { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.ask-choices .ui-button, .ask-thumbs .ui-button, .ask-buttons .ui-button { min-height: 36px; }
+.ask-thumbs .ui-button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.ask-sources { margin: 0; overflow-wrap: anywhere; }
+.ask-problem { margin: 0; padding: var(--space-3); border-radius: var(--radius-control); background: var(--red-wash); color: var(--red); font: 400 14px/1.4 var(--sans); overflow-wrap: anywhere; }
+.ask-intro { margin: 0; }
+.ask-form { display: grid; gap: var(--space-2); }
+.ask-form textarea { width: 100%; box-sizing: border-box; }
+.ask-starters { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.ask-starters button { min-height: 36px; padding: 0 var(--space-3); border: 1px solid var(--rule); border-radius: var(--radius-control); background: var(--screen); color: var(--ink); font: 500 13px/1 var(--sans); cursor: pointer; }
+.ask-starters button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.ask-pin { align-items: flex-start; }
+.ask-pin-form { display: block; }
+@media (max-width: 899px) {
+  .ask-choices .ui-button, .ask-thumbs .ui-button, .ask-buttons .ui-button, .ask-starters button { min-height: 44px; }
+}

@@ -56,12 +56,12 @@
 .shell-links a:hover, .shell-footer a:hover, .shell-popover a:hover {
   background: color-mix(in srgb, var(--sel) 55%, transparent);
 }
-.shell-links a[aria-current="page"] {
+.shell-links a[aria-current="page"], .shell-footer a[aria-current="page"] {
   background: var(--sel);
   font-weight: 600;
 }
 .shell-links .shell-icon, .shell-footer .shell-icon { color: var(--muted); }
-.shell-links [aria-current="page"] .shell-icon { color: var(--ink); }
+.shell-links [aria-current="page"] .shell-icon, .shell-footer [aria-current="page"] .shell-icon { color: var(--ink); }
 .shell-badge {
   min-width: 18px;
   height: 18px;
@@ -192,6 +192,7 @@
   width: min(280px, 90vw);
   height: 100dvh;
   max-height: 100dvh;
+  overflow-y: auto;
   margin: 0;
   border: 0;
   border-right: 1px solid var(--rule);
