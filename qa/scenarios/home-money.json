@@ -1,0 +1,3724 @@
+[
+  {
+    "id": "HOME-001",
+    "area": "Home",
+    "action": "Read the one sentence on Home",
+    "user_goal": "I want to know in one line if I am fine this month",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Home at 375px and 1440px"
+    ],
+    "expected": [
+      "The sentence matches BROWSER-CHECKS Expected numbers: fine if Acme and Northwind pay as usual, short on the 27th if they are late",
+      "Acme and Northwind are links to their client pages and the date jumps to the runway day",
+      "Under the sentence is the quiet line 'A fictional household that lives in this browser. Start with my numbers ›'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A2",
+      "BROWSER-CHECKS B1"
+    ]
+  },
+  {
+    "id": "HOME-002",
+    "area": "Home",
+    "action": "Check every Home number against the expected table",
+    "user_goal": "I want the same number on every screen",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Compare Home, Cards, Clients, Plan and Options with BROWSER-CHECKS Expected numbers"
+    ],
+    "expected": [
+      "Safe to spend, bank balance, both card rows, Coming up rows and the Options gap all match the table",
+      "No number differs between screens"
+    ],
+    "refs": [
+      "BROWSER-CHECKS B1",
+      "BROWSER-CHECKS Expected numbers"
+    ]
+  },
+  {
+    "id": "HOME-003",
+    "area": "Home",
+    "action": "Read the runway picture",
+    "user_goal": "I want to see when my balance dips",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Home",
+      "Look at the Next 30 days chart"
+    ],
+    "expected": [
+      "The chart marks the shortfall on Nov 27 as a negative amount",
+      "Its dates run from Nov 14 to Dec 13"
+    ],
+    "refs": [
+      "BROWSER-CHECKS B2"
+    ]
+  },
+  {
+    "id": "HOME-004",
+    "area": "Home",
+    "action": "Read safe to spend and what it means",
+    "user_goal": "I want to know how much I can spend",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Home",
+      "Read the Safe to spend panel"
+    ],
+    "expected": [
+      "Safe to spend shows ¥0 with the line about Card B not yet billed",
+      "The text 'The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late.' sits under it",
+      "Money in pots comes off it (see PLAN-006)"
+    ],
+    "refs": [
+      "BROWSER-CHECKS B1",
+      "BROWSER-CHECKS T-E"
+    ]
+  },
+  {
+    "id": "HOME-005",
+    "area": "Home",
+    "action": "Open Later in the month",
+    "user_goal": "I want to see events beyond the first rows",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Tap 'Later in the month · 1 more'"
+    ],
+    "expected": [
+      "The Card B statement of Dec 10 shows",
+      "The Nov 27 row that carries the shortfall is never folded into the fold",
+      "Nov 26 and Nov 27 rows stay above the fold"
+    ],
+    "refs": [
+      "BROWSER-CHECKS B3",
+      "BROWSER-CHECKS T-E"
+    ]
+  },
+  {
+    "id": "HOME-006",
+    "area": "Home",
+    "action": "Follow the panel links",
+    "user_goal": "I want to jump to the full lists",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Tap 'Other options ›'",
+      "Go back and tap 'All cards ›'",
+      "Go back and tap 'All activity ›'"
+    ],
+    "expected": [
+      "They open Options, Cards and Activity in turn"
+    ],
+    "refs": [
+      "BROWSER-CHECKS B4"
+    ]
+  },
+  {
+    "id": "HOME-007",
+    "area": "Home",
+    "action": "Check a one-person household shows no split UI",
+    "user_goal": "I live alone and want no split clutter",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Look at Home, Add a bill and Settings"
+    ],
+    "expected": [
+      "No Shared costs panel and no Whose, Paid by or Shared fields or labels",
+      "Settings has no 'Card belongs to' select and its bills panel is headed 'Bills'",
+      "The line 'Add a partner or housemate…' is still there"
+    ],
+    "refs": [
+      "BROWSER-CHECKS B5"
+    ]
+  },
+  {
+    "id": "HOME-008",
+    "area": "Home",
+    "action": "Read the sentence when nothing is due",
+    "user_goal": "I have no bills yet and want an honest line",
+    "type": "edge",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household started with /start (Mika, ¥120,000, no bills)"
+    ],
+    "steps": [
+      "Open Home"
+    ],
+    "expected": [
+      "The sentence reads 'Add your rent, your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.'",
+      "It never says 'You're fine' and has no red shortfall",
+      "Safe to spend is ¥120,000 and the chart is flat"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N3"
+    ]
+  },
+  {
+    "id": "HOME-009",
+    "area": "Home",
+    "action": "Read the sentence with a bill but no clients",
+    "user_goal": "I have rent and no invoices",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household as in HOME-008"
+    ],
+    "steps": [
+      "Add Rent ¥60,000 due Nov 27, category Housing"
+    ],
+    "expected": [
+      "Home reads 'You're fine for the next 30 days. Lowest point ¥60,000 on the 27th.' without the words 'even if clients pay late'",
+      "Coming up lists Nov 27 Rent ¥60,000 with a Covered tick"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N6"
+    ]
+  },
+  {
+    "id": "HOME-010",
+    "area": "Home",
+    "action": "Follow First steps on a blank household",
+    "user_goal": "I want to be guided through setup",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household as in HOME-008 (Mika, 120,000, Card N closing 25, payment 10)"
+    ],
+    "steps": [
+      "Read First steps under the sentence",
+      "Press the rent step",
+      "Add a bill",
+      "Add a client",
+      "Add a card charge",
+      "Press \"Share costs with someone\""
+    ],
+    "expected": [
+      "First steps · 4 to go shows one open step \"Add your rent, so the day it leaves shows up\" above To check (on a phone under the runway panel, above Cards)",
+      "The rent step opens the Add a bill or charge form on the Bill tab, scrolled into view; the client step opens Clients; the share step opens Settings → People",
+      "Each done step becomes a ticked line with no link and the next step opens in order",
+      "After the fourth the panel is gone; Try it never shows it; no Shared costs panel appears with one person",
+      "Rows are at least 44px tall at 375px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N4",
+      "BROWSER-CHECKS N5",
+      "BROWSER-CHECKS N6",
+      "BROWSER-CHECKS N7",
+      "BROWSER-CHECKS R-A"
+    ]
+  },
+  {
+    "id": "HOME-011",
+    "area": "Home",
+    "action": "Hover the Covered tick",
+    "user_goal": "I want to know what the tick means",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Hover or focus a tick on a Coming up row and on a card row"
+    ],
+    "expected": [
+      "The text starts with 'Covered:' and explains the balance stays above zero even if clients pay late (bill) or the statement can be paid from the bank or client payments (card)"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N9"
+    ]
+  },
+  {
+    "id": "HOME-012",
+    "area": "Home",
+    "action": "See pins on Home drawn without a model call",
+    "user_goal": "I want my pinned canvas on Home",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A canvas pinned from Ask",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Open Home"
+    ],
+    "expected": [
+      "The pinned canvas draws with the same numbers as when it was made and no model call is made",
+      "A pin saved on this device shows from DevicePins"
+    ],
+    "refs": [
+      "D57",
+      "BROWSER-CHECKS W"
+    ]
+  },
+  {
+    "id": "HOME-013",
+    "area": "Home",
+    "action": "Use the Fix button",
+    "user_goal": "I want the one thing to do about the shortfall",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Home",
+      "Tap the action button"
+    ],
+    "expected": [
+      "It reads Invoice Beacon $400 and opens the Beacon Studio invoice review"
+    ],
+    "refs": [
+      "BROWSER-CHECKS E1",
+      "BROWSER-CHECKS Expected numbers"
+    ]
+  },
+  {
+    "id": "HOME-015",
+    "area": "Home",
+    "action": "Unbilled card spend counts in safe to spend",
+    "user_goal": "I want spend I have not been billed for counted",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Read safe to spend, then add a ¥3,800 card charge on Card B"
+    ],
+    "expected": [
+      "Safe to spend still includes the Card B unbilled amount and does not move for a charge billed after the window",
+      "The sentence and low point do not move"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C4"
+    ]
+  },
+  {
+    "id": "PAY-001",
+    "area": "Invoices",
+    "action": "Open the review of a draft",
+    "user_goal": "I want to check an invoice before it is sent",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Tap Invoice Beacon $400 on Home"
+    ],
+    "expected": [
+      "The review shows To Beacon Studio, For 'Brand refresh milestone 2', Due 'On receipt', Amount $400 with ≈¥60,000, and the note",
+      "The pace row reads 'Beacon Studio usually pays 2 days after you send, slowest 3'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS E1",
+      "BROWSER-CHECKS Q1"
+    ]
+  },
+  {
+    "id": "PAY-002",
+    "area": "Invoices",
+    "action": "Read the sandbox sentence on the review",
+    "user_goal": "I want to know no real money moves",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open the Beacon invoice review"
+    ],
+    "expected": [
+      "The line reads 'PayPal sandbox sends this invoice for $400 to Beacon’s test address. No real money moves.'",
+      "Approve and send is the only send control"
+    ],
+    "refs": [
+      "BROWSER-CHECKS T-E",
+      "D12"
+    ]
+  },
+  {
+    "id": "PAY-003",
+    "area": "Invoices",
+    "action": "Approve and send an invoice",
+    "user_goal": "I want PayPal to send it with one tap",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Dev server with the owner's PayPal sandbox settings (SANDBOX_CLIENT_EMAIL set)",
+      "Draft invoice for Beacon Studio"
+    ],
+    "steps": [
+      "Tap Approve and send",
+      "Wait for the redirect"
+    ],
+    "expected": [
+      "While it runs the button is disabled and 'Sending through PayPal sandbox…' shows",
+      "The page opens the invoice as 'Invoice sent. Awaiting payment.'",
+      "Activity gains 'Invoice sent to Beacon Studio' within about 2 s of the response"
+    ],
+    "refs": [
+      "BROWSER-CHECKS E4",
+      "D12"
+    ]
+  },
+  {
+    "id": "PAY-004",
+    "area": "Invoices",
+    "action": "Tap Approve twice",
+    "user_goal": "I might double tap and must not be charged twice",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Dev server with the owner's PayPal sandbox settings, a draft invoice with its approve_key"
+    ],
+    "steps": [
+      "POST /api/approve twice with the same approve_key and action send"
+    ],
+    "expected": [
+      "PayPal is asked to send once; the second answer redirects to the same invoice",
+      "Only one 'Invoice sent' event exists"
+    ],
+    "refs": [
+      "BROWSER-CHECKS E4",
+      "db:approve-test"
+    ]
+  },
+  {
+    "id": "PAY-005",
+    "area": "Invoices",
+    "action": "Approve without a session",
+    "user_goal": "Nobody else can send my invoices",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "No household cookie"
+    ],
+    "steps": [
+      "POST /api/approve with a valid-looking approve_key and action send"
+    ],
+    "expected": [
+      "Answered 401 'Household session required'; nothing sent"
+    ],
+    "refs": [
+      "D12"
+    ]
+  },
+  {
+    "id": "PAY-006",
+    "area": "Invoices",
+    "action": "Approve from another origin",
+    "user_goal": "A page on another site must not send for me",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/approve with an Origin header of another site and the cookie"
+    ],
+    "expected": [
+      "Answered 403 'Same-origin request required'; nothing sent"
+    ],
+    "refs": [
+      "D12"
+    ]
+  },
+  {
+    "id": "PAY-007",
+    "area": "Invoices",
+    "action": "Approve with a bad body",
+    "user_goal": "A broken form must be refused clearly",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/approve with approve_key 'abc' and action send",
+      "Post again with action delete"
+    ],
+    "expected": [
+      "Both answered 400 'Invalid approval'"
+    ],
+    "refs": [
+      "D12"
+    ]
+  },
+  {
+    "id": "PAY-008",
+    "area": "Invoices",
+    "action": "Approve another household's invoice",
+    "user_goal": "I must not send someone else's invoice",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Two households A and B; B's draft approve_key"
+    ],
+    "steps": [
+      "As household A, POST /api/approve with B's approve_key"
+    ],
+    "expected": [
+      "Answered 404 'Invoice not found'; B's invoice is untouched"
+    ],
+    "refs": [
+      "db:isolation-test",
+      "D12"
+    ]
+  },
+  {
+    "id": "PAY-009",
+    "area": "Invoices",
+    "action": "Approve more than ten times a minute",
+    "user_goal": "The send route must be rate limited",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/approve eleven times in one minute"
+    ],
+    "expected": [
+      "The eleventh answers 429 'Approval limit reached. Try again in a minute.' with Retry-After 60"
+    ],
+    "refs": [
+      "D12"
+    ]
+  },
+  {
+    "id": "PAY-011",
+    "area": "Invoices",
+    "action": "Approve a draft whose due date is not today",
+    "user_goal": "Sandbox drafts only support payment on receipt",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "owner"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A draft invoice with a due date other than today"
+    ],
+    "steps": [
+      "POST /api/approve action send"
+    ],
+    "expected": [
+      "Answered 409 'Sandbox drafts support payment on receipt. Review the due date before sending.'"
+    ],
+    "refs": [
+      "db:approve-test"
+    ]
+  },
+  {
+    "id": "PAY-012",
+    "area": "Invoices",
+    "action": "Approve when PayPal does not answer",
+    "user_goal": "A failed send must be clear and retryable",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:approve-test"
+    ],
+    "expected": [
+      "The user sees 'PayPal did not confirm the send. Open the invoice again to check its status or retry.' with status 502",
+      "The invoice is not marked sent without PayPal's confirmation"
+    ],
+    "refs": [
+      "db:approve-test"
+    ]
+  },
+  {
+    "id": "PAY-014",
+    "area": "Invoices",
+    "action": "Mark an invoice paid outside PayPal",
+    "user_goal": "I was paid by bank transfer",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Beacon invoice open"
+    ],
+    "steps": [
+      "Tap 'Mark paid outside PayPal'"
+    ],
+    "expected": [
+      "Bank balance rises by ¥60,000 and the invoice reads 'Paid Nov 14.'",
+      "The sentence changes to lowest point ¥30,000 on the 27th once Hikari Denki is confirmed; Activity records it"
+    ],
+    "refs": [
+      "BROWSER-CHECKS E2"
+    ]
+  },
+  {
+    "id": "PAY-015",
+    "area": "Invoices",
+    "action": "Mark paid on an invoice that went through PayPal",
+    "user_goal": "Only PayPal marks a sent invoice paid",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A sent invoice with a PayPal invoice id"
+    ],
+    "steps": [
+      "POST /api/invoices/paid with its id"
+    ],
+    "expected": [
+      "Answered 400 'This invoice was sent through PayPal; PayPal marks it paid'; the invoice stays sent",
+      "The button is not shown on such an invoice"
+    ],
+    "refs": [
+      "D15"
+    ]
+  },
+  {
+    "id": "PAY-016",
+    "area": "Invoices",
+    "action": "Mark paid on an already paid invoice",
+    "user_goal": "A second tap must not add money twice",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "An invoice already marked paid outside"
+    ],
+    "steps": [
+      "POST /api/invoices/paid again"
+    ],
+    "expected": [
+      "Answered 409 'This invoice cannot be marked paid here.'; the bank balance does not change"
+    ],
+    "refs": [
+      "BROWSER-CHECKS E2"
+    ]
+  },
+  {
+    "id": "PAY-017",
+    "area": "Invoices",
+    "action": "Mark paid with a bad id or another household's id",
+    "user_goal": "Ids from elsewhere must be refused",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Two households"
+    ],
+    "steps": [
+      "POST /api/invoices/paid with id 'x'",
+      "POST with household B's invoice id from household A"
+    ],
+    "expected": [
+      "The first answers 400 'Check the required fields and try again.'",
+      "The second answers 409 and changes nothing in B"
+    ],
+    "refs": [
+      "db:isolation-test"
+    ]
+  },
+  {
+    "id": "PAY-018",
+    "area": "Invoices",
+    "action": "Send a verified paid webhook",
+    "user_goal": "The sentence should change when the client pays",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "deploy",
+      "paypal_webhook"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Deployed app, sent invoice linked to PayPal, webhook registered"
+    ],
+    "steps": [
+      "Pay the sandbox invoice as the test client",
+      "Reload Home"
+    ],
+    "expected": [
+      "Activity shows 'Invoice … paid' and the invoice reads Paid",
+      "The bank balance rises by the invoice amount and the sentence changes",
+      "Replaying the same event does not change anything twice"
+    ],
+    "refs": [
+      "BROWSER-CHECKS E4",
+      "D15"
+    ]
+  },
+  {
+    "id": "PAY-019",
+    "area": "Invoices",
+    "action": "Post a paid webhook with a bad signature",
+    "user_goal": "Only a verified webhook may mark paid",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Dev server"
+    ],
+    "steps": [
+      "POST /api/paypal/webhook with a PayPal-shaped INVOICING.INVOICE.PAID body and wrong signature headers"
+    ],
+    "expected": [
+      "Answered 400 {received:false}; no invoice changes and the response gives no reason"
+    ],
+    "refs": [
+      "D15",
+      "db:approve-test",
+      "frontend-check --guards"
+    ]
+  },
+  {
+    "id": "PAY-020",
+    "area": "Invoices",
+    "action": "Replay the same verified webhook",
+    "user_goal": "A repeated delivery must not credit twice",
+    "type": "edge",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:approve-test"
+    ],
+    "expected": [
+      "The second delivery is stored once and the balance is credited once"
+    ],
+    "refs": [
+      "db:approve-test",
+      "D15"
+    ]
+  },
+  {
+    "id": "PAY-021",
+    "area": "Invoices",
+    "action": "Read webhook diagnostics",
+    "user_goal": "I want only my own deliveries",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "No cookie, then Ben's cookie"
+    ],
+    "steps": [
+      "GET /api/paypal/webhook with and without the cookie"
+    ],
+    "expected": [
+      "No cookie answers 401 'Household session required'",
+      "With the cookie only that household's deliveries come back, without any raw PayPal payload"
+    ],
+    "refs": [
+      "db:approve-test"
+    ]
+  },
+  {
+    "id": "PAY-022",
+    "area": "Invoices",
+    "action": "Browser says it is paid",
+    "user_goal": "The browser must never be trusted for payment",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A sent invoice with a PayPal id"
+    ],
+    "steps": [
+      "Post to /api/invoices/paid or edit the page to claim paid"
+    ],
+    "expected": [
+      "The invoice stays sent until a verified webhook arrives"
+    ],
+    "refs": [
+      "D15"
+    ]
+  },
+  {
+    "id": "PAY-023",
+    "area": "Invoices",
+    "action": "Nudge a late client",
+    "user_goal": "I want to remind a client who is late",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Dev server with the owner's PayPal sandbox settings, nudge rule on, an overdue sent invoice linked to PayPal for Northwind"
+    ],
+    "steps": [
+      "Tap 'Nudge Northwind $800' on Home",
+      "Tap Approve reminder"
+    ],
+    "expected": [
+      "The review says 'Review reminder' with Approve reminder and repeats the client's time to pay",
+      "After it, the invoice reads 'Reminder sent through PayPal Sandbox.' and Home's action returns to what it was",
+      "PayPal is called only after the tap"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Q4",
+      "D12"
+    ]
+  },
+  {
+    "id": "PAY-024",
+    "area": "Invoices",
+    "action": "Remind an invoice that is not overdue",
+    "user_goal": "Only overdue invoices can be nudged",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A sent invoice not yet past due"
+    ],
+    "steps": [
+      "POST /api/approve with its approve_key and action remind"
+    ],
+    "expected": [
+      "Answered 409 'Only an overdue, sent sandbox invoice can be reminded.'"
+    ],
+    "refs": [
+      "db:approve-test"
+    ]
+  },
+  {
+    "id": "PAY-025",
+    "area": "Invoices",
+    "action": "Remind twice",
+    "user_goal": "A reminder must not be sent twice",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "An invoice already reminded"
+    ],
+    "steps": [
+      "POST /api/approve action remind again"
+    ],
+    "expected": [
+      "It redirects to the invoice and no second reminder is sent; if a first attempt was unconfirmed it says 'A reminder was requested. Check its delivery in PayPal before taking further action.'"
+    ],
+    "refs": [
+      "db:approve-test"
+    ]
+  },
+  {
+    "id": "PAY-026",
+    "area": "Invoices",
+    "action": "New invoice from Clients or Add",
+    "user_goal": "I want to bill a client",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open New invoice from + Add",
+      "Pick Acme Corp, For 'Logo update', Amount 250",
+      "Tap Review draft"
+    ],
+    "expected": [
+      "The review page shows Acme Corp, Logo update and $250 ≈ the yen value",
+      "Under Amount the form says 'Invoices are always in US dollars. Home shows what they are worth in your own currency.'",
+      "Activity records 'Invoice drafted for Acme Corp'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS E3",
+      "BROWSER-CHECKS N9"
+    ]
+  },
+  {
+    "id": "PAY-027",
+    "area": "Invoices",
+    "action": "Draft with amount 0",
+    "user_goal": "A zero invoice is refused",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "New invoice, amount 0, Review draft"
+    ],
+    "expected": [
+      "The form shows 'The amount must be more than zero' and keeps what was typed; nothing is saved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C6"
+    ]
+  },
+  {
+    "id": "PAY-028",
+    "area": "Invoices",
+    "action": "Draft amounts at the limit",
+    "user_goal": "Limits and separators must hold",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "New invoice with amount 1,000.50",
+      "Then 1,000,001",
+      "Then ＄400 and 400円"
+    ],
+    "expected": [
+      "1,000.50 is read as $1,000.50",
+      "1,000,001 gives 'Enter an amount up to $1,000,000'",
+      "A yen amount is refused as not in dollars"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C7"
+    ]
+  },
+  {
+    "id": "PAY-029",
+    "area": "Invoices",
+    "action": "Draft with no item or an over-long item",
+    "user_goal": "Bad input must be refused",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/invoices/draft with an empty item",
+      "POST with an item of 201 characters"
+    ],
+    "expected": [
+      "Both answered 400 'Enter a client, item and positive USD amount.'"
+    ],
+    "refs": [
+      "db:approve-test"
+    ]
+  },
+  {
+    "id": "PAY-030",
+    "area": "Invoices",
+    "action": "Draft for another household's client",
+    "user_goal": "I must not bill someone else's client",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Two households"
+    ],
+    "steps": [
+      "As household A, POST /api/invoices/draft with B's clientId"
+    ],
+    "expected": [
+      "Answered 409 'Could not save this draft. Check the client and try again.'; nothing is created in B"
+    ],
+    "refs": [
+      "db:isolation-test"
+    ]
+  },
+  {
+    "id": "PAY-031",
+    "area": "Invoices",
+    "action": "Post the same draft id twice",
+    "user_goal": "A double submit must make one draft",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/invoices/draft twice with the same id"
+    ],
+    "expected": [
+      "One invoice exists and Activity has one 'Invoice drafted' row"
+    ],
+    "refs": [
+      "db:approve-test"
+    ]
+  },
+  {
+    "id": "PAY-032",
+    "area": "Invoices",
+    "action": "Draft with a cross-origin post",
+    "user_goal": "Other sites must not create drafts",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/invoices/draft with a foreign Origin header"
+    ],
+    "expected": [
+      "Answered 403 'Same-origin request required'"
+    ],
+    "refs": [
+      "D12"
+    ]
+  },
+  {
+    "id": "PAY-033",
+    "area": "Invoices",
+    "action": "Open another household's invoice page",
+    "user_goal": "Invoice pages must be scoped",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Two households"
+    ],
+    "steps": [
+      "GET /invoices/<B's id> as household A"
+    ],
+    "expected": [
+      "A not-found page; no B data shown"
+    ],
+    "refs": [
+      "db:isolation-test"
+    ]
+  },
+  {
+    "id": "PAY-035",
+    "area": "Invoices",
+    "action": "Import from PayPal in a Try it household",
+    "user_goal": "Only the designated household may import",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/paypal/import"
+    ],
+    "expected": [
+      "Answered 403 'Only the household connected to the PayPal sandbox merchant can import from it.'; the Settings panel is not shown"
+    ],
+    "refs": [
+      "D37",
+      "economy-saver/scripts/paypal-import-test.ts"
+    ]
+  },
+  {
+    "id": "PAY-036",
+    "area": "Invoices",
+    "action": "Import with a setting missing",
+    "user_goal": "A missing setting is named",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:import-test",
+      "Read its check on the missing PAYPAL_BALANCE_HOUSEHOLD_ID"
+    ],
+    "expected": [
+      "The import stops with an error naming PAYPAL_BALANCE_HOUSEHOLD_ID"
+    ],
+    "refs": [
+      "db:import-test",
+      "AGENTS.md rule 10"
+    ]
+  },
+  {
+    "id": "PAY-037",
+    "area": "Invoices",
+    "action": "Import more than twice a minute",
+    "user_goal": "The import is rate limited",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "owner"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Designated household"
+    ],
+    "steps": [
+      "POST /api/paypal/import three times in a minute"
+    ],
+    "expected": [
+      "The third answers 429 'Import limit reached. Try again in a minute.'"
+    ],
+    "refs": [
+      "db:limits-test"
+    ]
+  },
+  {
+    "id": "PAY-039",
+    "area": "Invoices",
+    "action": "Daily job suggests a nudge",
+    "user_goal": "I want a late client flagged",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:cron-test"
+    ],
+    "expected": [
+      "With the rule at 2 days an overdue sent invoice gets one 'Nudge Northwind: 2 days past due' row, never twice, never after a reminder, and nothing is sent to PayPal"
+    ],
+    "refs": [
+      "db:cron-test",
+      "BROWSER-CHECKS Q3"
+    ]
+  },
+  {
+    "id": "PAY-040",
+    "area": "Invoices",
+    "action": "Draft a client pace row for a new client",
+    "user_goal": "A client with no paid invoice shows no pace",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A new client with a draft"
+    ],
+    "steps": [
+      "Open the invoice review of the new client"
+    ],
+    "expected": [
+      "No 'Pace' row shows"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Q1"
+    ]
+  },
+  {
+    "id": "CLI-001",
+    "area": "Clients",
+    "action": "Open Clients",
+    "user_goal": "I want my clients and what they owe",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Clients",
+      "Tap each row"
+    ],
+    "expected": [
+      "Acme $1,200 outstanding, Beacon nothing outstanding, Northwind $800 outstanding",
+      "Each row opens a panel whose amounts match Home's Coming up"
+    ],
+    "refs": [
+      "BROWSER-CHECKS F3",
+      "BROWSER-CHECKS Expected numbers"
+    ]
+  },
+  {
+    "id": "CLI-002",
+    "area": "Clients",
+    "action": "Read a client's time to pay",
+    "user_goal": "I want to know how fast they pay",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Northwind's panel"
+    ],
+    "expected": [
+      "'Time to pay' reads '12 days usual · 16 slowest' and wraps at 375px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Q1"
+    ]
+  },
+  {
+    "id": "CLI-003",
+    "area": "Clients",
+    "action": "Add a client",
+    "user_goal": "I have a new client",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Clients → Add a client, name 'Hoshi Studio', email hoshi@example.com, Add client"
+    ],
+    "expected": [
+      "The client appears on Clients and in the new-invoice list"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C5"
+    ]
+  },
+  {
+    "id": "CLI-004",
+    "area": "Clients",
+    "action": "Add a client with a bad email",
+    "user_goal": "A bad email must be stopped",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Type an email 'hoshi' and submit"
+    ],
+    "expected": [
+      "The browser's own message stops it; nothing is saved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C6"
+    ]
+  },
+  {
+    "id": "CLI-005",
+    "area": "Clients",
+    "action": "Add a client with a long name or empty name",
+    "user_goal": "Odd names must behave",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add a client with a 200 character name with no spaces",
+      "Add one with an empty name"
+    ],
+    "expected": [
+      "The long name wraps without sideways scroll at 375px",
+      "The empty name is refused"
+    ],
+    "refs": [
+      "BROWSER-CHECKS L"
+    ]
+  },
+  {
+    "id": "CLI-006",
+    "area": "Clients",
+    "action": "Add a client from another household or origin",
+    "user_goal": "Cross-site posts are refused",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/clients with a foreign Origin"
+    ],
+    "expected": [
+      "Answered 403 'Same-origin request required'"
+    ],
+    "refs": [
+      "db:isolation-test"
+    ]
+  },
+  {
+    "id": "CLI-007",
+    "area": "Clients",
+    "action": "Start a new invoice from a client page",
+    "user_goal": "I want a shortcut",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open a client's page, tap 'New invoice for this client ›'"
+    ],
+    "expected": [
+      "New invoice opens with that client chosen"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N9"
+    ]
+  },
+  {
+    "id": "CLI-008",
+    "area": "Clients",
+    "action": "Show a client that paid late",
+    "user_goal": "A late payer's pace should show",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Acme Corp's invoice"
+    ],
+    "expected": [
+      "The pace row says 'Acme Corp usually pays 14 days after you send, slowest 25'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Q1"
+    ]
+  },
+  {
+    "id": "CARD-001",
+    "area": "Cards",
+    "action": "Read the cards list",
+    "user_goal": "I want what I owe on each card",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Cards"
+    ],
+    "expected": [
+      "Card A and Card B rows match BROWSER-CHECKS Expected numbers and Home's card rows"
+    ],
+    "refs": [
+      "BROWSER-CHECKS F2",
+      "BROWSER-CHECKS Expected numbers"
+    ]
+  },
+  {
+    "id": "CARD-002",
+    "area": "Cards",
+    "action": "Open a card's panel",
+    "user_goal": "I want its detail",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Tap Card A"
+    ],
+    "expected": [
+      "Limit left ¥413,550 shows with 'Can still go on this card and leave every bill through Dec 26 covered ¥173,770' and Recent charges each have Remove"
+    ],
+    "refs": [
+      "BROWSER-CHECKS F2"
+    ]
+  },
+  {
+    "id": "CARD-004",
+    "area": "Cards",
+    "action": "Card with no charges",
+    "user_goal": "A new card should read cleanly",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household with Card N"
+    ],
+    "steps": [
+      "Open Home and Cards"
+    ],
+    "expected": [
+      "Card N reads ¥0 owed now and 'No statement due'; panel says 'No card charges yet.'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N4"
+    ]
+  },
+  {
+    "id": "CARD-005",
+    "area": "Cards",
+    "action": "Add a charge without a card",
+    "user_goal": "I need a prompt to add a card first",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Household with no card"
+    ],
+    "steps": [
+      "Open Add a bill or charge → Card charge"
+    ],
+    "expected": [
+      "It says 'Add a card in Settings before adding a charge.'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C0"
+    ]
+  },
+  {
+    "id": "CARD-006",
+    "area": "Cards",
+    "action": "Open another household's card page",
+    "user_goal": "Card pages must be scoped",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Two households"
+    ],
+    "steps": [
+      "GET /cards/<B's card id> as household A"
+    ],
+    "expected": [
+      "Not found; no B data shown"
+    ],
+    "refs": [
+      "db:isolation-test"
+    ]
+  },
+  {
+    "id": "CHG-001",
+    "area": "Charges",
+    "action": "Add a card charge",
+    "user_goal": "I bought something on a card",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Home → Add a card charge",
+      "Merchant 'Noodle shop', ¥3,800, Card B, Food, Personal, Add charge"
+    ],
+    "expected": [
+      "Card B owed now rises to ¥64,800 and limit left falls to ¥235,200",
+      "The sentence and the low point do not move",
+      "Home says 'Added Noodle shop ¥3,800 on Card B'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C4",
+      "BROWSER-CHECKS T-E"
+    ]
+  },
+  {
+    "id": "CHG-002",
+    "area": "Charges",
+    "action": "Add a charge with amount 0",
+    "user_goal": "Zero is refused",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add charge with amount 0"
+    ],
+    "expected": [
+      "The form shows 'The amount must be more than zero', keeps what was typed and saves nothing"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C6"
+    ]
+  },
+  {
+    "id": "CHG-003",
+    "area": "Charges",
+    "action": "Add charge amounts at the limits",
+    "user_goal": "Limits and separators must hold",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add charges with 1,000 and 1,000.50 and full-width １，０００",
+      "Then ¥100,000,001",
+      "Then $24 in a yen box"
+    ],
+    "expected": [
+      "1,000 and full-width are read as 1000",
+      "¥100,000,001 gives 'Enter an amount up to ¥100,000,000'",
+      "$24 gives 'This amount is in yen…'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C7",
+      "BROWSER-CHECKS T-E"
+    ]
+  },
+  {
+    "id": "CHG-004",
+    "area": "Charges",
+    "action": "Add a charge dated too far ahead",
+    "user_goal": "Two years is the limit",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add a charge dated Nov 15, 2028",
+      "Then Nov 14, 2028"
+    ],
+    "expected": [
+      "The first gives 'Choose a date within the next two years'",
+      "Nov 14, 2028 is accepted and Activity reads '… added, due Nov 14, 2028'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C7"
+    ]
+  },
+  {
+    "id": "CHG-005",
+    "area": "Charges",
+    "action": "Add a charge paid in another currency",
+    "user_goal": "I paid in dollars on a yen card",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add 'Fontly Cloud' ¥3,710 dated today on Card A, open More › Paid in another currency, USD, amount 24.00"
+    ],
+    "expected": [
+      "Card A owed now rises from ¥86,450 to ¥90,160",
+      "The charge shows under Recent charges",
+      "Leaving the section empty saves a plain charge"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AE2"
+    ]
+  },
+  {
+    "id": "CHG-006",
+    "area": "Charges",
+    "action": "Check the other-currency form",
+    "user_goal": "The form must offer only a different currency",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open More › Paid in another currency"
+    ],
+    "expected": [
+      "Currency select offers 'Choose a currency' then USD, never JPY; the Amount field has a $ and the hint 'The amount on the receipt. Above, enter what the card billed in yen; the app shows what the conversion cost.'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AE1"
+    ]
+  },
+  {
+    "id": "CHG-007",
+    "area": "Charges",
+    "action": "Amount in another currency without a currency",
+    "user_goal": "Half a pair is refused",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Enter $24.00 with no currency, then a currency with the amount empty"
+    ],
+    "expected": [
+      "First: 'An amount in another currency needs both the amount and the currency'",
+      "Second saves a plain charge with the currency dropped"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AE3"
+    ]
+  },
+  {
+    "id": "CHG-008",
+    "area": "Charges",
+    "action": "Post the card's own currency as the other currency",
+    "user_goal": "A hand-made post must be refused",
+    "type": "security",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:charge-routes-test"
+    ],
+    "expected": [
+      "A post of JPY with an amount is refused with 'The other currency has to differ from the card's'"
+    ],
+    "refs": [
+      "db:charge-routes-test",
+      "BROWSER-CHECKS AE3"
+    ]
+  },
+  {
+    "id": "CHG-009",
+    "area": "Charges",
+    "action": "Edit a charge",
+    "user_goal": "I mistyped the amount or category",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Noodle shop ¥3,800 added"
+    ],
+    "steps": [
+      "Edit Noodle shop to ¥980, Food"
+    ],
+    "expected": [
+      "Activity writes 'Amount ¥1,200 → ¥980 · Category Other → Food' style text and Card B owed changes by the difference"
+    ],
+    "refs": [
+      "BROWSER-CHECKS T-E"
+    ]
+  },
+  {
+    "id": "CHG-010",
+    "area": "Charges",
+    "action": "Remove a charge",
+    "user_goal": "I want a charge gone",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Cards → Card A → Recent charges → Remove on Yamabiko Outdoor ¥6,400",
+      "Confirm"
+    ],
+    "expected": [
+      "It asks first; then Card A owed now falls from ¥86,450 to ¥80,050 and Activity says 'Removed charge Yamabiko Outdoor ¥6,400'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C8"
+    ]
+  },
+  {
+    "id": "CHG-011",
+    "area": "Charges",
+    "action": "Remove the same charge twice",
+    "user_goal": "A second tap is not an error",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/remove kind charge twice with the same id"
+    ],
+    "expected": [
+      "Both redirect; nothing breaks and only one removed event exists"
+    ],
+    "refs": [
+      "db:doors-test"
+    ]
+  },
+  {
+    "id": "CHG-012",
+    "area": "Charges",
+    "action": "Remove another household's charge",
+    "user_goal": "Ids from elsewhere must be refused",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Two households"
+    ],
+    "steps": [
+      "As household A, POST /api/remove with B's charge id"
+    ],
+    "expected": [
+      "B's charge is untouched"
+    ],
+    "refs": [
+      "db:isolation-test"
+    ]
+  },
+  {
+    "id": "CHG-013",
+    "area": "Charges",
+    "action": "Add a charge with a cross-origin post or an unknown card",
+    "user_goal": "Bad requests are refused",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/charges with a foreign Origin",
+      "POST with another household's card id"
+    ],
+    "expected": [
+      "First: 403 'Same-origin request required'",
+      "Second: 400 'Choose a card of this household'"
+    ],
+    "refs": [
+      "db:charge-routes-test"
+    ]
+  },
+  {
+    "id": "CHG-014",
+    "area": "Charges",
+    "action": "Add a shared charge in a one-person household",
+    "user_goal": "Sharing needs a second person",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/charges with shared on"
+    ],
+    "expected": [
+      "Refused with 'Sharing a charge needs a second person; add one in Settings, People'"
+    ],
+    "refs": [
+      "db:split-test"
+    ]
+  },
+  {
+    "id": "CHG-015",
+    "area": "Charges",
+    "action": "Guess the category from the merchant",
+    "user_goal": "I want a category suggested",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Type merchant 'Minato Fresh Market', open More ›"
+    ],
+    "expected": [
+      "Category is pre-selected as Food; choose Part work 25 and Plan's Food row follows with '25% business'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS M3"
+    ]
+  },
+  {
+    "id": "BANK-001",
+    "area": "Bank balance",
+    "action": "Update the bank balance",
+    "user_goal": "I want my real balance entered",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Home → Bank balance → Update (cursor is already in the field)",
+      "Type 100,000, Save"
+    ],
+    "expected": [
+      "Home reads 'You're fine for the next 30 days, even if clients pay late. Lowest point ¥14,220 on the 27th.'",
+      "Activity shows 'Bank balance set to ¥100,000 (was ¥67,000)'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C1"
+    ]
+  },
+  {
+    "id": "BANK-002",
+    "area": "Bank balance",
+    "action": "Close the balance form with Escape",
+    "user_goal": "Keyboard users need it",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Tap Update then press Escape"
+    ],
+    "expected": [
+      "The form closes and focus returns to Update"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C1"
+    ]
+  },
+  {
+    "id": "BANK-003",
+    "area": "Bank balance",
+    "action": "Enter bad balances",
+    "user_goal": "Wrong input must be refused",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Save an empty balance",
+      "Save ¥100,000,001",
+      "Save 'abc'"
+    ],
+    "expected": [
+      "Each is refused with the route's message and nothing changes",
+      "¥100,000,001 reads 'Enter an amount up to ¥100,000,000'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C7"
+    ]
+  },
+  {
+    "id": "BANK-004",
+    "area": "Bank balance",
+    "action": "Enter a balance with separators and yen mark",
+    "user_goal": "Typed forms must be read",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Save '1,000.50' then '12,000円' then '¥12,000'"
+    ],
+    "expected": [
+      "Each is read as the plain number; money is stored as whole yen"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C7",
+      "BROWSER-CHECKS T-E"
+    ]
+  },
+  {
+    "id": "BANK-005",
+    "area": "Bank balance",
+    "action": "Post a balance across origins or with no session",
+    "user_goal": "The balance must be protected",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "No cookie, then foreign Origin"
+    ],
+    "steps": [
+      "POST /api/bank-balance without a cookie",
+      "With a foreign Origin"
+    ],
+    "expected": [
+      "401 'Household session required' and 403 'Same-origin request required'"
+    ],
+    "refs": [
+      "db:isolation-test"
+    ]
+  },
+  {
+    "id": "HOME-101",
+    "area": "Home",
+    "action": "Add a bill",
+    "user_goal": "I have a bill coming",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Home → Add a bill: 'Fictional power' ¥5,000 due Nov 25, category Other, Personal, Add bill"
+    ],
+    "expected": [
+      "It appears in Coming up and the late shortfall moves from ¥18,780 to ¥23,780",
+      "Home says 'Added Fictional power ¥5,000, due Nov 25'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C2"
+    ]
+  },
+  {
+    "id": "HOME-102",
+    "area": "Home",
+    "action": "Guess a bill's category",
+    "user_goal": "I want less typing",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Type 'Fictional power', open More ›",
+      "Replace with 'Zebra Supplies'"
+    ],
+    "expected": [
+      "First shows Utilities with 'Guessed from the name, change if wrong'",
+      "Second shows Other with the same hint and the form still submits"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C2"
+    ]
+  },
+  {
+    "id": "HOME-103",
+    "area": "Home",
+    "action": "Add a bill that repeats monthly",
+    "user_goal": "I pay it every month",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add a bill with Repeats 'Every month on the 25th'"
+    ],
+    "expected": [
+      "Coming up shows 'Every month' and Settings lists it"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C3"
+    ]
+  },
+  {
+    "id": "HOME-104",
+    "area": "Home",
+    "action": "Add a bill with amount 0",
+    "user_goal": "Zero is refused",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add a bill with amount 0"
+    ],
+    "expected": [
+      "'The amount must be more than zero' shows under the form; typed values stay; editing a field clears the message; correcting and resending works"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C6"
+    ]
+  },
+  {
+    "id": "HOME-105",
+    "area": "Home",
+    "action": "Add a bill at amount and date limits",
+    "user_goal": "Limits must hold",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add ¥100,000,001",
+      "Add due Nov 15, 2028",
+      "Add due Nov 14, 2028 at ¥1,000"
+    ],
+    "expected": [
+      "'Enter an amount up to ¥100,000,000'",
+      "'Choose a date within the next two years'",
+      "The last is accepted and Activity reads '… added, due Nov 14, 2028'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C7"
+    ]
+  },
+  {
+    "id": "HOME-106",
+    "area": "Home",
+    "action": "Add a bill with a name of 200 characters",
+    "user_goal": "Long names must wrap",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add a bill named with a very long unbroken word"
+    ],
+    "expected": [
+      "It wraps on Home, Plan, Settings and Activity without sideways scroll at 375px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS L"
+    ]
+  },
+  {
+    "id": "HOME-107",
+    "area": "Home",
+    "action": "Open the + Add menu",
+    "user_goal": "I want the add actions in one place",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open + Add on Home and again from Plan"
+    ],
+    "expected": [
+      "Order is Add a bill, Add a card charge, Forward a bill, Upload a receipt, New invoice",
+      "From Plan the items go to Home with the form open on the right tab and scrolled into view"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C0"
+    ]
+  },
+  {
+    "id": "HOME-108",
+    "area": "Home",
+    "action": "Remove a monthly bill",
+    "user_goal": "I cancelled rent",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Settings → Bills → Remove on Rent → Keep",
+      "Then Remove again → Remove"
+    ],
+    "expected": [
+      "It asks 'Remove Rent ¥82,000? It repeats every month, so every month goes.'; Keep changes nothing",
+      "Remove takes every month off Coming up and the runway; Activity says 'Removed bill Rent ¥82,000'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C8"
+    ]
+  },
+  {
+    "id": "HOME-109",
+    "area": "Home",
+    "action": "Remove a bill twice or with a bad id",
+    "user_goal": "A second tap is harmless",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/remove kind bill twice",
+      "POST with id 'x'"
+    ],
+    "expected": [
+      "The first twice redirects with no error",
+      "The bad id answers 400 'Check the required fields and try again.'"
+    ],
+    "refs": [
+      "db:doors-test"
+    ]
+  },
+  {
+    "id": "HOME-110",
+    "area": "Home",
+    "action": "Add a bill with the amount not known",
+    "user_goal": "I do not know my gas bill yet",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add Hikari Denki with 'Amount not known yet' ticked, due Nov 25, Utilities"
+    ],
+    "expected": [
+      "The shortfall becomes ¥28,800, Coming up shows 'about ¥9,330 (¥8,640–¥10,020, from your last 2 bills)' with 'Enter it ›' and To check shows a Missing row"
+    ],
+    "refs": [
+      "BROWSER-CHECKS V-A"
+    ]
+  },
+  {
+    "id": "ACT-001",
+    "area": "Activity",
+    "action": "Read the Activity feed",
+    "user_goal": "I want to see what changed",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Activity"
+    ],
+    "expected": [
+      "Newest first with dates like 'Nov 14', every row says in words what changed, no raw ids or ISO dates",
+      "Type shows 'Invoice paid outside PayPal', 'Clear for 30 days', 'Short', 'Settings changed', 'Waiting in To check' and never underscores"
+    ],
+    "refs": [
+      "BROWSER-CHECKS F1"
+    ]
+  },
+  {
+    "id": "ACT-002",
+    "area": "Activity",
+    "action": "Page through Activity",
+    "user_goal": "I want older entries",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A household with more than 50 events"
+    ],
+    "steps": [
+      "Tap 'Older ›' then '‹ Newer'"
+    ],
+    "expected": [
+      "Pages hold 50 rows; Older shows only when there is more; Newer shows from page 2"
+    ],
+    "refs": [
+      "economy-saver/src/app/activity/page.tsx"
+    ]
+  },
+  {
+    "id": "ACT-003",
+    "area": "Activity",
+    "action": "Open a bad Activity page",
+    "user_goal": "Odd URLs must not break",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "GET /activity?page=0, ?page=abc, ?page=999"
+    ],
+    "expected": [
+      "Each shows the 'Page not found' page"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AF6"
+    ]
+  },
+  {
+    "id": "ACT-004",
+    "area": "Activity",
+    "action": "Open an empty Activity",
+    "user_goal": "A new household has no rows",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household"
+    ],
+    "steps": [
+      "Open Activity"
+    ],
+    "expected": [
+      "It says 'No activity yet.'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N3"
+    ]
+  },
+  {
+    "id": "ACT-005",
+    "area": "Activity",
+    "action": "Read an Activity row for a removed item",
+    "user_goal": "A removed bill has no page",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A bill removed"
+    ],
+    "steps": [
+      "Look at the 'Removed bill …' row"
+    ],
+    "expected": [
+      "The title is plain text, not a link"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C8"
+    ]
+  },
+  {
+    "id": "ACT-006",
+    "area": "Activity",
+    "action": "Read the bell",
+    "user_goal": "I want the unread count",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open the bell",
+      "Tap Mark read"
+    ],
+    "expected": [
+      "Events list; the count clears to 'You're caught up'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A4"
+    ]
+  },
+  {
+    "id": "ACT-007",
+    "area": "Activity",
+    "action": "Open Activity of another household",
+    "user_goal": "Feeds must be scoped",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:isolation-test"
+    ],
+    "expected": [
+      "Household A's feed never lists B's events"
+    ],
+    "refs": [
+      "db:isolation-test"
+    ]
+  },
+  {
+    "id": "ACT-008",
+    "area": "Activity",
+    "action": "Read a drafted-by label",
+    "user_goal": "I want to know the agent wrote it",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A bill drafted by Ask",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Open Activity"
+    ],
+    "expected": [
+      "'Waiting in To check' row shows '· Drafted by Ask'; a typed bill shows none"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Q5"
+    ]
+  },
+  {
+    "id": "PLAN-001",
+    "area": "Plan",
+    "action": "Read the Plan room line",
+    "user_goal": "I want to know what the next 30 days leave",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Plan"
+    ],
+    "expected": [
+      "Reads 'The next 30 days leave about ¥92,220 if clients pay as usual.' with what it counts after; no pots"
+    ],
+    "refs": [
+      "BROWSER-CHECKS B1",
+      "BROWSER-CHECKS T-E"
+    ]
+  },
+  {
+    "id": "PLAN-002",
+    "area": "Plan",
+    "action": "Read Plan with no client payments",
+    "user_goal": "The words must not promise clients",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household with a bill"
+    ],
+    "steps": [
+      "Open Plan"
+    ],
+    "expected": [
+      "'No client payments are expected in the next 30 days, so the plan counts your bank balance only.'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS G0"
+    ]
+  },
+  {
+    "id": "PLAN-003",
+    "area": "Plan",
+    "action": "Add a Car pot",
+    "user_goal": "I am saving for a car",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Plan → add pot 'Car' target ¥1,200,000 by Mar 2027, saved ¥0, Add pot"
+    ],
+    "expected": [
+      "The Plan line says about ¥300,000 a month, more than the next 30 days leave; Home shows one line for the pot"
+    ],
+    "refs": [
+      "BROWSER-CHECKS G1"
+    ]
+  },
+  {
+    "id": "PLAN-004",
+    "area": "Plan",
+    "action": "Add a Tax pot that fills from payments",
+    "user_goal": "I want 25% of each payment set aside",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add pot 'Tax' at 25% of each client payment",
+      "Mark Beacon paid outside PayPal"
+    ],
+    "expected": [
+      "The pot grows by ¥15,000 and Activity records it"
+    ],
+    "refs": [
+      "BROWSER-CHECKS G2"
+    ]
+  },
+  {
+    "id": "PLAN-005",
+    "area": "Plan",
+    "action": "Add a pot with 101%",
+    "user_goal": "A share over 100 is refused",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add a pot with 101%"
+    ],
+    "expected": [
+      "'Enter a share between 0.01 and 100 percent, such as 25' shows; nothing saved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS C6"
+    ]
+  },
+  {
+    "id": "PLAN-006",
+    "area": "Plan",
+    "action": "Check pots come off safe to spend",
+    "user_goal": "Pot money is not spendable",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A pot with ¥10,000 saved"
+    ],
+    "steps": [
+      "Read Home safe to spend and the runway"
+    ],
+    "expected": [
+      "Safe to spend and the runway fall by the pot's saved amount"
+    ],
+    "refs": [
+      "BROWSER-CHECKS G3"
+    ]
+  },
+  {
+    "id": "PLAN-007",
+    "area": "Plan",
+    "action": "Edit and remove a pot",
+    "user_goal": "I changed my mind",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A pot"
+    ],
+    "steps": [
+      "Save changes with a new target",
+      "Then 'Yes, remove <pot>'"
+    ],
+    "expected": [
+      "Home and Plan follow each step"
+    ],
+    "refs": [
+      "BROWSER-CHECKS G4"
+    ]
+  },
+  {
+    "id": "PLAN-008",
+    "area": "Plan",
+    "action": "Add a pot with a negative saved amount or date without a target",
+    "user_goal": "Odd pots are refused",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/pots with saved -1",
+      "POST with a target date and no target"
+    ],
+    "expected": [
+      "'The amount saved cannot be negative' and 'A target date needs a target amount'"
+    ],
+    "refs": [
+      "db:pots-test"
+    ]
+  },
+  {
+    "id": "PLAN-009",
+    "area": "Plan",
+    "action": "Read where the month goes",
+    "user_goal": "I want categories and the business share",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Plan → Where the month goes · November",
+      "Open each category row"
+    ],
+    "expected": [
+      "The line 'Business ¥32,830 of ¥152,230 this month' and the six rows in BROWSER-CHECKS M1 with their splits and items, each chevron turning when opened"
+    ],
+    "refs": [
+      "BROWSER-CHECKS M1"
+    ]
+  },
+  {
+    "id": "PLAN-010",
+    "area": "Plan",
+    "action": "Confirm Hikari Denki and see Utilities",
+    "user_goal": "A confirmed bill joins the month",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "To check → confirm Hikari Denki ¥11,220",
+      "Open Plan"
+    ],
+    "expected": [
+      "Plan gains Utilities ¥11,220 (business ¥3,366 · personal ¥7,854), the business line becomes 'Business ¥36,196 of ¥163,450 this month', the room line falls to ¥81,000, and Home's shortfall is ¥30,000"
+    ],
+    "refs": [
+      "BROWSER-CHECKS M2",
+      "BROWSER-CHECKS D1"
+    ]
+  },
+  {
+    "id": "PLAN-011",
+    "area": "Plan",
+    "action": "Add a charge with a part-work share",
+    "user_goal": "Part of it is for work",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add 'Minato Fresh Market' ¥2,000 on Card B, choose Part work, 25"
+    ],
+    "expected": [
+      "Food becomes ¥12,700 (business ¥500 · personal ¥12,200) with '25% business' on the item; Card B owed now rises to ¥63,000"
+    ],
+    "refs": [
+      "BROWSER-CHECKS M3"
+    ]
+  },
+  {
+    "id": "PLAN-012",
+    "area": "Plan",
+    "action": "Add a bill with an unknown name category",
+    "user_goal": "A category is required when unsure",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add 'Zebra Supplies' without a category"
+    ],
+    "expected": [
+      "No category is pre-selected and the form will not submit without one"
+    ],
+    "refs": [
+      "BROWSER-CHECKS M4"
+    ]
+  },
+  {
+    "id": "PLAN-013",
+    "area": "Plan",
+    "action": "Move between months",
+    "user_goal": "I want past months",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Plan → '‹ October', then '‹ September', then 'November ›'"
+    ],
+    "expected": [
+      "October shows 'Where October went' with 'Business ¥31,986 of ¥132,060 in October'; September ¥150,380 with Travel ¥47,000; November has no '›' on the current month"
+    ],
+    "refs": [
+      "BROWSER-CHECKS T-A"
+    ]
+  },
+  {
+    "id": "PLAN-014",
+    "area": "Plan",
+    "action": "Open a month outside the 12-month window",
+    "user_goal": "A bad month is explained",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "GET /plan?month=2020-01"
+    ],
+    "expected": [
+      "'Plan shows the last 12 months, December 2025 to November 2026. Here is November.' and the current month unchanged"
+    ],
+    "refs": [
+      "BROWSER-CHECKS T-A"
+    ]
+  },
+  {
+    "id": "PLAN-015",
+    "area": "Plan",
+    "action": "Search spending",
+    "user_goal": "I want to find a payment",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Search 'hotel', then 'travel', 'food', 'rent', 'hikari'"
+    ],
+    "expected": [
+      "Each gives the monthly summary in BROWSER-CHECKS T-B with a row list and an 'in all' total",
+      "Search and button sit on one row at 375px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS T-B"
+    ]
+  },
+  {
+    "id": "PLAN-016",
+    "area": "Plan",
+    "action": "Search for nothing",
+    "user_goal": "An empty result is said plainly",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Search 'zzz'",
+      "Search a query over 80 characters"
+    ],
+    "expected": [
+      "'Nothing matches “zzz” in the last 12 months.'",
+      "The long search says 'A search is at most 80 characters.'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS T-B",
+      "BROWSER-CHECKS T-E"
+    ]
+  },
+  {
+    "id": "PLAN-018",
+    "area": "Settings",
+    "action": "Import a Shift_JIS statement",
+    "user_goal": "Japanese issuers use that encoding",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "economy-saver/scripts/fixtures/sample-statement-sjis.csv",
+      "The statement import panel from SET-048"
+    ],
+    "steps": [
+      "Choose the file"
+    ],
+    "expected": [
+      "'Read as Shift_JIS, the Japanese encoding most card issuers use.' with 2 charges and 1 skipped"
+    ],
+    "refs": [
+      "BROWSER-CHECKS T-C"
+    ]
+  },
+  {
+    "id": "PLAN-019",
+    "area": "Plan",
+    "action": "Import a bad or huge statement",
+    "user_goal": "Bad files are refused kindly",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/import with a body that is not JSON",
+      "With charges for another household's card"
+    ],
+    "expected": [
+      "Refused with a message; nothing is added; the card id of another household is refused"
+    ],
+    "refs": [
+      "db:import-test"
+    ]
+  },
+  {
+    "id": "PLAN-020",
+    "area": "Plan",
+    "action": "Read regular costs",
+    "user_goal": "I want to see what changed",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Plan → Regular costs"
+    ],
+    "expected": [
+      "Top line 'Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far', rows per BROWSER-CHECKS U-A, up in red and down in green with words, amounts stay on their label's line at 375px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS U-A"
+    ]
+  },
+  {
+    "id": "PLAN-021",
+    "area": "Plan",
+    "action": "Confirm a varying bill and see history",
+    "user_goal": "The history should follow",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Confirm Hikari Denki, open Plan"
+    ],
+    "expected": [
+      "The line starts 'Hikari Denki up ¥1,200 · …', its row reads ¥11,220 with Sep ¥8,640 · Oct ¥10,020 · Nov ¥11,220; Home numbers do not change from history"
+    ],
+    "refs": [
+      "BROWSER-CHECKS U-B"
+    ]
+  },
+  {
+    "id": "PLAN-022",
+    "area": "Plan",
+    "action": "Add a bill whose amount varies",
+    "user_goal": "Gas changes every month",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add 'Sakura Gas' ¥6,000 due Dec 10, More → Every month, tick 'Amount changes every month (electricity, water, gas)'"
+    ],
+    "expected": [
+      "Guess line reads 'Every month · varies · Utilities · Change ›', the Changes to and from fields go away, Coming up shows Dec 10 Sakura Gas 'about ¥6,000'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS U-C"
+    ]
+  },
+  {
+    "id": "PLAN-023",
+    "area": "Plan",
+    "action": "Link real bills to a varying bill",
+    "user_goal": "Real bills should improve the estimate",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Sakura Gas as in PLAN-022"
+    ],
+    "steps": [
+      "Add one-offs 10月分 ¥5,400 Oct 12 and 11月分 ¥6,600 Nov 12",
+      "Add a one-off Sakura Gas ¥7,100 due Dec 8"
+    ],
+    "expected": [
+      "Activity says 'Linked to Sakura Gas: counts toward its estimate' for the first two",
+      "The Dec 8 bill says 'replaces December’s estimate' and Coming up has ¥7,100 once with no 'about' row"
+    ],
+    "refs": [
+      "BROWSER-CHECKS U-D"
+    ]
+  },
+  {
+    "id": "PLAN-024",
+    "area": "Plan",
+    "action": "Unlink and untick varies",
+    "user_goal": "I want to undo it",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "PLAN-023 done"
+    ],
+    "steps": [
+      "Edit the Dec 8 bill, choose None for 'Part of'",
+      "Choose Sakura Gas again, then untick varies on Sakura Gas"
+    ],
+    "expected": [
+      "'No longer part of Sakura Gas' and Dec 10 'about ¥6,000' again",
+      "'Amount no longer varies · 3 real bills stay as one-offs' and Dec 10 shows ¥6,000"
+    ],
+    "refs": [
+      "BROWSER-CHECKS U-E"
+    ]
+  },
+  {
+    "id": "PLAN-030",
+    "area": "Plan",
+    "action": "Add a yearly bill with a cancel-by date",
+    "user_goal": "I do not want a surprise renewal",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+    ],
+    "steps": [
+      "Add \"Fictional Cloud\" ¥12,000 due Dec 1 2026, Every year, More › Changes to 13,000 from Dec 1 2027, Last day to cancel Nov 20 2026, Subscriptions, Personal",
+      "Press Add bill",
+      "Open Coming up and Activity"
+    ],
+    "expected": [
+      "The form returns closed and empty",
+      "Home reads \"You're fine for the next 30 days. Lowest point ¥108,000 on the 1st.\"",
+      "Coming up has the Nov 20 reminder row \"Cancel Fictional Cloud by Nov 20 or it renews at ¥12,000 on Dec 1\" with no amount or tick, then Dec 1 \"Fictional Cloud\" with \"Yearly\" and \"¥12,000 ✓\"",
+      "Activity's newest row is \"Fictional Cloud added, due Dec 1\" with \"Every year · Changes to ¥13,000 from Dec 1, 2027 · Cancel by Nov 20\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS O1",
+      "BROWSER-CHECKS O2",
+      "BROWSER-CHECKS O3"
+    ]
+  },
+  {
+    "id": "PLAN-031",
+    "area": "Plan",
+    "action": "Add a bill whose amount changes",
+    "user_goal": "The gym raised its price",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+    ],
+    "steps": [
+      "Add \"Fictional Gym\" ¥5,000 due Aug 14 2026, Every month, Changes to 6,000 from Sep 1 2026, Subscriptions",
+      "Open Coming up and Plan, Where the month goes"
+    ],
+    "expected": [
+      "Coming up has a Nov 14 row \"Fictional Gym\" \"Every month\" \"¥6,000 ✓\" (the new amount, not ¥5,000)",
+      "Plan's month shows \"All personal this month\" and one row Subscriptions ¥6,000 with its item"
+    ],
+    "refs": [
+      "BROWSER-CHECKS O4"
+    ]
+  },
+  {
+    "id": "PLAN-032",
+    "area": "Plan",
+    "action": "Refused repeating schedules",
+    "user_goal": "Bad schedules are named",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)",
+      "Add bill form open; Due Nov 20 2026"
+    ],
+    "steps": [
+      "Try Every year with Changes to 13,000 and no date",
+      "Try One-off with a new amount and date",
+      "Try Every year with the new amount from Nov 20 2026",
+      "Try Every year with Last day to cancel Nov 21 2026",
+      "Try a cancel-by date past the two-year picker limit",
+      "Try Changes to 100,000,001 from Nov 21 2026 with Every year"
+    ],
+    "expected": [
+      "Each shows its own words under the form: \"Give the new amount together with the date it starts\"; \"A new amount needs a bill that repeats: choose Every month or Every year\"; \"The new amount must start after the due date\"; \"Choose a cancel-by date before the bill is next charged on Nov 20\"; \"Choose a date within the next two years\"; \"Enter an amount up to ¥100,000,000\"",
+      "What was typed is kept and nothing is saved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS O5",
+      "DECISIONS D31"
+    ]
+  },
+  {
+    "id": "PLAN-034",
+    "area": "Plan",
+    "action": "Add a bill with a last payment",
+    "user_goal": "It ends on a date",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Add Kawa Gym ¥6,000 due Nov 27, Every month, Last payment Dec 27",
+      "Read Coming up and Settings → Bills"
+    ],
+    "expected": [
+      "Coming up shows \"Every month · last one Dec 27\" and the late-case shortfall reads ¥24,780 on the 27th",
+      "Settings shows \"Kawa Gym · ¥6,000 · last one Dec 27\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AB1",
+      "D41"
+    ]
+  },
+  {
+    "id": "PLAN-035",
+    "area": "Plan",
+    "action": "Refused last payments",
+    "user_goal": "Bad end dates are named",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Set Last payment on a One-off bill",
+      "Set a Last payment before the first due date",
+      "Set a Last payment more than two years away",
+      "Give a new amount that starts after the last payment"
+    ],
+    "expected": [
+      "The words are \"A last payment needs a bill that repeats: choose Every month or Every year\", \"The last payment must be on or after the first due date\", \"Choose a date within the next two years\" and \"The new amount must start on or before the last payment\"",
+      "Nothing saves"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AB2",
+      "db:varies-test"
+    ]
+  },
+  {
+    "id": "PLAN-037",
+    "area": "Plan",
+    "action": "Read Options",
+    "user_goal": "I want ways to cover the gap",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Options"
+    ],
+    "expected": [
+      "'Cover ¥18,780 by Nov 27.' with the cheapest fix first (Invoice Beacon Studio, ¥0 extra cost) and 'LOWEST COST PROJECTED FIX'; Review invoice opens Beacon's invoice; borrowing options show principal and total repayment"
+    ],
+    "refs": [
+      "BROWSER-CHECKS F4",
+      "BROWSER-CHECKS Expected numbers"
+    ]
+  },
+  {
+    "id": "PLAN-038",
+    "area": "Plan",
+    "action": "Read Options with no gap",
+    "user_goal": "No gap means no options",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household"
+    ],
+    "steps": [
+      "Open Options"
+    ],
+    "expected": [
+      "No gap options appear and 'Back to Home' works"
+    ],
+    "refs": [
+      "economy-saver/src/components/settings/OptionsView.tsx"
+    ]
+  },
+  {
+    "id": "PLAN-039",
+    "area": "Plan",
+    "action": "See what foreign payouts cost",
+    "user_goal": "I want to know PayPal's cost to me",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Ask 'What do my PayPal payouts cost me?'"
+    ],
+    "expected": [
+      "Quotes ¥111,637 over twelve months, names only PayPal, never says to leave it; 'Based on' shows Clients"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AE5",
+      "D62"
+    ]
+  },
+  {
+    "id": "PLAN-040",
+    "area": "Plan",
+    "action": "See what a foreign charge cost",
+    "user_goal": "I paid in dollars",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "CHG-005 done"
+    ],
+    "steps": [
+      "Open Plan or Clients where the foreign cost shows"
+    ],
+    "expected": [
+      "The Card A row shows ¥110 for Fontly Cloud $24.00 against ¥3,600 at ¥150 per dollar"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AE6",
+      "db:fx-cost-test"
+    ]
+  },
+  {
+    "id": "SPLIT-002",
+    "area": "Household split",
+    "action": "Set shares to 60/40",
+    "user_goal": "Ben pays more",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Ben and Aki"
+    ],
+    "steps": [
+      "Set Ben 60, Aki 40, Save people"
+    ],
+    "expected": [
+      "Saved; Home's split follows"
+    ],
+    "refs": [
+      "BROWSER-CHECKS H2"
+    ]
+  },
+  {
+    "id": "SPLIT-004",
+    "area": "Household split",
+    "action": "Add a person with a name already used",
+    "user_goal": "Names are unique",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Ben and Aki"
+    ],
+    "steps": [
+      "Add 'aki' again"
+    ],
+    "expected": [
+      "'Someone with that name is already in this household'"
+    ],
+    "refs": [
+      "db:split-test"
+    ]
+  },
+  {
+    "id": "SPLIT-005",
+    "area": "Household split",
+    "action": "Give a card to Aki",
+    "user_goal": "Card B is Aki's",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Ben and Aki"
+    ],
+    "steps": [
+      "Settings → Cards → Card B belongs to Aki"
+    ],
+    "expected": [
+      "Activity says 'Card B now belongs to Aki'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS H3"
+    ]
+  },
+  {
+    "id": "SPLIT-006",
+    "area": "Household split",
+    "action": "Share a bill and a charge, see who owes whom",
+    "user_goal": "I want a fair split",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Ben (60) and Aki (40), Card B belongs to Aki"
+    ],
+    "steps": [
+      "Add a shared ¥30,000 bill paid by Ben dated Nov 14",
+      "Add a shared ¥5,000 charge on Card B dated Nov 14"
+    ],
+    "expected": [
+      "Home says 'Aki owes Ben ¥9,000' and Activity says 'Shared, paid by Aki (Card B)'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS H4"
+    ]
+  },
+  {
+    "id": "SPLIT-007",
+    "area": "Household split",
+    "action": "Mark settled",
+    "user_goal": "We settled up",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "SPLIT-006 done"
+    ],
+    "steps": [
+      "Tap Mark settled on Home"
+    ],
+    "expected": [
+      "Reads 'All settled. New shared items split from here.' (or 'Nobody owes anyone anything' with a shared bill coming); Activity records the payment and 'settled through Nov 14'; the sentence does not move"
+    ],
+    "refs": [
+      "BROWSER-CHECKS H5"
+    ]
+  },
+  {
+    "id": "SPLIT-008",
+    "area": "Household split",
+    "action": "Settle with nothing shared",
+    "user_goal": "The empty state must be clear",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Ben and Aki with no shared item"
+    ],
+    "steps": [
+      "Read the Shared costs panel"
+    ],
+    "expected": [
+      "'Choose Shared on a bill or charge to split it by shares.'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS H5"
+    ]
+  },
+  {
+    "id": "SPLIT-009",
+    "area": "Household split",
+    "action": "Share before the person joined",
+    "user_goal": "Old items do not count",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Aki joins Nov 14"
+    ],
+    "steps": [
+      "Add a shared bill dated before Nov 14"
+    ],
+    "expected": [
+      "It does not count in who owes whom"
+    ],
+    "refs": [
+      "BROWSER-CHECKS H6"
+    ]
+  },
+  {
+    "id": "SPLIT-010",
+    "area": "Household split",
+    "action": "Choose Nobody as payer",
+    "user_goal": "Some bills are not split",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Ben and Aki"
+    ],
+    "steps": [
+      "Settings → bills, set 'Who pays it?' to 'Nobody (not split by shares)'"
+    ],
+    "expected": [
+      "The bill stays out of who owes whom; an unowned bill reads 'Shared'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS H7"
+    ]
+  },
+  {
+    "id": "SPLIT-011",
+    "area": "Household split",
+    "action": "Remove a person who still owes",
+    "user_goal": "Money must not vanish",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Aki with a shared bill she paid"
+    ],
+    "steps": [
+      "Settings → People → Remove Aki"
+    ],
+    "expected": [
+      "'Settle up with Aki first.'; after Mark settled it works and Activity says 'Aki left the household'"
+    ],
+    "refs": [
+      "BROWSER-CHECKS T-E"
+    ]
+  },
+  {
+    "id": "SPLIT-012",
+    "area": "Household split",
+    "action": "Remove the owner or the last person",
+    "user_goal": "Required people stay",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "A fresh Try it household (Ben alone, the owner)",
+      "The dev server at http://127.0.0.1:3123"
+    ],
+    "steps": [
+      "Remove Ben (the owner) from Settings → People, or post the same removal the People form sends"
+    ],
+    "expected": [
+      "Refused with 400 \"The household’s owner cannot be removed\"; Ben stays in People",
+      "The removal of the last person in a household is refused with \"The last person in a household cannot be removed\""
+    ],
+    "refs": [
+      "frontend-check --extra (nov5-owner-stays)",
+      "db:split-test"
+    ]
+  },
+  {
+    "id": "SPLIT-013",
+    "area": "Household split",
+    "action": "Mark settled from another household or origin",
+    "user_goal": "Settling is protected",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Two households"
+    ],
+    "steps": [
+      "POST /api/settle with a foreign Origin",
+      "POST as household A",
+      "Post more than ten times a minute"
+    ],
+    "expected": [
+      "403 'Same-origin request required'",
+      "It settles only A's rows; the browser sends no amounts",
+      "The eleventh gives 429 'Too many settlements. Try again in a minute.'"
+    ],
+    "refs": [
+      "db:split-test",
+      "D45"
+    ]
+  },
+  {
+    "id": "SPLIT-014",
+    "area": "Household split",
+    "action": "Settle with only one person",
+    "user_goal": "Settling needs two people",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/settle in a one-person household"
+    ],
+    "expected": [
+      "400 'Settling needs a second person; add one in Settings, People'"
+    ],
+    "refs": [
+      "db:split-test"
+    ]
+  },
+  {
+    "id": "SPLIT-015",
+    "area": "Household split",
+    "action": "Share a charge on an unowned card",
+    "user_goal": "A shared charge needs a payer",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Ben and Aki, a card with no owner"
+    ],
+    "steps": [
+      "Add a shared charge on it"
+    ],
+    "expected": [
+      "'A shared charge needs a card that belongs to a person; set the card's owner in Settings'"
+    ],
+    "refs": [
+      "db:split-test"
+    ]
+  }
+]

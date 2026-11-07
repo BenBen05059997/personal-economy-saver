@@ -1,0 +1,3504 @@
+[
+  {
+    "id": "START-001",
+    "area": "Landing",
+    "action": "Open the landing page with no session",
+    "user_goal": "I want to know what this app is before I commit",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /"
+    ],
+    "expected": [
+      "The landing shows the heading \"Will your next payment arrive in time?\" and a Try it button",
+      "Beside it a link \"Start with my numbers\", then \"Sign in with email\", then a small \"Privacy\" link",
+      "At 375px they wrap without overlap and each is at least 44px tall; nothing scrolls sideways",
+      "No household numbers appear"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A1",
+      "BROWSER-CHECKS N1"
+    ]
+  },
+  {
+    "id": "START-002",
+    "area": "Try it",
+    "action": "Press Try it",
+    "user_goal": "I want to see a working household without signing up",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /",
+      "Press Try it"
+    ],
+    "expected": [
+      "The button shows \"Creating your household…\" and Home opens in 1.5 s or less",
+      "Home shows Ben's sentence, safe to spend, bank balance and cards as in BROWSER-CHECKS Expected numbers",
+      "Under the sentence the quiet line \"A fictional household that lives in this browser. Start with my numbers ›\" links to /start",
+      "No First steps panel is shown"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A2",
+      "BROWSER-CHECKS Expected numbers"
+    ]
+  },
+  {
+    "id": "START-003",
+    "area": "Try it",
+    "action": "Press Try it twice quickly",
+    "user_goal": "I double-clicked by accident",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /",
+      "Double-click Try it"
+    ],
+    "expected": [
+      "The button is disabled after the first click",
+      "Only one household is made and Home opens once with the expected numbers"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A2"
+    ]
+  },
+  {
+    "id": "START-004",
+    "area": "Try it",
+    "action": "Press Back after Try it, then Try it again",
+    "user_goal": "I went back to the landing and tapped again",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A Try it household is open"
+    ],
+    "steps": [
+      "Press the browser Back button",
+      "Reload the landing if it shows",
+      "Press Try it"
+    ],
+    "expected": [
+      "The Try it button is not stuck on \"Creating your household…\" after Back (the page restores it)",
+      "Pressing it again opens the same household (the cookie is reused), not a second one, with no changes lost"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A2"
+    ]
+  },
+  {
+    "id": "START-005",
+    "area": "Try it",
+    "action": "Open /api/try with an existing demo cookie",
+    "user_goal": "I came back to the same browser",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "A Try it household cookie exists"
+    ],
+    "steps": [
+      "GET /api/try with the cookie, the same-origin headers"
+    ],
+    "expected": [
+      "303 to / and the same household cookie is kept",
+      "No new household is made"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A2"
+    ]
+  },
+  {
+    "id": "START-006",
+    "area": "Try it",
+    "action": "Open /api/try from another site",
+    "user_goal": "A hostile page tries to make demos for me",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "GET /api/try with an Origin or Sec-Fetch-Site header of another site"
+    ],
+    "expected": [
+      "403 \"Same-origin navigation required\"",
+      "No household is created and no cookie is set"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A6"
+    ]
+  },
+  {
+    "id": "START-007",
+    "area": "Try it",
+    "action": "Hit the per-address demo limit",
+    "user_goal": "Someone is flooding the demo",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Dev server; each call sends a different x-forwarded-for only in the last step"
+    ],
+    "steps": [
+      "curl /api/try 30 times with no cookie and header x-forwarded-for: 203.0.113.7",
+      "Make a 31st call",
+      "Make a call with x-forwarded-for: 203.0.113.8",
+      "Open Start with my numbers (POST /api/try/blank) from the first address"
+    ],
+    "expected": [
+      "The 31st call answers 429 \"Too many new demos from this connection. Try again in an hour.\" with Retry-After",
+      "A different address is not affected",
+      "Start with my numbers from the first address is also refused: it counts in the same 30"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A6",
+      "db:limits-test",
+      "D31"
+    ]
+  },
+  {
+    "id": "START-008",
+    "area": "Try it",
+    "action": "Call /api/try with no x-forwarded-for on dev",
+    "user_goal": "I want a clear error when the address cannot be counted",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Dev server"
+    ],
+    "steps": [
+      "GET /api/try with no cookie and no x-forwarded-for header"
+    ],
+    "expected": [
+      "The answer says \"This request has no x-forwarded-for header, so it can't be counted. Check CLIENT_IP_HEADER.\"",
+      "No household is created"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A6"
+    ]
+  },
+  {
+    "id": "START-009",
+    "area": "Start with my numbers",
+    "action": "Open the start form",
+    "user_goal": "I want to use my own numbers",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open / and press \"Start with my numbers\""
+    ],
+    "expected": [
+      "/start is headed \"Start with my numbers\" with two fields: Your name and \"What's in your bank today?\" (¥ in front, placeholder 420,000)",
+      "The line reads \"Japanese yen · Asia/Tokyo · Change\" (in Tokyo) and a link \"Add a card now ›\" is closed",
+      "The button reads \"Open my household\" and, under it, \"Your numbers stay in this browser's demo household. Privacy ›\"",
+      "With no cookie there is no \"This replaces…\" line"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N2",
+      "BROWSER-CHECKS R-A",
+      "BROWSER-CHECKS N8"
+    ]
+  },
+  {
+    "id": "START-010",
+    "area": "Start with my numbers",
+    "action": "Change currency and time zone",
+    "user_goal": "I live outside Japan and want dollars",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open"
+    ],
+    "steps": [
+      "Open Change",
+      "Choose US dollars in Home currency",
+      "Read the Time zone field"
+    ],
+    "expected": [
+      "The Time zone field is prefilled from the browser",
+      "The ¥ in front of the bank box becomes $ and the placeholder becomes 2,800",
+      "Choosing yen again brings ¥ and 420,000 back"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N2"
+    ]
+  },
+  {
+    "id": "START-011",
+    "area": "Start with my numbers",
+    "action": "Open my household with only a name and a balance",
+    "user_goal": "I want the fastest start",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open"
+    ],
+    "steps": [
+      "Type Mika and 250,000",
+      "Press Open my household"
+    ],
+    "expected": [
+      "Home opens with today's real date in the date line, not Sat Nov 14",
+      "The sentence includes \"Bank balance ¥250,000.\" and Cards says \"No card yet.\"",
+      "First steps · 5 to go with one open step \"Add your rent, so the day it leaves shows up\"",
+      "Settings, Late-client nudge shows 3"
+    ],
+    "refs": [
+      "BROWSER-CHECKS R-A",
+      "BROWSER-CHECKS N3"
+    ]
+  },
+  {
+    "id": "START-012",
+    "area": "Start with my numbers",
+    "action": "Open my household with a card",
+    "user_goal": "I want my card counted from day one",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open"
+    ],
+    "steps": [
+      "Type Mika and 120,000",
+      "Open \"Add a card now ›\" and enter Card N, closing 25, payment 10, no limit",
+      "Press Open my household"
+    ],
+    "expected": [
+      "Home opens in 1.5 s or less with the empty sentence \"Add your rent, your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.\"",
+      "The sentence never says \"You're fine\" and has no red shortfall",
+      "Safe to spend is ¥120,000 and the Next 30 days chart is flat",
+      "Cards shows \"Card N ¥0 owed now · No statement due\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS N3",
+      "BROWSER-CHECKS N4"
+    ]
+  },
+  {
+    "id": "START-013",
+    "area": "Start with my numbers",
+    "action": "Submit with an empty name or empty balance",
+    "user_goal": "I forgot a field",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open"
+    ],
+    "steps": [
+      "Leave Your name empty, type 120,000, press Open my household",
+      "Then type Mika with the balance empty and press again"
+    ],
+    "expected": [
+      "The browser stops the submit on the required field (or the page shows \"Check your name, timezone, balance and card settings.\")",
+      "No household is created and no cookie is set"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N2"
+    ]
+  },
+  {
+    "id": "START-014",
+    "area": "Start with my numbers",
+    "action": "Give a card name but no days, or closing day 40",
+    "user_goal": "I half-filled the card",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open"
+    ],
+    "steps": [
+      "Type Mika and 120,000",
+      "Open the card block, give a name and no days, press Open my household",
+      "Then give a name with closing day 40 and payment day 10"
+    ],
+    "expected": [
+      "The page stays and shows \"Check your name, timezone, balance and card settings.\"",
+      "Neither attempt makes a household",
+      "A card with days but no name is refused the same way"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N2"
+    ]
+  },
+  {
+    "id": "START-015",
+    "area": "Start with my numbers",
+    "action": "Type an unreadable or over-limit balance",
+    "user_goal": "I typed it wrong",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open"
+    ],
+    "steps": [
+      "Type Mika and a balance of abc, press Open my household",
+      "Try 100,000,001 in yen",
+      "Try 1,000,000.50 with US dollars chosen",
+      "Try 1,000,001 with US dollars chosen"
+    ],
+    "expected": [
+      "abc is refused with the app's amount words (whole number of yen, like 5000 or 5,000)",
+      "Over the limit is refused with \"Enter an amount up to ¥100,000,000\" (or $1,000,000 in dollars)",
+      "Dollars with cents under the limit are accepted",
+      "Nothing is created for a refused attempt and what was typed stays"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N2",
+      "DECISIONS D31"
+    ]
+  },
+  {
+    "id": "START-016",
+    "area": "Start with my numbers",
+    "action": "Use full-width digits and separators in the balance",
+    "user_goal": "I type on a Japanese keyboard",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open"
+    ],
+    "steps": [
+      "Type Mika and 120,000 in full-width digits and commas",
+      "Press Open my household"
+    ],
+    "expected": [
+      "The balance is read as ¥120,000 and Home shows \"Bank balance ¥120,000.\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS N3"
+    ]
+  },
+  {
+    "id": "START-017",
+    "area": "Start with my numbers",
+    "action": "Use a very long name or a name with markup",
+    "user_goal": "I typed something odd",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open"
+    ],
+    "steps": [
+      "Type a name of 81 characters and 120,000",
+      "Then type <b>Mika</b> as the name"
+    ],
+    "expected": [
+      "The name field stops at 80 characters or the form refuses it, and nothing is created for an over-long name",
+      "A name with markup is shown as plain text everywhere (Home, Settings), never as formatting",
+      "A long unbroken name wraps and nothing scrolls sideways at 375px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N3"
+    ]
+  },
+  {
+    "id": "START-018",
+    "area": "Start with my numbers",
+    "action": "Submit a bad time zone or currency by hand",
+    "user_goal": "A hand-made post",
+    "type": "security",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "POST /api/try/blank (same origin, form) with timeZone=Nowhere/Land",
+      "POST with currency=EUR",
+      "POST with no Origin header"
+    ],
+    "expected": [
+      "The first two answer 400 \"Check your name, timezone, balance and card settings.\"",
+      "The post without Origin is 403 \"Same-origin request required\"",
+      "No household is created"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N2"
+    ]
+  },
+  {
+    "id": "START-019",
+    "area": "Start with my numbers",
+    "action": "Replace a Try it household",
+    "user_goal": "I want my own numbers instead of Ben's",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open /start directly",
+      "Read the line above the form",
+      "Submit Mika, 120,000 and the card of START-012",
+      "Press Back to the old pages"
+    ],
+    "expected": [
+      "The line reads \"This replaces the Try it household in this browser. Reset in Settings brings Ben's numbers back.\"",
+      "Home is blank as in START-012, not Ben's",
+      "Going Back shows the landing or the new blank household, never Ben's"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N8"
+    ]
+  },
+  {
+    "id": "START-020",
+    "area": "Start with my numbers",
+    "action": "Replace a blank household",
+    "user_goal": "I want to start over again",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+    ],
+    "steps": [
+      "Open /start",
+      "Read the line",
+      "Submit another name and balance"
+    ],
+    "expected": [
+      "The line reads \"This replaces your household in this browser and its numbers.\"",
+      "Home shows the new numbers and none of the old bills"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N8"
+    ]
+  },
+  {
+    "id": "START-021",
+    "area": "Start with my numbers",
+    "action": "Use Start over from Settings",
+    "user_goal": "I want a blank household from Settings",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Settings open"
+    ],
+    "steps": [
+      "Find \"Start over with my numbers ›\" beside Reset",
+      "Press it"
+    ],
+    "expected": [
+      "The link is at least 44px tall at 375px and shows \"Replaces this household with a blank one and your own numbers.\"",
+      "It opens /start with the Try it notice"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N8",
+      "BROWSER-CHECKS N9"
+    ]
+  },
+  {
+    "id": "START-022",
+    "area": "Start with my numbers",
+    "action": "A signed-in person opens /start",
+    "user_goal": "I am already signed in",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Signed in with an account household"
+    ],
+    "steps": [
+      "Open /start",
+      "POST /api/try/blank"
+    ],
+    "expected": [
+      "/start redirects to /account",
+      "The post redirects to /account and makes nothing"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N8"
+    ]
+  },
+  {
+    "id": "START-024",
+    "area": "Home",
+    "action": "A pending bill and the card step",
+    "user_goal": "I have a bill waiting in To check and no card",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household with no card (Mika, 250,000)",
+      "A bill waiting in To check"
+    ],
+    "steps": [
+      "Read First steps",
+      "Read the sentence"
+    ],
+    "expected": [
+      "A pending bill counts as a bill for the step but not for the sentence, which is still the empty one",
+      "With no card, \"Add a card, so card bills count\" comes before the card charge step and opens Settings → Cards"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N7",
+      "BROWSER-CHECKS R-A"
+    ]
+  },
+  {
+    "id": "START-025",
+    "area": "Home",
+    "action": "Read the empty panels and hints",
+    "user_goal": "I want empty screens to tell me what to do",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+    ],
+    "steps": [
+      "Read Coming up, Cards, To check and Clients on Home"
+    ],
+    "expected": [
+      "Coming up says \"Nothing due yet. Add your rent ›\" or \"Nothing due in the next 30 days. Add a bill ›\" and the link opens the Add bill form",
+      "Cards says \"No card yet. Add one in Settings ›\" without a card, or \"No card charges yet. Add a card charge ›\" with one",
+      "To check says \"Things the app read or drafted, waiting for your OK. Nothing here now.\"",
+      "Clients says \"No clients yet. Add a client ›\" and the link jumps to the add form"
+    ],
+    "refs": [
+      "BROWSER-CHECKS R-C",
+      "BROWSER-CHECKS N4"
+    ]
+  },
+  {
+    "id": "START-026",
+    "area": "Start with my numbers",
+    "action": "Read the add-form words on a blank household",
+    "user_goal": "I want help text on repeating bills",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+    ],
+    "steps": [
+      "Open Add a bill or charge, More ›",
+      "Choose each Repeats option",
+      "Open New invoice"
+    ],
+    "expected": [
+      "The Repeats hint reads \"Counted once, on the due date\", \"Repeats every month on the due date's day\" or \"Repeats every year on the due date's month and day\"",
+      "New invoice says under Amount \"Invoices are always in US dollars. Home shows what they are worth in your own currency.\"",
+      "At 375px the Add bill button is fully above the Ask bar"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N9"
+    ]
+  },
+  {
+    "id": "AUTH-001",
+    "area": "Sign in",
+    "action": "Open the sign-in page",
+    "user_goal": "I want to sign in by email",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /login"
+    ],
+    "expected": [
+      "The page is headed \"Sign in with email\" with the line about a one-time link and an Email address field",
+      "The button reads \"Email me a sign-in link\"",
+      "Privacy is reachable from the page"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A1"
+    ]
+  },
+  {
+    "id": "AUTH-002",
+    "area": "Sign in",
+    "action": "Ask for a magic link",
+    "user_goal": "I want a link in my inbox",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "A real sign-in email address"
+    ],
+    "steps": [
+      "Type the email on /login",
+      "Press Email me a sign-in link",
+      "Open the link in the same browser"
+    ],
+    "expected": [
+      "The page reads \"Check your email\" and \"Open the sign-in link in this browser to finish.\"",
+      "The emailed link opens onboarding for a new address, or Home for a known one"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A5"
+    ]
+  },
+  {
+    "id": "AUTH-003",
+    "area": "Sign in",
+    "action": "Ask for a link with an invalid email",
+    "user_goal": "I mistyped my address",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "POST /api/auth/link (same origin) with email=not-an-email, then an empty email, then an address of 255 characters"
+    ],
+    "expected": [
+      "Each answers 400 \"Enter a valid email address\"",
+      "No link is sent and no limit is used"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A7"
+    ]
+  },
+  {
+    "id": "AUTH-004",
+    "area": "Sign in",
+    "action": "Post the sign-in form from another site",
+    "user_goal": "A hostile page asks Supabase to email me",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "POST /api/auth/link with an Origin of another site"
+    ],
+    "expected": [
+      "403 \"Same-origin request required\"",
+      "Nothing is sent"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A7"
+    ]
+  },
+  {
+    "id": "AUTH-005",
+    "area": "Sign in",
+    "action": "Hit the sign-in link limit",
+    "user_goal": "I pressed the button many times",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "email"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Dev server with auth settings; header x-forwarded-for: 203.0.113.9"
+    ],
+    "steps": [
+      "POST /api/auth/link with a valid email five times in an hour",
+      "Post a sixth time",
+      "POST once with an invalid email"
+    ],
+    "expected": [
+      "The sixth answers 429 \"Too many sign-in links requested from this connection. Try again in an hour.\"",
+      "A different address is not affected",
+      "An invalid email is refused with 400 before it counts"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A7",
+      "db:limits-test"
+    ]
+  },
+  {
+    "id": "AUTH-006",
+    "area": "Sign in",
+    "action": "Open an expired or reused link",
+    "user_goal": "My link is old",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /api/auth/callback with no code",
+      "Open a link a second time"
+    ],
+    "expected": [
+      "The page /login shows \"That link is invalid or has expired. Request a new link and open it in this browser.\"",
+      "No session is made"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A5"
+    ]
+  },
+  {
+    "id": "AUTH-007",
+    "area": "Sign in",
+    "action": "Open the link in a different browser",
+    "user_goal": "I opened the email on my phone",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A link requested in browser 1"
+    ],
+    "steps": [
+      "Open the emailed link in browser 2"
+    ],
+    "expected": [
+      "The link is refused (it is bound to the browser that asked) and /login says the link is invalid or expired",
+      "Browser 1 can still request a new link"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A5"
+    ]
+  },
+  {
+    "id": "AUTH-008",
+    "area": "Sign in",
+    "action": "Sign in from a Try it household",
+    "user_goal": "I want to keep my demo household",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A Try it or blank household open"
+    ],
+    "steps": [
+      "Request a link from /login in the same browser",
+      "Open it and finish onboarding"
+    ],
+    "expected": [
+      "The demo household is upgraded, not lost: after onboarding Home shows the signed-in person's own sentence",
+      "The cookie household and upgrade cookie are cleared"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A5",
+      "BROWSER-CHECKS N8"
+    ]
+  },
+  {
+    "id": "AUTH-009",
+    "area": "Sign in",
+    "action": "Finish onboarding with a new account",
+    "user_goal": "I want my own household",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Just signed in with an address that has no household"
+    ],
+    "steps": [
+      "Read /onboarding",
+      "Type name, time zone, bank balance and a card",
+      "Press Open my household"
+    ],
+    "expected": [
+      "/onboarding is headed \"Set up your household\" with the same fields as /start",
+      "Home shows your own sentence with no Ben data and no PayPal demo bills"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A5"
+    ]
+  },
+  {
+    "id": "AUTH-010",
+    "area": "Sign in",
+    "action": "Open onboarding with no session or twice",
+    "user_goal": "I opened it by mistake",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "email"
+    ],
+    "how": "http",
+    "preconditions": [
+      "No session, then a signed-in person who already has a household"
+    ],
+    "steps": [
+      "Open /onboarding with no session",
+      "POST /api/onboarding with no session",
+      "Open /onboarding when signed in with a household"
+    ],
+    "expected": [
+      "No session redirects to /login and the post answers 401 \"A verified email session is required\"",
+      "A signed-in person with a household is sent to Home"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A5"
+    ]
+  },
+  {
+    "id": "AUTH-011",
+    "area": "Sign in",
+    "action": "Submit onboarding with bad fields",
+    "user_goal": "I typed it wrong",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Signed in, no household yet"
+    ],
+    "steps": [
+      "Submit with an empty name",
+      "Submit a card name with no days",
+      "Submit a closing day of 40"
+    ],
+    "expected": [
+      "Each shows \"Check your name, timezone, balance and card settings.\" and creates nothing"
+    ],
+    "refs": [
+      "BROWSER-CHECKS N2"
+    ]
+  },
+  {
+    "id": "AUTH-012",
+    "area": "Sign in",
+    "action": "Sign out",
+    "user_goal": "I am done on this computer",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Signed in"
+    ],
+    "steps": [
+      "Open /account",
+      "Press Sign out"
+    ],
+    "expected": [
+      "I land on the landing page, signed out",
+      "The household cookie is cleared and Home needs a new Try it or sign-in",
+      "Back does not show my pages"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A1"
+    ]
+  },
+  {
+    "id": "AUTH-013",
+    "area": "Sign in",
+    "action": "Leave a Try it household",
+    "user_goal": "I want to leave the demo on this computer",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open /account",
+      "Read the page",
+      "Press Leave this household"
+    ],
+    "expected": [
+      "The page says it is a Try it household and offers Sign in with email, Privacy › and \"Leave this household\"",
+      "Pressing it returns to the landing and clears the cookie; the demo is swept after seven days",
+      "There is no Delete household on a Try it household"
+    ],
+    "refs": [
+      "BROWSER-CHECKS P2"
+    ]
+  },
+  {
+    "id": "AUTH-014",
+    "area": "Security",
+    "action": "Open /account without any session",
+    "user_goal": "I came with no cookie",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "GET /account"
+    ],
+    "expected": [
+      "It redirects to /login"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A1"
+    ]
+  },
+  {
+    "id": "AUTH-018",
+    "area": "Layout",
+    "action": "Use the menu on every page",
+    "user_goal": "I want the shell to work",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open each sidebar link: Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Settings",
+      "On a phone open and close the menu"
+    ],
+    "expected": [
+      "Every page opens",
+      "The phone menu opens and closes the links"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A3"
+    ]
+  },
+  {
+    "id": "AUTH-019",
+    "area": "Settings",
+    "action": "Delete household while signed in",
+    "user_goal": "I want my data gone",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Signed in with a household"
+    ],
+    "steps": [
+      "Open /account",
+      "Tick \"Delete my household and its data\"",
+      "Press Delete household"
+    ],
+    "expected": [
+      "The household, documents, key, memory and sessions are gone and I land on the landing",
+      "Signing in again starts onboarding as a new person"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I7",
+      "BROWSER-CHECKS P2"
+    ]
+  },
+  {
+    "id": "AUTH-020",
+    "area": "Settings",
+    "action": "Delete household without ticking the box, or as a demo",
+    "user_goal": "I pressed delete by accident",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Try it household; then a signed-in one"
+    ],
+    "steps": [
+      "POST /api/household with no confirmation (signed in)",
+      "POST /api/household as a Try it household"
+    ],
+    "expected": [
+      "The first answers 400 \"Confirm household deletion\" and deletes nothing; the checkbox is required in the browser",
+      "The Try it post answers 403 \"Authenticated owner required\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS I7"
+    ]
+  },
+  {
+    "id": "SET-001",
+    "area": "Settings",
+    "action": "Open Settings and read its panels",
+    "user_goal": "I want to find my settings",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Settings at 375px and 1440px"
+    ],
+    "expected": [
+      "Panels appear for Household & bank, Late-client nudge, People, Cards, statement import, Bills, Your AI model, Your data and Account",
+      "At 1440px Your AI model and Your data sit in the right column; nothing scrolls sideways; light and dark both read clearly"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A3",
+      "BROWSER-CHECKS I4"
+    ]
+  },
+  {
+    "id": "SET-002",
+    "area": "Settings",
+    "action": "Change the household name and bank balance",
+    "user_goal": "My balance changed",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Type a new name and 70,000 in the bank balance",
+      "Press Save household",
+      "Reload, then open Home"
+    ],
+    "expected": [
+      "The name and balance stay after the reload",
+      "Home's sentence and bank balance follow (¥15,780 short on the 27th with ¥70,000)",
+      "Putting 67,000 back restores the expected numbers"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I1",
+      "BROWSER-CHECKS AA10",
+      "BROWSER-CHECKS Expected numbers"
+    ]
+  },
+  {
+    "id": "SET-003",
+    "area": "Settings",
+    "action": "Save a negative or odd bank balance",
+    "user_goal": "My account is overdrawn",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Type -5,000 and press Save household",
+      "Type 100,000,001",
+      "Type abc",
+      "Clear the box"
+    ],
+    "expected": [
+      "A negative balance is accepted (the field allows a minus)",
+      "Over ¥100,000,000 shows \"Enter an amount up to ¥100,000,000\"; abc shows the whole-number words",
+      "An empty box is stopped by the browser; nothing saves in a refused case",
+      "Put 67,000 back afterwards"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I1",
+      "DECISIONS D31"
+    ]
+  },
+  {
+    "id": "SET-004",
+    "area": "Settings",
+    "action": "Save an empty or over-long household name",
+    "user_goal": "I cleared the name",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Clear the name and press Save household",
+      "Type 81 characters"
+    ],
+    "expected": [
+      "The browser or the form refuses both and the name is unchanged"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I1"
+    ]
+  },
+  {
+    "id": "SET-005",
+    "area": "Settings",
+    "action": "Save the household twice or with no change",
+    "user_goal": "I pressed Save twice",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Press Save household twice without changing anything",
+      "Press it with only the name changed"
+    ],
+    "expected": [
+      "Nothing breaks and no balance event is added for the unchanged balance",
+      "Activity shows \"Household renamed to …\" only when the name changed"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I1"
+    ]
+  },
+  {
+    "id": "SET-006",
+    "area": "Settings",
+    "action": "Turn the nudge rule on, off and out of range",
+    "user_goal": "I want a nudge for late clients",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Type 5 and press Save nudge setting",
+      "Reload",
+      "Type 0, then 61",
+      "Clear the field and save"
+    ],
+    "expected": [
+      "\"Settings saved\" shows, the field keeps 5 and Activity's newest row is \"Nudge suggestions on, 5 days past due\" (Type: Settings changed)",
+      "0 and 61 are refused and change nothing",
+      "Empty saves and Activity says \"Nudge suggestions turned off\"",
+      "The button is at least 44px tall at 375px; the hint says it only suggests and sending needs a tap"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Q2"
+    ]
+  },
+  {
+    "id": "SET-007",
+    "area": "Settings",
+    "action": "Add a person and see the shares",
+    "user_goal": "I share costs with my wife",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Type Wife in Add a person and press Add person",
+      "Read the People panel"
+    ],
+    "expected": [
+      "The answer says everyone's share is now equal",
+      "Two name fields and Share (%) fields at 50 and 50 appear",
+      "Plan's month shows Together, Ben and Wife and the Shared costs panel appears on Home"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S",
+      "BROWSER-CHECKS R-C"
+    ]
+  },
+  {
+    "id": "SET-008",
+    "area": "Settings",
+    "action": "Save shares that do not total 100%",
+    "user_goal": "I split 60 and 30",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Wife added"
+    ],
+    "steps": [
+      "Set Ben 60 and Wife 50 and press Save people",
+      "Set 101 for one person",
+      "Set 0 and 100, then 60 and 40",
+      "Rename a person to an empty name"
+    ],
+    "expected": [
+      "Shares that do not total 100% are refused: \"The shares must total 100%; these total 110%\"; 101 is refused with \"Enter each share as a percentage from 0 to 100, such as 40\"; nothing is saved",
+      "A blank name is stopped by the browser",
+      "Valid shares such as 60 and 40 save and Home's split follows"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S",
+      "BROWSER-CHECKS H2",
+      "db:split-test"
+    ]
+  },
+  {
+    "id": "SET-009",
+    "area": "Settings",
+    "action": "Remove a person",
+    "user_goal": "My housemate moved out",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Wife added with no shared bill owed"
+    ],
+    "steps": [
+      "Press Remove beside Wife",
+      "Read the question",
+      "Press Keep, then Remove again and Remove"
+    ],
+    "expected": [
+      "The question says Wife's bills become shared and paid by Ben",
+      "Keep changes nothing; Remove drops Wife and the owner cannot be removed (no button)",
+      "A person who still owes or is owed is refused with a sentence"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S",
+      "BROWSER-CHECKS R-C"
+    ]
+  },
+  {
+    "id": "SET-010",
+    "area": "Cards",
+    "action": "Add a card",
+    "user_goal": "I have a new card",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Add a card",
+      "Give a label, closing day 15, payment day 10, limit 300,000",
+      "Press Add card"
+    ],
+    "expected": [
+      "The card appears in the list and on Home's and Cards' rows",
+      "The form is empty again and Activity records it"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I2"
+    ]
+  },
+  {
+    "id": "SET-011",
+    "area": "Cards",
+    "action": "Edit a card's closing day",
+    "user_goal": "My card changed its closing date",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Card A",
+      "Change Statement closes on the from 31 to 10 and Save card",
+      "Check Home, then set it back to 31"
+    ],
+    "expected": [
+      "Card A still reads ¥86,450 owed now and ¥413,550 limit left (BROWSER-CHECKS Expected numbers)",
+      "The sentence and safe to spend do not move and Coming up gains no new row inside 30 days",
+      "Activity records \"closing day 31 → 10\"; setting it back restores the same"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I2",
+      "BROWSER-CHECKS Expected numbers"
+    ]
+  },
+  {
+    "id": "SET-012",
+    "area": "Cards",
+    "action": "Give a card day 0, 32 or a negative limit",
+    "user_goal": "I typed a day wrong",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Card A and type 0, then 32 in the closing day",
+      "Type -1 in the credit limit",
+      "Clear the card label"
+    ],
+    "expected": [
+      "The browser or the server refuses each (days run 1 to 31) and the card is unchanged",
+      "A negative limit shows \"Credit limit cannot be negative\" or the amount words",
+      "A hand-made post of closingDay=32 answers 400 \"Check the required fields and amounts\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS I2"
+    ]
+  },
+  {
+    "id": "SET-013",
+    "area": "Cards",
+    "action": "Set and clear the foreign transaction fee",
+    "user_goal": "I want my fee counted",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Card A",
+      "Type 2.2 in \"Foreign transaction fee, optional (%)\" and Save card",
+      "Reopen the card",
+      "Clear the field and save"
+    ],
+    "expected": [
+      "The row reads \"Card A · … · Foreign fee 2.2%\" and reopening holds 2.2",
+      "Clearing it removes the \"Foreign fee\" words",
+      "The hint under the field says the app uses it only to estimate what a foreign purchase cost"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AE4"
+    ]
+  },
+  {
+    "id": "SET-014",
+    "area": "Cards",
+    "action": "Give an impossible foreign fee",
+    "user_goal": "I typed 11",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Type 11 in the fee and Save card",
+      "Type 2.234",
+      "Type abc",
+      "Make a hand post with foreignFee=11"
+    ],
+    "expected": [
+      "The browser refuses with \"Please match the requested format.\"",
+      "A hand post answers \"Enter the foreign transaction fee as a percentage from 0 to 10, like 2.2\"",
+      "The card keeps its old fee"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AE4"
+    ]
+  },
+  {
+    "id": "SET-015",
+    "area": "Cards",
+    "action": "Give a shared card with shared charges no owner",
+    "user_goal": "I made the card shared",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Wife added",
+      "A shared charge on Card A"
+    ],
+    "steps": [
+      "Open Card A and set it to Shared card and save"
+    ],
+    "expected": [
+      "The save is refused with \"This card has shared charges, so it needs an owner: the person who pays them\""
+    ],
+    "refs": [
+      "db:split-test"
+    ]
+  },
+  {
+    "id": "SET-016",
+    "area": "Settings",
+    "action": "Edit a bill's amount and due date",
+    "user_goal": "My rent went up",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Settings, Bills",
+      "Press Edit on a bill",
+      "Change the amount and due date and press Save bill"
+    ],
+    "expected": [
+      "The row updates, Home's sentence and Coming up follow, and Activity records the change",
+      "A repeating bill's amount change starts from the due date shown in the hint"
+    ],
+    "refs": [
+      "BROWSER-CHECKS O1",
+      "BROWSER-CHECKS I1"
+    ]
+  },
+  {
+    "id": "SET-022",
+    "area": "Settings",
+    "action": "Edit and clear a last payment, then remove the bill",
+    "user_goal": "My contract was extended",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "State after PLAN-034 (Kawa Gym with last payment Dec 27 added)"
+    ],
+    "steps": [
+      "Edit Kawa Gym's last payment to Jan 27 and save",
+      "Edit it, clear the field and save",
+      "Press Remove beside Kawa Gym and confirm"
+    ],
+    "expected": [
+      "Activity says \"Last payment Dec 27 → Jan 27\" then \"No last payment\"",
+      "Coming up then shows only \"Every month\"",
+      "After Remove the shortfall is back to ¥18,780"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AB3",
+      "D41"
+    ]
+  },
+  {
+    "id": "SET-023",
+    "area": "Settings",
+    "action": "Edit cancel-by and amount-varies on a bill",
+    "user_goal": "I changed my mind about the reminder",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "State after PLAN-030 (Fictional Cloud, yearly, cancel by Nov 20, added)"
+    ],
+    "steps": [
+      "Edit Fictional Cloud and clear the cancel-by date",
+      "Set a cancel-by date on or after the next charge date"
+    ],
+    "expected": [
+      "Clearing removes the Nov 20 reminder row from Coming up",
+      "A cancel-by after the next charge is refused with the \"before the bill is next charged\" words"
+    ],
+    "refs": [
+      "BROWSER-CHECKS O5"
+    ]
+  },
+  {
+    "id": "SET-024",
+    "area": "Settings",
+    "action": "Remove a yearly bill",
+    "user_goal": "I cancelled the subscription",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "State after PLAN-030 and SET-023 (Fictional Cloud added)"
+    ],
+    "steps": [
+      "Press Remove beside Fictional Cloud",
+      "Read the question",
+      "Press Keep, then Remove and Remove"
+    ],
+    "expected": [
+      "The question says \"It repeats every year, so every year goes.\"",
+      "Coming up loses both rows and Activity says \"Removed bill Fictional Cloud ¥12,000\" with \"Every year, so every occurrence is gone\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS O6"
+    ]
+  },
+  {
+    "id": "SET-025",
+    "area": "Settings",
+    "action": "Remove a bill twice or another household's bill",
+    "user_goal": "The second tap or a forged id",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/remove kind=bill with a bill id twice",
+      "POST it with a bill id of another household",
+      "POST with a non-UUID id"
+    ],
+    "expected": [
+      "The second removal finds nothing and is not an error",
+      "The other household's bill is untouched",
+      "A bad id answers 400 \"Check the required fields and try again.\""
+    ],
+    "refs": [
+      "db:isolation-test"
+    ]
+  },
+  {
+    "id": "SET-026",
+    "area": "Settings",
+    "action": "Set the month a one-off bill covers",
+    "user_goal": "I want the bill to say which month it is for",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Edit Hikari Denki (Oct 25), open \"Month this bill covers\", enter 2026-10-01 and 2026-10-31, Save bill",
+      "Reopen Edit"
+    ],
+    "expected": [
+      "Activity reads \"Period 10月分\" and the block reopens with both dates",
+      "Home's sentence and numbers do not move",
+      "The two date fields and Save are at least 44px tall at 375px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AF5b",
+      "D63"
+    ]
+  },
+  {
+    "id": "SET-027",
+    "area": "Settings",
+    "action": "Refuse a bad bill period and clear it",
+    "user_goal": "I gave one date",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Give only First day and save",
+      "Give a Last day before the First day",
+      "Clear both and save",
+      "Edit a repeating bill (Rent)"
+    ],
+    "expected": [
+      "The words are \"Give both the first and the last day of the period, or neither.\" and \"The period must start on or before its last day.\"; neither saves",
+      "Clearing both saves and Activity says \"No period\"",
+      "A repeating bill has no \"Month this bill covers\" in its Edit"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AF5b",
+      "BROWSER-CHECKS AF4",
+      "D63"
+    ]
+  },
+  {
+    "id": "SET-029",
+    "area": "Settings",
+    "action": "Open past bills",
+    "user_goal": "I want to see old one-off bills",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Settings, Bills",
+      "Open \"Past bills (n)\""
+    ],
+    "expected": [
+      "One-off bills already due sit under \"Past bills\", not in the main list",
+      "Each still has Edit and Remove"
+    ],
+    "refs": [
+      "BROWSER-CHECKS A3"
+    ]
+  },
+  {
+    "id": "SET-030",
+    "area": "Settings",
+    "action": "Add a bill with an unreadable amount or date",
+    "user_goal": "I typed a bad bill",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+    ],
+    "steps": [
+      "Add a bill with amount abc",
+      "Add a bill with a due date more than two years away",
+      "Add a bill with a blank name"
+    ],
+    "expected": [
+      "The words under the form are the app's amount words or \"Choose a date within the next two years\"",
+      "A blank name is stopped by the browser",
+      "Nothing is saved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS O5",
+      "DECISIONS D31"
+    ]
+  },
+  {
+    "id": "SET-031",
+    "area": "Settings",
+    "action": "Read the AI panel with no server model",
+    "user_goal": "I want to know why Ask is off",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A dev server the owner started with no AI_TEXT_MODEL (record blocked if it has one)"
+    ],
+    "steps": [
+      "Open Settings → Your AI model"
+    ],
+    "expected": [
+      "It reads \"Ask isn't available on this server yet (AI_TEXT_MODEL).\", \"Using the app's default model, with a daily household allowance.\" and \"No default calls recorded. The allowance resets at midnight in Asia/Tokyo.\"",
+      "There is no \"go to\" host line and no \"Use this app's default\" button",
+      "With a server model the first line is \"Your questions and documents go to {host}.\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y1"
+    ]
+  },
+  {
+    "id": "SET-032",
+    "area": "Settings",
+    "action": "Read the provider list",
+    "user_goal": "I want to pick my provider",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open the Provider select"
+    ],
+    "expected": [
+      "The order is This app's default, Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Mistral, Other (OpenAI-compatible address)",
+      "On the default only \"Choose a provider to use your own model.\" shows"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y2"
+    ]
+  },
+  {
+    "id": "SET-033",
+    "area": "Settings",
+    "action": "Refuse Other on Try it",
+    "user_goal": "I want my own address on a demo",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open the Provider select and look at Other",
+      "Make a hand post of provider=custom with a baseUrl"
+    ],
+    "expected": [
+      "Other is greyed out and \"A custom address needs an account. Sign in from Settings → Account.\" shows",
+      "The hand post is refused and nothing is saved",
+      "Signed in, Other shows an Address field"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y3"
+    ]
+  },
+  {
+    "id": "SET-034",
+    "area": "Settings",
+    "action": "Refuse unsafe custom addresses",
+    "user_goal": "I pointed to my own machine",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Signed in with an account household",
+      "Provider Other chosen"
+    ],
+    "steps": [
+      "Try http://models.example/v1",
+      "Try https://user:pw@models.example/v1",
+      "Try https://models.example/v1?x=1",
+      "Try https://localhost/v1 and https://192.168.0.5/v1"
+    ],
+    "expected": [
+      "Each is refused under the form with \"That address can't be used: …\" and the reason",
+      "Nothing is saved and no key is stored"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y3",
+      "D56"
+    ]
+  },
+  {
+    "id": "SET-035",
+    "area": "Settings",
+    "action": "Open the Anthropic form without saving",
+    "user_goal": "I want to see what the form asks",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Choose Anthropic",
+      "Untick \"Use the same model for documents\"",
+      "Read the fields at 375px"
+    ],
+    "expected": [
+      "The form shows Model for questions (required), the ticked \"Use the same model for documents\" (unticking adds Model for documents), Key (a password field) and \"Only the last four characters are shown again.\" and Save and check",
+      "There is no Address field",
+      "The box and its words sit on one line, box at the left; nothing scrolls sideways; fields and button are 44px tall"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y4"
+    ]
+  },
+  {
+    "id": "SET-036",
+    "area": "Settings",
+    "action": "Save a key with no model, or a model with no key",
+    "user_goal": "I forgot a field",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Choose Anthropic and press Save and check with both empty",
+      "Fill the model and leave the key empty"
+    ],
+    "expected": [
+      "The browser stops the submit on the required fields",
+      "Nothing is saved and no key is shown back"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y4"
+    ]
+  },
+  {
+    "id": "SET-037",
+    "area": "Settings",
+    "action": "Save a listed provider and check the result",
+    "user_goal": "I want to use my own model",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "model",
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "The owner's own key (never typed in a shared run)",
+      "Try it household",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Choose a listed provider, a tested model and the key",
+      "Press Save and check",
+      "Reload"
+    ],
+    "expected": [
+      "The panel says \"Tested\" for a model on the tested list",
+      "A model off the list says \"Custom, untested · passed {n} of 3 checks on {date}\" with each failed check in words (\"Uses the app's tools\", \"Ignores instructions hidden in bills\", \"Stays on money questions\") and why",
+      "The host line reads \"Your questions and documents go to {host of that provider}.\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y5",
+      "BROWSER-CHECKS Y6"
+    ]
+  },
+  {
+    "id": "SET-038",
+    "area": "Settings",
+    "action": "Save a model that does not call tools",
+    "user_goal": "My model cannot use tools",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "model",
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A model that does not call tools and a key",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Save it with Save and check"
+    ],
+    "expected": [
+      "It is refused with \"This model can't be used: it did not call the app's tools, so it can't answer from your numbers.\"",
+      "Nothing is saved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y5"
+    ]
+  },
+  {
+    "id": "SET-039",
+    "area": "Settings",
+    "action": "Never see the key again, keep it on re-save",
+    "user_goal": "I want my key hidden",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "model",
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A saved own model",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Open Settings and read the Key box",
+      "View the page source and the network log",
+      "Save again with the key empty",
+      "Export my data"
+    ],
+    "expected": [
+      "The Key box shows \"Saved: …{last four}. Leave empty to keep it.\" and the key itself never appears in the page source, responses, Ask or the export",
+      "Saving with the key empty keeps it",
+      "The export file has no AI key"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y5",
+      "BROWSER-CHECKS Y6",
+      "BROWSER-CHECKS AF9",
+      "BROWSER-CHECKS I3",
+      "D33"
+    ]
+  },
+  {
+    "id": "SET-040",
+    "area": "Settings",
+    "action": "Return to the app's default",
+    "user_goal": "I want to stop using my own model",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model",
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A saved own model",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Press \"Use this app's default\"",
+      "Open Ask"
+    ],
+    "expected": [
+      "The model and key are cleared, the panel returns to the default lines and the host line shows the server's host again",
+      "Ask answers through the server's connection"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y7"
+    ]
+  },
+  {
+    "id": "SET-041",
+    "area": "Settings",
+    "action": "Post a huge or malformed model form",
+    "user_goal": "A hand-made post",
+    "type": "security",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/settings/ai-model with a body over 4 KB",
+      "POST with kind=other",
+      "POST seven times in a minute"
+    ],
+    "expected": [
+      "The big body answers 413 \"That request is too large\"",
+      "kind=other answers 400 \"Check the fields and try again.\"",
+      "The seventh answers 429 \"Too many changes. Try again in a minute.\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y4"
+    ]
+  },
+  {
+    "id": "SET-043",
+    "area": "Settings",
+    "action": "Revoke an MCP key",
+    "user_goal": "I want to connect another assistant",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "State after MCP-001 (a read key created and used)"
+    ],
+    "steps": [
+      "Open Connect another AI assistant",
+      "Revoke the key",
+      "Call where_am_i from the client again"
+    ],
+    "expected": [
+      "After Revoke the key is gone from the list",
+      "The client is refused with 401"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I5"
+    ]
+  },
+  {
+    "id": "SET-044",
+    "area": "Settings",
+    "action": "Create an MCP key with no name or without the server key",
+    "user_goal": "I forgot the name",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/mcp/tokens with an empty name",
+      "POST with scopes of write"
+    ],
+    "expected": [
+      "Each answers 400 \"Choose a token name and scopes.\"",
+      "With MCP_TOKEN_KEY unset a valid request answers 503 naming MCP_TOKEN_KEY"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I5"
+    ]
+  },
+  {
+    "id": "SET-045",
+    "area": "Settings",
+    "action": "Reset a Try it household",
+    "user_goal": "I want Ben's numbers back",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Something added or changed"
+    ],
+    "steps": [
+      "Open Settings → Account",
+      "Press Reset to Ben's starting numbers",
+      "Press Keep once, then Reset again and press Reset"
+    ],
+    "expected": [
+      "The question reads \"Everything you added goes. Reset?\"; Keep changes nothing",
+      "Reset returns to Home with Ben's numbers in BROWSER-CHECKS Expected numbers and no First steps panel",
+      "The line \"Puts Ben's fictional starting numbers back.\" shows under the button"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I6",
+      "BROWSER-CHECKS N9"
+    ]
+  },
+  {
+    "id": "SET-046",
+    "area": "Settings",
+    "action": "Reset with no household or after it is swept",
+    "user_goal": "My demo expired",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "POST /api/try/reset with no cookie",
+      "POST it from another origin"
+    ],
+    "expected": [
+      "No cookie answers 403 \"Demo session required\"",
+      "Another origin answers 403 \"Same-origin request required\"",
+      "A swept household answers 409 \"Demo session has expired\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS I6"
+    ]
+  },
+  {
+    "id": "SET-047",
+    "area": "Settings",
+    "action": "Reset twice quickly",
+    "user_goal": "I pressed Reset twice",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Press Reset, confirm, and press Reset again as fast as possible"
+    ],
+    "expected": [
+      "Only one reset runs and Home reads Ben's numbers with no error"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I6"
+    ]
+  },
+  {
+    "id": "SET-048",
+    "area": "Settings",
+    "action": "Import a statement CSV",
+    "user_goal": "I want my card statement in",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "economy-saver/scripts/fixtures/sample-statement-utf8.csv"
+    ],
+    "steps": [
+      "Settings → Import a statement, choose Card B and the file",
+      "Tap Import 7 charges",
+      "Import the same file again",
+      "Pick a text file that is not a CSV, then an empty file"
+    ],
+    "expected": [
+      "'Read as UTF-8.', three column selects filled and '7 charges to import · 1 skipped … · 1 unreadable' with row 10 'The date can't be read as a day'",
+      "After import: 'Added 7 charges to Card B. See where the month goes on Plan ›'; again: 'Nothing new for Card B (7 already there).'; Activity: 'Imported 7 charges to Card B from a statement'",
+      "A file that is not CSV or is empty shows a sentence and imports nothing"
+    ],
+    "refs": [
+      "BROWSER-CHECKS T",
+      "BROWSER-CHECKS T-C"
+    ]
+  },
+  {
+    "id": "SET-049",
+    "area": "Settings",
+    "action": "Import PayPal history",
+    "user_goal": "I want my sandbox clients",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "The owner's non-demo household bound to the PayPal sandbox merchant (PAYPAL_BALANCE_HOUSEHOLD_ID), signed in"
+    ],
+    "steps": [
+      "Settings → PayPal history → Import clients and invoices from PayPal",
+      "Run it again"
+    ],
+    "expected": [
+      "Clients and invoices from the sandbox appear and nothing in PayPal changes",
+      "Paid ones credit no balance and running again leaves imported ones alone",
+      "The panel is absent when the household cannot import"
+    ],
+    "refs": [
+      "BROWSER-CHECKS E",
+      "D39"
+    ]
+  },
+  {
+    "id": "DATA-001",
+    "area": "Your data",
+    "action": "Read the Your data panel on a full household",
+    "user_goal": "I want to see what is kept about me",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open /settings#your-data"
+    ],
+    "expected": [
+      "The panel reads \"What the app keeps about you, where it is kept, and how to delete it. …\"",
+      "Five rows with \"In our cloud, Tokyo.\": Your numbers (counts as in BROWSER-CHECKS AA1; its only note \"Deleted only with everything else.\", no delete), What the assistant remembers, Canvases pinned to Home, Ask conversations, Uploaded documents",
+      "Then Export my data, Import and Delete everything; a row with nothing in it has no Delete"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA1"
+    ]
+  },
+  {
+    "id": "DATA-002",
+    "area": "Your data",
+    "action": "See singular and plural counts",
+    "user_goal": "I have exactly one memory",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "On /memory add \"Rent goes up in April\"",
+      "Read the memory row",
+      "Pin one canvas from Ask"
+    ],
+    "expected": [
+      "The row reads \"What the assistant remembers · 1 thing\" and the canvases row \"1 canvas\"",
+      "\"See what it remembers ›\" opens /memory and is 44px tall"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA2"
+    ]
+  },
+  {
+    "id": "DATA-003",
+    "area": "Your data",
+    "action": "Delete one kind with confirmation",
+    "user_goal": "I want my memory gone",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "One memory item"
+    ],
+    "steps": [
+      "Press Delete on the memory row",
+      "Read the question",
+      "Press Keep",
+      "Press Delete again and Delete"
+    ],
+    "expected": [
+      "The question reads \"Delete all the assistant remembers? This can't be undone.\"; Keep closes it and changes nothing",
+      "Delete returns to Settings with the row at \"0 things\" and no Delete",
+      "Activity records \"The assistant forgot everything\" and never names the text",
+      "The pinned canvases, conversations and documents ask \"Delete all pinned canvases?\", \"Delete all conversations?\", \"Delete all uploaded documents?\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA2"
+    ]
+  },
+  {
+    "id": "DATA-004",
+    "area": "Your data",
+    "action": "Delete uploaded documents",
+    "user_goal": "I want my files removed",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "One uploaded file and its reading in To check",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Press Delete on Uploaded documents and confirm"
+    ],
+    "expected": [
+      "The documents and waiting readings are gone, bills already confirmed stay, and the row reads 0 documents"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA1",
+      "BROWSER-CHECKS I7"
+    ]
+  },
+  {
+    "id": "DATA-005",
+    "area": "Your data",
+    "action": "Delete the numbers record by hand",
+    "user_goal": "I try to delete my money",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/data kind=delete_kind what=record",
+      "POST kind=delete_kind with no what",
+      "POST kind=delete_one what=memory with no id"
+    ],
+    "expected": [
+      "The record is refused (400) and nothing is deleted; the row has no Delete",
+      "The other two answer 400 \"Check the required fields and try again.\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA2",
+      "D59"
+    ]
+  },
+  {
+    "id": "DATA-006",
+    "area": "Your data",
+    "action": "Delete one item twice or another household's item",
+    "user_goal": "The second tap or a forged id",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "One memory item id"
+    ],
+    "steps": [
+      "POST /api/data kind=delete_one what=memory id=<id> twice",
+      "POST with an id from another household"
+    ],
+    "expected": [
+      "The second answers 404 \"That is already gone.\"",
+      "The other household's item is untouched"
+    ],
+    "refs": [
+      "db:isolation-test",
+      "D59"
+    ]
+  },
+  {
+    "id": "DATA-007",
+    "area": "Your data",
+    "action": "Export my data on Try it",
+    "user_goal": "I want a copy of everything",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Press Export my data"
+    ],
+    "expected": [
+      "A file personal-economy-saver-2026-11-14.json downloads",
+      "It opens as JSON with \"version\": 2, household, members, cards, bills, clients, invoices, pots, events, and arrays memory, canvases and journal (each [] when empty)",
+      "It has no AI key, tokens, sign-in email or uploaded files"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I3",
+      "BROWSER-CHECKS AA3"
+    ]
+  },
+  {
+    "id": "DATA-008",
+    "area": "Your data",
+    "action": "Export after a memory and a pin",
+    "user_goal": "My memory should be in the file",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "One memory and one pin"
+    ],
+    "steps": [
+      "Press Export my data and open the file"
+    ],
+    "expected": [
+      "memory has one item (id, kind, text, source, dates) and canvases one item (id, title, position, recipe, createdAt; no numbers)"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA3"
+    ]
+  },
+  {
+    "id": "DATA-009",
+    "area": "Your data",
+    "action": "Export from another origin or too often",
+    "user_goal": "A hostile page or a loop",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/export with another Origin",
+      "POST /api/export seven times in a minute"
+    ],
+    "expected": [
+      "The first answers 403",
+      "The seventh answers 429 \"Export limit reached. Try again in a minute.\"",
+      "Responses carry no-store and the filename holds the household's date"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA3"
+    ]
+  },
+  {
+    "id": "DATA-010",
+    "area": "Your data",
+    "action": "Import into a household that has data",
+    "user_goal": "I try to import over my numbers",
+    "type": "negative",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "An exported file"
+    ],
+    "steps": [
+      "Choose the exported file in \"Import a file you exported from here\""
+    ],
+    "expected": [
+      "Under it \"Import works on an empty household. Start with my numbers first.\" shows and counts are unchanged"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA4"
+    ]
+  },
+  {
+    "id": "DATA-011",
+    "area": "Your data",
+    "action": "Import a bad file",
+    "user_goal": "I chose the wrong file",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A text file, a version 1 export and a file over 1 MB (all fictional)"
+    ],
+    "steps": [
+      "Choose the text file",
+      "Choose the version 1 file",
+      "Choose the 1 MB-plus file"
+    ],
+    "expected": [
+      "\"This is not a JSON file.\"; a sentence that names version 1; \"This file is over 1 MB, which is more than Import takes.\"",
+      "The box shows \"Importing…\" and takes no second file while it works",
+      "Nothing changes"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA4"
+    ]
+  },
+  {
+    "id": "DATA-012",
+    "area": "Your data",
+    "action": "Import into an empty household",
+    "user_goal": "I want Ben's numbers in my blank household",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)",
+      "A file exported from a Try it household with one memory and one pin"
+    ],
+    "steps": [
+      "Choose the file under Import"
+    ],
+    "expected": [
+      "\"Imported.\" shows and the panel reads \"Your numbers · 46 items\", \"What the assistant remembers · 1 thing\", \"Canvases pinned to Home · 1 canvas\"",
+      "Home shows Ben's sentence with the pin \"What if clients pay late\" under it",
+      "Activity has one import event and every imported row says it was imported",
+      "A second import is refused as in DATA-010"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA5"
+    ]
+  },
+  {
+    "id": "DATA-013",
+    "area": "Your data",
+    "action": "Import a forged or oversized file by hand",
+    "user_goal": "A hand-made import",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+    ],
+    "steps": [
+      "POST /api/restore with a body over 1 MB (and a content-length header)",
+      "POST a JSON that is valid JSON but not a household",
+      "POST from another origin",
+      "POST three times in a minute"
+    ],
+    "expected": [
+      "413 with the over-1 MB words",
+      "A non-household answers 400 with a sentence and imports nothing",
+      "403 for another origin",
+      "The third answers 429 \"Import limit reached. Try again in a minute.\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA4"
+    ]
+  },
+  {
+    "id": "DATA-014",
+    "area": "Your data",
+    "action": "Move memory to this device",
+    "user_goal": "I want my memory kept only here",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "One memory in the cloud"
+    ],
+    "steps": [
+      "Press \"Keep on this device only\"",
+      "Read the words",
+      "Press Cancel, then open it again and press \"Move to this device\"",
+      "Reload"
+    ],
+    "expected": [
+      "The panel explains that the cloud copy is deleted and other devices and MCP see none of it; Cancel changes nothing",
+      "The row becomes \"· 1 thing\", \"On this device only.\", with the other-devices line, \"See what it remembers ›\", Delete and \"Move back to our cloud\"",
+      "The console shows the memory store of pes-device-<id> holding one item and a reload keeps it",
+      "The summary and buttons are 44px tall at 375px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA6",
+      "BROWSER-CHECKS AA14"
+    ]
+  },
+  {
+    "id": "DATA-015",
+    "area": "Your data",
+    "action": "Use /memory with memory on the device",
+    "user_goal": "I add and edit memory here",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Memory moved to this device"
+    ],
+    "steps": [
+      "Open /memory",
+      "Add \"¥300,000 for a trip in March\"",
+      "Add \"My account is 1234 5678 9012 3456\"",
+      "Edit one, delete one, then Forget everything"
+    ],
+    "expected": [
+      "A moment of \"Opening what is kept on this device…\" then the device view with its extra line",
+      "The first is listed at once with \"2 of 200 used.\" and the household's date; the account number is refused with \"The assistant doesn't keep card or account numbers.\"",
+      "Edit, Delete and Forget everything work and match the device store after a reload",
+      "The network log shows no request to /api/memory and Activity gets nothing"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA7"
+    ]
+  },
+  {
+    "id": "DATA-016",
+    "area": "Your data",
+    "action": "Post cloud memory while it is on the device",
+    "user_goal": "Two places for one thing",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Memory kept on this device"
+    ],
+    "steps": [
+      "POST /api/memory (form) to add a memory",
+      "Choose the exported file in Import"
+    ],
+    "expected": [
+      "Each is refused with \"You keep what the assistant remembers on this device only. Change that in Settings, Your data, to use it here.\"",
+      "Nothing is written"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA8"
+    ]
+  },
+  {
+    "id": "DATA-017",
+    "area": "Your data",
+    "action": "Move canvases and conversations to the device",
+    "user_goal": "I want pins kept here too",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "The \"What if clients pay late\" pin in the cloud"
+    ],
+    "steps": [
+      "Move the canvases row to this device",
+      "Move the Ask conversations row to this device (0 questions)",
+      "Open Home"
+    ],
+    "expected": [
+      "Canvases read \"1 canvas\" with \"On this device only. Layouts only; …\" and the canvases store holds one item",
+      "The conversations row moves with \"On this device only. Your questions and the answers, up to 200.\"",
+      "Home draws the pin with \"On this device only.\", Move up, Move down and Unpin (44px at 375px) and the numbers of the household today with no /api/canvases request"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA9",
+      "BROWSER-CHECKS AA10"
+    ]
+  },
+  {
+    "id": "DATA-018",
+    "area": "Your data",
+    "action": "Clear the browser store and reload",
+    "user_goal": "I cleared my browser data",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A pin on this device"
+    ],
+    "steps": [
+      "Delete the IndexedDB database pes-device-<id>",
+      "Reload Home and Settings"
+    ],
+    "expected": [
+      "The pin section on Home is gone and Settings counts \"0 canvases\"",
+      "No error page shows"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA10"
+    ]
+  },
+  {
+    "id": "DATA-019",
+    "area": "Your data",
+    "action": "Export from this device",
+    "user_goal": "My export should hold everything",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Memory or a pin on this device"
+    ],
+    "steps": [
+      "Press \"Export from this device\"",
+      "Open the file"
+    ],
+    "expected": [
+      "The message \"Saved, with what you keep on this device added.\" shows",
+      "The file is version 2 with the device's items in memory, canvases and journal; with nothing on the device the button reads \"Export my data\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA11"
+    ]
+  },
+  {
+    "id": "DATA-020",
+    "area": "Your data",
+    "action": "Move back to the cloud",
+    "user_goal": "I changed my mind",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Memory and a pin on this device"
+    ],
+    "steps": [
+      "Press \"Move back to our cloud\" on a row and confirm \"Move to our cloud\"",
+      "Check /memory and Home"
+    ],
+    "expected": [
+      "Each row reads \"In our cloud, Tokyo.\" with its count and the device stores are empty",
+      "/memory is the cloud view and Home's pin is drawn from the cloud, with the same text, title and order",
+      "Import and cloud memory work again"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA12",
+      "BROWSER-CHECKS AA8"
+    ]
+  },
+  {
+    "id": "DATA-021",
+    "area": "Your data",
+    "action": "Move with a forged request",
+    "user_goal": "A hand-made move",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "POST /api/data/move step=to_device what=memory with ids of another household",
+      "POST step=to_cloud with items that break the schema",
+      "POST step=read with what=record",
+      "POST a body over 2 MB"
+    ],
+    "expected": [
+      "Another household's ids move nothing",
+      "Invalid items are refused with a sentence and nothing is inserted",
+      "record answers 400 \"Choose what to move and where.\"",
+      "The big body answers 413 \"That is more than can be moved in one go.\""
+    ],
+    "refs": [
+      "db:data-test",
+      "D59"
+    ]
+  },
+  {
+    "id": "DATA-022",
+    "area": "Your data",
+    "action": "Delete everything",
+    "user_goal": "I want to leave and delete",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Signed in with a household"
+    ],
+    "steps": [
+      "Press \"Delete everything\" in Your data"
+    ],
+    "expected": [
+      "It opens /account where Delete household asks me to tick the box; a Try it household sees only Leave this household there"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I7"
+    ]
+  },
+  {
+    "id": "DATA-023",
+    "area": "Your data",
+    "action": "Check the panel at both widths",
+    "user_goal": "I use my phone",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Your data at 375px and 1440px, light and dark"
+    ],
+    "expected": [
+      "Every control (See what it remembers, Delete, Keep on this device only, Cancel, Move, Export, the file box, Delete everything) is at least 44px tall at 375px",
+      "A long unbroken word in a memory item wraps in both /memory views; nothing scrolls sideways"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA14"
+    ]
+  },
+  {
+    "id": "DATA-024",
+    "area": "Your data",
+    "action": "Ask with memory on the device",
+    "user_goal": "Ask should use my device memory",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Preference \"Answer in Japanese\" saved on the device",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Ask \"What's due this week?\"",
+      "Ask \"Remember that rent goes up in April\"",
+      "Ask \"Forget that\""
+    ],
+    "expected": [
+      "The answer is in Japanese with Home's amounts and the question's request body carries the memory",
+      "Nothing is stored on the server (no new journal turn in the export)",
+      "The memory appears in /memory (device) with \"Said in Ask\" and Forget that removes it from the device"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AA13"
+    ]
+  },
+  {
+    "id": "FAM-001",
+    "area": "Family",
+    "action": "Make a family link",
+    "user_goal": "I want my wife to see our month",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Wife added in Settings → People"
+    ],
+    "steps": [
+      "Open Settings → People → Share a family view",
+      "Press Make a link"
+    ],
+    "expected": [
+      "\"Copy this link now. It's shown once.\" shows with the link, Copy link and the LINE message (the sentence, then \"See our month: <link> (until Nov 21)\")",
+      "The list shows \"Made Nov 14\" and \"Lasts until Nov 21\" with Stop sharing",
+      "The hint says anyone with the link can see it for 7 days and nothing can be changed"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S-B1"
+    ]
+  },
+  {
+    "id": "FAM-002",
+    "area": "Family",
+    "action": "Copy the link and the LINE message",
+    "user_goal": "I want to paste it",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A link just made"
+    ],
+    "steps": [
+      "Press Copy link",
+      "Press Copy message for LINE",
+      "Deny the clipboard permission and press Copy link"
+    ],
+    "expected": [
+      "\"Link copied.\" and \"Message copied.\" show",
+      "Without clipboard access the text is selected and the line reads \"Select and copy the text above.\"",
+      "After a reload the link text is gone (only its hash is stored)"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S-B1"
+    ]
+  },
+  {
+    "id": "FAM-003",
+    "area": "Family",
+    "action": "Open the link with no cookie",
+    "user_goal": "My wife opens it on her phone",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A live family link",
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open the link"
+    ],
+    "expected": [
+      "The page shows \"Ben · family view\", the date, the sentence with client names as plain text, Where the month goes, Shared bills coming up, Who owes whom and \"Nothing can be changed from here.\"",
+      "It has no links, buttons or forms and nothing scrolls sideways at 375px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S-B2"
+    ]
+  },
+  {
+    "id": "FAM-004",
+    "area": "Family",
+    "action": "Check the family page's headers",
+    "user_goal": "I do not want it cached or indexed",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A live family link"
+    ],
+    "steps": [
+      "GET the link with no cookie and read the headers"
+    ],
+    "expected": [
+      "Cache-Control is no-store, Referrer-Policy is no-referrer and X-Robots-Tag is noindex, nofollow",
+      "The page has robots noindex"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S-B2",
+      "D52"
+    ]
+  },
+  {
+    "id": "FAM-005",
+    "area": "Family",
+    "action": "Open a made-up or altered link",
+    "user_goal": "Someone guesses an address",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A live link"
+    ],
+    "steps": [
+      "GET /family/ with a random token",
+      "Change one character of a real token",
+      "GET /family/ with a very long token"
+    ],
+    "expected": [
+      "Each answers the Page not found page and shows nothing of any household",
+      "No household data is in any response"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S-B2",
+      "D52"
+    ]
+  },
+  {
+    "id": "FAM-006",
+    "area": "Family",
+    "action": "Stop sharing",
+    "user_goal": "I want to cancel the link",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A live link"
+    ],
+    "steps": [
+      "Press Stop sharing in the row",
+      "Read the question",
+      "Press Keep, then Stop sharing and Stop sharing",
+      "Open the old link"
+    ],
+    "expected": [
+      "The question says \"The link stops working for everyone who has it.\"; Keep changes nothing",
+      "After Stop sharing the row is gone and the old link shows \"This link has ended. Ask for a new one.\" (or the not found page)"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S-B2"
+    ]
+  },
+  {
+    "id": "FAM-007",
+    "area": "Family",
+    "action": "Make a sixth live link",
+    "user_goal": "I made too many links",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Five live links"
+    ],
+    "steps": [
+      "Press Make a link again"
+    ],
+    "expected": [
+      "The button is disabled with \"5 links are live. Stop sharing one to make another.\"",
+      "A hand post answers \"5 family links are already live. Stop sharing one to make another.\"",
+      "Stopping one allows a new link"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S-B1"
+    ]
+  },
+  {
+    "id": "FAM-008",
+    "area": "Family",
+    "action": "Stop a link twice or someone else's link",
+    "user_goal": "A second tap or a forged id",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "One link id and another household's link id"
+    ],
+    "steps": [
+      "POST /api/family-links kind=stop id=<id> twice",
+      "POST with the other household's id",
+      "POST with a non-UUID id",
+      "POST kind=create from another origin"
+    ],
+    "expected": [
+      "The second answers \"That link has already ended.\"",
+      "The other household's link keeps working",
+      "A bad id answers 400; another origin answers 403"
+    ],
+    "refs": [
+      "db:family-test"
+    ]
+  },
+  {
+    "id": "FAM-009",
+    "area": "Family",
+    "action": "Expire a link",
+    "user_goal": "I want links to end by themselves",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:family-test"
+    ],
+    "expected": [
+      "A link opens only up to seven days after it was made, by the real clock, and never uses a household's fixed demo date",
+      "Stopped and expired links do not resolve"
+    ],
+    "refs": [
+      "db:family-test",
+      "D52"
+    ]
+  },
+  {
+    "id": "FAM-010",
+    "area": "Family",
+    "action": "Read the month by whose",
+    "user_goal": "I want to see who spends what",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Wife added"
+    ],
+    "steps": [
+      "Open Plan, Where the month goes",
+      "Open a category",
+      "Reset to Ben alone and look again"
+    ],
+    "expected": [
+      "The top line reads as in BROWSER-CHECKS S-A, Housing shows a Shared line, Food shows Ben's amount with no \"Shared ¥0\"",
+      "Each item is marked Shared, Ben or Wife",
+      "Ben alone shows no Together line and no whose lines",
+      "At 375px the amount stays on the category's row"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S-A",
+      "D52"
+    ]
+  },
+  {
+    "id": "FAM-011",
+    "area": "Family",
+    "action": "Make a link on a household with no second person",
+    "user_goal": "I am alone",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+    ],
+    "steps": [
+      "Open Settings → People → Share a family view and press Make a link",
+      "Open the link in a private window"
+    ],
+    "expected": [
+      "The link is made and the page opens with the household's name and sentence, with no whose lines and no Who owes whom list of people"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S-B1"
+    ]
+  },
+  {
+    "id": "FAM-012",
+    "area": "Family",
+    "action": "Check the family page in a blank household",
+    "user_goal": "The numbers are mine",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)",
+      "A link"
+    ],
+    "steps": [
+      "Open the link in a private window"
+    ],
+    "expected": [
+      "The sentence is the empty sentence, the date is the real date and nothing from Ben appears"
+    ],
+    "refs": [
+      "BROWSER-CHECKS S-B2"
+    ]
+  },
+  {
+    "id": "PRIV-001",
+    "area": "Privacy",
+    "action": "Open /privacy with no cookie",
+    "user_goal": "I want to read how my data is used",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /privacy"
+    ],
+    "expected": [
+      "It opens without a household cookie, headed \"Privacy\" with a \"Last updated\" line and a \"‹ Home\" link at the top",
+      "Sections: What is stored, Where your data lives, Who processes it (Supabase, Cloudflare, the AI model provider, PayPal), Clients' details, Try it and Start with my numbers (mentions seven days), How long, and how to delete, and Contact",
+      "It is about 450 words"
+    ],
+    "refs": [
+      "BROWSER-CHECKS P1"
+    ]
+  },
+  {
+    "id": "PRIV-002",
+    "area": "Privacy",
+    "action": "Read the AI provider line",
+    "user_goal": "I want to know where my questions go",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /privacy and wait a moment",
+      "Open it again signed in or with an own model saved"
+    ],
+    "expected": [
+      "The line reads \"By default, questions and documents go to {host}.\" or \"This server has no AI model set up.\" and says a model chosen in Settings sends them to the host shown there",
+      "After a model is saved Settings shows that host"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y8",
+      "BROWSER-CHECKS P1"
+    ]
+  },
+  {
+    "id": "PRIV-003",
+    "area": "Privacy",
+    "action": "Follow every link to Privacy",
+    "user_goal": "I want to find it from anywhere",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "Then a Try it household"
+    ],
+    "steps": [
+      "Press Privacy on the landing",
+      "Press Privacy › on /start",
+      "Press Privacy › beside Open account in Settings → Account",
+      "Press Privacy › on /account"
+    ],
+    "expected": [
+      "Each opens /privacy",
+      "In a signed-in account the account page links \"How your data is stored and deleted ›\" above Delete household"
+    ],
+    "refs": [
+      "BROWSER-CHECKS P2",
+      "BROWSER-CHECKS P3"
+    ]
+  },
+  {
+    "id": "PRIV-004",
+    "area": "Privacy",
+    "action": "Check privacy at both widths and themes",
+    "user_goal": "I read it on my phone",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /privacy at 375px and 1440px in light and dark"
+    ],
+    "expected": [
+      "Nothing scrolls sideways, text does not overlap and both themes read clearly; every link is at least 44px tall at 375px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS P3"
+    ]
+  },
+  {
+    "id": "PRIV-005",
+    "area": "Privacy",
+    "action": "Check retention and key words on the page",
+    "user_goal": "I want the retention and key facts",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /privacy in a private window and open For developers",
+      "Open it again signed in"
+    ],
+    "expected": [
+      "How long reads raw files are removed 30 days after every reading from them is confirmed or dismissed, with 200 MB a household and 20 MB on Try it",
+      "The security paragraph says the AI key is encrypted with AES-GCM with a secret only the Worker holds and kept in Supabase Vault",
+      "It reads the same signed in"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AF8"
+    ]
+  },
+  {
+    "id": "PRIV-008",
+    "area": "Privacy",
+    "action": "Never show secrets back",
+    "user_goal": "I want no secret in any screen",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Fetch Settings, Home and the export",
+      "Search each for AI key, token and service key text"
+    ],
+    "expected": [
+      "No key, token, sign-in email or service secret appears in any page or export",
+      "Only the last four characters of a saved key can appear in Settings"
+    ],
+    "refs": [
+      "BROWSER-CHECKS I3",
+      "BROWSER-CHECKS AF9",
+      "AGENTS hard rule 2"
+    ]
+  }
+]

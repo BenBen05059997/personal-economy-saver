@@ -1,6 +1,6 @@
 # Browser checks
 
-What to check by hand in a real browser before saying the app works. Each check is something a person does on screen and the result they should see. The automated suites (`npm run db:test` and the three HTTP suites in `scripts/frontend-check.mjs`) cover the maths, household scope and the refused requests; this list covers what only a screen shows. A full run's result goes in [PLAN.md](PLAN.md) under "Browser checks".
+What to check by hand in a real browser before saying the app works. Each check is something a person does on screen and the result they should see. The automated suites (`npm run db:test` and the three HTTP suites in `scripts/frontend-check.mjs`) cover the maths, household scope and the refused requests; this list covers what only a screen shows. A full run's result goes in [PLAN.md](PLAN.md) under "Browser checks". Every check here is also a scenario in [qa/scenarios/](qa/README.md), the per-action list an agent runs and records in `qa/results.json`.
 
 ## How to run
 
@@ -104,7 +104,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 - I4. Settings → Your AI model: section Y.
 - I5. Needs `MCP_TOKEN_KEY`: Connect another AI assistant → Create key → the key is shown once (the endpoint and "bearer token" sit under For developers); an MCP client can call `where_am_i` and `who_owes_whom`, and `draft_invoice` opens as a draft in the app.
 - I6. Settings → Account → Reset to Ben's starting numbers asks "Everything you added goes. Reset?"; Keep changes nothing; Reset returns to Home with Ben's expected numbers.
-- I7. Needs a signed-in account: Delete my data → everything is gone, including uploaded files.
+- I7. Needs a signed-in account: Account → Delete household → everything is gone, including uploaded files.
 
 ## J. Upload and forwarded email
 
@@ -193,7 +193,7 @@ A blank household, so the Try it numbers never move: private window, `/start`, t
 
 No sign-in needed; open it in a private window and again signed in.
 
-- P1. `/privacy` opens without a household cookie, headed "Privacy", with "Last updated Nov 4, 2026." under it and the sections What is stored, Where, Who processes it (Supabase, Cloudflare, the AI model provider, PayPal), where the provider line names this server's host ("By default, questions and documents go to {host}.", or "This server has no AI model set up.") and says a model chosen in Settings sends them to the host shown there, Clients’ details, Try it and Start with my numbers (mentions "seven days"), How long, and how to delete, and Contact. It is about 450 words, with a "‹ Home" link at the top.
+- P1. `/privacy` opens without a household cookie, headed "Privacy", with "Last updated Nov 6, 2026." under it and the sections What is stored, Where, Who processes it (Supabase, Cloudflare, the AI model provider, PayPal), where the provider line names this server's host ("By default, questions and documents go to {host}.", or "This server has no AI model set up.") and says a model chosen in Settings sends them to the host shown there, Clients’ details, Try it and Start with my numbers (mentions "seven days"), How long, and how to delete, and Contact. It is about 450 words, with a "‹ Home" link at the top.
 - P2. The page is linked from the landing (a small "Privacy" link under "Sign in with email"), from `/start` ("Your numbers stay in this browser’s demo household. Privacy ›" under the button), from Settings → Account ("Privacy ›" beside Open account) and from the account page (above Delete household for a signed-in person; beside Sign in for a Try it household).
 - P3. At 375px and 1440px every one of those links works and light and dark both read clearly.
 
@@ -225,7 +225,7 @@ A private window, no household cookie.
 A Try it household. Settings → People → Add a person "Wife".
 
 - S-A. The month by whose (D52). Plan → Where the month goes shows "Together ¥88,780 · Ben ¥63,450 · Wife ¥0 this month" on top; Housing reads ¥82,000 with "Shared ¥82,000" under it, Food ¥10,700 with "Ben ¥10,700" (no "Shared ¥0"); opening a category marks each item Shared, Ben or Wife. Ben alone (Reset) shows no Together line and no whose lines. At 375px the amount stays on the category's row and nothing scrolls sideways.
-- S-B1. Settings → People → Share a family view → Make a link: "Copy this link now. It's shown once." with the link, Copy link, and the LINE message (the sentence, then "See our month: <link> (until Nov 21)" on Try it, seven days after its Nov 14). The list shows "Made Nov 14 · Lasts until Nov 21" with Stop sharing. A sixth live link is refused with "5 family links are already live. Stop sharing one to make another."
+- S-B1. Settings → People → Share a family view → Make a link: "Copy this link now. It's shown once." with the link, Copy link, and the LINE message (the sentence, then "See our month: <link> (until Nov 21)" on Try it, seven days after its Nov 14). The list shows "Made Nov 14 · Lasts until Nov 21" with Stop sharing. With five live links the Make a link button is off and the hint says "5 links are live. Stop sharing one to make another."; a sixth posted anyway is refused with "5 family links are already live. Stop sharing one to make another."
 - S-B2. Open the link in a private window (no cookie): "Ben · family view", Sat Nov 14, the sentence with Acme and Northwind as plain text, Where the month goes as in S-A, Shared bills coming up (CloudBox Plus Nov 18, Mobaile Tsushin Nov 20, Rent Nov 27 ¥82,000), Who owes whom, and "Nothing can be changed from here." The page has no links, buttons or forms; response headers carry `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow`. Stop sharing → the same link shows "This link has ended. Ask for a new one." At 375px nothing scrolls sideways.
 
 ## T. Where the money went: search, history, import (D53) and the Nov 5 fixes

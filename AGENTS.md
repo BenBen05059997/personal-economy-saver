@@ -26,6 +26,7 @@ A personal money agent for people paid through PayPal (D2). Home is one sentence
 ```
 AGENTS.md, DECISIONS.md, PLAN.md, ARCHITECTURE.md   rules, decisions, checklist, wiring
 BROWSER-CHECKS.md                        the hand checks in a real browser, with expected numbers
+qa/                                      the QA scenarios: one per user action (scenarios/*.json), the latest run (results.json), and the prompts for the testing and fixing agents (README.md)
 design/one-screen.html                   the mockup the existing screens were built from (phone and desktop; the png files are screenshots of it); Ask, the canvas and pins follow D57 and the stage contracts in PLAN.md, not this mockup
 research/                                background research; read only when a decision points at it
 submission/                              Devpost text and video script drafts
@@ -70,6 +71,7 @@ economy-saver/                           the app
 | HTTP suites against a running dev server | `node scripts/frontend-check.mjs --run\|--extra\|--guards http://127.0.0.1:3123` |
 | Workers build + local preview | `npm run cf:preview` (port 8787; uses `.dev.vars`) |
 | Worker size | `npm run cf:size` (limits and the latest reading: PLAN.md, box S; keep the uncompressed size and startup time in mind when adding a package) |
+| QA scenarios: check the files, then the latest run's counts and failures (`--failures` as JSON) | `node scripts/qa-report.mjs [--check\|--failures]` |
 | PayPal sandbox smoke test | `npm run smoke` |
 | Codex bridge (dev and test only: runs the app's AI features on the owner's local Codex CLI login, no API key; settings, limits and the real-API caveat: `economy-saver/README.md`). Fictional data only | `npm run codex:bridge` / `npm run codex:bridge-check` |
 
