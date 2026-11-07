@@ -197,7 +197,7 @@ if (args[0] === "--guards") {
         const plain = text(body);
         for (const word of ["Supabase", "Tokyo", "seven days"]) expect(plain.includes(word), "privacy-" + word);
         // The host line streams in after a fallback; the full streamed HTML holds its final text.
-        expect(plain.includes("This server has no AI model set up.") || /By default, questions and documents go to [a-z0-9.-]+\.[a-z]+\./.test(plain), "privacy-ai-host-line");
+        expect(plain.includes("This server has no AI model set up.") || /By default, questions and documents go to [a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?\./.test(plain), "privacy-ai-host-line");
       }
       if (location) expect(response.headers.get("location") === location, "guard-redirect");
     });
