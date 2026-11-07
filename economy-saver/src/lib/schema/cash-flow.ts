@@ -2,8 +2,6 @@
 // Money is a signed integer count of minor units of the household's home currency: negative goes out, positive comes in.
 import { z } from "zod";
 
-export const CASH_FLOW_VERSION = 1;
-
 export const CashFlowEvent = z.object({
   date: z.string().date().describe("The day it happens, YYYY-MM-DD."),
   label: z.string().min(1).describe("Who it is with: a biller, a card statement, a client."),

@@ -37,7 +37,7 @@ export type TurnView = {
 };
 export type Drawn = { key: string; title: string; recipe: Recipe; blocks: ResolvedBlock[] };
 type Pin = { id: string; title: string };
-export type Places = { memory: Place; journal: Place; canvases: Place };
+type Places = { memory: Place; journal: Place; canvases: Place };
 
 const viewOf = (turn: ConversationTurn): TurnView => ({
   id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, sources: turn.sources, links: [], thumb: turn.thumb, documentId: turn.documentId ?? null,

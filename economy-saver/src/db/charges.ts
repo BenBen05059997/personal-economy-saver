@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
-import { fromMinor, parseAmountMinor } from "./money";
+import { fromMinor, parseAmountMinor, toRateMicro } from "./money";
 import { observeRunway } from "./runway-events";
 import { clockForHousehold } from "./clock";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
@@ -11,7 +11,7 @@ import { BusinessBp, CategoryKeySchema } from "@/lib/money/categories";
 import { cards, charges, households, members } from "./schema";
 import { syncClosedStatementCharge, unsyncClosedStatementCharge } from "./statement-charge";
 import { Currency } from "@/lib/catalogue/types";
-import { minorMoney } from "@/lib/money/format";
+import { minorMoney, minorPerUnit } from "@/lib/money/format";
 
 export const chargeInput = z.object({
   id: z.string().uuid(),
@@ -22,6 +22,9 @@ export const chargeInput = z.object({
   category: CategoryKeySchema, // D46: a key from lib/money/categories.ts
   businessBp: BusinessBp.default(0), // D46: business share in basis points
   shared: z.boolean().default(false), // D45: split between the members; the card's owner paid it
+  // D62: when the purchase was in another currency, the amount paid in `originalCurrency` (a typed amount); `amount` stays what the issuer billed.
+  originalAmount: z.string().trim().min(1).optional(),
+  originalCurrency: Currency.optional(),
 });
 
 async function ownerName(tx: Db, hid: string, memberId: string | null): Promise<string> {
@@ -53,10 +56,21 @@ export async function insertCharge(
       if (!card.memberId) throw new InputError("A shared charge needs a card that belongs to a person; set the card's owner in Settings");
     }
     const amountMinor = parseAmountMinor(data.amount, card.currency);
+    // D62: the original amount and the rate the issuer applied (original -> billed); the billed amount is known, so it is not an estimate.
+    let original: { originalAmountMinor: number; originalCurrency: string; fxRateMicro: number } | null = null;
+    if ((data.originalAmount === undefined) !== (data.originalCurrency === undefined)) throw new InputError("An amount in another currency needs both the amount and the currency");
+    if (data.originalAmount !== undefined && data.originalCurrency !== undefined) {
+      if (data.originalCurrency === card.currency) throw new InputError("The other currency has to differ from the card's");
+      const originalAmountMinor = parseAmountMinor(data.originalAmount, data.originalCurrency);
+      if (originalAmountMinor <= 0) throw new InputError("Enter the amount paid in the other currency");
+      const rate = (amountMinor / minorPerUnit(Currency.parse(card.currency))) / (originalAmountMinor / minorPerUnit(data.originalCurrency));
+      original = { originalAmountMinor, originalCurrency: data.originalCurrency, fxRateMicro: toRateMicro(rate) };
+    }
     const [existing] = await tx.select().from(charges).where(and(eq(charges.householdId, hid), eq(charges.id, data.id)));
     if (existing) {
       if (existing.cardId !== data.cardId || existing.merchant !== data.merchant || existing.amountMinor !== amountMinor || existing.date !== data.date || existing.shared !== data.shared
-        || existing.category !== data.category || existing.businessBp !== data.businessBp) {
+        || existing.category !== data.category || existing.businessBp !== data.businessBp
+        || existing.originalAmountMinor !== (original?.originalAmountMinor ?? null) || existing.originalCurrency !== (original?.originalCurrency ?? null)) {
         throw new InputError("This charge identifier is already in use");
       }
       return data.id;
@@ -66,6 +80,7 @@ export async function insertCharge(
     await tx.insert(charges).values({
       id: data.id, householdId: hid, cardId: data.cardId, merchant: data.merchant, amountMinor, currency: card.currency,
       date: data.date, shared: data.shared, category: data.category, businessBp: data.businessBp, source, status, madeBy: by.madeBy, askId: by.askId ?? null,
+      ...original,
     });
     if (status === "pending") {
       await recordEvent(tx, hid, { kind: "to_check", ...by, title: `${data.merchant} charge to check`, ref: { type: "charge", id: data.id }, notify: true });

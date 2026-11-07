@@ -138,7 +138,7 @@ export function spendingItems(input: SpendingInput, from: string, to: string): S
   return items.sort(byDateThenLabel);
 }
 
-export type SpendingMonth = {
+type SpendingMonth = {
   month: string; // YYYY-MM
   name: string; // "November"
   totalMinor: number;

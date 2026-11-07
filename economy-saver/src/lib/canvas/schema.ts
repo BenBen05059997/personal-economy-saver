@@ -7,9 +7,9 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { InputError } from "@/db/input-error";
 
 export const RECIPE_VERSION = 1;
-export const MAX_BLOCKS = 12;
+const MAX_BLOCKS = 12;
 export const MAX_CHANGES = 10;
-export const MAX_SLIDER_DAYS = 60;
+const MAX_SLIDER_DAYS = 60;
 
 const day = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "A date is YYYY-MM-DD")
   .refine(value => new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value, "That day is not on the calendar")
@@ -45,23 +45,22 @@ export type ScenarioRef = z.infer<typeof scenarioRef>;
 
 const days = z.number().int().min(7).max(60).optional().describe("How many days from today; the usual 30 when left out.");
 
-export const SentenceQuery = z.object({ q: z.literal("sentence"), scenario: scenarioRef }).strict();
-export const SafeToSpendQuery = z.object({ q: z.literal("safe_to_spend"), scenario: scenarioRef }).strict();
-export const CashQuery = z.object({ q: z.literal("cash") }).strict();
-export const LowPointQuery = z.object({ q: z.literal("low_point"), scenario: scenarioRef }).strict();
-export const FlowQuery = z.object({ q: z.literal("flow"), days, scenario: scenarioRef }).strict();
-export const EventsQuery = z.object({ q: z.literal("events"), days, scenario: scenarioRef }).strict();
-export const MonthTotalQuery = z.object({ q: z.literal("month_total"), month }).strict();
-export const MonthByCategoryQuery = z.object({ q: z.literal("month_by_category"), month }).strict();
-export const CompareMonthsQuery = z.object({ q: z.literal("compare_months"), a: month.describe("The earlier month, the base."), b: month.describe("The month compared with it; the change is b minus a.") }).strict();
-export const SpendingSearchQuery = z.object({ q: z.literal("spending_search"), text: z.string().max(80), months: z.number().int().min(1).max(12) }).strict();
-export const RegularCostsQuery = z.object({ q: z.literal("regular_costs"), months: z.number().int().min(2).max(24).optional() }).strict();
+const SentenceQuery = z.object({ q: z.literal("sentence"), scenario: scenarioRef }).strict();
+const SafeToSpendQuery = z.object({ q: z.literal("safe_to_spend"), scenario: scenarioRef }).strict();
+const CashQuery = z.object({ q: z.literal("cash") }).strict();
+const LowPointQuery = z.object({ q: z.literal("low_point"), scenario: scenarioRef }).strict();
+const FlowQuery = z.object({ q: z.literal("flow"), days, scenario: scenarioRef }).strict();
+const EventsQuery = z.object({ q: z.literal("events"), days, scenario: scenarioRef }).strict();
+const MonthTotalQuery = z.object({ q: z.literal("month_total"), month }).strict();
+const MonthByCategoryQuery = z.object({ q: z.literal("month_by_category"), month }).strict();
+const CompareMonthsQuery = z.object({ q: z.literal("compare_months"), a: month.describe("The earlier month, the base."), b: month.describe("The month compared with it; the change is b minus a.") }).strict();
+const SpendingSearchQuery = z.object({ q: z.literal("spending_search"), text: z.string().max(80), months: z.number().int().min(1).max(12) }).strict();
+const RegularCostsQuery = z.object({ q: z.literal("regular_costs"), months: z.number().int().min(2).max(24).optional() }).strict();
 
-export const QuerySchema = z.discriminatedUnion("q", [
-  SentenceQuery, SafeToSpendQuery, CashQuery, LowPointQuery, FlowQuery, EventsQuery,
-  MonthTotalQuery, MonthByCategoryQuery, CompareMonthsQuery, SpendingSearchQuery, RegularCostsQuery,
-]);
-export type Query = z.infer<typeof QuerySchema>;
+export type Query = z.infer<
+  | typeof SentenceQuery | typeof SafeToSpendQuery | typeof CashQuery | typeof LowPointQuery | typeof FlowQuery | typeof EventsQuery
+  | typeof MonthTotalQuery | typeof MonthByCategoryQuery | typeof CompareMonthsQuery | typeof SpendingSearchQuery | typeof RegularCostsQuery
+>;
 
 // What each kind of block may ask. A block that shows one number asks for a number; a chart asks for a flow; and so on.
 const NumberQuery = z.discriminatedUnion("q", [SafeToSpendQuery, CashQuery, LowPointQuery, MonthTotalQuery]);
@@ -71,7 +70,7 @@ const ProgressQuery = z.discriminatedUnion("q", [SafeToSpendQuery, CashQuery, Mo
 // ---------------------------------------------------------------- blocks
 
 /** An in-app path: starts with one slash, is not `//host`, and never leads to an /api/ route. */
-export function isAppPath(href: string): boolean {
+function isAppPath(href: string): boolean {
   if (!href.startsWith("/") || href.startsWith("//") || href.includes("\\") || /[\u0000-\u001f\u007f\s]/.test(href)) return false;
   return !/^\/api(\/|\?|#|$)/i.test(href);
 }

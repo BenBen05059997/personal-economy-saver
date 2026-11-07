@@ -8,7 +8,7 @@ import { HISTORY_MONTHS, monthBounds, monthsBack } from "@/lib/money/spending";
 import { CanvasError, resolveRecipe, type CanvasContext, type ResolvedBlock } from "./resolve";
 import { problemWords, RecipeSchema, ScenarioSchema } from "./schema";
 
-export const ResolveRequest = z.object({ recipe: RecipeSchema, scenario: ScenarioSchema.optional() }).strict();
+const ResolveRequest = z.object({ recipe: RecipeSchema, scenario: ScenarioSchema.optional() }).strict();
 
 /** Everything the engine needs to draw a canvas for one household: its money state and the spending of the last twelve months through this one. Read only. */
 export async function loadCanvasContext(db: Db, householdId: string): Promise<CanvasContext> {

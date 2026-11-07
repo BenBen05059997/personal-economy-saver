@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ApiForm } from "@/components/ui/ApiForm";
 
-export type ProviderChoice = { id: string; label: string };
+type ProviderChoice = { id: string; label: string };
 
 /** The one form for the household's own model (D56): a listed provider or its own address, the models and a key. */
 export function AiModelForm({ providers, tested, initial, demo }: {

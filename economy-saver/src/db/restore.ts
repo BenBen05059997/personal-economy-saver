@@ -19,7 +19,7 @@ import * as s from "./schema";
 export const NOT_EMPTY = "Import works on an empty household. Start with my numbers first.";
 export const OLD_VERSION = "This file is an older export (version 1). Import reads version 2 files. Export again from the app that made it, then import that file.";
 
-export type RestoreCounts = { members: number; cards: number; bills: number; charges: number; clients: number; invoices: number; pots: number; memory: number; canvases: number; journal: number; other: number };
+type RestoreCounts = { members: number; cards: number; bills: number; charges: number; clients: number; invoices: number; pots: number; memory: number; canvases: number; journal: number; other: number };
 
 /** The file's text, parsed with the schema. Anything else is refused with a sentence. */
 export function readSnapshotFile(input: unknown): Snapshot {

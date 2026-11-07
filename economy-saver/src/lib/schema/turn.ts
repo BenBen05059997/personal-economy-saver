@@ -6,10 +6,10 @@ export const TURN_VERSION = 1;
 /** The most turns a household keeps; the oldest go first. */
 export const TURN_LIMIT = 200;
 /** A conversation carries on while its last turn is younger than this; the last three turns then go to the model as context. */
-export const CONVERSATION_MINUTES = 10;
+const CONVERSATION_MINUTES = 10;
 export const CONTEXT_TURNS = 3;
 /** A conversation with a file still being read, or a reading waiting in To check, carries on this long (D60). */
-export const WAITING_HOURS = 24;
+const WAITING_HOURS = 24;
 /** True while a conversation's last turn (an ISO string or a Date) is under ten minutes old at `now`, or under 24 hours old when `waiting` (a document attached in it is still being read or has a reading in To check). */
 export const live = (last: string | Date, now: Date, waiting = false): boolean =>
   now.getTime() - new Date(last).getTime() < (waiting ? WAITING_HOURS * 60 : CONVERSATION_MINUTES) * 60_000;

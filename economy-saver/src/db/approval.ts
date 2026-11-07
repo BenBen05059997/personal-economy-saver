@@ -11,7 +11,7 @@ export class ApprovalError extends Error {
 
 // Only the server's approval route supplies this transport. Tests inject their boundary here.
 export type InvoiceTool = (name: string, args: Record<string, unknown>, requestId?: string) => Promise<unknown>;
-export type ApprovalAction = "send" | "remind";
+type ApprovalAction = "send" | "remind";
 
 export async function invoiceReview(db: Db, householdId: string, invoiceId: string) {
   const hid = requireHousehold(householdId);

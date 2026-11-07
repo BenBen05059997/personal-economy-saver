@@ -49,7 +49,7 @@ export const benMoney: MoneyState = {
   // The September and October charges on Card A are history only (D53): they are on or before the stored statement's
   // close (Oct 31), so the runway never counts them again; they give the month view and the search something to find.
   cards: [
-    { id: "card-a", label: "Card A", closingDay: 31, dueDay: 26, limit: 500_000, revolving: false, ownerId: "m-ben" },
+    { id: "card-a", label: "Card A", closingDay: 31, dueDay: 26, limit: 500_000, revolving: false, ownerId: "m-ben", foreignFeeBp: 220 },
     { id: "card-b", label: "Card B", closingDay: 15, dueDay: 10, limit: 300_000, revolving: false, ownerId: "m-ben" },
   ],
   statements: [{ cardId: "card-a", amount: 58_000, closedOn: "2026-10-31", dueOn: "2026-11-26" }],

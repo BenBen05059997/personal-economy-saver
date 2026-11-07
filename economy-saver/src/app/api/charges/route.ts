@@ -13,7 +13,11 @@ export async function POST(request: Request) {
   if (!category.success) return text(category.error.issues[0].message, 400);
   const businessBp = businessBpFromForm(form.get("businessShare"), form.get("businessPercent"));
   if (businessBp === null) return text("Enter the business share as a percentage from 0 to 100.", 400);
-  const data = chargeInput.safeParse({ ...Object.fromEntries(form), category: category.data, businessBp, shared: form.get("shared") === "on" });
+  // D62: both original fields travel only when an amount was typed; an amount with no currency stays, so insertCharge refuses it.
+  const fields = Object.fromEntries(form);
+  if (String(fields.originalAmount ?? "").trim() === "") { delete fields.originalAmount; delete fields.originalCurrency; }
+  else if (String(fields.originalCurrency ?? "") === "") delete fields.originalCurrency;
+  const data = chargeInput.safeParse({ ...fields, category: category.data, businessBp, shared: form.get("shared") === "on" });
   if (!data.success) return badFields();
   try {
     await insertCharge(db(), hid, data.data, "confirmed", "manual", { madeBy: "form" });

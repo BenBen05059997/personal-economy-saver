@@ -96,7 +96,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
       if (!card) throw new ReaderError("Choose a card in this household.");
       const [charge] = await tx.insert(charges).values({
         ...amounts, amountMinor: amount, ...category, cardId: card.id, date, merchant: name, status: "confirmed", source: row.source === "email" ? "card_email" : "receipt",
-        originalAmountMinor: fx === null ? null : amountMinor, originalCurrency: fx === null ? null : currency,
+        originalAmountMinor: fx === null ? null : amountMinor, originalCurrency: fx === null ? null : currency, fxEstimated: fx !== null,
       }).returning({ id: charges.id });
       targetId = charge.id;
       await syncClosedStatementCharge(tx, hid, charge.id);

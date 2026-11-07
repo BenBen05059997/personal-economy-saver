@@ -65,7 +65,7 @@ async function main() {
     assert.ok(!/\btoday\b|JPY/i.test(instructions!), "the server cannot know the date or currency");
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "can_i_spend", "draft_invoice", "forget", "household_snapshot", "list_clients_and_cards", "list_invoices", "log_charge", "log_charges", "make_canvas", "month_by_category", "open_gaps", "options_when_short", "plan_for", "recall", "regular_costs", "remember", "search_spending", "timeline", "to_check", "update_bank_balance", "what_if", "whats_due", "where_am_i", "who_owes_whom"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "can_i_spend", "draft_invoice", "foreign_costs", "forget", "household_snapshot", "list_clients_and_cards", "list_invoices", "log_charge", "log_charges", "make_canvas", "month_by_category", "open_gaps", "options_when_short", "plan_for", "recall", "regular_costs", "remember", "search_spending", "timeline", "to_check", "update_bank_balance", "what_if", "whats_due", "where_am_i", "who_owes_whom"]);
     assert.ok(!list.tools.some(tool => tool.name === "clarify" || tool.name === "out_of_scope"), "the Ask-only tools are never offered over MCP");
     stage = "make_canvas over MCP";
     const drawn = JSON.parse(((await client.callTool({ name: "make_canvas", arguments: { recipe: JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] }) } })).content as { text: string }[])[0].text);

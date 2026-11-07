@@ -49,7 +49,7 @@ export const EVENT_KIND_LABELS = {
   to_check: "Waiting in To check",
 } as const;
 
-export type EventKind = keyof typeof EVENT_KIND_LABELS;
+type EventKind = keyof typeof EVENT_KIND_LABELS;
 
 /** The words for an event kind. A kind recorded by an older version and no longer written shows as its own name in words. */
 export function eventKindLabel(kind: string): string {

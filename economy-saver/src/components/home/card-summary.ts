@@ -1,7 +1,7 @@
 import { cycle, paybackFor, roomOnCard, statementItems, type Payback } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
 
-export type CardSummary = {
+type CardSummary = {
   owed: number; // unbilled charges in the open cycle plus any closed statement not yet paid
   limitLeft?: number; // only when the card has a limit
   next?: Payback; // the soonest statement: amount, due date and where it is paid from

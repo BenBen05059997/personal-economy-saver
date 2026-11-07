@@ -88,7 +88,7 @@ export function lastOneWords(bill: { due: string; repeatUnit?: RepeatUnit | null
 // ---------------------------------------------------------------- D54: a monthly bill whose amount varies
 
 /** The calendar months (YYYY-MM) that have a real bill. */
-export function realMonths(real: RealBill[]): Set<string> {
+function realMonths(real: RealBill[]): Set<string> {
   return new Set(real.map(bill => bill.due.slice(0, 7)));
 }
 

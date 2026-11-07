@@ -169,6 +169,13 @@
       "when": 1793969597587,
       "tag": "0023_cuddly_gertrude_yorkes",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794030309506,
+      "tag": "0024_massive_robin_chapel",
+      "breakpoints": true
     }
   ]
 }

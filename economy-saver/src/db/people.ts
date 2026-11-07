@@ -12,7 +12,7 @@ import { bills, cards, charges, households, members, paypalConnections, pots, se
 import { Currency } from "@/lib/catalogue/types";
 import { SHARE_TOTAL_BP, splitBalance } from "@/lib/money/split";
 
-export const memberName = z.string().trim().min(1).max(80);
+const memberName = z.string().trim().min(1).max(80);
 export const addMemberInput = z.object({ name: memberName });
 export const savePeopleInput = z.object({ people: z.array(z.object({ id: z.string().uuid(), name: memberName, percent: z.string().trim().optional() })).min(1) });
 

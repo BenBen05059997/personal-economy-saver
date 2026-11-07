@@ -8,7 +8,7 @@ export function group(n: number): string {
   return Math.abs(Math.round(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-export function currencySymbol(c: Currency): string {
+function currencySymbol(c: Currency): string {
   return c === "JPY" ? "¥" : "$";
 }
 

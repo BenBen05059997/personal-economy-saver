@@ -6,7 +6,7 @@ import { toCheck } from "@/lib/money/to-check";
 import type { MoneyState } from "@/lib/money/types";
 import { RECIPE_VERSION, type Block, type Recipe } from "./schema";
 
-export type Starter = { id: string; title: string; summary: string; recipe: Recipe };
+type Starter = { id: string; title: string; summary: string; recipe: Recipe };
 
 export const STARTER_IDS = ["this-month", "what-if-late", "month-vs-last", "regular"] as const;
 const SLIDER_DAYS = 30;

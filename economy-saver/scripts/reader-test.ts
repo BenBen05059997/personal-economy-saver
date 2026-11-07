@@ -139,6 +139,7 @@ async function test() {
     assert.equal(stored.source, "card_email");
     assert.equal(stored.originalAmountMinor, 1250);
     assert.equal(stored.fxRateMicro, 150000000);
+    assert.equal(stored.fxEstimated, true, "the reader converts at the reference rate: an estimate (D62)");
     assert.equal(stored.amountMinor, 1875);
     console.log("✓ Forwarded MIME email produces a card charge, dated FX snapshot and exact integer amounts");
 

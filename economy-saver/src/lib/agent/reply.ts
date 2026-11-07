@@ -27,6 +27,7 @@ const TOOL_SOURCES: Record<string, Source> = {
   can_i_spend: { label: "Safe to spend", href: "/" },
   options_when_short: { label: "Options", href: "/options" },
   list_invoices: { label: "Clients", href: "/clients" },
+  foreign_costs: { label: "Clients", href: "/clients" },
   list_clients_and_cards: { label: "Clients", href: "/clients" },
   plan_for: { label: "Plan", href: "/plan" },
   month_by_category: { label: "Plan", href: "/plan" },
@@ -41,7 +42,7 @@ const TOOL_SOURCES: Record<string, Source> = {
 };
 
 /** The distinct sources of the tools an answer used, in the order first used. */
-export function sourcesFor(toolNames: readonly string[]): Source[] {
+function sourcesFor(toolNames: readonly string[]): Source[] {
   const found: Source[] = [];
   for (const name of toolNames) {
     const source = Object.hasOwn(TOOL_SOURCES, name) ? TOOL_SOURCES[name] : undefined;
@@ -66,7 +67,7 @@ export function canvasWords(recipe: Recipe | null): string[] {
   return words;
 }
 
-export type Finished = {
+type Finished = {
   clarify: { question: string; choices: string[] } | null;
   outOfScope: "off_topic" | "not_offered" | null;
   text: string; // what the model ended with (empty when it ended on a terminal tool)
@@ -77,7 +78,7 @@ export type Finished = {
   /** The question, this question's tool results and the memory block: never an earlier reply. */
   sources: string[];
 };
-export type Chosen = { kind: ReplyKind; text: string; choices: string[] | null; recipe: Recipe | null; sources: Source[] };
+type Chosen = { kind: ReplyKind; text: string; choices: string[] | null; recipe: Recipe | null; sources: Source[] };
 
 /** `null` text means an answer whose amounts the app could not confirm: the caller keeps its fixed error. */
 export function chooseReply(done: Finished): Chosen | null {

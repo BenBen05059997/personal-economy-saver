@@ -10,7 +10,7 @@ export type PayPalWebhookEvent = {
   summary?: string;
 };
 
-export type WebhookVerification =
+type WebhookVerification =
   | { verified: true; event: PayPalWebhookEvent }
   | { verified: false; reason: string; event?: PayPalWebhookEvent };
 

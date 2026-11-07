@@ -6,7 +6,7 @@ Inbound addresses used in the emails: `ben.bills@in.saver.example` (Ben, the pro
 
 ## Files and expected extraction
 
-The reader returns only kind (bill or charge), name, date, amount, currency, category and card. The period, recurrence and usage columns describe what is on each document; they are not extracted, and a bill created from a reading is a one-off.
+The reader returns only kind (bill or charge), name, date, amount, currency, category and card. The period, recurrence and usage columns describe what is on each document; they are not extracted, and a bill created from a reading is a one-off unless the person sets a repeat on the review card or answers the repeat check (D61).
 
 | File | What it is | Biller | Amount | Currency | Due date | Period | Category | Recurring | Demo path |
 |---|---|---|---|---|---|---|---|---|---|
@@ -21,7 +21,7 @@ The reader returns only kind (bill or charge), name, date, amount, currency, cat
 
 Notes on consistency:
 - Ben's figures match `src/lib/sample/ben.ts`: Hikari Denki ¥11,220 due 2026-11-27, previous ¥10,020; Card A due 2026-11-26.
-- The kokuho ¥24,500 and 12/10 date are not in `ben.ts` (it only sets `healthInsurance: "jp_kokuho"`); they are new fixture values.
+- The kokuho ¥24,500 and 12/10 date are not in `ben.ts`; they are new fixture values.
 - The Zilker Valley Power bill ($142.00 due 2026-12-03, previous $131.40) is a reader fixture only; the demo seed has no US-dollar household.
 - Hikari line items (all tax included): 基本料金 1,247; 電力量料金 第1段階 1,800 + 第2段階 3,422 + 第3段階 2,654; 燃料費調整額 659; 再エネ賦課金 1,438 (412 kWh x 3.49). Total 11,220.
 - Austin line items: customer charge 12.50, energy 67.39, power supply adjustment 26.78, delivery 18.58, regulatory 2.42, community solar 4.00, city franchise and service fee 10.33. Total 142.00.

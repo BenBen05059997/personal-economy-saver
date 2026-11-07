@@ -87,7 +87,7 @@ export function guessColumns(header: string[]): Picks {
 }
 
 /** The header row: the first of the top ten rows in which all three columns are found (issuers often put a card name or a total above it), else the first row. */
-export function findHeader(rows: string[][]): number {
+function findHeader(rows: string[][]): number {
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const p = guessColumns(rows[i]);
     if (p.date !== null && p.name !== null && p.amount !== null) return i;
@@ -95,7 +95,7 @@ export function findHeader(rows: string[][]): number {
   return 0;
 }
 
-export type ReadRow = {
+type ReadRow = {
   line: number; // the row's number in the file, header included, counting from 1
   date: string; // YYYY-MM-DD
   merchant: string;
@@ -105,7 +105,7 @@ export type ReadRow = {
   skipped?: "credit"; // a credit, refund, zero or empty amount: not a charge
 };
 
-export type ReadResult = { rows: ReadRow[]; readable: number; skipped: number; unreadable: number };
+type ReadResult = { rows: ReadRow[]; readable: number; skipped: number; unreadable: number };
 
 const validDate = (y: number, m: number, d: number) => {
   if (m < 1 || m > 12 || d < 1 || y < 1900 || y > 2999) return null;
@@ -147,7 +147,7 @@ export function readDate(cell: string, order: "md" | "dm" | null): string | null
 }
 
 /** The merchant as kept: NFKC, spaces collapsed, at most 160 characters. */
-export function cleanMerchant(cell: string): string {
+function cleanMerchant(cell: string): string {
   return cell.normalize("NFKC").replace(/\s+/g, " ").trim().slice(0, MERCHANT_MAX).trim();
 }
 

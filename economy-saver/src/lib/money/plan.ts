@@ -35,14 +35,14 @@ export function monthlyRoom(state: MoneyState): number {
   return Math.round((end - availableCash(state)) * unit(state)) / unit(state);
 }
 
-export type PlanInput = {
+type PlanInput = {
   target: number;
   saved: number;
   targetDate?: string; // YYYY-MM-DD
   monthly?: number; // a pace to test; when absent and there is room, the room is the pace
 };
 
-export type Plan = {
+type Plan = {
   needed: number; // still to set aside
   monthlyRoom: number;
   months?: number; // whole months to the target date (at least 1), when there is a date

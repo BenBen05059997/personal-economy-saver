@@ -331,6 +331,66 @@ async function main() {
       assert.equal(toolResults(crossCard.bodies[1])[0].is_error, true);
     });
 
+    await check("foreign_costs (D62) is a read tool: Ben's payout costs with the catalogue guidance; a household with nothing foreign gets nothing: true and no guidance", async () => {
+      const tool = tools.find(t => t.name === "foreign_costs")!;
+      assert.equal(tool.scope, "read");
+      const ben = await seedBen(db, { isDemo: true });
+      const t = transport([() => reply("tool_use", [toolUse("fc", "foreign_costs", {})]), () => reply("end_turn", [text("ok")])]);
+      const result = await ask(ben, "What do my foreign payments cost me?", t.fetch);
+      const out = JSON.parse(toolResults(t.bodies[1])[0].content);
+      assert.equal(out.nothing, false);
+      assert.equal(out.months, 12);
+      assert.ok(out.payouts.count > 0 && out.payouts.costMinor > 0 && out.payouts.perClient.length === 3);
+      assert.deepEqual([out.payouts.count, out.payouts.grossMinor, out.payouts.receiveFeeMinor, out.payouts.markupMinor, out.payouts.costMinor, out.payouts.landedMinor], [16, 1_590_000, 65_913, 45_724, 111_637, 1_478_363], "Ben's sixteen paid USD invoices at ¥150");
+      assert.deepEqual(out.payouts.perClient.map((c: { clientName: string; count: number; costMinor: number }) => [c.clientName, c.count, c.costMinor]), [["Acme Corp", 5, 52_545], ["Northwind", 5, 36_850], ["Beacon Studio", 6, 22_242]]);
+      assert.equal(out.payouts.grossMinor - out.payouts.costMinor, out.payouts.landedMinor);
+      assert.match(out.words.payouts, /through PayPal/);
+      assert.equal(out.guidance.source.url, "https://www.paypal.com/jp/webapps/mpp/merchant-fees");
+      assert.match(out.guidance.mustNotSay, /leave PayPal/);
+      assert.ok(out.guidance.steps.length > 0 && out.guidance.traps.length > 0 && out.guidance.maySay);
+      assert.deepEqual(result.sources?.map((x: { href: string }) => x.href), ["/clients"]);
+
+      const bare = await seedBen(db, { isDemo: true });
+      await db.update(schema.invoices).set({ paidOn: null, sentOn: null, status: "draft" }).where(eq(schema.invoices.householdId, bare));
+      const none = transport([() => reply("tool_use", [toolUse("fc", "foreign_costs", {})]), () => reply("end_turn", [text("ok")])]);
+      await ask(bare, "What do my foreign payments cost me?", none.fetch);
+      const empty = JSON.parse(toolResults(none.bodies[1])[0].content);
+      assert.equal(empty.nothing, true);
+      assert.ok(!("guidance" in empty));
+      assert.deepEqual([empty.payouts.count, empty.charges.count, empty.charges.items.length], [0, 0, 0]);
+    });
+
+    await check("log_charge with original_amount and original_currency (D62) stores the original and the issuer's rate, not estimated; only one of the two is a tool error; the same currency as the card is refused", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const cState = await stateOf(c);
+      const base = { cardId: cState.cards[0].id, merchant: "Fictional airline", amount: "3090", date: cState.today };
+      const id = crypto.randomUUID();
+      const t = transport([
+        () => reply("tool_use", [toolUse("f", "log_charge", { ...base, id, original_amount: "20", original_currency: "USD" })]),
+        () => reply("end_turn", [text("Waiting in To check.")]),
+      ]);
+      await ask(c, "I paid $20 at the airline, ¥3,090 on my card", t.fetch);
+      const [row] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.id, id)));
+      assert.deepEqual([row.status, row.amountMinor, row.originalAmountMinor, row.originalCurrency, row.fxRateMicro, row.fxEstimated], ["pending", 3090, 2000, "USD", 154_500_000, false]);
+      for (const bad of [{ original_currency: "USD" }, { original_amount: "20" }, { original_amount: "20", original_currency: "JPY" }]) {
+        const failing = transport([
+          () => reply("tool_use", [toolUse("f", "log_charge", { ...base, id: crypto.randomUUID(), ...bad })]),
+          () => reply("end_turn", [text("Which card?")]),
+        ]);
+        await ask(c, "I paid in dollars", failing.fetch);
+        assert.equal(toolResults(failing.bodies[1])[0].is_error, true, JSON.stringify(bad));
+      }
+      assert.equal((await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.merchant, "Fictional airline")))).length, 1);
+      const bulk = transport([
+        () => reply("tool_use", [toolUse("f", "log_charges", { items: [{ ...base, id: crypto.randomUUID(), merchant: "Fictional hotel", original_amount: "10", original_currency: "USD" }] })]),
+        () => reply("end_turn", [text("ok")]),
+      ]);
+      await ask(c, "A hotel in dollars", bulk.fetch);
+      const [hotel] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.merchant, "Fictional hotel")));
+      assert.deepEqual([hotel.originalAmountMinor, hotel.originalCurrency, hotel.fxRateMicro], [1000, "USD", 309_000_000]);
+      assert.match(MODEL_RULES, /foreign_costs/);
+    });
+
     await check("add_bill takes repeat, next_amount, next_amount_from and cancel_by (D48): a yearly bill waits in To check with them, and a bad schedule is an error the model can read", async () => {
       const billId = crypto.randomUUID();
       const yearly = { id: billId, biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", memberId: null, repeat: "year", next_amount: "13000", next_amount_from: "2027-12-01", cancel_by: "2026-11-20" };

@@ -80,6 +80,7 @@ export type Card = {
   limit?: number;
   revolving: boolean; // true if リボ / revolving is switched on for this card
   ownerId?: string; // the member the card belongs to (D45); absent for a household card
+  foreignFeeBp?: number | null; // D62: the issuer's foreign transaction fee in basis points (220 = 2.2%); absent = not entered
 };
 
 // One purchase on a card, read from a card-use email or a receipt.
@@ -122,7 +123,7 @@ export type Pot = {
 // the rows as stored (a monthly shared bill is one row; split.ts counts its past occurrences). The engine ignores all of it.
 export type SplitMember = { id: string; name: string; shareBp: number }; // the owner first; shares total 10,000
 // createdAt is an ISO instant: an item dated on the settlement day counts again only when it was created after the settlement.
-export type SplitBill = {
+type SplitBill = {
   id: string; biller: string; amountMinor: number | null; due: string; paidBy: string; createdAt: string; // amountMinor null: not known yet (D55): no debt until it is known; a date not known is today
   repeatUnit: RepeatUnit | null; repeatDay: number | null; // D48: repeatDay for monthly only
   repeatUntil: string | null; // D41: no occurrence after this day
@@ -132,7 +133,7 @@ export type SplitBill = {
 };
 /** D54: one confirmed real bill linked to an amount-varies series: its due date and amount in whole minor units. */
 export type RealBill = { due: string; amountMinor: number };
-export type SplitCharge = { id: string; merchant: string; amountMinor: number; date: string; paidBy: string; createdAt: string };
+type SplitCharge = { id: string; merchant: string; amountMinor: number; date: string; paidBy: string; createdAt: string };
 export type SplitState = {
   members: SplitMember[];
   since: string | null; // the day the household got its second member; null while it has one

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireHousehold, type Db } from "./household";
 import { apiTokens } from "./schema";
 
-export const mcpScope = z.enum(["read", "draft"]);
+const mcpScope = z.enum(["read", "draft"]);
 export const tokenInput = z.object({ name: z.string().trim().min(1).max(80), scopes: z.array(mcpScope).min(1).max(2) });
 
 const prefix = "pes1.";

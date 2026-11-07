@@ -6,12 +6,12 @@ import type { ConversationTurn } from "@/lib/schema/turn";
 import { applyMemoryChanges, addMemoryItem, editMemoryItem, forgetMemoryItem, sortMemory } from "./memory-ops";
 import { appendTurn, latestOf, movePin, orderedPins, pinItem, recentOf, unpinItem, updatePin, type DevicePin } from "./journal-ops";
 
-export const DEVICE_KINDS = ["memory", "canvases", "journal"] as const;
+const DEVICE_KINDS = ["memory", "canvases", "journal"] as const;
 export type DeviceKind = (typeof DEVICE_KINDS)[number];
-export type DeviceItems = { memory: MemoryItem; canvases: DevicePin; journal: ConversationTurn };
+type DeviceItems = { memory: MemoryItem; canvases: DevicePin; journal: ConversationTurn };
 
 /** Written for a person: shown on the Your data row, in Ask and on Home when this browser's storage will not work. */
-export class DeviceStoreError extends Error {}
+class DeviceStoreError extends Error {}
 const UNAVAILABLE = "This browser can’t keep data on this device right now (its storage is blocked or full). Keep it in our cloud instead, or allow storage for this site and try again.";
 
 const open = (householdId: string): Promise<IDBDatabase> => new Promise((resolve, reject) => {

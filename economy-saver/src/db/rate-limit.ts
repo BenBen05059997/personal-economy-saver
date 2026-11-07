@@ -3,7 +3,7 @@ import { requireHousehold, type Db } from "./household";
 import { households, requestBuckets } from "./schema";
 
 /** The length of a counting window: a minute (the default) or an hour (the out-of-scope limit, D60). */
-export type Window = "minute" | "hour";
+type Window = "minute" | "hour";
 
 export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp" | "reader" | "upload" | "draft" | "approve" | "import" | "statement-import" | "export" | "people" | "settle" | "remove" | "family-links" | "canvas" | "ai-model" | "thumb" | "pins" | "data" | "restore" | "move" | "out-of-scope", limit = 30, per: Window = "minute") {
   const window = sql`date_trunc(${sql.raw(`'${per}'`)}, now())`;

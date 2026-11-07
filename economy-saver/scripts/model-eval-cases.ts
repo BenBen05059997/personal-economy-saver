@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { householdDate } from "@/db/account";
 import { loadMoneyState, type Db } from "@/db/household";
+import { foreignCosts } from "@/db/fx-cost";
 import { seedBen } from "@/db/seed";
 import { AgentError, runAgent, type AskResult } from "@/lib/agent/run";
 import { FIXED } from "@/lib/agent/reply";
@@ -20,11 +21,11 @@ import { whatIf } from "@/lib/money/whatif";
 import type { MoneyState } from "@/lib/money/types";
 import { fakeModel, type FakeMode } from "./ai-fake";
 
-export const AGENT_CASES = ["can_i_spend", "whats_due", "declines_stock", "clarifies_client", "what_if_late", "logs_charge", "remembers", "makes_canvas"] as const;
-export type AgentCase = (typeof AGENT_CASES)[number];
-export type CaseName = CheckName | AgentCase;
+export const AGENT_CASES = ["can_i_spend", "whats_due", "declines_stock", "clarifies_client", "what_if_late", "logs_charge", "remembers", "makes_canvas", "foreign_fees"] as const;
+type AgentCase = (typeof AGENT_CASES)[number];
+type CaseName = CheckName | AgentCase;
 export const CASE_NAMES: readonly CaseName[] = [...CHECK_NAMES, ...AGENT_CASES];
-export type CaseResult = { name: CaseName; question: string; passed: boolean; why: string | null };
+type CaseResult = { name: CaseName; question: string; passed: boolean; why: string | null };
 
 const QUESTIONS: Record<AgentCase, string> = {
   can_i_spend: "Can I afford ¥4,000 tonight?",
@@ -35,6 +36,7 @@ const QUESTIONS: Record<AgentCase, string> = {
   logs_charge: "I paid ¥3,800 at the noodle place on Card B",
   remembers: "Remember that rent goes up in April",
   makes_canvas: "Show me where October went",
+  foreign_fees: "What do my PayPal payouts cost me?",
 };
 const CHECK_QUESTIONS: Record<CheckName, string> = {
   uses_tools: "Where am I?",
@@ -79,7 +81,11 @@ const CLAIMS = [
   /\bpaid\s+(off|in full)\b/i,
   /\b(settled|confirmed)\b/i,
 ];
-export const claimsSettled = (text: string) => text.split(/(?<=[.!?。])\s+/).some(sentence => !DENIES.test(sentence) && CLAIMS.some(claim => claim.test(sentence)));
+const claimsSettled = (text: string) => text.split(/(?<=[.!?。])\s+/).some(sentence => !DENIES.test(sentence) && CLAIMS.some(claim => claim.test(sentence)));
+
+// D62: a reply about foreign costs names no provider but PayPal and never tells the person to leave it.
+const OTHER_PROVIDERS = /\b(wise|revolut|payoneer)\b/i;
+const LEAVE_PAYPAL = /\b(leave|quit|abandon|ditch|drop|stop using|switch (away )?from|move (away )?from|move off|move out of|cancel)\s+(your\s+)?paypal\b|\b(instead of|rather than|other than|alternative to|alternatives to)\s+paypal\b/i;
 
 const GRADES: Record<AgentCase, Grade> = {
   can_i_spend(o) {
@@ -158,6 +164,17 @@ const GRADES: Record<AgentCase, Grade> = {
     catch { return "The canvas does not resolve against Ben's records."; }
     if (!resolved.some(b => b.type === "table" && b.data.rows.length > 0)) return "The table block resolved to no rows.";
     return kindIs(o, "answer");
+  },
+  async foreign_fees(o) {
+    if (failed(o)) return failed(o);
+    if (!used(o, "foreign_costs")) return "It did not call foreign_costs.";
+    const wrong = kindIs(o, "answer");
+    if (wrong) return wrong;
+    // The engine's total cost for the twelve months, in whole yen as the app writes it.
+    const expected = group((await foreignCosts(o.db, o.householdId)).payoutTotals.costMinor);
+    if (!digits(o.result!.answer).includes(digits(expected))) return `Its reply did not quote the total cost (${expected}).`;
+    if (OTHER_PROVIDERS.test(o.result!.answer)) return "Its reply named a provider other than PayPal.";
+    return LEAVE_PAYPAL.test(o.result!.answer) ? "Its reply told the person to leave PayPal." : null;
   },
 };
 
@@ -249,7 +266,7 @@ function wireResponses(anthropic: boolean) {
  * A scripted model for either protocol. `breaks` names the one case to get wrong; every other case is answered well.
  * It knows no key and calls no network; the ids it needs (clients, cards) it reads from the tool results it is sent.
  */
-export function scriptedModel(breaks: CaseName | null = null, chargeReply?: string) {
+export function scriptedModel(breaks: CaseName | null = null, chargeReply?: string, feesReply?: string) {
   const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const request = new Request(input, init);
     const body = await request.clone().json() as Wire;
@@ -311,6 +328,10 @@ export function scriptedModel(breaks: CaseName | null = null, chargeReply?: stri
         }
         return words("Here is October by category.");
       }
+      case QUESTIONS.foreign_fees:
+        if (bad("foreign_fees")) return words("Not much.");
+        return stage === 0 ? call(id("foreign_costs"), "foreign_costs", {})
+          : words(feesReply ?? "Over the last twelve months, receiving and converting your PayPal payouts cost you ¥111,637 in all.");
       default: return words("I can only help with your money.");
     }
   }) as typeof globalThis.fetch;

@@ -23,7 +23,7 @@ import { ImportStatement } from "./ImportStatement";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
 import "./settings.css";
 
-export type SettingsData = Awaited<ReturnType<typeof loadSettings>>;
+type SettingsData = Awaited<ReturnType<typeof loadSettings>>;
 function PaidBy({ people, selected }: { people: SettingsData["people"]; selected: string | null }) {
   return <label className="ui-field">Paid by (a shared bill is split by shares)
     <select name="paidByMemberId" defaultValue={selected ?? ""}><PayerOptions people={people} /></select></label>;
@@ -107,6 +107,8 @@ function CardFields({ data, card }: { data: SettingsData; card?: SettingsData["c
     <div className="settings-grid"><label className="ui-field">Statement closes on the<input name="closingDay" type="number" min="1" max="31" defaultValue={card?.closingDay} required /></label>
       <label className="ui-field">Card bill is paid on the<input name="dueDay" type="number" min="1" max="31" defaultValue={card?.dueDay} required /></label></div>
     <label className="ui-field">Credit limit ({data.household.currency}, optional)<AmountInput name="limit" currency={data.household.currency} defaultValue={card?.limitMinor == null ? "" : fromMinor(card.limitMinor, card.currency)} /></label>
+    <label className="ui-field">Foreign transaction fee, optional (%)<input name="foreignFee" inputMode="decimal" maxLength={5} placeholder="2.2" defaultValue={card?.foreignFeeBp == null ? "" : String(card.foreignFeeBp / 100)} pattern="(10(\.0{1,2})?|[0-9](\.[0-9]{1,2})?)" title="Enter a percentage from 0 to 10, like 2.2" /></label>
+    <p className="ui-hint">From your card’s terms: the fee the issuer adds to purchases in another currency. The app uses it only to estimate what a foreign purchase cost.</p>
     <button className="ui-button">{card ? "Save card" : "Add card"}</button></>;
 }
 
@@ -146,7 +148,7 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks }: { d
       <FamilyShare links={familyLinks} />
     </section>
     <section className="ui-panel" id="cards"><h2>Cards</h2><p className="ui-hint">31 means month end. The payment day is in the following month.</p>
-      {cards.map(card => <details key={card.id}><summary>{card.label} · {people.find(p => p.id === card.memberId)?.name ?? "Shared"}</summary><ApiForm><CardFields data={data} card={card} /></ApiForm></details>)}
+      {cards.map(card => <details key={card.id}><summary>{card.label} · {people.find(p => p.id === card.memberId)?.name ?? "Shared"}{card.foreignFeeBp == null ? "" : ` · Foreign fee ${card.foreignFeeBp / 100}%`}</summary><ApiForm><CardFields data={data} card={card} /></ApiForm></details>)}
       <details><summary>Add a card</summary><ApiForm><CardFields key={cards.length} data={data} /></ApiForm></details>
     </section>
     <ImportStatement cards={cards.map(card => ({ id: card.id, label: card.label, lastClose: closingBefore({ closingDay: card.closingDay }, data.today) }))} currency={Currency.parse(household.currency)} />

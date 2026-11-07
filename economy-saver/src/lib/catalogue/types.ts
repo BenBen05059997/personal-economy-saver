@@ -24,7 +24,7 @@ export const Moment = z.enum([
 ]);
 export type Moment = z.infer<typeof Moment>;
 
-export const Group = z.enum([
+const Group = z.enum([
   "quick_money",
   "tax",
   "invest_cash",
@@ -37,17 +37,17 @@ export type Group = z.infer<typeof Group>;
 
 // baseline: a sensible 30-year-old with a normal job already knows it.
 // insider: it lives in some other world (tax accountants, affiliate marketers, point hunters...).
-export const Tier = z.enum(["baseline", "insider"]);
+const Tier = z.enum(["baseline", "insider"]);
 export type Tier = z.infer<typeof Tier>;
 
-export const Risk = z.enum(["none", "low", "market", "behavioural"]);
+const Risk = z.enum(["none", "low", "market", "behavioural"]);
 export const Effort = z.enum(["minutes", "evening", "weekend", "ongoing"]);
 export type Effort = z.infer<typeof Effort>;
-export const Confidence = z.enum(["verified_primary", "secondary", "anecdotal"]);
+const Confidence = z.enum(["verified_primary", "secondary", "anecdotal"]);
 
 const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "use YYYY-MM-DD");
 
-export const Source = z.object({
+const Source = z.object({
   title: z.string().min(1),
   url: z.string().url(),
   asOf: IsoDate,

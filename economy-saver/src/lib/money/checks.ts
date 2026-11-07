@@ -23,7 +23,7 @@ export const FAR_PERCENT = 30;
 export type CheckKind = "missing" | "already_saved" | "past_due" | "far_from_usual" | "repeat_unknown";
 export const CHECK_ORDER: readonly CheckKind[] = ["missing", "already_saved", "past_due", "far_from_usual", "repeat_unknown"];
 
-export type CheckStep =
+type CheckStep =
   | { do: "edit"; field: "amount" | "date" } // the person types it
   | { do: "unknown"; fields: ("amount" | "date")[] } // D55: save it as not known yet (bills only)
   | { do: "repeat"; repeat: RepeatUnit | null } // null = one-off

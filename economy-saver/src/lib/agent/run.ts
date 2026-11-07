@@ -26,8 +26,8 @@ export class AgentError extends Error {
 /** Tools whose result repeats text the model wrote. */
 const NOT_SOURCES = new Set(["remember", "forget", "make_canvas"]);
 
-export const MAX_TOOL_TURNS = 4;
-export const BUDGET_MS = 20_000;
+const MAX_TOOL_TURNS = 4;
+const BUDGET_MS = 20_000;
 const MAX_TOKENS = 16_000;
 
 const definitions: ToolSpec[] = tools.map(tool => ({ name: tool.name, description: tool.description, schema: toolInputSchema(tool) }));

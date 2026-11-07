@@ -42,6 +42,7 @@ const Card = z.object({
   limitMinor: minor.nullable(),
   currency,
   revolving: z.boolean(),
+  foreignFeeBp: z.number().int().min(0).max(1000).nullable().optional().describe("The issuer's foreign transaction fee in basis points (220 = 2.2%), from the card's own terms; null or absent = not entered."),
 }).strict();
 
 const Statement = z.object({
@@ -63,6 +64,7 @@ const Charge = z.object({
   originalAmountMinor: minor.nullable().describe("When paid in another currency: the amount in `originalCurrency`."),
   originalCurrency: currency.nullable(),
   fxRateMicro: rateMicro.nullable(),
+  fxEstimated: z.boolean().optional().describe("true = `amountMinor` is the reference-rate conversion of the original amount (a reader estimate), not what the issuer billed; absent = false."),
   date: day,
   source: z.enum(["card_email", "receipt", "voice", "manual"]),
   status,
@@ -234,16 +236,3 @@ export const HouseholdSnapshot = z.object({
 }).strict().describe("A whole household at one moment: version 2 of the Personal Economy Saver household schema. Version 2 adds memory, canvases and journal to version 1, in the export only.");
 
 export type HouseholdSnapshot = z.infer<typeof HouseholdSnapshot>;
-export type SnapshotMember = z.infer<typeof Member>;
-export type SnapshotCard = z.infer<typeof Card>;
-export type SnapshotStatement = z.infer<typeof Statement>;
-export type SnapshotCharge = z.infer<typeof Charge>;
-export type SnapshotBill = z.infer<typeof Bill>;
-export type SnapshotClient = z.infer<typeof Client>;
-export type SnapshotInvoice = z.infer<typeof Invoice>;
-export type SnapshotPot = z.infer<typeof Pot>;
-export type SnapshotSettlement = z.infer<typeof Settlement>;
-export type SnapshotBalanceUpdate = z.infer<typeof BalanceUpdate>;
-export type SnapshotDocument = z.infer<typeof Document>;
-export type SnapshotEvent = z.infer<typeof Event>;
-export type SnapshotCanvas = z.infer<typeof PinnedCanvasExport>;

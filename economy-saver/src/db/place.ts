@@ -38,7 +38,7 @@ export async function requireCloud(db: Db, householdId: string, kind: Movable): 
 }
 
 /** A pin as it travels between the cloud and the device: the layout and its order, nothing else. */
-export const PinItem = z.object({
+const PinItem = z.object({
   id: z.string().uuid(), title: z.string().trim().min(1).max(80), recipe: RecipeSchema,
   position: z.number().int().min(0), createdAt: z.string().datetime(),
 }).strict();

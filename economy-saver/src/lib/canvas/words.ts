@@ -12,7 +12,7 @@ function scenarioWords(ref: ScenarioRef): string {
 }
 
 /** What a query asks the engine, as a phrase. */
-export function queryWords(query: Query): string {
+function queryWords(query: Query): string {
   const scenario = "scenario" in query ? scenarioWords(query.scenario) : "";
   switch (query.q) {
     case "sentence": return `the one sentence about your next 30 days${scenario}`;

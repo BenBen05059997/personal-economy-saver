@@ -12,7 +12,7 @@ import { normalise } from "@/lib/money/spending";
 import { IMPORT_BATCH, MERCHANT_MAX } from "@/lib/import/csv";
 import { cards, charges, households } from "./schema";
 
-export const importRow = z.object({
+const importRow = z.object({
   date: z.string().date(),
   merchant: z.string().trim().min(1).max(MERCHANT_MAX),
   amountMinor: z.number().int().positive(),

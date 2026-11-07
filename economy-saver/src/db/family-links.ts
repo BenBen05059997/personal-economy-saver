@@ -17,8 +17,8 @@ async function digest(token: string) {
 
 const live = (now: Date) => and(isNull(familyLinks.stoppedAt), gt(familyLinks.expiresAt, now));
 const publicColumns = { id: familyLinks.id, createdAt: familyLinks.createdAt, expiresAt: familyLinks.expiresAt };
-export type FamilyLinkInfo = { id: string; createdAt: Date; expiresAt: Date };
-export type FamilyLinkRow = FamilyLinkInfo & { made: string; until: string };
+type FamilyLinkInfo = { id: string; createdAt: Date; expiresAt: Date };
+type FamilyLinkRow = FamilyLinkInfo & { made: string; until: string };
 
 /**
  * "Nov 21" on the household's clock. A link's times are real, but a Try it household lives on its fixed date (D51), so the

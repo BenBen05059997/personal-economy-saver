@@ -36,7 +36,7 @@ export function matchesFileType(bytes: ArrayBuffer, mime: string) {
   return mime === "image/webp" && header.subarray(0, 4).toString("ascii") === "RIFF" && header.subarray(8, 12).toString("ascii") === "WEBP";
 }
 
-export type ReaderNeed = "text" | "document";
+type ReaderNeed = "text" | "document";
 const binaryPart = (mime: string, base64: string): Part => mime === "application/pdf" ? { type: "pdf", base64 } : { type: "image", mime, base64 };
 async function documentContent(bytes: ArrayBuffer, mime: string): Promise<{ need: ReaderNeed; parts: Part[] }> {
   if (mime !== "message/rfc822") {

@@ -25,17 +25,17 @@ export type CanvasContext = { state: MoneyState; spending: SpendingInput };
 
 export type SentenceData = { text: string; leadParts: (string | { id: string; name: string })[]; before: string; on: string | null; short: boolean; note: string | null };
 export type NumberData = { label: string; value: string; sub: string | null; note: string | null; tone: "short" | "plain" };
-export type FlowMark = { index: number; label: string };
+type FlowMark = { index: number; label: string };
 export type FlowData = {
   points: number[]; // the end-of-day balances in the home currency, to draw
   lowIndex: number; lowLabel: string; short: boolean; zeroLabel: string; startLabel: string; endLabel: string; caption: string; aria: string;
   mark: FlowMark | null; // the first day the block's marked bill falls on in the window; null when there is no mark or no such bill in it
 };
-export type TimelineRow = { id: string; date: string; dateLabel: string; label: string; amountLabel: string; incoming: boolean; balanceLabel: string; covered: boolean; flag: string | null; marked: boolean };
+type TimelineRow = { id: string; date: string; dateLabel: string; label: string; amountLabel: string; incoming: boolean; balanceLabel: string; covered: boolean; flag: string | null; marked: boolean };
 export type TimelineData = { caption: string; rows: TimelineRow[]; empty: string | null };
-export type TableRow = { cells: string[]; tone: "short" | "up" | "down" | "plain" };
+type TableRow = { cells: string[]; tone: "short" | "up" | "down" | "plain" };
 export type TableData = { title: string | null; caption: string | null; head: string[]; rows: TableRow[]; foot: string[] | null; empty: string | null };
-export type CompareRow = { label: string; aLabel: string; bLabel: string; aMinor: number; bMinor: number; change: string };
+type CompareRow = { label: string; aLabel: string; bLabel: string; aMinor: number; bMinor: number; change: string };
 export type CompareData = { aName: string; bName: string; aTotal: string; bTotal: string; difference: string; rows: CompareRow[]; empty: string | null };
 export type ProgressData = { label: string; valueLabel: string; targetLabel: string; valueMinor: number; targetMinor: number };
 export type NoteData = { text: string; by: "you" | "assistant" };
@@ -312,6 +312,6 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
 }
 
 /** What a case means in words, for the line under a forecast. */
-export function caseWords(scenario: Scenario): string {
+function caseWords(scenario: Scenario): string {
   return scenario.case === "usual" ? "If clients pay as usual" : "If clients pay late";
 }

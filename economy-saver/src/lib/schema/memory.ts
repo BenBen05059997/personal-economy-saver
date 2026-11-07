@@ -1,13 +1,12 @@
 // What the assistant remembers about a person (D58), version 1. One item is one short piece of text with a kind.
 import { z } from "zod";
 
-export const MEMORY_VERSION = 1;
 export const MEMORY_LIMIT = 200;
 export const MEMORY_TEXT_MAX = 400;
 /** The most JSON characters of memory the agent reads at the start of a question (whole items only). */
 export const MEMORY_PROMPT_MAX = 6_000;
 /** A run of this many digits (spaces and hyphens between digits count as part of the run) is a card or account number. */
-export const SECRET_DIGITS = 12;
+const SECRET_DIGITS = 12;
 export const SECRET_REFUSAL = "The assistant doesn't keep card or account numbers.";
 export const memoryFull = () => `The assistant can hold ${MEMORY_LIMIT} things. Delete some first.`;
 export const MEMORY_CLASH = "The assistant already knows that.";

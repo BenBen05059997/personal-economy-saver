@@ -19,9 +19,9 @@ import type { SplitState } from "./types";
 
 export const SHARE_TOTAL_BP = 10_000;
 
-export type MemberBalance = { id: string; name: string; paidMinor: number; shareMinor: number; netMinor: number };
-export type Transfer = { fromId: string; fromName: string; toId: string; toName: string; amountMinor: number };
-export type SplitBalance = {
+type MemberBalance = { id: string; name: string; paidMinor: number; shareMinor: number; netMinor: number };
+type Transfer = { fromId: string; fromName: string; toId: string; toName: string; amountMinor: number };
+type SplitBalance = {
   members: MemberBalance[]; // in the split's member order; net = paid - share, so they sum to zero
   transfers: Transfer[]; // the fewest payments that bring everyone to zero, largest first
   items: number; // how many shared bills and charges are counted

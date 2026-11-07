@@ -8,6 +8,8 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { householdDate } from "@/db/account";
 import { loadMoneyState } from "@/db/household";
+import { foreignCosts } from "@/db/fx-cost";
+import { group } from "@/lib/money/format";
 import { seedBen } from "@/db/seed";
 import { AGENT_CASES, CASE_NAMES, gradeOutcome, runEval, scriptedModel, type Outcome } from "./model-eval-cases";
 import { callModel } from "@/lib/ai/call";
@@ -336,7 +338,7 @@ async function main() {
     try {
       const db = drizzle(pg, { schema });
       await migrate(db, { migrationsFolder: "./drizzle" });
-      assert.equal(CASE_NAMES.length, 11);
+      assert.equal(CASE_NAMES.length, 12);
       for (const connection of [anthropic, openai]) {
         const seen: string[] = [];
         const results = await runEval({ db, connection, fetch: scriptedModel().fetch, appUrl: APP, onResult: r => seen.push(r.name) });
@@ -399,6 +401,36 @@ async function main() {
           assert.equal(r.passed, false, `${connection.protocol} should fail: ${text}`);
           assert.match(r.why!, /sent, paid off, settled or confirmed/);
         }
+      }
+    } finally { await pg.close(); }
+  });
+
+  await check("foreign_fees grader: the tool called and the engine's total quoted passes; a wrong number, no tool call, another provider or leaving PayPal fail; both protocols", async () => {
+    const pg = new PGlite();
+    try {
+      const db = drizzle(pg, { schema });
+      await migrate(db, { migrationsFolder: "./drizzle" });
+      const householdId = await seedBen(db, { isDemo: true });
+      const state = await loadMoneyState(db, householdId, await householdDate(db, householdId));
+      const total = group((await foreignCosts(db, householdId)).payoutTotals.costMinor);
+      assert.equal(total, "111,637", "Ben's seeded payouts cost ¥111,637");
+      const answer = (text: string): Outcome["result"] => ({ kind: "answer", answer: text, choices: null, recipe: null, sources: [], links: [], pending: false });
+      const outcome = (extra: Partial<Outcome>): Outcome => ({ db, householdId, state, result: null, error: null, calls: [{ name: "foreign_costs", input: {} }], ...extra });
+      assert.equal(await gradeOutcome("foreign_fees", outcome({ result: answer(`Your payouts cost ¥${total} over twelve months.`) })), null);
+      assert.equal(await gradeOutcome("foreign_fees", outcome({ result: answer("They cost 111637 yen in all.") })), null);
+      assert.match((await gradeOutcome("foreign_fees", outcome({ result: answer("Your payouts cost ¥99,999 over twelve months.") })))!, /total cost/);
+      assert.match((await gradeOutcome("foreign_fees", outcome({ calls: [], result: answer(`Your payouts cost ¥${total}.`) })))!, /did not call foreign_costs/);
+      for (const text of ["Wise would cost less.", "Try revolut instead.", "Payoneer is cheaper."])
+        assert.match((await gradeOutcome("foreign_fees", outcome({ result: answer(`Your payouts cost ¥${total}. ${text}`) })))!, /other than PayPal/, text);
+      assert.match((await gradeOutcome("foreign_fees", outcome({ result: answer(`Your payouts cost ¥${total}. You could leave PayPal.`) })))!, /leave PayPal/);
+      assert.equal(await gradeOutcome("foreign_fees", outcome({ result: answer(`Your payouts cost ¥${total}. Fees are lower on larger invoices.`) })), null);
+      // through the real agent, on both protocols
+      for (const connection of [anthropic, openai]) {
+        const [good] = await runEval({ db, connection, fetch: scriptedModel().fetch, appUrl: APP, only: ["foreign_fees"] });
+        assert.equal(good.passed, true, `${connection.protocol}: ${good.why}`);
+        const [other] = await runEval({ db, connection, fetch: scriptedModel(null, undefined, `Your payouts cost ¥${total}. Wise is cheaper.`).fetch, appUrl: APP, only: ["foreign_fees"] });
+        assert.equal(other.passed, false, connection.protocol);
+        assert.match(other.why!, /other than PayPal/);
       }
     } finally { await pg.close(); }
   });

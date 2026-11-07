@@ -6,8 +6,8 @@ import { aboutMoney, minorMoney } from "./format";
 import { categoryLabel, type CategoryKey } from "./categories";
 import { monthBounds, monthsBack, nameKey, type SpendItem } from "./spending";
 
-export type RegularStatus = "same" | "up" | "down" | "started" | "stopped" | "not_yet";
-export type RegularMonth = { month: string; amountMinor: number; count: number; estimated?: true }; // YYYY-MM; estimated: some of the amount is an amount-varies bill's estimate (D54)
+type RegularStatus = "same" | "up" | "down" | "started" | "stopped" | "not_yet";
+type RegularMonth = { month: string; amountMinor: number; count: number; estimated?: true }; // YYYY-MM; estimated: some of the amount is an amount-varies bill's estimate (D54)
 export type RegularCost = {
   key: string; // `<category>:<nameKey>`
   label: string; // the newest item's own name

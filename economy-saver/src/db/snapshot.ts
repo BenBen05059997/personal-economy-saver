@@ -12,7 +12,7 @@ import { fromRateMicro } from "./money";
 import { paypalTotalMinor, requireHousehold, usdRate, type Db } from "./household";
 import * as s from "./schema";
 
-export type SnapshotOptions = {
+type SnapshotOptions = {
   /** The household's events (the audit trail). The export includes them; the agent tool does not. */
   events: boolean;
   /** What the assistant remembers, the pinned canvases and the conversation turns (D59). The export includes them; the agent tool does not. */
@@ -55,7 +55,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
         .where(eq(s.members.householdId, hid)).orderBy(s.members.createdAt, s.members.id),
       tx.select({
         id: s.cards.id, memberId: s.cards.memberId, label: s.cards.label, closingDay: s.cards.closingDay, dueDay: s.cards.dueDay,
-        limitMinor: s.cards.limitMinor, currency: s.cards.currency, revolving: s.cards.revolving,
+        limitMinor: s.cards.limitMinor, currency: s.cards.currency, revolving: s.cards.revolving, foreignFeeBp: s.cards.foreignFeeBp,
       }).from(s.cards).where(eq(s.cards.householdId, hid)).orderBy(s.cards.createdAt, s.cards.id),
       cap(tx.select({
         id: s.cardStatements.id, cardId: s.cardStatements.cardId, amountMinor: s.cardStatements.amountMinor, currency: s.cardStatements.currency,
@@ -63,7 +63,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
       }).from(s.cardStatements).where(eq(s.cardStatements.householdId, hid)).orderBy(desc(s.cardStatements.closedOn), desc(s.cardStatements.id)).$dynamic()),
       cap(tx.select({
         id: s.charges.id, cardId: s.charges.cardId, merchant: s.charges.merchant, amountMinor: s.charges.amountMinor, currency: s.charges.currency,
-        originalAmountMinor: s.charges.originalAmountMinor, originalCurrency: s.charges.originalCurrency, fxRateMicro: s.charges.fxRateMicro,
+        originalAmountMinor: s.charges.originalAmountMinor, originalCurrency: s.charges.originalCurrency, fxRateMicro: s.charges.fxRateMicro, fxEstimated: s.charges.fxEstimated,
         date: s.charges.date, shared: s.charges.shared, category: s.charges.category, businessBp: s.charges.businessBp, source: s.charges.source, status: s.charges.status, place: s.charges.place, documentId: s.charges.documentId, madeBy: s.charges.madeBy,
       }).from(s.charges).where(eq(s.charges.householdId, hid)).orderBy(desc(s.charges.date), desc(s.charges.createdAt), desc(s.charges.id)).$dynamic()),
       cap(tx.select({

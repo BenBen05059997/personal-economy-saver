@@ -70,7 +70,7 @@ export function dueDateFor(card: Card, closesOn: string): string {
 }
 
 /** A statement to pay: one that has closed, or the one an open cycle is still building. */
-export type StatementItem = {
+type StatementItem = {
   cardId: string;
   label: string; // "Card B statement"
   amount: number;
@@ -80,7 +80,7 @@ export type StatementItem = {
   open: boolean; // true while the cycle can still take charges
 };
 
-export type Cycle = {
+type Cycle = {
   openTotal: number; // confirmed charges in the cycle that closes next
   closesOn: string;
   dueOn: string;
@@ -159,14 +159,14 @@ export function availableCash(state: MoneyState): number {
 /** End-of-day balances in the home currency, one per day from `today`. Carries its start date so `low` can name the day. */
 export type Series = number[] & { startDate?: string };
 
-export type SeriesKind = "expected" | "worst";
+type SeriesKind = "expected" | "worst";
 
 /** What a bill counts in a case (D55): the usual case its amount (the estimate, or 0 for an uncounted bill), the late case the high end of its estimate. */
 function billCounts(bill: Bill, kind: SeriesKind): number {
   return kind === "expected" ? bill.amount : bill.amountHigh ?? bill.amount;
 }
 
-export type Arrival = {
+type Arrival = {
   invoiceId: string;
   clientId: string;
   clientName: string;
@@ -260,7 +260,7 @@ export function low(s: readonly number[], startDate?: string): LowPoint {
 
 // ---------------------------------------------------------------- due soon
 
-export type DueItem = {
+type DueItem = {
   id: string;
   kind: "bill" | "statement";
   label: string; // "Rent", "Card B statement"
@@ -313,7 +313,7 @@ export function planWindow(state: MoneyState): number {
   return Math.max(WINDOW_DAYS, last + 1);
 }
 
-export type CardRoom = {
+type CardRoom = {
   room: number; // what could still go on the card and be paid in full, even if clients pay late
   dueOn: string; // the statement a charge made today joins
   through: string; // the last day the room is checked against
@@ -346,7 +346,7 @@ export function roomOnCard(state: MoneyState, cardId: string): CardRoom {
 
 // ---------------------------------------------------------------- ladder
 
-export type Rung = {
+type Rung = {
   id: "invoice" | "remind" | "advance" | "discount";
   title: string;
   detail: string;
@@ -359,8 +359,8 @@ export type Rung = {
 export const EARLY_DISCOUNT = 0.02;
 
 /** What a card cash advance costs, per home currency. The fee is flatFee + feePct of the amount, never below minFee. */
-export type AdvanceTerms = { apr: number; flatFee: number; feePct: number; minFee: number };
-export const ADVANCE_TERMS: Record<Currency, AdvanceTerms> = {
+type AdvanceTerms = { apr: number; flatFee: number; feePct: number; minFee: number };
+const ADVANCE_TERMS: Record<Currency, AdvanceTerms> = {
   JPY: { apr: 0.18, flatFee: 220, feePct: 0, minFee: 0 }, // 18% a year plus a ¥220 ATM fee
   USD: { apr: 0.28, flatFee: 0, feePct: 0.05, minFee: 10 }, // 28% a year plus 5% of the advance, $10 minimum
 };
@@ -370,7 +370,7 @@ const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s);
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 /** Cost of a card cash advance for `gap` home-currency units over `days` days. */
-export function advanceCost(gap: number, days: number, currency: Currency = "JPY"): number {
+function advanceCost(gap: number, days: number, currency: Currency = "JPY"): number {
   const t = ADVANCE_TERMS[currency];
   return Math.round((gap * t.apr * days) / 365) + Math.round(Math.max(t.minFee, t.flatFee + gap * t.feePct));
 }
@@ -479,7 +479,7 @@ export function ladder(state: MoneyState): Rung[] {
 
 // ---------------------------------------------------------------- timeline
 
-export type TimelineEvent = {
+type TimelineEvent = {
   id: string;
   date: string;
   kind: "bill" | "statement" | "arrival";

@@ -6,6 +6,7 @@ import { CheckedInput } from "@/components/ui/CheckedInput";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { categoryLabel, CategoryKeySchema } from "@/lib/money/categories";
 import { guessCategory, guessRepeat } from "@/lib/money/categorise";
+import { Currency } from "@/lib/catalogue/types";
 import { AmountField } from "./AmountField";
 import { AmountWithUnknown, DueWithUnknown } from "./UnknownFields";
 import { CategoryFields } from "./CategoryFields";
@@ -143,6 +144,8 @@ function ChargeForm({ id, returnTo, today, currency, people, cards }: FormProps 
   const [category, setCategory] = useState<string | null>(null);
   const split = people.length >= 2;
   const card = <label className="ui-field">{LABELS.card}<select name="cardId" required>{cards.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>;
+  const [other, setOther] = useState("");
+  const others = Currency.options.filter(code => code !== currency);
   return <ApiForm action="/api/charges">
     <input type="hidden" name="id" value={id} />
     <input type="hidden" name="returnTo" value={returnTo} />
@@ -155,6 +158,13 @@ function ChargeForm({ id, returnTo, today, currency, people, cards }: FormProps 
     <MoreFields>
       {cards.length === 1 && card}
       <CategoryFields name={name} guessed chosen={category} onChoose={setCategory} />
+      <details className="add-entry-more">
+        <summary>Paid in another currency</summary>
+        <label className="ui-field">Currency<select name="originalCurrency" value={other} onChange={event => setOther(event.target.value)}>
+          <option value="">Choose a currency</option>{others.map(code => <option key={code} value={code}>{code}</option>)}</select></label>
+        <label className="ui-field">Amount paid in that currency<AmountField name="originalAmount" currency={other || others[0]} /></label>
+        <p className="ui-hint">The amount on the receipt. Above, enter what the card billed in yen; the app shows what the conversion cost.</p>
+      </details>
       {split && <><label className="add-entry-repeat"><input name="shared" type="checkbox" /> Shared, split by shares</label>
         <p className="ui-hint">The card’s owner paid it. Set a card’s owner in Settings.</p></>}
     </MoreFields>

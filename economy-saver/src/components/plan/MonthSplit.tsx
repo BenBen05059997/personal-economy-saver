@@ -9,7 +9,7 @@ import "./plan.css";
 export type MonthPerson = { id: string; name: string };
 
 /** "Shared ¥38,000 · Ben ¥9,000 · Wife ¥14,000": only the parts that are not zero. */
-export function whoseLine(view: MonthView, totals: WhoseTotals, people: MonthPerson[]): string {
+function whoseLine(view: MonthView, totals: WhoseTotals, people: MonthPerson[]): string {
   const parts = totals.sharedMinor > 0 ? [`Shared ${minorMoney(totals.sharedMinor, view.currency)}`] : [];
   for (const person of people) {
     const minor = totals.byMember.find(m => m.id === person.id)?.minor ?? 0;
@@ -19,7 +19,7 @@ export function whoseLine(view: MonthView, totals: WhoseTotals, people: MonthPer
 }
 
 /** D52: the one line on top of a household of two or more: the shared total first, then each person. */
-export function togetherLine(view: MonthView, people: MonthPerson[], when = monthWhen()): string {
+function togetherLine(view: MonthView, people: MonthPerson[], when = monthWhen()): string {
   const money = (minor: number) => minorMoney(minor, view.currency);
   const parts = [`Together ${money(view.sharedMinor)}`, ...people.map(p => `${p.name} ${money(view.byMember.find(m => m.id === p.id)?.minor ?? 0)}`)];
   return `${parts.join(" · ")} ${when}`;

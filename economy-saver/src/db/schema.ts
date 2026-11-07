@@ -41,6 +41,7 @@ const householdId = () =>
     .notNull()
     .references(() => households.id, { onDelete: "cascade" });
 
+// Every pgEnum is exported: drizzle-kit only sees exported enums and would drop the type in the next migration.
 export const memberRole = pgEnum("member_role", ["owner", "member"]);
 export const invoiceStatus = pgEnum("invoice_status", ["unbilled", "draft", "sent", "paid", "closed"]);
 export const confirmStatus = pgEnum("confirm_status", ["confirmed", "pending"]);
@@ -241,6 +242,7 @@ export const cards = pgTable(
     limitMinor: minor("limit_minor"),
     currency: char("currency", { length: 3 }).notNull(),
     revolving: boolean("revolving").notNull().default(false),
+    foreignFeeBp: integer("foreign_fee_bp"), // D62: the issuer's foreign transaction fee in basis points (220 = 2.2%), from the card's terms; null = not entered
     createdAt: createdAt(),
   },
   (t) => [
@@ -248,6 +250,7 @@ export const cards = pgTable(
     unique("cards_household_id_uq").on(t.householdId, t.id),
     foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "cards_member_household_fk" }),
     check("cards_days_valid", sql`${t.closingDay} between 1 and 31 and ${t.dueDay} between 1 and 31`),
+    check("cards_foreign_fee_valid", sql`${t.foreignFeeBp} is null or (${t.foreignFeeBp} between 0 and 1000)`),
   ],
 ).enableRLS();
 
@@ -283,6 +286,7 @@ export const charges = pgTable(
     originalAmountMinor: minor("original_amount_minor"), // when paid in another currency
     originalCurrency: char("original_currency", { length: 3 }),
     fxRateMicro: bigint("fx_rate_micro", { mode: "number" }), // original -> billed, when they differ
+    fxEstimated: boolean("fx_estimated").notNull().default(false), // D62: true when the billed amount is the reference-rate conversion (the reader), not what the issuer billed
     shared: boolean("shared").notNull().default(false), // D45: split between the members; the card's owner paid it
     category: text("category").notNull().default("other"), // D46: a key from lib/money/categories.ts
     businessBp: integer("business_bp").notNull().default(0), // D46: business share in basis points; 0 = personal, 10000 = business

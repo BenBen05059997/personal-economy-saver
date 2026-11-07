@@ -188,6 +188,9 @@ async function main() {
     await db.insert(schema.settlements).values({ householdId: a, fromMemberId: partner.id, toMemberId: aOwner.id, amountMinor: 1200, currency: "JPY", through: "2026-10-31" });
     const [varies] = await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Power", amountMinor: 9000, currency: "JPY", due: "2026-12-15", category: "utilities", repeatUnit: "month", repeatDay: 15, repeatUntil: "2027-06-15", amountVaries: true }).returning();
     await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Power Nov", amountMinor: 9400, currency: "JPY", due: "2026-11-15", category: "utilities", seriesBillId: varies.id });
+    const [aCardRow] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, a)).limit(1);
+    await db.insert(schema.charges).values({ householdId: a, cardId: aCardRow.id, merchant: "Fictional Abroad Shop", amountMinor: 3000, currency: "JPY", date: "2026-11-10", category: "other", status: "confirmed", source: "receipt", madeBy: "reader",
+      originalAmountMinor: 2000, originalCurrency: "USD", fxRateMicro: 150_000_000, fxEstimated: true });
     await addMemory(db, a, { kind: "fact", text: "Rent goes up in April" }, form);
     await addMemory(db, a, { kind: "goal", text: "¥300,000 for a trip in March" }, { madeBy: "ask", askId: randomUUID() });
     await pinCanvas(db, a, { title: "One", recipe: recipe("One") }, form);
@@ -272,6 +275,10 @@ async function main() {
       // The engine sees the same household: cash, the low point, the sentence.
       assert.deepEqual(await engine(c.id), sourceEngine);
       assert.deepEqual(await engine(c2.id), sourceEngine);
+      assert.equal(exported.cards.find(x => x.id === aCardRow.id)!.foreignFeeBp, 220, "Ben's Card A carries its foreign fee (D62)");
+      assert.deepEqual(back.cards.map(x => x.foreignFeeBp).sort(), exported.cards.map(x => x.foreignFeeBp).sort(), "the foreign fee round-trips");
+      const abroad = back.charges.find(x => x.merchant === "Fictional Abroad Shop")!;
+      assert.deepEqual([abroad.fxEstimated, abroad.originalAmountMinor, abroad.originalCurrency], [true, 2000, "USD"], "fx_estimated round-trips");
       // Every restored row is made_by import (checked in the database).
       for (const table of [schema.bills, schema.charges, schema.invoices, schema.pots, schema.balanceUpdates] as const) {
         const rows = await db.select().from(table).where(eq(table.householdId, c.id));
@@ -299,6 +306,17 @@ async function main() {
       // Restoring a second time into the household that was just filled is refused too.
       const [filled] = await db.select().from(schema.households).where(eq(schema.households.name, "Fictional Importer Three"));
       await assert.rejects(restoreHousehold(db, filled.id, file2), (e: unknown) => e instanceof InputError && e.message === NOT_EMPTY);
+    });
+
+    await check("an older file without foreignFeeBp and fxEstimated still imports (D62): the fee is not entered and the charge is not an estimate", async () => {
+      const old = JSON.parse(JSON.stringify(file));
+      for (const card of old.cards) delete card.foreignFeeBp;
+      for (const charge of old.charges) delete charge.fxEstimated;
+      const c = await emptyHousehold("Fictional Importer Old File");
+      await restoreHousehold(db, c.id, old);
+      const back = await loadHouseholdSnapshot(db, c.id, { events: true, stored: true });
+      assert.ok(back.cards.every(x => x.foreignFeeBp === null));
+      assert.ok(back.charges.length > 0 && back.charges.every(x => x.fxEstimated === false));
     });
 
     await check("the restored household's own data is its own: deleting its kinds works like any other and leaves B alone", async () => {

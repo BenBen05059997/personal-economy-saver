@@ -9,7 +9,7 @@ export const BORROWING_SOURCES = {
   atm: "https://www.jcb.co.jp/cashing/use/cd-atm/index.html",
   welfare: "https://www.mhlw.go.jp/content/12000000/000931068.pdf",
 };
-export type FundingOption = {
+type FundingOption = {
   id: string; title: string; detail: string; cost: number; principal: number;
   status: string; pick: boolean; href?: string; action?: string;
   source?: keyof typeof BORROWING_SOURCES;

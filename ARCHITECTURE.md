@@ -1,121 +1,533 @@
 # Architecture: how the app is wired
 
-A Next.js 16 app on Cloudflare Workers (OpenNext) over household-scoped Postgres in Supabase (Tokyo, `ap-northeast-1`, transaction pooler). Try it and magic-link sessions, Home and invoice review, typed-in data (clients, bills, card charges, invoices marked paid), PayPal history import, the reader (upload and forwarded email), the in-app agent, MCP, PayPal approval and verified-webhook handling are implemented. The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local Worker read a fictional household from the Tokyo project; Vault and the private Storage bucket `household-documents` are verified there. Not yet verified live: magic-link delivery, a live model call, the deployed Worker, Email Routing, and a real PayPal send-to-webhook round trip. The repository and the app are private. Decisions: D18, D31–D60 in [DECISIONS.md](DECISIONS.md).
+## What the system is
 
-## The tree
+A Next.js 16 app on Cloudflare Workers (OpenNext) over household-scoped Postgres in Supabase (Tokyo, `ap-northeast-1`, transaction pooler).
+Try it and magic-link sessions, Home and invoice review, typed-in data (clients, bills, card charges, pots, people, invoices marked paid),
+statement and PayPal history import, the reader (upload, forwarded email, a file attached in Ask), the in-app agent with its canvas and memory,
+MCP, the family view, Your data (export, import, delete, this device only), what foreign money costs (D62), PayPal approval and verified-webhook
+handling are implemented. The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local
+Worker read a fictional household from the Tokyo project; Vault and the private Storage bucket are verified there. Not yet verified live:
+magic-link delivery, a live model call, the deployed Worker, Email Routing, and a real PayPal send-to-webhook round trip. The repository and
+the app are private. Decisions: D18, D31–D62 in [DECISIONS.md](DECISIONS.md).
+
+## The stack tree
 
 ```
 Clients
-├── Browser (phone and desktop): Next.js UI, Try it household or magic-link session; voice through browser speech
-├── MCP client (Claude Code, ChatGPT…): bearer token → the same tool catalogue as the agent, read and draft only
-├── Email: the user forwards a bill to their address on the owner's domain
+├── Browser (phone and desktop): the Next.js UI; a Try it household or a magic-link session; voice through browser speech
+├── MCP client (Claude Code, ChatGPT…): a bearer token → the same tool catalogue as the agent, read and draft only
+├── Email: the person forwards a bill to their address on the owner's domain (`FORWARDING_DOMAIN`)
 └── PayPal sandbox: webhooks after an invoice is paid
 
 Cloudflare
-├── Email Worker: Email Routing hands it each forwarded mail → POST /api/inbound
-├── Cron Trigger: once a day → GET /api/cron (deletes demo households quiet for seven days, D49; keeps Supabase awake, FX snapshots, statements, reminders, the nudge rule D50)
-└── Next.js 16 app on Workers (OpenNext adapter)
-    ├── Pages (server components, including /plan): read the household's tables, render the sentence
-    ├── API routes (mutating routes start with `householdRequest` from src/lib/session.ts: same-origin check, then household; shared responses in src/lib/door.ts). Every form that posts to a route is the one client component `src/components/ui/ApiForm.tsx` (upload keeps its own): it posts with fetch and the header `x-form-fetch: 1`, shows the route's text answer in its status line when the route refuses (keeping what was typed), refreshes the page when the route answers 200, and follows the route's redirect when it answers one. A route that redirects takes the request (`redirectTo(location, request)`, `privateRedirect(location, request)`): to a fetch with the header it answers 204 with `x-form-redirect: <location>`, to a native post (no JavaScript, the HTTP suites) the 303 it always sent (`src/lib/form-fetch.ts`)
-    │   ├── /api/ask             one question of the Ask conversation (`{ id, conversationId, text, source, canvas }`): the agent answers, asks back or declines, and the reply (kind, text, choices, the canvas the engine drew, "Based on" sources, links, the first-use line) is stored as a turn. The page `/canvas`, labelled Ask
-    │   ├── /api/ask/document    POST attaches a file in Ask (multipart: `id`, `conversationId`, optional `text`, the file): `readUpload`, a stored `upload` document, a `document` turn and the card; the model reads after the response. GET `?id=<document id>` gives the card again (`gone` for a file that is not this household's)
-    │   ├── /api/ask/thumb       `{ id, thumb }` on one reply; one content-free log line
-    │   ├── /api/canvases        pins on Home (D57): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema` (at most 8 pins)
-    │   ├── /api/canvas/resolve  a recipe → each block's query run through the engine → the resolved blocks (body capped in bytes); nothing is stored. The page `/canvas`
-    │   ├── /api/memory          add, edit, delete or forget all of what the assistant remembers (same-origin, household); the page `/memory`
-    │   ├── /api/clients, /api/bills, /api/charges   typed-in client, bill and card charge (`/api/bills` takes `kind` add, edit or fill; fill sets only the missing amount or date, D55)
-    │   ├── /api/remove          remove a bill (a repeating bill as a whole series) or a card charge; kind and id
-    │   ├── /api/bank-balance    the one-line bank balance update on Home (D42)
+├── Email Worker (`worker.ts` `email`): Email Routing hands it each mail → POST /api/inbound with `INBOUND_WORKER_SECRET`; over 6 MiB is rejected
+├── Cron Trigger (`worker.ts` `scheduled`): once a day → GET /api/cron with `CRON_SECRET`
+└── Next.js 16 app on Workers (OpenNext adapter); `src/middleware.ts` refreshes the auth cookie on every path except the webhook, cron, MCP and inbound
+    ├── Pages (server components): the sidebar is Home /, Ask /canvas, To check /to-check, Activity /activity, Cards /cards, Clients /clients, Plan /plan
+    │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory, /settings, /account (delete my data), /privacy
+    │   ├── /start (Start with my numbers), /login, /onboarding
+    │   └── /family/[token]: no session; the token resolves to a household (D52); no-store, noindex, no referrer
+    ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
+    │   ├── /api/ask               one question of the Ask conversation `{ id, conversationId, text, source, canvas }`; body at most 128 KiB
+    │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, optional `text`, the file); GET `?id=` gives the card again
+    │   ├── /api/ask/thumb         `{ id, thumb }` on one reply; one content-free log line
+    │   ├── /api/canvases          pins on Home (D57): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
+    │   ├── /api/canvas/resolve    a recipe → each block's query through the engine → the resolved blocks; body at most 100,000 bytes; nothing is stored
+    │   ├── /api/memory            add, edit, delete or forget all of what the assistant remembers; the page /memory
+    │   ├── /api/clients, /api/bills, /api/charges   typed-in client, bill (`kind` add, edit or fill) and card charge ("Paid in another currency", D62)
+    │   ├── /api/remove            remove a bill (a repeating bill as a whole series) or a card charge; `kind` and `id`
+    │   ├── /api/bank-balance      the one-line bank balance update on Home (D42)
     │   ├── /api/pots, /api/pots/remove   add or edit a pot; remove a pot (the Plan page, D43)
     │   ├── /api/people, /api/settle      Settings → People (add, rename, shares); Mark settled on Home (D45)
-    │   ├── /api/family-links     Settings → People → Share a family view (D52): create (answers with the full link and the LINE message once; only the token's hash is stored) and stop. The page it makes, `/family/[token]`, needs no session: it resolves the token (not expired, not stopped; unknown, expired and stopped all show "This link has ended"), reads the household in a read-only transaction and renders the sentence, the month, shared bills and who owes whom with no actions; no-store, noindex, no referrer
-    │   ├── /api/import           Settings → Import a statement (D53): JSON rows (date, merchant, amount, category) parsed from a CSV in the browser, 500 rows a post; `importCharges` skips a row already on that card (same date, amount, name), inserts the rest `made_by = import`, one `charges_imported` event; stored card statements are left alone (the issuer's total already counts them)
-    │   ├── /api/invoices/draft, /api/invoices/paid  invoice draft; mark an invoice paid outside PayPal
-    │   ├── /api/upload          photo or PDF (checked by `readUpload`, `src/lib/reader/accept.ts`) → Storage → documents → reader
-    │   ├── /api/inbound         forwarded email → Storage → documents → reader
-    │   ├── /api/readings/retry  read a document again
-    │   ├── /api/confirm         a reading or pending row → a bill, a charge, a bank balance or a pot; corrections become rules; `from=ask` with `answered` (the check kinds the person answered) is refused while a check the card asked is unanswered, and `returnTo` sends the page back to Ask
-    │   ├── /api/approve         user approval → PayPal Sandbox send/reminder → events
-    │   ├── /api/paypal/webhook  verify signature → webhook_deliveries → events → invoice paid
-    │   ├── /api/paypal/import   read sandbox invoices → clients and invoices (one configured household only)
-    │   ├── /api/mcp, /api/mcp/tokens   MCP server (token → household); token issue and revoke
-    │   ├── /api/events          GET events since a time and the feed summary; POST mark read (the bell). Home polls it while something is in flight
-    │   ├── /api/try, /api/try/reset   Try it: new anonymous household; demo-only reset
-    │   ├── /api/try/blank       Start with my numbers (page /start): the setup form makes a blank demo household under the demo cookie through `createHousehold`; it never reuses the cookie household: it replaces the visitor's old demo in the same transaction, rate-limited like Try it (D47)
+    │   ├── /api/family-links      create a family view link (the full link and the LINE message, once) or stop one (D52)
+    │   ├── /api/import            Settings → Import a statement (D53): up to 500 CSV rows the browser parsed, for one card
+    │   ├── /api/invoices/draft, /api/invoices/paid   an invoice draft; mark an invoice paid outside PayPal
+    │   ├── /api/upload            photo or PDF (`readUpload`) → Storage → documents → reader
+    │   ├── /api/inbound           forwarded email (the Email Worker only) → Storage → documents → reader
+    │   ├── /api/readings/retry    read a document again
+    │   ├── /api/confirm           a reading or a pending row → a bill, a charge, a bank balance or a pot; corrections become rules
+    │   ├── /api/approve           the user's tap → PayPal sandbox send or reminder → events (the only place that sends, D12)
+    │   ├── /api/paypal/webhook    verify the signature → webhook_deliveries → events → invoice paid; GET: the caller's recent deliveries, no payload
+    │   ├── /api/paypal/import     read the sandbox merchant's invoices → clients and invoices (the one household in `PAYPAL_BALANCE_HOUSEHOLD_ID`)
+    │   ├── /api/mcp, /api/mcp/tokens   the MCP server (token → household); issue and revoke tokens
+    │   ├── /api/events            GET events since a time plus the feed summary; POST mark read (the bell)
+    │   ├── /api/try, /api/try/reset, /api/try/blank   Try it (Ben's demo household); demo-only reset; Start with my numbers (D47)
     │   ├── /api/auth/link, /callback, /logout   magic-link request, callback and logout
-    │   ├── /api/onboarding      first-run setup for a signed-in person (name, timezone, balance, card) through `createHousehold`; upgrades a Try it or blank demo household
-    │   ├── /api/settings, /api/settings/ai-model, /api/forwarding   household preferences; Settings → Your AI model (`kind` save, which checks the model and stores the result, or default; body capped at 4 KiB); forwarding address
-    │   ├── /api/household       delete my data
-    │   ├── /api/export          Export my data: POST form from Settings → the household snapshot (version 2) with events, memory, canvases and conversation as a JSON download (D44)
-    │   ├── /api/data            Settings → Your data (D59): `kind` delete_kind (`what`: memory, canvases, journal or documents; the record is refused), delete_one (`what`, `id`) or delete_conversation; a kind kept on the device is refused here (it is deleted in the browser)
-    │   ├── /api/data/move       Settings → Your data → where it is kept (D59): `read` (the items to take to the device), `to_device` (the browser has stored them; the server deletes its copies and sets the place in one transaction), `to_cloud` (the browser posts the items, checked against their schemas; the server inserts them and sets the place); memory, canvases or journal; JSON at most 2 MB
-    │   ├── /api/restore         Import (D59, D44): a version 2 household file (JSON, at most 1 MB) into a household that has nothing in it yet (`restoreHousehold`); refused while any kind is kept on the device
-    │   ├── /api/cron            daily job (bearer secret): the demo sweep first, then each household in CRON_HOUSEHOLD_IDS
-    │   └── /api/health          readiness, no values
+    │   ├── /api/onboarding        first-run setup for a signed-in person through `createHousehold`; upgrades a Try it or blank demo household
+    │   ├── /api/settings, /api/settings/ai-model, /api/forwarding   name and balance, a card (with its foreign fee, D62), the nudge rule; Your AI model; forwarding address
+    │   ├── /api/household         delete my data (the signed-in owner, `confirmation=delete`)
+    │   ├── /api/export            Export my data: the version 2 snapshot with events, memory, canvases and journal, as a JSON download (D44)
+    │   ├── /api/data              Settings → Your data (D59): `kind` delete_kind, delete_one or delete_conversation
+    │   ├── /api/data/move         where memory, canvases and the journal are kept (D59): `step` read, to_device or to_cloud; JSON at most 2 MB
+    │   ├── /api/restore           Import (D59, D44): a version 2 household file (JSON, at most 1 MB) into a household that has nothing in it yet
+    │   ├── /api/cron              the daily job (bearer `CRON_SECRET`)
+    │   └── /api/health            readiness: setting names and reasons, never values
     └── Core (pure TypeScript, no I/O)
-        ├── Runway engine (lib/money/runway.ts): availableCash (bank + PayPal less money in pots), series, low, safe to spend, room per card, options ladder; planning maths in lib/money/plan.ts; who owes whom in lib/money/split.ts; where the month goes in lib/money/month.ts (`monthByCategory(state, today, month?)`: a month's confirmed bills and charges by category with their business and personal parts, D46) built on lib/money/spending.ts (D53: `spendingItems` for any range with the D41 amount and the D52 whose, `searchSpending` by name or category grouped by month; `db/spending.ts` loads a range) over the category list in lib/money/categories.ts and the keyword table in lib/money/categorise.ts; none of it feeds the runway. Plan reads `?q=` and `?month=` for the search and the month history; lib/money/regular.ts (`regularCosts`, D54) finds regular costs by `nameKey` and category and says what changed, shown as Plan → Regular costs; an amount-varies monthly bill (D54, `bills.amount_varies`) is forecast at the average of its last three real bills (`bills.series_bill_id`, linked on insert, confirm and reader review by lib/money/varies.ts) and a month with a real bill has no estimate; the agent and MCP share `search_spending`, `month_by_category` and `regular_costs`; lib/money/gaps.ts (D55, `openGaps`) lists the bills whose amount or date is not known (stored empty, migration 0019): `expandBills`/`resolveBills` in repeat.ts turn a stored bill into an engine bill, and `series` and `timeline` count it through `billCounts` — an unknown amount at the average of the name key's and category's last three real one-off bills (the series' real bills for an amount-varies series) in the usual case and at the highest of the three in the late case, an unknown date as due today, no history as not counted; `homeSentence` adds a `note` naming what is not counted when a gap could change its answer; To check → Missing, Coming up, the month view, the family view and the `open_gaps` tool read the same gaps, and an amount not known creates no debt in the split
-        ├── Sentence composer: engine output → "You're fine if … If late, ¥18,780 short on the 27th."
-        ├── Agent (lib/agent): one tool catalogue over the engine, shared with the MCP server; read and draft tools, `what_if` and `make_canvas` (canvas-tools.ts), `remember`, `forget` and `recall` (memory-tools.ts); `clarify` and `out_of_scope` have scope `ask`, so only the in-app agent offers them and the MCP server never does. Every model call goes through `callModel` (lib/ai: the Anthropic adapter on `@anthropic-ai/sdk`, the OpenAI-compatible adapter on fetch); the connection comes from `aiConnection` in src/db/ai-key.ts (the household's own when `ai_protocol` is set, else the server's `AI_` settings). `reply.ts` chooses the reply kind in code
-        ├── Canvas (lib/canvas, D57): a recipe is blocks that each hold a query, never a number; `resolveRecipe` runs every query through the engine on the household's state; a what-if (lib/money/whatif.ts) runs the engine on a copy of the state, so nothing is written. Pins (src/db/canvases.ts, at most 8) are saved recipes: Home draws them with `resolveRecipe` and no model call (`Pinned.tsx`). A `flow_chart` or `timeline` block may carry `mark`, a stored bill's id: the chart rings the first day that bill falls on in the window (label like "Rent ¥82,000 · Nov 27", added to the aria text as "Marked: …") and the timeline rows of that bill get `marked` and read "This bill"; a bill not in the window (repeating bills exist only inside the plan window, about 30 days) draws no mark
-        ├── Memory (D58): `MemoryItem`s (lib/schema/memory.ts) in the `memories` table through src/db/memory.ts, one function per change, each change an event with titles only
-        ├── Reader: image/PDF/email extraction → validated reading that waits for confirmation
-        ├── PayPal layer: agent gets draft/read tools; send/remind tools run only from /api/approve; sandbox guard
-        └── Auth + scope: request → user → household_id; every query carries it
+        ├── Engine `src/lib/money`: runway.ts (availableCash, series, low, safeToSpend, roomOnCard, ladder, timeline, statementItems), repeat, plan,
+        │   split, month, spending, name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check
+        ├── Sentence composer `src/lib/money/sentence.ts`: engine output → "You're fine if … If late, ¥18,780 short on the 27th."
+        ├── Agent `src/lib/agent`: one tool catalogue (tools.ts, canvas-tools.ts, memory-tools.ts, check-tools.ts), run.ts, reply.ts, rules.ts, memory-prompt.ts, log.ts
+        ├── Model call `src/lib/ai`: `callModel` (anthropic.ts, openai.ts), `checkBaseUrl`, `unconfirmedAmounts`, `checkConnection`, `PROVIDERS`, the tested list
+        ├── Canvas `src/lib/canvas`: the recipe schema, `resolveRecipe`, starters, words, the request helper (D57)
+        ├── Memory `src/lib/schema/memory.ts`: the item schema (D58); the household-scoped functions are `src/db/memory.ts`
+        ├── Reader `src/lib/reader`: accept, extract, forwarding, storage, settings, correction, document-card, form
+        ├── PayPal layer `src/lib/paypal`: sandbox REST client, toolkit wrapper (`runTool`, `sandbox: true`, 20 s timeout), invoice listing, webhook signature check
+        ├── Catalogue `src/lib/catalogue` over `src/data/catalogue/jp.json` and `us.json` (secondary, D6); `jp-payout-cost` is its first live move, through `foreign_costs`
+        └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0023), 25 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0024), 25 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
 │   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns
-├── Auth: magic-link login
+├── Auth: magic-link login (PKCE)
 ├── Vault: households' own model keys
-└── Storage: private receipt photos, PDFs and raw forwarded emails (private bucket `household-documents`)
+└── Storage: the private bucket named by `SUPABASE_DOCUMENT_BUCKET` (`household-documents` in the owner's project): receipt photos, PDFs and raw forwarded emails
 
 Outside
-├── The model provider: the server's `AI_` connection (capped by `AI_DAILY_LIMIT`), or a household's own model (Settings → Your AI model: a listed provider or an OpenAI-compatible address, with its key in Vault)
-└── PayPal sandbox API: send invoice, send reminder, read invoices; webhooks come back in
+├── Model providers: the server's `AI_` connection (capped by `AI_DAILY_LIMIT`), or a household's own model (a listed provider or an OpenAI-compatible address, key in Vault)
+├── PayPal sandbox API (`api-m.sandbox.paypal.com`): send invoice, send reminder, read invoices and the balance; webhooks come back in
+└── The ECB daily reference rate (`eurofxref-daily.xml`): the daily job's USD/JPY for real JPY households
 ```
 
-## Updates
+**The forms.** Every form that posts to a route is the one client component `src/components/ui/ApiForm.tsx` (upload keeps its own). It posts with
+fetch and the header `x-form-fetch: 1`, shows the route's text answer in its status line when the route refuses (keeping what was typed), refreshes
+the page when the route answers 200, and follows the route's redirect when it answers one. A route that redirects takes the request
+(`redirectTo(location, request)`, `privateRedirect(location, request)`): to a fetch with the header it answers 204 with `x-form-redirect: <location>`;
+to a native post (no JavaScript, the HTTP suites) the 303 it always sent (`src/lib/form-fetch.ts`).
 
-Every change is an `events` row. Rows with `notify = true` feed the bell in the top bar (unread count, list, `read_at`). Home and To check poll the event feed every 5 s only while a tracked PayPal invoice is out or a bill is queued or being read. Returning focus checks the feed and refreshes the screen only when its summary changes. The feed's `since` cursor is the household's latest `occurred_at` from the server, never the browser's clock, and the poller compares the summary (count, unread, in-flight, cursor), so a change is seen even when an event's time is not after the cursor. `recordEvent` stamps a Try it household's events on its clock (`householdMoment` in `db/clock.ts`: the demo date at the current time of day in the household's zone) and a real household's at the database's `now()`; an explicit `occurredAt`, such as a provider's payment timestamp, is kept as given. No email, no websockets for Nov 12; Web Push after.
+## The loops, as pipelines
 
-## The six flows
+### 1. The product loop: open the app, Approve, PayPal, webhook, the sentence changes
 
-1. **Open the app.** Page → auth → household_id → engine reads bills (a confirmed repeating bill, monthly or yearly, is expanded into its occurrences up to the end of the plan window, or stops after its last payment (`repeat_until`), each with the amount that applies on its date, `lib/money/repeat.ts`; a bill's cancel-by dates become `cancelNotices`, the dated rows Coming up shows next to the occurrences, so `runway.ts` is unchanged), cards, charges, statements, invoices, clients, pots (cash starts from `availableCash`), and with two or more members the split (`lib/money/split.ts`: shared bills and charges since the last settlement, past monthly occurrences included; it moves no money in the runway) → sentence, safe to spend, the runway picture, the events list, and between the sentence with its action and the panels the household's pinned canvases (at most 8, drawn by the engine, no model call). Activity, Settings and Upload only need the owner, event feed, timezone and pending count for their navigation. The count uses the same household and charge date window as To check. No AI call on open.
-2. **A bill arrives.** Forward it (Email Worker) or upload it → file to Storage, a `documents` row → reader asks the document model for `{kind, name, date, amount, currency, category, card}` per item (category is one of the fourteen keys or null; the review card shows the Category select and the Business share control, and a stored rule can carry both) against a zod schema (null for anything missing) → a `readings` row → a "To check" row on Home → the checks of D61 (`checksFor`, `src/lib/money/checks.ts`) run on every reading and show on its card and in its To check row → the user confirms → a `bills` row (or `charges` for a card email) → the engine recomputes → the sentence changes. A correction on the confirm card writes a `rules` row so the next read from that biller is right; when the name, category, work share or card was changed, a checkbox (off) "Also tell the assistant: …" (`correctionText` in `src/lib/reader/correction.ts`) also saves the correction as a memory item in the same transaction. **A file attached in Ask (D61).** "Attach a bill" posts the file to `/api/ask/document`, which checks it with `readUpload` (the same types and 6 MiB limit as `/api/upload`), stores it as a document of kind `upload` (the same file is one document), saves a `document` turn (question "Here's my bill" or what was typed, reply "Got your file. Nothing is added until you confirm.", `documentId`) and schedules the read after the response. The page draws `DocumentCard` under the turn and asks `GET /api/ask/document?id=` every 2 seconds while the tab is visible (after 60 seconds it says the file will be waiting in To check). `documentCard` (`src/db/document-card.ts`) builds the card in code with `buildCard`: reading, failed with the reader's own words, or each reading of the document with its read line and its failed checks (`checksFor`), shown one question at a time, then Confirm, Edit and Don't add it. Confirm posts to `/api/confirm` with `from=ask` and `answered`; `reviewReading` refuses while a check the card asked is not answered, and on success writes the saved bill or charge id into `readings.extracted` as `targetId`. After Confirm the card carries a canvas from `documentCanvas` (the sentence, the cash-flow chart and the timeline, each resolved by the engine, the bill ringed through `mark`), drawn each time the card is built, with no model call. The conversation context for later questions holds the card as text (`cardContext`, never an amount source).
-3. **Short, so get paid.** The engine finds the low point and ranks options. The user reviews an invoice and approves it; `/api/approve` sends through the PayPal Sandbox integration and records the sent event. PayPal later posts a webhook; the route verifies its signature before the unique delivery, paid transition, balance credit, pot fills and notification are committed together. A client payment (this webhook, or an invoice marked paid outside PayPal) adds each confirmed pot's fill percentage of the credit to that pot and records a `pot_filled` event in the same transaction (`fillPots` in `src/db/pots.ts`); a PayPal import credits nothing and fills nothing. Local tests inject a simulated PayPal transport and call the database handler with an already-verified event; no real invoice send or payment has been performed.
-4. **Ask or log by voice.** The Ask page (`/canvas`; the top bar links to `/canvas#ask`) takes a typed or spoken question (browser speech → text) and posts `{ id, conversationId, text, source, canvas }` to `/api/ask`, where the canvas is the one on screen. `answerQuestion` (`src/db/ask.ts`) first stops a household that has had five declined questions this hour (fixed sentence, no model call, no stored turn). Otherwise `runAgent` builds the system text from the rules (`MODEL_RULES` plus the Ask-only `ASK_RULES`) and `memoryContext` (what the person asked it to remember, as quoted JSON, instructions first, at most 6,000 characters), and the user turn from the question, the last three turns of the conversation when its latest turn is under ten minutes old (up to 24 hours while a document attached in it is queued, being read, or has a reading in To check; a turn of kind `document` carries `conversation_turns.document_id`), and the canvas on screen (quoted as data). `callModel` runs the model with the tools over the engine (at most 4 tool turns, 20 s, no retries; the connection is the household's own model or the server default). Read tools (`where_am_i`, `whats_due`, `open_gaps`, `can_i_spend`, `list_clients_and_cards`, `timeline`, `options_when_short`, `list_invoices`, `plan_for`, `who_owes_whom`, `month_by_category`, `search_spending`, `regular_costs`, `household_snapshot`, `what_if`, `make_canvas`, `recall`, `to_check`) return the engine's numbers, which the model quotes verbatim in one or two sentences. `what_if` runs the engine on a copy of the household; `make_canvas` takes a recipe as JSON text, checks it, has the engine fill it and returns a summary, and the last valid recipe of the question becomes the reply's canvas (a note's `by` is forced to the assistant). `household_snapshot` gives the whole household as one JSON document for context (recent windows of long lists, no events, no secrets). Draft tools (`draft_invoice`, `add_bill`, `add_bills`, `log_charge`, `log_charges`, `update_bank_balance`, `add_pot`, `remember`, `forget`; the plural tools take 1–10 items in one transaction) save a draft, a pending row in To check or a memory item, and the answer links to it; the user confirms bills and charges there. `clarify` and `out_of_scope` end the question; the model never picks the reply kind: `chooseReply` (`reply.ts`) does, after the loop. `clarify` gives a clarifying question with 2–4 choices the person can tap; `out_of_scope` (or a plain text with no tool) gives a decline, the fixed sentence for off-topic or for investment, tax-filing and legal questions; anything else is an answer, which needs at least one tool and passes `unconfirmedAmounts` over the answer text and every note and letter on its canvas, with the question, this question's tool results and the memory block as sources (never an earlier reply). A failed check shows a fixed error, unless a draft tool had already succeeded in the question: then any `AgentError` (it carries what was kept: `saved`) becomes an answer in `answerQuestion` with `FIXED.savedThenStopped` plus the error's sentence, the links (To check, the invoice draft, Memory), `pending` and the device `memoryChanges`, stored as a turn like any other, and the log line keeps the real outcome. A question whose `id` is already a stored turn of the household (cloud journal; the browser resent it after a lost response) returns that turn through `turnById` without calling the model, with no links and no changes. One question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`; `remember` and `forget` refuse the 21st in words). The turn (question, kind, reply, choices, canvas, sources) is stored in `conversation_turns` (200 a household, `src/db/conversation.ts`), and the page shows the reply, the canvas the engine drew, "Based on" links to the pages the tools read, "Pin to Home" and two thumb buttons (`/api/ask/thumb`). Before the household's first answer a line above the box says a model words the answers, the numbers are the app's own, it is not financial advice, and where the questions go. Pinning saves the recipe through `/api/canvases`; Home draws each pin after the sentence and its action with `resolveRecipe` and no model call. **When memory or the journal is kept on this device (D59)** the question carries what the server must not keep: `memory` (at most 200 items) and `recent` (at most 3 turns) ride in the body (at most 128 KiB; a question missing a list the household keeps on the device, or carrying one it keeps in the cloud, is refused in words). The server uses them for that question's system text, user turn and amount-check sources and writes nothing: no turn row, no memory row. `remember` and `forget` change the list in hand and come back in the reply as `memoryChanges`, which the browser applies to its own store; the reply also carries `wait` (the fixed sentence after five declined questions). A thumb is kept on the device and still writes the content-free log line. Pins on the device are drawn on Home by `DevicePins.tsx` through `POST /api/canvas/resolve`, which keeps nothing. MCP `recall`, `remember` and `forget` answer "This household keeps its memory on one device. Ask in the app on that device." and touch nothing. `list_clients_and_cards` and `list_invoices` return each client's usual and slowest days to pay. An invalid tool input comes back as "Invalid input for this tool: " plus the failing field paths, never the values. The rules live in `src/lib/agent/rules.ts`; `MODEL_RULES` are also the MCP server's `instructions`. Each Ask writes one content-free JSON line to standard output (`src/lib/agent/log.ts`: household id, `ask_id`, source, reply kind, whether it had a canvas, last stop reason, model calls, tool names with ok and milliseconds, outcome, total milliseconds, input and output tokens; never the question, answer, arguments, results or key); a thumb writes a line of its own with the ids and the thumb. Tool output and remembered text are treated as data. Every row a draft tool writes carries `made_by` (`ask` with the question's `ask_id`, or `mcp`), and To check and Activity say "Drafted by Ask" or "Drafted through MCP", and the Memory page says "Said in Ask", "Added here" or "Through MCP". Nothing is sent or paid by the agent. With no setting for a model, the Ask page names the missing `AI_` setting.
-5. **From a terminal.** An MCP client presents a token → `api_tokens` → household → the same tool catalogue and rules (the server's `instructions`) as the agent, except the two Ask-only tools (`clarify`, `out_of_scope`): where am I, what's due, draft an invoice, `what_if`, `make_canvas` (its summary text; nothing is stored or pinned from MCP), `recall` and `remember`/`forget` for a token that holds the draft scope. Each tool call writes the same kind of content-free log line. Sending still needs the tap in the app.
-6. **Typed in, or imported.** The forms for a client, a bill and a card charge post to `/api/clients`, `/api/bills` and `/api/charges`, and Home's one-line bank balance form posts to `/api/bank-balance` (`setBankBalance` writes `households.bank_balance_minor` and a `bank_balance` event with the old and new values, and Settings' balance edit calls the same function; the agent's `update_bank_balance` makes a pending `balance_updates` row that To check shows as "Bank balance → ¥X" and `confirmPending` applies through the same path); each writes a confirmed row and an event (a bill is one row with a Repeat choice, D41: `repeat_unit` `month` (the due date's day in `repeat_day`) or `year` (the due date's month and day, 29 Feb on the 28th in a common year) or null for a one-off, an optional `next_amount_minor` from `next_amount_from`, and an optional `cancel_by` that is information only; `checkSchedule` in `src/db/bills.ts` refuses a schedule that does not hang together, and the reader's review card and `add_bill` take the same fields; every bill and charge also carries a `category` key and a `business_bp` share (D46): the forms post `category`, `businessShare` and `businessPercent`, the routes refuse a key outside the list with 400, and `add_bill` and `log_charge` take `category` and `business_bp` and guess the category from the name when none is given; the agent's `add_bill` takes `repeat`, `next_amount`, `next_amount_from` and `cancel_by` (and a null amount or a null date for a bill not known yet, D55) through the same `insertBill`; `fillGap` (`src/db/bills.ts`, `kind=fill`) sets only the missing amount or date of a bill and records an event with the old estimate, waits in To check, and repeats only once confirmed) (the charge goes through the statement-charge lock), and the engine recomputes. Pots (D43) work the same way: the Plan page posts to `/api/pots` (`savePot` creates or edits a confirmed pot and records `pot_added` or `pot_updated` with old and new values) and `/api/pots/remove` (`removePot`); a bill or a card charge is removed through `/api/remove` (`removeBill`, `removeCharge`: deleted by id inside the household, a `bill_removed` or `charge_removed` event, and a confirmed charge is taken back out of the stored statement of its cycle); every typed amount is read by `lib/money/amount.ts` (thousands separators, full-width digits, at most ¥100,000,000 or $1,000,000) in the amount boxes and in `parseMinor`, and a bill or charge date may be at most two years after the household's today (`lib/money/horizon.ts`); the agent's `add_pot` makes a pending pot that To check shows as "New pot: Car, ¥1,200,000 by Mar 2027" and `confirmPending` confirms; the engine starts the runway from `availableCash` (bank + PayPal less confirmed pots) so every number agrees. An invoice with no PayPal id can be marked paid outside PayPal on its review page (`/api/invoices/paid`): the bank balance is credited at the stored FX rate and an event is recorded; PayPal-linked invoices are refused and stay with the webhook. `/api/paypal/import` lets the one non-demo household named by `PAYPAL_BALANCE_HOUSEHOLD_ID` read its sandbox merchant invoices (read-only, up to 5 pages), match clients by email and add them idempotently on `paypal_invoice_id`; already-paid invoices credit no balance.
+| Step | What runs | What is read | What is written | What the person sees |
+|---|---|---|---|---|
+| 1. Open | page → `currentHouseholdId` (auth cookie → `getUser()` → `users` → `members`; or the demo cookie → `findDemoHousehold`) → `loadWorkspaceData` | `households`; on Home `refreshPayPal` first | on Home `paypal_connections` (PayPal's status word on tracked invoices, `paypal_fetched_at`, the balance for the bound household; never an invoice's own `status`) | the page opening |
+| 2. Engine | `loadMoneyState(db, hid, today)` → `src/lib/money` | paypal_connections, bills, cards, charges (the last 62 days, `CHARGE_LOOKBACK_DAYS`), unpaid card_statements, clients, invoices, pending balance_updates, pots, members and settlements (the split), the `nudge_suggested` invoices, fx_rates (`usdRateMicro`) | nothing | — |
+| 3. Sentence | `homeSentence` and the panels | the engine's result | nothing; no AI call on open | the sentence with one action, safe to spend, Coming up, the pinned canvases, the events |
+| 4. Approve | tap → `ApiForm` POST /api/approve `{ approve_key, action: send \| remind }` → `approveInvoice` → `runTool` | the invoice by `approve_key` (locked), `SANDBOX_CLIENT_EMAIL`, the USD rate | `invoices.paypal_invoice_id`, `number`, `fx_rate_micro`, then `status = sent`, `sent_on`, `due_on`; an `invoice_sent` event; a reminder stamps `reminder_attempted_at` then `reminded_at` | redirect to /invoices/[id] |
+| 5. Webhook | PayPal POST /api/paypal/webhook → `verifyWebhook` → `applyVerifiedDelivery` (`src/lib/events.ts`) | the owning household by `paypal_invoice_id`, the owner's `paypal_connections`, fx_rates when the row has no rate | one transaction: `webhook_deliveries` (unique on `paypal_event_id`), `invoices.status = paid`, `paid_on`, the balance credit, `invoice_paid` with the bell, `pot_filled` rows | nothing yet |
+| 6. Update | `useEventFeed` polls GET /api/events | `events`, the feed summary | `events.read_at` when the bell is opened | the sentence changes; the bell counts |
+
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant A as /api/approve
+    participant P as PayPal sandbox
+    participant W as /api/paypal/webhook
+    participant D as Postgres
+    B->>A: POST approve_key, action (ApiForm)
+    A->>D: lock invoice, create or find the sandbox draft id
+    A->>P: create_invoice / search_invoicing, get_invoice, send_invoice
+    A->>D: status sent, invoice_sent event
+    A-->>B: 204 + x-form-redirect /invoices/[id]
+    P->>W: webhook (signed)
+    W->>P: verify signature
+    W->>D: webhook_deliveries, invoice paid, balance credit, pot fills, invoice_paid (one transaction)
+    B->>D: GET /api/events every 5 s while in flight
+    D-->>B: feed summary changed → refresh → the sentence changes
+```
+
+**Open the app, in detail.** The engine reads bills (a confirmed repeating bill, monthly or yearly, is expanded into its occurrences up to the end of
+the plan window, or stops after its last payment (`repeat_until`), each with the amount that applies on its date, `src/lib/money/repeat.ts`; a bill's
+cancel-by dates become `cancelNotices`, the dated rows Coming up shows next to the occurrences, so `runway.ts` is unchanged), cards, charges,
+statements, invoices, clients, pots (cash starts from `availableCash`: bank + PayPal less confirmed pots), and with two or more members the split
+(`src/lib/money/split.ts`: shared bills and charges since the last settlement, past monthly occurrences included; it moves no money in the runway).
+Home draws, between the sentence with its action and the panels, the household's pinned canvases (at most 8, drawn by the engine with `resolveRecipe`
+and no model call: `Pinned.tsx` for cloud pins, `DevicePins.tsx` through `POST /api/canvas/resolve` for pins on this device). Activity, Settings and
+Upload only need the owner, the event feed, the timezone and the pending count for their navigation; the count uses the same household and charge
+date window as To check. `refreshPayPal` (`src/db/paypal-refresh.ts`, D37) runs on Home at most every 5 minutes behind a persisted lease: it reads
+each tracked invoice (draft or sent, with a PayPal id) and, for the household bound by `PAYPAL_BALANCE_HOUSEHOLD_ID`, the balance report; a demo with
+nothing tracked makes no call; it never enumerates the merchant's invoices.
+
+**Approve, in detail.** `/api/approve` is behind `householdRequest`, the approvals limit and `env()` (which refuses anything but `SANDBOX`).
+`prepareDraft` locks the invoice by its `approve_key` (the idempotency key, D37), requires a positive USD amount and payment on receipt, finds the
+sandbox invoice by its number (`P-` plus the id in base64url, `search_invoicing`) or creates it (`create_invoice`, request id `C-<key>`), and commits
+`paypal_invoice_id`, `number`, `status = draft` and the day's USD rate before any send, so a webhook can identify the invoice even if the send times
+out. `sendInvoice` checks with `get_invoice` that the only recipient is the sandbox test client, sends (`send_invoice`, request id `S-<key>`) when
+PayPal still holds a draft, and in the same transaction sets `sent`, `sent_on`, `due_on` and records `invoice_sent`. `remind` commits
+`reminder_attempted_at` before the network call (PayPal documents no idempotent retry for it) and `reminded_at` after. Every PayPal call goes through
+`runTool` (`src/lib/paypal/toolkit.ts`): `sandbox: true`, a 20 s timeout. The engine finds the low point and ranks the options; the one action on
+Home is to invoice finished work, to nudge a late client, or the daily job's `nudge_suggested` (D50).
+
+**The webhook, in detail.** A rejected signature writes one `console.warn` with the reason and answers `{ received: false }` 400; an anonymous caller
+learns nothing. A verified delivery: the household is found by PayPal's invoice id (never a household id from PayPal); `lockRunway`;
+`recordWebhookDelivery` inserts on `paypal_event_id` (a replay stops here; a verified event that matches no household is still recorded with
+`household_id` null, so its redelivery is recognised); only `INVOICING.INVOICE.PAID` with status `PAID` goes on (PayPal also emits it for partial and
+pending payments). The invoice becomes `paid` with `paid_on` in the household's zone (a Try it household: not before its fixed date or `sent_on`); the
+owner's PayPal balance is credited in its own currency at the rate on the row (or the latest `fx_rates` on or before the date, then stored on the
+row), skipped when `balance_as_of` is already later; `invoice_paid` is recorded with the bell at PayPal's `create_time`; `fillPots` adds each
+confirmed pot's `fill_bp` of the home-currency credit and records `pot_filled`, all in the same transaction (`src/db/pots.ts`); `observeRunway`
+compares short and not-short. An invoice marked paid outside PayPal (`/api/invoices/paid`, `markPaidOutside`) credits the bank balance at the latest
+rate on or before today and fills the pots the same way; a PayPal-linked invoice is refused there and stays with the webhook (D15); a PayPal import
+credits nothing and fills nothing. Local tests inject a simulated PayPal transport and call the database handler with an already-verified event; no
+real invoice send or payment has been performed.
+
+**Updates: events, the bell and polling.** Every change is an `events` row. Rows with `notify = true` feed the bell in the top bar (unread count,
+list, `read_at`). Home and To check poll the event feed every 5 s only while the feed says something is in flight: a sent invoice with a PayPal id,
+or a document queued or being read (`eventFeed`, `src/db/event-feed.ts`). Returning focus checks the feed and refreshes the screen only when its
+summary changes. The feed's `since` cursor is the household's latest `occurred_at` from the server, never the browser's clock, and the poller compares
+the summary (count, unread, in-flight, cursor), so a change is seen even when an event's time is not after the cursor. `recordEvent` stamps a Try it
+household's events on its clock (`householdMoment` in `src/db/clock.ts`: the demo date at the current time of day in the household's zone) and a real
+household's at the database's `now()`; an explicit `occurredAt`, such as a provider's payment timestamp, is kept as given. No email, no websockets for
+Nov 12; Web Push after.
+
+### 2. The agent loop: Ask and MCP
+
+| Step | What runs | What is read | What is written | What the person sees |
+|---|---|---|---|---|
+| 1. Question | `AskPage.tsx` (/canvas; the top bar links /canvas#ask and hands a typed character over in `sessionStorage` `pes-ask-draft`) → POST /api/ask | the canvas on screen; on a device, its memory (≤ 200) and the last 3 turns ride in the body | nothing | the question in the conversation |
+| 2. Gate | `answerQuestion` (`src/db/ask.ts`) | `readPlaces`; `turnById` for a retried id; `requestCount` out-of-scope this hour | nothing | a retried id gets its saved reply; the sixth decline gets the fixed wait sentence |
+| 3. Context | `conversationContext` | the last 3 turns of the conversation when its latest is under 10 minutes old (24 hours while an attached document is queued, reading or in To check); a document turn's card as text (`cardContext`) | nothing | — |
+| 4. Model | `runAgent` → `callModel` | `MODEL_RULES` + `ASK_RULES` + `memoryContext` (≤ 6,000 characters); `aiConnection(db, hid, "text")` per call | the owner-key allowance (`ai_reads_today`) when the household has no model of its own | — |
+| 5. Tools | the catalogue over the engine | the money state, loaded once per tool turn | draft tools: pending rows in To check, an invoice draft, a memory item (`made_by = ask`, `ask_id`) | — |
+| 6. Reply kind | `chooseReply` (`reply.ts`) + `unconfirmedAmounts` | the question, this question's tool results, the memory block | nothing | — |
+| 7. Save | `saveTurn` (200 a household); `resolveRecipe` draws the canvas | `loadCanvasContext` | `conversation_turns`; the out-of-scope bucket on a decline | the reply, the canvas, "Based on", Pin to Home, thumbs |
+
+```mermaid
+flowchart LR
+    Q[Question + canvas on screen] --> G{Retried id? Five declines?}
+    G -- saved turn --> R[Reply from the stored turn]
+    G -- go --> C[Context: last 3 turns, memory, canvas as data]
+    C --> M[callModel: rules + tools, 4 tool turns, 20 s]
+    M --> T[Tools over the engine: read, draft, canvas, memory]
+    T --> M
+    M --> K[chooseReply in code: clarify, declined or answer]
+    K --> N[unconfirmedAmounts over text and canvas words]
+    N -- unconfirmed --> E[Fixed error, nothing shown]
+    N -- confirmed --> S[saveTurn, resolveRecipe draws the canvas]
+    S --> R
+```
+
+**Budgets and limits.** `MAX_TOOL_TURNS` 4, `BUDGET_MS` 20 s shared by every model call of the question, `MAX_TOKENS` 16,000, no retries (every
+attempt reserves its own allowance); the ask limit is 30 a minute; `DECLINES_PER_HOUR` is 5 (the sixth gets `FIXED.wait`, no model call, no stored
+turn, `wait: true` in the reply); a question is 1 to 320 characters; one question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`;
+`remember` and `forget` refuse the 21st in words). With no setting for a model, the Ask page names the missing `AI_` setting.
+
+**The tools (one catalogue, `src/lib/agent/tools.ts`).** Nineteen read tools return the engine's numbers, which the model quotes verbatim in one or
+two sentences: `where_am_i`, `whats_due`, `open_gaps`, `can_i_spend`, `list_clients_and_cards`, `timeline`, `options_when_short`, `list_invoices`,
+`household_snapshot`, `plan_for`, `who_owes_whom`, `month_by_category`, `search_spending`, `regular_costs`, `foreign_costs`, `what_if`, `make_canvas`,
+`recall`, `to_check`. `what_if` runs the engine on a copy of the household (`src/lib/money/whatif.ts`), so nothing is written. `make_canvas` takes a
+recipe as JSON text, checks it, has the engine fill it and returns a summary; the last valid recipe of the question becomes the reply's canvas (a
+note's `by` is forced to the assistant). `household_snapshot` gives the whole household as one JSON document for context (the most recent 100 rows of
+each long list, `SNAPSHOT_TOOL_WINDOW`; no events, no secrets). `list_clients_and_cards` and `list_invoices` return each client's usual and slowest
+days to pay. `foreign_costs` (D62, no input) returns the last twelve months of what foreign money cost: `foreignCosts` in `src/db/fx-cost.ts`
+(`foreignCostInputs` loads paid USD invoices, charges with an original amount, the cards and the household's rate history in one read-only
+transaction) over the pure engine `src/lib/money/fx-cost.ts` (`PAYPAL_RATES`, `rateOn`, `payoutFeesUsd`, `foreignCosts`, `foreignCostWords`): per
+client, PayPal Japan's receive fees and the 3% conversion markup at the rate on the invoice row; per card, each charge's cost above the reference rate
+of its date, exact when the issuer's billed amount is known, estimated from `cards.foreign_fee_bp` when `charges.fx_estimated` is true, else unknown;
+with the words of the catalogue move `jp-payout-cost` (`src/data/catalogue/jp.json`) as its guidance and /clients as its "Based on" source. Draft
+tools (`draft_invoice`, `add_bill`, `add_bills`, `log_charge`, `log_charges`, `update_bank_balance`, `add_pot`, `remember`, `forget`; the plural tools
+take 1–10 items in one transaction) save an invoice draft, a pending row in To check or a memory item, and the answer links to it; the user confirms
+bills and charges there. `log_charge` and `log_charges` take optional `original_amount` and `original_currency` (D62). `add_bill` takes `repeat`,
+`next_amount`, `next_amount_from`, `cancel_by`, `repeat_until`, `category` and `business_bp` (and a null amount or date for a bill not known yet,
+D55) through the same `insertBill` as the form; a missing category is guessed from the name. `clarify` and `out_of_scope` have scope `ask`: they end
+the question, and when one is asked for and valid it is the only call that runs. An invalid tool input comes back as "Invalid input for this tool: "
+plus the failing field paths, never the values; an `InputError` written for a person is relayed. Tool output and remembered text are treated as data.
+Every row a draft tool writes carries `made_by` (`ask` with the question's `ask_id`, or `mcp`): To check and Activity say "Drafted by Ask" or
+"Drafted through MCP", and the Memory page says "Said in Ask", "Added here" or "Through MCP". Nothing is sent or paid by the agent.
+
+**Code chooses the reply.** The model never picks the reply kind: `chooseReply` does, after the loop. `clarify` gives a clarifying question with
+2–4 choices the person can tap; `out_of_scope` (or a plain text with no tool called) gives a decline, the fixed sentence for off-topic or for
+investment, tax-filing and legal questions; anything else is an answer, which needs at least one tool and passes `unconfirmedAmounts`
+(`src/lib/ai/number-check.ts`) over the answer text and every label, note and letter on its canvas, with the question, this question's tool results
+and the memory block as sources (never an earlier reply, and never the echo of `remember`, `forget` or `make_canvas`). A failed check, or a budget,
+turn, cut-off, refusal, empty or API failure, shows a fixed sentence. **After a write tool succeeded** in the question, any `AgentError` carries what
+was kept (`saved`: `pending` and the links) and `answerQuestion` turns it into an answer: `FIXED.savedThenStopped` plus the error's sentence, the
+links (To check, the invoice draft, Memory), stored as a turn like any other, so a retry does not write twice; the log line keeps the real outcome.
+**A retried id** (the browser resent a question after a lost response): a question whose `id` is already a stored turn of the household returns that
+turn through `turnById` with its canvas drawn again, no model call, no links and no changes; the same id with other words is refused.
+
+**The turn and the page.** The turn (question, kind, reply, choices, recipe, sources) is stored in `conversation_turns` (200 a household, the oldest
+dropped, `src/db/conversation.ts`); the reply carries kind, text, choices, the canvas the engine drew, "Based on" links to the pages the tools read,
+links, `pending`, the first-use line (`firstUse(host)`, shown until the household's first answer, D60), `memoryChanges` and `wait`. The page shows
+"Pin to Home" (saves the recipe through `/api/canvases`) and two thumb buttons (`/api/ask/thumb`, a content-free line with the ids and the thumb).
+Each Ask writes one content-free JSON line to standard output (`src/lib/agent/log.ts`: household id, `ask_id`, source, reply kind, whether it had a
+canvas, last stop reason, model calls, tool names with ok and milliseconds, outcome, total milliseconds, input and output tokens, protocol and whether
+the model was the household's own; never the question, answer, arguments, results or key).
+
+**The canvas (D57).** A recipe (`src/lib/canvas/schema.ts`, version 1) is a title, an optional what-if scenario (steps: add_cost, add_income,
+change_bill, remove_bill, client_late) and 1 to 12 blocks that each hold a query, never a number: `sentence`; `number` (safe_to_spend, cash,
+low_point or month_total); `flow_chart` (flow); `timeline` (events); `table` (events, month_by_category, compare_months, spending_search or
+regular_costs); `compare` (compare_months); `progress` (safe_to_spend, cash or month_total against the person's own target); `note` (by you or the
+assistant); `letter`; `sliders` (a client's late days on the recipe's scenario); `action` (a link inside the app, never an outside address or an
+/api/ path). `resolveRecipe` runs every query through the engine on the household's state. A `flow_chart` or `timeline` block may carry `mark`, a
+stored bill's id: the chart rings the first day that bill falls on in the window (label like "Rent ¥82,000 · Nov 27", added to the aria text as
+"Marked: …") and the timeline rows of that bill get `marked` and read "This bill"; a bill not in the window (repeating bills exist only inside the
+plan window, about 30 days) draws no mark.
+
+**Memory (D58).** `MemoryItem`s (kind fact, preference, goal, instruction or correction; 1 to 400 characters; 200 a household; a long digit run is
+refused with `SECRET_REFUSAL`) live in `memories` through `src/db/memory.ts`, one function per change, each change an event with titles only.
+`memoryContext` quotes them as JSON, instructions first, within 6,000 characters. The To check card's "Also tell the assistant" box saves a correction
+as a memory item in the same transaction as the confirm (`correctionText`, `src/lib/reader/correction.ts`).
+
+**When memory or the journal is kept on this device (D59).** The question carries what the server must not keep: `memory` (at most 200 items) and
+`recent` (at most 3 turns) ride in the body; a question missing a list the household keeps on the device, or carrying one it keeps in the cloud, is
+refused in words. The server uses them for that question's system text, user turn and amount-check sources and writes nothing: no turn row, no memory
+row. `remember` and `forget` change the list in hand and come back in the reply as `memoryChanges`, which the browser applies to its own store; the
+browser saves the turn itself. A thumb is kept on the device and still writes the content-free log line. MCP `recall`, `remember` and `forget` answer
+"This household keeps its memory on one device. Ask in the app on that device." and touch nothing.
+
+**How MCP differs.** An MCP client presents a bearer token → `authenticateMcpToken` (`api_tokens`, hashed) → household; the same-origin check applies
+when an Origin header is present; the limit is 30 a minute. `mcpRequest` (`src/lib/mcp/server.ts`) builds a stateless SDK server per request with
+`MODEL_RULES` as its `instructions` and registers the catalogue minus the two Ask-only tools, and minus the draft tools unless the token holds the
+`draft` scope: where am I, what's due, draft an invoice, `what_if`, `make_canvas` (its summary text; nothing is stored or pinned from MCP), `recall`,
+`foreign_costs`, and `remember`/`forget` for a draft token. Rows it writes carry `made_by = mcp`. Each tool call writes the same kind of content-free
+log line. There is no conversation, no canvas drawing and no reply chooser; sending still needs the tap in the app.
+
+### 3. The reader loop: a bill arrives
+
+| Step | What runs | What is read | What is written | What the person sees |
+|---|---|---|---|---|
+| 1. In | /api/upload (`readUpload`), /api/inbound (the Email Worker), /api/ask/document ("Attach a bill") | the file: JPEG, PNG, WebP or PDF (magic bytes checked), or the raw email; 1 byte to 6 MiB | — | To check, or the card under the turn in Ask |
+| 2. Store | `storeDocument` (`src/db/reader-job.ts`) | — | the object at `<household>/<document id>` in the private bucket; a `documents` row (`queued`); `document_queued` | — |
+| 3. Read | `after()` → `readDocumentInBackground` → `readDocument` → `extractDocument` | the object; the household's cards and currency; `aiConnection(db, hid, need)` | `documents.status` reading → read or failed (with the reason, `document_failed` with the bell) | — |
+| 4. Propose | `proposeReadings` | `rules` by `kind:normalised name` | a `readings` row per item (`original`, `proposed`, `to_check`); a `to_check` event with the bell | the To check row and the review card |
+| 5. Checks | `checksFor` (D61) | the reading against the money state and the other waiting readings | nothing | the failed checks on the card, one question at a time |
+| 6. Confirm | `ReaderReview.tsx` / `DocumentCard.tsx` (shared `ReadingForm.tsx`) → POST /api/confirm `kind=reading` → `reviewReading` | the reading (locked), the document's kind | a `bills` or `charges` row; a `rules` upsert on a correction; a memory item with the tick; `readings.extracted.confirmed` and `targetId`; `<kind>_confirmed` | the engine recomputes; the sentence changes |
+
+```mermaid
+flowchart LR
+    U[Upload / forwarded email / attached in Ask] --> S[storeDocument: Storage object + documents row]
+    S --> R[after the response: readDocument]
+    R --> M[document model via aiConnection]
+    M --> Z[zod extractSchema: null for anything missing]
+    Z --> P[proposeReadings: rules patch, readings rows, to_check event]
+    P --> C[checksFor in code: missing, already_saved, past_due, far_from_usual, repeat_unknown]
+    C --> V[To check row or the Ask card]
+    V --> F[Confirm → reviewReading: bill or charge, rule, memory correction]
+    F --> E[Engine recomputes → the sentence changes]
+```
+
+**In, in detail.** `/api/upload` and `/api/ask/document` check the file with `readUpload` (`src/lib/reader/accept.ts`): one of `image/jpeg`,
+`image/png`, `image/webp`, `application/pdf`, its header matching (`matchesFileType`), at most 6 MiB (`MAX_DOCUMENT_BYTES`). `/api/inbound` accepts
+only the Email Worker: origin `https://worker.internal`, `INBOUND_WORKER_SECRET` compared in constant time, and the envelope recipient's 64-character
+local part on `FORWARDING_DOMAIN` resolved to a household (`householdForRecipient`); unknown addresses get 404 and the Worker rejects the mail. The
+four entry points share the uploads limit (6 a minute). The document id is a content digest of household, media type and bytes (`contentId`), so a
+redelivered email or a double upload is one document; a `failed` placeholder row is reserved before Storage is touched, so even an interrupted
+upload is removable with the household.
+
+**Read, in detail.** `readDocument` claims the row (`reading`, `processing_at`, a 90 s lease so a stale claim can be retaken), spends one of the
+document-read limit (6 a minute), downloads the object and calls `extractDocument` (`src/lib/reader/extract.ts`). A file goes to the model as
+uploaded (no server-side image or PDF processing, D32). An email is parsed with `postal-mime`: subject, date and body (text or HTML, at most 100,000
+characters) plus up to 8 supported attachments; a body alone needs the text model, anything with a file the document model. The reply is parsed
+against `extractSchema`, at most 12 items, each `{kind, name, date, amountMinor, currency, category, businessBp, cardId}` plus the repeat fields the
+reader never proposes (the user sets them on the review card); `category` is one of the fourteen keys or null; null for anything missing. A charge
+read in another currency is stored with its original amount and currency, the billed amount converted at the reference rate, and
+`charges.fx_estimated` true (D62), so `foreign_costs` estimates its cost from the card's fee instead of calling the conversion exact. No item found
+records `document_read` ("No bill or card charge found"); `/api/readings/retry` reads a failed document again. A stored rule (`rules.match_biller`,
+keyed by kind and the normalised name, D36) patches name, kind, category, business share and card before the reading is shown; the review card shows
+the Category select and the Business share control.
+
+**Checks and confirm, in detail.** The checks of D61 (`checksFor`, `src/lib/money/checks.ts`: missing, already_saved, past_due, far_from_usual,
+repeat_unknown) run on every reading and show on its card and in its To check row. `reviewReading` runs in one transaction under `lockRunway`: a
+reject marks the reading `rejected` (`reading_rejected`); a confirm writes a `bills` row (or `charges` for a card email, through the statement-charge
+lock), with a null amount or date when the user says it is not known yet (D55), links a one-off to its amount-varies series (`linkToSeries`, D54),
+upserts the `rules` row when the name, category, work share or card was changed, and with the ticked box "Also tell the assistant: …" saves the
+correction as a memory item too; `readings.extracted` gets `confirmed` and the saved row's id as `targetId`. **A file attached in Ask (D61).**
+"Attach a bill" posts the file to `/api/ask/document`, which stores it as a document of kind `upload` (the same file is one document), saves a
+`document` turn (question "Here's my bill" or what was typed, reply "Got your file. Nothing is added until you confirm.", `documentId`) and schedules
+the read after the response. The page draws `DocumentCard` under the turn and asks `GET /api/ask/document?id=` every 2 seconds while the tab is
+visible (after 60 seconds it says the file will be waiting in To check). `documentCard` (`src/db/document-card.ts`) builds the card in code with
+`buildCard`: reading, failed with the reader's own words, or each reading of the document with its read line and its failed checks, shown one
+question at a time, then Confirm, Edit and Don't add it. Confirm posts to `/api/confirm` with `from=ask` and `answered` (the check kinds the person
+answered); `reviewReading` refuses while a check the card asked is not answered, and `returnTo` sends the page back to Ask. After Confirm the card
+carries a canvas from `documentCanvas` (the sentence, the cash-flow chart and the timeline, each resolved by the engine, the bill ringed through
+`mark`), drawn each time the card is built, with no model call. The conversation context for later questions holds the card as text (`cardContext`,
+never an amount source). Deleting a document in Your data removes its object, its readings and the row; bills and charges made from it stay and lose
+the link.
+
+### 4. Typed in, or imported
+
+**The forms.** A client, a bill and a card charge post to `/api/clients`, `/api/bills` and `/api/charges`; each writes a confirmed row and an event,
+and the engine recomputes. A bill is one row with a Repeat choice (D41): `repeat_unit` `month` (the due date's day in `repeat_day`) or `year` (the
+due date's month and day, 29 Feb on the 28th in a common year) or null for a one-off, an optional `next_amount_minor` from `next_amount_from`, an
+optional `cancel_by` that is information only, and `repeat_until` for the last payment; `checkSchedule` in `src/db/bills.ts` refuses a schedule that
+does not hang together, and the reader's review card and `add_bill` take the same fields. Every bill and charge carries a `category` key and a
+`business_bp` share (D46): the forms post `category`, `businessShare` and `businessPercent`, the routes refuse a key outside the list with 400, and the
+agent's tools guess the category from the name when none is given. `fillGap` (`src/db/bills.ts`, `kind=fill`) sets only the missing amount or date
+of a bill and records an event with the old estimate; the bill waits in To check and repeats only once confirmed (D55). A charge goes through the
+statement-charge lock. **Paid in another currency (D62):** the charge form (`AddEntry.tsx`) and `/api/charges` post `originalAmount` and
+`originalCurrency` into `chargeInput` (both or neither); `insertCharge` keeps `amount` as what the issuer billed and stores `original_amount_minor`,
+`original_currency` and the issuer's own rate in `fx_rate_micro`, with `fx_estimated` false; Settings → Cards posts a "Foreign transaction fee"
+(`/api/settings`, `kind` card, `foreignFee`: 0 to 10 percent, turned into basis points by `foreignFeeBp` in `src/db/settings.ts`) into
+`cards.foreign_fee_bp`, null when not entered. Every typed amount is read by `src/lib/money/amount.ts` (thousands separators, full-width digits, at
+most ¥100,000,000 or $1,000,000) in the amount boxes and in `parseMinor`, and a bill or charge date may be at most two years after the household's
+today (`src/lib/money/horizon.ts`).
+
+**Balance, pots, people, removal.** Home's one-line bank balance form posts to `/api/bank-balance` (`setBankBalance` writes
+`households.bank_balance_minor` and a `bank_balance` event with the old and new values; Settings' balance edit calls the same function; the agent's
+`update_bank_balance` makes a pending `balance_updates` row that To check shows as "Bank balance → ¥X" and `confirmPending` applies through the same
+path). Pots (D43): the Plan page posts to `/api/pots` (`savePot` creates or edits a confirmed pot and records `pot_added` or `pot_updated` with old
+and new values) and `/api/pots/remove` (`removePot`); the agent's `add_pot` makes a pending pot that To check shows as "New pot: Car, ¥1,200,000 by
+Mar 2027" and `confirmPending` confirms; the engine starts the runway from `availableCash` (bank + PayPal less confirmed pots) so every number
+agrees. People and settlement (D45): `/api/people` adds, renames and sets shares; `/api/settle` records a transfer in `settlements`. A bill or a
+card charge is removed through `/api/remove` (`removeBill`, `removeCharge`: deleted by id inside the household, a `bill_removed` or
+`charge_removed` event, and a confirmed charge is taken back out of the stored statement of its cycle). `confirmPending` (`src/db/confirm.ts`)
+confirms the agent's pending bill, charge, balance or pot from To check.
+
+**A statement CSV (D53).** The browser reads the file (`src/lib/import/csv.ts`, at most 1 MB: UTF-8 or Shift_JIS, the header found, the date, name
+and amount columns guessed from their words and changeable, each row a charge, a skipped credit or an unreadable row with the reason) and posts JSON
+rows (date, merchant, amount, category) to `/api/import`, 500 rows a post, for one card; `importCharges` checks every row again, skips a row already
+on that card (same date, amount, name), inserts the rest `made_by = import` and records one `charges_imported` event; stored card statements are
+left alone (the issuer's total already counts them).
+
+**PayPal history.** `/api/paypal/import` lets the one non-demo household named by `PAYPAL_BALANCE_HOUSEHOLD_ID` read its sandbox merchant invoices
+(`readMerchantInvoices`, read-only, up to 5 pages of 100), match clients by email and add them idempotently on `paypal_invoice_id`; any other
+household is refused; already-paid invoices credit no balance.
+
+### 5. The daily loop
+
+| Step | What runs | What is read | What is written |
+|---|---|---|---|
+| 1. Trigger | the Cron Trigger → GET /api/cron with `Bearer CRON_SECRET` (compared in constant time; no secret configured refuses everything); `worker.ts` logs the status | — | — |
+| 2. Sweep | `sweepDemoHouseholds` (D49), before anything else so it runs even without `CRON_HOUSEHOLD_IDS` | demo households created and unchanged (no event) for 7 days, oldest first, up to 200 a run | each deleted in its own transaction (`deleteDemoHousehold`: Vault key, Storage objects, the row; cascades take the rest); failures counted and logged |
+| 3. Households | `runDaily` for each id in `CRON_HOUSEHOLD_IDS` (missing or invalid → 503 naming it) | the household, its clock, the money state | the household row is locked for the run |
+| 4. Rate | `fetchReferenceRate` for a real JPY household | the ECB daily XML (10 s timeout) | one `fx_rates` row (USD → JPY, dated; on conflict nothing); demo FX stays fictional |
+| 5. Statements | `closingOnOrAfter`, `cycle` | each card closing today with an open total | a `card_statements` row (unique per card and closing day) |
+| 6. Reminders | `dueItems`, `medianLow` | bills due in 3 days; sent invoices past the client's usual days to pay | one `daily_reminder` event a day ("Money reminders · <date>", with the bell) |
+| 7. Nudges | `suggestNudges` (D50) when `nudge_after_days` is set | sent, unreminded invoices that many days past their due date (the expected date when they have none) | one `nudge_suggested` per invoice, `made_by = cron`, with the bell, never twice |
+
+The job never calls PayPal: Home shows the nudge as its one action until the user taps through the approve route. `observeRunway` runs before and
+after, so a change from short to fine (or back) is recorded. A late charge confirmation and statement closing share the household lock so neither
+can drop or double-count the charge. The engine treats a card's stored statements as everything up to the latest one's `closedOn`; confirmed charges
+after that line are grouped by the cycle they close in, so a cycle that has closed with no stored statement (a closing day that was changed, a
+missed close) is a computed closed statement due on `dueDateFor`, and the cycle still open is the open one (`statementItems` in `runway.ts`).
+
+## Data: where it lives and how it is shared
+
+One list of kinds (`DATA_KINDS` in `src/db/data-kinds.ts`: record, memory, canvases, journal, documents) with the same operations for each: count,
+delete one, delete all (D59). The table below is every kind of stored data, those five and the rest.
+
+| Kind of data | Where it is stored | What scopes it | Who can read it | How it leaves |
+|---|---|---|---|---|
+| The household row: name, time zone, currency, bank balance, demo flag and fixed date, forwarding local part, nudge rule, `split_since`, the three places, the `ai_*` connection columns, `ai_reads_today` | `households` | its id | the signed-in members and a Try it cookie; the family link viewer sees the sentence; the export carries name, currency, time zone, balance and today | Delete everything (`/account` → `/api/household`), Reset, the demo sweep; Import keeps the household's own name, zone, currency and rate |
+| The record: `members`, `clients`, `invoices`, `bills`, `cards`, `card_statements`, `charges`, `pots`, `settlements`, `balance_updates` | their tables | `household_id` (every foreign key is a `(household_id, id)` pair, so another household's row cannot be referenced) | members and Try it; an MCP token (the read tools); the family link viewer (shared bills, the month, who owes whom, no actions); the export; the `household_snapshot` tool | export; Import into an empty household (new ids, `made_by = import`, no PayPal invoice ids); the remove routes; with the household |
+| The PayPal connection: balance, as-of, merchant, `environment = SANDBOX` | `paypal_connections` | `household_id` and the owner member | members; the export carries the balance and its currency only | with the household |
+| Documents: the files and their readings | the object at `<household id>/<document id>` in the private bucket; `documents`, `readings`, `rules` | `household_id` and the path prefix (checked on every removal) | members and Try it; the model provider receives the bytes to read them | Your data (the object, the readings, the row; bills and charges keep their rows and lose the link); with the household; never in the export |
+| Memory: what the assistant remembers | `memories` (200 items, 400 characters), or the `memory` store of IndexedDB `pes-device-<household id>` | `household_id`, or the device | members and Try it; the agent's system text; MCP `recall` (and `remember`/`forget` with the draft scope) in the cloud only | export (from a device only when exported on that device); Import; Your data delete; Forget everything; `/api/data/move`; with the household |
+| Canvases: the pins on Home | `canvases` (at most 8), or the `canvases` store on the device | `household_id`, or the device | members and Try it on Home; never MCP | export; Import; unpin; Your data; `/api/data/move`; with the household |
+| The journal: Ask conversations | `conversation_turns` (200), or the `journal` store on the device | `household_id`, or the device | members and Try it; the agent's context (the last 3 turns, with the attached documents' cards) | export; Import; Delete this conversation; Your data; `/api/data/move`; with the household |
+| Events: the audit trail and the bell | `events` | `household_id` | members and Try it (Activity, the bell, `/api/events`); the export | with the household; the export; never imported (the trail starts again) |
+| Webhook deliveries | `webhook_deliveries` (`payload` holds the invoice id and PayPal's create time) | PayPal's event id, unique across households; `household_id`, null for an event that matched no household | GET `/api/paypal/webhook` lists the caller's deliveries without the payload | with the household; never in the export |
+| Rate-limit counters | `request_buckets` (one row per household and purpose; a window reuses its row) | `household_id` and purpose | nobody | with the household |
+| MCP tokens | `api_tokens`: the hash, the last four characters, name, scopes (`read`, `draft`), revoked and last-used times | the token's hash | whoever holds the token acts as its household; Settings lists name, scopes and last four | revoke; with the household; never in the export |
+| Family links | `family_links`: the SHA-256 of the token, who made it, expiry (seven days of real time), stopped time | the token's hash | anyone with the link, read-only, until it expires or is stopped ("This link has ended") | stop; expiry; with the household; never in the export |
+| Reference rates | `fx_rates` (household, date, base, quote, `rate_micro`) | `household_id` | the engine; the export's household block carries the USD rate and its day | with the household |
+| The household's own model key | Supabase Vault (`households.ai_key_secret_id` points at it); `ai_key_hint` is an ellipsis and the last four characters | the household | read inside a transaction immediately before each model call; never shown again | Settings → Your AI model → default (`deleteHouseholdKey`); Reset; deletion; never in the export or the snapshot tool |
+| Identities | `users` (auth user id → member), `members` | `household_id`, `auth_user_id` unique | the export carries members' names, roles and shares, never auth ids | with the household |
+| Sessions | browser cookies: Supabase `pes-auth` (30 days), `household` (a demo UUID, 30 days), `upgrade-demo` (1 hour) | the browser | — | logout; deletion clears them |
+
+**Export and Import (D44, D59).** `loadHouseholdSnapshot` (`src/db/snapshot.ts`) is the only builder: one read transaction, `requireHousehold`,
+named columns (it never selects a secret or pointer column), and it parses its own result. `/api/export` (a POST form, so nothing is in a URL)
+downloads the version 2 snapshot with `events`, `memory`, `canvases` and `journal`; `ExportData.tsx` adds this device's items to the file in the
+browser before it is saved when a kind is kept on the device. `/api/restore` reads a version 2 file (at most 1 MB) into a household that has nothing
+in it yet (`restoreHousehold`): the file's ids are mapped to new ones, the owner becomes the household's own owner, every row is `made_by = import`,
+one `household_imported` event is recorded; it refuses a truncated file, a version 1 file, another currency, more memory, pins or turns than the app
+keeps, a memory item with a long number, and any household that keeps a kind on the device. Not restored, on purpose: events, documents, the PayPal
+invoice ids, and the household's own name, zone, currency and rate. The file and the `household_snapshot` tool never carry the AI key or its Vault
+id, auth ids, MCP token data, webhook payloads, storage paths or document files.
+
+**Moving a kind (D59).** `households.memory_place`, `canvas_place` and `journal_place` say where each is kept (`cloud` or `device`, migration
+0022; `src/db/place.ts`). To the device is two steps: `read` hands the browser the items, the browser stores them in IndexedDB (`src/lib/store/device.ts`,
+one database per household, one object store per kind, every call in try/catch), then `to_device` sends the ids back and the server deletes its copies
+and sets the place in one transaction (nothing moves if the cloud now holds other ids). Back to the cloud, `to_cloud` posts the items; each is checked
+against its schema, inserted with its id, and the place is set. `requireCloud` refuses a cloud write for a kind kept on the device, so a kind is never
+in both places. On the device the server holds none of it and cannot see it, other devices and MCP see none of it, and clearing the browser deletes it.
+Events record that data was deleted (`data_deleted`), moved (`data_moved`) or imported (`household_imported`), never its content.
+
+### The tenant wall
+
+The app connects as the database owner through `DATABASE_URL`. RLS is enabled on every table with no policies, which guards Supabase's REST path only
+(the app does not use it). The effective wall is the household-scoped data layer: `requireHousehold()` in `src/db/household.ts` throws without a
+household id, every table except `households` carries `household_id` with an index and a cascade, and child rows reference `(household_id, id)` pairs.
+
+### Identities
+
+Try it visitor: a UUID in an httpOnly cookie, a bearer for that demo household (`findDemoHousehold`); Try it makes an anonymous session with its own
+fictional household (Ben's, on its fixed date, D51) or a blank one (Start with my numbers, D47). Signed-in person: email → magic link (PKCE, the
+callback at the required `APP_URL`) → callback → Supabase auth cookies (`pes-auth`, 30 days, refreshed in middleware, `getUser()` per request) →
+`users` → `members` → household; a Try it household can be upgraded through sign-in (`upgrade-demo`, one hour). MCP client: a token hashed in
+`api_tokens`, scoped and revocable. Family view: a random token in the link, hashed in `family_links`, valid seven days of real time and stoppable
+(D52). Cron: `CRON_SECRET`, compared in constant time. Email Worker: `INBOUND_WORKER_SECRET` and the internal origin. PayPal: the webhook signature.
+Demo households are rate-capped and the daily job deletes those quiet for seven days (D49).
+
+### Credentials, three classes
+
+(a) Owner secrets: `.env.local` locally and Workers secrets in production (encrypted, write-only). (b) A household's own model (D56, D33): the
+provider, protocol, address and model names are columns on `households` (`ai_provider`, `ai_protocol`, `ai_base_url`, `ai_text_model`,
+`ai_document_model`, `ai_check`); the key is in Supabase Vault (`households.ai_key_secret_id`), read inside a transaction immediately before each
+model call; `ai_key_hint` holds an ellipsis and the last four characters only. The address passes `checkBaseUrl` when it is saved and again on every
+call. Vault keeps the key out of plain dumps, but anyone holding `DATABASE_URL` can read `vault.decrypted_secrets`. A saved key that cannot be read is
+never replaced by another key. A question or document travels to the host Settings shows; with no model of its own, to the host of `AI_BASE_URL`
+under the owner's key, and every default-key attempt reserves one unit of the household's daily allowance first (`AI_DAILY_LIMIT`, reset at local
+midnight, D33). Saving a model runs `checkConnection` (uses_tools, ignores_injection, stays_on_money) and stores the result in `ai_check`. MCP
+tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
+
+### What is held, and for how long
+
+Most sensitive first: raw forwarded emails and receipts in the private bucket (kept indefinitely); the last 200 questions and replies of a household
+(`conversation_turns`, with their canvases and thumbs) and what the assistant remembers (`memories`), both removed with the household, or deleted on
+their own in Settings → Your data (or kept on one device, where the server holds neither); `webhook_deliveries` (the invoice id and PayPal's create
+time, kept indefinitely); balances, bills, charges including `place`, `readings.extracted`; clients' names and emails (third-party data); invoice
+items and notes, member display names, the forwarding address. The user can download everything the app holds about their household, minus secrets
+and files, as one JSON file with Export my data, and can bring it back with Import into an empty household.
+
+### Logs
+
+The app writes six `console` lines in total: the webhook rejection reason, the cron status in `worker.ts`, the demo sweeper's failure count, the
+agent and MCP log line (`logCall`), the thumb line with the ids and the thumb only, and one dev-only catalogue warning; user-facing errors are fixed
+strings. Platform logs exist outside the app: Cloudflare request logs, Supabase Postgres, Auth and Storage logs, the model provider's and PayPal's
+request logs. `events` is the user's audit trail; there is no operator log yet.
+
+### Backups and migrations
+
+No automatic database backups are configured; the person's own backup is Export my data, and Import brings that file back into an empty household.
+What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from
+the owner's machine with `npm run db:migrate`, separately from deploys; 0024 (`cards.foreign_fee_bp`, `charges.fx_estimated`) is the latest.
+
+### Not limited yet
+
+There is no app-wide AI spend budget and no per-IP limit on `/api/try` or `/api/auth/link`.
+
+### Environments
+
+One Supabase project and one PayPal sandbox app serve both local development and the future deployment.
+
+### Reset and deletion
+
+Reset (`/api/try/reset`), sign-in upgrade, Delete everything (`deleteOwnedHousehold`, the signed-in owner of a non-demo household) and the demo
+sweep lock the household before removing its Vault key (`deleteHouseholdKey`) and private Storage objects (`removeHouseholdDocuments`), then delete
+the row; the schema's cascades remove everything else. Database pointers remain when cleanup fails so a retry can finish. Storage removal is
+idempotent and external to the Postgres transaction; a later database rollback can leave an object already removed, and retrying cleanup handles
+that state. Deletion also clears this browser's session cookies.
+
+The hardening checklist is phase J in PLAN.md; it is the last build stage by the owner's decision (D38).
 
 ## Rules the wiring enforces
 
 - The browser is never trusted for payment state; only a verified webhook marks an invoice paid.
-- The agent and the MCP server share one catalogue of draft and read tools; send tools exist in one place, `/api/approve`, behind the user's tap (D12; the lint rule is in `eslint.config.mjs`).
+- The agent and the MCP server share one catalogue of draft and read tools; send tools exist in one place, `/api/approve`, behind the user's tap
+  (D12; the lint rule in `eslint.config.mjs` fails any other import of `runTool` or `deleteSmokeDraft`).
 - Every table carries `household_id`; the data layer (`requireHousehold()` in `src/db/household.ts`) refuses a query without one.
 - Money is integers in minor units with a currency; the FX rate used is stored on the row.
-- Every PayPal call stops with a clear error unless `PAYPAL_ENVIRONMENT` is `SANDBOX` (`env()` in `src/lib/env.ts`, read on first use).
-- Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10, uploads and retries 6, document reads 6, PayPal import 2, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30, AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10; declined questions 5 an hour (the sixth gets a fixed sentence with no model call). Try it is capped across the app at 60 new demo households an hour.
-- The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB and `/api/canvas/resolve` caps its body in bytes; sign-in links return to the required `APP_URL`, never to the request's Origin header.
+- Every model call goes through `src/lib/ai` (D56): lint fails a model SDK import anywhere else, and in `src/app/api/approve/route.ts`.
+- Every PayPal call stops with a clear error unless `PAYPAL_ENVIRONMENT` is `SANDBOX` (`env()` in `src/lib/env.ts`, read on first use);
+  `paypal_connections.environment` is checked to be `SANDBOX` in the schema.
+- Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10, uploads and retries 6, document reads 6,
+  PayPal import 2, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
+  AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10; declined questions 5 an hour
+  (the sixth gets a fixed sentence with no model call). Try it is capped across the app at 60 new demo households an hour.
+- The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB, `/api/ask` at
+  128 KiB, `/api/canvas/resolve` at 100,000 bytes, `/api/data/move` at 2 MB and `/api/restore` at 1 MB; sign-in links return to the required
+  `APP_URL`, never to the request's Origin header.
 - No server-side image or PDF processing (Workers' CPU budget); files go to the model as uploaded.
-- **One household schema (D44).** `HouseholdSnapshot` (`src/lib/schema/household.ts`, strict zod, version 2) is the one description of a household: money as integer minor units plus currency, dates as ISO strings, ids as UUIDs. `loadHouseholdSnapshot` (`src/db/snapshot.ts`) is the only builder: one read transaction, `requireHousehold`, named columns (it never selects a secret or pointer column), and it parses its own result. The export route, the `household_snapshot` tool and the files in `schema/` (`household.v2.json`, `recipe.v1.json`, `memory.v1.json`, `turn.v1.json`, `cash-flow-event.v1.json`, generated by `npm run schema`, each checked for drift by `db:snapshot-test`) all come from the zod definitions. Version 2 keeps every version 1 field and adds `memory`, `canvases` and `journal` to the export only, like `events`; the `household_snapshot` tool stays the record. `CashFlowEvent` (`src/lib/schema/cash-flow.ts`, version 1) is one dated in or out as `timeline()` returns it; the `timeline` tool's items carry its `direction` and parse against it. Its household block carries the PayPal balance and the USD rate (with its day) from the same functions `loadMoneyState` uses (`paypalTotalMinor`, `usdRate`), so the agent sees total cash and an export needs nothing else to be read.
-
-## Foundation: trust, credentials, data, logs
-
-- **Tenant wall.** The app connects as the database owner through `DATABASE_URL`. RLS is enabled on every table with no policies, which guards Supabase's REST path only (the app does not use it). The effective wall is the household-scoped data layer above.
-- **Identities.** Try it visitor: a UUID in an httpOnly cookie, a bearer for that demo household (`findDemoHousehold`); Try it makes an anonymous session with its own fictional household. Signed-in person: email → magic link → callback → Supabase auth cookies (`pes-auth`, 30 days, refreshed in middleware, `getUser()` per request) → `users` → `members` → household; a Try it household can be upgraded through sign-in. MCP client: a token hashed in `api_tokens`, scoped and revocable. Family view: a random token in the link, hashed in `family_links`, valid seven days of real time and stoppable (D52). Cron: `CRON_SECRET`, compared in constant time. Email Worker: `INBOUND_WORKER_SECRET`. PayPal: the webhook signature. Demo households are rate-capped and the daily job deletes those quiet for seven days (D49).
-- **Credentials, three classes.** (a) Owner secrets: `.env.local` locally and Workers secrets in production (encrypted, write-only). (b) A household's own model (D56, D33): the provider, protocol, address and model names are columns on `households` (`ai_provider`, `ai_protocol`, `ai_base_url`, `ai_text_model`, `ai_document_model`, `ai_check`); the key is in Supabase Vault (`households.ai_key_secret_id`), read inside a transaction immediately before each model call; `ai_key_hint` holds an ellipsis and the last four characters only. The address passes `checkBaseUrl` on every call. Vault keeps the key out of plain dumps, but anyone holding `DATABASE_URL` can read `vault.decrypted_secrets`. A saved key that cannot be read is never replaced by another key. A question or document travels to the host Settings shows; with no model of its own, to the host of `AI_BASE_URL` under the owner's key, and every default-key attempt reserves household quota first (D33). MCP tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
-- **Five kinds of stored data (D59), where each is kept.** One list of kinds (`DATA_KINDS` in `src/db/data-kinds.ts`) with the same operations for each: count, delete one, delete all. The **record** (everything the engine reads, with Activity events) is in our cloud, Supabase Tokyo, and "Delete everything" (a link to `/account`) is its delete. **Documents** (uploaded and forwarded files with their readings) are in our cloud; deleting them removes the file from Storage and the readings still waiting in To check, and confirmed bills and charges stay. **Memory** (`memories`), **canvases** (`canvases`, the pins) and the **journal** (`conversation_turns`, the turns only) are in our cloud by default or kept on this device only: `households.memory_place`, `canvas_place` and `journal_place` say which (`cloud` or `device`, migration 0022; `src/db/place.ts`). On the device they live in the browser's IndexedDB (`pes-device-<householdId>`, `src/lib/store/`), the server holds none of them and cannot see them, other devices and MCP see none of it, and clearing the browser deletes it. Moving a kind is `/api/data/move`. Export from a device adds the device's items to the file in the browser before it is saved (`ExportData.tsx`); Import is refused while any kind is kept on the device. Events record that data was deleted (`data_deleted`), moved (`data_moved`) or imported (`household_imported`), never its content. What Import restores and what it leaves out: D44.
-- **Data held, most sensitive first.** Raw forwarded emails and receipts in the private bucket (kept indefinitely); the last 200 questions and replies of a household (`conversation_turns`, with their canvases and thumbs) and what the assistant remembers (`memories`), both removed with the household, or deleted on their own in Settings → Your data (or kept on one device, where the server holds neither); `webhook_deliveries.payload` (full PayPal JSON, kept indefinitely); balances, bills, charges including `place`, `readings.extracted`; clients' names and emails (third-party data); invoice items and notes, member display names, the forwarding address. The user can download everything the app holds about their household, minus secrets and files, as one JSON file with Export my data (`/api/export`, D44), and can bring it back with Import into an empty household (`/api/restore`); that file and the `household_snapshot` tool never carry the AI key or its Vault id, auth ids, MCP token data, webhook payloads, storage paths or document files.
-- **Logs.** The app writes six `console` lines in total (the webhook rejection reason, the cron status in `worker.ts`, the demo sweeper's count, the agent log line, the thumb line with the ids and the thumb only, and one dev-only catalogue warning); user-facing errors are fixed strings. Platform logs exist outside the app: Cloudflare request logs, Supabase Postgres, Auth and Storage logs, the model provider's and PayPal's request logs. `events` is the user's audit trail; there is no operator log yet.
-- **Backups and migrations.** No automatic database backups are configured; the person's own backup is Export my data, and Import (`/api/restore`) brings that file back into an empty household. What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from the owner's machine with `npm run db:migrate`, separately from deploys.
-- **Not limited yet.** There is no app-wide AI spend budget and no per-IP limit on `/api/try` or `/api/auth/link`.
-- **Environments.** One Supabase project and one PayPal sandbox app serve both local development and the future deployment.
-
-The hardening checklist is phase J in PLAN.md; it is the last build stage by the owner's decision (D38).
-
-## The daily job and deletion
-
-The daily route requires `CRON_SECRET` and an explicit `CRON_HOUSEHOLD_IDS` list. It processes each configured household in its timezone, saves dated ECB cross-rate snapshots for real JPY households, closes statements and records due-date reminders and, when a household has set `nudge_after_days` (D50), records one `nudge_suggested` event per sent, unreminded invoice that is that many days past its due date (its expected date when it has none), made by `cron`, never twice for one invoice; the job never calls PayPal, and Home shows the nudge as its one action until the user taps through the approve route. Empty configuration fails clearly. Demo FX stays fictional. A late charge confirmation and statement closing share the household lock so neither can drop or double-count the charge. The engine treats a card's stored statements as everything up to the latest one's `closedOn`; confirmed charges after that line are grouped by the cycle they close in, so a cycle that has closed with no stored statement (a closing day that was changed, a missed close) is a computed closed statement due on `dueDateFor`, and the cycle still open is the open one (`statementItems` in `runway.ts`).
-
-Reset, sign-in upgrade and deletion lock the household before removing its Vault key and private Storage objects. Database pointers remain when cleanup fails so a retry can finish. Storage removal is idempotent and external to the Postgres transaction; a later database rollback can leave an object already removed, and retrying cleanup handles that state.
+- **One household schema (D44).** `HouseholdSnapshot` (`src/lib/schema/household.ts`, strict zod, version 2) is the one description of a
+  household: money as integer minor units plus currency, dates as ISO strings, ids as UUIDs. The export route, the `household_snapshot` tool and
+  the files in `schema/` (`household.v2.json`, `recipe.v1.json`, `memory.v1.json`, `turn.v1.json`, `cash-flow-event.v1.json`, generated by
+  `npm run schema`, each checked for drift by `db:snapshot-test`) all come from the zod definitions. Version 2 keeps every version 1 field and adds
+  `memory`, `canvases` and `journal` to the export only, like `events`; a card's `foreignFeeBp` and a charge's `fxEstimated` are optional, so older
+  files still import (D62); the `household_snapshot` tool stays the record. `CashFlowEvent` (`src/lib/schema/cash-flow.ts`, version 1) is one dated
+  in or out as `timeline()` returns it; the `timeline` tool's items carry its `direction` and parse against it. The household block carries the
+  PayPal balance and the USD rate (with its day) from the same functions `loadMoneyState` uses (`paypalTotalMinor`, `usdRate`), so the agent sees
+  total cash and an export needs nothing else to be read.

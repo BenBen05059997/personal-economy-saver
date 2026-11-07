@@ -17,14 +17,14 @@ const raw: Record<Region, unknown> = { JP: jpData, US: usData };
 const parsed: Partial<Record<Region, Move[]>> = {};
 
 // Parsed once per region; a malformed catalogue throws with the zod path so it is caught in dev.
-export function catalogue(region: Region): Move[] {
+function catalogue(region: Region): Move[] {
   return (parsed[region] ??= Catalogue.parse(raw[region]));
 }
 
 const DAY = 86_400_000;
 
 // Days from today to the next occurrence of the deadline (0 = today), or undefined if it has passed.
-export function dueInDays(deadline: Deadline, today: string): number | undefined {
+function dueInDays(deadline: Deadline, today: string): number | undefined {
   const t = Date.parse(today);
   if (deadline.date) {
     const d = Math.round((Date.parse(deadline.date) - t) / DAY);

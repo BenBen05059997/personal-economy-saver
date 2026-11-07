@@ -8,10 +8,10 @@ import { businessPart, CATEGORIES, categoryLabel, type CategoryKey } from "./cat
 import { allUncounted, monthBounds, monthName, spendingItems, type SpendingInput } from "./spending";
 
 /** D52: whose an item is: a member's id, or null for Shared (a bill with no owner, a charge marked shared or on a card nobody owns). */
-export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; ownerId: string | null; estimated?: true; uncounted?: true /* D55: amount not known: amountMinor is 0 and means nothing */ };
+type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; ownerId: string | null; estimated?: true; uncounted?: true /* D55: amount not known: amountMinor is 0 and means nothing */ };
 /** D52: a total split by whose it is. `byMember` has one entry per household member, in member order. */
 export type WhoseTotals = { sharedMinor: number; byMember: { id: string; minor: number }[] };
-export type MonthCategory = {
+type MonthCategory = {
   category: CategoryKey;
   label: string;
   totalMinor: number;

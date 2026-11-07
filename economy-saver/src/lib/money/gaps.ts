@@ -25,7 +25,7 @@ export const GAP_HISTORY = 3;
 /** A gap is urgent when it is due within this many days (an overdue one included). */
 export const URGENT_DAYS = 3;
 
-export type GapEstimate = { averageMinor: number; lowMinor: number; highMinor: number; count: number };
+type GapEstimate = { averageMinor: number; lowMinor: number; highMinor: number; count: number };
 
 /**
  * The estimate from real bills: the last `GAP_HISTORY` amounts by due date (ties by amount), strictly before `before` when it is
@@ -88,7 +88,7 @@ export type Gap = {
 };
 
 /** A reading waiting in To check, as far as gaps look at it: its proposed fields. */
-export type GapReading = { id: string; value: { kind: "bill" | "charge"; name: string | null; date: string | null; amountMinor: number | null; currency: Currency | null; category: CategoryKey | null } };
+type GapReading = { id: string; value: { kind: "bill" | "charge"; name: string | null; date: string | null; amountMinor: number | null; currency: Currency | null; category: CategoryKey | null } };
 
 const storedId = (id: string) => id.split("@")[0];
 const inWindow = (state: MoneyState, date: string) => { const i = daysBetween(state.today, date); return i >= 0 && i < WINDOW_DAYS; };

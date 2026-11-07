@@ -43,7 +43,7 @@ async function vaultKey(tx: Db, hid: string): Promise<string | null> {
 }
 
 /** Which model the caller will use; the setting is checked before any allowance is reserved. */
-export type ModelNeed = "text" | "document";
+type ModelNeed = "text" | "document";
 
 const NO_MODEL = (need: ModelNeed) => new AiKeyError(`Your AI model has no model for ${need === "text" ? "questions" : "documents"}. Choose one in Settings.`);
 
@@ -96,7 +96,7 @@ export async function aiConnection(db: Db, householdId: string, need: ModelNeed,
   }
 }
 
-export type ConnectionInput = {
+type ConnectionInput = {
   provider: string; baseUrl: string; textModel: string; documentModel: string; sameForDocuments: boolean; key: string;
 };
 type CheckFn = (connection: Connection) => Promise<ConnectionCheck>;
@@ -211,7 +211,7 @@ export async function deleteHouseholdConnection(db: Db, householdId: string) {
   }
 }
 
-export type ConnectionView = {
+type ConnectionView = {
   provider: string; label: string; host: string; baseUrl: string; textModel: string | null; documentModel: string | null;
   sameForDocuments: boolean; hint: string | null; tested: boolean; check: ConnectionCheck | null;
 };

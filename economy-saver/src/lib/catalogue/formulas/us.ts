@@ -280,7 +280,7 @@ export const usFormulas: Record<string, Formula> = {
       if (daysBetween(c.today, IRS_2023_REFUND_EXPIRY) < 0) return "the 2023 refund window has closed";
       return p.yearsFreelancing >= 3 ? true : "tax year 2023 was before you started";
     },
-    value: (p, c) =>
+    value: (_p, c) =>
       value(
         UNCLAIMED_REFUND_MEDIAN,
         "once",

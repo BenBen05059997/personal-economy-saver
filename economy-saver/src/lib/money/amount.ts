@@ -10,7 +10,7 @@ export const AMOUNT_LIMIT: Record<"JPY" | "USD", number> = { JPY: 100_000_000, U
 
 const SHAPE = /^(-?)(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?$/;
 
-export type ReadAmount = { minor: number } | { problem: string };
+type ReadAmount = { minor: number } | { problem: string };
 
 /** The message for an amount over the limit: "Enter an amount up to ¥100,000,000". */
 export function limitMessage(currency: "JPY" | "USD"): string {

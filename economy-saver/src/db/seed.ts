@@ -8,7 +8,7 @@ import { DEMO_DATE } from "./clock";
 import { toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
 
-export type SeedOptions = {
+type SeedOptions = {
   isDemo?: boolean; // true for demo households, including every Try-it copy
   name?: string;
 };
@@ -137,6 +137,7 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
         limitMinor: c.limit === undefined ? null : toMinor(c.limit, home),
         currency: home,
         revolving: c.revolving,
+        foreignFeeBp: c.foreignFeeBp ?? null,
       }))),
       tx.insert(s.invoices).values([
         ...history,

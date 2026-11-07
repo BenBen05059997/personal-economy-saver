@@ -9,7 +9,7 @@ export function expectsClientPayment(state: MoneyState, days = WINDOW_DAYS) {
   return arrivals(state).some(arrival => daysBetween(state.today, arrival.expectedOn) < days);
 }
 
-export type SentenceParts = {
+type SentenceParts = {
   lead: string;
   emphasis: string;
   /** lead + " " + emphasis: what Ask, the runway events and the LINE message say. */
@@ -38,7 +38,7 @@ function parts(leadParts: SentenceParts["leadParts"], before: string, on: string
   };
 }
 
-export function composeSentence(safe: SafeToSpend, usualLow: LowPoint, currency: Currency, clientsExpected = true, known: readonly { id: string; name: string }[] = []): SentenceParts {
+function composeSentence(safe: SafeToSpend, usualLow: LowPoint, currency: Currency, clientsExpected = true, known: readonly { id: string; name: string }[] = []): SentenceParts {
   const amount = (value: number) => money(Math.abs(value), currency);
   const on = (point: LowPoint) => "on the " + ordinal(Number(point.date.slice(-2)));
   if (safe.low.amount >= 0) {
@@ -70,7 +70,7 @@ export function composeSentence(safe: SafeToSpend, usualLow: LowPoint, currency:
 }
 
 /** D47: nothing to forecast (no confirmed bill, no confirmed card charge, no closed statement, no invoice still to be paid): pending items count for nothing, as everywhere else. */
-export function hasNothingToForecast(state: MoneyState) {
+function hasNothingToForecast(state: MoneyState) {
   return !state.bills.some(bill => bill.status === "confirmed")
     && !state.charges.some(charge => charge.status === "confirmed")
     && state.statements.length === 0

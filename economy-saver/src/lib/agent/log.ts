@@ -4,7 +4,7 @@
 // through here so tests can capture it.
 export type ToolLog = { name: string; ok: boolean; ms: number };
 
-export type CallLog = {
+type CallLog = {
   at: "ask" | "mcp";
   householdId: string;
   askId?: string;
@@ -23,7 +23,7 @@ export type CallLog = {
   own?: boolean;
 };
 
-export type ThumbLog = { at: "thumb"; householdId: string; askId: string; thumb: "up" | "down" | null };
+type ThumbLog = { at: "thumb"; householdId: string; askId: string; thumb: "up" | "down" | null };
 
 export function logThumb(entry: ThumbLog): void {
   console.info(JSON.stringify(entry));

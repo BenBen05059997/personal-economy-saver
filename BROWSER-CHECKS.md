@@ -33,7 +33,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 
 - A1. Open `/` with no session → the landing page offers Try it and sign-in by email.
 - A2. Try it → Home in ≤ 1.5 s with the expected sentence and numbers above, and under the sentence the quiet line "A fictional household that lives in this browser. Start with my numbers ›" (a link to `/start`). A signed-in account never shows that line.
-- A3. Every sidebar link (Home, To check, Activity, Cards, Clients, Plan, Settings) opens its page; on a phone the menu opens and closes them.
+- A3. Every sidebar link (Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Settings) opens its page; on a phone the menu opens and closes them.
 - A4. The bell shows the unread count; opening it lists the events; Mark read clears the count ("You're caught up").
 - A5. Needs a working magic link: sign in by email → onboarding (name, timezone, bank balance, one card) → your own sentence; a Try it household is upgraded, not lost.
 
@@ -99,7 +99,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 - I1. Household name and bank balance save and stay after a reload; the bank balance shows on Home.
 - I2. Add a card, edit a card's closing and due days → Home's card rows follow. Change Card A's closing day from 31 to 10 → Card A still reads ¥86,450 owed now and ¥413,550 limit left, the sentence and safe to spend do not move, and Coming up gains no new row inside 30 days (the Nov 4 and Nov 9 charges, ¥22,050, are a statement due Dec 26). Set it back to 31.
 - I3. Export my data → a file `personal-economy-saver-2026-11-14.json` downloads; it opens as JSON with the household, cards, bills, clients and events, and no AI key, tokens, sign-in email or uploaded files (clients' billing emails are the household's own data and belong in it).
-- I4. Settings → Your AI model: Provider (This app's default, Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Mistral, Other), Model for questions, "Use the same model for documents", Key ("Only the last four characters are shown again.") and "Save and check". On a Try it household, Other is disabled and the sign-in sentence ("A custom address needs an account. Sign in from Settings → Account.") shows. Under the form: "Your questions and documents go to {host}." and either "Tested" or "Custom, untested · passed {n} of 3 checks on {date}" with each failed check in words. A saved key shows only its last four characters, and "Use this app's default" clears the model and the key. (Saving needs a working model and key, so the full run is with the owner's key.)
+- I4. Settings → Your AI model: section Y.
 - I5. Needs `MCP_TOKEN_KEY`: Connect another AI assistant → Create key → the key is shown once (the endpoint and "bearer token" sit under For developers); an MCP client can call `where_am_i` and `who_owes_whom`, and `draft_invoice` opens as a draft in the app.
 - I6. Settings → Account → Reset to Ben's starting numbers asks "Everything you added goes. Reset?"; Keep changes nothing; Reset returns to Home with Ben's expected numbers.
 - I7. Needs a signed-in account: Delete my data → everything is gone, including uploaded files.
@@ -130,7 +130,7 @@ Ask is the page `/canvas` (sidebar label "Ask"). The top bar's Ask box is a link
 
 ## L. Every screen, both widths, light and dark
 
-Home, To check, Activity, Cards, Clients, Plan, Options, Settings, Upload, New invoice, Invoice review, Login:
+Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Options, Settings, Upload, New invoice, Invoice review, Login:
 
 - L1. Nothing scrolls sideways; no text is cut off or overlaps; long names wrap.
 - L2. On a phone, every link, button, input and summary row is about 44px tall to tap (measure the box, or its `::after` hit area), and the Ask row never covers the last row. This includes the client links in Home's sentence and in Coming up, the "Later in the month" summary, and Settings' "Allow invoice drafts" checkbox.
@@ -162,7 +162,7 @@ Demo date Nov 14. Run M1 to M3 on a fresh Try it household that has had none of 
 
 ## N. Start blank
 
-A person with their own numbers, not Ben's. Use a private window (no household cookie), open `/`. The date on Home is the real date in the browser's time zone (only Try it is Nov 14). Run N1 to N8 in order; the Try it numbers above are never touched by this section.
+A person with their own numbers, not Ben's. Use a private window (no household cookie), open `/`. The date on Home is the real date in the browser's time zone (only Try it is Nov 14). Run N1 to N9 in order; the Try it numbers above are never touched by this section.
 
 - N1. The landing offers Try it and, beside it, "Start with my numbers" (a link), then "Sign in with email". At 375px they wrap without overlap and each is at least 44px tall.
 - N2. "Start with my numbers" → `/start`, headed "Start with my numbers", with two fields, Your name and "What's in your bank today?" (the box shows ¥ in front and the placeholder 420,000), the line "Japanese yen · Asia/Tokyo · Change" and the link "Add a card now ›", and the button "Open my household". Change opens Home currency and Time zone (prefilled from the browser; the ¥ becomes $ and the placeholder 2,800 when you pick US dollars); "Add a card now ›" opens Card name, Statement closes on the, Card bill is paid on the and Credit limit (optional). Opening the card block and giving a name but no days stays on the page and shows "Check your name, timezone, balance and card settings." (a closing day of 40 is refused the same way).
@@ -227,7 +227,7 @@ A Try it household. Settings → People → Add a person "Wife".
 
 ## T. Where the money went: search, history, import (D53) and the Nov 5 fixes
 
-A fresh Try it household (today Nov 14). Numbers from the Stage 17 build; walked in the built-in pane after the wording pass.
+A fresh Try it household (today Nov 14). 
 
 - T-A. Plan → Where the month goes has "‹ October" (no "›" on the current month). October: heading "Where October went", "‹ September" and "November ›", "Business ¥31,986 of ¥132,060 in October"; Housing ¥82,000, Utilities ¥10,020 (Hikari Denki Oct 25), Phone & internet ¥4,800, Subscriptions ¥1,980, Food ¥11,440 (Kissa Midori Oct 10 ¥1,320, Minato Fresh Market Oct 17 ¥8,640, Kissa Midori Oct 25 ¥1,480), Transport ¥14,340, Other ¥7,480. September totals ¥150,380 (business ¥31,572) with Utilities ¥8,640 and Travel ¥47,000 (Kumokaze Air flight Sep 21 ¥18,400, Hotel Kazemachi Hakone Sep 22 ¥28,600). `?month=2020-01` says "Plan shows the last 12 months, December 2025 to November 2026. Here is November." The current month is unchanged: ¥152,230, business ¥32,830.
 - T-B. Search on Plan: the field "Search spending: hotel, food, a shop name" and a Search button on one row at 375px; no Spending panel without a query. "hotel" → `"hotel": ¥28,600 in September (1 item); nothing in the other 11 months. ¥28,600 in all.` with the Hakone row; "travel" → `Travel: ¥47,000 in September (2 items); nothing in the other 11 months. ¥47,000 in all.`; "food" → `Food: ¥10,700 in November (3 items), ¥11,440 in October (3 items), ¥5,960 in September (1 item); nothing in the other 9 months. ¥28,100 in all.` with November's three rows first; "rent" → `"rent": ¥82,000 in October (1 item), ¥82,000 in September (1 item), ¥82,000 in August (1 item); nothing in the other 9 months. ¥246,000 in all.` (Nov 27 is after today); "hikari" → ¥10,020 in October and ¥8,640 in September, ¥18,660 in all; "zzz" → "Nothing matches “zzz” in the last 12 months." Nothing scrolls sideways at 375px.
@@ -377,5 +377,17 @@ A fresh Try it household (today Nov 14), Ask (`/canvas`).
 - AD2. The two refusals, in words: a .txt file → "Select a PDF, JPEG, PNG or WebP file."; a PDF over 6 MiB → "Document exceeds the 6 MiB limit." Neither adds a turn.
 - AD3. The mark, without a key: pin a canvas whose recipe has a `flow_chart` and a `timeline` with `mark` set to Rent's bill id → on Home the chart rings Nov 27 labelled "Rent ¥82,000 · Nov 27" (the chart's aria text ends "Marked: Rent ¥82,000 · Nov 27.") and the Rent row of the timeline shows "This bill". A `mark` naming a bill that falls outside the window draws no ring and no "This bill" row.
 - AD4. Needs the AI key: attach a fictional gym bill (Kawa Gym) due within about 30 days (a repeating bill is only drawn inside the plan window, so the ring needs this) → "Reading your bill…", then "Read from your bill:" and a line like "Kawa Gym · ¥6,000 · due Dec 12". Its checks come one at a time as a question with buttons, for example "Does Kawa Gym come again?". Confirm is not shown while the question is open (a Confirm sent without the answer is refused with "Answer the question first: …"; `db:test` ask-document covers it). Answer it, tap Confirm → "Confirmed. Here is your month with it." with the sentence, the chart (Kawa Gym ringed on its day) and the timeline (its row marked "This bill"). A card with two items has Confirm, Edit and "Don't add it" on each; "Don't add it" says "Not added." and a file with nothing in it says "Nothing to add was found in this file." Reload → the card and canvas are the same, and To check no longer lists the bill.
+
+At 375px and 1440px: nothing scrolls sideways, buttons 44px tall.
+
+## AE. What foreign money costs (D62)
+
+A fresh Try it household (today Nov 14). Card A's owed now is ¥86,450.
+
+- AE1. Home → Add a bill or charge → Card charge. Under More › there is a closed "Paid in another currency" with a Currency select ("Choose a currency", then USD; never JPY, the card's own) and "Amount paid in that currency" with a $ sign, and the hint "The amount on the receipt. Above, enter what the card billed in yen; the app shows what the conversion cost."
+- AE2. Add "Fontly Cloud", amount ¥3,710, dated today, Card A, Paid in another currency USD $24.00 → the charge appears in Recent charges, and Card A's owed now rises by ¥3,710, from ¥86,450 to ¥90,160. Leaving the section empty saves a plain charge as before (nothing is sent for the empty fields).
+- AE3. The refusals, in words: an amount ($24.00) with no currency chosen → "An amount in another currency needs both the amount and the currency"; a currency chosen with the amount empty saves a plain charge (the currency is dropped). The card's own currency cannot be picked in the form; a hand-made post of JPY with an amount is refused with "The other currency has to differ from the card's" (`db:test` charge-routes covers it).
+- AE4. Settings → Cards → open Card A. "Foreign transaction fee, optional (%)" with the hint "From your card’s terms: the fee the issuer adds to purchases in another currency. The app uses it only to estimate what a foreign purchase cost." Type 2.2, Save card → the card's row reads "Card A · … · Foreign fee 2.2%"; reopen: the field holds 2.2. Type 11, Save card → refused (the browser's own "Please match the requested format."; a hand-made post says "Enter the foreign transaction fee as a percentage from 0 to 10, like 2.2"). Clear the field, Save card → the "Foreign fee" words are gone from the row.
+- AE5. Ask (needs a model): "What do my PayPal payouts cost me?" → the reply quotes ¥111,637 as the twelve-month cost (the tool's own words: 16 paid invoices cost ¥111,637 to receive and convert through PayPal: ¥65,913 in fees to receive and ¥45,724 in the conversion rate, out of ¥1,590,000; ¥1,478,363 reached your bank), names no provider other than PayPal and never says to leave PayPal; "Based on" shows Clients. Per client, if asked: Acme Corp ¥52,545, Northwind ¥36,850, Beacon Studio ¥22,242. After AE1, "What did paying in another currency cost me?" → ¥110 above the reference rate on 1 purchase (Fontly Cloud $24.00 billed ¥3,710 against ¥3,600 at ¥150/$). In a fresh household with no USD invoices and no foreign charge, the tool answers that there is nothing to report and the assistant says so without guidance.
 
 At 375px and 1440px: nothing scrolls sideways, buttons 44px tall.

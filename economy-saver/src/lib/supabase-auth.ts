@@ -1,7 +1,7 @@
 import { createServerClient, type CookieMethodsServer, type CookieOptions } from "@supabase/ssr";
 
 export const AUTH_COOKIE = "pes-auth";
-export const COOKIE_AGE = 30 * 86400;
+const COOKIE_AGE = 30 * 86400;
 export const cookiePolicy = { httpOnly: true, sameSite: "lax" as const, secure: process.env.NODE_ENV === "production", path: "/" };
 
 // SSR splits a session into multiple cookies if it exceeds the browser's per-cookie limit.

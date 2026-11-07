@@ -262,7 +262,7 @@ function ComingUp({ state, people, entryIds, added, addedId }: Props & { people:
  * The one line Coming up shows after the add form saved something (D51): the routes return to "/?added=<id>", and the id is
  * looked up in the household's own state, so no name or amount travels in the address. Any other navigation drops it.
  */
-export function addedLine(state: MoneyState, id: string | null): string | null {
+function addedLine(state: MoneyState, id: string | null): string | null {
   if (!id) return null;
   const format = formatter(state.homeCurrency);
   const occurrences = state.bills.filter((bill) => bill.id === id || bill.id.startsWith(`${id}@`)).sort((a, b) => (a.due < b.due ? -1 : 1));

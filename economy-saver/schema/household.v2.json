@@ -193,6 +193,19 @@
           },
           "revolving": {
             "type": "boolean"
+          },
+          "foreignFeeBp": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The issuer's foreign transaction fee in basis points (220 = 2.2%), from the card's own terms; null or absent = not entered."
           }
         },
         "required": [
@@ -335,6 +348,10 @@
               }
             ],
             "description": "An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency."
+          },
+          "fxEstimated": {
+            "type": "boolean",
+            "description": "true = `amountMinor` is the reference-rate conversion of the original amount (a reader estimate), not what the issuer billed; absent = false."
           },
           "date": {
             "type": "string",

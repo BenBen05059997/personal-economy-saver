@@ -5,7 +5,7 @@ import type { Protocol } from "./types";
  * `tokenParam` is the Chat Completions field that caps the reply: OpenAI deprecates max_tokens (o-series reject it) and
  * Groq lists it as deprecated; Mistral, Ollama and the rest document max_tokens only.
  */
-export type Provider = { id: string; label: string; protocol: Protocol; baseUrl: string | null; tokenParam?: "max_tokens" | "max_completion_tokens" };
+type Provider = { id: string; label: string; protocol: Protocol; baseUrl: string | null; tokenParam?: "max_tokens" | "max_completion_tokens" };
 
 export const PROVIDERS: readonly Provider[] = [
   { id: "anthropic", label: "Anthropic", protocol: "anthropic", baseUrl: "https://api.anthropic.com" },

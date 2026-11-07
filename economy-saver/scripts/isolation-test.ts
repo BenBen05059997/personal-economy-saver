@@ -53,6 +53,7 @@ import * as settle from "@/db/settle";
 import * as snapshotMod from "@/db/snapshot";
 import * as statementCharge from "@/db/statement-charge";
 import * as spendingMod from "@/db/spending"; // Stage 17 spending
+import * as fxCostMod from "@/db/fx-cost"; // D62 foreign costs
 import * as workspace from "@/db/workspace";
 import { billEditInput, billInput } from "@/db/bills";
 import { chargeInput } from "@/db/charges";
@@ -101,6 +102,8 @@ const covered = [
   "importCharges",
   // Stage 17 spending: spending.ts
   "loadSpending",
+  // D62 foreign costs: fx-cost.ts
+  "foreignCostInputs", "foreignCosts",
   // Stage 18 varies: bills.ts
   "linkToSeries", "previewLink",
   // Stage 19 missing data (D55): bills.ts
@@ -119,6 +122,7 @@ const covered = [
 ];
 
 const notApplicable: Record<string, string> = {
+  foreignFeeBp: "pure parser of a typed fee percentage into basis points, no database (D62)",
   answerQuestion: "calls Claude through the agent runner; the tools it can use are tested through tools.ts below",
   clockForHousehold: "pure date maths on a household row passed in",
   householdMoment: "pure date maths on a household row passed in",
@@ -188,6 +192,7 @@ async function main() {
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
     ...importChargesMod, // Stage 17 import
     ...spendingMod, // Stage 17 spending
+    ...fxCostMod, // D62 foreign costs
     ...memoryMod, // D58 memory
     ...askMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
@@ -926,6 +931,36 @@ async function main() {
         assert.ok(input.split.members.some(m => m.id === X.ids.aki) && !input.split.members.some(m => m.id === Y.ids.aki));
         assert.equal((await fingerprint(Y.hid)).text, yStart.text);
         assert.equal((await fingerprint(X.hid)).text, xStart.text, "a read writes nothing");
+      }
+    });
+
+    // ---------------------------------------------------------------- D62 foreign costs
+    await check("foreignCosts and foreignCostInputs (D62): each household's costs hold its own charges, cards and paid invoices and none of the other's; reading changes nothing", async () => {
+      const temp = new Map<string, string>();
+      for (const X of [A, B]) {
+        const id = randomUUID();
+        temp.set(X.hid, id);
+        await db.insert(schema.charges).values({
+          id, householdId: X.hid, cardId: X.ids.card, merchant: `Isolation ${X.tag} abroad`, amountMinor: 3_000, currency: "JPY", date: "2026-11-10", category: "food", status: "confirmed", source: "manual", madeBy: "form",
+          originalAmountMinor: 2_000, originalCurrency: "USD", fxRateMicro: 150_000_000, fxEstimated: false,
+        });
+      }
+      try {
+        for (const [X, Y] of [[A, B], [B, A]] as const) {
+          const yStart = await fingerprint(Y.hid), xStart = await fingerprint(X.hid);
+          const inputs = await F.foreignCostInputs(db, X.hid, "2026-11-14");
+          assert.deepEqual(leaks(JSON.stringify(inputs), await needlesOf(Y)), [], `${X.name}'s inputs show ${Y.name}'s data`);
+          assert.ok(inputs.charges.some(c => c.id === temp.get(X.hid)) && !inputs.charges.some(c => c.id === temp.get(Y.hid)));
+          assert.ok(inputs.cards.some(c => c.id === X.ids.card) && !inputs.cards.some(c => c.id === Y.ids.card));
+          const costs = await F.foreignCosts(db, X.hid);
+          assert.deepEqual(leaks(JSON.stringify(costs), await needlesOf(Y)), [], `${X.name}'s costs show ${Y.name}'s data`);
+          assert.equal(costs.charges.length, 1);
+          assert.equal(costs.payoutTotals.count, 16, "Ben's sixteen paid invoices of this household only");
+          assert.equal((await fingerprint(Y.hid)).text, yStart.text);
+          assert.equal((await fingerprint(X.hid)).text, xStart.text, "a read writes nothing");
+        }
+      } finally {
+        for (const [hid, id] of temp) await db.delete(schema.charges).where(and(eq(schema.charges.householdId, hid), eq(schema.charges.id, id)));
       }
     });
 

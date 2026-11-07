@@ -179,6 +179,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     ...(c.limitMinor !== null && { limit: inHome(c.limitMinor, c.currency) }),
     revolving: c.revolving,
     ...(c.memberId !== null && { ownerId: c.memberId }),
+    ...(c.foreignFeeBp !== null && { foreignFeeBp: c.foreignFeeBp }),
   }));
 
   const charges: Charge[] = chargeRows.map((c) => ({
@@ -274,11 +275,11 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
 
 // ---------------------------------------------------------------- events (D35)
 
-export type MadeBy = (typeof s.madeBy.enumValues)[number];
+type MadeBy = (typeof s.madeBy.enumValues)[number];
 /** D50: who made a row or event; `askId` ties an Ask-made one to its question. Required wherever a row is written. */
 export type Maker = { madeBy: MadeBy; askId?: string };
 
-export type NewEvent = {
+type NewEvent = {
   madeBy: MadeBy;
   askId?: string;
   kind: string;

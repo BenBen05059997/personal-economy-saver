@@ -4,7 +4,7 @@ export const ADD_CHARGE = "/#add-charge";
 export const SETTINGS_CARDS = "/settings#cards";
 export const SETTINGS_PEOPLE = "/settings#people";
 
-export type LinkTarget = {
+type LinkTarget = {
   type: "invoice" | "bill" | "charge" | "pot" | "card" | "client" | "statement" | "settings";
   id?: string;
 };

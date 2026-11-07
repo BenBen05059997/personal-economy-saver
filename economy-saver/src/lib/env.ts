@@ -21,7 +21,7 @@ const schema = z.object({
   SANDBOX_CLIENT_EMAIL: blankIsUnset(z.string().email().optional()),
 });
 
-export type Env = z.infer<typeof schema>;
+type Env = z.infer<typeof schema>;
 
 let cached: Env | undefined;
 

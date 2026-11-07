@@ -4,14 +4,14 @@ import { MEMORY_KIND_KEYS, MEMORY_KINDS, MEMORY_LIMIT, MEMORY_TEXT_MAX, type Mem
 import "./memory.css";
 
 // Dates are the household's: a Try it household's rows carry its fixed date (D34), shown in its time zone.
-export const dayIn = (timeZone: string) => (iso: string) => {
+const dayIn = (timeZone: string) => (iso: string) => {
   const date = new Date(iso);
   const year = (d: Date) => d.toLocaleDateString("en-US", { year: "numeric", timeZone });
   return date.toLocaleDateString("en-US", { day: "numeric", month: "short", timeZone, ...(year(date) === year(new Date()) ? {} : { year: "numeric" }) });
 };
-export const howIn = (day: (iso: string) => string) => (item: MemoryItem) => item.madeBy === "ask" ? `Said in Ask · ${day(item.createdAt)}` : item.madeBy === "mcp" ? `Through MCP · ${day(item.createdAt)}` : `Added here · ${day(item.createdAt)}`;
+const howIn = (day: (iso: string) => string) => (item: MemoryItem) => item.madeBy === "ask" ? `Said in Ask · ${day(item.createdAt)}` : item.madeBy === "mcp" ? `Through MCP · ${day(item.createdAt)}` : `Added here · ${day(item.createdAt)}`;
 
-export function KindSelect({ value }: { value?: MemoryKind }) {
+function KindSelect({ value }: { value?: MemoryKind }) {
   return <label className="ui-field">Kind
     <select name="memoryKind" defaultValue={value ?? "fact"}>
       {MEMORY_KIND_KEYS.map(key => <option key={key} value={key}>{MEMORY_KINDS[key].label}</option>)}

@@ -10,6 +10,10 @@ import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
 import { readerInbox } from "@/db/reader-inbox";
 import { chargeInput, insertCharge } from "@/db/charges";
+import { foreignCosts } from "@/db/fx-cost";
+import { Catalogue, Currency } from "@/lib/catalogue/types";
+import jpCatalogue from "@/data/catalogue/jp.json";
+import { PAYPAL_RATES, foreignCostWords } from "@/lib/money/fx-cost";
 import { InputError } from "@/db/input-error";
 import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
 import { memberByName, memberCount } from "@/db/people";
@@ -100,7 +104,11 @@ const addBillInput = billInput.omit({ paidByMemberId: true, category: true, busi
   shared: z.boolean().nullable().default(null),
   paidBy: z.string().trim().min(1).max(80).nullable().default(null),
 });
-const logChargeInput = chargeInput.omit({ category: true, businessBp: true }).extend({ category: categoryField, business_bp: businessField });
+const logChargeInput = chargeInput.omit({ category: true, businessBp: true, originalAmount: true, originalCurrency: true }).extend({
+  category: categoryField, business_bp: businessField,
+  original_amount: z.string().trim().nullable().default(null).describe("D62: when the purchase was in another currency, the plain number the person paid in original_currency (12.50 for $12.50); amount stays what the card billed in the home currency. null = not in another currency."),
+  original_currency: Currency.nullable().default(null).describe("USD or JPY: the currency the person paid in; it must differ from the card's currency. null = not in another currency."),
+});
 
 /** The category a tool saves: the one given, or the keyword table's guess from the name; and the sentence that tells the agent which. */
 function categoryFor(name: string, given: z.infer<typeof categoryField>): { category: z.infer<typeof CategoryKeySchema>; note: string } {
@@ -130,9 +138,12 @@ async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>
 }
 
 function prepareCharge(input: z.infer<typeof logChargeInput>) {
-  const { category: given, business_bp, ...charge } = input;
+  const { category: given, business_bp, original_amount, original_currency, ...charge } = input;
   const { category, note } = categoryFor(charge.merchant, given);
-  return { merchant: charge.merchant, note, charge: { ...charge, category, businessBp: business_bp ?? 0 } };
+  return { merchant: charge.merchant, note, charge: {
+    ...charge, category, businessBp: business_bp ?? 0,
+    ...(original_amount !== null && { originalAmount: original_amount }), ...(original_currency !== null && { originalCurrency: original_currency }),
+  } };
 }
 
 /** Runs one item of a bulk call; an InputError says which item (index counts from 0, like the paths in an invalid-input error). */
@@ -346,6 +357,31 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
+    name: "foreign_costs", scope: "read", input: none,
+    description: "What foreign money cost the household over the last twelve months (D62): paid USD invoices received through PayPal (the fee to receive and the conversion markup, per client) and card purchases made in another currency (the cost above the reference rate, per card; exact when the billed amount is known, an estimate from the card's fee when it is not, unknown otherwise). Call it when the person asks what their foreign payments, card purchases abroad, PayPal fees or currency conversion cost them, or how to pay less for them. Amounts named Minor are home-currency minor units. Quote words as they are; when guidance is present, the general ways to lower the cost come from it (never name another provider, never tell the person to leave PayPal, never forecast a rate). Information only.",
+    run: async ctx => {
+      const costs = await foreignCosts(ctx.db, ctx.householdId);
+      const nothing = costs.chargeTotals.count === 0 && costs.payoutTotals.count === 0;
+      const move = Catalogue.parse(jpCatalogue).find(m => m.id === "jp-payout-cost");
+      if (!move) throw new Error("The catalogue has no jp-payout-cost move");
+      const source = move.sources[0];
+      return JSON.stringify({
+        months: 12, homeCurrency: costs.homeCurrency,
+        charges: {
+          ...costs.chargeTotals,
+          perCard: costs.perCard,
+          items: costs.charges.filter(c => c.inWindow).slice(0, 20).map(c => ({
+            merchant: c.merchant, date: c.date, original: { minor: c.originalMinor, currency: c.originalCurrency }, billedMinor: c.billedMinor, costMinor: c.costMinor, kind: c.costKind,
+          })),
+        },
+        payouts: { ...costs.payoutTotals, perClient: costs.perClient },
+        nothing, words: foreignCostWords(costs),
+        rates: { receivePct: (PAYPAL_RATES.receiveBp + PAYPAL_RATES.crossBorderBp) / 100, fixedUsdMinor: PAYPAL_RATES.fixedUsdMinor, conversionPct: PAYPAL_RATES.conversionBp / 100 },
+        ...(!nothing && { guidance: { maySay: move.maySay, mustNotSay: move.mustNotSay, steps: move.steps, traps: move.traps, source: { title: source.title, url: source.url } } }),
+      });
+    },
+  }),
+  defineTool({
     name: "draft_invoice", scope: "draft", input: draftInput,
     description: "Save a local USD invoice draft for the user to review; nothing is sent. amount is dollars, like 18.52. id is a new UUID; reuse the same id when retrying. client_id comes from list_clients_and_cards.",
     run: async (ctx, input) => {
@@ -381,7 +417,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "log_charge", scope: "draft", input: logChargeInput,
-    description: `Log a card purchase the user tells you about. It waits in To check until the user confirms it. amount is a plain number in the household's home currency. date is YYYY-MM-DD (today if the user does not say). card_id comes from list_clients_and_cards. shared is true when the purchase is split between the household's people (needs two or more people and a card that belongs to one of them, who paid); false otherwise. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the merchant and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
+    description: `Log a card purchase the user tells you about. It waits in To check until the user confirms it. amount is a plain number in the household's home currency. date is YYYY-MM-DD (today if the user does not say). card_id comes from list_clients_and_cards. shared is true when the purchase is split between the household's people (needs two or more people and a card that belongs to one of them, who paid); false otherwise. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the merchant and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. When the person says a purchase was in another currency, give the amount they paid in it as original_amount with original_currency (USD or JPY, different from the card's currency), and the billed home-currency amount in amount if they know it; if they know only the foreign amount, ask for the billed amount (clarify) rather than converting it yourself. id is a new UUID; reuse the same id when retrying.`,
     run: async (ctx, input) => {
       const { charge, merchant, note } = prepareCharge(input);
       await insertCharge(ctx.db, ctx.householdId, charge, "pending", ctx.source ?? "manual", by(ctx));

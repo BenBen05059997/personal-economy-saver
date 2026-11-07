@@ -42,7 +42,7 @@ export const billInput = z.object({
 });
 
 /** What a bill's schedule is, in minor units of its own currency: shared by the typed-in bill and the reader's review. */
-export type BillSchedule = { repeat: RepeatUnit | null; nextAmountMinor: number | null; nextAmountFrom: string | null; cancelBy: string | null; amountVaries: boolean; repeatUntil: string | null };
+type BillSchedule = { repeat: RepeatUnit | null; nextAmountMinor: number | null; nextAmountFrom: string | null; cancelBy: string | null; amountVaries: boolean; repeatUntil: string | null };
 
 /** The day of the month a monthly bill repeats on: its due date's day; null for any other bill. */
 export const repeatDayFor = (due: string, repeat: RepeatUnit | null) => (repeat === "month" ? Number(due.slice(8, 10)) : null);
