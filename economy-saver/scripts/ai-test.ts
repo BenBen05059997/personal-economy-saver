@@ -244,6 +244,12 @@ async function main() {
     assert.deepEqual([reply.calls[0].input, reply.calls[1]], [null, { id: "call_2", name: "look", input: { what: "a" } }]);
     const raw = reply.raw as { tool_calls: { id: string }[] };
     assert.deepEqual(raw.tool_calls.map(c => c.id), [reply.calls[0].id, "call_2"], "the assistant turn carries the filled ids");
+    // finish_reason tool_calls with no calls: an answer when there is text, an unexpected stop when there is none
+    for (const [message, stop] of [[{ content: "Done." }, "end"], [{ content: null }, "other"], [{ content: "  ", tool_calls: [] }, "other"], [{ content: "Done.", tool_calls: [] }, "end"]] as const) {
+      const empty = fake(() => chat("tool_calls", message));
+      const result = await callModel({ ...REQUEST, connection: openai, fetch: empty.fetch });
+      assert.deepEqual([result.stop, result.calls.length], [stop, 0], JSON.stringify(message));
+    }
     const noUsage = fake(() => chat("stop", { content: "x" }, null));
     const bare = await callModel({ ...REQUEST, connection: openai, fetch: noUsage.fetch });
     assert.deepEqual([bare.inputTokens, bare.outputTokens], [0, 0]);

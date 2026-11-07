@@ -61,7 +61,7 @@ economy-saver/                           the app
 | Dev server | `npm run dev -- -p 3123` |
 | Type check | `npx tsc --noEmit -p .` |
 | Lint | `npm run lint` |
-| Database tests (no credentials; twenty-nine suites: db, approve, mcp, reader, settings, agent, ai, refresh, doors, import, csv, pots, snapshot, split, category, spending, regular, varies, gaps, checks, canvas, conversation, ask-document, memory, data, cron, sweep, isolation, family) | `npm run db:test` |
+| Database tests (no credentials; thirty suites: db, approve, mcp, reader, settings, agent, ai, refresh, doors, import, csv, pots, snapshot, split, category, spending, regular, varies, gaps, checks, canvas, conversation, ask-document, ask-routes, memory, data, cron, sweep, isolation, family) | `npm run db:test` |
 | Regenerate the five files in `schema/` from the zod definitions (`db:snapshot-test` fails when one is stale) | `npm run schema` |
 | Model eval: Ben's fictional household, the real agent, one provider and model (key from `EVAL_API_KEY` in `.env.local`; prints a line per case and the `TESTED` line to add) | `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` |
 | Regenerate migration after schema edits | `npm run db:generate` (then commit the SQL with the schema) |

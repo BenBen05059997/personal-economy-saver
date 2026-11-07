@@ -19,6 +19,8 @@ import { tools, toolInputSchema, type ToolContext } from "./tools";
 export class AgentError extends Error {
   /** The key of the fixed message (`fail`) or "api_error"; goes in the log line, never the message. */
   constructor(message: string, readonly outcome: string = "other") { super(message); }
+  /** Set when a write tool had already succeeded in this question: what was kept, so the route can reply instead of failing. */
+  saved?: { pending: boolean; links: { label: string; href: string }[] };
 }
 
 /** Tools whose result repeats text the model wrote. */
@@ -114,6 +116,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   let outOfScope: "off_topic" | "not_offered" | null = null;
   const used: string[] = [];
   let called = false;
+  let wrote = false, wroteMemory = false;
   // The household's state is read once per tool turn, so tools in one turn agree with each other.
   let loaded: Promise<MoneyState> | undefined;
   const state = () => (loaded ??= householdDate(opts.db, hid).then(today => loadMoneyState(opts.db, hid, today)));
@@ -134,57 +137,70 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const sources = [opts.question];
   if (memory) sources.push(memory);
 
-  for (let toolTurns = 0; ;) {
-    const remaining = deadline - now();
-    if (remaining <= 0) throw failure("budget");
-    // Reserves one unit of the owner-key allowance per model call; the household's own key is unlimited.
-    const connection = await opts.connection();
-    trace.protocol = connection.protocol; trace.own = connection.own;
-    if (!connection.textModel) throw new AgentError("AI_TEXT_MODEL is not set", "no_model");
-    let reply;
-    try {
-      reply = await callModel({
-        connection, model: connection.textModel, system, turns, tools: definitions, maxTokens: MAX_TOKENS,
-        timeoutMs: remaining, fetch: opts.fetch, appUrl: opts.appUrl,
-      });
-    } catch (error) { trace.stop = "api_error"; throw apiFailure(error); }
-    trace.stop = reply.stop;
-    trace.turns++;
-    trace.inputTokens += reply.inputTokens;
-    trace.outputTokens += reply.outputTokens;
+  try {
+    for (let toolTurns = 0; ;) {
+      const remaining = deadline - now();
+      if (remaining <= 0) throw failure("budget");
+      // Reserves one unit of the owner-key allowance per model call; the household's own key is unlimited.
+      const connection = await opts.connection();
+      trace.protocol = connection.protocol; trace.own = connection.own;
+      if (!connection.textModel) throw new AgentError("AI_TEXT_MODEL is not set", "no_model");
+      let reply;
+      try {
+        reply = await callModel({
+          connection, model: connection.textModel, system, turns, tools: definitions, maxTokens: MAX_TOKENS,
+          timeoutMs: remaining, fetch: opts.fetch, appUrl: opts.appUrl,
+        });
+      } catch (error) { trace.stop = "api_error"; throw apiFailure(error); }
+      trace.stop = reply.stop;
+      trace.turns++;
+      trace.inputTokens += reply.inputTokens;
+      trace.outputTokens += reply.outputTokens;
 
-    if (reply.stop === "end") {
-      const answer = reply.text.trim();
-      if (!answer) throw failure("empty");
-      return finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe, sources }));
-    }
-    if (reply.stop === "refusal") throw failure("refusal");
-    if (reply.stop === "length") throw failure("cutOff");
-    if (reply.stop !== "tools" && reply.stop !== "pause") throw failure("stop");
+      if (reply.stop === "end") {
+        const answer = reply.text.trim();
+        if (!answer) throw failure("empty");
+        return finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe, sources }));
+      }
+      if (reply.stop === "refusal") throw failure("refusal");
+      if (reply.stop === "length") throw failure("cutOff");
+      if (reply.stop !== "tools" && reply.stop !== "pause") throw failure("stop");
 
-    // The assistant turn goes back exactly as received (thinking blocks included); history is append-only.
-    turns.push({ role: "assistant", raw: reply.raw });
-    if (reply.stop === "pause") continue;
-    if (++toolTurns > MAX_TOOL_TURNS) throw failure("turns");
-    loaded = undefined;
+      // The assistant turn goes back exactly as received (thinking blocks included); history is append-only.
+      turns.push({ role: "assistant", raw: reply.raw });
+      if (reply.stop === "pause") continue;
+      if (++toolTurns > MAX_TOOL_TURNS) throw failure("turns");
+      loaded = undefined;
 
-    const results: ToolResult[] = [];
-    // clarify and out_of_scope end the question: when one is asked for and valid, it is the only call that runs, and there is no further model call.
-    // One that fails its schema is an ordinary tool error: the other calls run and the loop goes on.
-    const ending = reply.calls.find(call => call.name === "clarify" || call.name === "out_of_scope");
-    if (ending) {
-      const result = await callTool(ctx, ending, trace, now);
-      if (clarify !== null || outOfScope !== null) return finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe, sources }));
-      results.push(result);
+      const results: ToolResult[] = [];
+      // clarify and out_of_scope end the question: when one is asked for and valid, it is the only call that runs, and there is no further model call.
+      // One that fails its schema is an ordinary tool error: the other calls run and the loop goes on.
+      const ending = reply.calls.find(call => call.name === "clarify" || call.name === "out_of_scope");
+      if (ending) {
+        const result = await callTool(ctx, ending, trace, now);
+        if (clarify !== null || outOfScope !== null) return finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe, sources }));
+        results.push(result);
+      }
+      for (const call of reply.calls) if (call !== ending) results.push(await callTool(ctx, call, trace, now));
+      for (const result of results) {
+        // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
+        if (!NOT_SOURCES.has(result.name)) sources.push(result.content);
+        if (tools.some(t => t.name === result.name) && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
+        if (!result.isError) used.push(result.name);
+        if (!result.isError && tools.some(t => t.name === result.name && t.scope === "draft")) {
+          wrote = true;
+          if (result.name === "remember" || result.name === "forget") wroteMemory = true;
+        }
+      }
+      turns.push({ role: "tools", results });
     }
-    for (const call of reply.calls) if (call !== ending) results.push(await callTool(ctx, call, trace, now));
-    for (const result of results) {
-      // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
-      if (!NOT_SOURCES.has(result.name)) sources.push(result.content);
-      if (tools.some(t => t.name === result.name) && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
-      if (!result.isError) used.push(result.name);
+  } catch (error) {
+    // A write already succeeded (its rows are in To check, its memory change is in hand): the failure becomes a reply, so nothing is lost and a retry does not write twice.
+    if (error instanceof AgentError && wrote) {
+      if (wroteMemory) ctx.addLink?.({ label: "Open Memory", href: new URL("/memory", opts.appUrl).href });
+      error.saved = { pending, links };
     }
-    turns.push({ role: "tools", results });
+    throw error;
   }
 
   function finish(chosen: ReturnType<typeof chooseReply>): AskResult {

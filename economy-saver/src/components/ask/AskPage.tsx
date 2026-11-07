@@ -74,6 +74,8 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
   const canvasRef = useRef<HTMLDivElement>(null);
   const recognizer = useRef<Recognition | null>(null);
   const requestId = useRef("");
+  // The text the id was first sent with: a retry reuses the id only for the same question.
+  const requestText = useRef("");
   const [conversationId, setConversationId] = useState(initialConversation);
   const [turns, setTurns] = useState(initialTurns);
   const [canvas, setCanvas] = useState<Drawn | null>(shown);
@@ -224,6 +226,8 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
     if (!trimmed || busy) return;
     setBusy(true);
     setProblem("");
+    if (requestText.current !== trimmed) requestId.current = "";
+    requestText.current = trimmed;
     requestId.current ||= crypto.randomUUID();
     const id = requestId.current;
     try {

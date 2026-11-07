@@ -5,6 +5,9 @@ import { z } from "zod";
 import { InputError } from "@/db/input-error";
 import { MEMORY_CLASH, MEMORY_KIND_KEYS, MEMORY_LIMIT, memoryFull, MemoryItem, MemoryKind, MemoryText, SECRET_REFUSAL, hasLongNumber } from "@/lib/schema/memory";
 
+/** The most changes one question may make to the memory it carried; the agent stops at it and `applyMemoryChanges` refuses more. */
+export const MAX_MEMORY_CHANGES = 20;
+
 /** What `remember` and `forget` did to the list the question carried; the browser applies it to its own copy. */
 export const MemoryChange = z.discriminatedUnion("op", [
   z.object({ op: z.literal("add"), item: MemoryItem }).strict(),
@@ -67,7 +70,7 @@ export function forgetMemoryItem(items: MemoryItem[], id: string): { items: Memo
 
 /** Applies the changes a reply carried, in order. Each change is checked against its schema; a forget of an item already gone is ignored. */
 export function applyMemoryChanges(items: MemoryItem[], changes: unknown): MemoryItem[] {
-  const parsed = z.array(MemoryChange).max(20).parse(changes);
+  const parsed = z.array(MemoryChange).max(MAX_MEMORY_CHANGES).parse(changes);
   let next = items;
   for (const change of parsed) {
     if (change.op === "forget") next = forgetMemoryItem(next, change.id).items;

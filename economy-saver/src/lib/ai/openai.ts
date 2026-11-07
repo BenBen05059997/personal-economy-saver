@@ -26,6 +26,13 @@ function messages(system: string, turns: Turn[]): Message[] {
 
 const STOPS: Record<string, Reply["stop"]> = { stop: "end", tool_calls: "tools", length: "length", content_filter: "refusal" };
 
+/** "tool_calls" with no calls is not a tool turn: it is an answer when there is text and an unexpected stop when there is none. */
+function stopOf(finish: string | undefined, hasCalls: boolean, hasText: boolean): Reply["stop"] {
+  if (hasCalls) return "tools";
+  if (finish === "tool_calls") return hasText ? "end" : "other";
+  return STOPS[finish ?? ""] ?? "other";
+}
+
 async function readLimited(response: Response): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return "";
@@ -79,7 +86,7 @@ export async function callOpenAI(request: ModelRequest): Promise<Reply> {
   });
   return {
     text: typeof message.content === "string" ? message.content : "",
-    calls, stop: calls.length ? "tools" : STOPS[choice.finish_reason ?? ""] ?? "other",
+    calls, stop: stopOf(choice.finish_reason, calls.length > 0, typeof message.content === "string" && message.content.trim() !== ""),
     // Sent back as the assistant turn; ids the server left out are filled so the tool results can name them.
     raw: calls.length ? { ...message, tool_calls: rawCalls.map((call, i) => ({ ...call, id: calls[i].id })) } : message,
     inputTokens: wire.usage?.prompt_tokens ?? 0, outputTokens: wire.usage?.completion_tokens ?? 0,

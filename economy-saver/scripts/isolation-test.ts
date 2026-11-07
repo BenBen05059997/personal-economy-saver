@@ -109,7 +109,7 @@ const covered = [
   "listMemory", "addMemory", "editMemory", "deleteMemory", "forgetEverything",
   // D57 pins: canvases.ts; D60 conversation: conversation.ts and ask.ts; rate-limit.ts
   "listCanvases", "pinCanvas", "updateCanvas", "moveCanvas", "unpinCanvas",
-  "saveTurn", "recentTurns", "latestConversation", "allTurns", "setThumb", "conversationContext", "firstUseLine", "requestCount",
+  "saveTurn", "turnById", "recentTurns", "latestConversation", "allTurns", "setThumb", "conversationContext", "firstUseLine", "requestCount",
   // D61 document-card.ts
   "documentCard", "attachDocument",
   // D59 data-kinds.ts and restore.ts
@@ -448,6 +448,9 @@ async function main() {
       const mine = await F.latestConversation(store, hid);
       seen("latestConversation", mine);
       assert.deepEqual(mine?.turns.map(t => t.id), [viewer.ids.turn]);
+      assert.equal((await F.turnById(store, hid, viewer.ids.turn))?.id, viewer.ids.turn);
+      seen("turnById", await F.turnById(store, hid, viewer.ids.turn));
+      assert.equal(await F.turnById(store, hid, other.ids.turn), null, "another household's turn id reads nothing");
       assert.deepEqual(await F.recentTurns(store, hid, other.ids.turn), [], "another household's conversation id reads nothing");
       assert.deepEqual(await F.conversationContext(store, hid, { conversationId: mine!.conversationId, canvas: null }), `Earlier in this conversation, for context only; read every number again from the tools:\nQuestion: ${JSON.stringify(turns[0].question)}\nReply: ${JSON.stringify(turns[0].reply)}`);
       seen("conversationContext", turns);

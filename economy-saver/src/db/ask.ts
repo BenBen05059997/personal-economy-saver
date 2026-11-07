@@ -9,10 +9,10 @@ import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { RecipeSchema, type Recipe } from "@/lib/canvas/schema";
 import { consumeRequest, requestCount } from "./rate-limit";
-import { recentTurns, saveTurn } from "./conversation";
+import { recentTurns, saveTurn, turnById } from "./conversation";
 import { documentCard } from "./document-card";
 import { conversationTurns, households } from "./schema";
-import { runAgent } from "@/lib/agent/run";
+import { AgentError, runAgent, type AskResult } from "@/lib/agent/run";
 import { serverDefaultHost } from "@/lib/agent/availability";
 import { DECLINES_PER_HOUR, FIXED, firstUse, type ReplyKind, type Source } from "@/lib/agent/reply";
 import { cardContext, type DocumentCard } from "@/lib/reader/document-card";
@@ -34,6 +34,7 @@ export const askInput = z.object({
 
 // A constant, not a literal after the word kind and a colon: the Activity label scan reads those in src/db as event kinds.
 const DECLINED: ReplyKind = "declined";
+const ANSWER: ReplyKind = "answer";
 
 /** What the page and the route show for one question: the reply, the canvas the engine drew from the recipe, the pages it used. */
 export type AskReply = {
@@ -102,13 +103,30 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   if ((places.journal === "device") !== (recent !== undefined)) throw new InputError(places.journal === "device"
     ? "This household keeps its conversations on this device, so the question has to bring the last ones. Reload the page and ask again."
     : "This household keeps its conversations in our cloud. Reload the page and ask again.");
+  // A question retried after its reply was lost has the same id: the saved turn is the reply, and nothing runs or writes again.
+  const kept = recent === undefined ? await turnById(db, householdId, id) : null;
+  if (kept && kept.question !== text) throw new InputError("This question was already answered. Reload the page and ask again.");
+  if (kept) {
+    const drawn = kept.recipe ? { recipe: kept.recipe, blocks: resolveRecipe(kept.recipe, await loadCanvasContext(db, householdId)) } : null;
+    return {
+      id, kind: kept.kind === "document" ? ANSWER : kept.kind, text: kept.reply, choices: kept.choices, canvas: drawn,
+      sources: kept.sources, links: [], pending: false, firstUse: await firstUseLine(db, householdId), memoryChanges: [], wait: false,
+    };
+  }
   // Five declined questions an hour: the sixth gets a fixed sentence with no model call and no stored turn.
   if (await requestCount(db, householdId, "out-of-scope", "hour") >= DECLINES_PER_HOUR) {
     return { id, kind: DECLINED, text: FIXED.wait, choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], wait: true };
   }
   const context = recent !== undefined ? contextText(recent, canvas, await documentCards(db, householdId, recent)) : await conversationContext(db, householdId, { conversationId, canvas }, deps.at);
   const deviceMemory: DeviceMemory | undefined = memory === undefined ? undefined : { items: [...memory], changes: [], moment: await clockMoment(db, householdId, deps.at) };
-  const result = await runAgent({ db, householdId, question: text, askId: id, source, appUrl: appUrl(), context, fetch: deps.fetch, deviceMemory, connection: () => aiConnection(db, householdId, "text") });
+  let result: AskResult;
+  try {
+    result = await runAgent({ db, householdId, question: text, askId: id, source, appUrl: appUrl(), context, fetch: deps.fetch, deviceMemory, connection: () => aiConnection(db, householdId, "text") });
+  } catch (error) {
+    // A write tool already succeeded: what it kept is shown, with the reason the answer stopped, instead of an error that hides it (a retry would write it twice).
+    if (!(error instanceof AgentError) || !error.saved) throw error;
+    result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending };
+  }
   if (result.kind === "declined") await consumeRequest(db, householdId, "out-of-scope", DECLINES_PER_HOUR, "hour");
   if (recent === undefined) {
     await saveTurn(db, householdId, {

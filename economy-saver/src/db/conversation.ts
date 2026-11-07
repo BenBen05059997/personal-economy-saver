@@ -42,6 +42,13 @@ export async function saveTurn(db: Db, householdId: string, turn: NewTurn, at: D
   });
 }
 
+/** One stored turn of this household by id, or null (a question retried after its reply was lost). */
+export async function turnById(db: Db, householdId: string, id: string): Promise<ConversationTurn | null> {
+  const hid = requireHousehold(householdId);
+  const [row] = await db.select().from(conversationTurns).where(and(eq(conversationTurns.householdId, hid), eq(conversationTurns.id, id))).limit(1);
+  return row ? turnOf(row) : null;
+}
+
 /** The conversation's last three turns, oldest first, when its latest turn is under ten minutes old (24 hours while a document attached in it is being read or waiting in To check); otherwise none. */
 export async function recentTurns(db: Db, householdId: string, conversationId: string, now: Date = new Date()): Promise<ConversationTurn[]> {
   const hid = requireHousehold(householdId);

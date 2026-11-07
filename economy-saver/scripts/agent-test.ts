@@ -34,6 +34,7 @@ import { planFor, planLine } from "@/lib/money/plan";
 import { HouseholdSnapshot } from "@/lib/schema/household";
 import { InputError } from "@/db/input-error";
 import { DEVICE_MEMORY_WORDS } from "@/db/place";
+import { applyMemoryChanges, MAX_MEMORY_CHANGES } from "@/lib/store/memory-ops";
 import type { MemoryItem } from "@/lib/schema/memory";
 import type { ConversationTurn } from "@/lib/schema/turn";
 
@@ -1039,7 +1040,9 @@ async function main() {
         () => reply("tool_use", [toolUse("r", "remember", { kind: "fact", text: "Rent is ¥123,456" })]),
         () => reply("end_turn", [text("Your rent is ¥123,456.")]),
       ]);
-      await assert.rejects(conversation(c, "Remember my rent", remembered.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      // remember is a write: its text is kept, the invented amount in the answer is not shown, and the reply says so
+      const kept = await conversation(c, "Remember my rent", remembered.fetch);
+      assert.ok(kept.text.startsWith(FIXED.savedThenStopped) && kept.text.includes("could not confirm") && !kept.text.includes("123,456"));
       const d = await seedBen(db, { isDemo: true });
       const noted = transport([
         () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas([{ type: "number", label: "Rent", query: { q: "cash" }, note: "About ¥55,555 a month" }]) }), toolUse("w", "where_am_i", {})]),
@@ -1216,6 +1219,96 @@ async function main() {
       const stored = await ask(cloud, "Where am I?", {}, plain.fetch);
       assert.deepEqual(stored.memoryChanges, []);
       assert.equal((await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, cloud))).length, 1);
+    });
+
+    // ---------------------------------------------------------------- a failure after a write, a retried id, more than 20 memory changes
+    await check("a failure after a write tool becomes a reply that keeps the rows and links (cloud), and the turn is saved; a failure with no write still throws", async () => {
+      const h = await seedBen(db, { isDemo: true });
+      const billId = crypto.randomUUID();
+      const bill = { id: billId, biller: "Hikari Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, repeat: "month" };
+      let n = 0;
+      const looping = transport(() => (n++ === 0 ? reply("tool_use", [toolUse("b", "add_bill", bill)]) : reply("tool_use", [toolUse("w" + n, "where_am_i", {})])));
+      const conversationId = crypto.randomUUID();
+      const input = askInput.parse({ id: crypto.randomUUID(), conversationId, text: "The water bill is ¥4,200.", source: "manual", canvas: null });
+      logged.length = 0;
+      const answer = await answerQuestion(db, h, input, { fetch: looping.fetch });
+      assert.equal(answer.kind, "answer");
+      assert.equal(answer.text, FIXED.savedThenStopped + "I couldn't finish that. Try a simpler question.");
+      assert.ok(!/[0-9]/.test(answer.text), "no amount in the fixed text");
+      assert.equal(answer.pending, true);
+      assert.deepEqual(answer.links, [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }]);
+      assert.equal(answer.canvas, null);
+      assert.deepEqual(answer.sources, []);
+      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, h), eq(schema.bills.id, billId)))).length, 1);
+      assert.equal(logged.at(-1)!.outcome, "turns", "the log line keeps the real outcome");
+      const [turn] = await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.id, input.id));
+      assert.equal(turn.reply, answer.text);
+      assert.equal(turn.householdId, h);
+      // no write before the failure: still an error, and no turn
+      const refused = askInput.parse({ id: crypto.randomUUID(), conversationId, text: "Hello?", source: "manual", canvas: null });
+      await assert.rejects(answerQuestion(db, h, refused, { fetch: transport(() => reply("refusal", [])).fetch }), AgentError);
+      assert.equal((await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.id, refused.id))).length, 0);
+      // a write that itself failed does not count as a write
+      const badBill = transport([() => reply("tool_use", [toolUse("b", "add_bill", { ...bill, id: "not-a-uuid" })]), () => reply("refusal", [])]);
+      await assert.rejects(answerQuestion(db, h, askInput.parse({ id: crypto.randomUUID(), conversationId, text: "Again", source: "manual", canvas: null }), { fetch: badBill.fetch }), AgentError);
+    });
+
+    await check("a failure after remember on a device household returns the memory changes with a Memory link", async () => {
+      const d = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ memoryPlace: "device", journalPlace: "device" }).where(eq(schema.households.id, d));
+      const t = transport([() => reply("tool_use", [toolUse("r", "remember", { kind: "fact", text: "Rent goes up in April" })]), () => reply("end_turn", [])]);
+      const answer = await answerQuestion(db, d, askInput.parse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "Remember rent goes up in April", source: "manual", canvas: null, memory: [], recent: [] }), { fetch: t.fetch });
+      assert.equal(answer.kind, "answer");
+      assert.equal(answer.text, FIXED.savedThenStopped + "The assistant gave no answer. Try again.");
+      assert.equal(answer.memoryChanges.length, 1);
+      assert.ok(answer.memoryChanges[0].op === "add" && answer.memoryChanges[0].item.text === "Rent goes up in April");
+      assert.deepEqual(answer.links, [{ label: "Open Memory", href: "http://127.0.0.1:3123/memory" }]);
+      assert.equal(answer.pending, false);
+      assert.equal(answer.firstUse, null);
+      assert.equal((await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, d))).length, 0, "the device keeps its own turn");
+    });
+
+    await check("a question retried with the same id (cloud journal) makes no model call and returns the saved turn", async () => {
+      const h = await seedBen(db, { isDemo: true });
+      const id = crypto.randomUUID(), conversationId = crypto.randomUUID();
+      const input = askInput.parse({ id, conversationId, text: "Show my cash", source: "manual", canvas: null });
+      const first = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas() }), toolUse("w", "where_am_i", {})]),
+        () => reply("end_turn", [text("Here is your cash.")]),
+      ]);
+      const one = await answerQuestion(db, h, input, { fetch: first.fetch });
+      assert.ok(one.canvas);
+      const again = transport(() => { throw new Error("no model call expected"); });
+      const two = await answerQuestion(db, h, input, { fetch: again.fetch });
+      assert.equal(again.bodies.length, 0);
+      assert.equal(two.id, id);
+      assert.equal(two.kind, one.kind);
+      assert.equal(two.text, one.text);
+      assert.deepEqual(two.sources, one.sources);
+      assert.deepEqual(two.canvas?.recipe, one.canvas?.recipe);
+      assert.ok(two.canvas && two.canvas.blocks.length === one.canvas!.blocks.length);
+      assert.deepEqual([two.links, two.pending, two.memoryChanges, two.wait], [[], false, [], false]);
+      // the same id with other words is refused, never answered with the old reply
+      await assert.rejects(answerQuestion(db, h, { ...input, text: "Show my bills" }, { fetch: again.fetch }), (e: unknown) => e instanceof InputError && /already answered/.test(e.message));
+      assert.equal(again.bodies.length, 0);
+      // another household's question with the same id is not found here
+      const other = await seedBen(db, { isDemo: true });
+      const fresh = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("You are fine.")])]);
+      assert.equal((await answerQuestion(db, other, input, { fetch: fresh.fetch })).text, "You are fine.");
+      assert.equal(fresh.bodies.length, 2);
+    });
+
+    await check("remember and forget stop at 20 memory changes in one question; the 21st is a plain error the model can read", async () => {
+      const d = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ memoryPlace: "device", journalPlace: "device" }).where(eq(schema.households.id, d));
+      const calls = Array.from({ length: 21 }, (_, i) => toolUse("r" + i, "remember", { kind: "fact", text: "Fact number " + String.fromCharCode(97 + i) }));
+      const t = transport([() => reply("tool_use", calls), () => reply("end_turn", [text("I kept some of that.")])]);
+      const answer = await answerQuestion(db, d, askInput.parse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "Remember all of these", source: "manual", canvas: null, memory: [], recent: [] }), { fetch: t.fetch });
+      assert.equal(answer.memoryChanges.length, MAX_MEMORY_CHANGES);
+      const results = toolResults(t.bodies[1]);
+      assert.ok(!results[19].is_error && results[20].is_error);
+      assert.equal(results[20].content, "I can make at most 20 memory changes in one question.");
+      applyMemoryChanges([], answer.memoryChanges);
     });
 
     await check("without the device's list (MCP, a stale page) recall answers in words and remember and forget refuse; the cloud is not read", async () => {

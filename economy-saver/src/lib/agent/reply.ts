@@ -9,6 +9,7 @@ export type Source = { label: string; href: string };
 export const FIXED = {
   off_topic: "I can help with your money: what you have, what's coming, what you spend and getting paid. Try “Am I OK until the end of the month?”, “What if a client pays two weeks late?” or “Where did last month go?”",
   not_offered: "I can't advise on investments, tax filing or legal questions; a licensed professional can. I can show your own numbers: try “How much is in my tax pot?” or “What did I spend on work this month?”",
+  savedThenStopped: "I saved what you told me, but couldn't finish the answer. ",
   wait: "That's several questions I can't help with. Ask me about your money again in an hour.",
 } as const;
 
