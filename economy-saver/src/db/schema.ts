@@ -225,6 +225,8 @@ export const documents = pgTable(
     status: documentStatus("status").notNull().default("queued"),
     error: text("error"),
     processingAt: timestamp("processing_at", { withTimezone: true }),
+    bytes: integer("bytes").notNull().default(0), // 27E: the stored file's size, counted against the household's Storage cap
+    fileRemovedAt: timestamp("file_removed_at", { withTimezone: true }), // 27E: set when the daily job removed the raw file; the row and its readings stay
     createdAt: createdAt(),
   },
   (t) => [index("documents_household_idx").on(t.householdId), unique("documents_household_id_uq").on(t.householdId, t.id)],
@@ -335,6 +337,8 @@ export const bills = pgTable(
     repeatUntil: date("repeat_until", { mode: "string" }), // D41: the last day an occurrence may fall on (the last payment); only on a bill that repeats
     amountVaries: boolean("amount_varies").notNull().default(false), // D54: a monthly bill forecast from its own past; only with repeat_unit = 'month', never with a next amount
     seriesBillId: uuid("series_bill_id"), // D54: the amount-varies series this one-off real bill belongs to (same household); it replaces that month's estimate
+    periodStart: date("period_start", { mode: "string" }), // D63: the first day the bill covers ("11月分" = Nov 1); information only: the money counts by the due date
+    periodEnd: date("period_end", { mode: "string" }), // D63: the last day the bill covers; both or neither, start on or before end
     madeBy: madeByColumn(),
     askId: askIdColumn(),
     createdAt: createdAt(),
@@ -348,6 +352,7 @@ export const bills = pgTable(
     check("bills_repeat_until_valid", sql`${t.repeatUntil} is null or (${t.repeatUnit} is not null and ${t.due} is not null and ${t.repeatUntil} >= ${t.due})`),
     check("bills_series_one_off", sql`${t.seriesBillId} is null or ${t.repeatUnit} is null`),
     check("bills_amount_unknown_shape", sql`${t.amountMinor} is not null or ((${t.repeatUnit} is null or ${t.amountVaries}) and ${t.nextAmountMinor} is null and ${t.previousAmountMinor} is null)`),
+    check("bills_period_valid", sql`(${t.periodStart} is null) = (${t.periodEnd} is null) and (${t.periodStart} is null or ${t.periodStart} <= ${t.periodEnd})`),
     check("bills_due_unknown_one_off", sql`${t.due} is not null or (${t.repeatUnit} is null and ${t.seriesBillId} is null and ${t.cancelBy} is null)`),
     unique("bills_household_id_uq").on(t.householdId, t.id),
     index("bills_series_idx").on(t.householdId, t.seriesBillId),
@@ -544,6 +549,29 @@ export const requestBuckets = pgTable("request_buckets", {
   window: timestamp("window", { withTimezone: true }).notNull(),
   count: integer("count").notNull(),
 }, t => [primaryKey({ columns: [t.householdId, t.purpose] })]).enableRLS();
+
+// D59/D60: a household that keeps its conversations on the device has no stored turn to replay for a retried question. This records,
+// with no content, that the question with this id already wrote something, so a retry writes nothing twice. The daily job prunes it.
+export const askReceipts = pgTable("ask_receipts", {
+  householdId: householdId(),
+  askId: uuid("ask_id").notNull(),
+  createdAt: createdAt(),
+}, t => [primaryKey({ columns: [t.householdId, t.askId] })]).enableRLS();
+
+// 27E: Try it and the sign-in link run before a household exists, so their per-client limits are counted here. Only a SHA-256 of the
+// address is kept, never the address; the daily job prunes old windows.
+export const ipBuckets = pgTable("ip_buckets", {
+  ipHash: text("ip_hash").notNull(),
+  purpose: text("purpose").notNull(),
+  window: timestamp("window", { withTimezone: true }).notNull(),
+  count: integer("count").notNull(),
+}, t => [primaryKey({ columns: [t.ipHash, t.purpose] })]).enableRLS();
+
+// 27E: one row a day counts every model call made with the server's own key (a household's own key is not counted).
+export const aiGlobalUsage = pgTable("ai_global_usage", {
+  day: date("day", { mode: "string" }).primaryKey(),
+  count: integer("count").notNull(),
+}).enableRLS();
 
 // D58: what the assistant remembers. Plain text the person can read, edit and delete; delete is real (D59).
 export const memories = pgTable(

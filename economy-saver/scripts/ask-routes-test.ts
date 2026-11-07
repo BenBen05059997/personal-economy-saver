@@ -64,6 +64,17 @@ async function main() {
     const json = (path: string, value: unknown, headers: Record<string, string> = {}) => post(path, typeof value === "string" ? value : JSON.stringify(value), { "content-type": "application/json", ...headers });
     const question = (over: Record<string, unknown> = {}) => ({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "Am I fine this month?", source: "manual", canvas: null, ...over });
     const say = async (response: Response) => ({ status: response.status, text: await response.text(), headers: response.headers });
+    /** A question that got past the checks is a 200 stream of lines (27B): steps, then one reply or error line. */
+    const streamed = async (response: Response) => {
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("content-type"), "application/x-ndjson");
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
+      const lines = (await response.text()).split("\n").filter(Boolean).map(line => JSON.parse(line) as { step?: string; reply?: { text: string }; error?: string });
+      const last = lines.at(-1)!;
+      assert.ok(lines.slice(0, -1).every(line => typeof line.step === "string" && Object.keys(line).length === 1), "every line but the last is a step");
+      assert.ok(("reply" in last) !== ("error" in last) && !("step" in last), "the last line is a reply or an error");
+      return { steps: lines.slice(0, -1).map(line => line.step!), last, status: response.status, text: last.error ?? last.reply!.text, headers: response.headers };
+    };
 
     // ------------------------------------------------------------ the guard (all three routes)
     for (const [name, handler, path] of [["ask", ask, "/api/ask"], ["thumb", thumb, "/api/ask/thumb"], ["confirm", confirm, "/api/confirm"]] as const) {
@@ -126,14 +137,19 @@ async function main() {
     assert.equal(reply.status, 429);
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
     const fine = await ask(json("/api/ask", question()));
-    assert.deepEqual([fine.status, fine.headers.get("cache-control"), (await fine.json() as { text: string }).text], [200, "private, no-store", "fine"]);
+    assert.deepEqual([(await streamed(fine)).text], ["fine"]);
     asking = null;
     ok("/api/ask: 30 questions a minute, the 31st is 429 'Ask again in a minute.' with Retry-After 60; per household; a success is JSON, no-store");
 
     // ------------------------------------------------------------ /api/ask: error mapping
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
     const FIXED = "Couldn't answer right now. Try again.";
-    const failing = async (error: unknown) => { asking = async () => { throw error; }; return say(await ask(json("/api/ask", question()))); };
+    const failing = async (error: unknown) => {
+      asking = async () => { throw error; };
+      const response = await ask(json("/api/ask", question()));
+      // An InputError before any step is the plain 400; anything else is an error line in the stream (an InputError after a step is tested below).
+      return response.status === 400 ? say(response) : streamed(response);
+    };
     const mapped = async (error: unknown, expected: [number, string]) => {
       const answer = await failing(error);
       assert.deepEqual([answer.status, answer.text], expected, String(error));
@@ -141,22 +157,22 @@ async function main() {
       return answer;
     };
     await mapped(new InputError("Reload the page and ask again."), [400, "Reload the page and ask again."]);
-    await mapped(new AgentError("The assistant took too long."), [503, "The assistant took too long."]);
-    await mapped(new AiKeyError("That key was not accepted."), [503, "That key was not accepted."]);
-    await mapped(new MissingAuthSetting("SUPABASE_URL is not set"), [503, "SUPABASE_URL is not set"]);
-    for (const name of ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT"]) {
-      for (const Kind of [AgentError, AiKeyError, MissingAuthSetting]) await mapped(new Kind(`${name} is not set`), [503, askUnavailable(name)]);
+    await mapped(new AgentError("The assistant took too long."), [200, "The assistant took too long."]);
+    await mapped(new AiKeyError("That key was not accepted."), [200, "That key was not accepted."]);
+    await mapped(new MissingAuthSetting("SUPABASE_URL is not set"), [200, "SUPABASE_URL is not set"]);
+    for (const name of ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_GLOBAL_DAILY_LIMIT"]) {
+      for (const Kind of [AgentError, AiKeyError, MissingAuthSetting]) await mapped(new Kind(`${name} is not set`), [200, askUnavailable(name)]);
     }
     // an unknown-named or longer message is not rewritten; only exactly `AI_X is not set` is
-    await mapped(new AgentError("AI_TEXT_MODEL is not set, sorry"), [503, "AI_TEXT_MODEL is not set, sorry"]);
-    await mapped(new AgentError("ai_text_model is not set"), [503, "ai_text_model is not set"]);
+    await mapped(new AgentError("AI_TEXT_MODEL is not set, sorry"), [200, "AI_TEXT_MODEL is not set, sorry"]);
+    await mapped(new AgentError("ai_text_model is not set"), [200, "ai_text_model is not set"]);
     // anything else, including an Error whose text names a secret or a setting, is the fixed sentence
     for (const error of [new Error("AI_TEXT_MODEL is not set"), new Error("connect ECONNREFUSED 10.0.0.1:5432 password=fictional-secret"), new TypeError("x is not a function"), "a string", null, { message: "AI_TEXT_MODEL is not set" }]) {
-      const answer = await mapped(error, [503, FIXED]);
+      const answer = await mapped(error, [200, FIXED]);
       assert.ok(!answer.text.includes("secret") && !answer.text.includes("ECONNREFUSED"), "the error's own text never reaches the person");
     }
     asking = null;
-    ok("/api/ask errors: InputError 400 with its message; AgentError, AiKeyError, MissingAuthSetting 503 with theirs; 'AI_X is not set' becomes askUnavailable(X); anything else 503 with the fixed sentence only");
+    ok("/api/ask errors: InputError 400 with its message; AgentError, AiKeyError, MissingAuthSetting an error line with theirs; 'AI_X is not set' becomes askUnavailable(X); anything else an error line with the fixed sentence only");
 
     // the real answerQuestion behind the route: a household that keeps its memory on the device is refused a question without it, as 400
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, b));
@@ -165,11 +181,30 @@ async function main() {
     assert.deepEqual([mismatch.status, mismatch.text], [400, "This household keeps its memory in our cloud. Reload the page and ask again."]);
     // and with no AI setting on this server the real agent path stops with a sentence a person can read (never the key)
     for (const key of Object.keys(process.env)) if (key.startsWith("AI_")) delete process.env[key];
-    const unset = await say(await ask(json("/api/ask", question())));
-    assert.equal(unset.status, 503);
-    assert.deepEqual([unset.status, unset.text], [503, askUnavailable("AI_TEXT_MODEL")], "the real path names the first missing setting");
+    const unset = await streamed(await ask(json("/api/ask", question())));
+    assert.deepEqual([unset.status, unset.text], [200, askUnavailable("AI_TEXT_MODEL")], "the real path names the first missing setting");
     Object.assign(process.env, savedEnv);
-    ok("/api/ask, real answerQuestion: a memory/place mismatch is 400 with its sentence; no AI settings is 503 with words");
+    ok("/api/ask, real answerQuestion: a memory/place mismatch is 400 with its sentence; no AI settings is an error line with words");
+
+    // the stream: steps in order, then the reply; a failure after steps is an error line; an InputError after a step is an error line, before one a plain 400
+    await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
+    cookie = a;
+    const replyObject = { id: "x", kind: "answer", text: "fine", choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], wait: false };
+    type Deps = { onStep?: (step: string) => void };
+    asking = async (...args: unknown[]) => { const deps = args[3] as Deps; deps.onStep!("Thinking about your question"); await new Promise(resolve => setTimeout(resolve, 5)); deps.onStep!("Reading what's due"); return replyObject; };
+    const ok1 = await streamed(await ask(json("/api/ask", question())));
+    assert.deepEqual(ok1.steps, ["Thinking about your question", "Reading what's due"]);
+    assert.deepEqual(ok1.last, { reply: replyObject }, "the last line is exactly the reply object");
+    asking = async (...args: unknown[]) => { (args[3] as Deps).onStep!("Thinking about your question"); throw new AgentError("That took too long. Try a simpler question."); };
+    const bad = await streamed(await ask(json("/api/ask", question())));
+    assert.deepEqual([bad.steps, bad.last], [["Thinking about your question"], { error: "That took too long. Try a simpler question." }]);
+    asking = async (...args: unknown[]) => { (args[3] as Deps).onStep!("Thinking about your question"); throw new InputError("Reload the page and ask again."); };
+    const late = await streamed(await ask(json("/api/ask", question())));
+    assert.deepEqual(late.last, { error: "Reload the page and ask again." }, "an InputError after the stream started is an error line");
+    asking = async () => replyObject; // a reply with no model call (a kept turn) is still a stream
+    assert.deepEqual((await streamed(await ask(json("/api/ask", question())))).steps, []);
+    asking = null;
+    ok("/api/ask stream: step lines then the exact reply; an error line after steps; InputError after a step is an error line; no steps still streams the reply");
 
     // ------------------------------------------------------------ /api/ask/thumb
     const turn = (over: Partial<Parameters<typeof saveTurn>[2]> = {}) => ({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), question: "q", kind: "answer" as const, reply: "r", choices: null, recipe: null, sources: [], ...over });
@@ -351,9 +386,9 @@ async function main() {
     ok("extractDocument email limits: more than 8 supported attachments, or more than 100,000 characters of subject, date and body, is refused before any model is chosen; unsupported types are not counted; nothing to read is refused");
 
     // ------------------------------------------------------------ missingAskSetting and askUnavailable
-    const names = ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT"];
+    const names = ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_GLOBAL_DAILY_LIMIT"];
     const set = (values: Record<string, string | undefined>) => { for (const n of names) delete process.env[n]; for (const [k, v] of Object.entries(values)) if (v !== undefined) process.env[k] = v; };
-    const full = { AI_TEXT_MODEL: "m", AI_PROTOCOL: "openai", AI_BASE_URL: "https://models.example/v1", AI_API_KEY: "k", AI_DAILY_LIMIT: "50" };
+    const full = { AI_TEXT_MODEL: "m", AI_PROTOCOL: "openai", AI_BASE_URL: "https://models.example/v1", AI_API_KEY: "k", AI_DAILY_LIMIT: "50", AI_GLOBAL_DAILY_LIMIT: "1000" };
     set({});
     assert.equal(missingAskSetting(true), null, "a household's own connection needs none of them");
     assert.equal(missingAskSetting(false), "AI_TEXT_MODEL", "nothing set: the model first");
@@ -368,6 +403,8 @@ async function main() {
     set({ ...full, AI_API_KEY: "" }); assert.equal(missingAskSetting(false), "AI_API_KEY");
     set({ ...full, AI_DAILY_LIMIT: undefined }); assert.equal(missingAskSetting(false), "AI_DAILY_LIMIT");
     set({ ...full, AI_DAILY_LIMIT: " " }); assert.equal(missingAskSetting(false), "AI_DAILY_LIMIT");
+    set({ ...full, AI_GLOBAL_DAILY_LIMIT: undefined }); assert.equal(missingAskSetting(false), "AI_GLOBAL_DAILY_LIMIT");
+    set({ ...full, AI_DAILY_LIMIT: undefined, AI_GLOBAL_DAILY_LIMIT: undefined }); assert.equal(missingAskSetting(false), "AI_DAILY_LIMIT", "the per-household allowance is checked first");
     set({ ...full, AI_TEXT_MODEL: undefined, AI_PROTOCOL: undefined, AI_API_KEY: undefined }); assert.equal(missingAskSetting(false), "AI_TEXT_MODEL", "the first missing one in order");
     set({ ...full, AI_PROTOCOL: undefined, AI_BASE_URL: undefined, AI_DAILY_LIMIT: undefined }); assert.equal(missingAskSetting(false), "AI_PROTOCOL");
     set(full); assert.equal(missingAskSetting(false), null, "everything set");

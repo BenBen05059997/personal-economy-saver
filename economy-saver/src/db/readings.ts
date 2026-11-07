@@ -9,14 +9,24 @@ import { convertMinor, fromMinor, fromRateMicro } from "./money";
 import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { syncClosedStatementCharge } from "./statement-charge";
-import { normalise } from "@/lib/money/name-key";
+import { nameKey } from "@/lib/money/name-key";
 import { correctionText } from "@/lib/reader/correction";
 import { addMemory } from "./memory";
 import { checksFor, readingProposal, type CheckKind } from "@/lib/money/checks";
 import { DOCUMENT_WORDS } from "@/lib/reader/document-card";
+import { estimatedDue, periodProblem } from "@/lib/money/period";
 
-const ruleKey = (entry: Extracted) => entry.name ? entry.kind + ":" + normalise(entry.name) : null;
+const ruleKey = (entry: Extracted) => entry.name ? entry.kind + ":" + nameKey(entry.name) : null;
 const patchSchema = extractSchema.pick({ name: true, kind: true, category: true, businessBp: true, cardId: true }).partial();
+
+/** The day of the month a biller's confirmed bills usually fall due on: the latest confirmed bill with the same name key; null when there is none. */
+async function usualDueDay(db: Db, hid: string, name: string): Promise<number | null> {
+  const key = nameKey(name);
+  const rows = await db.select({ biller: bills.biller, due: bills.due, repeatDay: bills.repeatDay }).from(bills)
+    .where(and(eq(bills.householdId, hid), eq(bills.status, "confirmed"), sql`${bills.due} is not null`)).orderBy(desc(bills.due));
+  const row = rows.find(r => nameKey(r.biller) === key);
+  return row ? row.repeatDay ?? Number(row.due!.slice(8, 10)) : null;
+}
 
 /** Called inside the transaction which finishes a document. Nothing here changes the runway. */
 // A memory kind, not an Activity event kind: written as a constant so the doors scan for `kind: "…"` does not take it for one.
@@ -24,13 +34,20 @@ const CORRECTION = "correction";
 
 export async function proposeReadings(db: Db, id: string, documentId: string, items: Extracted[]) {
   const hid = requireHousehold(id);
-  for (const original of items) {
+  // One file's readings get distinct created_at values (the base moment plus the index in milliseconds), so every list ordered by created_at keeps the model's order.
+  const base = Date.now();
+  for (const [index, original] of items.entries()) {
     const key = ruleKey(original);
     const [rule] = key ? await db.select({ patch: rules.patch }).from(rules)
       .where(and(eq(rules.householdId, hid), eq(rules.matchBiller, key))) : [];
-    const proposed = rule ? { ...original, ...patchSchema.parse(rule.patch) } : original;
+    let proposed = rule ? { ...original, ...patchSchema.parse(rule.patch) } : original;
+    // 27F: a bill that shows the month it covers and no due date is proposed with an estimated one, marked as such with its basis.
+    if (proposed.kind === "bill" && proposed.date === null && proposed.name && proposed.periodStart && proposed.periodEnd && periodProblem(proposed.periodStart, proposed.periodEnd) === null) {
+      const { date, basis } = estimatedDue({ start: proposed.periodStart, end: proposed.periodEnd }, await usualDueDay(db, hid, proposed.name));
+      proposed = { ...proposed, date, dateBasis: basis };
+    }
     const [row] = await db.insert(readings).values({
-      householdId: hid, documentId, extracted: { original, proposed }, target: proposed.kind,
+      householdId: hid, documentId, extracted: { original, proposed }, target: proposed.kind, createdAt: new Date(base + index),
     }).returning({ id: readings.id });
     await recordEvent(db, hid, { madeBy: "reader", kind: "to_check", title: `Review ${proposed.name ?? proposed.kind}`, ref: { type: "reading", id: row.id }, notify: true });
   }
@@ -64,6 +81,11 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     if ((amountUnknown || dateUnknown) && value.kind !== "bill") throw new ReaderError("A card charge needs its amount and its date.");
     if ((amountUnknown && amountMinor !== null) || (dateUnknown && date !== null)) throw new ReaderError("Leave the amount or the date empty when it is not known yet.");
     if (!name || (!date && !dateUnknown) || (!amountMinor && !amountUnknown) || (!currency && !amountUnknown)) throw new ReaderError("Enter the name, amount, currency and date.");
+    const periodStart = value.periodStart ?? null, periodEnd = value.periodEnd ?? null;
+    const period = periodProblem(periodStart, periodEnd);
+    if (period !== null) throw new ReaderError(period);
+    if (value.kind === "charge" && periodStart !== null) throw new ReaderError("A card charge has no billing period.");
+    if (value.repeat !== null && periodStart !== null) throw new ReaderError("A bill that repeats covers a different month each time; remove its period.");
     if (amountUnknown && (value.repeat !== null || value.nextAmountMinor !== null)) throw new ReaderError("A bill that repeats needs its amount.");
     if (dateUnknown && (value.repeat !== null || value.cancelBy !== null || value.repeatUntil !== null)) throw new ReaderError("A bill that repeats or has a last day to cancel needs its due date.");
     const { today } = clockForHousehold(row);
@@ -108,6 +130,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
       const [bill] = await tx.insert(bills).values({
         ...amounts, ...category, due: date, biller: name, status: "confirmed", repeatUnit: value.repeat, repeatDay: date ? repeatDayFor(date, value.repeat) : null,
         nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy, repeatUntil: value.repeatUntil,
+        periodStart, periodEnd,
       }).returning({ id: bills.id });
       targetId = bill.id;
       linked = await linkToSeries(tx, hid, bill.id); // D54: a one-off joins its amount-varies series, as on the form

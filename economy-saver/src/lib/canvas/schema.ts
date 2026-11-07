@@ -56,15 +56,17 @@ const MonthByCategoryQuery = z.object({ q: z.literal("month_by_category"), month
 const CompareMonthsQuery = z.object({ q: z.literal("compare_months"), a: month.describe("The earlier month, the base."), b: month.describe("The month compared with it; the change is b minus a.") }).strict();
 const SpendingSearchQuery = z.object({ q: z.literal("spending_search"), text: z.string().max(80), months: z.number().int().min(1).max(12) }).strict();
 const RegularCostsQuery = z.object({ q: z.literal("regular_costs"), months: z.number().int().min(2).max(24).optional() }).strict();
+const BillsForMonthQuery = z.object({ q: z.literal("bills_for_month"), month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "A month is YYYY-MM").describe("The month the bills are FOR (their period), YYYY-MM; a bill for November is usually paid in December."), text: z.string().max(80).optional() }).strict();
+const ForeignCostsQuery = z.object({ q: z.literal("foreign_costs") }).strict();
 
 export type Query = z.infer<
   | typeof SentenceQuery | typeof SafeToSpendQuery | typeof CashQuery | typeof LowPointQuery | typeof FlowQuery | typeof EventsQuery
-  | typeof MonthTotalQuery | typeof MonthByCategoryQuery | typeof CompareMonthsQuery | typeof SpendingSearchQuery | typeof RegularCostsQuery
+  | typeof MonthTotalQuery | typeof MonthByCategoryQuery | typeof CompareMonthsQuery | typeof SpendingSearchQuery | typeof RegularCostsQuery | typeof ForeignCostsQuery | typeof BillsForMonthQuery
 >;
 
 // What each kind of block may ask. A block that shows one number asks for a number; a chart asks for a flow; and so on.
-const NumberQuery = z.discriminatedUnion("q", [SafeToSpendQuery, CashQuery, LowPointQuery, MonthTotalQuery]);
-const TableQuery = z.discriminatedUnion("q", [EventsQuery, MonthByCategoryQuery, CompareMonthsQuery, SpendingSearchQuery, RegularCostsQuery]);
+const NumberQuery = z.discriminatedUnion("q", [SafeToSpendQuery, CashQuery, LowPointQuery, MonthTotalQuery, ForeignCostsQuery]);
+const TableQuery = z.discriminatedUnion("q", [EventsQuery, MonthByCategoryQuery, CompareMonthsQuery, SpendingSearchQuery, RegularCostsQuery, ForeignCostsQuery, BillsForMonthQuery]);
 const ProgressQuery = z.discriminatedUnion("q", [SafeToSpendQuery, CashQuery, MonthTotalQuery]);
 
 // ---------------------------------------------------------------- blocks

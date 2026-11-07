@@ -160,7 +160,7 @@ const GRADES: Record<AgentCase, Grade> = {
     const byMonth = tables.find(b => b.type === "table" && b.query.q === "month_by_category");
     if (byMonth && byMonth.type === "table" && byMonth.query.q === "month_by_category" && byMonth.query.month !== "2026-10") return `The month_by_category block shows ${byMonth.query.month}, not 2026-10.`;
     let resolved;
-    try { resolved = resolveRecipe(recipe, await loadCanvasContext(o.db, o.householdId)); }
+    try { resolved = resolveRecipe(recipe, await loadCanvasContext(o.db, o.householdId, recipe)); }
     catch { return "The canvas does not resolve against Ben's records."; }
     if (!resolved.some(b => b.type === "table" && b.data.rows.length > 0)) return "The table block resolved to no rows.";
     return kindIs(o, "answer");

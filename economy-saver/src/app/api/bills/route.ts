@@ -43,6 +43,8 @@ export async function POST(request: Request) {
         seriesBillId: form.has("seriesBillId") ? form.get("seriesBillId") || null : undefined,
         cancelBy: form.has("cancelBy") ? form.get("cancelBy") || null : undefined,
         repeatUntil: form.has("repeatUntil") ? form.get("repeatUntil") || null : undefined,
+        periodStart: form.has("periodStart") ? form.get("periodStart") || null : undefined,
+        periodEnd: form.has("periodEnd") ? form.get("periodEnd") || null : undefined,
       });
       if (!data.success) return badFields();
       if (!await updateBill(db(), hid, data.data, { madeBy: "form" })) return text("Choose a bill of this household", 400);

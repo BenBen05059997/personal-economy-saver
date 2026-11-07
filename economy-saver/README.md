@@ -56,8 +56,10 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 
    - **Database-backed routes:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (the transaction pooler string, port 6543) and `APP_URL`. Sign-in links return to `APP_URL` (never to the request's Origin header), and it must be listed under the project's Authentication → URL Configuration. Locally it is `http://127.0.0.1:3123`; in the Worker preview `http://localhost:8787`.
    - **PayPal actions:** `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `SANDBOX_CLIENT_EMAIL`. A webhook also needs `PAYPAL_WEBHOOK_ID` once the owner has registered it. Refreshing the stored balance and importing invoice history for a non-demo household need `PAYPAL_BALANCE_HOUSEHOLD_ID`.
-   - **AI model (Ask and the reader), the server default:** `AI_PROTOCOL` (`anthropic` or `openai`, the OpenAI-compatible Chat Completions protocol), `AI_BASE_URL` (required for `openai`), `AI_API_KEY`, a positive `AI_DAILY_LIMIT`, `AI_TEXT_MODEL` (Ask and plain forwarded mail) and `AI_DOCUMENT_MODEL` (photos, PDFs and mail with attachments; it must accept images). A household can choose its own model in Settings instead; then it needs none of these for its own questions and documents.
+   - **AI model (Ask and the reader), the server default:** `AI_PROTOCOL` (`anthropic` or `openai`, the OpenAI-compatible Chat Completions protocol), `AI_BASE_URL` (required for `openai`), `AI_API_KEY`, a positive `AI_DAILY_LIMIT` (per household a day), a positive `AI_GLOBAL_DAILY_LIMIT` (all households together, a day; the examples use 500), `AI_TEXT_MODEL` (Ask and plain forwarded mail) and `AI_DOCUMENT_MODEL` (photos, PDFs and mail with attachments; it must accept images). A household can choose its own model in Settings instead; then it needs none of these for its own questions and documents.
+   - **Client address (per-address limits on Try it, Start with my numbers and sign-in links):** `CLIENT_IP_HEADER`, the request header that holds the caller's address: `x-forwarded-for` under `next dev`, `cf-connecting-ip` on the Worker. With it unset those routes answer 503 naming it; a request without the header is refused.
    - **Reader storage and forwarding:** `SUPABASE_DOCUMENT_BUCKET` (a private bucket; `household-documents` on the Tokyo project), `FORWARDING_DOMAIN`, `INBOUND_ADDRESS_KEY`, `INBOUND_WORKER_SECRET`.
+   - **A household's own AI key:** `AI_KEY_SEAL_KEY`, a dedicated random 32-byte key as unpadded base64url (generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`). A saved key is sealed with it in the Worker (AES-GCM) before it goes into Vault; keep the same value, because a key sealed with another value cannot be opened and has to be saved again. Saving or using a household's own key stops with a clear error when it is missing.
    - **MCP tokens:** `MCP_TOKEN_KEY`, a dedicated random 32-byte key as unpadded base64url. Keep the same key across instances; rotating it invalidates tokens.
    - **Cron:** `CRON_SECRET` and `CRON_HOUSEHOLD_IDS` (comma-separated household UUIDs).
 
@@ -85,13 +87,13 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all thirty-two suites (listed below)
+npm run db:test      # all thirty-three suites (listed below)
 npm run schema       # rewrites the five files in schema/ from the zod definitions (db:test fails when one is stale)
 npx tsc --noEmit -p .
 npm run lint
 ```
 
-Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:fx-cost-test`, `db:checks-test`, `db:canvas-test`, `db:conversation-test`, `db:ask-document-test`, `db:ask-routes-test`, `db:charge-routes-test`, `db:memory-test`, `db:data-test`, `db:cron-test`, `db:sweep-test`, `db:isolation-test`, `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
+Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:fx-cost-test`, `db:checks-test`, `db:canvas-test`, `db:conversation-test`, `db:ask-document-test`, `db:ask-routes-test`, `db:charge-routes-test`, `db:memory-test`, `db:data-test`, `db:cron-test`, `db:sweep-test`, `db:isolation-test`, `db:limits-test` (per-address limits, the AI budget, the storage cap, file retention), `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
 
 The model eval calls a real provider, so it is not part of `db:test`: `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` runs the real agent on Ben's fictional household in a throwaway database, reads the key from `EVAL_API_KEY` in `.env.local`, and prints one line per case and the `TESTED` line to add to `src/lib/ai/tested.ts`. Its graders are tested on the fake transport in `db:ai-test`.
 
@@ -121,7 +123,7 @@ src/db/                     schema, household-scoped queries, seeds, rate limits
 src/lib/                    money (the engine), agent, ai, canvas, schema, paypal, mcp, reader, catalogue
 schema/                     the committed JSON Schemas (npm run schema)
 scripts/                    isolated tests and explicit owner-operated checks
-drizzle/                    ordered schema migrations, twenty-four files (0000–0023)
+drizzle/                    ordered schema migrations, twenty-seven files (0000–0026)
 worker.ts                   Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
 samples/bills/              fictional sample bills for the reader
 ```

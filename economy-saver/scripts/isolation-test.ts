@@ -17,6 +17,7 @@ import * as aiKeys from "@/db/ai-key";
 import * as askMod from "@/db/ask"; // D60 Ask
 import * as canvasesMod from "@/db/canvases"; // D57 pins
 import * as conversationMod from "@/db/conversation"; // D60 conversation
+import * as askReceiptsMod from "@/db/ask-receipts"; // D59 ask receipts
 import * as dataKindsMod from "@/db/data-kinds"; // D59 delete by kind
 import * as restoreMod from "@/db/restore"; // D59 import
 import * as placeMod from "@/db/place"; // D59 this device only
@@ -101,7 +102,7 @@ const covered = [
   // Stage 17 import: import-charges.ts
   "importCharges",
   // Stage 17 spending: spending.ts
-  "loadSpending",
+  "loadSpending", "loadPeriodBills",
   // D62 foreign costs: fx-cost.ts
   "foreignCostInputs", "foreignCosts",
   // Stage 18 varies: bills.ts
@@ -113,8 +114,12 @@ const covered = [
   // D57 pins: canvases.ts; D60 conversation: conversation.ts and ask.ts; rate-limit.ts
   "listCanvases", "pinCanvas", "updateCanvas", "moveCanvas", "unpinCanvas",
   "saveTurn", "turnById", "recentTurns", "latestConversation", "allTurns", "setThumb", "conversationContext", "firstUseLine", "requestCount",
+  // D59 ask-receipts.ts
+  "noteAskWrote", "askAlreadyWrote", "pruneAskReceipts",
   // D61 document-card.ts
   "documentCard", "attachDocument",
+  // 27E document-cleanup.ts: Storage bytes and the removal of old raw files
+  "storedBytes", "requireStorageRoom", "removeExpiredFiles",
   // D59 data-kinds.ts and restore.ts
   "countKind", "countKinds", "deleteKind", "deleteOne", "deleteTurn", "deleteConversation", "deleteDocument", "restoreHousehold",
   // D59 place.ts (24B)
@@ -138,6 +143,9 @@ const notApplicable: Record<string, string> = {
   toMinor: "pure money maths", fromMinor: "pure money maths", toRateMicro: "pure money maths", fromRateMicro: "pure money maths",
   convertMinor: "pure money maths", parseMinor: "pure money maths", parseAmountMinor: "pure money maths",
   parseShareBp: "pure text parser", equalShares: "pure share maths", parseFillBp: "pure text parser", percent: "pure formatter",
+  clientIp: "pure reader of a request header; no database", hashIp: "pure SHA-256 of an address; no database",
+  consumeIpRequest: "counts per hashed client address before any household exists; no household id, no household rows (limits-test)",
+  pruneIpBuckets: "deletes old per-address windows app-wide; touches no household's rows (limits-test)",
   demoCreationAllowed: "global count of recent demo households; returns a boolean, no rows",
   readDocumentInBackground: "opens its own connection and calls readDocument, which is tested here",
   staleBefore: "pure clock helper",
@@ -146,6 +154,7 @@ const notApplicable: Record<string, string> = {
   sandboxRead: "PayPal sandbox HTTP reader; takes no household id",
   isMovable: "pure check that a value is one of the three movable kind names", contextText: "pure text from turns passed in; conversationContext, which reads them, is covered above",
   seedBen: "creates a new household with a fresh id; touches no existing household",
+  sealAiKey: "pure: seals a key text for the household id it is given; the isolation check below proves a key sealed for one household does not open for another", unsealAiKey: "pure: opens a sealed key for the household id it is given; same check",
   isDataKind: "pure check that a value is one of the five kind names", readSnapshotFile: "pure parse of a file passed in; restoreHousehold, which calls it, is covered above",
 };
 
@@ -194,7 +203,7 @@ async function main() {
     ...spendingMod, // Stage 17 spending
     ...fxCostMod, // D62 foreign costs
     ...memoryMod, // D58 memory
-    ...askMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
+    ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
   };
   const F = new Proxy(modules, {
@@ -212,6 +221,7 @@ async function main() {
     process.env.PAYPAL_CLIENT_SECRET = "fictional-test-secret";
     process.env.AI_TEXT_MODEL = "fixture-text";
     process.env.MCP_TOKEN_KEY = randomBytes(32).toString("base64url");
+    process.env.AI_KEY_SEAL_KEY = randomBytes(32).toString("base64url"); // fictional test seal key (a household's saved AI key is sealed with it)
     delete process.env.PAYPAL_BALANCE_HOUSEHOLD_ID;
 
     await migrate(db, { migrationsFolder: "./drizzle" });
@@ -250,7 +260,8 @@ async function main() {
     }
 
     await check("every table except households carries household_id, so the fingerprint of a household covers all of its rows", () => {
-      assert.deepEqual(everyTable.filter(t => !scoped.includes(t)), ["households"]);
+      // 27E: ip_buckets (hashed client address) and ai_global_usage (one row a day) exist before and outside any household, and hold no household data.
+      assert.deepEqual(everyTable.filter(t => !scoped.includes(t)), ["ai_global_usage", "households", "ip_buckets"]);
       for (const table of ["bills", "charges", "pots", "members", "clients", "invoices", "documents", "readings", "cards", "card_statements", "settlements",
         "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules"]) {
         assert.ok(scoped.includes(table), table);
@@ -318,6 +329,7 @@ async function main() {
       const turn = crypto.randomUUID();
       await F.saveTurn(db, hid, { id: turn, conversationId: crypto.randomUUID(), question: `${T} asks`, kind: "declined", reply: `${T} reply`, choices: null, recipe: null, sources: [] });
       await F.setThumb(db, hid, turn, 1);
+      await F.noteAskWrote(db, hid, crypto.randomUUID());
       await F.consumeRequest(db, hid, "out-of-scope", 5, "hour");
       assert.equal(await F.requestCount(db, hid, "out-of-scope", "hour"), 1);
       await F.recordEvent(db, hid, { madeBy: "form", kind: `isolation_${l}_event`, title: `${T} event`, body: `${T} event body`, notify: true });
@@ -375,7 +387,7 @@ async function main() {
 
     // ---------------------------------------------------------------- reads
     const toolInputs: Record<string, unknown> = {
-      can_i_spend: { amount_minor: 1_000 }, timeline: { scenario: "late" }, plan_for: { target_minor: 100_000, target_date: "2027-06-01" },
+      can_i_spend: { amount_minor: 1_000 }, timeline: { scenario: "late" }, plan_for: { target_minor: 100_000, target_date: "2027-06-01" }, bills_for_month: { month: "2026-11" },
     };
     function toolContext(t: Tenant): ToolContext {
       return { madeBy: "ask", db: store, householdId: t.hid, state: () => F.loadMoneyState(store, t.hid, DEMO_DATE), appUrl: new URL("http://127.0.0.1:3123") };
@@ -455,6 +467,17 @@ async function main() {
       assert.deepEqual(mine?.turns.map(t => t.id), [viewer.ids.turn]);
       assert.equal((await F.turnById(store, hid, viewer.ids.turn))?.id, viewer.ids.turn);
       seen("turnById", await F.turnById(store, hid, viewer.ids.turn));
+      const receiptId = randomUUID();
+      await F.noteAskWrote(store, hid, receiptId);
+      await F.noteAskWrote(store, hid, receiptId);
+      assert.equal(await F.askAlreadyWrote(store, hid, receiptId), true);
+      assert.equal(await F.askAlreadyWrote(store, other.hid, receiptId), false, "another household's receipt is not seen by this id");
+      assert.equal(await F.pruneAskReceipts(store, hid), 0, "a receipt under a day old stays");
+      await pg.query("update ask_receipts set created_at = now() - interval '2 days' where household_id = $1 and ask_id = $2", [hid, receiptId]);
+      const otherBefore = (await db.select().from(schema.askReceipts).where(eq(schema.askReceipts.householdId, other.hid))).length;
+      assert.equal(await F.pruneAskReceipts(store, hid), 1);
+      assert.equal((await db.select().from(schema.askReceipts).where(eq(schema.askReceipts.householdId, other.hid))).length, otherBefore, "pruning one household leaves the other's");
+      assert.equal(await F.askAlreadyWrote(store, hid, receiptId), false);
       assert.equal(await F.turnById(store, hid, other.ids.turn), null, "another household's turn id reads nothing");
       assert.deepEqual(await F.recentTurns(store, hid, other.ids.turn), [], "another household's conversation id reads nothing");
       assert.deepEqual(await F.conversationContext(store, hid, { conversationId: mine!.conversationId, canvas: null }), `Earlier in this conversation, for context only; read every number again from the tools:\nQuestion: ${JSON.stringify(turns[0].question)}\nReply: ${JSON.stringify(turns[0].reply)}`);
@@ -920,6 +943,33 @@ async function main() {
     });
 
     // ---------------------------------------------------------------- Stage 17 spending
+    await check("a saved AI key sealed for household A does not open for household B, and a bill's billing period (27F) is read for its own household only", async () => {
+      const sealed = await aiKeys.sealAiKey(A.hid, "fictional-key-value");
+      assert.equal(await aiKeys.unsealAiKey(A.hid, sealed), "fictional-key-value");
+      await assert.rejects(aiKeys.unsealAiKey(B.hid, sealed));
+      const [aPeriod, bPeriod] = [randomUUID(), randomUUID()];
+      await db.insert(schema.bills).values([
+        { id: aPeriod, householdId: A.hid, biller: "Fictional A Power", amountMinor: 4_000, currency: "JPY", due: "2026-12-02", category: "utilities", periodStart: "2026-11-01", periodEnd: "2026-11-30" },
+        { id: bPeriod, householdId: B.hid, biller: "Fictional B Power", amountMinor: 5_000, currency: "JPY", due: "2026-12-03", category: "utilities", periodStart: "2026-10-01", periodEnd: "2026-10-31" },
+      ]);
+      const periods = async (hid: string) => (await F.loadMoneyState(store, hid, DEMO_DATE)).bills.filter(b => b.periodStart !== undefined).map(b => [b.biller, b.periodStart, b.periodEnd]);
+      assert.deepEqual(await periods(A.hid), [["Fictional A Power", "2026-11-01", "2026-11-30"]]);
+      assert.deepEqual(await periods(B.hid), [["Fictional B Power", "2026-10-01", "2026-10-31"]]);
+      const snapA = await snapshotMod.loadHouseholdSnapshot(db, A.hid, { events: false, stored: false });
+      assert.deepEqual(snapA.bills.filter(b => b.periodStart).map(b => b.biller), ["Fictional A Power"], "the export carries only A's period");
+      // D63 loadPeriodBills: only this household's bills with a period; the month narrows to the overlap; a read writes nothing.
+      for (const [X, Y, month, other] of [[A, B, "2026-11", "2026-10"], [B, A, "2026-10", "2026-11"]] as const) {
+        const [xStart, yStart] = [await fingerprint(X.hid), await fingerprint(Y.hid)];
+        const all = await F.loadPeriodBills(store, X.hid), inMonth = await F.loadPeriodBills(store, X.hid, month), inOther = await F.loadPeriodBills(store, X.hid, other);
+        assert.deepEqual([all.map(b => b.biller), inMonth.map(b => b.biller), inOther], [[`Fictional ${X.tag} Power`], [`Fictional ${X.tag} Power`], []], `${X.name}'s period bills`);
+        assert.deepEqual(leaks(JSON.stringify(all), await needlesOf(Y)), [], `${X.name}'s period bills show ${Y.name}'s data`);
+        assert.equal((await fingerprint(Y.hid)).text, yStart.text);
+        assert.equal((await fingerprint(X.hid)).text, xStart.text, "a read writes nothing");
+      }
+      await assert.rejects(F.loadPeriodBills(store, ""), "a household id is required");
+      await pg.query("delete from bills where id in ($1, $2)", [aPeriod, bPeriod]);
+    });
+
     await check("loadSpending (D53): each household's range holds its own confirmed bills and charges and none of the other's; reading changes nothing", async () => {
       for (const [X, Y] of [[A, B], [B, A]] as const) {
         const yStart = await fingerprint(Y.hid), xStart = await fingerprint(X.hid);
@@ -1023,6 +1073,29 @@ async function main() {
       assert.equal(await F.connectionView(store, A.hid), null);
       assert.equal((await fingerprint(B.hid)).text, before.text);
       assert.ok(await F.connectionView(store, B.hid));
+    });
+
+    await check("27E: stored bytes and the removal of old raw files count and touch only the household's own documents", async () => {
+      const old = new Date("2026-01-01T00:00:00Z"), later = new Date("2026-11-07T00:00:00Z");
+      const made: Record<string, { id: string; path: string }> = {};
+      for (const T of [A, B]) {
+        const path = `${T.hid}/${randomUUID()}`;
+        const [d] = await db.insert(schema.documents).values({ householdId: T.hid, kind: "upload", storagePath: path, mime: "application/pdf", status: "read", bytes: T === A ? 1000 : 5000 }).returning({ id: schema.documents.id });
+        const extracted = { kind: "charge", name: "27E probe", date: "2026-01-01", amountMinor: 100, currency: "JPY", category: "food", businessBp: 0, cardId: null };
+        await db.insert(schema.readings).values({ householdId: T.hid, documentId: d.id, extracted: { original: extracted, proposed: extracted }, target: "charge", status: "confirmed", confirmedAt: old });
+        made[T.tag] = { id: d.id, path };
+      }
+      const removed: string[] = [];
+      const fake = { remove: async (paths: string[]) => { removed.push(...paths); return { data: [], error: null } as never; } };
+      const aBefore = await F.storedBytes(store, A.hid), bBefore = await F.storedBytes(store, B.hid);
+      assert.ok(aBefore >= 1000 && bBefore >= 5000 && aBefore !== bBefore);
+      const bStart = await fingerprint(B.hid);
+      assert.ok(await F.removeExpiredFiles(store, A.hid, later, fake) >= 1);
+      assert.ok(removed.includes(made.A.path) && removed.every(path => path.startsWith(A.hid + "/")), "only A's paths went to Storage");
+      assert.equal((await fingerprint(B.hid)).text, bStart.text, "B's rows are as they were");
+      assert.equal(await F.storedBytes(store, B.hid), bBefore, "B's count did not move");
+      assert.equal(await F.storedBytes(store, A.hid), aBefore - 1000);
+      await F.requireStorageRoom(store, B.hid, 10); // each household is counted against its own bytes only
     });
 
     // ---------------------------------------------------------------- the guard

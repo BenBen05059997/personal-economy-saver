@@ -7,7 +7,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { missingAskSetting } from "@/lib/agent/availability";
-import { AiKeyError, deleteHouseholdConnection, deleteHouseholdKey, aiConnection, connectionView, saveHouseholdConnection } from "@/db/ai-key";
+import { AiKeyError, deleteHouseholdConnection, deleteHouseholdKey, aiConnection, connectionView, saveHouseholdConnection, unsealAiKey } from "@/db/ai-key";
 import { checkConnection } from "@/lib/ai/check";
 import { fakeModel, type FakeMode } from "./ai-fake";
 import { seedBen } from "@/db/seed";
@@ -31,7 +31,7 @@ const setWhose = async (db: Parameters<typeof updateBill>[0], hid: string, billI
   return updateBill(db, hid, billEditInput.parse({ id: billId, biller: bill.biller, amount: String(bill.amountMinor), due: bill.due, category: bill.category, businessBp: bill.businessBp, memberId, paidByMemberId }), { madeBy: "form" });
 }; // Settings → Bills → Edit with only whose changed
 
-const AI_SETTINGS = ["APP_URL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_TEXT_MODEL", "AI_DOCUMENT_MODEL"];
+const AI_SETTINGS = ["APP_URL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_GLOBAL_DAILY_LIMIT", "AI_TEXT_MODEL", "AI_DOCUMENT_MODEL", "AI_KEY_SEAL_KEY"];
 
 async function main() {
   const pg = new PGlite();
@@ -68,6 +68,8 @@ async function main() {
     process.env.AI_PROTOCOL = "anthropic";
     process.env.AI_API_KEY = fictional;
     process.env.AI_DAILY_LIMIT = "2";
+    process.env.AI_GLOBAL_DAILY_LIMIT = "1000";
+    process.env.AI_KEY_SEAL_KEY = Buffer.alloc(32, 7).toString("base64url"); // fictional test seal key
     process.env.AI_TEXT_MODEL = "fixture-text";
     process.env.AI_DOCUMENT_MODEL = "fixture-document";
     const aiKey = async (...args: [Parameters<typeof aiConnection>[0], string, Date?]) => (await aiConnection(args[0], args[1], "text", args[2])).key;
@@ -80,6 +82,31 @@ async function main() {
     const row = async (hid: string) => (await db.select().from(schema.households).where(eq(schema.households.id, hid)))[0];
     const aiEvents = async (hid: string) => (await db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, "ai_model_changed")))).map(e => e.title);
     const vaultCount = async () => (await pg.query<{ n: number }>("select count(*)::integer as n from vault.secrets")).rows[0].n;
+    await check("Settings → Edit sets, keeps and clears a one-off bill's period; refuses half a period, a backwards one and one on a repeating bill; saving it unchanged records nothing", async () => {
+      const rows = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.status, "confirmed")));
+      const one = rows.find(r => r.repeatUnit === null && r.amountMinor !== null && r.due !== null && !r.amountVaries && r.seriesBillId === null);
+      const repeating = rows.find(r => r.repeatUnit !== null && r.amountMinor !== null && r.due !== null && !r.amountVaries);
+      assert.ok(one && repeating);
+      const edit = (bill: typeof one, extra: Record<string, unknown>) => updateBill(db, a, billEditInput.parse({ id: bill.id, biller: bill.biller, amount: String(bill.amountMinor! / (bill.currency === "JPY" ? 1 : 100)), due: bill.due, category: bill.category, businessBp: bill.businessBp, memberId: bill.memberId, paidByMemberId: bill.paidByMemberId, ...extra }), { madeBy: "form" });
+      const events = async () => (await db.select().from(schema.events).where(eq(schema.events.householdId, a))).length;
+      const read = async (id: string) => (await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.id, id))))[0];
+      const before = await events();
+      assert.equal(await edit(one, { periodStart: "2026-10-01", periodEnd: "2026-10-31" }), true);
+      assert.deepEqual([(await read(one.id)).periodStart, (await read(one.id)).periodEnd], ["2026-10-01", "2026-10-31"]);
+      assert.equal(await events(), before + 1);
+      assert.equal(await edit(one, {}), true); // absent = unchanged
+      assert.equal((await read(one.id)).periodStart, "2026-10-01");
+      assert.equal(await edit(one, { periodStart: "2026-10-01", periodEnd: "2026-10-31" }), true);
+      assert.equal(await events(), before + 1, "unchanged records nothing");
+      await assert.rejects(edit(one, { periodStart: "2026-10-01", periodEnd: null }), /both the first and the last day/);
+      await assert.rejects(edit(one, { periodStart: "2026-10-31", periodEnd: "2026-10-01" }), /start on or before/);
+      await assert.rejects(edit(repeating, { periodStart: "2026-10-01", periodEnd: "2026-10-31" }), /repeats covers a different month/);
+      assert.equal((await read(one.id)).periodEnd, "2026-10-31");
+      assert.equal(await edit(one, { periodStart: null, periodEnd: null }), true);
+      assert.deepEqual([(await read(one.id)).periodStart, (await read(one.id)).periodEnd], [null, null]);
+      const settings = await loadSettings(db, a);
+      assert.ok(settings.bills.every(bill => "periodStart" in bill && "periodEnd" in bill));
+    });
     await check("default calls reserve quota atomically and reset at the household local midnight", async () => {
       const before = new Date("2026-11-02T14:59:59Z"), after = new Date("2026-11-02T15:00:00Z");
       const calls = await Promise.allSettled([aiKey(db, a, before), aiKey(db, a, before), aiKey(db, a, before)]);
@@ -92,6 +119,30 @@ async function main() {
       delete process.env.AI_API_KEY;
       await assert.rejects(aiKey(db, a, after), /AI_API_KEY is not set/);
       process.env.AI_API_KEY = fictional;
+    });
+    await check("a saved AI key is sealed before Vault: round trip, wrong key, another household, an unsealed old value, a missing setting", async () => {
+      await own(a).done;
+      const stored = (await pg.query<{ v: string }>("select decrypted_secret as v from vault.secrets")).rows[0].v;
+      assert.ok(stored.startsWith("pes-ai1.") && !stored.includes(fictional), "Vault holds the sealed text, not the key");
+      assert.equal((await aiConnection(db, a, "text")).key, fictional, "reading unseals it");
+      const good = process.env.AI_KEY_SEAL_KEY;
+      try {
+        process.env.AI_KEY_SEAL_KEY = Buffer.alloc(32, 9).toString("base64url");
+        await assert.rejects(aiConnection(db, a, "text"), { message: "Saved AI key could not be opened. Save your key again in Settings." });
+        process.env.AI_KEY_SEAL_KEY = good;
+        await assert.rejects(unsealAiKey(b, stored), AiKeyError, "bound to its household");
+        process.env.AI_KEY_SEAL_KEY = "short";
+        await assert.rejects(aiConnection(db, a, "text"), { message: "AI_KEY_SEAL_KEY must be 32 bytes encoded as unpadded base64url" });
+        delete process.env.AI_KEY_SEAL_KEY;
+        await assert.rejects(aiConnection(db, a, "text"), { message: "AI_KEY_SEAL_KEY is not set" });
+        await assert.rejects(own(b).done, { message: "AI_KEY_SEAL_KEY is not set" });
+      } finally { process.env.AI_KEY_SEAL_KEY = good; }
+      await pg.query("update vault.secrets set decrypted_secret = $1", [fictional]);
+      await assert.rejects(aiConnection(db, a, "text"), { message: "Your saved AI key predates sealed storage. Save your key again in Settings." });
+      await own(a, { key: another }).done;
+      assert.equal((await aiConnection(db, a, "text")).key, another, "saving the key again seals it");
+      await db.transaction(tx => deleteHouseholdKey(tx, a));
+      await db.delete(schema.events).where(eq(schema.events.kind, "ai_model_changed")); // keep the later event counts as they were
     });
     await check("a listed provider is saved with its own address, checked, and its result stored; the key is only ever a hint", async () => {
       const reads = (await loadSettings(db, a)).household.aiReadsToday;
@@ -196,6 +247,7 @@ async function main() {
       await own(a).done;
       const saved = { ...Object.fromEntries(AI_SETTINGS.map(name => [name, process.env[name]])) };
       for (const name of AI_SETTINGS) delete process.env[name];
+      process.env.AI_KEY_SEAL_KEY = saved.AI_KEY_SEAL_KEY; // the household's own key needs the seal setting, not the AI_ defaults
       try {
         assert.equal(missingAskSetting(false), "AI_TEXT_MODEL");
         assert.equal(missingAskSetting(true), null);
@@ -214,6 +266,7 @@ async function main() {
     await check("the connection says whose it is, which protocol and which models, and a missing model stops before any allowance is used", async () => {
       const day = new Date("2026-11-02T14:59:59Z"); // the same household day as the quota check above
       process.env.AI_DAILY_LIMIT = "10";
+      process.env.AI_GLOBAL_DAILY_LIMIT = "1000";
       const used = async () => (await loadSettings(db, b)).household.aiReadsToday;
       const before = await used();
       const server = await aiConnection(db, b, "document", day);

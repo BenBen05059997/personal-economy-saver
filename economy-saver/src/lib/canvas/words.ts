@@ -26,6 +26,8 @@ function queryWords(query: Query): string {
     case "compare_months": return `${monthWords(query.a)} against ${monthWords(query.b)}`;
     case "spending_search": return `spending that matches "${query.text.slice(0, SEARCH_QUERY_MAX)}" over the last ${query.months} months`;
     case "regular_costs": return `the bills and charges that come back every month, and what changed`;
+    case "bills_for_month": return `the bills for ${monthWords(query.month)}${query.text?.trim() ? ` that match "${query.text.trim().slice(0, SEARCH_QUERY_MAX)}"` : ""}, by the month each is for`;
+    case "foreign_costs": return "what foreign money cost you in the last 12 months: PayPal payouts per client and card purchases in another currency";
   }
 }
 

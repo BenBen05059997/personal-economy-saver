@@ -67,6 +67,15 @@ async function main() {
     assert.notEqual(nameKey("Rent"), nameKey("Rental car"));
     assert.deepEqual(["Mayfair Bakery", "24-Mart", "Sakura Gas 2026-11-25", "11月分", "Kissa Midori café"].map(nameKey), ["mayfair bakery", "24-mart", "sakura gas", "11月分", "kissa midori café"],
       "a month name inside a word stays; a name that is only a date keeps its text");
+    const same = (names: string[], key: string) => { for (const name of names) assert.equal(nameKey(name), key, name); };
+    same(["Hikari Denki Co., Ltd.", "Hikari Denki Co.,Ltd.", "Hikari Denki Ltd.", "Hikari Denki Inc.", "Hikari Denki LLC", "Hikari Denki Corp.", "Hikari Denki K.K.", "Hikari Denki KK", "Hikari Denki Co.", "Hikari Denki.", "Hikari Denki,", "Hikari Denki Co., Ltd. 11月分"], "hikari denki");
+    same(["株式会社ヒカリ電気", "ヒカリ電気(株)", "ヒカリ電気㈱", "ヒカリ電気株式会社", "有限会社ヒカリ電気", "合同会社 ヒカリ電気", "ヒカリ電気"], "ヒカリ電気");
+    assert.notEqual(nameKey("Hikari Denki"), nameKey("ヒカリ電気"), "no transliteration");
+    assert.deepEqual(["Incense Shop", "Cooperative Mart", "Rental car", "Card A", "Card B", "Tokyo Gas", "Tokyo Gas Water", "Inc.", "Co., Ltd.", "株式会社"].map(nameKey),
+      ["incense shop", "cooperative mart", "rental car", "card a", "card b", "tokyo gas", "tokyo gas water", "inc.", "co., ltd.", "株式会社"], "words inside names stay; a name that is only a company form keeps its text");
+    assert.notEqual(nameKey("Rent"), nameKey("Rental car"));
+    assert.notEqual(nameKey("Tokyo Gas"), nameKey("Tokyo Gas Water"));
+    assert.notEqual(nameKey("Card A"), nameKey("Card B"));
     assert.equal(normalise("  Ｔｒａｖｅｌ 　 Hotel "), "travel hotel", "the one normaliser: NFKC, lower case, spaces made one");
   });
 

@@ -21,6 +21,11 @@ function catalogue(region: Region): Move[] {
   return (parsed[region] ??= Catalogue.parse(raw[region]));
 }
 
+/** One move of a region's catalogue by id, from the same once-parsed list; undefined when there is none. */
+export function catalogueMove(region: Region, id: string): Move | undefined {
+  return catalogue(region).find(m => m.id === id);
+}
+
 const DAY = 86_400_000;
 
 // Days from today to the next occurrence of the deadline (0 = today), or undefined if it has passed.

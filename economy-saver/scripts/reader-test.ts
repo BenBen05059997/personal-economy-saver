@@ -8,8 +8,9 @@ import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { loadMoneyState } from "@/db/household";
 import { readDocument, storeDocument } from "@/db/reader-job";
-import { extractDocument } from "@/lib/reader/extract";
-import { reviewReading } from "@/db/readings";
+import { extractDocument, extractSchema } from "@/lib/reader/extract";
+import { estimatedDue, periodLabel, periodProblem } from "@/lib/money/period";
+import { proposeReadings, reviewReading } from "@/db/readings";
 import { readerInbox } from "@/db/reader-inbox";
 import { removeHouseholdDocuments } from "@/db/document-cleanup";
 import { correctionText } from "@/lib/reader/correction";
@@ -25,6 +26,7 @@ async function test() {
   process.env.AI_PROTOCOL = "anthropic";
   process.env.AI_API_KEY = "fictional-test-value";
   process.env.AI_DAILY_LIMIT = "8";
+  process.env.AI_GLOBAL_DAILY_LIMIT = "1000";
   process.env.AI_DOCUMENT_MODEL = "fixture-document";
   process.env.AI_TEXT_MODEL = "fixture-text";
   process.env.FORWARDING_DOMAIN = "inbox.example";
@@ -46,7 +48,7 @@ async function test() {
     let empty = false;
     let stop = "tool_use";
     let expectedMime = "application/pdf";
-    let extracted = { kind: "bill", name: "Harbor Lights", amountMinor: 11200, currency: "JPY", category: "other", date: "2026-11-27", cardId: null as string | null };
+    let extracted: Record<string, unknown> = { kind: "bill", name: "Harbor Lights", amountMinor: 11200, currency: "JPY", category: "other", date: "2026-11-27", cardId: null as string | null };
     globalThis.fetch = async (input, init) => {
       const request = new Request(input, init);
       const url = new URL(request.url);
@@ -234,6 +236,49 @@ async function test() {
     refusePdf = false;
     await assert.rejects(extractDocument(png, "image/png", context, async () => ({ ...openai, baseUrl: "http://llm.example/v1" })), /that address can't be used/i);
     console.log("✓ OpenAI-compatible protocol: an image goes as an image_url part through the forced tool; a PDF the model refuses becomes a clear message");
+
+    // 27F: the month a bill covers
+    empty = false;
+    assert.deepEqual(estimatedDue({ start: "2026-12-01", end: "2026-12-31" }, 27), { date: "2027-01-27", basis: "Estimated from 12月分: usually paid on the 27th" });
+    assert.deepEqual(estimatedDue({ start: "2027-01-01", end: "2027-01-31" }, 31), { date: "2027-02-28", basis: "Estimated from 1月分: usually paid on the 31st" });
+    assert.deepEqual(estimatedDue({ start: "2026-10-05", end: "2026-11-04" }, null), { date: "2026-12-31", basis: "Estimated from Oct 5 – Nov 4: no usual day is known, so the last day of the next month" });
+    assert.equal(periodLabel({ start: "2026-12-20", end: "2027-01-19" }), "Dec 20, 2026 – Jan 19, 2027");
+    assert.equal(periodProblem("2026-11-01", null), "Give both the first and the last day of the period, or neither.");
+    assert.equal(periodProblem("2026-11-30", "2026-11-01"), "The period must start on or before its last day.");
+    expectedMime = "application/pdf";
+    const month = { kind: "bill", name: "Harbor Energy", amountMinor: 9_800, currency: "JPY", category: "utilities", date: null, cardId: null, periodStart: "2026-11-01", periodEnd: "2026-11-30" };
+    const readFresh = async (fields: Record<string, unknown>, label: string) => {
+      extracted = fields;
+      await readDocument(db, a, await storeDocument(db, a, "upload", "application/pdf", file(`%PDF-1.7 fictional ${label}`)));
+      return (await readerInbox(db, a)).readings[0];
+    };
+    const estimated = await readFresh(month, "11月分 with a usual day");
+    assert.deepEqual([estimated.value.date, estimated.value.dateBasis, estimated.value.periodStart, estimated.value.periodEnd], ["2026-12-27", "Estimated from 11月分: usually paid on the 27th", "2026-11-01", "2026-11-30"], "the same day of the next month as the usual due day");
+    const [storedReading] = await db.select({ data: schema.readings.extracted }).from(schema.readings).where(eq(schema.readings.id, estimated.id));
+    assert.equal((storedReading.data as { original: { date: string | null } }).original.date, null, "the reading as read keeps no date: the estimate is the proposal only");
+    const unknownBiller = await readFresh({ ...month, name: "Sakura Water" }, "11月分 without history");
+    assert.deepEqual([unknownBiller.value.date, unknownBiller.value.dateBasis], ["2026-12-31", "Estimated from 11月分: no usual day is known, so the last day of the next month"]);
+    await proposeReadings(db, a, doc, [extractSchema.parse({ ...month, name: "Sakura Gas", date: "2026-12-05" })]);
+    const printed = (await readerInbox(db, a)).readings.find(r => r.value.name === "Sakura Gas")!;
+    assert.deepEqual([printed.value.date, printed.value.dateBasis ?? null, printed.value.periodStart, printed.value.periodEnd], ["2026-12-05", null, "2026-11-01", "2026-11-30"], "a printed due date is kept with the period, never estimated");
+    extracted = { ...month, name: "Reversed Co", date: "2026-12-05", periodStart: "2026-11-30", periodEnd: "2026-11-01" };
+    const [dropped] = await extractDocument(file("%PDF-1.7 fictional reversed"), "application/pdf", { today: "2026-11-14", currency: "JPY", cards: [] }, async () => conn);
+    assert.deepEqual([dropped.periodStart, dropped.periodEnd, dropped.date], [null, null, "2026-12-05"], "a period the model got backwards is not kept");
+    await assert.rejects(reviewReading(db, a, printed.id, { ...printed.value, periodStart: "2026-11-30", periodEnd: "2026-11-01" }), /must start on or before/);
+    await assert.rejects(reviewReading(db, a, printed.id, { ...printed.value, periodEnd: null }), /both the first and the last day/);
+    await assert.rejects(reviewReading(db, a, printed.id, { ...printed.value, repeat: "month" }), /different month each time/);
+    assert.equal(await reviewReading(db, a, printed.id, printed.value), true);
+    assert.equal(await reviewReading(db, a, estimated.id, { ...estimated.value, dateBasis: null }), true, "the person confirms the proposed date");
+    const confirmedRows = await db.select({ biller: schema.bills.biller, due: schema.bills.due, periodStart: schema.bills.periodStart, periodEnd: schema.bills.periodEnd }).from(schema.bills)
+      .where(and(eq(schema.bills.householdId, a), eq(schema.bills.status, "confirmed"), eq(schema.bills.periodStart, "2026-11-01"))).orderBy(schema.bills.biller);
+    assert.deepEqual(confirmedRows.map(r => [r.biller, r.due, r.periodStart, r.periodEnd]), [["Harbor Energy", "2026-12-27", "2026-11-01", "2026-11-30"], ["Sakura Gas", "2026-12-05", "2026-11-01", "2026-11-30"]]);
+    const afterState = await loadMoneyState(db, a, "2026-11-14");
+    assert.deepEqual(afterState.bills.filter(b => b.periodStart !== undefined).map(b => [b.biller, b.due, b.periodStart, b.periodEnd]), [["Sakura Gas", "2026-12-05", "2026-11-01", "2026-11-30"], ["Harbor Energy", "2026-12-27", "2026-11-01", "2026-11-30"]]);
+    await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "Bad Period", amountMinor: 100, currency: "JPY", due: "2026-12-01", category: "other", periodStart: "2026-11-30", periodEnd: "2026-11-01" }),
+      (error: { cause?: { message?: string } }) => /bills_period_valid/.test(String(error.cause?.message)));
+    await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "Half Period", amountMinor: 100, currency: "JPY", due: "2026-12-01", category: "other", periodStart: "2026-11-01" }),
+      (error: { cause?: { message?: string } }) => /bills_period_valid/.test(String(error.cause?.message)), "the table refuses a period with one end");
+    console.log("✓ A bill that shows its month and no due date is proposed with an estimated date and its basis; a printed date is kept; the period is stored on confirm and a reversed one is refused");
 
     isPublic = true;
     await assert.rejects(storeDocument(db, b, "upload", "application/pdf", file("%PDF-B")), /private bucket/);

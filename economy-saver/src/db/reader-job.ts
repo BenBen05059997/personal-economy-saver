@@ -4,6 +4,7 @@ import { householdClock } from "./account";
 import { AiKeyError, aiConnection } from "./ai-key";
 import { consumeRequest } from "./rate-limit";
 import { cards, documents, households } from "./schema";
+import { requireStorageRoom } from "./document-cleanup";
 import { proposeReadings } from "./readings";
 import { documentBucket } from "@/lib/reader/storage";
 import { extractDocument } from "@/lib/reader/extract";
@@ -32,10 +33,13 @@ export async function storeDocument(db: Db, id: string, kind: "email" | "upload"
   const documentId = await contentId(hid, mime, bytes);
   const path = hid + "/" + documentId;
   const where = and(eq(documents.householdId, hid), eq(documents.id, documentId));
+  // 27E: the Storage cap, for every way a file arrives (upload, Ask's Attach a bill, forwarded email). A file already held is not counted twice.
+  const [held] = await db.select({ id: documents.id }).from(documents).where(and(where, isNull(documents.fileRemovedAt)));
+  if (!held) await requireStorageRoom(db, hid, bytes.byteLength);
   // Reserve a durable path before touching Storage; even an interrupted upload is removable with the household.
   await db.transaction(async tx => {
     await lockHousehold(tx, hid);
-    await tx.insert(documents).values({ id: documentId, householdId: hid, kind, storagePath: path, mime,
+    await tx.insert(documents).values({ id: documentId, householdId: hid, kind, storagePath: path, mime, bytes: bytes.byteLength,
       status: "failed", error: "Upload incomplete. Submit the original again." }).onConflictDoNothing();
   });
   try {

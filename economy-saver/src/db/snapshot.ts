@@ -71,6 +71,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
         due: s.bills.due, category: s.bills.category, businessBp: s.bills.businessBp, status: s.bills.status, previousAmountMinor: s.bills.previousAmountMinor,
         fxRateMicro: s.bills.fxRateMicro, repeatDay: s.bills.repeatDay, repeatUnit: s.bills.repeatUnit, nextAmountMinor: s.bills.nextAmountMinor,
         nextAmountFrom: s.bills.nextAmountFrom, cancelBy: s.bills.cancelBy, repeatUntil: s.bills.repeatUntil, amountVaries: s.bills.amountVaries, seriesBillId: s.bills.seriesBillId,
+        periodStart: s.bills.periodStart, periodEnd: s.bills.periodEnd,
         documentId: s.bills.documentId, madeBy: s.bills.madeBy,
       }).from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(desc(s.bills.due), desc(s.bills.createdAt), desc(s.bills.id)).$dynamic()),
       tx.select({ id: s.clients.id, name: s.clients.name, email: s.clients.email, termsDays: s.clients.termsDays }).from(s.clients)

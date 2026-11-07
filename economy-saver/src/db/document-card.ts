@@ -21,6 +21,7 @@ const uuid = z.string().uuid();
 
 type Stored = { proposed: unknown; confirmed?: unknown; targetId?: string };
 
+// The canvas a document card draws never asks for foreign costs, so its context loads none.
 /** The card for one document of this household. A document that is not this household's, or no longer exists, is `gone`. `draw: false` skips the money state: no checks and no canvas. */
 export async function documentCard(db: Db, householdId: string, documentId: string, options: { draw?: boolean } = {}): Promise<DocumentCard> {
   const hid = requireHousehold(householdId);
@@ -30,7 +31,7 @@ export async function documentCard(db: Db, householdId: string, documentId: stri
   const rows = doc.status === "read" ? await db.select({ id: readings.id, status: readings.status, extracted: readings.extracted, confirmedAt: readings.confirmedAt, createdAt: readings.createdAt }).from(readings)
     .where(and(eq(readings.householdId, hid), eq(readings.documentId, documentId))).orderBy(asc(readings.createdAt), asc(readings.id)) : [];
   const draw = options.draw !== false && rows.length > 0;
-  const [context, inbox] = draw ? await Promise.all([loadCanvasContext(db, hid), readerInbox(db, hid)]) : [null, null];
+  const [context, inbox] = draw ? await Promise.all([loadCanvasContext(db, hid, { blocks: [] }), readerInbox(db, hid)]) : [null, null];
   const links = new Map((inbox?.readings ?? []).map(reading => [reading.id, reading.link]));
   const items = rows.flatMap((row): CardReading[] => {
     if (row.status !== "to_check" && row.status !== "confirmed" && row.status !== "rejected") return [];

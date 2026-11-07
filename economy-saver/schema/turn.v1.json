@@ -839,6 +839,19 @@
                               "month"
                             ],
                             "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "q": {
+                                "type": "string",
+                                "const": "foreign_costs"
+                              }
+                            },
+                            "required": [
+                              "q"
+                            ],
+                            "additionalProperties": false
                           }
                         ]
                       },
@@ -1557,6 +1570,42 @@
                             },
                             "required": [
                               "q"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "q": {
+                                "type": "string",
+                                "const": "foreign_costs"
+                              }
+                            },
+                            "required": [
+                              "q"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "q": {
+                                "type": "string",
+                                "const": "bills_for_month"
+                              },
+                              "month": {
+                                "type": "string",
+                                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                                "description": "The month the bills are FOR (their period), YYYY-MM; a bill for November is usually paid in December."
+                              },
+                              "text": {
+                                "type": "string",
+                                "maxLength": 80
+                              }
+                            },
+                            "required": [
+                              "q",
+                              "month"
                             ],
                             "additionalProperties": false
                           }

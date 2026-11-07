@@ -14,6 +14,7 @@ import { memoryBlock, memoryContext } from "./memory-prompt";
 import type { DeviceMemory } from "@/lib/store/memory-ops";
 import { ASK_RULES, MODEL_RULES } from "./rules";
 import { tools, toolInputSchema, type ToolContext } from "./tools";
+import { THINKING_WORDS, toolWords } from "./words";
 
 /** Messages are fixed, human and free of secrets and SQL; safe to show in a response. */
 export class AgentError extends Error {
@@ -73,6 +74,10 @@ type AskOptions = {
   context?: string;
   /** D59: when the household keeps its memory on one device, the list the question carried. It is used for this question only; `remember` and `forget` change it in place and record `changes` for the reply. Without it, memory is read from the cloud. */
   deviceMemory?: DeviceMemory;
+  /** Progress for the person waiting: fixed words when a model call starts and when a tool turn starts (words.ts). Never an amount, an argument or a result. */
+  onStep?: (step: string) => void;
+  /** D59: called once, right after the first write that left something on the server, so a retry of this question can be told it already wrote. */
+  onWrote?: () => Promise<void>;
 };
 export type AskResult = {
   kind: ReplyKind; answer: string; choices: string[] | null; recipe: Recipe | null; sources: Source[];
@@ -142,6 +147,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       const remaining = deadline - now();
       if (remaining <= 0) throw failure("budget");
       // Reserves one unit of the owner-key allowance per model call; the household's own key is unlimited.
+      opts.onStep?.(THINKING_WORDS);
       const connection = await opts.connection();
       trace.protocol = connection.protocol; trace.own = connection.own;
       if (!connection.textModel) throw new AgentError("AI_TEXT_MODEL is not set", "no_model");
@@ -171,23 +177,28 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       if (reply.stop === "pause") continue;
       if (++toolTurns > MAX_TOOL_TURNS) throw failure("turns");
       loaded = undefined;
+      for (const words of new Set(reply.calls.map(call => toolWords(call.name)))) opts.onStep?.(words);
 
       const results: ToolResult[] = [];
       // clarify and out_of_scope end the question: when one is asked for and valid, it is the only call that runs, and there is no further model call.
       // One that fails its schema is an ordinary tool error: the other calls run and the loop goes on.
       const ending = reply.calls.find(call => call.name === "clarify" || call.name === "out_of_scope");
       if (ending) {
-        const result = await callTool(ctx, ending, trace, now);
+        const { result, log } = await callTool(ctx, ending, now);
+        trace.tools.push(log);
         if (clarify !== null || outOfScope !== null) return finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe, sources }));
         results.push(result);
       }
-      for (const call of reply.calls) if (call !== ending) results.push(await callTool(ctx, call, trace, now));
+      results.push(...await callAll(ctx, reply.calls.filter(call => call !== ending), trace, now, deadline));
       for (const result of results) {
         // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
         if (!NOT_SOURCES.has(result.name)) sources.push(result.content);
         if (tools.some(t => t.name === result.name) && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
         if (!result.isError) used.push(result.name);
         if (!result.isError && tools.some(t => t.name === result.name && t.scope === "draft")) {
+          // `remember` and `forget` on a memory kept on the device change a copy the reply carries, not the server.
+          const onDevice = opts.deviceMemory !== undefined && (result.name === "remember" || result.name === "forget");
+          if (!wrote && !onDevice) await opts.onWrote?.();
           wrote = true;
           if (result.name === "remember" || result.name === "forget") wroteMemory = true;
         }
@@ -211,12 +222,40 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
 
 type Call = { id: string; name: string; input: unknown };
 
-async function callTool(ctx: ToolContext, call: Call, trace: Trace, now: () => number): Promise<ToolResult> {
+/** Reads in a row run together; a write (or a name outside the catalogue) runs alone, so the writes keep the order they were asked in. The results come back in the order asked. */
+async function callAll(ctx: ToolContext, calls: Call[], trace: Trace, now: () => number, deadline: number): Promise<ToolResult[]> {
+  const isRead = (call: Call) => tools.some(tool => tool.name === call.name && tool.scope === "read");
+  const results: ToolResult[] = [];
+  for (let at = 0; at < calls.length;) {
+    let end = at + 1;
+    if (isRead(calls[at])) while (end < calls.length && isRead(calls[end])) end++;
+    // Each call times itself; the log keeps the order asked, not the order they finished in.
+    const group = calls.slice(at, end);
+    const running = Promise.all(group.map(call => callTool(ctx, call, now)));
+    // Only reads are raced against the budget; a write that has started is waited for, never abandoned half-way.
+    const batch = isRead(group[0]) ? await beforeDeadline(running, Math.max(0, deadline - now()), group[0].name) : await running;
+    for (const { result, log } of batch) { results.push(result); trace.tools.push(log); }
+    at = end;
+  }
+  return results;
+}
+
+/** The reads of a turn against the time left of the question: past it, the question stops and says which step it was on. */
+async function beforeDeadline<T>(work: Promise<T>, ms: number, tool: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new AgentError(`That took too long while ${lowerFirst(toolWords(tool))}. Try a simpler question.`, "budget")), ms);
+  });
+  try { return await Promise.race([work, late]); } finally { clearTimeout(timer); }
+}
+
+const lowerFirst = (words: string) => words.charAt(0).toLowerCase() + words.slice(1);
+
+async function callTool(ctx: ToolContext, call: Call, now: () => number): Promise<{ result: ToolResult; log: ToolLog }> {
   const started = now();
   const result = await executeTool(ctx, call);
   // The model chose the name, so only a name in the catalogue is logged.
-  trace.tools.push({ name: tools.some(t => t.name === call.name) ? call.name : "unknown", ok: !result.isError, ms: now() - started });
-  return result;
+  return { result, log: { name: tools.some(t => t.name === call.name) ? call.name : "unknown", ok: !result.isError, ms: now() - started } };
 }
 
 async function executeTool(ctx: ToolContext, call: Call): Promise<ToolResult> {

@@ -77,6 +77,12 @@ function EditBill({ bill, bills, people, today }: { bill: SettingsData["bills"][
         <small className="ui-hint">A real bill for that month: it replaces the month’s estimate and counts once.</small></label>}
       <CancelByField today={today} defaultValue={bill.cancelBy ?? undefined} />
       {repeat !== null && <RepeatUntilField today={today} defaultValue={bill.repeatUntil ?? undefined} />}
+      {repeat === null && <details className="add-entry-more" open={bill.periodStart !== null}>
+        <summary>Month this bill covers</summary>
+        <label className="ui-field">First day<input name="periodStart" type="date" defaultValue={bill.periodStart ?? ""} /></label>
+        <label className="ui-field">Last day<input name="periodEnd" type="date" defaultValue={bill.periodEnd ?? ""} /></label>
+        <small className="ui-hint add-entry-hint">What the bill is for, like “11月分”. Information only: the forecast counts it on the due date.</small>
+      </details>}
       <CategoryFields name={bill.biller} defaultCategory={bill.category} defaultBp={bill.businessBp} />
       {people.length < 2 ? <><input type="hidden" name="memberId" value={bill.memberId ?? ""} /><input type="hidden" name="paidByMemberId" value={bill.paidByMemberId ?? ""} /></>
         : <><Person people={people} selected={bill.memberId} shared /><PaidBy people={people} selected={bill.paidByMemberId} /></>}

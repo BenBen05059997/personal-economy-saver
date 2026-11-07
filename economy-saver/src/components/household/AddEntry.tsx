@@ -68,13 +68,14 @@ export function AddEntry({ ids, returnTo, today, currency, people, cards }: Prop
       window.removeEventListener("hashchange", arrive);
     };
   }, []);
+  // suppressHydrationWarning on the <details>: a page opened with #add-bill or #add-charge has it opened by the browser's own fragment navigation (the tab buttons carry those ids) before React hydrates, so the server's markup and the DOM differ by `open` on purpose; the effect above then opens it in state too.
   // Scroll once the open form is on the page, not before React has drawn it.
   useEffect(() => {
     if (!open || !scrollWhenOpen.current) return;
     scrollWhenOpen.current = false;
     document.getElementById("add-entry")?.scrollIntoView({ block: "center" });
   }, [open]);
-  return <details id="add-entry" className="add-entry" open={open} onToggle={event => setOpen(event.currentTarget.open)}>
+  return <details id="add-entry" className="add-entry" open={open} suppressHydrationWarning onToggle={event => setOpen(event.currentTarget.open)}>
     <summary>Add a bill or charge</summary>
     <div className="add-entry-kind" role="group" aria-label="What to add">
       <button id="add-bill" type="button" className="ui-button" aria-pressed={kind === "bill"} onClick={() => setKind("bill")}>Bill</button>

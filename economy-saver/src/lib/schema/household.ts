@@ -97,6 +97,8 @@ const Bill = z.object({
   repeatUntil: day.nullable().optional().describe("The last day an occurrence may fall on (the last payment); null or absent = it goes on. Only on a bill that repeats."),
   amountVaries: z.boolean().optional().describe("A monthly bill whose amount changes every month (electricity, water, gas): a month without its real bill is forecast as the average of the last three real bills linked to it (amountMinor when there are none). Absent = false."),
   seriesBillId: id.nullable().optional().describe("On a one-off real bill: the id of the amount-varies monthly bill it belongs to; it replaces that series' estimate in its due month. Null or absent = not linked."),
+  periodStart: day.nullable().optional().describe("The first day a one-off bill covers (\"11月分\" is Nov 1); information only: the money counts by the due date. Set together with periodEnd; null or absent = not known."),
+  periodEnd: day.nullable().optional().describe("The last day the bill covers; on or after periodStart."),
   documentId: id.nullable(),
   madeBy,
 }).strict();

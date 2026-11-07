@@ -13,16 +13,19 @@ import { seedBen } from "@/db/seed";
 import { checkTools } from "@/lib/agent/check-tools";
 import { toolInputSchema, type ToolContext } from "@/lib/agent/tools";
 import { extractSchema } from "@/lib/reader/extract";
+import { dayLabel } from "@/lib/money/format";
 import { CHECK_ORDER, DUPLICATE_DAYS, FAR_PERCENT, checksFor, pendingProposals, readingProposal, type Check, type Proposal } from "@/lib/money/checks";
 import { expandBills } from "@/lib/money/repeat";
-import { addDays, planWindow } from "@/lib/money/runway";
+import { addDays, daysBetween, planWindow, series } from "@/lib/money/runway";
+import { dayView, stateThrough } from "@/lib/money/window";
+import { latestDate } from "@/lib/money/horizon";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import type { MoneyState, StoredBill } from "@/lib/money/types";
 
 const TODAY = "2026-11-14";
 const END = addDays(TODAY, planWindow(benMoney) - 1);
 const stored = (over: Partial<StoredBill> & Pick<StoredBill, "id" | "biller">): StoredBill => ({ amount: null, due: null, category: "utilities", businessBp: 0, status: "confirmed", ...over });
-const stateWith = (bills: StoredBill[]): MoneyState => ({ ...benMoney, bills: expandBills([...benStoredBills, ...bills], TODAY, END, "JPY") });
+const stateWith = (bills: StoredBill[]): MoneyState => ({ ...benMoney, storedBills: [...benStoredBills, ...bills], bills: expandBills([...benStoredBills, ...bills], TODAY, END, "JPY") });
 const proposal = (over: Partial<Proposal> = {}): Proposal => ({
   source: "reading", id: "r1", kind: "bill", name: "Kawa Gym", amountMinor: 6_000, currency: "JPY", date: "2026-12-27", repeat: "month", category: "health", cardId: null, ...over,
 });
@@ -266,6 +269,48 @@ async function main() {
       assert.equal(out.items.find(i => i.name === "Hikari Denki")!.from, "form");
       await db.update(schema.bills).set({ madeBy: "ask" }).where(and(eq(schema.bills.householdId, a), eq(schema.bills.status, "pending")));
       assert.equal((await run(a)).items.find(i => i.name === "Hikari Denki")!.from, "ask");
+    });
+
+    await check("the plan window (27D): a yearly bill due past the window is seen by already saved and repeat not known", async () => {
+      const fresh = await seedBen(db, { isDemo: true });
+      const today = await householdDate(db, fresh);
+      const dueOn = addDays(today, 240); // about eight months on: far past the window
+      await db.insert(schema.bills).values({ householdId: fresh, biller: "Hoshi Insurance", amountMinor: 48_000, currency: "JPY", due: dueOn, category: "insurance", status: "confirmed", repeatUnit: "year" });
+      const state = await loadMoneyState(db, fresh, today);
+      assert.equal(state.bills.some(bill => bill.biller === "Hoshi Insurance"), false, "no occurrence inside the window");
+      assert.ok(state.storedBills.some(bill => bill.biller === "Hoshi Insurance"));
+      const again = proposal({ name: "Hoshi Insurance", amountMinor: 48_000, date: addDays(dueOn, 2), repeat: null, category: "insurance" });
+      const out = checksFor(again, state);
+      assert.equal(only(out, "already_saved")!.words, `Already saved: Hoshi Insurance, ¥48,000, due ${dayLabel(dueOn)}.`);
+      assert.equal(only(out, "repeat_unknown"), undefined, "a repeating series of that name is known");
+      assert.equal(only(checksFor({ ...again, date: addDays(dueOn, 4) }, state), "already_saved"), undefined, "4 days apart");
+      assert.equal(only(checksFor({ ...again, date: addDays(dueOn, 365 + 1) }, state), "already_saved")!.kind, "already_saved", "next year's occurrence");
+      assert.equal(only(checksFor({ ...again, amountMinor: 20_000, date: dueOn }, state), "already_saved")!.words.startsWith("Hoshi Insurance is already counted on"), true);
+      await db.update(schema.bills).set({ repeatUntil: dueOn }).where(and(eq(schema.bills.householdId, fresh), eq(schema.bills.biller, "Hoshi Insurance")));
+      const ended = await loadMoneyState(db, fresh, today);
+      assert.equal(only(checksFor({ ...again, date: addDays(dueOn, 365) }, ended), "already_saved"), undefined, "no occurrence after the last payment");
+    });
+
+    await check("the plan window (27D): the default state is the window as before; a later day is reached by stateThrough", async () => {
+      const fresh = await seedBen(db, { isDemo: true });
+      const today = await householdDate(db, fresh);
+      const dueOn = "2026-12-31";
+      await db.insert(schema.bills).values({ householdId: fresh, biller: "Hoshi Insurance", amountMinor: 48_000, currency: "JPY", due: dueOn, category: "insurance", status: "confirmed", repeatUnit: "year" });
+      await db.insert(schema.bills).values({ householdId: fresh, biller: "Kawa Gym", amountMinor: 6_000, currency: "JPY", due: "2026-12-27", repeatDay: 27, category: "health", status: "confirmed", repeatUnit: "month" });
+      const state = await loadMoneyState(db, fresh, today);
+      const end = addDays(today, planWindow(state) - 1);
+      assert.ok(state.bills.every(bill => bill.due <= end), "Home's state stops at the plan window");
+      assert.equal(state.bills.some(bill => bill.biller === "Hoshi Insurance"), false);
+      assert.equal(stateThrough(state, end), state, "inside the window: the same state");
+      const view = dayView(state, "worst", dueOn);
+      const direct: MoneyState = { ...state, bills: expandBills(state.storedBills, today, dueOn, "JPY") };
+      const n = daysBetween(today, dueOn) + 1;
+      assert.equal(view.balance, series(direct, "worst", n)[n - 1]);
+      assert.deepEqual(view.events.filter(event => event.label === "Hoshi Insurance").map(event => event.amount), [-48_000]);
+      assert.throws(() => stateThrough(state, addDays(latestDate(today), 1)), /two years/);
+      assert.throws(() => stateThrough(state, addDays(today, -1)), /passed/);
+      const far = stateThrough(state, latestDate(today)).bills.filter(bill => bill.biller === "Hoshi Insurance").map(bill => bill.due);
+      assert.deepEqual(far, ["2026-12-31", "2027-12-31"], "two years out");
     });
   } finally {
     await pg.close();

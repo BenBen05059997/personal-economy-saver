@@ -176,6 +176,20 @@
       "when": 1794030309506,
       "tag": "0024_massive_robin_chapel",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794033975400,
+      "tag": "0025_sturdy_thunderball",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794035672607,
+      "tag": "0026_chunky_dakota_north",
+      "breakpoints": true
     }
   ]
 }

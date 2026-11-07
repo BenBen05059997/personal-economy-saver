@@ -16,7 +16,8 @@ import { attachDocument, documentCard } from "@/db/document-card";
 import { loadMoneyState } from "@/db/household";
 import { moveToDevice } from "@/db/place";
 import { readDocument } from "@/db/reader-job";
-import { reviewReading } from "@/db/readings";
+import { proposeReadings, reviewReading } from "@/db/readings";
+import { readerInbox } from "@/db/reader-inbox";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type FlowData, type TimelineData } from "@/lib/canvas/resolve";
 import { RecipeSchema } from "@/lib/canvas/schema";
@@ -44,6 +45,7 @@ async function main() {
   process.env.AI_PROTOCOL = "anthropic";
   process.env.AI_API_KEY = "fictional-test-value";
   process.env.AI_DAILY_LIMIT = "100";
+  process.env.AI_GLOBAL_DAILY_LIMIT = "1000";
   process.env.AI_DOCUMENT_MODEL = "fixture-document";
   process.env.AI_TEXT_MODEL = "fixture-text";
   const pg = new PGlite();
@@ -119,14 +121,16 @@ async function main() {
     ok("documentCanvas: days (25, 7, 45, 60), the recipe schema, no mark key without a bill");
 
     // ================================================================ the mark on the resolver (a hand-worked household)
-    const ctx = await loadCanvasContext(db, a);
+    const ctx = await loadCanvasContext(db, a, { blocks: [] });
     assert.equal(ctx.state.today, TODAY);
     const withKawa = {
       ...ctx, state: { ...ctx.state, bills: [
         ...ctx.state.bills,
         { id: "kawa@2026-11-27", biller: "Kawa Gym", amount: 6000, due: "2026-11-27", category: "other" as const, businessBp: 0, status: "confirmed" as const, repeatUnit: "month" as const, repeatDay: 27, startsOn: "2026-11-27", startAmount: 6000 },
         { id: "kawa@2026-12-27", biller: "Kawa Gym", amount: 6000, due: "2026-12-27", category: "other" as const, businessBp: 0, status: "confirmed" as const, repeatUnit: "month" as const, repeatDay: 27, startsOn: "2026-11-27", startAmount: 6000 },
-      ] },
+      ],
+      // a window past the plan's is expanded from the stored series (27D), so the series is stored too
+      storedBills: [...ctx.state.storedBills, { id: "kawa", biller: "Kawa Gym", amount: 6000, due: "2026-11-27", category: "other" as const, businessBp: 0, status: "confirmed" as const, repeatUnit: "month" as const, repeatDay: 27 }] },
     };
     const recipeWith = (markId: string | undefined, days = 60) => ({
       version: 1 as const, title: "Probe", blocks: [
@@ -289,7 +293,7 @@ async function main() {
       { kind: "charge", name: "Bookshop", amountMinor: null, currency: null, category: "other", date: "2026-11-13", cardId },
     ];
     const twoRead = await read(a, (await attach(a, "card email with two charges")).documentId);
-    // The two readings are inserted in one transaction, so they share a created_at and come back in id order: look them up by name.
+    // Look them up by name.
     const named = (c: typeof twoRead, name: string) => c.items.find(item => item.value.name === name)!;
     assert.equal(twoRead.items.length, 2);
     assert.deepEqual(twoRead.items.map(item => item.checks.map(check => check.kind)).sort(), [[], ["missing"]], "each item has its own checks");
@@ -305,12 +309,27 @@ async function main() {
     assert.ok(afterOne.canvas.recipe.blocks.every(block => !("mark" in block)));
     ok("a document with two charges: two items with their own checks; Confirming one leaves the other; the canvas has no mark");
 
-    // a repeating bill whose first date is past the days the money state expands: no mark, no error
+    // readings from one file keep the model's order: distinct created_at, ids chosen so id order is the reverse of read order
+    const orderDoc = await attach(a, "three bills in one file");
+    await db.update(schema.documents).set({ status: "read" }).where(eq(schema.documents.id, orderDoc.documentId));
+    const order = ["Alder Bills", "Birch Bills", "Cedar Bills"];
+    await proposeReadings(db, a, orderDoc.documentId, order.map((name, index) => bill({ name, date: `2026-12-0${index + 1}` })));
+    const reverseIds = ["ffffffff-0000-4000-8000-000000000001", "88888888-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003"];
+    for (const [index, name] of order.entries()) {
+      const rows = await db.select().from(schema.readings).where(eq(schema.readings.documentId, orderDoc.documentId));
+      const row = rows.find(r => (r.extracted as { original: { name: string } }).original.name === name)!;
+      await db.update(schema.readings).set({ id: reverseIds[index] }).where(eq(schema.readings.id, row.id));
+    }
+    assert.deepEqual((await documentCard(db, a, orderDoc.documentId)).items.map(item => item.value.name), order, "the Ask card lists them in the order read");
+    assert.deepEqual((await readerInbox(db, a)).readings.filter(r => r.documentId === orderDoc.documentId).map(r => r.value.name), order, "To check lists them in the order read");
+    ok("three readings from one file: the Ask card and To check keep the model's order though the ids sort the other way");
+
+    // a repeating bill whose first date is past the plan window: the chart looks as far as its days (27D), so the mark is found
     items = [bill({ name: "Far Pool", date: "2026-12-27", repeat: "month" })];
     const far = await read(a, (await attach(a, "far pool")).documentId);
     assert.equal(await reviewReading(db, a, far.items[0].readingId, far.items[0].value, {}, false, []), true);
     const farDone = await documentCard(db, a, far.documentId);
-    assert.ok(farDone.canvas && farDone.canvas.blocks[1].type === "flow_chart" && farDone.canvas.blocks[1].data.mark === null);
+    assert.ok(farDone.canvas && farDone.canvas.blocks[1].type === "flow_chart" && farDone.canvas.blocks[1].data.mark !== null && farDone.canvas.blocks[1].data.mark.index === 43 && /Far Pool/.test(farDone.canvas.blocks[1].data.mark.label));
     assert.equal(farDone.canvas.recipe.blocks[1].type === "flow_chart" && farDone.canvas.recipe.blocks[1].query.days, 44);
 
     // 8. the same file twice

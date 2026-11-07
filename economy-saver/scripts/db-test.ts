@@ -57,8 +57,12 @@ function normalise(state: MoneyState): MoneyState {
   const billId = (b: { biller: string }) => `bill:${b.biller}`;
   const invoiceId = (i: { clientId: string; item: string }) => `inv:${clientName.get(i.clientId)}:${i.item}`;
   const by = <T,>(key: (t: T) => string) => (a: T, b: T) => key(a).localeCompare(key(b));
+  const storedName = new Map(state.storedBills.map((b) => [b.id, b.biller]));
   return {
     ...state,
+    storedBills: state.storedBills
+      .map((b) => ({ ...b, id: billId(b), ...(b.seriesBillId !== undefined && { seriesBillId: billId({ biller: storedName.get(b.seriesBillId)! }) }) }))
+      .sort(by((b) => (b.due ?? "") + b.biller)),
     bills: state.bills.map((b) => ({ ...b, id: billId(b) })).sort(by((b) => b.due + b.biller)),
     cards: state.cards.map((c) => ({ ...c, id: `card:${c.label}`, ...(c.ownerId && { ownerId: `member:${memberName.get(c.ownerId)}` }) })).sort(by((c) => c.label)),
     charges: state.charges
@@ -395,7 +399,7 @@ async function main() {
 
   await check("row level security is on for every table, with no policies", async () => {
     const tables = allTables().map((t) => getTableConfig(t).name);
-    assert.equal(tables.length, 25);
+    assert.equal(tables.length, 28);
     const on = (await pg.query<{ relname: string }>(`select relname from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace and relrowsecurity`)).rows.map((r) => r.relname);
     assert.deepStrictEqual(on.sort(), tables.sort());
     assert.equal((await pg.query(`select 1 from pg_policies`)).rows.length, 0);
@@ -406,6 +410,7 @@ async function main() {
     for (const t of tables) {
       const cfg = getTableConfig(t);
       if (cfg.name === "households") continue;
+      if (cfg.name === "ip_buckets" || cfg.name === "ai_global_usage") continue; // per-address and app-wide counters: they exist outside any household
       const col = cfg.columns.find((c) => c.name === "household_id");
       if (cfg.name === "webhook_deliveries") assert.ok(col && !col.notNull, "webhook_deliveries.household_id nullable");
       else assert.ok(col?.notNull, `${cfg.name}.household_id not null`);

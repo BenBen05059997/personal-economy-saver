@@ -6,6 +6,9 @@ import { fillPots } from "@/db/pots";
 import { clients, fxRates, households, invoices, members, paypalConnections, webhookDeliveries } from "@/db/schema";
 import type { PayPalWebhookEvent } from "@/lib/paypal/webhook";
 
+/** What a delivery keeps of PayPal's event: the invoice id and the time, the only fields this app reads back. Never the whole event (27E). */
+export const storedPayload = (event: PayPalWebhookEvent, invoiceId: string | undefined) => ({ invoiceId, createdAt: event.create_time });
+
 /** The signature has already been verified. Receipt, invoice transition and notification commit together. */
 export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): Promise<void> {
   await db.transaction(async (tx) => {
@@ -22,7 +25,7 @@ export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): 
       paypalEventId: event.id,
       eventType: event.event_type,
       verified: true,
-      payload: { invoiceId, createdAt: event.create_time },
+      payload: storedPayload(event, invoiceId),
     });
     // PayPal also emits INVOICE.PAID for partial and pending payments.
     if (!inserted || !owner || !invoiceId || event.event_type !== "INVOICING.INVOICE.PAID" || resource?.status !== "PAID") return;

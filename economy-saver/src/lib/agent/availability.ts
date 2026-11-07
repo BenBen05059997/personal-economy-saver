@@ -14,6 +14,7 @@ export function missingAskSetting(hasOwnConnection: boolean): string | null {
   if (protocol === "openai" && !process.env.AI_BASE_URL?.trim()) return "AI_BASE_URL";
   if (!process.env.AI_API_KEY?.trim()) return "AI_API_KEY";
   if (!process.env.AI_DAILY_LIMIT?.trim()) return "AI_DAILY_LIMIT";
+  if (!process.env.AI_GLOBAL_DAILY_LIMIT?.trim()) return "AI_GLOBAL_DAILY_LIMIT";
   return null;
 }
 

@@ -6,10 +6,10 @@ import { Canvas } from "@/components/canvas/Canvas";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { DocumentCard, type CardForm } from "./DocumentCard";
+import { readAskStream } from "./read-stream";
 import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document-card";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
-import type { AskReply } from "@/db/ask";
 import type { Place } from "@/db/place";
 import type { MemoryItem } from "@/lib/schema/memory";
 import type { ConversationTurn, TurnKind } from "@/lib/schema/turn";
@@ -83,6 +83,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
   const [text, setText] = useState("");
   const [source, setSource] = useState<"manual" | "voice">("manual");
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState("");
   const [listening, setListening] = useState(false);
   const [problem, setProblem] = useState(unavailable ?? "");
   const [intro, setIntro] = useState(firstUse);
@@ -225,6 +226,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
     const trimmed = question.trim();
     if (!trimmed || busy) return;
     setBusy(true);
+    setStep("");
     setProblem("");
     if (requestText.current !== trimmed) requestId.current = "";
     requestText.current = trimmed;
@@ -241,7 +243,11 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
         body: JSON.stringify({ id, conversationId, text: trimmed, source: how, canvas: canvas?.recipe ?? null, ...(memory && { memory }), ...(recent && { recent }) }) });
       // A 503 carries a fixed message written for this box, such as a missing key or a spent daily allowance.
       if (!response.ok) { setProblem(response.status === 429 ? "Ask again in a minute." : response.status === 503 || response.status === 400 ? await response.text() : "Couldn’t check your household. Try again."); return; }
-      const reply = await response.json() as AskReply;
+      const last = await readAskStream(response, setStep);
+      if (!last) { setProblem("Couldn’t check your household. Try again."); return; }
+      // An error line reads like the 503 it replaced; the same question keeps its id for a retry.
+      if ("error" in last) { setProblem(last.error); return; }
+      const reply = last.reply;
       requestId.current = "";
       setText(""); setSource("manual");
       setTurns(current => [...current.filter(turn => turn.id !== reply.id), { id: reply.id, question: trimmed, kind: reply.kind, text: reply.text, choices: reply.choices, sources: reply.sources, links: reply.links, thumb: null, documentId: null }]);
@@ -264,7 +270,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
       }
       if (reply.pending) router.refresh();
     } catch { setProblem("Couldn’t reach your household. Try again."); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setStep(""); }
   }
 
   async function thumb(turn: TurnView, which: 1 | -1) {
@@ -347,7 +353,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
           </div>}
         </li>)}
       </ol>
-      {busy && <p role="status" className="ui-hint">Checking your numbers…</p>}
+      {busy && <p role="status" aria-live="polite" className="ui-hint">{step || "Checking your numbers…"}</p>}
       {problem && <p role="alert" className="ui-problem">{problem}</p>}
       {intro && <p className="ask-intro ui-hint">{intro}</p>}
       <form id="ask" className="ask-form" onSubmit={submit}>

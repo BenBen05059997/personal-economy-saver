@@ -27,15 +27,40 @@ function amountsIn(answer: string): Amount[] {
   return found;
 }
 
-/** Every number the sources contain, read with thousands separators removed (18,780 -> 18780), decimals kept (1200.50), and a 万 / k / M scale applied as an extra value (1.878万 -> 18780). */
-function sourceNumbers(sources: string[]): Set<number> {
-  const set = new Set<number>();
+// A JSON field whose number is money: any key ending in Minor (amountMinor, lowMinor, costMinor…) or one of the plain money names the tools use.
+// Dates, ids, day counts (lateDays), percentages and basis points (businessBp) are never in this set.
+const MONEY_KEY = /(?:Minor$)|^(?:minor|amount|amountUsd|amountHigh|cash|low|total|balance|limit|original|safeToSpend|short|gap|cost|fee|gross|landed|billed|price|saved)$/;
+
+/** Numbers read from plain text (the question, the memory block): the person's own, so any number counts. Thousands separators removed (18,780 -> 18780), decimals kept, a 万 / k / M scale applied as an extra value (1.878万 -> 18780). */
+function addPlainNumbers(text: string, set: Set<number>): void {
   // Grouped numbers first so "18,780" is one number, not 18 and 780. A group cannot start right after "digit," so list
-  // items in JSON like [1,2,4000] stay 1, 2 and 4000 rather than 1 and "2,400".
+  // items like [1,2,4000] stay 1, 2 and 4000 rather than 1 and "2,400".
   const found = new RegExp(String.raw`((?<!\d,)\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(${SCALE})${TAIL})?`, "gi");
-  for (const source of sources) for (const m of fold(source).matchAll(found)) {
+  for (const m of fold(text).matchAll(found)) {
     set.add(scaled(m[1])); // the plain number, read with the same rounding as the answer
     if (m[2]) set.add(scaled(m[1], m[2], m[3]));
+  }
+}
+
+/** A tool result: only amounts count. A number counts when its JSON key says money; text inside a string counts only next to a currency mark or word. */
+function addJsonAmounts(value: unknown, moneyKey: boolean, set: Set<number>): void {
+  if (typeof value === "number") { if (moneyKey && Number.isFinite(value)) set.add(Math.round(value * 100) / 100); return; }
+  if (typeof value === "string") {
+    if (moneyKey && /^-?\d[\d,]*(?:\.\d+)?$/.test(value.trim())) set.add(scaled(value.trim().replace(/^-/, "")));
+    for (const amount of amountsIn(value)) set.add(amount.value);
+    return;
+  }
+  if (Array.isArray(value)) { for (const item of value) addJsonAmounts(item, moneyKey, set); return; }
+  if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) addJsonAmounts(item, MONEY_KEY.test(key), set);
+}
+
+/** The numbers the sources confirm. A source that is a JSON object or array (a tool result) confirms only its amounts; any other text confirms every number in it. */
+function sourceNumbers(sources: string[]): Set<number> {
+  const set = new Set<number>();
+  for (const source of sources) {
+    let json: unknown;
+    try { json = JSON.parse(source); } catch { json = undefined; }
+    if (json !== null && typeof json === "object") addJsonAmounts(json, false, set); else addPlainNumbers(source, set);
   }
   return set;
 }

@@ -587,12 +587,17 @@ await step("read", "confirm-single-event", async () => {
 // with them it must answer from the engine's numbers.
 await step("action", "typed-ask-read-only", async () => {
   const result = await request("/api/ask", { method: "POST", json: { id: randomUUID(), conversationId: randomUUID(), text: "Where do I stand?", source: "manual", canvas: null } });
-  if (result.response.status === 503 && /^Ask isn’t available on this server yet \(AI_[A-Z_]+\)\.$/.test(result.body)) {
-    console.log(`NOTE typed-ask-read-only: ${result.body}; the live answer is not checked`);
+  expect(result.response.status === 200 && /application\/x-ndjson/.test(result.response.headers.get("content-type") ?? ""), "ask-status");
+  // The stream: step lines, then one reply or error line.
+  const lines = result.body.split("\n").filter(Boolean).map(line => JSON.parse(line));
+  const last = lines.at(-1);
+  expect(lines.slice(0, -1).every(line => typeof line.step === "string"), "ask-steps");
+  if (typeof last.error === "string" && /^Ask isn’t available on this server yet \(AI_[A-Z_]+\)\.$/.test(last.error)) {
+    console.log(`NOTE typed-ask-read-only: ${last.error}; the live answer is not checked`);
     return;
   }
-  expect(result.response.status === 200, "ask-status");
-  const answer = JSON.parse(result.body);
+  expect(last.reply, "ask-reply-line");
+  const answer = last.reply;
   expect(answer.pending === false && typeof answer.text === "string" && ["answer", "clarify", "declined"].includes(answer.kind) && Array.isArray(answer.sources), "ask-result");
 });
 // The Ask page (D60): without the owner's AI settings it shows the missing setting's name; with them, the box. Pins (D57): pin a canvas, Home draws it, unpin.

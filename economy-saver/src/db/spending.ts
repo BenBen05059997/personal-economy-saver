@@ -5,7 +5,8 @@ import { CategoryKeySchema as CategoryKey } from "@/lib/money/categories";
 import { RepeatUnitSchema, resolveBills } from "@/lib/money/repeat";
 import type { StoredBill } from "@/lib/money/types";
 import { clockForHousehold } from "./clock";
-import type { SpendingInput } from "@/lib/money/spending";
+import type { PeriodBill } from "@/lib/money/period";
+import { monthBounds, type SpendingInput } from "@/lib/money/spending";
 import { requireHousehold, usdRate, type Db } from "./household";
 import { convertMinor, fromMinor, fromRateMicro } from "./money";
 import * as s from "./schema";
@@ -56,6 +57,7 @@ export async function loadSpending(db: Db, householdId: string, range: { from: s
       ...(b.nextAmountMinor !== null && b.nextAmountFrom !== null && { nextAmount: inHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }),
       ...(b.amountVaries && { amountVaries: true as const }),
       ...(b.seriesBillId !== null && { seriesBillId: b.seriesBillId }),
+      ...(b.periodStart !== null && b.periodEnd !== null && { periodStart: b.periodStart, periodEnd: b.periodEnd }),
       ...(b.memberId !== null && { ownerId: b.memberId }),
       ...(b.documentId !== null && { documentId: b.documentId }),
     }));
@@ -73,4 +75,22 @@ export async function loadSpending(db: Db, householdId: string, range: { from: s
       })),
     };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
+/**
+ * Every stored bill of one household that names the period it covers (D63), confirmed or waiting, in its own currency: when `month`
+ * (YYYY-MM) is given, only those whose period overlaps it. Read only; the rows are one-off bills, so nothing is expanded.
+ */
+export async function loadPeriodBills(db: Db, householdId: string, month?: string): Promise<PeriodBill[]> {
+  const hid = requireHousehold(householdId);
+  const where = [eq(s.bills.householdId, hid), isNotNull(s.bills.periodStart), isNotNull(s.bills.periodEnd)];
+  if (month !== undefined) {
+    const { first, last } = monthBounds(month);
+    where.push(lte(s.bills.periodStart, last), gte(s.bills.periodEnd, first));
+  }
+  const rows = await db.select().from(s.bills).where(and(...where)).orderBy(s.bills.due, s.bills.biller, s.bills.id);
+  return rows.flatMap((b): PeriodBill[] => (b.periodStart === null || b.periodEnd === null ? [] : [{
+    id: b.id, biller: b.biller, amountMinor: b.amountMinor, currency: Currency.parse(b.currency), due: b.due, periodStart: b.periodStart, periodEnd: b.periodEnd,
+    status: b.status === "confirmed" ? "confirmed" : "pending", category: CategoryKey.parse(b.category),
+  }]));
 }

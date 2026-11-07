@@ -6,9 +6,16 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { findDemoHousehold } from "@/db/demo";
+import { noteHousehold } from "./request-log";
 
 // The UUID cookie is a bearer credential only for anonymous Try it households.
 export async function currentHouseholdId(): Promise<string | null> {
+  const id = await resolveHouseholdId();
+  if (id) noteHousehold(id);
+  return id;
+}
+
+async function resolveHouseholdId(): Promise<string | null> {
   const store = await cookies();
   if (hasAuthCookie(store.getAll())) {
     const uid = await verifiedUid();

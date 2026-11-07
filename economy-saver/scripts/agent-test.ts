@@ -21,9 +21,13 @@ import { addDays, low, medianLow, safeToSpend, series } from "@/lib/money/runway
 import { createHousehold, setupForm } from "@/db/account";
 import { billInput, insertBill } from "@/db/bills";
 import { MODEL_RULES } from "@/lib/agent/rules";
+import { THINKING_WORDS, TOOL_WORDS, toolWords } from "@/lib/agent/words";
 import { answerQuestion, askInput } from "@/db/ask";
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { whatIf } from "@/lib/money/whatif";
+import { billsForMonth, type PeriodBill } from "@/lib/money/period";
+import { dayView } from "@/lib/money/window";
+import { latestDate } from "@/lib/money/horizon";
 import { homeSentence } from "@/lib/money/sentence";
 import { minorPerUnit } from "@/lib/money/format";
 import { requestCount } from "@/db/rate-limit";
@@ -95,7 +99,7 @@ function chatTransport(script: ((bodies: ChatBody[]) => Response)[] | ((bodies: 
 }
 const toolMessages = (body: ChatBody) => body.messages.filter(m => m.role === "tool") as { tool_call_id: string; content: string }[];
 
-const AI_NAMES = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_TEXT_MODEL"];
+const AI_NAMES = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_GLOBAL_DAILY_LIMIT", "AI_TEXT_MODEL"];
 const KEY = "sk-ant-fictional-" + "a".repeat(40);
 const APP = new URL("http://127.0.0.1:3123");
 
@@ -111,6 +115,7 @@ async function main() {
     process.env.AI_PROTOCOL = "anthropic";
     process.env.AI_API_KEY = KEY;
     process.env.AI_DAILY_LIMIT = "500";
+    process.env.AI_GLOBAL_DAILY_LIMIT = "500";
     process.env.AI_TEXT_MODEL = "fixture-text";
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     await db.update(schema.clients).set({ name: "ZZ Secret Client" }).where(eq(schema.clients.householdId, b));
@@ -120,7 +125,7 @@ async function main() {
     // The one log line per Ask (D50) is captured here instead of printed.
     const logged: Record<string, unknown>[] = [];
     console.info = (...args: unknown[]) => { const first = String(args[0]); if (first.startsWith('{"at":')) logged.push(JSON.parse(first)); else realInfo(...args); };
-    const ask = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { now?: () => number; source?: "voice" | "manual"; askId?: string } = {}) =>
+    const ask = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { now?: () => number; source?: "voice" | "manual"; askId?: string; onStep?: (step: string) => void } = {}) =>
       runAgent({ db, householdId: hid, question, askId: extra.askId ?? crypto.randomUUID(), appUrl: APP, connection: () => aiConnection(db, hid, "text"), fetch, ...extra });
 
     await check("a question runs a tool, feeds the engine's own answer back and reserves one allowance unit per model call", async () => {
@@ -219,6 +224,28 @@ async function main() {
       assert.ok(o.options.length > 0 && o.options.every((x: { costMinor: number }) => Number.isInteger(x.costMinor)));
       assert.ok(i.length > 0 && i.every((x: { client: string; amountMinor: number; currency: string }) => x.client && Number.isInteger(x.amountMinor) && x.currency === "USD"));
       assert.ok(i.length <= 50);
+    });
+
+    await check("27D: timeline with on answers one day up to two years ahead from the engine; a day past the horizon or before today is an error the model can read", async () => {
+      const state = await loadMoneyState(db, a, aState.today);
+      const direct = dayView(state, "worst", "2026-12-31");
+      const rentDay = dayView(state, "worst", "2026-12-27");
+      assert.ok(rentDay.events.some(e => e.kind === "bill"), "a bill on Dec 27, past the default window");
+      const { fetch, bodies } = transport([
+        () => reply("tool_use", [toolUse("a", "timeline", { scenario: "late", on: "2026-12-31" }), toolUse("b", "timeline", { scenario: "late", on: "2026-12-27" }), toolUse("c", "timeline", { scenario: "late", on: latestDate(aState.today) }),
+          toolUse("d", "timeline", { scenario: "late", on: addDays(latestDate(aState.today), 1) }), toolUse("e", "timeline", { scenario: "late", on: addDays(aState.today, -1) }), toolUse("f", "timeline", { scenario: "late", on: "soon" })]),
+        () => reply("end_turn", [text("ok")]),
+      ]);
+      await ask(a, "How much will I have on Dec 31?", fetch);
+      const results = toolResults(bodies[1]);
+      const [x, y, z] = results.slice(0, 3).map(r => JSON.parse(r.content));
+      assert.equal(x.on, "2026-12-31");
+      assert.equal(x.balanceAfterMinor, Math.round(direct.balance * minorPerUnit("JPY")));
+      assert.deepEqual(x.events.map((e: { label: string }) => e.label), direct.events.map(e => e.label));
+      assert.ok(y.events.some((e: { kind: string; amountMinor: number; direction: string }) => e.kind === "bill" && Number.isInteger(e.amountMinor) && e.direction === "out"));
+      assert.equal(z.on, latestDate(aState.today));
+      for (const r of results.slice(3)) assert.equal(r.is_error, true);
+      assert.match(results[3].content, /two years/);
     });
 
     await check("options_when_short says 'not short' when the runway is fine", async () => {
@@ -422,6 +449,82 @@ async function main() {
       await confirmPending(db, a, "bill", billId);
       assert.deepEqual((await loadMoneyState(db, a, "2026-11-14")).bills.filter(b => b.id.startsWith(billId)).map(b => [b.status, b.due]), [["confirmed", "2026-11-27"]], "counted after Confirm (the plan window ends before Dec 27; the stop itself is in doors-test)");
       await removeBill(db, a, billId);
+    });
+
+    await check("add_bill takes period_start and period_end (27F): the bill waits with them, and after Confirm the month view and search_spending name the month it covers while counting on the paid date", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const billId = crypto.randomUUID();
+      const power = { id: billId, biller: "Fictional Electric", amount: "7300", due: "2026-11-10", category: "utilities", memberId: null, period_start: "2026-10-01", period_end: "2026-10-31" };
+      const run = transport([() => reply("tool_use", [toolUse("p", "add_bill", power)]), () => reply("end_turn", [text("Waiting in To check.")])]);
+      assert.equal((await ask(c, "October's electricity was 7300, paid Nov 10.", run.fetch)).pending, true);
+      const [row] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.id, billId)));
+      assert.deepEqual([row.status, row.due, row.periodStart, row.periodEnd], ["pending", "2026-11-10", "2026-10-01", "2026-10-31"]);
+      const bad = transport([() => reply("tool_use", [toolUse("q", "add_bill", { ...power, id: crypto.randomUUID(), period_start: "2026-11-01", period_end: "2026-10-01" })]), () => reply("end_turn", [text("Done.")])]);
+      await ask(c, "Add it backwards.", bad.fetch);
+      assert.match(JSON.stringify(toolResults(bad.bodies[1])[0].content), /must start on or before/);
+      await confirmPending(db, c, "bill", billId);
+      const search = tools.find(t => t.name === "search_spending")!, month = tools.find(t => t.name === "month_by_category")!;
+      const ctx = { madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never;
+      const found = JSON.parse(await search.run(ctx, search.input.parse({ query: "electric", months: 1 }) as never));
+      assert.deepEqual(found.months[0].items.map((i: { label: string; date: string; periodStart?: string; periodEnd?: string }) => [i.label, i.date, i.periodStart, i.periodEnd]), [["Fictional Electric", "2026-11-10", "2026-10-01", "2026-10-31"]], "counted on the paid date, with the period beside it");
+      assert.match(await month.run(ctx, month.input.parse({ month: "2026-11" }) as never), /Fictional Electric \(for 10月分\) Nov 10 ¥7,300/);
+    });
+
+    await check("bills_for_month (D63): the pure rule finds a November bill due in December, a period across two months in both, and never a bill without a period", async () => {
+      const bill = (id: string, biller: string, due: string | null, start: string, end: string, extra: Partial<PeriodBill> = {}): PeriodBill =>
+        ({ id, biller, amountMinor: 9_800, currency: "JPY", due, periodStart: start, periodEnd: end, status: "confirmed", category: "utilities", ...extra });
+      const bills = [
+        bill("nov", "Harbor Energy", "2026-12-27", "2026-11-01", "2026-11-30"),
+        bill("span", "Fictional Water", "2026-11-20", "2026-10-15", "2026-11-14", { amountMinor: 4_000, status: "pending" }),
+        bill("unknown", "Harbor Gas", null, "2026-11-01", "2026-11-30", { amountMinor: null }),
+        bill("usd", "Fictional Cloud", "2026-12-05", "2026-11-01", "2026-11-30", { amountMinor: 2_400, currency: "USD", category: "subscriptions" }),
+      ];
+      const nov = billsForMonth(bills, "2026-11"), dec = billsForMonth(bills, "2026-12"), oct = billsForMonth(bills, "2026-10");
+      assert.deepEqual(nov.items.map(i => i.id), ["span", "usd", "nov", "unknown"], "by due date, not known last");
+      assert.deepEqual(dec.items, [], "a November period is not December, though it is paid then");
+      assert.match(dec.summary, /No bill names December 2026/);
+      assert.deepEqual(oct.items.map(i => i.id), ["span"], "Oct 15 to Nov 14 is October too");
+      assert.deepEqual(nov.items.map(i => i.periodLabel), ["Oct 15 – Nov 14", "11月分", "11月分", "11月分"]);
+      assert.deepEqual(nov.totals, [{ currency: "JPY", totalMinor: 13_800, count: 2 }, { currency: "USD", totalMinor: 2_400, count: 1 }], "known amounts only, one total per currency");
+      assert.match(nov.summary, /amount not known, due date not known/);
+      assert.match(nov.summary, /waiting in To check/);
+      assert.deepEqual(billsForMonth(bills, "2026-11", "ENERGY").items.map(i => i.id), ["nov"], "narrowed by name");
+      assert.deepEqual(billsForMonth(bills, "2026-11", "harbor").items.map(i => i.id), ["nov", "unknown"]);
+      assert.match(nov.note, /month_by_category/);
+      assert.deepEqual(billsForMonth([], "2026-11").items, []);
+    });
+
+    await check("bills_for_month (D63) on Ben's household: Harbor Energy's 11月分 bill due Dec 27 is found for 2026-11 and not for 2026-12; a bill with no period is not listed; the sample numbers do not change", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const tool = tools.find(t => t.name === "bills_for_month")!;
+      assert.equal(tool.scope, "read");
+      assert.deepEqual((toolInputSchema(tool) as unknown as { required: string[] }).required.sort(), ["month", "text"], "strict schema: both listed");
+      assert.throws(() => tool.input.parse({ month: "2026-13" }));
+      assert.ok(TOOL_WORDS.bills_for_month);
+      const before = await stateOf(c);
+      const billId = crypto.randomUUID();
+      await insertBill(db, c, billInput.parse({ id: billId, biller: "Harbor Energy", amount: "9800", due: "2026-12-27", category: "utilities", memberId: null, periodStart: "2026-11-01", periodEnd: "2026-11-30" }), "confirmed", { madeBy: "ask" });
+      const pendingId = crypto.randomUUID();
+      await insertBill(db, c, billInput.parse({ id: pendingId, biller: "Harbor Energy Gas", amount: "3100", due: "2026-12-27", category: "utilities", memberId: null, periodStart: "2026-11-01", periodEnd: "2026-11-30" }), "pending", { madeBy: "ask" });
+      const ctx = { madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never;
+      const nov = JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-11", text: "" }) as never));
+      assert.deepEqual(nov.items.map((i: { biller: string; amountMinor: number; currency: string; due: string; periodStart: string; periodEnd: string; periodLabel: string; status: string; category: string }) => [i.biller, i.amountMinor, i.currency, i.due, i.periodStart, i.periodEnd, i.periodLabel, i.status, i.category]),
+        [["Harbor Energy", 9_800, "JPY", "2026-12-27", "2026-11-01", "2026-11-30", "11月分", "confirmed", "utilities"], ["Harbor Energy Gas", 3_100, "JPY", "2026-12-27", "2026-11-01", "2026-11-30", "11月分", "pending", "utilities"]]);
+      assert.deepEqual(nov.totals, [{ currency: "JPY", totalMinor: 12_900, count: 2 }]);
+      assert.match(nov.summary, /Harbor Energy \(11月分\): ¥9,800, due Dec 27/);
+      const dec = JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-12", text: "" }) as never));
+      assert.deepEqual(dec.items, [], "counted by the due date elsewhere; not listed for December here");
+      assert.deepEqual(JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-11", text: "gas" }) as never)).items.map((i: { biller: string }) => i.biller), ["Harbor Energy Gas"]);
+      const noPeriod = JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-11", text: "rent" }) as never));
+      assert.deepEqual(noPeriod.items, [], "Ben's rent has no period");
+      assert.match(noPeriod.note, /month_by_category/);
+      await assert.rejects(() => tool.run(ctx, tool.input.parse({ month: "2029-01", text: "" }) as never), (error: unknown) => error instanceof InputError);
+      // The model path: the tool is called by name and its words are shown.
+      const run = transport([() => reply("tool_use", [toolUse("b", "bills_for_month", { month: "2026-11", text: "harbor" })]), () => reply("end_turn", [text("It was ¥9,800.")])]);
+      await ask(c, "What was November's electricity?", run.fetch);
+      assert.match(JSON.stringify(toolResults(run.bodies[1])[0].content), /Harbor Energy \(11月分\)/);
+      await removeBill(db, c, billId); await removeBill(db, c, pendingId);
+      assert.deepEqual((await stateOf(c)).bills.map(b => [b.id, b.due, b.amount]), before.bills.map(b => [b.id, b.due, b.amount]), "the period never changed what the engine counts");
     });
 
     await check("update_bank_balance leaves a pending update in To check, not a new balance, and a retry adds nothing", async () => {
@@ -1178,6 +1281,51 @@ async function main() {
       }
     });
 
+    await check("six declined questions started together: at most five declined replies, the rest the wait sentence, and the bucket counts exactly five", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const replies = await Promise.all(Array.from({ length: 6 }, (_, i) =>
+        conversation(c, `Off topic together ${i}`, transport([() => reply("tool_use", [toolUse("o", "out_of_scope", { reason: "off_topic" })])]).fetch)));
+      assert.equal(replies.filter(r => r.wait).length, 1);
+      assert.equal(replies.filter(r => !r.wait && r.text === FIXED.off_topic).length, 5);
+      assert.ok(replies.filter(r => r.wait).every(r => r.kind === "declined" && r.text === FIXED.wait && r.canvas === null && r.sources.length === 0));
+      assert.equal(await declinesOf(c), 5);
+      assert.equal((await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, c))).length, 5, "no declined turn for the wait reply");
+    });
+
+    await check("a read tool still running when the budget ends stops the question and names the step; a write before it is kept, and a retry with the same id runs nothing again", async () => {
+      const h = await seedBen(db, { isDemo: true });
+      const tool = tools.find(t => t.name === "where_am_i")!;
+      const realRun = tool.run;
+      let clock = 0;
+      tool.run = () => new Promise<string>(() => {}); // never finishes
+      try {
+        const billId = crypto.randomUUID();
+        const bill = { id: billId, biller: "Hikari Gas", amount: "3100", due: aState.today, category: "utilities", memberId: null, repeat: "month" };
+        const slow = transport([
+          () => reply("tool_use", [toolUse("b", "add_bill", bill)]),
+          () => { clock = 19_950; return reply("tool_use", [toolUse("w", "where_am_i", {})]); },
+        ]);
+        // no write: a plain AgentError that names the step, outcome budget
+        await assert.rejects(ask(h, "Where am I?", transport(() => { clock = 19_950; return reply("tool_use", [toolUse("w", "where_am_i", {})]); }).fetch, { now: () => clock }),
+          (e: unknown) => e instanceof AgentError && e.message === "That took too long while looking at where you stand. Try a simpler question." && e.outcome === "budget");
+        clock = 0;
+        const input = askInput.parse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "The gas bill is ¥3,100.", source: "manual", canvas: null });
+        // answerQuestion has no clock seam: runAgent reads Date.now, so the same stub is moved by the fetch
+        const realNow = Date.now;
+        Date.now = () => clock;
+        let answer;
+        try { answer = await answerQuestion(db, h, input, { fetch: slow.fetch }); } finally { Date.now = realNow; }
+        assert.equal(answer.text, FIXED.savedThenStopped + "That took too long while looking at where you stand. Try a simpler question.");
+        assert.equal(answer.pending, true);
+        assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, h), eq(schema.bills.id, billId)))).length, 1);
+        const retry = transport(() => { throw new Error("no model call expected"); });
+        const again = await answerQuestion(db, h, input, { fetch: retry.fetch });
+        assert.equal(retry.bodies.length, 0);
+        assert.equal(again.text, answer.text);
+        assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, h), eq(schema.bills.biller, "Hikari Gas")))).length, 1, "the write ran once");
+      } finally { tool.run = realRun; }
+    });
+
     await check("the Ask log line carries kind and canvas and never the question, the reply, a note or a letter", async () => {
       const c = await seedBen(db, { isDemo: true });
       logged.length = 0;
@@ -1328,6 +1476,42 @@ async function main() {
       assert.equal((await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, d))).length, 0, "the device keeps its own turn");
     });
 
+    await check("a device-journal retry after a write makes no model call and writes nothing twice; a retry with no write runs again; another household's receipt does not count", async () => {
+      const d = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ journalPlace: "device" }).where(eq(schema.households.id, d));
+      const ds = await stateOf(d);
+      const billId = crypto.randomUUID(), id = crypto.randomUUID(), conversationId = crypto.randomUUID();
+      const bill = { id: billId, biller: "Receipt Water", amount: "4200", due: ds.today, category: "utilities", memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, repeat_until: null };
+      const input = askInput.parse({ id, conversationId, text: "The water bill is 4200", source: "manual", canvas: null, recent: [] });
+      const first = transport([() => reply("tool_use", [toolUse("b", "add_bill", bill)]), () => reply("end_turn", [text("It is waiting in To check.")])]);
+      const firstReply = await answerQuestion(db, d, input, { fetch: first.fetch });
+      assert.equal(firstReply.pending, true);
+      const count = async () => (await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, d), eq(schema.bills.biller, "Receipt Water")))).length;
+      assert.equal(await count(), 1);
+      assert.equal((await db.select().from(schema.askReceipts).where(eq(schema.askReceipts.householdId, d))).length, 1);
+      const never = transport([]);
+      const again = await answerQuestion(db, d, input, { fetch: never.fetch });
+      assert.equal(never.bodies.length, 0, "no model call");
+      assert.equal(again.text, FIXED.alreadySaved);
+      assert.deepEqual(again.links, [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }]);
+      assert.equal(await count(), 1, "the bill exists once");
+      // a question with no write leaves no receipt and runs again
+      const readId = crypto.randomUUID();
+      const readInput = askInput.parse({ id: readId, conversationId, text: "Where am I?", source: "manual", canvas: null, recent: [] });
+      const read = () => transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("You are fine.")])]);
+      const r1 = read(), r2 = read();
+      await answerQuestion(db, d, readInput, { fetch: r1.fetch });
+      await answerQuestion(db, d, readInput, { fetch: r2.fetch });
+      assert.ok(r1.bodies.length > 0 && r2.bodies.length > 0, "a retry with no write runs again");
+      // the receipt is this household's: the same id from another household runs
+      const other = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ journalPlace: "device" }).where(eq(schema.households.id, other));
+      const o = transport([() => reply("end_turn", [text("Hello.")])]);
+      const otherReply = await answerQuestion(db, other, input, { fetch: o.fetch });
+      assert.notEqual(otherReply.text, FIXED.alreadySaved);
+      assert.ok(o.bodies.length > 0);
+    });
+
     await check("a question retried with the same id (cloud journal) makes no model call and returns the saved turn", async () => {
       const h = await seedBen(db, { isDemo: true });
       const id = crypto.randomUUID(), conversationId = crypto.randomUUID();
@@ -1381,6 +1565,52 @@ async function main() {
       await assert.rejects(run("remember", { kind: "fact", text: "Something new" }), (e: unknown) => e instanceof InputError && e.message === DEVICE_MEMORY_WORDS);
       await assert.rejects(run("forget", { id: crypto.randomUUID() }), InputError);
       assert.equal((await db.select().from(schema.memories).where(eq(schema.memories.householdId, d))).length, 1, "nothing was written");
+    });
+
+    await check("27B: reads in one turn run together, a write runs alone in its place, results keep the order asked, each tool keeps its own time", async () => {
+      const events: string[] = [];
+      const wrap = (name: string, delay: number) => {
+        const tool = tools.find(t => t.name === name)!;
+        const real = tool.run;
+        (tool as { run: unknown }).run = async (ctx: never, input: never) => {
+          events.push(`${name}:start`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          try { return await (real as (c: never, i: never) => Promise<string>)(ctx, input); } finally { events.push(`${name}:end`); }
+        };
+        return () => { (tool as { run: unknown }).run = real; };
+      };
+      const restore = [wrap("where_am_i", 40), wrap("whats_due", 10), wrap("draft_invoice", 10)];
+      try {
+        const draft = { id: crypto.randomUUID(), clientId: aState.clients[0].id, item: "Poster", amount: "10.00", note: "" };
+        const { fetch, bodies } = transport([
+          () => reply("tool_use", [toolUse("r1", "where_am_i", {}), toolUse("r2", "whats_due", {}), toolUse("w1", "draft_invoice", draft), toolUse("r3", "whats_due", {}), toolUse("bad", "no_such_tool", {})]),
+          () => reply("end_turn", [text("Done.")]),
+        ]);
+        const steps: string[] = [];
+        logged.length = 0;
+        const result = await ask(a, "Look and draft", fetch, { onStep: step => steps.push(step) });
+        assert.equal(result.answer, "Done.");
+        // both first reads started before either ended; the write started after both ended; the last read after the write ended
+        assert.deepEqual(events.slice(0, 2), ["where_am_i:start", "whats_due:start"]);
+        assert.ok(events.indexOf("draft_invoice:start") > events.indexOf("where_am_i:end") && events.indexOf("draft_invoice:start") > events.indexOf("whats_due:end"));
+        assert.ok(events.lastIndexOf("whats_due:start") > events.indexOf("draft_invoice:end"));
+        assert.equal(events.filter(e => e === "draft_invoice:start").length, 1);
+        const results = toolResults(bodies[1]);
+        assert.deepEqual(results.map(r => r.tool_use_id), ["r1", "r2", "w1", "r3", "bad"]);
+        assert.equal(results[4].content, "Unknown tool.");
+        assert.ok(results[4].is_error);
+        const line = logged.at(-1) as { tools: { name: string; ok: boolean; ms: number }[] };
+        assert.deepEqual(line.tools.map(t => t.name), ["where_am_i", "whats_due", "draft_invoice", "whats_due", "unknown"], "the log keeps the order asked");
+        assert.ok(line.tools.every(t => typeof t.ms === "number"));
+        assert.deepEqual(steps, [THINKING_WORDS, TOOL_WORDS.where_am_i, TOOL_WORDS.whats_due, TOOL_WORDS.draft_invoice, toolWords("no_such_tool"), THINKING_WORDS]);
+        assert.ok(steps.every(step => !/\d/.test(step)), "steps carry words only");
+      } finally { restore.forEach(undo => undo()); }
+    });
+
+    await check("27B: every tool in the catalogue has words, and the words are plain", async () => {
+      for (const tool of tools) assert.ok(TOOL_WORDS[tool.name], `${tool.name} has no words in src/lib/agent/words.ts`);
+      assert.deepEqual(Object.keys(TOOL_WORDS).filter(name => !tools.some(t => t.name === name)), [], "words for a tool that is not in the catalogue");
+      for (const words of [THINKING_WORDS, ...Object.values(TOOL_WORDS)]) assert.ok(/^[A-Za-z' -]+$/.test(words), words);
     });
 
     console.log(`Agent checks passed (${passed}).`);

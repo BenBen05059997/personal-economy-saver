@@ -94,6 +94,8 @@ async function main() {
     await savePot(db, a, trip, "pending", { madeBy: "form" });
     const yearlyBill = billInput.parse({ id: randomUUID(), biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year", nextAmount: "13000", nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20", repeatUntil: "2028-06-01" });
     await insertBill(db, a, yearlyBill, "confirmed", { madeBy: "form" });
+    const monthBill = billInput.parse({ id: randomUUID(), biller: "Fictional Water", amount: "4300", due: "2026-12-27", category: "utilities", periodStart: "2026-11-01", periodEnd: "2026-11-30" });
+    await insertBill(db, a, monthBill, "confirmed", { madeBy: "form" });
     const pendingBalance = randomUUID();
     await setBankBalance(db, a, { id: pendingBalance, amount: "123456" }, "pending", { madeBy: "form" });
     const docId = randomUUID();
@@ -193,6 +195,18 @@ async function main() {
       const jsonSchema = JSON.parse(readFileSync(SCHEMA_FILE, "utf8")).properties.bills.items;
       assert.ok(["repeatUnit", "nextAmountMinor", "nextAmountFrom", "cancelBy", "repeatUntil"].every(key => key in jsonSchema.properties && !jsonSchema.required.includes(key)), "in the committed JSON Schema, not required");
       assert.ok(jsonSchema.required.includes("repeatDay"), "the fields that were there stay required");
+    });
+
+    await check("a bill's billing period is exported with the bill (both dates, or null), and the committed JSON Schema lists them as optional", async () => {
+      const water = snap.bills.find(bill => bill.id === monthBill.id)!;
+      assert.deepEqual([water.periodStart, water.periodEnd], ["2026-11-01", "2026-11-30"]);
+      assert.equal(snap.bills.find(bill => bill.id === yearlyBill.id)!.periodStart ?? null, null);
+      assert.equal(HouseholdSnapshot.safeParse({ ...snap, bills: [{ ...water, periodStart: "soon" }] }).success, false);
+      const jsonSchema = JSON.parse(readFileSync(SCHEMA_FILE, "utf8")).properties.bills.items;
+      assert.ok(["periodStart", "periodEnd"].every(key => key in jsonSchema.properties && !jsonSchema.required.includes(key)));
+      await assert.rejects(insertBill(db, a, { ...monthBill, id: randomUUID(), periodEnd: "2026-10-01" }, "confirmed", { madeBy: "form" }), /must start on or before/);
+      await assert.rejects(insertBill(db, a, { ...monthBill, id: randomUUID(), periodEnd: null }, "confirmed", { madeBy: "form" }), /both the first and the last day/);
+      await assert.rejects(insertBill(db, a, { ...monthBill, id: randomUUID(), repeat: "month" }, "confirmed", { madeBy: "form" }), /different month each time/);
     });
 
     await check("pots and the pending balance update appear with their status", () => {

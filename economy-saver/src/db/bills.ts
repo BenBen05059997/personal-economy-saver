@@ -14,6 +14,7 @@ import { memberCount } from "./people";
 import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { AMOUNT_NOT_KNOWN_YET, DATE_NOT_KNOWN, NOT_KNOWN, NOT_KNOWN_YET } from "@/lib/money/gaps";
 import { monthName } from "@/lib/money/spending";
+import { periodLabel, periodProblem } from "@/lib/money/period";
 import { linkPreview, occurrenceInMonth, seriesToJoin, type LinkPreview, type VariesSeries } from "@/lib/money/varies";
 import { bills, households, members } from "./schema";
 
@@ -39,6 +40,8 @@ export const billInput = z.object({
   cancelBy: z.string().date().nullable().default(null), // D48: information only; before the next occurrence
   amountVaries: z.boolean().default(false), // D54: a monthly bill forecast from its own past; needs repeat "month" and no next amount
   repeatUntil: z.string().date().nullable().default(null), // D41: the last day an occurrence may fall on (the last payment); needs a repeat
+  periodStart: z.string().date().nullable().default(null), // 27F: the first day the bill covers ("11月分"); information only; both period dates or neither; a one-off only
+  periodEnd: z.string().date().nullable().default(null),
 });
 
 /** What a bill's schedule is, in minor units of its own currency: shared by the typed-in bill and the reader's review. */
@@ -145,6 +148,9 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
       nextAmountFrom: data.nextAmountFrom, cancelBy: data.cancelBy, amountVaries: data.amountVaries, repeatUntil: data.repeatUntil,
     };
     const { amountMinor, due } = checkKnown(data, household.currency, schedule);
+    const periodWrong = periodProblem(data.periodStart, data.periodEnd);
+    if (periodWrong !== null) throw new InputError(periodWrong);
+    if (data.periodStart !== null && data.repeat !== null) throw new InputError("A bill that repeats covers a different month each time; leave its period empty");
     if (amountMinor === null && schedule.nextAmountMinor !== null) throw new InputError("A bill whose amount is not known cannot change to a new amount");
     const { paidByName } = await checkWhose(tx, hid, data.memberId, data.paidByMemberId);
     const repeatDay = due === null ? null : repeatDayFor(due, data.repeat);
@@ -153,7 +159,8 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
       if (existing.biller !== data.biller || existing.amountMinor !== amountMinor || existing.due !== due
         || existing.category !== data.category || existing.businessBp !== data.businessBp || existing.memberId !== data.memberId || existing.repeatDay !== repeatDay
         || existing.repeatUnit !== data.repeat || existing.nextAmountMinor !== schedule.nextAmountMinor || existing.nextAmountFrom !== data.nextAmountFrom || existing.cancelBy !== data.cancelBy
-        || existing.paidByMemberId !== data.paidByMemberId || existing.amountVaries !== data.amountVaries || existing.repeatUntil !== data.repeatUntil) {
+        || existing.paidByMemberId !== data.paidByMemberId || existing.amountVaries !== data.amountVaries || existing.repeatUntil !== data.repeatUntil
+        || existing.periodStart !== data.periodStart || existing.periodEnd !== data.periodEnd) {
         throw new InputError("This bill identifier is already in use");
       }
       return data.id;
@@ -168,7 +175,7 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
       id: data.id, householdId: hid, memberId: data.memberId, paidByMemberId: data.paidByMemberId, biller: data.biller, amountMinor,
       currency: household.currency, due, category: data.category, businessBp: data.businessBp, status, repeatDay,
       repeatUnit: data.repeat, nextAmountMinor: schedule.nextAmountMinor, nextAmountFrom: data.nextAmountFrom, cancelBy: data.cancelBy, amountVaries: data.amountVaries, repeatUntil: data.repeatUntil,
-      madeBy: by.madeBy, askId: by.askId ?? null,
+      periodStart: data.periodStart, periodEnd: data.periodEnd, madeBy: by.madeBy, askId: by.askId ?? null,
     });
     if (status === "pending") {
       await recordEvent(tx, hid, { ...by, kind: "to_check", title: `${data.biller} bill to check`, ref: { type: "bill", id: data.id }, notify: true });
@@ -277,6 +284,8 @@ export const billEditInput = billInput.pick({ id: true, biller: true, amount: tr
     seriesBillId: z.string().uuid().nullable().optional(), // D54, a one-off: the amount-varies series it is part of; null = none, absent = unchanged
     cancelBy: z.string().date().nullable().optional(), // D48: the last day to cancel; null = none, absent = unchanged
     repeatUntil: z.string().date().nullable().optional(), // D41: the last payment; null = none, absent = unchanged
+    periodStart: z.string().date().nullable().optional(), // 27F, a one-off: the first day the bill covers; null = none, absent = unchanged (both period dates or neither)
+    periodEnd: z.string().date().nullable().optional(),
   });
 
 const bpWords = (bp: number) => (bp === 0 ? "personal" : bp === 10_000 ? "work" : `${bp / 100}% work`);
@@ -313,6 +322,11 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
     const cancelBy = data.cancelBy === undefined ? bill.cancelBy : data.cancelBy;
     const repeatUntil = data.repeatUntil === undefined ? bill.repeatUntil : data.repeatUntil;
     const series = data.seriesBillId === undefined ? bill.seriesBillId : data.seriesBillId;
+    const periodStart = data.periodStart === undefined ? bill.periodStart : data.periodStart;
+    const periodEnd = data.periodEnd === undefined ? bill.periodEnd : data.periodEnd;
+    const periodWrong = periodProblem(periodStart, periodEnd);
+    if (periodWrong !== null) throw new InputError(periodWrong);
+    if (periodStart !== null && repeat !== null) throw new InputError("A bill that repeats covers a different month each time; leave its period empty");
     const { amountMinor, due } = checkKnown(data, bill.currency, { repeat, cancelBy, amountVaries: varies }, series);
     const { ownerName, paidByName } = await checkWhose(tx, hid, data.memberId, data.paidByMemberId, bill.paidByMemberId);
     const { today } = clockForHousehold(household);
@@ -361,6 +375,9 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
     if (repeatUntil !== bill.repeatUntil) {
       parts.push(repeatUntil === null ? "No last payment" : bill.repeatUntil === null ? `Last payment ${dueLabel(repeatUntil, today)}` : `Last payment ${dueLabel(bill.repeatUntil, today)} → ${dueLabel(repeatUntil, today)}`);
     }
+    if (periodStart !== bill.periodStart || periodEnd !== bill.periodEnd) {
+      parts.push(periodStart === null || periodEnd === null ? "No period" : `Period ${periodLabel({ start: periodStart, end: periodEnd })}`);
+    }
     if (parts.length === 0) return true;
     const schedule: BillSchedule = { repeat, nextAmountMinor: next?.amount ?? null, nextAmountFrom: next?.from ?? null, cancelBy, amountVaries: varies, repeatUntil };
     if (due !== null) checkSchedule(due, today, schedule);
@@ -373,7 +390,7 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
     await tx.update(bills).set({
       biller: data.biller, amountMinor: base, due, repeatDay, category: data.category, businessBp: data.businessBp,
       memberId: data.memberId, paidByMemberId: data.paidByMemberId, nextAmountMinor: schedule.nextAmountMinor, nextAmountFrom: schedule.nextAmountFrom,
-      cancelBy, amountVaries: varies, seriesBillId: series, repeatUntil,
+      cancelBy, amountVaries: varies, seriesBillId: series, repeatUntil, periodStart, periodEnd,
     }).where(and(eq(bills.householdId, hid), eq(bills.id, data.id)));
     await recordEvent(tx, hid, {
       kind: "bill_changed", ...by, title: `${data.biller} bill changed`, body: parts.join(" · "),

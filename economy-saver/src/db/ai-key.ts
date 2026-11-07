@@ -7,7 +7,7 @@ import { providerById } from "@/lib/ai/providers";
 import { isTested } from "@/lib/ai/tested";
 import type { Connection } from "@/lib/ai/types";
 import { recordEvent, requireHousehold, type Db } from "./household";
-import { households } from "./schema";
+import { aiGlobalUsage, households } from "./schema";
 
 /** Messages contain configuration names and fixed text only; safe for a response. */
 export class AiKeyError extends Error {}
@@ -35,11 +35,40 @@ const settingOf = (name: string) => {
 /** The app's own address decides whether a model on this machine may be used (lib/ai/endpoint.ts). */
 const allowLocal = () => { const raw = process.env.APP_URL?.trim(); return raw ? localAllowed(new URL(raw)) : false; };
 
+// A saved key is sealed a second time with the Worker-only AI_KEY_SEAL_KEY before it goes into Vault (D33), the way MCP tokens
+// are sealed with MCP_TOKEN_KEY: AES-GCM, a fresh 12-byte IV, the household id as associated data (a sealed text copied to
+// another household does not open). The stored text is `pes-ai1.` + base64url(iv + ciphertext).
+const SEAL_PREFIX = "pes-ai1.";
+const sealAad = (hid: string) => new TextEncoder().encode(`personal-economy-saver/ai-key/v1/${hid}`);
+async function sealKey() {
+  const raw = process.env.AI_KEY_SEAL_KEY;
+  if (!raw) throw new AiKeyError("AI_KEY_SEAL_KEY is not set");
+  const bytes = Buffer.from(raw, "base64url");
+  if (bytes.length !== 32 || bytes.toString("base64url") !== raw) throw new AiKeyError("AI_KEY_SEAL_KEY must be 32 bytes encoded as unpadded base64url");
+  return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+/** The text to put in Vault for this household's key. */
+export async function sealAiKey(hid: string, key: string): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: sealAad(hid) }, await sealKey(), new TextEncoder().encode(key));
+  return SEAL_PREFIX + Buffer.concat([iv, new Uint8Array(cipher)]).toString("base64url");
+}
+/** The key inside a sealed Vault text. A value saved before sealing existed is refused, never read as a key. */
+export async function unsealAiKey(hid: string, stored: string): Promise<string> {
+  const key = await sealKey();
+  if (!stored.startsWith(SEAL_PREFIX)) throw new AiKeyError("Your saved AI key predates sealed storage. Save your key again in Settings.");
+  const bytes = Buffer.from(stored.slice(SEAL_PREFIX.length), "base64url");
+  try {
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.subarray(0, 12), additionalData: sealAad(hid) }, key, bytes.subarray(12));
+    return new TextDecoder().decode(plain);
+  } catch { throw new AiKeyError("Saved AI key could not be opened. Save your key again in Settings."); }
+}
+
 async function vaultKey(tx: Db, hid: string): Promise<string | null> {
   const [secret] = await tx.select({ key: decrypted.key }).from(decrypted)
     .innerJoin(households, eq(households.aiKeySecretId, decrypted.id))
     .where(and(eq(households.id, hid), eq(decrypted.name, secretName(hid))));
-  return secret?.key ?? null;
+  return secret?.key ? unsealAiKey(hid, secret.key) : null;
 }
 
 /** Which model the caller will use; the setting is checked before any allowance is reserved. */
@@ -88,6 +117,13 @@ export async function aiConnection(db: Db, householdId: string, need: ModelNeed,
       const used = household.aiReadsDay === day ? household.aiReadsToday : 0;
       if (used >= limit) throw new AiKeyError("Daily AI allowance reached. Choose your own model in Settings or try after local midnight.");
       await tx.update(households).set({ aiReadsDay: day, aiReadsToday: used + 1 }).where(eq(households.id, hid));
+      // 27E: the app-wide budget for the server's own key. Refusing here rolls back the household's reservation above.
+      const globalLimit = Number(settingOf("AI_GLOBAL_DAILY_LIMIT"));
+      if (!Number.isSafeInteger(globalLimit) || globalLimit < 1) throw new AiKeyError("AI_GLOBAL_DAILY_LIMIT must be a positive integer");
+      const spent = await tx.insert(aiGlobalUsage).values({ day: sql`(now() at time zone 'utc')::date` as unknown as string, count: 1 })
+        .onConflictDoUpdate({ target: aiGlobalUsage.day, set: { count: sql`${aiGlobalUsage.count} + 1` }, setWhere: sql`${aiGlobalUsage.count} < ${globalLimit}` })
+        .returning({ count: aiGlobalUsage.count });
+      if (!spent.length) throw new AiKeyError("This app has used all of today's AI allowance. Choose your own model in Settings or try again tomorrow.");
       return { protocol, baseUrl, key, ...models, own: false } satisfies Connection;
     });
   } catch (error) {
@@ -110,7 +146,8 @@ const modelName = (value: string, what: string) => {
 const KEY_SHAPE = /^[^\s\u0000-\u001f\u007f]{1,500}$/;
 const hintOf = (key: string) => `…${key.slice(-4)}`;
 
-async function writeSecret(tx: Db, household: typeof households.$inferSelect, hid: string, key: string) {
+async function writeSecret(tx: Db, household: typeof households.$inferSelect, hid: string, plainKey: string) {
+  const key = await sealAiKey(hid, plainKey);
   const name = secretName(hid);
   if (household.aiKeySecretId) {
     // The id pointer alone cannot authorize changing another household's secret.

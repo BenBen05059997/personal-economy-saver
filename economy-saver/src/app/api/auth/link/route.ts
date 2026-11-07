@@ -1,9 +1,14 @@
 import { cookies } from "next/headers";
-import { formOf } from "@/lib/door";
+import { formOf, tooMany } from "@/lib/door";
+import { db, MissingDatabaseUrl } from "@/db/client";
+import { ClientIpError, clientIp, consumeIpRequest } from "@/db/rate-limit";
 import { z } from "zod";
 import { privateRedirect, routeAuth, verifiedUid } from "@/lib/auth-request";
 import { sameOrigin } from "@/lib/session";
 import { appUrl, cookiePolicy, MissingAuthSetting } from "@/lib/supabase-auth";
+
+/** Sign-in links one client address may ask for in an hour. */
+const LINKS_PER_HOUR = 5;
 
 export async function POST(request: Request) {
   if (!sameOrigin(request)) return new Response("Same-origin request required", { status: 403 });
@@ -14,6 +19,7 @@ export async function POST(request: Request) {
   if (await verifiedUid()) return privateRedirect("/account");
   const response = privateRedirect("/login?sent=1");
   try {
+    if (!await consumeIpRequest(db(), clientIp(request), "magic-link", LINKS_PER_HOUR)) return tooMany("Too many sign-in links requested from this connection. Try again in an hour.");
     const client = await routeAuth(response);
     // PKCE binds the callback to the browser which requested this particular link.
     const redirect = new URL("/api/auth/callback", appUrl());
@@ -25,6 +31,8 @@ export async function POST(request: Request) {
     else response.cookies.delete("upgrade-demo");
     return response;
   } catch (error) {
+    if (error instanceof ClientIpError) return new Response(error.message, { status: error.status });
+    if (error instanceof MissingDatabaseUrl) return new Response(error.message, { status: 503 });
     if (error instanceof MissingAuthSetting) return new Response(error.message, { status: 503 });
     throw error;
   }

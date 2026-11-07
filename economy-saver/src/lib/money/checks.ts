@@ -13,7 +13,7 @@ import { amountOn, datesIn, nextAmountOf } from "./repeat";
 import { regularCosts } from "./regular";
 import { addDays, daysBetween, pendingCharges } from "./runway";
 import { monthBounds, monthsBack, spendingItems } from "./spending";
-import type { Bill, MoneyState, RealBill, RepeatUnit } from "./types";
+import type { MoneyState, RealBill, RepeatUnit } from "./types";
 
 /** A date within this many days of another is the same bill or charge arriving twice. */
 export const DUPLICATE_DAYS = 3;
@@ -51,6 +51,19 @@ export function readingProposal(reading: ReadingLike): Proposal {
 
 /** The stored id of a bill (an occurrence of a repeating bill is `<id>@<date>`). */
 const storedId = (id: string) => id.split("@")[0];
+
+/**
+ * A confirmed repeating bill as a series: where it starts, how often, its last payment, the amount before any change and the change.
+ * The state carries the stored bills, so a series whose next date is past the plan window (a yearly insurance due in eight months) is seen
+ * like any other.
+ */
+type Series = { id: string; biller: string; startsOn: string; unit: RepeatUnit; repeatDay: number | null; until: string | null; amount: number | null; next: { amount: number; from: string } | null; varies: boolean };
+
+function seriesOf(state: MoneyState): Series[] {
+  return state.storedBills.flatMap(bill => bill.status === "confirmed" && bill.repeatUnit !== undefined && bill.due !== null
+    ? [{ id: bill.id, biller: bill.biller, startsOn: bill.due, unit: bill.repeatUnit, repeatDay: bill.repeatDay ?? null, until: bill.repeatUntil ?? null, amount: bill.amount, next: nextAmountOf(bill), varies: bill.amountVaries === true }]
+    : []);
+}
 
 /** The bills and charges waiting in To check as proposals, in home minor units; an amount or a date not known (D55) is null. */
 export function pendingProposals(state: MoneyState): Proposal[] {
@@ -92,21 +105,17 @@ function alreadySaved(p: Proposal, state: MoneyState, waiting: readonly Proposal
       const minor = Math.round(bill.amount * unit);
       if (equal(minor)) matches.push({ words: savedWords("bill", bill.status === "pending", bill.biller, minor, state.homeCurrency, bill.due), sameAmount: true, distance: Math.abs(daysBetween(date, bill.due)) });
     }
-    const seen = new Set<string>();
-    for (const bill of state.bills) { // (b): a confirmed repeating series, at any amount; an amount-varies series links instead (D54)
-      if (bill.startsOn === undefined || bill.repeatUnit === undefined || bill.status !== "confirmed" || bill.amountVaries) continue;
-      const id = storedId(bill.id);
-      if (seen.has(id) || id === p.id || nameKey(bill.biller) !== key) continue;
-      seen.add(id);
-      const dates = datesIn({ due: bill.startsOn, repeatUnit: bill.repeatUnit, repeatDay: bill.repeatDay }, addDays(date, -DUPLICATE_DAYS), addDays(date, DUPLICATE_DAYS));
+    for (const series of seriesOf(state)) { // (b): a confirmed repeating series, at any amount, wherever its next date falls; an amount-varies series links instead (D54)
+      if (series.varies || series.id === p.id || nameKey(series.biller) !== key) continue;
+      const dates = datesIn({ due: series.startsOn, repeatUnit: series.unit, repeatDay: series.repeatDay, repeatUntil: series.until }, addDays(date, -DUPLICATE_DAYS), addDays(date, DUPLICATE_DAYS));
       if (dates.length === 0) continue;
       const found = dates.reduce((best, d) => (Math.abs(daysBetween(date, d)) < Math.abs(daysBetween(date, best)) ? d : best));
-      const minor = Math.round(amountOn(bill.startAmount ?? bill.amount, nextAmountOf(bill), found) * unit);
-      const every = bill.repeatUnit === "month" ? "every month" : "every year";
+      const minor = Math.round(amountOn(series.amount ?? 0, series.next, found) * unit);
+      const every = series.unit === "month" ? "every month" : "every year";
       const sameAmount = equal(minor);
       matches.push({
-        words: sameAmount ? savedWords("bill", false, bill.biller, minor, state.homeCurrency, found)
-          : `${bill.biller} is already counted on ${dayLabel(found)}: ${minorMoney(minor, state.homeCurrency)}, ${every}.${p.amountMinor !== null && p.currency !== null ? ` This one is ${minorMoney(p.amountMinor, p.currency)}.` : ""}`,
+        words: sameAmount ? savedWords("bill", false, series.biller, minor, state.homeCurrency, found)
+          : `${series.biller} is already counted on ${dayLabel(found)}: ${minorMoney(minor, state.homeCurrency)}, ${every}.${p.amountMinor !== null && p.currency !== null ? ` This one is ${minorMoney(p.amountMinor, p.currency)}.` : ""}`,
         sameAmount, distance: Math.abs(daysBetween(date, found)),
       });
     }
@@ -178,11 +187,11 @@ function farFromUsual(p: Proposal, state: MoneyState): Check | null {
     return farCheck(`${usual} ${this_}`);
   }
   const date = p.date ?? state.today;
-  const series = state.bills.find(bill => bill.startsOn !== undefined && bill.repeatUnit !== undefined && bill.status === "confirmed" && !bill.amountVaries && !bill.amountUnknown && nameKey(bill.biller) === key);
-  if (!series) return null;
-  const usual = Math.round(amountOn(series.startAmount ?? series.amount, nextAmountOf(series), date) * unit);
+  const series = seriesOf(state).find(one => !one.varies && one.amount !== null && nameKey(one.biller) === key);
+  if (!series || series.amount === null) return null;
+  const usual = Math.round(amountOn(series.amount, series.next, date) * unit);
   if (!(amount * 100 > usual * (100 + FAR_PERCENT) || amount * 100 < usual * (100 - FAR_PERCENT))) return null;
-  return farCheck(`${p.name} is ${money(usual)} ${series.repeatUnit === "month" ? "every month" : "every year"}. ${this_}`);
+  return farCheck(`${p.name} is ${money(usual)} ${series.unit === "month" ? "every month" : "every year"}. ${this_}`);
 }
 
 const farCheck = (words: string): Check => ({
@@ -193,7 +202,7 @@ const farCheck = (words: string): Check => ({
 function repeatUnknown(p: Proposal, state: MoneyState): Check | null {
   if (p.kind !== "bill" || p.repeat !== null || p.name === null) return null;
   const key = nameKey(p.name);
-  if (state.bills.some((bill: Bill) => bill.status === "confirmed" && bill.repeatUnit !== undefined && nameKey(bill.biller) === key)) return null;
+  if (seriesOf(state).some(one => nameKey(one.biller) === key)) return null;
   const from = `${monthsBack(state.today.slice(0, 7), 3)}-01`, to = monthBounds(state.today.slice(0, 7)).last;
   const regular = regularCosts(spendingItems(state, from, to), state.homeCurrency, state.today);
   if (regular.items.some(item => nameKey(item.label) === key)) return null;

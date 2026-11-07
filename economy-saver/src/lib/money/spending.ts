@@ -27,6 +27,8 @@ export type SpendItem = {
   ownerId: string | null; // D52: a member's id, or null for Shared
   documentId: string | null;
   cardId: string | null;
+  periodStart?: string; // 27F: a one-off bill's period ("11月分" = Nov 1 to Nov 30); items still count by `date`, the day it is paid
+  periodEnd?: string;
   estimated?: true; // D54, D55: an amount-varies bill in a month without its real bill, or a bill whose amount is not known and was estimated: the amount is the estimate
   uncounted?: true; // D55: a bill whose amount is not known and has nothing to estimate it from: `amountMinor` is 0 and means nothing; say "amount not known", never ¥0
 };
@@ -110,6 +112,7 @@ export function spendingItems(input: SpendingInput, from: string, to: string): S
     const base = (date: string): SpendItem => ({
       kind: "bill", id, label: bill.biller, repeat: bill.repeatUnit ?? null, date, amountMinor: minor(amountOn(startAmount, next, date)), category: bill.category,
       businessBp: bill.businessBp, ownerId: whose(bill.ownerId), documentId: bill.documentId ?? null, cardId: null,
+      ...(bill.periodStart !== undefined && bill.periodEnd !== undefined && { periodStart: bill.periodStart, periodEnd: bill.periodEnd }),
     });
     const item = (date: string): SpendItem => ({
       ...base(date), ...(bill.amountUnknown && bill.estimated ? { estimated: true as const } : {}), ...(bill.uncounted ? { uncounted: true as const } : {}),

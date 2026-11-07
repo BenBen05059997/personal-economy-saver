@@ -41,6 +41,7 @@ export const benMoney: MoneyState = {
   fxPerUsd: 150,
   paypal: 61_000,
   bank: 67_000,
+  storedBills: benStoredBills,
   bills: [], // set below: the stored bills expanded into their occurrences
   // Card A closes at month end and is paid on the 26th of the next month: the October statement is closed
   // (due Nov 26) and November's charges so far fall into the statement due Dec 26, past the 30-day window.

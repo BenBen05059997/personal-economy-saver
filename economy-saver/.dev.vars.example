@@ -10,6 +10,7 @@ AI_PROTOCOL=
 AI_BASE_URL=
 AI_API_KEY=
 AI_DAILY_LIMIT=
+AI_GLOBAL_DAILY_LIMIT=500
 SUPABASE_URL=
 APP_URL=
 SUPABASE_ANON_KEY=
@@ -23,6 +24,10 @@ CRON_HOUSEHOLD_IDS=
 
 # Same dedicated 32-byte base64url key as local config.
 MCP_TOKEN_KEY=
+
+# A dedicated 32-byte key (unpadded base64url) that seals a household's own AI key before it goes into Vault. Server only.
+# Generate one: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+AI_KEY_SEAL_KEY=
 AI_DOCUMENT_MODEL=
 AI_TEXT_MODEL=
 SUPABASE_DOCUMENT_BUCKET=
@@ -30,3 +35,4 @@ FORWARDING_DOMAIN=
 INBOUND_ADDRESS_KEY=
 INBOUND_WORKER_SECRET=
 PAYPAL_BALANCE_HOUSEHOLD_ID=
+CLIENT_IP_HEADER=cf-connecting-ip

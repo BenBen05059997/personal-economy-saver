@@ -13,10 +13,12 @@ import { BlockSchema, RecipeSchema, ScenarioSchema, recipeJsonSchema, type Chang
 import { canvasSummary } from "@/lib/canvas/summary";
 import { starterRecipes, STARTER_IDS } from "@/lib/canvas/starters";
 import { blockWords } from "@/lib/canvas/words";
+import { foreignCosts } from "@/lib/money/fx-cost";
 import { money, minorMoney } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
 import { regularCosts } from "@/lib/money/regular";
-import { low, series, timeline, safeToSpend, availableCash } from "@/lib/money/runway";
+import { addDays, low, planWindow, series, timeline, safeToSpend, availableCash } from "@/lib/money/runway";
+import { stateThrough } from "@/lib/money/window";
 import { homeSentence } from "@/lib/money/sentence";
 import { monthBounds, monthsBack, spendingItems } from "@/lib/money/spending";
 import type { MoneyState } from "@/lib/money/types";
@@ -32,6 +34,10 @@ const small: MoneyState = {
   bills: [
     { id: "rent@2026-11-20", biller: "Fictional rent", amount: 70_000, due: "2026-11-20", category: "housing", businessBp: 0, status: "confirmed", repeatUnit: "month", repeatDay: 20, startsOn: "2026-06-20", startAmount: 70_000 },
     { id: "rent@2026-12-20", biller: "Fictional rent", amount: 70_000, due: "2026-12-20", category: "housing", businessBp: 0, status: "confirmed", repeatUnit: "month", repeatDay: 20, startsOn: "2026-06-20", startAmount: 70_000 },
+    { id: "phone", biller: "Fictional phone", amount: 5_000, due: "2026-11-25", category: "phone_internet", businessBp: 0, status: "confirmed" },
+  ],
+  storedBills: [
+    { id: "rent", biller: "Fictional rent", amount: 70_000, due: "2026-11-20", category: "housing", businessBp: 0, status: "confirmed", repeatUnit: "month", repeatDay: 20 },
     { id: "phone", biller: "Fictional phone", amount: 5_000, due: "2026-11-25", category: "phone_internet", businessBp: 0, status: "confirmed" },
   ],
   cards: [], charges: [], statements: [],
@@ -124,6 +130,20 @@ async function main() {
     assert.equal(cents(lowOf(whatIf(usd, [{ kind: "change_bill", billId: "rent", amountMinor: 800_50 }]), "expected").amount), 199_50);
   });
 
+  await check("a USD household: add_income raises every day from its date by exactly the cents given, with no drift", () => {
+    const usd: MoneyState = { ...small, homeCurrency: "USD", fxPerUsd: 1, paypal: 400, bank: 600, invoices: [], bills: [{ id: "rent", biller: "Fictional rent", amount: 700, due: "2026-11-20", category: "housing", businessBp: 0, status: "confirmed" }] };
+    const cents = (n: number) => Math.round(n * 100);
+    for (const minor of [1, 7, 33, 1_234, 99_999, 100_001, 1_234_567]) {
+      for (const kind of ["expected", "worst"] as const) {
+        const before = series(usd, kind);
+        const after = series(whatIf(usd, [{ kind: "add_income", name: "Fictional bonus", amountMinor: minor, date: "2026-11-16" }]), kind);
+        assert.equal(after.length, before.length);
+        const landsAt = 2; // Nov 16 is two days after today (Nov 14)
+        after.forEach((amount, i) => assert.equal(cents(amount) - cents(before[i]), i >= landsAt ? minor : 0, `${kind} day ${i} +${minor}`));
+      }
+    }
+  });
+
   await check("unknown ids and out-of-range dates are refused in words", () => {
     for (const change of [
       { kind: "client_late", clientId: "nobody", days: 3 }, { kind: "remove_bill", billId: "nothing" }, { kind: "change_bill", billId: "nothing", amountMinor: 5 },
@@ -180,7 +200,7 @@ async function main() {
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
-    const context = await loadCanvasContext(db, a);
+    const context = await loadCanvasContext(db, a, { blocks: [] });
     const { state } = context;
     const format = (n: number) => money(n, state.homeCurrency);
     const clientId = (name: string) => state.clients.find(c => c.name.startsWith(name))!.id;
@@ -236,6 +256,21 @@ async function main() {
       }
       const sevenDays: Recipe = { version: 1, title: "Short", blocks: [{ type: "flow_chart", query: { q: "flow", days: 7 } }] };
       assert.equal((resolveRecipe(sevenDays, context)[0] as Extract<ResolvedBlock, { type: "flow_chart" }>).data.points.length, 7);
+    });
+
+    await check("27D: a 60-day timeline and flow from Nov 14 run to Jan 12 and hold the bills past the plan window", () => {
+      const { state } = context;
+      const through = addDays(state.today, 59);
+      assert.equal(through, "2027-01-12");
+      const wide = stateThrough(state, through);
+      assert.ok(wide.bills.some(bill => bill.due > addDays(state.today, planWindow(state) - 1)), "a bill past the default window");
+      const [flow, line] = resolveRecipe({ version: 1, title: "Sixty", blocks: [{ type: "flow_chart", query: { q: "flow", days: 60 } }, { type: "timeline", query: { q: "events", days: 60 } }] }, context) as [Extract<ResolvedBlock, { type: "flow_chart" }>, Extract<ResolvedBlock, { type: "timeline" }>];
+      assert.deepEqual(flow.data.points, [...series(wide, "worst", 60)]);
+      assert.equal(flow.data.points.length, 60);
+      const direct = timeline(wide, "worst", 60);
+      assert.equal(line.data.rows.length, direct.length);
+      assert.ok(direct.some(event => event.date > addDays(state.today, planWindow(state) - 1)));
+      assert.ok(direct.every(event => event.date <= through));
     });
 
     await check("What if clients pay late: every client late by (slowest − usual) gives the engine's own late case; the sliders read the scenario", () => {
@@ -322,10 +357,10 @@ async function main() {
     });
 
     await check("the route's function: reads only, refuses another household's ids, a bad body and an outside link", async () => {
-      const before = JSON.stringify(await loadCanvasContext(db, a));
+      const before = JSON.stringify(await loadCanvasContext(db, a, { blocks: [] }));
       const ok = await resolveCanvasRequest(db, a, { recipe: starters[1].recipe, scenario: { case: "usual", changes: [{ kind: "client_late", clientId: clientId("Acme"), days: 5 }] } });
       assert.equal(ok.length, starters[1].recipe.blocks.length);
-      assert.equal(JSON.stringify(await loadCanvasContext(db, a)), before, "nothing was written");
+      assert.equal(JSON.stringify(await loadCanvasContext(db, a, { blocks: [] })), before, "nothing was written");
       // Household b is another Ben: a's client and bill ids mean nothing there.
       const otherClient = clientId("Acme");
       await assert.rejects(resolveCanvasRequest(db, b, { recipe: starters[1].recipe }), error => error instanceof CanvasError && /client/.test(error.message));
@@ -338,12 +373,98 @@ async function main() {
       await assert.rejects(resolveCanvasRequest(db, "", { recipe: starters[0].recipe }), /household id/);
     });
 
+    await check("bills_for_month: a table lists the bills a month is for (a November bill due Dec 27 is in November, not December), the context loads them only when asked, and the JSON Schema names the query", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      await db.insert(schema.bills).values([
+        { id: crypto.randomUUID(), householdId: c, biller: "Harbor Energy", amountMinor: 9_800, currency: "JPY", due: "2026-12-27", category: "utilities", periodStart: "2026-11-01", periodEnd: "2026-11-30" },
+        { id: crypto.randomUUID(), householdId: c, biller: "Harbor Gas", amountMinor: null, currency: "JPY", due: null, category: "utilities", periodStart: "2026-11-01", periodEnd: "2026-11-30" },
+      ]);
+      const table = (month: string, text?: string): Recipe => ({ version: 1, title: "Bills", blocks: [{ type: "table", title: "For the month", query: { q: "bills_for_month", month, ...(text !== undefined && { text }) } }] });
+      assert.ok(RecipeSchema.safeParse(table("2026-11")).success && !RecipeSchema.safeParse(table("2026-13")).success);
+      assert.ok(!RecipeSchema.safeParse({ version: 1, title: "x", blocks: [{ type: "number", label: "x", query: { q: "bills_for_month", month: "2026-11" } }] }).success, "a table query only");
+      assert.ok(JSON.stringify(JSON.parse(recipeJsonSchema())).includes("bills_for_month"));
+      assert.match(blockWords(table("2026-11", "harbor").blocks[0]), /bills for November 2026 that match "harbor"/);
+      const bare = await loadCanvasContext(db, c, { blocks: [] });
+      assert.equal(bare.periodBills, undefined);
+      assert.throws(() => resolveRecipe(table("2026-11"), bare), error => error instanceof CanvasError && /bills for a month were not loaded/.test(error.message));
+      const nov = table("2026-11"), ctx = await loadCanvasContext(db, c, nov);
+      assert.equal(ctx.periodBills?.length, 2);
+      const [block] = resolveRecipe(nov, ctx);
+      assert.equal(block.type, "table");
+      if (block.type === "table") {
+        assert.deepEqual(block.data.head, ["Bill", "Amount", "Due"]);
+        assert.deepEqual(block.data.rows.map(r => r.cells), [["Harbor Energy (11月分)", "¥9,800", "Dec 27"], ["Harbor Gas (11月分)", "amount not known", "date not known"]]);
+        assert.deepEqual(block.data.foot, ["Total", "¥9,800", ""]);
+        assert.match(block.data.caption ?? "", /month_by_category/);
+      }
+      const [dec] = resolveRecipe(table("2026-12"), ctx);
+      assert.ok(dec.type === "table" && dec.data.rows.length === 0 && /No bill names December 2026/.test(dec.data.empty ?? ""));
+      assert.throws(() => resolveRecipe(table("2029-01"), ctx), error => error instanceof CanvasError && /two years/.test(error.message));
+    });
+
+    await check("foreign_costs: a table and a number resolve to the engine's numbers, and the context loads the inputs only when asked", async () => {
+      const recipe: Recipe = { version: 1, title: "Foreign costs", blocks: [
+        { type: "number", label: "What foreign money cost", query: { q: "foreign_costs" } },
+        { type: "table", title: "By client and card", query: { q: "foreign_costs" } },
+      ] };
+      assert.ok(RecipeSchema.safeParse(recipe).success);
+      assert.equal(JSON.parse(recipeJsonSchema()).definitions === undefined && JSON.stringify(JSON.parse(recipeJsonSchema())).includes("foreign_costs"), true, "the JSON Schema names the query");
+      assert.ok(!RecipeSchema.safeParse({ version: 1, title: "x", blocks: [{ type: "progress", label: "x", query: { q: "foreign_costs" }, targetMinor: 1000 }] }).success, "not a progress query");
+      assert.ok(blockWords(recipe.blocks[1]).includes("foreign money"));
+      // Without the query the loader reads no inputs, and drawing the query fails in words.
+      const bare = await loadCanvasContext(db, a, { blocks: [] });
+      assert.equal(bare.foreignCosts, undefined);
+      assert.throws(() => resolveRecipe(recipe, bare), error => error instanceof CanvasError && /foreign costs/.test(error.message));
+      const withFx = await loadCanvasContext(db, a, recipe);
+      assert.ok(withFx.foreignCosts);
+      const [number, table] = resolveRecipe(recipe, withFx);
+      assert.equal(number.type, "number");
+      const fx = withFx.foreignCosts!;
+      const jpy = (n: number) => minorMoney(n, "JPY");
+      assert.equal(fx.payoutTotals.count, 16);
+      assert.equal(fx.payoutTotals.costMinor, 111_637);
+      assert.equal(fx.payoutTotals.receiveFeeMinor, 65_913);
+      assert.equal(fx.payoutTotals.markupMinor, 45_724);
+      if (number.type === "number") {
+        const total = fx.payoutTotals.costMinor + fx.chargeTotals.exactMinor + fx.chargeTotals.estimatedMinor;
+        assert.ok(number.data.value.includes(jpy(total).replace(/^about /, "")), number.data.value);
+        assert.equal(number.source, "Worked out from your records");
+      }
+      assert.equal(table.type, "table");
+      if (table.type === "table") {
+        const row = (name: string) => table.data.rows.find(r => r.cells[0].startsWith(name));
+        assert.equal(row("Acme")!.cells[1], jpy(52_545));
+        assert.equal(row("Northwind")!.cells[1], jpy(36_850));
+        assert.equal(row("Beacon")!.cells[1], jpy(22_242));
+        assert.ok(row("Acme")!.cells[2].includes(jpy(fx.perClient.find(c => c.clientName.startsWith("Acme"))!.receiveFeeMinor)));
+        assert.equal(table.data.rows.length, fx.perClient.length + fx.perCard.length);
+        assert.equal(table.data.empty, null);
+        assert.equal(table.data.title, "By client and card");
+        assert.equal(table.data.head.length, table.data.rows[0].cells.length);
+        assert.ok(table.data.caption?.includes(jpy(111_637)), "the payout words are the caption");
+      }
+      assert.equal(JSON.stringify(resolveRecipe(recipe, withFx)), JSON.stringify(resolveRecipe(recipe, await loadCanvasContext(db, a, recipe))), "the same numbers twice");
+      // Ben's seed has no foreign card charge (Fontly Cloud is typed in by hand, BROWSER-CHECKS AE2): the $24 charge billed ¥3,710 at 150 costs ¥110.
+      const fontly = { ...withFx, foreignCosts: foreignCosts({
+        today: TODAY, homeCurrency: "JPY", rates: [{ date: "2026-01-01", perUsd: 150 }], cards: [{ id: "c1", label: "Card A", currency: "JPY", foreignFeeBp: null }], invoices: [],
+        charges: [{ id: "x1", cardId: "c1", merchant: "Fontly Cloud", date: "2026-11-10", amountMinor: 3710, original: { amountMinor: 2400, currency: "USD" }, fxEstimated: false }],
+      }) };
+      const [fn, ft] = resolveRecipe(recipe, fontly);
+      if (fn.type === "number") assert.equal(fn.data.value, jpy(110));
+      if (ft.type === "table") { assert.equal(ft.data.rows.length, 1); assert.equal(ft.data.rows[0].cells[0], "Card A"); assert.equal(ft.data.rows[0].cells[1], jpy(110)); assert.deepEqual(ft.data.foot, ["Total", jpy(110), ""]); }
+      // A household with no foreign activity: the empty words and a zero number.
+      const quiet = { ...withFx, foreignCosts: foreignCosts({ today: TODAY, homeCurrency: "JPY", rates: [], cards: [], charges: [], invoices: [] }) };
+      const [zero, none] = resolveRecipe(recipe, quiet);
+      if (zero.type === "number") assert.equal(zero.data.value, jpy(0));
+      if (none.type === "table") { assert.equal(none.data.rows.length, 0); assert.equal(none.data.foot, null); assert.equal(none.data.caption, null); assert.match(none.data.empty!, /No payouts or card purchases/); }
+    });
+
     await check("the summary make_canvas returns names each block and its values, never a note's or a letter's text", async () => {
       const recipe: Recipe = { version: 1, title: "Summary", blocks: [
         { type: "sentence", query: { q: "sentence" } }, { type: "number", label: "Cash today", query: { q: "cash" } },
         { type: "note", text: "Private note words", by: "assistant" }, { type: "letter", text: "Private letter words" },
       ] };
-      const blocks = resolveRecipe(recipe, await loadCanvasContext(db, a));
+      const blocks = resolveRecipe(recipe, await loadCanvasContext(db, a, { blocks: [] }));
       const summary = canvasSummary(blocks);
       const parsed = JSON.parse(summary) as { blocks: { block: number; type: string; text?: string; label?: string; value?: string }[] };
       assert.deepEqual(parsed.blocks.map(b => b.type), ["sentence", "number", "note", "letter"]);

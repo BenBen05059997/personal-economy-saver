@@ -29,7 +29,7 @@ Cloudflare
     │   ├── /start (Start with my numbers), /login, /onboarding
     │   └── /family/[token]: no session; the token resolves to a household (D52); no-store, noindex, no referrer
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
-    │   ├── /api/ask               one question of the Ask conversation `{ id, conversationId, text, source, canvas }`; body at most 128 KiB
+    │   ├── /api/ask               one question of the Ask conversation `{ id, conversationId, text, source, canvas }`; body at most 128 KiB; the checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply or an error line)
     │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, optional `text`, the file); GET `?id=` gives the card again
     │   ├── /api/ask/thumb         `{ id, thumb }` on one reply; one content-free log line
     │   ├── /api/canvases          pins on Home (D57): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
@@ -64,28 +64,31 @@ Cloudflare
     │   ├── /api/cron              the daily job (bearer `CRON_SECRET`)
     │   └── /api/health            readiness: setting names and reasons, never values
     └── Core (pure TypeScript, no I/O)
-        ├── Engine `src/lib/money`: runway.ts (availableCash, series, low, safeToSpend, roomOnCard, ladder, timeline, statementItems), repeat, plan,
-        │   split, month, spending, name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check
+        ├── Engine `src/lib/money`: runway.ts (availableCash, series, low, safeToSpend, roomOnCard, ladder, timeline, statementItems), repeat, window (`stateThrough`, `dayView`), plan,
+        │   split, month, spending, period (the month a bill covers, D63), name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check
         ├── Sentence composer `src/lib/money/sentence.ts`: engine output → "You're fine if … If late, ¥18,780 short on the 27th."
-        ├── Agent `src/lib/agent`: one tool catalogue (tools.ts, canvas-tools.ts, memory-tools.ts, check-tools.ts), run.ts, reply.ts, rules.ts, memory-prompt.ts, log.ts
+        ├── Agent `src/lib/agent`: one tool catalogue (tools.ts, canvas-tools.ts, memory-tools.ts, check-tools.ts), run.ts, words.ts (the step words), reply.ts, rules.ts, memory-prompt.ts, log.ts
         ├── Model call `src/lib/ai`: `callModel` (anthropic.ts, openai.ts), `checkBaseUrl`, `unconfirmedAmounts`, `checkConnection`, `PROVIDERS`, the tested list
         ├── Canvas `src/lib/canvas`: the recipe schema, `resolveRecipe`, starters, words, the request helper (D57)
         ├── Memory `src/lib/schema/memory.ts`: the item schema (D58); the household-scoped functions are `src/db/memory.ts`
         ├── Reader `src/lib/reader`: accept, extract, forwarding, storage, settings, correction, document-card, form
         ├── PayPal layer `src/lib/paypal`: sandbox REST client, toolkit wrapper (`runTool`, `sandbox: true`, 20 s timeout), invoice listing, webhook signature check
         ├── Catalogue `src/lib/catalogue` over `src/data/catalogue/jp.json` and `us.json` (secondary, D6); `jp-payout-cost` is its first live move, through `foreign_costs`
+        ├── Request log `src/lib/request-log.ts` (`logged`, `routePattern`, `noteHousehold`: the one content-free line per request, D50) and `src/lib/ray.ts` (the `pes-ray` cookie name); `src/middleware.ts` leaves the Cloudflare ray in that cookie on page requests
+        ├── Error pages `src/app/error.tsx`, `global-error.tsx`, `not-found.tsx`; `src/components/shell/ErrorReference.tsx` prints "Reference: <ray>" (the error's digest when no ray is known)
         └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0024), 25 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0026), 28 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
-│   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns
+│   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns,
+│   ip_buckets, ai_global_usage, ask_receipts
 ├── Auth: magic-link login (PKCE)
-├── Vault: households' own model keys
+├── Vault: households' own model keys, each sealed in the Worker first (`AI_KEY_SEAL_KEY`)
 └── Storage: the private bucket named by `SUPABASE_DOCUMENT_BUCKET` (`household-documents` in the owner's project): receipt photos, PDFs and raw forwarded emails
 
 Outside
-├── Model providers: the server's `AI_` connection (capped by `AI_DAILY_LIMIT`), or a household's own model (a listed provider or an OpenAI-compatible address, key in Vault)
+├── Model providers: the server's `AI_` connection (capped per household by `AI_DAILY_LIMIT` and app-wide by `AI_GLOBAL_DAILY_LIMIT`), or a household's own model (a listed provider or an OpenAI-compatible address, key in Vault)
 ├── PayPal sandbox API (`api-m.sandbox.paypal.com`): send invoice, send reminder, read invoices and the balance; webhooks come back in
 └── The ECB daily reference rate (`eurofxref-daily.xml`): the daily job's USD/JPY for real JPY households
 ```
@@ -129,7 +132,7 @@ sequenceDiagram
 ```
 
 **Open the app, in detail.** The engine reads bills (a confirmed repeating bill, monthly or yearly, is expanded into its occurrences up to the end of
-the plan window, or stops after its last payment (`repeat_until`), each with the amount that applies on its date, `src/lib/money/repeat.ts`; a bill's
+the plan window (30 days, or to the last statement), or stops after its last payment (`repeat_until`), each with the amount that applies on its date, `src/lib/money/repeat.ts`; `MoneyState.storedBills` keeps the stored bills (a repeating bill once), and `stateThrough` / `dayView` (`src/lib/money/window.ts`) expand them to a later day, up to the two-year limit, for the `timeline` tool's `on`, a canvas block's `days` and the checks; a bill's
 cancel-by dates become `cancelNotices`, the dated rows Coming up shows next to the occurrences, so `runway.ts` is unchanged), cards, charges,
 statements, invoices, clients, pots (cash starts from `availableCash`: bank + PayPal less confirmed pots), and with two or more members the split
 (`src/lib/money/split.ts`: shared bills and charges since the last settlement, past monthly occurrences included; it moves no money in the runway).
@@ -177,12 +180,12 @@ Nov 12; Web Push after.
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
 | 1. Question | `AskPage.tsx` (/canvas; the top bar links /canvas#ask and hands a typed character over in `sessionStorage` `pes-ask-draft`) → POST /api/ask | the canvas on screen; on a device, its memory (≤ 200) and the last 3 turns ride in the body | nothing | the question in the conversation |
-| 2. Gate | `answerQuestion` (`src/db/ask.ts`) | `readPlaces`; `turnById` for a retried id; `requestCount` out-of-scope this hour | nothing | a retried id gets its saved reply; the sixth decline gets the fixed wait sentence |
+| 2. Gate | `answerQuestion` (`src/db/ask.ts`) | `readPlaces`; `turnById` for a retried id (cloud journal); `askAlreadyWrote` (device journal); `requestCount` out-of-scope this hour | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal); the sixth decline gets the fixed wait sentence |
 | 3. Context | `conversationContext` | the last 3 turns of the conversation when its latest is under 10 minutes old (24 hours while an attached document is queued, reading or in To check); a document turn's card as text (`cardContext`) | nothing | — |
-| 4. Model | `runAgent` → `callModel` | `MODEL_RULES` + `ASK_RULES` + `memoryContext` (≤ 6,000 characters); `aiConnection(db, hid, "text")` per call | the owner-key allowance (`ai_reads_today`) when the household has no model of its own | — |
-| 5. Tools | the catalogue over the engine | the money state, loaded once per tool turn | draft tools: pending rows in To check, an invoice draft, a memory item (`made_by = ask`, `ask_id`) | — |
+| 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | `MODEL_RULES` + `ASK_RULES` + `memoryContext` (≤ 6,000 characters); `aiConnection(db, hid, "text")` per call | the owner-key allowance (`ai_reads_today`) when the household has no model of its own | — |
+| 5. Tools | the catalogue over the engine; the read tools of one model turn run together (`callAll`), draft tools alone in the order asked, results in the order asked | the money state, loaded once per tool turn | draft tools: pending rows in To check, an invoice draft, a memory item (`made_by = ask`, `ask_id`) | the latest step in fixed words (`TOOL_WORDS`) in the line under the box |
 | 6. Reply kind | `chooseReply` (`reply.ts`) + `unconfirmedAmounts` | the question, this question's tool results, the memory block | nothing | — |
-| 7. Save | `saveTurn` (200 a household); `resolveRecipe` draws the canvas | `loadCanvasContext` | `conversation_turns`; the out-of-scope bucket on a decline | the reply, the canvas, "Based on", Pin to Home, thumbs |
+| 7. Save | after a declined reply `consumeRequest` decides the limit atomically; `saveTurn` (200 a household); `resolveRecipe` draws the canvas | `loadCanvasContext` | `conversation_turns`; the out-of-scope bucket on a decline | the reply, the canvas, "Based on", Pin to Home, thumbs |
 
 ```mermaid
 flowchart LR
@@ -199,15 +202,21 @@ flowchart LR
     S --> R
 ```
 
+**The stream.** `/api/ask` runs its checks first (same origin, session, body, the per-household limit) and answers a refusal as plain text (400, 401,
+403, 429). After them it answers 200 `application/x-ndjson`: a `{"step": "…"}` line each time `runAgent` calls `onStep` (the fixed words in
+`src/lib/agent/words.ts`: `THINKING_WORDS`, one `TOOL_WORDS` line per tool, never an amount, argument or result), then one last line, `{"reply": AskReply}` or
+`{"error": "…"}` (the sentence a failure carried as a 503 before the stream began). `src/components/ask/read-stream.ts` (`readAskStream`) reads it line
+by line; the page shows the latest step in a `role="status"` line under the box and the error where it always showed it.
+
 **Budgets and limits.** `MAX_TOOL_TURNS` 4, `BUDGET_MS` 20 s shared by every model call of the question, `MAX_TOKENS` 16,000, no retries (every
 attempt reserves its own allowance); the ask limit is 30 a minute; `DECLINES_PER_HOUR` is 5 (the sixth gets `FIXED.wait`, no model call, no stored
-turn, `wait: true` in the reply); a question is 1 to 320 characters; one question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`;
+turn, `wait: true` in the reply; the count is read before the model runs and `consumeRequest` decides again after a declined reply, atomically, so questions sent at once cannot pass it); the read tools of a model turn are raced against the time left of the 20 s (`beforeDeadline` in `run.ts`): past it the question stops with "That took too long while <the step's words>. Try a simpler question." (outcome `budget`), while a write, `clarify` and `out_of_scope` are waited for and a write already done is kept (`savedThenStopped`); a question is 1 to 320 characters; one question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`;
 `remember` and `forget` refuse the 21st in words). With no setting for a model, the Ask page names the missing `AI_` setting.
 
-**The tools (one catalogue, `src/lib/agent/tools.ts`).** Nineteen read tools return the engine's numbers, which the model quotes verbatim in one or
+**The tools (one catalogue, `src/lib/agent/tools.ts`).** Twenty read tools return the engine's numbers, which the model quotes verbatim in one or
 two sentences: `where_am_i`, `whats_due`, `open_gaps`, `can_i_spend`, `list_clients_and_cards`, `timeline`, `options_when_short`, `list_invoices`,
-`household_snapshot`, `plan_for`, `who_owes_whom`, `month_by_category`, `search_spending`, `regular_costs`, `foreign_costs`, `what_if`, `make_canvas`,
-`recall`, `to_check`. `what_if` runs the engine on a copy of the household (`src/lib/money/whatif.ts`), so nothing is written. `make_canvas` takes a
+`household_snapshot`, `plan_for`, `who_owes_whom`, `month_by_category`, `search_spending`, `bills_for_month`, `regular_costs`, `foreign_costs`, `what_if`, `make_canvas`,
+`recall`, `to_check`. `bills_for_month` (input `{ month, text }`, D63) lists the stored bills, confirmed or waiting in To check, past or due later up to two years ahead, whose period overlaps the month ("November's electricity" is the bill that says 11月分, though it is paid in December): `billsForMonth` in `src/lib/money/period.ts` builds the summary in code and the totals per currency, `loadPeriodBills` in `src/db/spending.ts` reads the rows, and its note says a bill with no period counts by its due date and points to `month_by_category`; its step words are "Finding the bills for that month" and its "Based on" source is Plan. `what_if` runs the engine on a copy of the household (`src/lib/money/whatif.ts`), so nothing is written. `make_canvas` takes a
 recipe as JSON text, checks it, has the engine fill it and returns a summary; the last valid recipe of the question becomes the reply's canvas (a
 note's `by` is forced to the assistant). `household_snapshot` gives the whole household as one JSON document for context (the most recent 100 rows of
 each long list, `SNAPSHOT_TOOL_WINDOW`; no events, no secrets). `list_clients_and_cards` and `list_invoices` return each client's usual and slowest
@@ -236,7 +245,7 @@ turn, cut-off, refusal, empty or API failure, shows a fixed sentence. **After a 
 was kept (`saved`: `pending` and the links) and `answerQuestion` turns it into an answer: `FIXED.savedThenStopped` plus the error's sentence, the
 links (To check, the invoice draft, Memory), stored as a turn like any other, so a retry does not write twice; the log line keeps the real outcome.
 **A retried id** (the browser resent a question after a lost response): a question whose `id` is already a stored turn of the household returns that
-turn through `turnById` with its canvas drawn again, no model call, no links and no changes; the same id with other words is refused.
+turn through `turnById` with its canvas drawn again, no model call, no links and no changes; the same id with other words is refused. A household that keeps its conversations on the device (D59) has no stored turn, so `run.ts` calls `onWrote` after the first draft tool succeeds (a `remember` or `forget` on a device memory does not: its change travels in the reply) and `noteAskWrote` (`src/db/ask-receipts.ts`) keeps a receipt, `ask_receipts` (household_id, ask_id, created_at, no content); a retry with that id finds it through `askAlreadyWrote` and gets `FIXED.alreadySaved` ("This question already saved what you told me. Open To check to see it.") with a link to To check, no model call and no write.
 
 **The turn and the page.** The turn (question, kind, reply, choices, recipe, sources) is stored in `conversation_turns` (200 a household, the oldest
 dropped, `src/db/conversation.ts`); the reply carries kind, text, choices, the canvas the engine drew, "Based on" links to the pages the tools read,
@@ -248,13 +257,13 @@ the model was the household's own; never the question, answer, arguments, result
 
 **The canvas (D57).** A recipe (`src/lib/canvas/schema.ts`, version 1) is a title, an optional what-if scenario (steps: add_cost, add_income,
 change_bill, remove_bill, client_late) and 1 to 12 blocks that each hold a query, never a number: `sentence`; `number` (safe_to_spend, cash,
-low_point or month_total); `flow_chart` (flow); `timeline` (events); `table` (events, month_by_category, compare_months, spending_search or
-regular_costs); `compare` (compare_months); `progress` (safe_to_spend, cash or month_total against the person's own target); `note` (by you or the
+low_point, month_total or foreign_costs); `flow_chart` (flow); `timeline` (events); `table` (events, month_by_category, compare_months, spending_search,
+regular_costs, foreign_costs or bills_for_month); `compare` (compare_months); `progress` (safe_to_spend, cash or month_total against the person's own target); `note` (by you or the
 assistant); `letter`; `sliders` (a client's late days on the recipe's scenario); `action` (a link inside the app, never an outside address or an
 /api/ path). `resolveRecipe` runs every query through the engine on the household's state. A `flow_chart` or `timeline` block may carry `mark`, a
 stored bill's id: the chart rings the first day that bill falls on in the window (label like "Rent ¥82,000 · Nov 27", added to the aria text as
 "Marked: …") and the timeline rows of that bill get `marked` and read "This bill"; a bill not in the window (repeating bills exist only inside the
-plan window, about 30 days) draws no mark.
+plan window, about 30 days) draws no mark. A `flow_chart` or `events` block expands the state through its `days`. A `foreign_costs` block (D62) shows the total cost ("about" when estimated) as a number, or a row per client and per card, then Total, as a table; `loadCanvasContext` (`request.ts`) loads the foreign-cost inputs only when `asksForeignCosts(recipe)`, and it has no starter. A `bills_for_month` table (D63) lists the bills whose period overlaps the month, a row per bill and per-currency totals, with the same note as the tool; `loadCanvasContext` loads `periodBills` only when `asksPeriodBills(recipe)`.
 
 **Memory (D58).** `MemoryItem`s (kind fact, preference, goal, instruction or correction; 1 to 400 characters; 200 a household; a long digit run is
 refused with `SECRET_REFUSAL`) live in `memories` through `src/db/memory.ts`, one function per change, each change an event with titles only.
@@ -312,7 +321,7 @@ document-read limit (6 a minute), downloads the object and calls `extractDocumen
 uploaded (no server-side image or PDF processing, D32). An email is parsed with `postal-mime`: subject, date and body (text or HTML, at most 100,000
 characters) plus up to 8 supported attachments; a body alone needs the text model, anything with a file the document model. The reply is parsed
 against `extractSchema`, at most 12 items, each `{kind, name, date, amountMinor, currency, category, businessBp, cardId}` plus the repeat fields the
-reader never proposes (the user sets them on the review card); `category` is one of the fourteen keys or null; null for anything missing. A charge
+reader never proposes (the user sets them on the review card); `category` is one of the fourteen keys or null; null for anything missing. A bill may also carry `periodStart` and `periodEnd`, which the model fills only when the document prints the month or dates it covers ("11月分" is the whole month); a period with one end, or backwards, is dropped from the reading, and `dateBasis` is set by code and never by the model. `proposeReadings` then gives a bill that has a period and no date an estimated one (`estimatedDue`, `src/lib/money/period.ts`): the household's usual due day for that biller (`usualDueDay`: the latest confirmed bill with the same `nameKey`, its repeat day or due day) in the month after the period, a day the month lacks falling on its last day, else the last day of that month. The proposal holds that date and its words ("Estimated from 11月分: usually paid on the 27th", or "…: no usual day is known, so the last day of the next month"); `original` keeps no date. The review form (`ReadingForm.tsx`) shows the words with "Check the date or type the day." and a "Month this bill covers" pair of dates; confirming writes `bills.period_start` and `period_end` (a one-sided period, a card charge or a repeating bill with one is refused). The period is information only: the engine counts the bill on its due date, while the month view and `search_spending` name the month ("for 11月分"). A charge
 read in another currency is stored with its original amount and currency, the billed amount converted at the reference rate, and
 `charges.fx_estimated` true (D62), so `foreign_costs` estimates its cost from the card's fee instead of calling the conversion exact. No item found
 records `document_read` ("No bill or card charge found"); `/api/readings/retry` reads a failed document again. A stored rule (`rules.match_biller`,
@@ -387,6 +396,7 @@ household is refused; already-paid invoices credit no balance.
 | 5. Statements | `closingOnOrAfter`, `cycle` | each card closing today with an open total | a `card_statements` row (unique per card and closing day) |
 | 6. Reminders | `dueItems`, `medianLow` | bills due in 3 days; sent invoices past the client's usual days to pay | one `daily_reminder` event a day ("Money reminders · <date>", with the bell) |
 | 7. Nudges | `suggestNudges` (D50) when `nudge_after_days` is set | sent, unreminded invoices that many days past their due date (the expected date when they have none) | one `nudge_suggested` per invoice, `made_by = cron`, with the bell, never twice |
+| 8. Housekeeping | `pruneIpBuckets`, the old `ai_global_usage` days, `pruneAskReceipts` (this household's receipts over a day old), then last `removeExpiredFiles` | `ip_buckets` windows over a day old, usage days over 7 days old, `ask_receipts` over a day old; documents whose readings are all confirmed or dismissed, the last 30 days ago or more (`RAW_FILE_RETENTION_DAYS`) | the rows deleted; the raw file removed from Storage and `documents.file_removed_at` set (the row, readings and bills stay) |
 
 The job never calls PayPal: Home shows the nudge as its one action until the user taps through the approve route. `observeRunway` runs before and
 after, so a change from short to fine (or back) is recorded. A late charge confirmation and statement closing share the household lock so neither
@@ -402,7 +412,7 @@ delete one, delete all (D59). The table below is every kind of stored data, thos
 | Kind of data | Where it is stored | What scopes it | Who can read it | How it leaves |
 |---|---|---|---|---|
 | The household row: name, time zone, currency, bank balance, demo flag and fixed date, forwarding local part, nudge rule, `split_since`, the three places, the `ai_*` connection columns, `ai_reads_today` | `households` | its id | the signed-in members and a Try it cookie; the family link viewer sees the sentence; the export carries name, currency, time zone, balance and today | Delete everything (`/account` → `/api/household`), Reset, the demo sweep; Import keeps the household's own name, zone, currency and rate |
-| The record: `members`, `clients`, `invoices`, `bills`, `cards`, `card_statements`, `charges`, `pots`, `settlements`, `balance_updates` | their tables | `household_id` (every foreign key is a `(household_id, id)` pair, so another household's row cannot be referenced) | members and Try it; an MCP token (the read tools); the family link viewer (shared bills, the month, who owes whom, no actions); the export; the `household_snapshot` tool | export; Import into an empty household (new ids, `made_by = import`, no PayPal invoice ids); the remove routes; with the household |
+| The record (a one-off bill also holds `period_start` and `period_end`, the month it covers, D63): `members`, `clients`, `invoices`, `bills`, `cards`, `card_statements`, `charges`, `pots`, `settlements`, `balance_updates` | their tables | `household_id` (every foreign key is a `(household_id, id)` pair, so another household's row cannot be referenced) | members and Try it; an MCP token (the read tools); the family link viewer (shared bills, the month, who owes whom, no actions); the export; the `household_snapshot` tool | export; Import into an empty household (new ids, `made_by = import`, no PayPal invoice ids); the remove routes; with the household |
 | The PayPal connection: balance, as-of, merchant, `environment = SANDBOX` | `paypal_connections` | `household_id` and the owner member | members; the export carries the balance and its currency only | with the household |
 | Documents: the files and their readings | the object at `<household id>/<document id>` in the private bucket; `documents`, `readings`, `rules` | `household_id` and the path prefix (checked on every removal) | members and Try it; the model provider receives the bytes to read them | Your data (the object, the readings, the row; bills and charges keep their rows and lose the link); with the household; never in the export |
 | Memory: what the assistant remembers | `memories` (200 items, 400 characters), or the `memory` store of IndexedDB `pes-device-<household id>` | `household_id`, or the device | members and Try it; the agent's system text; MCP `recall` (and `remember`/`forget` with the draft scope) in the cloud only | export (from a device only when exported on that device); Import; Your data delete; Forget everything; `/api/data/move`; with the household |
@@ -414,7 +424,7 @@ delete one, delete all (D59). The table below is every kind of stored data, thos
 | MCP tokens | `api_tokens`: the hash, the last four characters, name, scopes (`read`, `draft`), revoked and last-used times | the token's hash | whoever holds the token acts as its household; Settings lists name, scopes and last four | revoke; with the household; never in the export |
 | Family links | `family_links`: the SHA-256 of the token, who made it, expiry (seven days of real time), stopped time | the token's hash | anyone with the link, read-only, until it expires or is stopped ("This link has ended") | stop; expiry; with the household; never in the export |
 | Reference rates | `fx_rates` (household, date, base, quote, `rate_micro`) | `household_id` | the engine; the export's household block carries the USD rate and its day | with the household |
-| The household's own model key | Supabase Vault (`households.ai_key_secret_id` points at it); `ai_key_hint` is an ellipsis and the last four characters | the household | read inside a transaction immediately before each model call; never shown again | Settings → Your AI model → default (`deleteHouseholdKey`); Reset; deletion; never in the export or the snapshot tool |
+| The household's own model key | Supabase Vault, as a sealed text (`pes-ai1.` + AES-GCM under `AI_KEY_SEAL_KEY`, the household id as associated data; `households.ai_key_secret_id` points at it); `ai_key_hint` is an ellipsis and the last four characters | the household | read inside a transaction immediately before each model call; never shown again | Settings → Your AI model → default (`deleteHouseholdKey`); Reset; deletion; never in the export or the snapshot tool |
 | Identities | `users` (auth user id → member), `members` | `household_id`, `auth_user_id` unique | the export carries members' names, roles and shares, never auth ids | with the household |
 | Sessions | browser cookies: Supabase `pes-auth` (30 days), `household` (a demo UUID, 30 days), `upgrade-demo` (1 hour) | the browser | — | logout; deletion clears them |
 
@@ -456,39 +466,39 @@ Demo households are rate-capped and the daily job deletes those quiet for seven 
 
 (a) Owner secrets: `.env.local` locally and Workers secrets in production (encrypted, write-only). (b) A household's own model (D56, D33): the
 provider, protocol, address and model names are columns on `households` (`ai_provider`, `ai_protocol`, `ai_base_url`, `ai_text_model`,
-`ai_document_model`, `ai_check`); the key is in Supabase Vault (`households.ai_key_secret_id`), read inside a transaction immediately before each
-model call; `ai_key_hint` holds an ellipsis and the last four characters only. The address passes `checkBaseUrl` when it is saved and again on every
-call. Vault keeps the key out of plain dumps, but anyone holding `DATABASE_URL` can read `vault.decrypted_secrets`. A saved key that cannot be read is
+`ai_document_model`, `ai_check`); the key is sealed in the Worker with AES-GCM under `AI_KEY_SEAL_KEY` (32 bytes as unpadded base64url, a Worker-only secret like `MCP_TOKEN_KEY`; the household id is the associated data; `sealAiKey` and `unsealAiKey` in `src/db/ai-key.ts`) and the sealed text is kept in Supabase Vault (`households.ai_key_secret_id`), read and opened inside a transaction immediately before each
+model call; a key saved before sealing is refused until it is saved again; `ai_key_hint` holds an ellipsis and the last four characters only. The address passes `checkBaseUrl` when it is saved and again on every
+call. Vault keeps the key out of plain dumps; anyone holding `DATABASE_URL` can read `vault.decrypted_secrets` but gets only the sealed text, which opens only with the Worker's `AI_KEY_SEAL_KEY`. A saved key that cannot be read is
 never replaced by another key. A question or document travels to the host Settings shows; with no model of its own, to the host of `AI_BASE_URL`
 under the owner's key, and every default-key attempt reserves one unit of the household's daily allowance first (`AI_DAILY_LIMIT`, reset at local
-midnight, D33). Saving a model runs `checkConnection` (uses_tools, ignores_injection, stays_on_money) and stores the result in `ai_check`. MCP
+midnight, D33) and one unit of the app-wide day's budget (`AI_GLOBAL_DAILY_LIMIT`, `ai_global_usage`). Saving a model runs `checkConnection` (uses_tools, ignores_injection, stays_on_money) and stores the result in `ai_check`. MCP
 tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
 
 ### What is held, and for how long
 
-Most sensitive first: raw forwarded emails and receipts in the private bucket (kept indefinitely); the last 200 questions and replies of a household
+Most sensitive first: raw forwarded emails and receipts in the private bucket (the file is removed 30 days after the last reading from it is confirmed or dismissed, by the daily job's `removeExpiredFiles`; the `documents` row with its `bytes` and `file_removed_at`, the readings and the bills and charges made from them stay; at most 200 MiB a household, 20 MiB for a Try it household, `requireStorageRoom`); the last 200 questions and replies of a household
 (`conversation_turns`, with their canvases and thumbs) and what the assistant remembers (`memories`), both removed with the household, or deleted on
 their own in Settings → Your data (or kept on one device, where the server holds neither); `webhook_deliveries` (the invoice id and PayPal's create
-time, kept indefinitely); balances, bills, charges including `place`, `readings.extracted`; clients' names and emails (third-party data); invoice
+time, kept indefinitely); `ask_receipts` (a household id, a question's id and a time, no content; pruned by the daily job after a day); `ip_buckets` (a SHA-256 of a client address, a purpose, the window and a count; windows over a day old are pruned by the daily job) and `ai_global_usage` (one count a day, seven days kept); balances, bills, charges including `place`, `readings.extracted`; clients' names and emails (third-party data); invoice
 items and notes, member display names, the forwarding address. The user can download everything the app holds about their household, minus secrets
 and files, as one JSON file with Export my data, and can bring it back with Import into an empty household.
 
 ### Logs
 
-The app writes six `console` lines in total: the webhook rejection reason, the cron status in `worker.ts`, the demo sweeper's failure count, the
-agent and MCP log line (`logCall`), the thumb line with the ids and the thumb only, and one dev-only catalogue warning; user-facing errors are fixed
+The app writes seven `console` lines in total: the webhook rejection reason, the cron status in `worker.ts`, the demo sweeper's failure count, the
+request line (below), the agent and MCP log line (`logCall`), the thumb line with the ids and the thumb only, and one dev-only catalogue warning; user-facing errors are fixed
 strings. Platform logs exist outside the app: Cloudflare request logs, Supabase Postgres, Auth and Storage logs, the model provider's and PayPal's
-request logs. `events` is the user's audit trail; there is no operator log yet.
+request logs. `events` is the user's audit trail. **The request line (operator log).** `worker.ts` wraps the OpenNext fetch in `logged` (`src/lib/request-log.ts`), which writes one JSON line per request after it finishes: `{"at":"request","ray","method","route","householdId","status","ms"}`. `route` is the path with uuid and numeric segments as `:id` and no query; `householdId` is set when `currentHouseholdId()` (`src/lib/session.ts`) resolves a session, carried through `AsyncLocalStorage` (`noteHousehold`); a handler that throws is logged as 500. `/_next/`, `/fonts/` and the favicon are skipped, and `next dev` writes no line (only the Worker wraps). It never holds a body, query, cookie, address or user agent. A person's "Reference: <ray>" on an error page finds the line: `src/middleware.ts` sets the `pes-ray` cookie from `cf-ray` on page requests (not `/api/`), and `ErrorReference.tsx` reads it on `error.tsx` and `global-error.tsx`.
 
 ### Backups and migrations
 
 No automatic database backups are configured; the person's own backup is Export my data, and Import brings that file back into an empty household.
 What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from
-the owner's machine with `npm run db:migrate`, separately from deploys; 0024 (`cards.foreign_fee_bp`, `charges.fx_estimated`) is the latest.
+the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) are generated, not yet applied to the Tokyo database; 0024 is the latest applied. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
 
 ### Not limited yet
 
-There is no app-wide AI spend budget and no per-IP limit on `/api/try` or `/api/auth/link`.
+The per-address limits count a connection, not a person: people behind one shared address share its 30 demos and 5 sign-in links an hour. The AI budget counts calls, not cost.
 
 ### Environments
 
@@ -517,7 +527,7 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
 - Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10, uploads and retries 6, document reads 6,
   PayPal import 2, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
   AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10; declined questions 5 an hour
-  (the sixth gets a fixed sentence with no model call). Try it is capped across the app at 60 new demo households an hour.
+  (the sixth gets a fixed sentence with no model call). Try it is capped across the app at 60 new demo households an hour. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): Try it and Start with my numbers share 30 an hour (`TRY_PER_HOUR`), sign-in links 5 an hour. The server's own AI key is capped per household by `AI_DAILY_LIMIT` and app-wide by `AI_GLOBAL_DAILY_LIMIT` a day (`ai_global_usage`).
 - The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB, `/api/ask` at
   128 KiB, `/api/canvas/resolve` at 100,000 bytes, `/api/data/move` at 2 MB and `/api/restore` at 1 MB; sign-in links return to the required
   `APP_URL`, never to the request's Origin header.

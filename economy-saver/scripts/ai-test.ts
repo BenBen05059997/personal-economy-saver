@@ -103,8 +103,25 @@ async function main() {
     assert.deepEqual(unconfirmedAmounts("USD 50 and 700 yen and 9 dollars.", ["50"]), ["700 yen", "9 dollars"]);
     assert.deepEqual(unconfirmedAmounts("It is 5 days late, due on the 27th, 3 invoices.", []), [], "numbers without a currency mark are not amounts");
     assert.deepEqual(unconfirmedAmounts("¥18,780 and ¥780.", ["total 18,780"]), ["¥780"], "a part of a grouped number is not a number");
-    assert.deepEqual(unconfirmedAmounts("¥4,000", ["[1,2,4000]"]), [], "numbers inside JSON arrays are read");
+    assert.deepEqual(unconfirmedAmounts("¥4,000", ["[1,2,4000]"]), ["¥4,000"], "bare numbers in a JSON array with no money key are not amounts");
+    assert.deepEqual(unconfirmedAmounts("¥4,000", ["items 1, 2, 4000"]), [], "plain text: every number counts");
+    assert.deepEqual(unconfirmedAmounts("¥4,000", ['{"valuesMinor":[1,2,4000]}']), [], "numbers inside a JSON array under a money key are read");
     assert.deepEqual(unconfirmedAmounts("¥50,000 left.", ["short by 18,780"]), ["¥50,000"], "a made-up amount is still refused");
+    // A tool result confirms only amounts: dates, ids, day counts, percentages, basis points and times no longer do
+    const tool = JSON.stringify({ date: "2026-11-27", due: "11/27", label: "Nov 27", id: "3f2a9c1e-4b6d-4e8a-9c3d-123456789abc", lateDays: 14, note: "in 14 days at 9:30", rate: 15, businessBp: 4500, lowIndex: 30, count: 3000, amountMinor: 18780, currency: "JPY" });
+    for (const invented of ["¥27", "¥2,026", "¥11", "¥14", "¥15", "¥4,500", "¥30", "¥3,000", "¥9", "¥123", "¥3,456,789"]) {
+      assert.deepEqual(unconfirmedAmounts(`${invented} short.`, [tool]), [invented], `${invented} is not confirmed by a date, id, day count, percentage or basis point`);
+    }
+    assert.deepEqual(unconfirmedAmounts("¥18,780 short.", [tool]), [], "the money field still confirms");
+    assert.deepEqual(unconfirmedAmounts("$18.52 due.", ['{"amountMinor":1852,"currency":"USD","date":"2026-11-27"}']), [], "USD cents confirm dollars");
+    for (const key of ["lowMinor", "safeToSpendMinor", "costMinor", "billedMinor", "balanceAfterMinor", "gapMinor", "minor", "amount", "total", "cash", "low", "balance", "limit", "original", "cost", "fee", "gross", "landed", "billed", "safeToSpend"]) {
+      assert.deepEqual(unconfirmedAmounts("¥18,780.", [JSON.stringify({ [key]: 18780 })]), [], `${key} is a money field`);
+    }
+    assert.deepEqual(unconfirmedAmounts("¥18,780.", [JSON.stringify({ lowPoint: { date: "2026-11-27", amountMinor: 18780 } })]), [], "a nested money field");
+    assert.deepEqual(unconfirmedAmounts("¥18,780.", [JSON.stringify({ amount: "18,780" })]), [], "a money field written as a string");
+    assert.deepEqual(unconfirmedAmounts("¥18,780 short.", [JSON.stringify({ lowLabel: "¥18,780 short on Nov 27" })]), [], "a currency-marked amount inside a text field");
+    assert.deepEqual(unconfirmedAmounts("¥27 short.", [JSON.stringify({ lowLabel: "¥18,780 short on Nov 27" })]), ["¥27"], "a day in that text is not an amount");
+    assert.deepEqual(unconfirmedAmounts("¥27.", ["Pay on 2026-11-27"]), [], "plain text from the person keeps counting every number");
     // 万, k, million and full-width forms are read to one value and compared with the sources read the same way
     for (const written of ["1万円", "1.5万円", "12万円", "12万 円", "¥1.2万", "18k yen", "$1.2k", "¥18K", "1.2 million yen", "$1 million", "¥1.2M"]) {
       assert.deepEqual(unconfirmedAmounts(`About ${written}.`, []), [written], `${written} is an amount that needs confirming`);

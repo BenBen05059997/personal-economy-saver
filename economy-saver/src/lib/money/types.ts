@@ -28,6 +28,8 @@ export type Bill = {
   nextAmountFrom?: string; // YYYY-MM-DD
   cancelBy?: string; // D48: information only: the date to act by before the renewal; the app never cancels anything
   amountVaries?: true; // D54: a monthly bill forecast from its own past (never with nextAmount); its real bills carry seriesBillId
+  periodStart?: string; // 27F: the first and last day a one-off bill covers ("11月分"); information only, the money counts by `due`; both or neither
+  periodEnd?: string;
   seriesBillId?: string; // D54: on a confirmed one-off real bill: the amount-varies series it belongs to; it replaces that series' occurrence in its due month
   estimated?: true; // D54: set by expandBills on an amount-varies occurrence: `amount` is the estimate, not a real bill ("about ¥9,330")
   startsOn?: string; // set on each occurrence of a repeating bill: the stored due date, where the series starts (the month view needs the occurrences before today)
@@ -162,6 +164,7 @@ export type MoneyState = {
   pendingPots: Pot[]; // pots waiting in To check; they count for nothing until confirmed
   cancelNotices: CancelNotice[]; // D48: dated "cancel by" rows for Coming up; information only
   balanceUpdates: { id: string; amount: number; madeBy?: MadeBy }[]; // new bank balances waiting in To check (D42), home currency
+  storedBills: StoredBill[]; // the bills as stored (a repeating bill once): lets the checks see a series whose next date is past the plan window, and `stateThrough` expand a later day. Set by loadMoneyState
   nudgedInvoiceIds?: string[]; // D50: sent invoices the daily job suggested a nudge for and that can still be reminded; present only while the rule is on. Home shows the first as its one action
   split: SplitState; // D45: members, shares and the shared items since the last settlement
 };

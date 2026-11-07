@@ -187,7 +187,7 @@ async function main() {
     await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Partner Phone", amountMinor: 3000, currency: "JPY", due: "2026-12-11", category: "utilities", memberId: partner.id });
     await db.insert(schema.settlements).values({ householdId: a, fromMemberId: partner.id, toMemberId: aOwner.id, amountMinor: 1200, currency: "JPY", through: "2026-10-31" });
     const [varies] = await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Power", amountMinor: 9000, currency: "JPY", due: "2026-12-15", category: "utilities", repeatUnit: "month", repeatDay: 15, repeatUntil: "2027-06-15", amountVaries: true }).returning();
-    await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Power Nov", amountMinor: 9400, currency: "JPY", due: "2026-11-15", category: "utilities", seriesBillId: varies.id });
+    await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Power Nov", amountMinor: 9400, currency: "JPY", due: "2026-11-15", category: "utilities", seriesBillId: varies.id, periodStart: "2026-10-01", periodEnd: "2026-10-31" });
     const [aCardRow] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, a)).limit(1);
     await db.insert(schema.charges).values({ householdId: a, cardId: aCardRow.id, merchant: "Fictional Abroad Shop", amountMinor: 3000, currency: "JPY", date: "2026-11-10", category: "other", status: "confirmed", source: "receipt", madeBy: "reader",
       originalAmountMinor: 2000, originalCurrency: "USD", fxRateMicro: 150_000_000, fxEstimated: true });
@@ -260,6 +260,8 @@ async function main() {
       assert.ok(back.bills.every(x => (x.memberId === null || memberIds.has(x.memberId)) && (x.paidByMemberId === null || memberIds.has(x.paidByMemberId)) && (!x.seriesBillId || billIds.has(x.seriesBillId))));
       assert.ok(back.settlements.every(x => memberIds.has(x.fromMemberId) && memberIds.has(x.toMemberId)));
       assert.equal(back.bills.find(x => x.biller === "Fictional Power Nov")!.seriesBillId, back.bills.find(x => x.biller === "Fictional Power")!.id, "the amount-varies link survived");
+      assert.deepEqual([back.bills.find(x => x.biller === "Fictional Power Nov")!.periodStart, back.bills.find(x => x.biller === "Fictional Power Nov")!.periodEnd], ["2026-10-01", "2026-10-31"], "the billing period round-trips");
+      assert.deepEqual([exported.bills.find(x => x.biller === "Fictional Power")!.periodStart ?? null], [null], "a bill with no period exports none");
       assert.equal(back.bills.find(x => x.biller === "Fictional Power")!.repeatUntil, "2027-06-15", "the last payment survived Import (D41)");
       assert.equal(back.settlements[0].toMemberId, c.owner);
       const slidersPin = back.canvases!.find(p => p.title === "Sliders")!;

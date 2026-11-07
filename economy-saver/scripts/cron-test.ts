@@ -55,6 +55,16 @@ async function main() {
       assert.equal(rows[0].title, `Nudge ${await clientName(acme.clientId)}: 2 days past due`);
     });
 
+    await check("the daily job removes this household's ask receipts older than a day and no other", async () => {
+      const mine = crypto.randomUUID(), fresh = crypto.randomUUID(), theirs = crypto.randomUUID();
+      const old = new Date(Date.parse("2026-11-20T00:00:00Z") - 2 * 86_400_000);
+      const other = await seed();
+      await db.insert(schema.askReceipts).values([{ householdId: hid, askId: mine, createdAt: new Date(0) }, { householdId: hid, askId: fresh }, { householdId: other, askId: theirs, createdAt: old }]);
+      await runDaily(db, hid, at("2026-11-20"));
+      const left = (await db.select().from(schema.askReceipts)).map(r => r.askId).sort();
+      assert.deepEqual(left, [fresh, theirs].sort());
+    });
+
     await check("never a second event for the same invoice: the same day again, and the next day", async () => {
       await runDaily(db, hid, at("2026-11-20"));
       await runDaily(db, hid, at("2026-11-21"));

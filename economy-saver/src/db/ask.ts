@@ -9,6 +9,7 @@ import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { RecipeSchema, type Recipe } from "@/lib/canvas/schema";
 import { consumeRequest, requestCount } from "./rate-limit";
+import { askAlreadyWrote, noteAskWrote } from "./ask-receipts";
 import { recentTurns, saveTurn, turnById } from "./conversation";
 import { documentCard } from "./document-card";
 import { conversationTurns, households } from "./schema";
@@ -92,7 +93,7 @@ export async function firstUseLine(db: Db, householdId: string, options: { skipA
 }
 
 /** Free-form questions go to the agent (D40). `pending` is true when a tool left a bill or charge in To check (D39). */
-export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date } = {}): Promise<AskReply> {
+export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date; onStep?: (step: string) => void } = {}): Promise<AskReply> {
   const { id, conversationId, text, source, canvas, memory, recent } = askInput.parse(input);
   const householdId = requireHousehold(hid);
   // A kind kept on the device comes with the question and is never stored here; a kind kept in the cloud is read here and the question must not carry it.
@@ -107,10 +108,17 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   const kept = recent === undefined ? await turnById(db, householdId, id) : null;
   if (kept && kept.question !== text) throw new InputError("This question was already answered. Reload the page and ask again.");
   if (kept) {
-    const drawn = kept.recipe ? { recipe: kept.recipe, blocks: resolveRecipe(kept.recipe, await loadCanvasContext(db, householdId)) } : null;
+    const drawn = kept.recipe ? { recipe: kept.recipe, blocks: resolveRecipe(kept.recipe, await loadCanvasContext(db, householdId, kept.recipe)) } : null;
     return {
       id, kind: kept.kind === "document" ? ANSWER : kept.kind, text: kept.reply, choices: kept.choices, canvas: drawn,
       sources: kept.sources, links: [], pending: false, firstUse: await firstUseLine(db, householdId), memoryChanges: [], wait: false,
+    };
+  }
+  // The conversations are on the device, so no turn is stored here to replay; the receipt says this id already wrote, and nothing runs or writes again.
+  if (recent !== undefined && await askAlreadyWrote(db, householdId, id)) {
+    return {
+      id, kind: ANSWER, text: FIXED.alreadySaved, choices: null, canvas: null, sources: [],
+      links: [{ label: "Open To check", href: new URL("/to-check", appUrl()).href }], pending: false, firstUse: null, memoryChanges: [], wait: false,
     };
   }
   // Five declined questions an hour: the sixth gets a fixed sentence with no model call and no stored turn.
@@ -121,19 +129,22 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   const deviceMemory: DeviceMemory | undefined = memory === undefined ? undefined : { items: [...memory], changes: [], moment: await clockMoment(db, householdId, deps.at) };
   let result: AskResult;
   try {
-    result = await runAgent({ db, householdId, question: text, askId: id, source, appUrl: appUrl(), context, fetch: deps.fetch, deviceMemory, connection: () => aiConnection(db, householdId, "text") });
+    result = await runAgent({ db, householdId, question: text, askId: id, source, appUrl: appUrl(), context, fetch: deps.fetch, deviceMemory, onStep: deps.onStep, onWrote: recent === undefined ? undefined : () => noteAskWrote(db, householdId, id), connection: () => aiConnection(db, householdId, "text") });
   } catch (error) {
     // A write tool already succeeded: what it kept is shown, with the reason the answer stopped, instead of an error that hides it (a retry would write it twice).
     if (!(error instanceof AgentError) || !error.saved) throw error;
     result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending };
   }
-  if (result.kind === "declined") await consumeRequest(db, householdId, "out-of-scope", DECLINES_PER_HOUR, "hour");
+  // The bucket has the last word: questions running at the same time all passed the check above, and it refuses past the limit atomically.
+  if (result.kind === "declined" && !await consumeRequest(db, householdId, "out-of-scope", DECLINES_PER_HOUR, "hour")) {
+    return { id, kind: DECLINED, text: FIXED.wait, choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], wait: true };
+  }
   if (recent === undefined) {
     await saveTurn(db, householdId, {
       id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources,
     }, deps.at);
   }
-  const drawn = result.recipe ? { recipe: result.recipe, blocks: resolveRecipe(result.recipe, await loadCanvasContext(db, householdId)) } : null;
+  const drawn = result.recipe ? { recipe: result.recipe, blocks: resolveRecipe(result.recipe, await loadCanvasContext(db, householdId, result.recipe)) } : null;
   return {
     id, kind: result.kind, text: result.answer, choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending,
     firstUse: recent === undefined ? await firstUseLine(db, householdId) : null, memoryChanges: deviceMemory?.changes ?? [], wait: false,

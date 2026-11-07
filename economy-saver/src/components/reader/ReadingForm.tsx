@@ -59,6 +59,13 @@ export function ReadingForm({ reading, today, homeCurrency, cards, checks, hidde
       <label className="ui-field">Biller or merchant<input name="name" defaultValue={value.name ?? ""} required maxLength={160}/></label>
       <ReadingFields isBill={value.kind === "bill"} amount={majorText(value)} currency={value.currency ?? ""} date={preset?.date ?? value.date ?? ""} today={today}
         amountUnknown={preset?.amountUnknown} dueUnknown={preset?.dueUnknown} />
+      {value.dateBasis && <small className="ui-hint reader-link">{value.dateBasis}. Check the date or type the day.</small>}
+      {value.kind === "bill" && <details className="add-entry-more" open={Boolean(value.periodStart)}>
+        <summary>Month this bill covers</summary>
+        <label className="ui-field">First day<input name="periodStart" type="date" defaultValue={value.periodStart ?? ""} /></label>
+        <label className="ui-field">Last day<input name="periodEnd" type="date" defaultValue={value.periodEnd ?? ""} /></label>
+        <small className="ui-hint add-entry-hint">What the bill is for, like “11月分”. Information only: the forecast counts it on the due date.</small>
+      </details>}
       {preset?.repeat !== undefined ? <ScheduleFields id={`reading-${id}`} today={today} chosen={repeat} onChoose={setRepeat} /> : <ScheduleFields id={`reading-${id}`} today={today} />}
       <CategoryFields name={value.name ?? ""} defaultCategory={value.category} defaultBp={value.businessBp ?? 0} />
       <label className="ui-field">Card for a charge<select name="cardId" defaultValue={value.cardId ?? ""}><option value="">Choose card</option>{cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>

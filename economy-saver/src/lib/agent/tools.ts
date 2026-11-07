@@ -11,24 +11,27 @@ import { billInput, insertBill } from "@/db/bills";
 import { readerInbox } from "@/db/reader-inbox";
 import { chargeInput, insertCharge } from "@/db/charges";
 import { foreignCosts } from "@/db/fx-cost";
-import { Catalogue, Currency } from "@/lib/catalogue/types";
-import jpCatalogue from "@/data/catalogue/jp.json";
+import { Currency } from "@/lib/catalogue/types";
+import { catalogueMove } from "@/lib/catalogue/engine";
 import { PAYPAL_RATES, foreignCostWords } from "@/lib/money/fx-cost";
 import { InputError } from "@/db/input-error";
 import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
 import { memberByName, memberCount } from "@/db/people";
 import { potInput, savePot } from "@/db/pots";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
-import { loadSpending } from "@/db/spending";
+import { loadPeriodBills, loadSpending } from "@/db/spending";
 import { toMinor } from "@/db/money";
 import { clients, invoices } from "@/db/schema";
 import { minorPerUnit } from "@/lib/money/format";
+import { dayView } from "@/lib/money/window";
 import { gapAmountWords, gapDateWords, gapQuestion, openGaps } from "@/lib/money/gaps";
 import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
 import { BusinessBp, CATEGORY_KEYS, CategoryKeySchema, categoryLabel } from "@/lib/money/categories";
 import { guessCategory } from "@/lib/money/categorise";
 import { monthByCategory, monthText, monthWhen } from "@/lib/money/month";
 import { HISTORY_MONTHS, monthBounds, monthsBack, SEARCH_QUERY_MAX, searchLine, searchSpending, spendingItems } from "@/lib/money/spending";
+import { latestDate } from "@/lib/money/horizon";
+import { billsForMonth } from "@/lib/money/period";
 import { REGULAR_MONTHS, regularCosts } from "@/lib/money/regular";
 import { fundingOptions } from "@/lib/money/options";
 import { RepeatUnitSchema } from "@/lib/money/repeat";
@@ -91,7 +94,7 @@ const categoryField = CategoryKeySchema.nullable().default(null)
 const businessField = BusinessBp.nullable().default(null)
   .describe("The business share in basis points: 0 personal, 10000 business, 3000 for 30% business. null = personal.");
 // D54's "amount varies" is set by the user on the form or in Settings, not by the agent; an agent's one-off still links on confirm.
-const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, repeatUntil: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true }).extend({
+const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, repeatUntil: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true, periodStart: true, periodEnd: true }).extend({
   amount: z.string().trim().nullable().describe("A plain number in the household's home currency (3800 for ¥3,800), or null when the user does not know the amount yet (D55: the app estimates it from earlier bills of the same name and asks the user to fill it in)."),
   due: z.string().date().nullable().describe("YYYY-MM-DD, or null when the user does not know the date yet (it counts as due today until the user fills it in). A bill that repeats, or has cancel_by, needs its date."),
   repeat: RepeatUnitSchema.nullable().default(null).describe("month = every month on the due date's day, year = every year on its month and day, null = a one-off."),
@@ -99,6 +102,8 @@ const addBillInput = billInput.omit({ paidByMemberId: true, category: true, busi
   next_amount_from: z.string().date().nullable().default(null).describe("YYYY-MM-DD, after the due date; the first date the next_amount applies on. null with no next_amount."),
   cancel_by: z.string().date().nullable().default(null).describe("YYYY-MM-DD, before the next time the bill is charged: the last day to cancel or change it. null = none."),
   repeat_until: z.string().date().nullable().default(null).describe("YYYY-MM-DD: the last time a repeating bill is charged (a gym membership that ends after December: its December due date); null = it goes on. Needs repeat; on or after due."),
+  period_start: z.string().date().nullable().default(null).describe("YYYY-MM-DD: the first day the bill covers, only when the user says or the bill shows the month or dates it is for (a November electricity bill: 11-01). Information only: the bill still counts on its due date. Set together with period_end; a one-off only; null = not known."),
+  period_end: z.string().date().nullable().default(null).describe("YYYY-MM-DD: the last day the bill covers (11-30 for November); on or after period_start. null with no period_start."),
   category: categoryField,
   business_bp: businessField,
   shared: z.boolean().nullable().default(null),
@@ -121,7 +126,7 @@ function categoryFor(name: string, given: z.infer<typeof categoryField>): { cate
 
 /** Checks one add_bill item and turns it into what insertBill takes. Throws an InputError the model can read. */
 async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>) {
-  const { shared, paidBy, category: given, business_bp, next_amount, next_amount_from, cancel_by, repeat_until, ...bill } = input;
+  const { shared, paidBy, category: given, business_bp, next_amount, next_amount_from, cancel_by, repeat_until, period_start, period_end, ...bill } = input;
   let paidByMemberId: string | null = null;
   if (paidBy !== null && !shared) throw new InputError("paidBy names who pays a shared bill; set shared to true");
   if (shared) {
@@ -133,7 +138,7 @@ async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>
   const { category, note } = categoryFor(bill.biller, given);
   return {
     biller: bill.biller, note, status: "pending" as const,
-    bill: { ...bill, amount: bill.amount ?? "", amountUnknown: bill.amount === null, dueUnknown: bill.due === null, category, businessBp: business_bp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by, repeatUntil: repeat_until },
+    bill: { ...bill, amount: bill.amount ?? "", amountUnknown: bill.amount === null, dueUnknown: bill.due === null, category, businessBp: business_bp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by, repeatUntil: repeat_until, periodStart: period_start, periodEnd: period_end },
   };
 }
 
@@ -203,20 +208,26 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "timeline", scope: "read",
-    input: z.object({ scenario: z.enum(["as_usual", "late"]) }),
-    description: "The next 30 days of dated money events (bills, card statements, expected client payments) with the running balance after each, and the lowest point with its date. Amounts are signed home-currency minor units: negative goes out. scenario as_usual means clients pay on their usual day; late means on their slowest day.",
+    input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("YYYY-MM-DD: one day from today to two years ahead; null = the next 30 days.") }),
+    description: "The next 30 days of dated money events (bills, card statements, expected client payments) with the running balance after each, and the lowest point with its date. Amounts are signed home-currency minor units: negative goes out. scenario as_usual means clients pay on their usual day; late means on their slowest day. Pass `on` for one day up to two years ahead, e.g. what's due or how much is left on Dec 31: the answer is that day's events and balanceAfterMinor, the balance at the end of that day.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const kind = SCENARIOS[input.scenario];
-      const lowest = low(series(state, kind));
       const minor = (amount: number) => toMinor(amount, state.homeCurrency);
+      const eventOut = (event: ReturnType<typeof engineTimeline>[number]) => ({
+        date: event.date, label: event.label, kind: event.kind, amountMinor: minor(event.amount),
+        currency: state.homeCurrency, direction: directionOf(minor(event.amount)), balanceAfterMinor: minor(event.balance), ...(event.pending ? { pending: true } : {}), ...(event.estimated ? { estimated: true } : {}), ...(event.uncounted ? { uncounted: true } : {}),
+      });
+      if (input.on != null) {
+        let view;
+        try { view = dayView(state, kind, input.on); } catch (error) { throw new InputError(error instanceof Error ? error.message : "That day cannot be read"); }
+        return JSON.stringify({ scenario: input.scenario, today: state.today, currency: state.homeCurrency, on: view.date, balanceAfterMinor: minor(view.balance), events: view.events.map(eventOut) });
+      }
+      const lowest = low(series(state, kind));
       return JSON.stringify({
         scenario: input.scenario, today: state.today, currency: state.homeCurrency,
         low: { date: lowest.date, amountMinor: minor(lowest.amount) },
-        events: engineTimeline(state, kind).map(event => ({
-          date: event.date, label: event.label, kind: event.kind, amountMinor: minor(event.amount),
-          currency: state.homeCurrency, direction: directionOf(minor(event.amount)), balanceAfterMinor: minor(event.balance), ...(event.pending ? { pending: true } : {}), ...(event.estimated ? { estimated: true } : {}), ...(event.uncounted ? { uncounted: true } : {}),
-        })),
+        events: engineTimeline(state, kind).map(eventOut),
       });
     },
   }),
@@ -342,6 +353,19 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
+    name: "bills_for_month", scope: "read",
+    input: z.object({
+      month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").describe("The month the bill is FOR, YYYY-MM (November's electricity is the bill that says 11月分 or a November service period, though it is usually paid in December)."),
+      text: z.string().max(SEARCH_QUERY_MAX).default("").describe("Words to find in the bill's name (electric, gas); every word must match. An empty string lists every bill for that month."),
+    }),
+    description: "What was a month's bill: every stored bill (confirmed or waiting in To check, past or due later) whose period, the month it is for, overlaps the month, each with its biller, amount (or amount not known), due date, period and status, and the totals per currency. Use it for \"what was November's electricity\" or \"the bill for October\": the month a bill is FOR. Use month_by_category or search_spending for the month money was PAID or is due. A bill with no period is not listed here; it is counted by its due date, so say so and use month_by_category. Amounts named Minor are minor units of the item's own currency (whole yen for JPY, cents for USD). Quote summary to the user as it is; it is built in code. Information only: the period moves no money and changes no forecast.",
+    run: async (ctx, input) => {
+      const today = await householdDate(ctx.db, ctx.householdId);
+      if (input.month > latestDate(today).slice(0, 7)) throw new InputError(`month must be no later than ${latestDate(today).slice(0, 7)}, two years from today`);
+      return JSON.stringify(billsForMonth(await loadPeriodBills(ctx.db, ctx.householdId, input.month), input.month, input.text));
+    },
+  }),
+  defineTool({
     name: "regular_costs", scope: "read",
     input: z.object({
       months: z.number().int().min(2).max(6).nullable().default(null).describe(`How many calendar months to compare, 2 to 6, the current month included; null = ${REGULAR_MONTHS}.`),
@@ -358,11 +382,11 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "foreign_costs", scope: "read", input: none,
-    description: "What foreign money cost the household over the last twelve months (D62): paid USD invoices received through PayPal (the fee to receive and the conversion markup, per client) and card purchases made in another currency (the cost above the reference rate, per card; exact when the billed amount is known, an estimate from the card's fee when it is not, unknown otherwise). Call it when the person asks what their foreign payments, card purchases abroad, PayPal fees or currency conversion cost them, or how to pay less for them. Amounts named Minor are home-currency minor units. Quote words as they are; when guidance is present, the general ways to lower the cost come from it (never name another provider, never tell the person to leave PayPal, never forecast a rate). Information only.",
+    description: "What foreign money cost the household over the last twelve months (D62): paid USD invoices received through PayPal (the fee to receive and the conversion markup, per client) and card purchases made in another currency (the cost above the reference rate, per card; exact when the billed amount is known, an estimate from the card's fee when it is not, unknown otherwise). Call it when the person asks what their foreign payments, card purchases abroad, PayPal fees or currency conversion cost them, or how to pay less for them. To show it, call make_canvas with a table or number block whose query is q foreign_costs (the same numbers, drawn so the person can pin it). Amounts named Minor are home-currency minor units. Quote words as they are; when guidance is present, the general ways to lower the cost come from it (never name another provider, never tell the person to leave PayPal, never forecast a rate). Information only.",
     run: async ctx => {
       const costs = await foreignCosts(ctx.db, ctx.householdId);
       const nothing = costs.chargeTotals.count === 0 && costs.payoutTotals.count === 0;
-      const move = Catalogue.parse(jpCatalogue).find(m => m.id === "jp-payout-cost");
+      const move = catalogueMove("JP", "jp-payout-cost");
       if (!move) throw new Error("The catalogue has no jp-payout-cost move");
       const source = move.sources[0];
       return JSON.stringify({
@@ -393,7 +417,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bill", scope: "draft", input: addBillInput,
-    description: `Add a bill the user tells you about. It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800), or null when the user does not know it yet. due is YYYY-MM-DD, or null when the user does not know the date yet. A bill with a missing amount or date is saved anyway and shows in open_gaps until it is filled in. memberId is null for a household bill. repeat is "month" when the bill repeats every month on the due date's day (rent, phone, a subscription), "year" when it repeats every year on the due date's month and day (insurance, a domain, an annual plan), null for a one-off; it only starts repeating once the user confirms it. next_amount with next_amount_from says the amount changes from that date (a rent increase, a price rise; needs repeat, and the date is after the due date). cancel_by is the last day to cancel before the bill is charged again: the app shows it as a dated reminder and never cancels anything; it must be before the next time the bill is charged. repeat_until is the last day a repeating bill may be charged (a gym that ends after December: its December due date); nothing after it counts; null = it goes on. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the name and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
+    description: `Add a bill the user tells you about (period_start and period_end name the month or dates it covers when known: "November's electricity"; the bill still counts on its due date). It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800), or null when the user does not know it yet. due is YYYY-MM-DD, or null when the user does not know the date yet. A bill with a missing amount or date is saved anyway and shows in open_gaps until it is filled in. memberId is null for a household bill. repeat is "month" when the bill repeats every month on the due date's day (rent, phone, a subscription), "year" when it repeats every year on the due date's month and day (insurance, a domain, an annual plan), null for a one-off; it only starts repeating once the user confirms it. next_amount with next_amount_from says the amount changes from that date (a rent increase, a price rise; needs repeat, and the date is after the due date). cancel_by is the last day to cancel before the bill is charged again: the app shows it as a dated reminder and never cancels anything; it must be before the next time the bill is charged. repeat_until is the last day a repeating bill may be charged (a gym that ends after December: its December due date); nothing after it counts; null = it goes on. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the name and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
     run: async (ctx, input) => {
       const { bill, status, biller, note } = await prepareBill(ctx, input);
       await insertBill(ctx.db, ctx.householdId, bill, status, by(ctx));
