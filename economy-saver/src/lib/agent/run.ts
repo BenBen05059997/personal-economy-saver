@@ -21,6 +21,9 @@ export class AgentError extends Error {
   constructor(message: string, readonly outcome: string = "other") { super(message); }
 }
 
+/** Tools whose result repeats text the model wrote. */
+const NOT_SOURCES = new Set(["remember", "forget", "make_canvas"]);
+
 export const MAX_TOOL_TURNS = 4;
 export const BUDGET_MS = 20_000;
 const MAX_TOKENS = 16_000;
@@ -31,7 +34,7 @@ function systemPrompt(today: string, currency: string, memory: string) {
   return `You are the money assistant inside Personal Economy Saver, for one household. Today is ${today} and the household's home currency is ${currency}.
 
 ${MODEL_RULES.split("\n")[0]}
-Answer in one or two plain sentences, in the language the user wrote in.
+Answer in one or two plain sentences, in the language of the person's latest message.
 ${MODEL_RULES.split("\n").slice(1).join("\n")}
 ${ASK_RULES}${memory ? `\n\n${memory}` : ""}`;
 }
@@ -110,6 +113,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   let clarify: { question: string; choices: string[] } | null = null;
   let outOfScope: "off_topic" | "not_offered" | null = null;
   const used: string[] = [];
+  let called = false;
   // The household's state is read once per tool turn, so tools in one turn agree with each other.
   let loaded: Promise<MoneyState> | undefined;
   const state = () => (loaded ??= householdDate(opts.db, hid).then(today => loadMoneyState(opts.db, hid, today)));
@@ -152,7 +156,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     if (reply.stop === "end") {
       const answer = reply.text.trim();
       if (!answer) throw failure("empty");
-      return finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, recipe, sources }));
+      return finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe, sources }));
     }
     if (reply.stop === "refusal") throw failure("refusal");
     if (reply.stop === "length") throw failure("cutOff");
@@ -165,12 +169,19 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     loaded = undefined;
 
     const results: ToolResult[] = [];
-    // clarify and out_of_scope end the question: when one is asked for, it is the only call that runs, and there is no further model call.
+    // clarify and out_of_scope end the question: when one is asked for and valid, it is the only call that runs, and there is no further model call.
+    // One that fails its schema is an ordinary tool error: the other calls run and the loop goes on.
     const ending = reply.calls.find(call => call.name === "clarify" || call.name === "out_of_scope");
-    for (const call of ending ? [ending] : reply.calls) results.push(await callTool(ctx, call, trace, now));
-    if (ending) return finish(chooseReply({ clarify, outOfScope, text: "", tools: used, recipe, sources }));
+    if (ending) {
+      const result = await callTool(ctx, ending, trace, now);
+      if (clarify !== null || outOfScope !== null) return finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe, sources }));
+      results.push(result);
+    }
+    for (const call of reply.calls) if (call !== ending) results.push(await callTool(ctx, call, trace, now));
     for (const result of results) {
-      sources.push(result.content);
+      // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
+      if (!NOT_SOURCES.has(result.name)) sources.push(result.content);
+      if (tools.some(t => t.name === result.name) && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
       if (!result.isError) used.push(result.name);
     }
     turns.push({ role: "tools", results });

@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "smoke": "tsx scripts/smoke-test.ts",
+    "codex:bridge": "node scripts/codex-bridge.mjs",
+    "codex:bridge-check": "node scripts/codex-bridge-check.mjs",
     "webhook:register": "tsx scripts/register-webhook.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

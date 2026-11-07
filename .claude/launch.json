@@ -16,6 +16,17 @@
       "port": 3123
     },
     {
+      "name": "codex-bridge",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "economy-saver",
+        "run",
+        "codex:bridge"
+      ],
+      "port": 3130
+    },
+    {
       "name": "design-mockup",
       "runtimeExecutable": "node",
       "runtimeArgs": [

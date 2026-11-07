@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { Currency } from "@/lib/catalogue/types";
 import type { Check, CheckChoice, CheckKind } from "@/lib/money/checks";
-import { DOCUMENT_WORDS, type DocumentCard as Card, type DocumentCardItem } from "@/lib/reader/document-card";
+import { DOCUMENT_WORDS, needsForm as readingNeedsForm, type DocumentCard as Card, type DocumentCardItem } from "@/lib/reader/document-card";
 import { ApiForm } from "@/components/ui/ApiForm";
 import type { Repeat } from "@/components/household/ScheduleFields";
 import { majorText, ReadingForm } from "@/components/reader/ReadingForm";
@@ -95,7 +95,7 @@ function Item({ item, form, onDone }: { item: DocumentCardItem; form: CardForm; 
   </>;
   const preset = { repeat: answers.repeat ?? value.repeat ?? "", date: answers.date, amountUnknown: answers.amountUnknown, dueUnknown: answers.dueUnknown };
   const reading = { id: item.readingId, value, link: item.link };
-  const needsForm = !value.category || !value.name || (value.kind === "charge" && !value.cardId);
+  const needsForm = readingNeedsForm(value);
   const full = (focus?: "amount" | "date") => <ReadingForm key={`${answers.kinds.join()}-${focus ?? ""}`} reading={reading} today={form.today} homeCurrency={form.homeCurrency} cards={form.cards}
     hidden={hidden} preset={preset} focus={focus} onDone={onDone} />;
 
@@ -105,7 +105,7 @@ function Item({ item, form, onDone }: { item: DocumentCardItem; form: CardForm; 
       : next ? <div className="check-line ask-document-question" role="group" aria-label={next.words}>
         <p className="check-line-words">{next.words}</p>
         {next.choices.some(choice => choice.step.do === "dismiss") ? <ApiForm action="/api/confirm" onDone={onDone}>
-          <input type="hidden" name="kind" value="reading" /><input type="hidden" name="id" value={item.readingId} /><input type="hidden" name="decision" value="reject" />
+          <input type="hidden" name="kind" value="reading" /><input type="hidden" name="id" value={item.readingId} /><input type="hidden" name="decision" value="reject" />{hidden}
           <Choices check={next} onChoose={answer} />
         </ApiForm> : <Choices check={next} onChoose={answer} />}
       </div>

@@ -26,7 +26,7 @@ import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
 import { daysBetween, low, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { readUpload } from "@/lib/reader/accept";
-import { buildCard, cardContext, DOCUMENT_WORDS, documentCanvas, readLine, type CardReading } from "@/lib/reader/document-card";
+import { buildCard, cardContext, DOCUMENT_WORDS, documentCanvas, needsForm, readLine, type CardReading } from "@/lib/reader/document-card";
 import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { TURN_VERSION, type ConversationTurn } from "@/lib/schema/turn";
@@ -393,6 +393,11 @@ async function main() {
     const accepted = await readUpload(post(multipart(new File(["%PDF-1.7 fine"], "a.pdf", { type: "application/pdf" }), { id: "abc", text: "hello" })));
     assert.deepEqual([accepted.mime, accepted.bytes.byteLength, accepted.form.get("id"), accepted.form.get("text")], ["application/pdf", 13, "abc", "hello"]);
     ok("readUpload: Upload's words for a non-multipart body, a wrong type, mismatched bytes and a body over the limit; a good file returns its form");
+
+    assert.equal(needsForm(bill()), false, "a complete reading goes to Confirm");
+    assert.equal(needsForm(bill({ currency: null })), true, "an amount with no currency opens the full form, where the person picks one");
+    assert.equal(needsForm(bill({ amountMinor: null, currency: null })), false, "no amount is the missing-amount question's job, not the form's");
+    ok("needsForm: an amount read without a currency opens the full form");
 
     console.log(`Ask-document checks passed (${passed}).`);
   } finally {

@@ -122,6 +122,22 @@ async function main() {
     assert.deepEqual(unconfirmedAmounts("18,780円", ["short by 1.878万円"]), [], "a plain answer is confirmed by a scaled source");
     assert.deepEqual(unconfirmedAmounts("２万円", ["short by 18,780"]), ["2万円"], "a full-width invented amount is refused");
     assert.deepEqual(unconfirmedAmounts("¥3 months of rent", ["3"]), [], "m is not a scale inside a word");
+    // spellings that used to slip through, and one that was wrongly refused
+    for (const written of ["¥-50,000", "$-1,200", "¥−50,000", "1,850 US dollars", "1,200ドル", "18,780 Japanese yen", "¥  18,780", "$ 1,200"]) {
+      assert.equal(unconfirmedAmounts(`About ${written}.`, []).length, 1, `${written} is an amount that needs confirming`);
+    }
+    assert.deepEqual(unconfirmedAmounts("¥-50,000", ["50000"]), [], "the sign is ignored");
+    assert.deepEqual(unconfirmedAmounts("¥−50,000", ["50,000"]), [], "a true minus sign too");
+    assert.deepEqual(unconfirmedAmounts("$-1,200", ['{"amountMinor":120000}']), []);
+    assert.deepEqual(unconfirmedAmounts("1,850 US dollars", ["185000"]), []);
+    assert.deepEqual(unconfirmedAmounts("1,200ドル", ["120000"]), []);
+    assert.deepEqual(unconfirmedAmounts("18,780 Japanese yen", ["18780"]), []);
+    assert.deepEqual(unconfirmedAmounts("¥  18,780", ["18780"]), []);
+    assert.deepEqual(unconfirmedAmounts("1万8780円", ["short by 18,780"]), [], "1万8780 is 18,780, not 8,780");
+    assert.deepEqual(unconfirmedAmounts("1万8780円", ["8780"]), ["1万8780円"], "8,780 does not confirm it");
+    assert.deepEqual(unconfirmedAmounts("¥1万8780", ["18780"]), []);
+    assert.deepEqual(unconfirmedAmounts("short by 18780", ["1万8780円"]), [], "a compound source is read too");
+    assert.deepEqual(unconfirmedAmounts("1万円", ["10000"]), [], "1万円 stays 10,000");
   });
 
   await check("providers: the listed addresses pass the address rule, and the cap field follows the provider", () => {

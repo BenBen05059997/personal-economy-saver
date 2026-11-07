@@ -22,10 +22,12 @@ import { createHousehold, setupForm } from "@/db/account";
 import { billInput, insertBill } from "@/db/bills";
 import { MODEL_RULES } from "@/lib/agent/rules";
 import { answerQuestion, askInput } from "@/db/ask";
+import { RecipeSchema } from "@/lib/canvas/schema";
 import { whatIf } from "@/lib/money/whatif";
 import { homeSentence } from "@/lib/money/sentence";
 import { minorPerUnit } from "@/lib/money/format";
-import { FIXED } from "@/lib/agent/reply";
+import { requestCount } from "@/db/rate-limit";
+import { canvasWords, FIXED } from "@/lib/agent/reply";
 import { savePot } from "@/db/pots";
 import { addMember } from "@/db/people";
 import { planFor, planLine } from "@/lib/money/plan";
@@ -846,6 +848,7 @@ async function main() {
     const conversation = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { conversationId?: string; canvas?: unknown; at?: Date } = {}) =>
       answerQuestion(db, hid, askInput.parse({ id: crypto.randomUUID(), conversationId: extra.conversationId ?? crypto.randomUUID(), text: question, source: "manual", canvas: extra.canvas ?? null }), { fetch, at: extra.at });
     const cashCanvas = (extra: unknown[] = []) => JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }, ...extra] });
+    const declinesOf = (hid: string) => requestCount(db, hid, "out-of-scope", "hour");
     const clarifyInput = { question: "Which Acme do you mean?", choices: ["Acme Studio", "Acme Labs"] };
 
     await check("each kind of reply on the anthropic protocol: answer with a canvas, clarify, both declines and a plain text with no tool", async () => {
@@ -972,10 +975,123 @@ async function main() {
       const d = await seedBen(db, { isDemo: true });
       const thread = crypto.randomUUID();
       const first = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Did you mean the ¥7,777 bill?", choices: ["Yes", "No"] })])]);
-      await conversation(d, "Which bill?", first.fetch, { conversationId: thread, at: t0 });
+      await conversation(d, "Is the ¥7,777 bill due?", first.fetch, { conversationId: thread, at: t0 });
       const second = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Yes, the ¥7,777 bill is covered.")])]);
       await assert.rejects(conversation(d, "Yes", second.fetch, { conversationId: thread, at: minutes(1) }), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
       assert.ok(JSON.stringify(second.bodies[0].messages[0]).includes("7,777"), "the earlier reply was shown to the model as context");
+    });
+
+    await check("an ending tool that fails its schema is an ordinary tool error: the loop goes on and the answer is returned", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const badInputs: [string, unknown][] = [
+        ["clarify", { question: "Which one?", choices: ["Only one"] }],
+        ["clarify", { question: "Which one?", choices: ["a", "b", "c", "d", "e"] }],
+        ["clarify", { question: "Which one?", choices: ["a", "x".repeat(61)] }],
+        ["out_of_scope", { reason: "bored" }],
+      ];
+      for (const [name, input] of badInputs) {
+        const t = transport([
+          () => reply("tool_use", [toolUse("e", name, input)]),
+          () => reply("end_turn", [text("Rent is due soon.")]),
+        ]);
+        // with no earlier tool the answer is still declined, but only because the model then called no tool, and the error went back to it
+        const first = await conversation(c, "What is due?", t.fetch);
+        assert.equal(t.bodies.length, 2, `${name}: the loop continued after the invalid call`);
+        assert.ok(toolResults(t.bodies[1])[0].is_error, `${name}: the error went back to the model`);
+        assert.equal(first.kind, "declined", `${name}: no data tool was called, so the plain text is declined`);
+        const withTool = transport([
+          () => reply("tool_use", [toolUse("w", "whats_due", {}), toolUse("e", name, input)]),
+          () => reply("end_turn", [text("Rent is due soon.")]),
+        ]);
+        const answered = await conversation(c, "What is due?", withTool.fetch);
+        assert.deepEqual([answered.kind, answered.text], ["answer", "Rent is due soon."], `${name}: an invalid ending call does not end the question`);
+        assert.equal(toolResults(withTool.bodies[1]).length, 2, "every call got a result");
+      }
+    });
+
+    await check("a question whose only tool call errored is not declined as off topic and spends no decline", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const charge = { id: crypto.randomUUID(), cardId: crypto.randomUUID(), merchant: "Noodle place", amount: "3800", date: (await stateOf(c)).today };
+      const t = transport([
+        () => reply("tool_use", [toolUse("l", "log_charge", charge)]),
+        () => reply("end_turn", [text("Which card was it?")]),
+      ]);
+      const result = await conversation(c, "I spent 3800 at the noodle place", t.fetch);
+      assert.ok(toolResults(t.bodies[1])[0].is_error, "the call failed");
+      assert.deepEqual([result.kind, result.text], ["answer", "Which card was it?"]);
+      assert.equal(await declinesOf(c), 0, "no decline was consumed");
+      const none = transport([() => reply("end_turn", [text("Which card was it?")])]);
+      assert.equal((await conversation(c, "I spent 3800 at the noodle place", none.fetch)).kind, "declined", "a reply with no tool call at all is still declined");
+      assert.equal(await declinesOf(c), 1);
+    });
+
+    await check("a clarifying question and its choices are amount-checked like an answer", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const t = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Which bill?", choices: ["The ¥7,777 bill", "Another"] })])]);
+      await assert.rejects(conversation(c, "Which bill is due?", t.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      const asked = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Did you mean ¥7,777?", choices: ["Yes", "No"] })])]);
+      assert.equal((await conversation(c, "Is ¥7,777 due?", asked.fetch)).kind, "clarify", "an amount the person wrote passes");
+    });
+
+    await check("text a tool echoes from the model is not a source: remember and make_canvas cannot confirm an invented amount", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const remembered = transport([
+        () => reply("tool_use", [toolUse("r", "remember", { kind: "fact", text: "Rent is ¥123,456" })]),
+        () => reply("end_turn", [text("Your rent is ¥123,456.")]),
+      ]);
+      await assert.rejects(conversation(c, "Remember my rent", remembered.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      const d = await seedBen(db, { isDemo: true });
+      const noted = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas([{ type: "number", label: "Rent", query: { q: "cash" }, note: "About ¥55,555 a month" }]) }), toolUse("w", "where_am_i", {})]),
+        () => reply("end_turn", [text("Here it is.")]),
+      ]);
+      await assert.rejects(conversation(d, "Show my cash", noted.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      const titled = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: JSON.stringify({ version: 1, title: "Save ¥88,888", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] }) }), toolUse("w", "where_am_i", {})]),
+        () => reply("end_turn", [text("Here it is.")]),
+      ]);
+      await assert.rejects(conversation(d, "Show my cash", titled.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      assert.deepEqual(canvasWords(RecipeSchema.parse({ version: 1, title: "T", blocks: [
+        { type: "number", label: "L", query: { q: "cash" }, note: "N" }, { type: "table", title: "TT", query: { q: "events" } },
+        { type: "progress", label: "P", query: { q: "cash" }, targetMinor: 5 }, { type: "action", label: "A", href: "/plan" }, { type: "note", text: "NT", by: "you" }] })),
+      ["T", "L", "N", "TT", "P", "A", "NT"]);
+    });
+
+    await check("run-level failures become fixed sentences with no provider text, and a tool that throws a plain Error does not end the loop", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const secret = "provider says: key sk-secret-123 is wrong";
+      const status = (code: number) => (async () => new Response(secret, { status: code })) as typeof globalThis.fetch;
+      const expected: [number, string][] = [[403, "The AI key was not accepted. Check it in Settings."], [500, "The AI service returned HTTP 500. Try again."]];
+      for (const [code, words] of expected) {
+        await assert.rejects(ask(c, "What is due?", status(code)), (error: Error) => error instanceof AgentError && error.message === words && !error.message.includes("secret"));
+      }
+      const down = (async () => { throw new Error(secret); }) as typeof globalThis.fetch;
+      await assert.rejects(ask(c, "What is due?", down), (error: Error) => error instanceof AgentError && error.message === "Couldn't reach the AI service. Try again.");
+      const weird = transport([() => reply("weird_stop", [text("hm")])]);
+      await assert.rejects(ask(c, "What is due?", weird.fetch), (error: Error) => error instanceof AgentError && error.message === "The assistant stopped unexpectedly. Try again.");
+
+      const target = tools.find(t => t.name === "whats_due")!;
+      const original = target.run;
+      target.run = async () => { throw new Error("database exploded: password=hunter2"); };
+      try {
+        const t = transport([
+          () => reply("tool_use", [toolUse("w", "whats_due", {})]),
+          () => reply("end_turn", [text("I could not read that.")]),
+        ]);
+        const result = await ask(c, "What is due?", t.fetch);
+        const [back] = toolResults(t.bodies[1]);
+        assert.deepEqual([back.is_error, back.content], [true, "This tool could not complete the request."]);
+        assert.equal(result.kind, "answer");
+      } finally { target.run = original; }
+    });
+
+    await check("after an AgentError the question stores no turn and consumes no decline", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const down = (async () => { throw new Error("offline"); }) as typeof globalThis.fetch;
+      await assert.rejects(conversation(c, "What is due?", down), AgentError);
+      const stored = await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, c));
+      assert.equal(stored.length, 0);
+      assert.equal(await declinesOf(c), 0);
     });
 
     await check("the fifth decline an hour is allowed, the sixth gets the wait sentence with no model call and no stored turn", async () => {

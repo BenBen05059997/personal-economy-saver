@@ -109,6 +109,10 @@ The Ask page accepts typed text and, where the browser supports it, speech. A ch
 
 To issue household-scoped MCP tokens, set `MCP_TOKEN_KEY`, then use Settings. Connect a Streamable HTTP MCP client to `/api/mcp` with the token as a Bearer credential. The token supports household reads and drafts (the same tools as the agent); approval and sending stay in the app. `npm run mcp:demo` runs a finite protocol demonstration on loopback with an isolated PGlite household and an in-memory key.
 
+## Testing the AI on Codex (dev only)
+
+With the Codex CLI installed and logged in (`codex login`), `npm run codex:bridge` starts a local server on `127.0.0.1:3130` that answers OpenAI Chat Completions requests by running `codex exec`, so the app's AI features can run without an API key. Start the app locally with `AI_PROTOCOL=openai`, `AI_BASE_URL=http://127.0.0.1:3130/v1`, `AI_API_KEY=codex-local` (any non-empty value) and `AI_TEXT_MODEL` / `AI_DOCUMENT_MODEL` set to a model your Codex login offers. `npm run codex:bridge-check` makes real calls through the bridge. It reads images but not PDFs. Prompts go to OpenAI through your ChatGPT login, so use fictional data only. Codex adds its own system prompt, so treat this as a rehearsal and do a final check on a real API. Optional settings: `CODEX_BRIDGE_PORT`, `CODEX_EFFORT` (default `low`), `CODEX_TIMEOUT_MS` (default 60000).
+
 ## Project map
 
 ```text

@@ -47,6 +47,10 @@ export type DocumentCard = {
   canvas: { recipe: Recipe; blocks: ResolvedBlock[] } | null; // once an item is confirmed; else null
 };
 
+/** Whether the card must open the full form: something Confirm needs is missing, including a currency for an amount that was read without one. */
+export const needsForm = (value: Extracted): boolean =>
+  !value.category || !value.name || (value.kind === "charge" && !value.cardId) || (value.amountMinor !== null && !value.currency);
+
 /** The read line: name (or "Bill" / "Card charge"), amount (or AMOUNT_NOT_KNOWN), "due <day>" for a bill or "<day>" for a charge (or DATE_NOT_KNOWN), then "every month" / "every year" when the bill repeats, then the card's label for a charge when known. Joined with " · ". */
 export function readLine(value: Extracted, cards: readonly { id: string; label: string }[]): string {
   const bill = value.kind === "bill";

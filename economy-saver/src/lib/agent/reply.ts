@@ -49,16 +49,29 @@ export function sourcesFor(toolNames: readonly string[]): Source[] {
   return found;
 }
 
-/** Every note and letter on a canvas: the text the model wrote there, which the amount check also covers. */
+/** Every text the model wrote on a canvas and the person reads (title, labels, notes, letters, action labels): the amount check covers it too. */
 export function canvasWords(recipe: Recipe | null): string[] {
-  return (recipe?.blocks ?? []).flatMap(block => (block.type === "note" || block.type === "letter" ? [block.text] : []));
+  if (!recipe) return [];
+  const words = [recipe.title];
+  for (const block of recipe.blocks) {
+    switch (block.type) {
+      case "number": words.push(block.label); if (block.note) words.push(block.note); break;
+      case "progress": case "action": words.push(block.label); break;
+      case "table": if (block.title) words.push(block.title); break;
+      case "note": case "letter": words.push(block.text); break;
+      default: break;
+    }
+  }
+  return words;
 }
 
 export type Finished = {
   clarify: { question: string; choices: string[] } | null;
   outOfScope: "off_topic" | "not_offered" | null;
   text: string; // what the model ended with (empty when it ended on a terminal tool)
-  tools: string[]; // the names of the tools this question ran
+  tools: string[]; // the names of the tools this question ran successfully (the "Based on" sources)
+  /** Whether the model called any catalogue tool, successful or not; a reply with none at all is declined. */
+  called: boolean;
   recipe: Recipe | null;
   /** The question, this question's tool results and the memory block: never an earlier reply. */
   sources: string[];
@@ -67,9 +80,12 @@ export type Chosen = { kind: ReplyKind; text: string; choices: string[] | null; 
 
 /** `null` text means an answer whose amounts the app could not confirm: the caller keeps its fixed error. */
 export function chooseReply(done: Finished): Chosen | null {
-  if (done.clarify) return { kind: "clarify", text: done.clarify.question, choices: done.clarify.choices, recipe: null, sources: [] };
+  if (done.clarify) {
+    if (unconfirmedAmounts([done.clarify.question, ...done.clarify.choices].join("\n"), done.sources).length) return null;
+    return { kind: "clarify", text: done.clarify.question, choices: done.clarify.choices, recipe: null, sources: [] };
+  }
   if (done.outOfScope) return { kind: "declined", text: FIXED[done.outOfScope], choices: null, recipe: null, sources: [] };
-  if (done.tools.length === 0) return { kind: "declined", text: FIXED.off_topic, choices: null, recipe: null, sources: [] };
+  if (!done.called) return { kind: "declined", text: FIXED.off_topic, choices: null, recipe: null, sources: [] };
   if (unconfirmedAmounts([done.text, ...canvasWords(done.recipe)].join("\n"), done.sources).length) return null;
   return { kind: "answer", text: done.text, choices: null, recipe: done.recipe, sources: sourcesFor(done.tools) };
 }
