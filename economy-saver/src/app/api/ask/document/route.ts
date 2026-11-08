@@ -19,10 +19,10 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   try {
-    await requireReaderModel(db(), hid);
     const { mime, bytes, form } = await readUpload(request);
     const parsed = fields.safeParse({ id: form.get("id"), conversationId: form.get("conversationId"), text: form.get("text") ?? undefined });
     if (!parsed.success) return new Response(BAD_FIELDS, { status: 400 });
+    await requireReaderModel(db(), hid);
     const { turn, card, documentId } = await attachDocument(db(), hid, { id: parsed.data.id, conversationId: parsed.data.conversationId, text: parsed.data.text || null, mime, bytes });
     after(() => readDocumentInBackground(hid, documentId));
     return Response.json({ turn, card }, { headers: NO_STORE });

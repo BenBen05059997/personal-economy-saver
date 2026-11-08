@@ -434,7 +434,9 @@ async function main() {
       cookie = a;
       const modelSet = { AI_TEXT_MODEL: "m", AI_PROTOCOL: "openai", AI_BASE_URL: "https://models.example/v1", AI_API_KEY: "fictional-test-value" };
       for (const [name, route, path] of [["upload", upload, "/api/upload"], ["ask attach", attach, "/api/ask/document"]] as const) {
-        env(modelSet); await reset();
+        env({}); await reset();
+        const noFile = await say(await route(post(path, new URLSearchParams())));
+        assert.deepEqual([noFile.status, noFile.text], [400, "Select a file to upload."], `${name}: a non-multipart request is 400 even without a model`);
         const bad = await say(await route(post(path, file("hello", "a.txt", "text/plain"))));
         assert.deepEqual([bad.status, bad.text], [400, "Select a PDF, JPEG, PNG or WebP file."], `${name}: a wrong file type is 400`);
         await reset();
@@ -446,6 +448,9 @@ async function main() {
         env({}); await reset();
         const noModel = await say(await route(post(path, file(PNG, "a.png", "image/png"))));
         assert.deepEqual([noModel.status, noModel.text], [503, "Reading documents isn’t available on this server yet (AI_TEXT_MODEL)."], `${name}: no model is 503 naming the setting`);
+        env(modelSet);
+        const badWithModel = await say(await route(post(path, file("hello", "a.txt", "text/plain"))));
+        assert.deepEqual([badWithModel.status, badWithModel.text], [400, bad.text], `${name}: bad-file refusal is the same when a model is configured`);
         env({ ...modelSet, AI_API_KEY: undefined }); await reset();
         assert.match((await say(await route(post(path, file(PNG, "a.png", "image/png"))))).text, /\(AI_API_KEY\)/, `${name}: a missing key is named`);
         env(modelSet); await reset();

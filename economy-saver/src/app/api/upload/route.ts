@@ -11,8 +11,8 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   try {
-    await requireReaderModel(db(), hid);
     const { mime, bytes } = await readUpload(request);
+    await requireReaderModel(db(), hid);
     const doc = await storeDocument(db(), hid, "upload", mime, bytes);
     after(() => readDocumentInBackground(hid, doc));
     return redirectTo("/to-check", request);
