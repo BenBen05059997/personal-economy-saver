@@ -22,7 +22,7 @@ Clients
 
 Cloudflare
 ├── Email Worker (`worker.ts` `email`): Email Routing hands it each mail → POST /api/inbound with `INBOUND_WORKER_SECRET`; over 6 MiB is rejected
-├── Cron Trigger (`worker.ts` `scheduled`): every hour → GET /api/cron with `CRON_SECRET`
+├── Cron Trigger (`worker.ts` `scheduled`): hourly discovery and one self-bound GET /api/cron per household with `CRON_SECRET`
 └── Next.js 16 app on Workers (OpenNext adapter); `src/middleware.ts` refreshes the auth cookie on every path except the webhook, cron, MCP and inbound
     ├── Pages (server components): the sidebar is Home /, Ask /canvas, To check /to-check, Activity /activity, Cards /cards, Clients /clients, Plan /plan
     │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory (Memory, Goals and Rules), /settings, /account (delete my data), /privacy
@@ -66,7 +66,7 @@ Cloudflare
     │   ├── /api/data              Settings → Your data (D59): `kind` delete_kind, delete_one or delete_conversation
     │   ├── /api/data/move         where memory, canvases and the journal are kept (D59): `step` read, to_device or to_cloud; JSON at most 2 MB
     │   ├── /api/restore           Import (D59, D44): a version 2 household file (JSON, at most 1 MB) into a household that has nothing in it yet
-    │   ├── /api/cron              the daily pass and due member reminders (bearer `CRON_SECRET`)
+    │   ├── /api/cron              lists due households, or runs one with `?household=<id>` (bearer `CRON_SECRET`)
     │   └── /api/health            readiness: setting names and reasons, with separate optional email and push results
     └── Core (pure TypeScript, no I/O)
         ├── Engine `src/lib/money`: runway.ts (availableCash, series, low, safeToSpend, roomOnCard, ladder, timeline, statementItems), repeat, window (`stateThrough`, `dayView`), plan,
@@ -397,12 +397,12 @@ household is refused; already-paid invoices credit no balance.
 
 | Step | What runs | What is read | What is written |
 |---|---|---|---|
-| 1. Trigger | Hourly Cron Trigger → GET /api/cron with Bearer CRON_SECRET | The bearer is compared in constant time | worker.ts logs the status |
-| 2. Housekeeping | sweepDemoHouseholds (D49), then pruneIpBuckets | Demo households unchanged for seven days, oldest first, up to 200. Per-address windows over a day old | Each demo is deleted in its own transaction. Vault and Storage are cleared before the household row. Sweeper failures are counted and logged |
-| 3. Households | dueHouseholds, then runDaily | Non-demo households with a local hour at or after the earliest member hour, including the owner’s hour (08:00 by default), and daily_ran_on before the local date or unset. Least recently served first | runDaily locks each household and advances daily_ran_on only after a successful pass. A failure is counted and the remaining households are still processed |
-| 4. Rate and statements | fetchReferenceRate for real JPY households. closingOnOrAfter and cycle for cards | The ECB daily XML and each card closing today with an open total | One dated fx_rates row and one card_statements row per card and closing day |
+| 1. Trigger | Hourly Cron Trigger → GET /api/cron, then one GET /api/cron?household=<id> per result through the Worker’s self binding | The bearer CRON_SECRET is compared in constant time on both requests | worker.ts logs the batch counts |
+| 2. Discovery housekeeping | sweepDemoHouseholds (D49), then pruneIpBuckets | Demo households unchanged for seven days, oldest first, up to 200. Per-address windows over a day old | Each demo is deleted in its own transaction. Vault and Storage are cleared before the household row. Sweeper failures are counted and logged |
+| 3. Households | dueHouseholds, then runDaily in a separate Worker invocation per household | Non-demo households with a local hour at or after the earliest member hour, including the owner’s hour (08:00 by default), and daily_ran_on before the local date or unset. Least recently served first | runDaily locks the household and advances daily_ran_on only after a successful pass. A failure logs the household id and the error name and message with database details removed. The remaining requests still run |
+| 4. Rate and statements | fetchReferenceRate for real JPY households. closingOnOrAfter and cycle for cards | The ECB daily XML and each card closing today with an open total. On a fetch failure the job logs the outage and uses the latest dated rate already stored for the household | One dated fx_rates row when fetched and one card_statements row per card and closing day. These commit before suggestions so a failed pass can retry |
 | 5. Suggestions | runPass, rulesFor, findSuggestions | Money state and standing rules | New findings, current reasons for open findings, resolved findings and reopened deferrals. Closed rows are pruned after 90 days |
-| 6. Reminders | runReminders, then dueReminderHouseholds on later hourly invocations | New eligible suggestions still open, members whose local hour has arrived, and their channels and quiet days. Up to 100 households across the pass and delivery work per invocation | Each member’s channel day is claimed before a send. A delivery row records sent or failed. A gone push endpoint is removed. Delivery rows older than 30 days are pruned |
+| 6. Reminders | runReminders, then remindersDue in the shared selector on later hourly invocations | New eligible suggestions still open, members whose local hour has arrived, and their channels and quiet days. Up to 30 households across the pass and delivery work per hourly trigger, leaving room for discovery and the trigger within Cloudflare’s 32-invocation limit | Each member’s channel day is claimed before a send. A delivery row records sent or failed. A gone push endpoint is removed. Delivery rows older than 30 days are pruned |
 | 7. Retention | pruneAskReceipts and removeExpiredFiles | The household’s receipts over a day old and raw documents whose readings were all confirmed or dismissed at least 30 days ago | Receipts removed. Raw files removed from Storage and marked on the document row |
 
 Try it and Reset also run the suggestion pass on Ben’s fixed date after the demo record commits. The pass calls no model. Home shows findings by urgency and its review links open existing invoice, To check, bill, card and Plan screens. The approve, confirm, bill and pot write flows close the finding they complete in the same database transaction. Suggestion activity keeps a stable finding reference so pruning cannot produce a duplicate. Ask and MCP share the read tool suggestions. The daily digest uses fixed words and bounded engine amounts. Its sole link opens Home at APP_URL. Each member can request a fixed test message from Settings. The test reaches their verified sign-in email or their enrolled browser. In Try it, push can be enrolled and tested on the device; the demo date remains fixed.
@@ -503,7 +503,7 @@ items and notes, member display names, the forwarding address. Export my data do
 
 ### Logs
 
-The app logs the webhook rejection reason, the cron status in `worker.ts`, the demo sweeper’s failure count, the
+The app logs the webhook rejection reason, the cron batch counts and household and reference-rate errors, the demo sweeper’s failure count, the
 request line (below), the agent and MCP log line (`logCall`), the thumb line with the ids and the thumb only, a dev-only catalogue warning, and the missing setting name when an opted-in reminder channel cannot run. User-facing errors use fixed strings. Platform logs exist outside the app: Cloudflare request logs, Supabase Postgres, Auth and Storage logs, the model provider's and PayPal's
 request logs. `events` is the user's audit trail. **The request line (operator log).** `worker.ts` wraps the OpenNext fetch in `logged` (`src/lib/request-log.ts`), which writes one JSON line per request after it finishes: `{"at":"request","ray","method","route","householdId","status","ms"}`. `route` is the path with uuid and numeric segments as `:id` and no query; `householdId` is set when `currentHouseholdId()` (`src/lib/session.ts`) resolves a session, carried through `AsyncLocalStorage` (`noteHousehold`); a handler that throws is logged as 500. `/_next/`, `/fonts/` and the favicon are skipped, and `next dev` writes no line (only the Worker wraps). It never holds a body, query, cookie, address or user agent. A person's "Reference: <ray>" on an error page finds the line: `src/middleware.ts` sets the `pes-ray` cookie from `cf-ray` on page requests (not `/api/`), and `ErrorReference.tsx` reads it on `error.tsx` and `global-error.tsx`.
 

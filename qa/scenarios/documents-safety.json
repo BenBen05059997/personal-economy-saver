@@ -2684,8 +2684,8 @@
   {
     "id": "SEC-020",
     "area": "Security",
-    "action": "The cron route needs its bearer",
-    "user_goal": "nobody can run the daily job from outside",
+    "action": "The cron routes need their bearer",
+    "user_goal": "unauthorised requests cannot list or run the daily job",
     "type": "security",
     "priority": "P2",
     "needs": [
@@ -2693,19 +2693,19 @@
     ],
     "how": "suite",
     "preconditions": [
-      "Dev server running at http://127.0.0.1:3123"
+      "Isolated PGlite fixtures"
     ],
     "steps": [
-      "Run node economy-saver/scripts/frontend-check.mjs --guards http://127.0.0.1:3123",
-      "Read its cron-without-bearer check"
+      "Run npm run db:cron-test in economy-saver",
+      "Read the discovery and single-household authorization check"
     ],
     "expected": [
-      "/api/cron with no bearer answers 401",
-      "The check never sends a bearer"
+      "Both /api/cron forms refuse a missing or wrong bearer with 401",
+      "The fixture uses a fictional bearer"
     ],
     "refs": [
-      "frontend-check --guards",
-      "D50"
+      "db:cron-test",
+      "D64"
     ]
   },
   {

@@ -369,5 +369,34 @@
       "BROWSER-CHECKS AG11",
       "D64"
     ]
+  },
+  {
+    "id": "SUG-014",
+    "area": "Assistant suggestions",
+    "action": "Run the hourly pass during an ECB outage",
+    "user_goal": "I still receive suggestions based on my last saved rate",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Isolated PGlite fixtures and simulated fetch and Worker binding"
+    ],
+    "steps": [
+      "Run npm run db:cron-test in economy-saver",
+      "Read the checks for stored FX, per-household dispatch and retry"
+    ],
+    "expected": [
+      "The scheduled batch requests up to 30 households in discovery order and continues past failures",
+      "The ECB outage is logged once and findings use the household’s existing rate",
+      "A failed suggestion pass stays due until it succeeds"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG12",
+      "db:cron-test",
+      "D64"
+    ]
   }
 ]

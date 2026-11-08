@@ -11,9 +11,12 @@
     "directory": ".open-next/assets",
     "binding": "ASSETS"
   },
+  "services": [
+    { "binding": "WORKER_SELF_REFERENCE", "service": "personal-economy-saver" }
+  ],
   "observability": { "enabled": true },
   "triggers": {
-    // Daily at 21:00 UTC = 06:00 Tokyo.
+    // Check each household’s local reminder hour.
     "crons": ["0 * * * *"]
   }
 }

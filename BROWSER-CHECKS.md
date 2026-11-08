@@ -445,6 +445,8 @@ For AG2–AG4 use separate disposable copies of Ben’s Try it. Prepare a pendin
 - AG10. On Nov 14 use a Camera pot created Oct 15 that targets ¥120,000 by Dec 14, 2026, with ¥0 saved. Run the fixture’s suggestion pass. The reason reads “¥60,000 behind pace. ¥120,000 still to set aside by Dec 14.” Review pot opens the Camera form in Plan. Saving the updated pot closes its finding as approved. The immediate pass preserves that status.
 - AG11. On fresh Nov 14 Try it with a ¥50,000 minimum safe-to-spend rule and a completed pass, Review safe to spend opens Next 30 days on Home. The reason reads "¥0 safe to spend, below ¥50,000."
 
+- AG12. Operator check using `npm run db:cron-test` in the isolated app directory. The simulated trigger discovers up to 30 due households, oldest daily run first, and dispatches each in its own bearer-authenticated request. A failed household emits one line with its id, error name and message, and later requests still run. An ECB outage emits one line and the fixture retains its stored JPY rate and creates its findings. This check uses PGlite and fake responses.
+
 ## AH. Keep this? in Ask (D67, 29E)
 
 Use a fresh Nov 14 Try it household with a configured model. Run at 375px and 1440px. Offers sit under the answer, with Keep and No at least 44px tall. The offer's words may vary with the model.

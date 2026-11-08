@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, sql, type SQL } from "drizzle-orm";
 import { reminderDigest, testReminder } from "@/lib/notify/digest";
 import { sendReminderEmail } from "@/lib/notify/email";
 import { isPushSubscription, sendReminderPush } from "@/lib/notify/push";
@@ -188,10 +188,8 @@ export async function runReminders(db: Db, id: string, now = new Date(), fetcher
   }
 }
 
-/** Households already scanned today with a member whose own reminder hour has now arrived. */
-export async function dueReminderHouseholds(db: Db, now: Date, limit: number) {
-  if (limit <= 0) return [];
-  const local = sql`timezone(${households.timeZone}, ${now.toISOString()}::timestamptz)`;
+/** For the cron selector: a household already scanned today with a member now due. */
+export function remindersDue(db: Db, local: SQL) {
   const day = sql`${local}::date`;
   const eligible = db.select({ id: suggestions.id }).from(suggestions).where(and(eq(suggestions.householdId, households.id),
     sql`${suggestions.createdOn} = ${day}`, eq(suggestions.status, "open"), inArray(suggestions.kind, DIGEST_KINDS)));
@@ -206,8 +204,5 @@ export async function dueReminderHouseholds(db: Db, now: Date, limit: number) {
       )
     ))`,
   ));
-  const rows = await db.select({ id: households.id }).from(households)
-    .where(and(eq(households.isDemo, false), sql`${households.dailyRanOn} = ${day}`, sql`exists (${eligible})`, sql`exists (${due})`))
-    .orderBy(households.id).limit(limit);
-  return rows.map(row => row.id);
+  return and(sql`${households.dailyRanOn} = ${day}`, sql`exists (${eligible})`, sql`exists (${due})`);
 }

@@ -1,10 +1,11 @@
 import { connection } from "next/server";
 
 import { db } from "@/db/client";
-import { dueHouseholds, runDaily } from "@/db/daily";
-import { dueReminderHouseholds } from "@/db/reminders";
+import { dueHouseholds, logDailyError, runDaily } from "@/db/daily";
 import { pruneIpBuckets } from "@/db/rate-limit";
 import { sweepDemoHouseholds } from "@/db/demo";
+import { CRON_HOUSEHOLD_ID } from "@/lib/cron";
+import { jobError } from "@/lib/job-error";
 
 function authorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -17,23 +18,35 @@ function authorized(request: Request): boolean {
   return diff === 0;
 }
 
+function reply(body: unknown, status = 200) {
+  return Response.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
+}
+
 export async function GET(request: Request) {
   await connection();
-  if (!authorized(request)) return Response.json({ ok: false }, { status: 401 });
-  const store = db();
+  if (!authorized(request)) return reply({ ok: false }, 401);
+  const id = new URL(request.url).searchParams.get("household");
+  if (id !== null && !CRON_HOUSEHOLD_ID.test(id)) return reply({ ok: false }, 400);
   const now = new Date();
-  const { swept, failed } = await sweepDemoHouseholds(store, now);
-  await pruneIpBuckets(store);
-  const ids = await dueHouseholds(store, now);
-  ids.push(...await dueReminderHouseholds(store, now, 100 - ids.length));
-  const runs = { completed: 0, failed: 0 };
-  for (const id of ids) {
+
+  if (id !== null) {
     try {
-      await runDaily(store, id, now);
-      runs.completed++;
-    } catch {
-      runs.failed++;
+      await runDaily(db(), id, now);
+      return reply({ ok: true });
+    } catch (error) {
+      logDailyError("cron_household_failed", id, error);
+      return reply({ ok: false }, 503);
     }
   }
-  return Response.json({ ok: runs.failed === 0, swept, failed, runs }, { status: runs.failed ? 503 : 200 });
+
+  const store = db();
+  let housekeeping = { swept: 0, failed: 0 };
+  try {
+    housekeeping = await sweepDemoHouseholds(store, now);
+    await pruneIpBuckets(store);
+  } catch (error) {
+    housekeeping.failed++;
+    console.error(JSON.stringify({ at: "cron_housekeeping_failed", ...jobError(error) }));
+  }
+  return reply({ ok: true, ...housekeeping, ids: await dueHouseholds(store, now) });
 }

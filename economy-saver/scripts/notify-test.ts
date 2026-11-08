@@ -4,7 +4,8 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { countKind, deleteKind } from "@/db/data-kinds";
-import { dueReminderHouseholds, reminderView, runReminders, saveReminderSettings, sendTestReminder, subscribeReminder } from "@/db/reminders";
+import { dueHouseholds } from "@/db/daily";
+import { reminderView, runReminders, saveReminderSettings, sendTestReminder, subscribeReminder } from "@/db/reminders";
 import * as s from "@/db/schema";
 import { runNotifyTransportChecks } from "./notify-transport-test";
 
@@ -62,10 +63,10 @@ async function main() {
       await runReminders(db, hid, morning, transport);
       assert.equal(sends.length, 0);
       await finding(today, "bill_due");
-      assert.deepEqual(await dueReminderHouseholds(db, morning, 100), []);
+      assert.deepEqual(await dueHouseholds(db, morning), []);
       await runReminders(db, hid, morning, transport);
       assert.equal(sends.length, 0);
-      assert.deepEqual(await dueReminderHouseholds(db, new Date(today + "T02:00:00Z"), 100), [hid]);
+      assert.deepEqual(await dueHouseholds(db, new Date(today + "T02:00:00Z")), [hid]);
       await runReminders(db, hid, new Date(today + "T02:00:00Z"), transport);
       assert.equal(sends.length, 1, "only the member whose hour arrived");
       assert.equal(JSON.parse(String(sends[0].body)).to[0], guestIdentity.email);
