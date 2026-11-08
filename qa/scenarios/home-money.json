@@ -19,7 +19,7 @@
     "expected": [
       "The sentence matches BROWSER-CHECKS Expected numbers: fine if Acme and Northwind pay as usual, short on the 27th if they are late",
       "Acme and Northwind are links to their client pages and the date jumps to the runway day",
-      "Under the sentence is the quiet line 'A fictional household that lives in this browser. Start with my numbers ›'"
+      "Under the sentence is the quiet line 'A fictional household that lives in this browser for seven days after your last change. Start with my numbers ›'"
     ],
     "refs": [
       "BROWSER-CHECKS A2",
@@ -394,7 +394,7 @@
       "Tap Invoice Beacon $400 on Home"
     ],
     "expected": [
-      "The review shows To Beacon Studio, For 'Brand refresh milestone 2', Due 'On receipt', Amount $400 with ≈¥60,000, and the note",
+      "The review shows To Beacon Studio, For 'Brand refresh, milestone 2', Due 'On receipt', Amount $400 with ≈¥60,000, and the note",
       "The pace row reads 'Beacon Studio usually pays 2 days after you send, slowest 3'"
     ],
     "refs": [
@@ -1411,7 +1411,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Add a client with a 200 character name with no spaces",
+      "Add a client with a 120 character name with no spaces (the most the field takes)",
       "Add one with an empty name"
     ],
     "expected": [
@@ -1682,12 +1682,12 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Add charges with 1,000 and 1,000.50 and full-width １，０００",
+      "Add charges with 1,000 and full-width １，０００, then 1,000.50",
       "Then ¥100,000,001",
       "Then $24 in a yen box"
     ],
     "expected": [
-      "1,000 and full-width are read as 1000",
+      "1,000 and full-width are read as ¥1,000; 1,000.50 is refused with 'JPY amounts are whole numbers'",
       "¥100,000,001 gives 'Enter an amount up to ¥100,000,000'",
       "$24 gives 'This amount is in yen…'"
     ],
@@ -2089,7 +2089,7 @@
       "Save '1,000.50' then '12,000円' then '¥12,000'"
     ],
     "expected": [
-      "Each is read as the plain number; money is stored as whole yen"
+      "'1,000.50' is refused with 'JPY amounts are whole numbers' and the balance is unchanged; '12,000円' and '¥12,000' each save as ¥12,000"
     ],
     "refs": [
       "BROWSER-CHECKS C7",

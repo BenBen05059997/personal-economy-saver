@@ -48,7 +48,7 @@
     "expected": [
       "The button shows \"Creating your household…\" and Home opens in 1.5 s or less",
       "Home shows Ben's sentence, safe to spend, bank balance and cards as in BROWSER-CHECKS Expected numbers",
-      "Under the sentence the quiet line \"A fictional household that lives in this browser. Start with my numbers ›\" links to /start",
+      "Under the sentence the quiet line \"A fictional household that lives in this browser for seven days after your last change. Start with my numbers ›\" links to /start",
       "No First steps panel is shown"
     ],
     "refs": [
