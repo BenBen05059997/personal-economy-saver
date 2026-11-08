@@ -2627,7 +2627,7 @@
     "expected": [
       "\"Imported.\" shows and the panel reads \"Your numbers · 46 items\", \"What the assistant remembers · 1 thing\", \"Canvases pinned to Home · 1 canvas\"",
       "Home shows Ben's sentence with the pin \"What if clients pay late\" under it",
-      "Activity has one import event and every imported row says it was imported",
+      "Activity has one import event, \"Imported a household file\" (Type \"Imported from a file\"); the file's own events are not brought over",
       "A second import is refused as in DATA-010"
     ],
     "refs": [

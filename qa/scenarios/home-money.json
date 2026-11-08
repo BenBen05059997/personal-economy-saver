@@ -1716,7 +1716,7 @@
     ],
     "expected": [
       "The first gives 'Choose a date within the next two years'",
-      "Nov 14, 2028 is accepted and Activity reads '… added, due Nov 14, 2028'"
+      "Nov 14, 2028 is accepted and Activity reads \"Fictional Market added\" with its amount"
     ],
     "refs": [
       "BROWSER-CHECKS C7"
@@ -1824,9 +1824,9 @@
   },
   {
     "id": "CHG-009",
-    "area": "Charges",
-    "action": "Edit a charge",
-    "user_goal": "I mistyped the amount or category",
+    "area": "Settings",
+    "action": "Edit a bill's amount and category",
+    "user_goal": "I mistyped the amount or category on a bill",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -1835,13 +1835,15 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben)",
-      "Noodle shop ¥3,800 added"
+      "A one-off bill Noodle shop ¥1,200 due Nov 20, category Other, added"
     ],
     "steps": [
-      "Edit Noodle shop to ¥980, Food"
+      "Open Settings → Bills and Noodle shop's ▶ Edit",
+      "Change the amount to ¥980 and the category to Food, and save"
     ],
     "expected": [
-      "Activity writes 'Amount ¥1,200 → ¥980 · Category Other → Food' style text and Card B owed changes by the difference"
+      "Activity reads \"Amount ¥1,200 → ¥980 · Category Other → Food\"",
+      "Coming up shows Noodle shop at ¥980"
     ],
     "refs": [
       "BROWSER-CHECKS T-E"
@@ -2391,8 +2393,8 @@
       "Open Activity"
     ],
     "expected": [
-      "Newest first with dates like 'Nov 14', every row says in words what changed, no raw ids or ISO dates",
-      "Type shows 'Invoice paid outside PayPal', 'Clear for 30 days', 'Short', 'Settings changed', 'Waiting in To check' and never underscores"
+      "Newest first with dates like \"Nov 14\"; every row says in words what changed, with no raw ids or ISO dates",
+      "Type reads in words, such as \"Waiting in To check\" and \"Invoice sent\", never a name with underscores"
     ],
     "refs": [
       "BROWSER-CHECKS F1"
@@ -2711,7 +2713,8 @@
       "Read Home safe to spend and the runway"
     ],
     "expected": [
-      "Safe to spend and the runway fall by the pot's saved amount"
+      "The runway's low falls by the pot's ¥10,000 (−¥18,780 → −¥28,780)",
+      "Safe to spend stays at ¥0, its floor"
     ],
     "refs": [
       "BROWSER-CHECKS G3"
@@ -2846,7 +2849,7 @@
   {
     "id": "PLAN-012",
     "area": "Plan",
-    "action": "Add a bill with an unknown name category",
+    "action": "Add a bill whose name the table doesn't know",
     "user_goal": "A category is required when unsure",
     "type": "edge",
     "priority": "P3",
@@ -2858,10 +2861,11 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Add 'Zebra Supplies' without a category"
+      "Add 'Zebra Supplies' ¥1,000 due Nov 20 without opening the category"
     ],
     "expected": [
-      "No category is pre-selected and the form will not submit without one"
+      "The form shows Other with \"Guessed from the name, change if wrong\" and submits",
+      "Plan's Where the month goes lists Zebra Supplies under Other"
     ],
     "refs": [
       "BROWSER-CHECKS M4"
@@ -3275,14 +3279,15 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Set Last payment on a One-off bill",
-      "Set a Last payment before the first due date",
+      "Choose One-off and look at Last payment",
+      "On an Every month bill, set a Last payment before the first due date",
       "Set a Last payment more than two years away",
       "Give a new amount that starts after the last payment"
     ],
     "expected": [
-      "The words are \"A last payment needs a bill that repeats: choose Every month or Every year\", \"The last payment must be on or after the first due date\", \"Choose a date within the next two years\" and \"The new amount must start on or before the last payment\"",
-      "Nothing saves"
+      "Last payment is greyed out and can't be set while the bill is One-off",
+      "The words are \"The last payment must be on or after the first due date\", \"Choose a date within the next two years\" and \"The new amount must start on or before the last payment\"",
+      "Nothing saves for the three refused ones"
     ],
     "refs": [
       "BROWSER-CHECKS AB2",
@@ -3372,7 +3377,7 @@
     "type": "edge",
     "priority": "P3",
     "needs": [
-      "none"
+      "model"
     ],
     "how": "browser",
     "preconditions": [
@@ -3380,10 +3385,11 @@
       "CHG-005 done"
     ],
     "steps": [
-      "Open Plan or Clients where the foreign cost shows"
+      "Ask \"What did foreign payments cost me?\""
     ],
     "expected": [
-      "The Card A row shows ¥110 for Fontly Cloud $24.00 against ¥3,600 at ¥150 per dollar"
+      "The Card A row shows ¥110 for Fontly Cloud $24.00 against ¥3,600 at ¥150 per dollar",
+      "The total is unchanged at ¥111,637"
     ],
     "refs": [
       "BROWSER-CHECKS AE6",
