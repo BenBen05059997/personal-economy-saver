@@ -2773,7 +2773,7 @@
       "The sentence \"You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th.\" with Acme and Northwind as links",
       "Safe to spend ¥0 \"Short by ¥18,780 on Nov 27\"; Cash today ¥128,000; Lowest point −¥18,780 \"on Nov 27\"",
       "A 30-day chart dipping to −¥18,780 on Nov 27 and a timeline (CloudBox Plus, Mobaile Tsushin, Acme, Northwind, Card A statement, Rent, Card B statement; Hikari Denki listed \"Awaiting confirmation\")",
-      "A last button \"Invoice Beacon $400\" that opens the invoice",
+      "A last button \"Invoice Beacon\" that opens the invoice",
       "Each block has a small \"Worked out from your records\" (or \"From your records\") line"
     ],
     "refs": [
@@ -2862,12 +2862,14 @@
     ],
     "expected": [
       "The button becomes \"Hide the recipe\" and the note reads \"This canvas is a list of blocks. A block that shows money holds a question, not a number; your records answer it each time it is drawn.\"",
-      "The list is \"1. Sentence: …\" to \"7. Link: …\" with no amount in it, and every block has a dotted outline with its number and kind",
+      "The list ends with 7. Link: Invoice Beacon, with no amount in the label, and every block has a dotted outline with its number and kind",
+      "The invoice review page shows the amount",
       "Hide removes the list and the outlines"
     ],
     "refs": [
       "BROWSER-CHECKS W4",
-      "D57"
+      "D57",
+      "db:canvas-test"
     ]
   },
   {

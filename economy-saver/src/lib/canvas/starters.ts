@@ -1,7 +1,6 @@
 // The starter recipes (D57): the app's own screens as canvases, written in code, each built from this household's own clients and months.
 // They are ordinary recipes: the same schema, the same resolver. Nothing here holds an amount of its own.
 import { monthName, monthsBack } from "@/lib/money/spending";
-import { usd } from "@/lib/money/format";
 import { toCheck } from "@/lib/money/to-check";
 import type { MoneyState } from "@/lib/money/types";
 import { RECIPE_VERSION, type Block, type Recipe } from "./schema";
@@ -19,10 +18,9 @@ function nextAction(state: MoneyState, nudgeIds: readonly string[]): Block | nul
   const unbilled = state.invoices.find(i => i.status === "unbilled");
   for (const [invoice, verb] of [[nudged, "Nudge"], [unbilled, "Invoice"]] as const) {
     const client = invoice && state.clients.find(c => c.id === invoice.clientId);
-    if (invoice && client) return { type: "action", label: `${verb} ${first(client.name)} ${usd(invoice.amountUsd)}`.slice(0, 60), href: `/invoices/${invoice.id}` };
+    if (invoice && client) return { type: "action", label: `${verb} ${first(client.name)}`.slice(0, 60), href: `/invoices/${invoice.id}` };
   }
-  const waiting = toCheck(state).length;
-  return waiting > 0 ? { type: "action", label: `${waiting} ${waiting === 1 ? "item" : "items"} to check`, href: "/to-check" } : null;
+  return toCheck(state).length > 0 ? { type: "action", label: "Open To check", href: "/to-check" } : null;
 }
 
 export function starterRecipes(state: MoneyState, nudgeIds: readonly string[] = []): Starter[] {

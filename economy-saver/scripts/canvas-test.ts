@@ -237,7 +237,12 @@ async function main() {
       assert.equal(rows.length, events.length);
       const action = block(resolved, "action").data;
       assert.equal(action.href, `/invoices/${state.invoices.find(i => i.status === "unbilled")!.id}`);
-      assert.equal(action.label, "Invoice Beacon $400");
+      assert.equal(action.label, "Invoice Beacon");
+      const acme = state.invoices.find(i => i.status === "sent" && i.clientId === state.clients.find(c => c.name.startsWith("Acme"))?.id)!;
+      const nudge = starterRecipes(state, [acme.id])[0].recipe.blocks.find(b => b.type === "action");
+      assert.deepEqual(nudge, { type: "action", label: "Nudge Acme", href: `/invoices/${acme.id}` });
+      const toReview = starterRecipes({ ...state, invoices: [] })[0].recipe.blocks.find(b => b.type === "action");
+      assert.deepEqual(toReview, { type: "action", label: "Open To check", href: "/to-check" });
       assert.equal(block(resolved, "sentence").source, "Worked out from your records");
       assert.equal(resolved.find(r => r.type === "number" && r.data.label === "Cash today")!.source, "From your records");
     });
