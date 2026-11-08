@@ -30,7 +30,7 @@ Cloudflare
     │   └── /family/[token]: no session; the token resolves to a household (D52); no-store, noindex, no referrer
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
     │   ├── /api/ask               one question of the Ask conversation `{ id, conversationId, text, source, canvas }`; body at most 128 KiB; the checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply or an error line)
-    │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, optional `text`, the file); GET `?id=` gives the card again
+    │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 429, 503 a setting missing and named, 502 a service failed, 500 anything else)
     │   ├── /api/ask/thumb         `{ id, thumb }` on one reply; one content-free log line
     │   ├── /api/canvases          pins on Home (D57): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
     │   ├── /api/canvas/resolve    a recipe → each block's query through the engine → the resolved blocks; body at most 100,000 bytes; nothing is stored
@@ -44,8 +44,8 @@ Cloudflare
     │   ├── /api/family-links      create a family view link (the full link and the LINE message, once) or stop one (D52)
     │   ├── /api/import            Settings → Import a statement (D53): up to 500 CSV rows the browser parsed, for one card
     │   ├── /api/invoices/draft, /api/invoices/paid   an invoice draft; mark an invoice paid outside PayPal
-    │   ├── /api/upload            photo or PDF (`readUpload`) → Storage → documents → reader
-    │   ├── /api/inbound           forwarded email (the Email Worker only) → Storage → documents → reader
+    │   ├── /api/upload            photo or PDF (`readUpload`) → Storage → documents → reader; answers 400 a problem with the person's file, 429 the limit, 503 a server setting missing (named in the sentence: the AI model settings, or a Storage setting), 502 Storage failed, 500 anything else
+    │   ├── /api/inbound           forwarded email (the Email Worker only) → Storage → documents → reader; 403 with no body for a missing Worker origin or a wrong secret, 503 with no body and one server log line naming the variable when the server lacks a setting it needs, 404 no household, 429, 202 accepted
     │   ├── /api/readings/retry    read a document again
     │   ├── /api/confirm           a reading or a pending row → a bill, a charge, a bank balance or a pot; corrections become rules
     │   ├── /api/approve           the user's tap → PayPal sandbox send or reminder → events (the only place that sends, D12)
@@ -80,7 +80,7 @@ Cloudflare
         └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0026), 28 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0027), 28 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
 │   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns,
 │   ip_buckets, ai_global_usage, ask_receipts
@@ -181,7 +181,7 @@ Nov 12; Web Push after.
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
 | 1. Question | `AskPage.tsx` (/canvas; the top bar links /canvas#ask and hands a typed character over in `sessionStorage` `pes-ask-draft`) → POST /api/ask | the canvas on screen; on a device, its memory (≤ 200) and the last 3 turns ride in the body | nothing | the question in the conversation |
-| 2. Gate | `answerQuestion` (`src/db/ask.ts`) | `readPlaces`; `turnById` for a retried id (cloud journal); `askAlreadyWrote` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
+| 2. Gate | `answerQuestion` (`src/db/ask.ts`) | `readPlaces`; `turnById` and `askReceipt` for a retried id (cloud journal); `askReceipt` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
 | 3. Context | `conversationContext` | the last 3 turns of the conversation when its latest is under 10 minutes old (24 hours while an attached document is queued, reading or in To check); a document turn's card as text (`cardContext`) | nothing | — |
 | 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | `MODEL_RULES` + `ASK_RULES` + `memoryContext` (≤ 6,000 characters); `aiConnection(db, hid, "text")` per call | nothing | — |
 | 5. Tools | the catalogue over the engine; the read tools of one model turn run together (`callAll`), draft tools alone in the order asked, results in the order asked | the money state, loaded once per tool turn | draft tools: pending rows in To check, an invoice draft, a memory item (`made_by = ask`, `ask_id`) | the latest step in fixed words (`TOOL_WORDS`) in the line under the box |
@@ -207,7 +207,7 @@ flowchart LR
 403, 429). After them it answers 200 `application/x-ndjson`: a `{"step": "…"}` line each time `runAgent` calls `onStep` (the fixed words in
 `src/lib/agent/words.ts`: `THINKING_WORDS`, one `TOOL_WORDS` line per tool, never an amount, argument or result), then one last line, `{"reply": AskReply}` or
 `{"error": "…"}` (the sentence a failure carried as a 503 before the stream began). `src/components/ask/read-stream.ts` (`readAskStream`) reads it line
-by line; the page shows the latest step in a `role="status"` line under the box and the error where it always showed it.
+by line; the page shows the latest step in a `role="status"` line under the box and the error where it always showed it. A 401 on any Ask request (the question, attach a bill, a canvas block, the document card) shows "Your session has expired." with a link "Start again from the home page." to `/` (`SessionEnded.tsx`). The To check Retry control posts through `ApiForm`.
 
 **Budgets and limits.** `MAX_TOOL_TURNS` 4, `BUDGET_MS` 20 s shared by every model call of the question, `MAX_TOKENS` 16,000, no retries (every
 attempt asks for its own connection); the ask limit is 30 a minute; declined questions are not capped; the read tools of a model turn are raced against the time left of the 20 s (`beforeDeadline` in `run.ts`): past it the question stops with "That took too long while <the step's words>. Try a simpler question." (outcome `budget`), while a write, `clarify` and `out_of_scope` are waited for and a write already done is kept (`savedThenStopped`); a question is 1 to 320 characters; one question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`;
@@ -245,7 +245,7 @@ turn, cut-off, refusal, empty or API failure, shows a fixed sentence. **After a 
 was kept (`saved`: `pending` and the links) and `answerQuestion` turns it into an answer: `FIXED.savedThenStopped` plus the error's sentence, the
 links (To check, the invoice draft, Memory), stored as a turn like any other, so a retry does not write twice; the log line keeps the real outcome.
 **A retried id** (the browser resent a question after a lost response): a question whose `id` is already a stored turn of the household returns that
-turn through `turnById` with its canvas drawn again, no model call, no links and no changes; the same id with other words is refused. A household that keeps its conversations on the device (D59) has no stored turn, so `run.ts` calls `onWrote` after the first draft tool succeeds (a `remember` or `forget` on a device memory does not: its change travels in the reply) and `noteAskWrote` (`src/db/ask-receipts.ts`) keeps a receipt, `ask_receipts` (household_id, ask_id, created_at, no content); a retry with that id finds it through `askAlreadyWrote` and gets `FIXED.alreadySaved` ("This question already saved what you told me. Open To check to see it.") with a link to To check, no model call and no write.
+turn through `turnById` with its canvas drawn again, no model call and no changes, and `links` and `pending` as the first reply had them, read from its receipt; the same id with other words is refused. A household that keeps its conversations on the device (D59) has no stored turn, so `run.ts` calls `onWrote` after the first draft tool succeeds (a `remember` or `forget` on a device memory does not: its change travels in the reply) and `noteAskWrote` (`src/db/ask-receipts.ts`) keeps a receipt first. `ask_receipts` holds (household_id, ask_id, pending, links, created_at); the links are fixed words and app paths, never the question or answer. `noteAskReply` writes `pending` and `links` after the reply, for both cloud- and device-journal replies, when the reply has a To check flag or links; a retry with that id finds the receipt through `askReceipt` and gets `FIXED.alreadySaved` ("This question already saved what you told me. Open To check to see it.") with a link to To check, no model call and no write.
 
 **The turn and the page.** The turn (question, kind, reply, choices, recipe, sources) is stored in `conversation_turns` (200 a household, the oldest
 dropped, `src/db/conversation.ts`); the reply carries kind, text, choices, the canvas the engine drew, "Based on" links to the pages the tools read,
@@ -477,7 +477,7 @@ tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in produc
 Most sensitive first: raw forwarded emails and receipts in the private bucket (the file is removed 30 days after the last reading from it is confirmed or dismissed, by the daily job's `removeExpiredFiles`; the `documents` row with its `bytes` and `file_removed_at`, the readings and the bills and charges made from them stay; at most 200 MiB a household, 20 MiB for a Try it household, `requireStorageRoom`); the last 200 questions and replies of a household
 (`conversation_turns`, with their canvases and thumbs) and what the assistant remembers (`memories`), both removed with the household, or deleted on
 their own in Settings → Your data (or kept on one device, where the server holds neither); `webhook_deliveries` (the invoice id and PayPal's create
-time, kept indefinitely); `ask_receipts` (a household id, a question's id and a time, no content; pruned by the daily job after a day); `ip_buckets` (a SHA-256 of a client address, a purpose, the window and a count; windows over a day old are pruned by the daily job) and `ai_global_usage` (one count a day, seven days kept); balances, bills, charges including `place`, `readings.extracted`; clients' names and emails (third-party data); invoice
+time, kept indefinitely); `ask_receipts` (a household id, a question's id, `pending`, `links` (fixed words and app paths) and a time, never the question or answer; pruned by the daily job after a day); `ip_buckets` (a SHA-256 of a client address, a purpose, the window and a count; windows over a day old are pruned by the daily job) and `ai_global_usage` (one count a day, seven days kept); balances, bills, charges including `place`, `readings.extracted`; clients' names and emails (third-party data); invoice
 items and notes, member display names, the forwarding address. The user can download everything the app holds about their household, minus secrets
 and files, as one JSON file with Export my data, and can bring it back with Import into an empty household.
 
@@ -492,7 +492,7 @@ request logs. `events` is the user's audit trail. **The request line (operator l
 
 No automatic database backups are configured; the person's own backup is Export my data, and Import brings that file back into an empty household.
 What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from
-the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) are the latest; 0000–0026 are applied to the Tokyo database. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
+the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`, adds only) are the latest; 0000–0026 are applied to the Tokyo database. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
 
 ### Not limited yet
 

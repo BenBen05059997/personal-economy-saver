@@ -976,14 +976,45 @@
     ],
     "steps": [
       "POST /api/inbound with no headers",
-      "POST with Origin https://worker.internal and a wrong Authorization"
+      "POST with Origin https://worker.internal and a wrong Authorization",
+      "On a server lacking INBOUND_WORKER_SECRET, POST with Origin https://worker.internal"
     ],
     "expected": [
-      "Both: 403 with no body"
+      "With the Worker's origin and a wrong secret: 403 with no body",
+      "Without the origin: 403 with no body",
+      "On a server lacking INBOUND_WORKER_SECRET: 503 with no body and one server log line naming the variable"
     ],
     "refs": [
       "frontend-check --guards",
       "BROWSER-CHECKS J"
+    ]
+  },
+  {
+    "id": "DOC-045",
+    "area": "Reader",
+    "action": "Upload a file on a server with no document model",
+    "user_goal": "a missing server setting is named, not a vague failure",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "A dev server the owner started with no AI_TEXT_MODEL and no household model (record blocked if Ask works)"
+    ],
+    "steps": [
+      "POST a small valid PNG to /api/upload",
+      "POST the same file to /api/ask/document with an id and conversationId",
+      "POST a file that is not a JPEG, PNG, WebP or PDF to /api/upload on a server that has the model"
+    ],
+    "expected": [
+      "The first two answer 503 \"Reading documents isn\u2019t available on this server yet (AI_TEXT_MODEL).\" and store nothing",
+      "The bad file answers 400 with its own sentence"
+    ],
+    "refs": [
+      "src/db/reader-job.ts requireReaderModel"
     ]
   },
   {
