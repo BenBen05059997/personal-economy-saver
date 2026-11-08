@@ -7,6 +7,7 @@ import { ApiForm } from "@/components/ui/ApiForm";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { DocumentCard, type CardForm } from "./DocumentCard";
 import { readAskStream } from "./read-stream";
+import { SESSION_ENDED, SessionEnded } from "./SessionEnded";
 import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document-card";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
@@ -36,7 +37,7 @@ const wordsOf = (error: unknown) => (error instanceof Error ? error.message : "C
 async function drawOnServer(recipe: Recipe): Promise<ResolvedBlock[] | string> {
   try {
     const response = await fetch("/api/canvas/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipe }) });
-    return response.ok ? (await response.json() as { blocks: ResolvedBlock[] }).blocks : await response.text();
+    return response.ok ? (await response.json() as { blocks: ResolvedBlock[] }).blocks : response.status === 401 ? SESSION_ENDED : await response.text();
   } catch { return "Couldn’t reach your household. Try again."; }
 }
 
@@ -178,7 +179,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
       const body = new FormData();
       body.set("document", file); body.set("id", attached.current.id); body.set("conversationId", conversationId); body.set("text", text.trim());
       const response = await fetch("/api/ask/document", { method: "POST", body });
-      if (!response.ok) { setProblem((await response.text()) || "Upload failed."); return; }
+      if (!response.ok) { setProblem(response.status === 401 ? SESSION_ENDED : (await response.text()) || "Upload failed."); return; }
       const { turn, card } = await response.json() as { turn: ConversationTurn; card: Card };
       attached.current = null;
       setText(""); setSource("manual"); requestId.current = "";
@@ -211,7 +212,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, conversationId, text: trimmed, source: how, canvas: canvas?.recipe ?? null, ...(memory && { memory }), ...(recent && { recent }) }) });
       // A 503 carries a fixed message written for this box, such as a missing key.
-      if (!response.ok) { setProblem(response.status === 429 ? "Ask again in a minute." : response.status === 503 || response.status === 400 ? await response.text() : "Couldn’t check your household. Try again."); return; }
+      if (!response.ok) { setProblem(response.status === 401 ? SESSION_ENDED : response.status === 429 ? "Ask again in a minute." : response.status === 503 || response.status === 400 ? await response.text() : "Couldn’t check your household. Try again."); return; }
       const last = await readAskStream(response, setStep);
       if (!last) { setProblem("Couldn’t check your household. Try again."); return; }
       // An error line reads like the 503 it replaced; the same question keeps its id for a retry.
@@ -323,7 +324,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
         </li>)}
       </ol>
       {busy && <p role="status" aria-live="polite" className="ui-hint">{step || "Checking your numbers…"}</p>}
-      {(problem || speech.problem) && <p role="alert" className="ui-problem">{problem || speech.problem}</p>}
+      {(problem || speech.problem) && <p role="alert" className="ui-problem">{problem === SESSION_ENDED ? <SessionEnded /> : problem || speech.problem}</p>}
       {intro && <p className="ask-intro ui-hint">{intro}</p>}
       <form id="ask" className="ask-form" onSubmit={submit}>
         <label className="ui-field">Your question

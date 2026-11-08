@@ -115,7 +115,7 @@ const covered = [
   "listCanvases", "pinCanvas", "updateCanvas", "moveCanvas", "unpinCanvas",
   "saveTurn", "turnById", "recentTurns", "latestConversation", "allTurns", "setThumb", "conversationContext", "firstUseLine", "requestCount",
   // D59 ask-receipts.ts
-  "noteAskWrote", "askAlreadyWrote", "pruneAskReceipts",
+  "noteAskWrote", "noteAskReply", "askReceipt", "pruneAskReceipts",
   // D61 document-card.ts
   "documentCard", "attachDocument",
   // 27E document-cleanup.ts: Storage bytes and the removal of old raw files
@@ -469,14 +469,17 @@ async function main() {
       const receiptId = randomUUID();
       await F.noteAskWrote(store, hid, receiptId);
       await F.noteAskWrote(store, hid, receiptId);
-      assert.equal(await F.askAlreadyWrote(store, hid, receiptId), true);
-      assert.equal(await F.askAlreadyWrote(store, other.hid, receiptId), false, "another household's receipt is not seen by this id");
+      assert.equal(await F.askReceipt(store, hid, receiptId) !== null, true);
+      await F.noteAskReply(store, hid, receiptId, { pending: true, links: [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }] });
+      assert.deepEqual(await F.askReceipt(store, hid, receiptId), { pending: true, links: [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }] });
+      assert.equal(await F.askReceipt(store, other.hid, receiptId), null, "another household's note is not seen by this id");
+      assert.equal(await F.askReceipt(store, other.hid, receiptId) !== null, false, "another household's receipt is not seen by this id");
       assert.equal(await F.pruneAskReceipts(store, hid), 0, "a receipt under a day old stays");
       await pg.query("update ask_receipts set created_at = now() - interval '2 days' where household_id = $1 and ask_id = $2", [hid, receiptId]);
       const otherBefore = (await db.select().from(schema.askReceipts).where(eq(schema.askReceipts.householdId, other.hid))).length;
       assert.equal(await F.pruneAskReceipts(store, hid), 1);
       assert.equal((await db.select().from(schema.askReceipts).where(eq(schema.askReceipts.householdId, other.hid))).length, otherBefore, "pruning one household leaves the other's");
-      assert.equal(await F.askAlreadyWrote(store, hid, receiptId), false);
+      assert.equal(await F.askReceipt(store, hid, receiptId) !== null, false);
       assert.equal(await F.turnById(store, hid, other.ids.turn), null, "another household's turn id reads nothing");
       assert.deepEqual(await F.recentTurns(store, hid, other.ids.turn), [], "another household's conversation id reads nothing");
       assert.deepEqual(await F.conversationContext(store, hid, { conversationId: mine!.conversationId, canvas: null }), `Earlier in this conversation, for context only; read every number again from the tools:\nQuestion: ${JSON.stringify(turns[0].question)}\nReply: ${JSON.stringify(turns[0].reply)}`);
