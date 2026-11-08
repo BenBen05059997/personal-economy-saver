@@ -7,6 +7,6 @@ export async function documentBucket() {
   }).storage;
   const name = readerSetting("SUPABASE_DOCUMENT_BUCKET");
   const { data, error } = await storage.getBucket(name);
-  if (error || !data || data.public) throw new ReaderError("SUPABASE_DOCUMENT_BUCKET must name an accessible private bucket.");
+  if (error || !data || data.public) throw new ReaderError("SUPABASE_DOCUMENT_BUCKET must name an accessible private bucket.", 503);
   return storage.from(name);
 }

@@ -89,7 +89,7 @@ export async function extractDocument(bytes: ArrayBuffer, mime: string, context:
   const { need, parts } = await documentContent(bytes, mime);
   const c = await connection(need);
   const model = need === "document" ? c.documentModel : c.textModel;
-  if (!model) throw new ReaderError(`${need === "document" ? "AI_DOCUMENT_MODEL" : "AI_TEXT_MODEL"} is not set`);
+  if (!model) throw new ReaderError(`${need === "document" ? "AI_DOCUMENT_MODEL" : "AI_TEXT_MODEL"} is not set`, 503);
   let reply;
   try {
     // One forced tool: tool calling is what both protocols share.
@@ -105,17 +105,17 @@ export async function extractDocument(bytes: ArrayBuffer, mime: string, context:
       if ([400, 415, 422].includes(error.status) && c.protocol === "openai" && parts.some(p => p.type === "pdf")) {
         throw new ReaderError("This model could not read the PDF. Upload a photo of it, or choose another model in Settings.");
       }
-      throw new ReaderError(`AI reader returned HTTP ${error.status}.`);
+      throw new ReaderError(`AI reader returned HTTP ${error.status}.`, 502);
     }
     // The address rule (checkBaseUrl) runs on every call; its message is written for a person.
-    if (error instanceof InputError) throw new ReaderError(error.message);
-    throw new ReaderError("AI reader could not be reached.");
+    if (error instanceof InputError) throw new ReaderError(error.message, 503);
+    throw new ReaderError("AI reader could not be reached.", 502);
   }
   if (reply.stop === "refusal") throw new ReaderError("AI reader declined to read this document.");
   if (reply.stop === "length") throw new ReaderError("Document has too many records to read in one request.");
   const call = reply.calls.find(c => c.name === RECORD_ITEMS);
   const parsed = recordsSchema.safeParse(call?.input);
-  if (!parsed.success) throw new ReaderError("Reader returned an invalid set of bill or charge fields.");
+  if (!parsed.success) throw new ReaderError("Reader returned an invalid set of bill or charge fields.", 502);
   const cards = new Set(context.cards.map(c => c.id));
   // A period the document model got wrong (one date only, or backwards) is not kept: the bill is read without one.
   return parsed.data.items.map((item): Extracted => ({

@@ -1,8 +1,15 @@
-export class ReaderError extends Error {}
+/**
+ * A reader problem in the words the person sees. `status` is what a route answers: 400 for a problem with the person's file or form
+ * (the default), 503 when the server lacks a setting or a service it needs (the message names the setting), 502 when a service
+ * the server calls (the model, Storage) failed.
+ */
+export class ReaderError extends Error {
+  constructor(message: string, readonly status: 400 | 502 | 503 = 400) { super(message); }
+}
 
 export function readerSetting(name: string) {
   const value = process.env[name]?.trim();
-  if (!value) throw new ReaderError(`${name} is not set`);
+  if (!value) throw new ReaderError(`${name} is not set`, 503);
   return value;
 }
 

@@ -416,6 +416,79 @@ async function main() {
     set({ ...full, AI_BASE_URL: undefined }); assert.equal(serverDefaultHost(), null);
     set({ ...full, AI_PROTOCOL: "other" }); assert.equal(serverDefaultHost(), null);
     ok("missingAskSetting: every branch and the order (own connection, model, protocol, openai address, key, daily limit; blanks count as unset); askUnavailable and serverDefaultHost");
+
+    // ------------------------------------------------------------ status codes: the person's file is 400, the server's side is 502 or 503
+    const upload = (await import("@/app/api/upload/route")).POST as Handler;
+    const attach = (await import("@/app/api/ask/document/route")).POST as Handler;
+    const inbound = (await import("@/app/api/inbound/route")).POST as Handler;
+    const docs = async () => (await db.select().from(schema.documents)).length;
+    const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+    const file = (data: BlobPart, name: string, type: string) => { const fd = new FormData(); fd.set("document", new File([data], name, { type })); fd.set("id", crypto.randomUUID()); fd.set("conversationId", crypto.randomUUID()); return fd; };
+    const reset = async () => { await db.delete(schema.requestBuckets); };
+    const errors: string[] = [];
+    const realError = console.error;
+    console.error = (...args: unknown[]) => { errors.push(args.map(String).join(" ")); };
+    const envNames = ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "SUPABASE_URL", "INBOUND_WORKER_SECRET", "FORWARDING_DOMAIN", "INBOUND_ADDRESS_KEY"];
+    const env = (values: Record<string, string | undefined>) => { for (const n of envNames) delete process.env[n]; for (const [k, v] of Object.entries(values)) if (v !== undefined) process.env[k] = v; };
+    try {
+      cookie = a;
+      const modelSet = { AI_TEXT_MODEL: "m", AI_PROTOCOL: "openai", AI_BASE_URL: "https://models.example/v1", AI_API_KEY: "fictional-test-value" };
+      for (const [name, route, path] of [["upload", upload, "/api/upload"], ["ask attach", attach, "/api/ask/document"]] as const) {
+        env(modelSet); await reset();
+        const bad = await say(await route(post(path, file("hello", "a.txt", "text/plain"))));
+        assert.deepEqual([bad.status, bad.text], [400, "Select a PDF, JPEG, PNG or WebP file."], `${name}: a wrong file type is 400`);
+        await reset();
+        const mismatch = await say(await route(post(path, file("hello", "a.png", "image/png"))));
+        assert.deepEqual([mismatch.status, mismatch.text], [400, "File contents do not match the selected file type."], `${name}: contents that do not match are 400`);
+        await reset();
+        const big = await say(await route(post(path, file(new Uint8Array(6 * 1024 * 1024 + 9000), "big.png", "image/png"))));
+        assert.deepEqual([big.status, big.text], [400, "Document exceeds the 6 MiB limit."], `${name}: too big is 400`);
+        env({}); await reset();
+        const noModel = await say(await route(post(path, file(PNG, "a.png", "image/png"))));
+        assert.deepEqual([noModel.status, noModel.text], [503, "Reading documents isn’t available on this server yet (AI_TEXT_MODEL)."], `${name}: no model is 503 naming the setting`);
+        env({ ...modelSet, AI_API_KEY: undefined }); await reset();
+        assert.match((await say(await route(post(path, file(PNG, "a.png", "image/png"))))).text, /\(AI_API_KEY\)/, `${name}: a missing key is named`);
+        env(modelSet); await reset();
+        const noStorage = await say(await route(post(path, file(PNG, "a.png", "image/png"))));
+        assert.deepEqual([noStorage.status, noStorage.text], [503, "SUPABASE_URL is not set"], `${name}: a setting the reader needs is 503 naming it`);
+      }
+      const failing = (code: number) => (async () => new Response("{}", { status: code })) as typeof fetch;
+      const statusOf = async (fetchImpl: typeof fetch | undefined, over: Record<string, unknown> = {}) => {
+        try { await extractDocument(PNG.buffer as ArrayBuffer, "image/png", context, async () => ({ ...connection, ...over }), fetchImpl); return null; }
+        catch (e) { return e instanceof ReaderError ? [e.status, e.message] : String(e); }
+      };
+      assert.deepEqual(await statusOf(failing(500)), [502, "AI reader returned HTTP 500."]);
+      assert.deepEqual(await statusOf((async () => { throw new TypeError("network"); }) as typeof fetch), [502, "AI reader could not be reached."]);
+      assert.deepEqual(await statusOf(undefined, { documentModel: null }), [503, "AI_DOCUMENT_MODEL is not set"]);
+      await reset();
+      ok("/api/upload and /api/ask/document: a bad, mismatched or oversize file is 400; no model is 503 naming the setting; a missing reader setting is 503; the model failing or unreachable is 502 (extractDocument)");
+
+      // /api/inbound: a caller without the origin or the secret is 403 and never learns more; a server without its settings is 503 with no body and one log line
+      const mail = (headers: Record<string, string>) => new Request(`${ORIGIN}/api/inbound`, { method: "POST", body: "From: s@example.invalid\r\n\r\nhi", headers });
+      const empty = async (response: Response) => [response.status, await response.text()];
+      const docsBefore = await docs();
+      env({ INBOUND_WORKER_SECRET: "fictional-secret" }); errors.length = 0;
+      assert.deepEqual(await empty(await inbound(mail({}))), [403, ""], "no origin");
+      assert.deepEqual(await empty(await inbound(mail({ origin: "https://elsewhere.example", authorization: "Bearer fictional-secret" }))), [403, ""], "another origin");
+      assert.deepEqual(await empty(await inbound(mail({ origin: "https://worker.internal" }))), [403, ""], "no secret");
+      assert.deepEqual(await empty(await inbound(mail({ origin: "https://worker.internal", authorization: "Bearer wrong-secret" }))), [403, ""], "a wrong secret of another length");
+      assert.deepEqual(await empty(await inbound(mail({ origin: "https://worker.internal", authorization: "Bearer fictional-secreT" }))), [403, ""], "a wrong secret of the same length");
+      assert.deepEqual(errors, [], "a refused caller leaves nothing in the log");
+      env({}); errors.length = 0;
+      assert.deepEqual(await empty(await inbound(mail({ origin: "https://worker.internal", authorization: "Bearer anything" }))), [503, ""], "no secret set: 503, no body");
+      assert.deepEqual(errors, ["/api/inbound: INBOUND_WORKER_SECRET is not set"], "one line naming the variable, never a value");
+      assert.deepEqual(await empty(await inbound(mail({}))), [403, ""], "no origin is still 403 when the setting is missing");
+      env({ INBOUND_WORKER_SECRET: "fictional-secret" }); errors.length = 0;
+      const noDomain = await inbound(mail({ origin: "https://worker.internal", authorization: "Bearer fictional-secret", "x-envelope-to": "x@example.invalid" }));
+      assert.equal(noDomain.status, 503, "a later setting missing is 503 too");
+      assert.equal(errors.length, 1);
+      assert.match(errors[0], /^\/api\/inbound: [A-Z_]+ is not set$/, "the log line names a variable");
+      assert.equal(await docs(), docsBefore, "nothing stored in any case");
+      assert.equal((await db.select().from(schema.requestBuckets)).length, 0, "no limit counted for a refused or failed call");
+      ok("/api/inbound: no origin or a wrong secret is 403 with no body (even when the server lacks the setting); a missing setting is 503 with no body and one log line naming the variable; nothing is stored");
+    } finally {
+      console.error = realError;
+    }
   } finally {
     console.info = realInfo;
     loader._load = realLoad;

@@ -148,6 +148,7 @@ const notApplicable: Record<string, string> = {
   pruneIpBuckets: "deletes old per-address windows app-wide; touches no household's rows (limits-test)",
   readDocumentInBackground: "opens its own connection and calls readDocument, which is tested here",
   staleBefore: "pure clock helper",
+  requireReaderModel: "reads only the calling household's own connection (connectionView) and the server settings; its refusals are tested in ask-routes-test",
   storeDocument: "creates a document keyed by a digest that includes the household id; needs Supabase Storage",
   parseReferenceRate: "pure parser of the ECB feed", fetchReferenceRate: "network fetch of the public ECB feed; no household id",
   sandboxRead: "PayPal sandbox HTTP reader; takes no household id",
