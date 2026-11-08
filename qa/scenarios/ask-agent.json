@@ -4857,5 +4857,35 @@
       "npm run mcp:demo",
       "D50"
     ]
+  },
+  {
+    "id": "ASK-113",
+    "area": "Ask",
+    "action": "Run the provider adapter contract checks",
+    "user_goal": "I want Ask, document reading and voice fill to work with my configured protocol",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Use the isolated PGlite and fictional provider fixtures"
+    ],
+    "steps": [
+      "Run db:agent-test, db:reader-test, db:ai-test and db:voice-test"
+    ],
+    "expected": [
+      "The neutral reply, document file parts, tool replay and stop reasons are preserved for both protocols",
+      "Redirects, timeouts and provider errors stay inside the fixed response contract"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AN1",
+      "db:agent-test",
+      "db:reader-test",
+      "db:ai-test",
+      "db:voice-test",
+      "D56"
+    ]
   }
 ]

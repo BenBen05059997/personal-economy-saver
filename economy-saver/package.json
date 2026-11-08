@@ -59,14 +59,17 @@
     "db:family-test": "tsx --tsconfig ./tsconfig.json scripts/family-links-test.ts",
     "db:limits-test": "tsx --tsconfig ./tsconfig.json scripts/limits-test.ts",
     "db:voice-test": "tsx --tsconfig ./tsconfig.json scripts/voice-test.ts",
-    "db:isolation-test":"tsx --tsconfig ./tsconfig.json scripts/isolation-test.ts"
+    "db:isolation-test": "tsx --tsconfig ./tsconfig.json scripts/isolation-test.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "4.0.99",
+    "@ai-sdk/openai-compatible": "3.0.87",
     "@anthropic-ai/sdk": "^1.4.0",
     "@modelcontextprotocol/sdk": "1.32.2",
     "@paypal/agent-toolkit": "^1.11.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
+    "ai": "7.0.165",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.3",
     "postal-mime": "4.2.0",

@@ -531,3 +531,7 @@ Use the isolated browser test setup after migration 0028. Test the owner and inv
 - AM6. In the owner profile, Settings → People → Who has access lists signed-in people, active family links and MCP keys. It shows link dates and key labels without full bearer credentials.
 - AM7. As the member, Account → Leave household. With the same sign-in, reopen Home and try a saved household page. The profile can no longer open the household. The member’s reminder settings and subscriptions are cleared. The route check verifies 401 from Events, People, MCP token management and family link management after leaving. The owner still sees the person, saved records and the same split. The owner can remove the person once the existing settlement checks allow it.
 - AM8. Fresh Try it still opens without a login. It has no household invitations and retains the existing sandbox approval review, family-link controls and MCP-key controls for its own demo household.
+
+## AN. Provider adapters (D56, 31B)
+
+- AN1. Run `db:agent-test`, `db:reader-test`, `db:ai-test` and `db:voice-test` to check the neutral contract and both wire protocols with fictional transports. In the browser round, use a configured provider for Ask, a photo or PDF where the provider accepts it, and voice fill. Repeat with the other protocol and confirm the existing results and refusal words in J, K and AD.

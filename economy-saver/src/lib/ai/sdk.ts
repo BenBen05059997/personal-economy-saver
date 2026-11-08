@@ -1,0 +1,81 @@
+import { APICallError, InvalidResponseDataError, type JSONSchema7 } from "ai";
+import type { LanguageModelV4, LanguageModelV4CallOptions, LanguageModelV4Prompt } from "@ai-sdk/provider";
+import { ModelError, type ModelRequest } from "./types";
+
+const MAX_RESPONSE_BYTES = 1024 * 1024;
+
+export function sdkOptions(request: ModelRequest): Omit<LanguageModelV4CallOptions, "abortSignal"> {
+  const prompt: LanguageModelV4Prompt = [{ role: "system", content: request.system }];
+  for (const [index, turn] of request.turns.entries()) {
+    if (turn.role === "user") {
+      prompt.push({ role: "user", content: turn.parts.map(part => part.type === "text" ? part : {
+        type: "file", mediaType: part.type === "pdf" ? "application/pdf" : part.mime,
+        data: { type: "data", data: part.base64 },
+      }) });
+    } else if (turn.role === "tools") {
+      prompt.push({ role: "tool", content: turn.results.map(result => ({
+        type: "tool-result", toolCallId: result.id, toolName: result.name,
+        output: request.connection.protocol === "anthropic" && result.isError
+          ? { type: "error-text", value: result.content }
+          : { type: "text", value: result.isError ? "Error: " + result.content : result.content },
+      })) });
+    } else {
+      // The SDK serializes the rest of the prompt. The adapters replace this slot with the
+      // exact provider message, including extensions such as signed thinking blocks.
+      prompt.push({ role: "assistant", content: [{ type: "text", text: String(index) }] });
+    }
+  }
+  return {
+    prompt,
+    maxOutputTokens: request.maxTokens,
+    tools: request.tools?.map(tool => ({
+      type: "function", name: tool.name, description: tool.description, inputSchema: tool.schema as JSONSchema7,
+      ...(request.connection.protocol === "anthropic" && { strict: true }),
+    })),
+    toolChoice: request.tools && request.forceTool ? { type: "tool", toolName: request.forceTool }
+      : request.tools && request.connection.protocol === "anthropic" ? { type: "auto" } : undefined,
+  };
+}
+
+function bounded(response: Response): Response {
+  if (!response.body) return response;
+  let size = 0;
+  const body = response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      size += chunk.byteLength;
+      if (size > MAX_RESPONSE_BYTES) throw new ModelError("The AI service sent too large a reply.");
+      controller.enqueue(chunk);
+    },
+  }));
+  return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+}
+
+export function sdkFetch(request: ModelRequest, transform?: (body: string) => string): typeof globalThis.fetch {
+  return async (input, init) => {
+    const body = transform && typeof init?.body === "string" ? transform(init.body) : init?.body;
+    const response = await (request.fetch ?? globalThis.fetch)(input, { ...init, body, redirect: "error" });
+    return request.connection.protocol === "openai" ? bounded(response) : response;
+  };
+}
+
+export async function generate(model: LanguageModelV4, request: ModelRequest) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), request.timeoutMs);
+  try {
+    return await model.doGenerate({ ...sdkOptions(request), abortSignal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) throw new ModelError("The AI service took too long.", undefined, true);
+    if (error instanceof ModelError) throw error;
+    if (APICallError.isInstance(error)) {
+      if (error.cause instanceof ModelError) throw error.cause;
+      if (error.statusCode && (error.statusCode < 200 || error.statusCode >= 300)) {
+        throw new ModelError("The AI service refused the request.", error.statusCode);
+      }
+      if (error.statusCode) throw new ModelError("The AI service sent a reply the app could not read.");
+    }
+    if (InvalidResponseDataError.isInstance(error)) throw new ModelError("The AI service sent a reply the app could not read.");
+    throw new ModelError("Couldn't reach the AI service.");
+  } finally {
+    clearTimeout(timer);
+  }
+}
