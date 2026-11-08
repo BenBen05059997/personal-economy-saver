@@ -16,20 +16,9 @@ import type { ConversationTurn, TurnKind } from "@/lib/schema/turn";
 import {
   applyDeviceMemoryChanges, deleteDeviceConversation, deviceLatest, deviceMemory, deviceRecent, devicePins, listDevice, pinOnDevice, saveDeviceTurn, setDeviceThumb, updateDevicePin,
 } from "@/lib/store/device";
-import { DRAFT_EVENT, DRAFT_KEY } from "./draft";
+import { DRAFT_EVENT, takeStoredDraft } from "./draft";
+import { useSpeech } from "../voice/use-speech";
 import "./ask.css";
-
-type Recognition = {
-  lang: string;
-  interimResults: boolean;
-  onresult: null | ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void);
-  onerror: null | (() => void);
-  onend: null | (() => void);
-  start(): void;
-  abort(): void;
-};
-type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
-
 
 export type TurnView = {
   id: string; question: string; kind: TurnKind; text: string; choices: string[] | null;
@@ -72,7 +61,6 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
   const router = useRouter();
   const field = useRef<HTMLTextAreaElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const recognizer = useRef<Recognition | null>(null);
   const requestId = useRef("");
   // The text the id was first sent with: a retry reuses the id only for the same question.
   const requestText = useRef("");
@@ -84,7 +72,6 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
   const [source, setSource] = useState<"manual" | "voice">("manual");
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState("");
-  const [listening, setListening] = useState(false);
   const [problem, setProblem] = useState(unavailable ?? "");
   const [intro, setIntro] = useState(firstUse);
   const [devicePin, setDevicePin] = useState<Pin | null>(null);
@@ -146,39 +133,21 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
   // A character typed on the top bar arrives in sessionStorage (never in the address); it is read once and cleared.
   useEffect(() => {
     function takeDraft() {
-      try {
-        const draft = window.sessionStorage.getItem(DRAFT_KEY);
-        if (draft === null) return;
-        window.sessionStorage.removeItem(DRAFT_KEY);
-        setText(draft); setSource("manual"); requestId.current = "";
-        field.current?.focus();
-        requestAnimationFrame(() => field.current?.setSelectionRange(draft.length, draft.length));
-      } catch { /* storage can be blocked */ }
+      const draft = takeStoredDraft();
+      if (!draft) return;
+      setText(draft.text); setSource(draft.source); requestId.current = "";
+      field.current?.focus();
+      requestAnimationFrame(() => field.current?.setSelectionRange(draft.text.length, draft.text.length));
     }
     takeDraft();
     if (window.location.hash === "#ask") field.current?.focus();
     window.addEventListener(DRAFT_EVENT, takeDraft);
-    return () => { window.removeEventListener(DRAFT_EVENT, takeDraft); recognizer.current?.abort(); };
+    return () => { window.removeEventListener(DRAFT_EVENT, takeDraft); };
   }, []);
 
-  function speak() {
-    const browser = window as SpeechWindow;
-    const Speech = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
-    if (!Speech) { setProblem("This browser doesn’t offer speech recognition. Type your question below."); return; }
-    const recognition = new Speech();
-    recognizer.current = recognition;
-    // Listen in the browser's own language, so a Japanese browser hears Japanese.
-    recognition.lang = navigator.language;
-    recognition.interimResults = false;
-    recognition.onresult = event => {
-      const transcript = event.results[0]?.[0]?.transcript;
-      if (transcript) { setText(transcript); setSource("voice"); requestId.current = ""; }
-    };
-    recognition.onerror = () => setProblem("Speech wasn’t captured. Try again or type below.");
-    recognition.onend = () => { recognizer.current = null; setListening(false); };
-    try { recognition.start(); setListening(true); setProblem(""); }
-    catch { setProblem("Couldn’t start the microphone. Type below."); }
-  }
+  const speech = useSpeech(words => { setText(words); setSource("voice"); requestId.current = ""; });
+  const listening = speech.listening;
+  function speak() { setProblem(""); speech.start(); }
 
   function scrollToCanvas() {
     // On a phone the canvas sits below the conversation: bring it into view.
@@ -285,7 +254,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
   }
 
   function fresh() {
-    recognizer.current?.abort();
+    speech.stop();
     setConversationId(crypto.randomUUID());
     setTurns([]); setCards({}); setCanvas(null); canvasChosen.current = false; attached.current = null; setText(""); setProblem(unavailable ?? ""); requestId.current = "";
     field.current?.focus();
@@ -354,7 +323,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
         </li>)}
       </ol>
       {busy && <p role="status" aria-live="polite" className="ui-hint">{step || "Checking your numbers…"}</p>}
-      {problem && <p role="alert" className="ui-problem">{problem}</p>}
+      {(problem || speech.problem) && <p role="alert" className="ui-problem">{problem || speech.problem}</p>}
       {intro && <p className="ask-intro ui-hint">{intro}</p>}
       <form id="ask" className="ask-form" onSubmit={submit}>
         <label className="ui-field">Your question
@@ -363,7 +332,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
             onChange={event => { setText(event.target.value); setSource("manual"); requestId.current = ""; }} />
         </label>
         <div className="ask-buttons">
-          <button type="button" className="ui-button" disabled={busy} onClick={listening ? () => recognizer.current?.abort() : speak}>{listening ? "Stop listening" : "Use microphone"}</button>
+          <button type="button" className="ui-button" disabled={busy} onClick={listening ? speech.stop : speak}>{listening ? "Stop listening" : "Use microphone"}</button>
           <label className={`ui-button ask-attach${busy ? " is-disabled" : ""}`}>Attach a bill
             <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" disabled={busy}
               onChange={event => { const input = event.currentTarget; void attach(input.files?.[0]).finally(() => { input.value = ""; }); }} />
