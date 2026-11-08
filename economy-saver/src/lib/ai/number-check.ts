@@ -78,3 +78,31 @@ export function unconfirmedAmounts(answer: string, sources: string[]): string[] 
   }
   return unconfirmed;
 }
+
+/**
+ * The numbers a person said or typed (voice fill): "12,000" and "12000" are 12000, full-width digits read as ordinary ones,
+ * "12万" / "12万円" is 120000, "1.5万" is 15000, "12万5千" is 125000, "3千" is 3000, "5k" is 5000, "1.2 million" is 1200000.
+ * A number with a scale is returned only scaled (12万 does not also confirm 12). Decimals are kept, rounded to two places.
+ */
+export function numbersSaid(text: string): number[] {
+  const folded = fold(text);
+  const found = new RegExp(String.raw`((?<!\d,)\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s?(万|千|k(?![a-z])|million(?![a-z])|m(?![a-z]))?`, "gi");
+  const said: number[] = [];
+  let skipUntil = 0;
+  for (const m of folded.matchAll(found)) {
+    if (m.index < skipUntil) continue;
+    const digits = Number(m[1].replace(/,/g, ""));
+    let value = m[2] === "千" ? digits * 1_000 : digits * scaleOf(m[2]);
+    let end = m.index + m[0].length;
+    if (m[2] === "万") {
+      // 12万5千 and 1万8780: the rest of the number follows the 万.
+      const thousands = /^(\d{1,4})千/.exec(folded.slice(end));
+      if (thousands) { value += Number(thousands[1]) * 1_000; end += thousands[0].length; }
+      const tail = /^(\d{1,4})(?![\d,.])/.exec(folded.slice(end));
+      if (tail) { value += Number(tail[1]); end += tail[0].length; }
+    }
+    skipUntil = end;
+    said.push(Math.round(value * 100) / 100);
+  }
+  return said;
+}
