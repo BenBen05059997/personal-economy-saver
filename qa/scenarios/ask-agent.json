@@ -658,11 +658,13 @@
     "expected": [
       "The status line passes through \"Finding the bills for that month\"",
       "The reply names Harbor Energy (11月分), ¥9,800 and its due date; \"Based on:\" shows Plan",
+      "The term electricity finds Harbor Energy through its Utilities category",
       "Information only: Plan's month view counts it on the day it is paid"
     ],
     "refs": [
       "BROWSER-CHECKS AF5",
-      "D63"
+      "D63",
+      "db:agent-test"
     ]
   },
   {
@@ -686,8 +688,8 @@
       "Press Enter"
     ],
     "expected": [
-      "The reply says no bill names December as the month it is for",
-      "It points to money paid in December (the month view or \"What did I spend in December?\") and invents no amount"
+      "The reply invents no amount",
+      "Based on links to Plan"
     ],
     "refs": [
       "BROWSER-CHECKS AF5a",

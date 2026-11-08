@@ -482,7 +482,7 @@ async function main() {
       assert.deepEqual(nov.totals, [{ currency: "JPY", totalMinor: 13_800, count: 2 }, { currency: "USD", totalMinor: 2_400, count: 1 }], "known amounts only, one total per currency");
       assert.match(nov.summary, /amount not known, due date not known/);
       assert.match(nov.summary, /waiting in To check/);
-      assert.deepEqual(billsForMonth(bills, "2026-11", "ENERGY").items.map(i => i.id), ["nov"], "narrowed by name");
+      assert.deepEqual(billsForMonth(bills, "2026-11", "ENERGY").items.map(i => i.id), ["span", "nov", "unknown"], "a recognized term matches its category");
       assert.deepEqual(billsForMonth(bills, "2026-11", "harbor").items.map(i => i.id), ["nov", "unknown"]);
       assert.match(nov.note, /month_by_category/);
       assert.deepEqual(billsForMonth([], "2026-11").items, []);
@@ -508,15 +508,15 @@ async function main() {
       assert.match(nov.summary, /Harbor Energy \(11月分\): ¥9,800, due Dec 27/);
       const dec = JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-12", text: "" }) as never));
       assert.deepEqual(dec.items, [], "counted by the due date elsewhere; not listed for December here");
-      assert.deepEqual(JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-11", text: "gas" }) as never)).items.map((i: { biller: string }) => i.biller), ["Harbor Energy Gas"]);
+      assert.deepEqual(JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-11", text: "gas" }) as never)).items.map((i: { biller: string }) => i.biller), ["Harbor Energy", "Harbor Energy Gas"]);
       const noPeriod = JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-11", text: "rent" }) as never));
       assert.deepEqual(noPeriod.items, [], "Ben's rent has no period");
       assert.match(noPeriod.note, /month_by_category/);
       await assert.rejects(() => tool.run(ctx, tool.input.parse({ month: "2029-01", text: "" }) as never), (error: unknown) => error instanceof InputError);
       // The model path: the tool is called by name and its words are shown.
-      const run = transport([() => reply("tool_use", [toolUse("b", "bills_for_month", { month: "2026-11", text: "harbor" })]), () => reply("end_turn", [text("It was ¥9,800.")])]);
+      const run = transport([() => reply("tool_use", [toolUse("b", "bills_for_month", { month: "2026-11", text: "electricity" })]), () => reply("end_turn", [text("It was ¥9,800.")])]);
       await ask(c, "What was November's electricity?", run.fetch);
-      assert.match(JSON.stringify(toolResults(run.bodies[1])[0].content), /Harbor Energy \(11月分\)/);
+      assert.match(JSON.stringify(toolResults(run.bodies[1])[0].content), /Harbor Energy \(11月分\): ¥9,800, due Dec 27/);
       await removeBill(db, c, billId); await removeBill(db, c, pendingId);
       assert.deepEqual((await stateOf(c)).bills.map(b => [b.id, b.due, b.amount]), before.bills.map(b => [b.id, b.due, b.amount]), "the period never changed what the engine counts");
     });

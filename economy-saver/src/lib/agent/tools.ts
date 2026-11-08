@@ -371,7 +371,7 @@ export const tools: Tool[] = [
     name: "bills_for_month", scope: "read",
     input: z.object({
       month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").describe("The month the bill is FOR, YYYY-MM (November's electricity is the bill that says 11月分 or a November service period, though it is usually paid in December)."),
-      text: z.string().max(SEARCH_QUERY_MAX).default("").describe("Words to find in the bill's name (electric, gas); every word must match. An empty string lists every bill for that month."),
+      text: z.string().max(SEARCH_QUERY_MAX).default("").describe("Each word must match the biller's name or identify its category (electricity, gas). An empty string lists every bill for that month."),
     }),
     description: "What was a month's bill: every stored bill (confirmed or waiting in To check, past or due later) whose period, the month it is for, overlaps the month, each with its biller, amount (or amount not known), due date, period and status, and the totals per currency. Use it for \"what was November's electricity\" or \"the bill for October\": the month a bill is FOR. Use month_by_category or search_spending for the month money was PAID or is due. A bill with no period is not listed here; it is counted by its due date, so say so and use month_by_category. Amounts named Minor are minor units of the item's own currency (whole yen for JPY, cents for USD). Quote summary to the user as it is; it is built in code. Information only: the period moves no money and changes no forecast.",
     run: async (ctx, input) => {

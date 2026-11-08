@@ -2,6 +2,7 @@
 // ("11月分", "Service period Oct 1 – Oct 31") is information: it says what the bill is for, so "November's electricity" can be found.
 import type { Currency } from "@/lib/catalogue/types";
 import type { CategoryKey } from "./categories";
+import { guessCategory } from "./categorise";
 import { dayLabel, minorMoney, ordinal } from "./format";
 import { AMOUNT_NOT_KNOWN } from "./gaps";
 import { normalise } from "./name-key";
@@ -74,15 +75,19 @@ export const periodOverlaps = (period: Period, month: string): boolean => {
 };
 
 /**
- * Every stored bill whose period overlaps `month`, confirmed or waiting, past or future, optionally narrowed by name (each word of
- * `text` must be in the biller's name, the same normaliser as the spending search). Information only: it moves no money and the
+ * Every stored bill whose period overlaps `month`, confirmed or waiting, past or future. Each search term matches the
+ * normalized biller name or a category the keyword table identifies. Information only: it moves no money and the
  * forecast never reads it. A bill whose amount is not known is listed as such and never summed (D55).
  */
 export function billsForMonth(bills: readonly PeriodBill[], month: string, text = ""): BillsForMonth {
   const q = normalise(text);
-  const terms = q.split(/\s+/).filter(Boolean);
+  const terms = q.split(/\s+/).filter(Boolean).map(term => ({ term, ...guessCategory(term) }));
   const items = bills
-    .filter(bill => periodOverlaps({ start: bill.periodStart, end: bill.periodEnd }, month) && terms.every(term => normalise(bill.biller).includes(term)))
+    .filter(bill => {
+      if (!periodOverlaps({ start: bill.periodStart, end: bill.periodEnd }, month)) return false;
+      const biller = normalise(bill.biller);
+      return terms.every(({ term, category, sure }) => biller.includes(term) || (sure && bill.category === category));
+    })
     .map((bill): PeriodItem => ({ ...bill, periodLabel: periodLabel({ start: bill.periodStart, end: bill.periodEnd }) }))
     .sort((a, b) => (a.due ?? "9999") < (b.due ?? "9999") ? -1 : (a.due ?? "9999") > (b.due ?? "9999") ? 1 : a.biller < b.biller ? -1 : a.biller > b.biller ? 1 : a.id < b.id ? -1 : 1);
   const totals: BillsForMonth["totals"] = [];
