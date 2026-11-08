@@ -339,7 +339,7 @@ repeat_unknown) run on every reading and show on its card and in its To check ro
 reject marks the reading `rejected` (`reading_rejected`); a confirm writes a `bills` row (or `charges` for a card email, through the statement-charge
 lock), with a null amount or date when the user says it is not known yet (D55), links a one-off to its amount-varies series (`linkToSeries`, D54),
 upserts the `rules` row when the name, category, work share or card was changed, and with the ticked box "Also tell the assistant: …" saves the
-correction as a memory item too. `readings.extracted` gets `confirmed` and the saved row’s id as `targetId`. The transaction refreshes suggestions after the save. **A file attached in Ask (D61).**
+correction as a memory item too. The To check card keeps answers by reading id. It fills Repeats and the date or checks the selected unknown fields in the shared `ReadingForm`, and posts the answered check kinds. To check accepts a confirmed form with unanswered checks. `readings.extracted` gets `confirmed` and the saved row’s id as `targetId`. The transaction refreshes suggestions after the save. **A file attached in Ask (D61).**
 "Attach a bill" (one or several files, each posted on its own, one after another, each its own turn and card) posts the file to `/api/ask/document`, which stores it as a document of kind `upload` (the same file is one document), saves a
 `document` turn (question "Here's my bill" or what was typed, reply "Got your file. Nothing is added until you confirm.", `documentId`) and schedules
 the read after the response. The page draws `DocumentCard` under the turn and asks `GET /api/ask/document?id=` every 2 seconds while the tab is

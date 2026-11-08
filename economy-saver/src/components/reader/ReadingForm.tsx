@@ -31,8 +31,8 @@ function LinkLine({ link, today, homeCurrency }: { link: LinkPreview | null; tod
 
 /**
  * The review form of one reading, shared by To check (through ReaderReview) and Ask (through DocumentCard): posts to /api/confirm.
- * It takes narrow, serializable props so a client component can render it. `checks` is the slot for To check's check lines, `hidden`
- * the slot for Ask's extra hidden inputs; `preset` carries what the person already answered in Ask; `focus` puts the cursor in the
+ * It takes serializable props. `checks` displays To check’s choice lines, `hidden` carries the flow’s extra form inputs and
+ * `preset` carries the person’s answers. `focus` puts the cursor in the
  * amount or the date when the form opens.
  */
 export function ReadingForm({ reading, today, homeCurrency, cards, checks, hidden, preset, focus, onDone }: {
@@ -44,7 +44,12 @@ export function ReadingForm({ reading, today, homeCurrency, cards, checks, hidde
   onDone?: () => void;
 }) {
   const { id, value, link } = reading;
-  const [repeat, setRepeat] = useState<Repeat | null>(preset?.repeat ?? null);
+  const repeatPreset = preset?.repeat;
+  const suggestedRepeat = repeatPreset ?? value.repeat ?? "";
+  const [schedule, setSchedule] = useState({ preset: repeatPreset, chosen: suggestedRepeat });
+  const repeat = schedule.preset === repeatPreset ? schedule.chosen : suggestedRepeat;
+  // Apply a new check answer without resetting other fields, including the rest of the schedule.
+  if (schedule.preset !== repeatPreset) setSchedule({ preset: repeatPreset, chosen: suggestedRepeat });
   const fields = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (focus) fields.current?.querySelector<HTMLElement>(focus === "amount" ? "input[name=amount]" : "input[name=date]")?.focus();
@@ -66,7 +71,7 @@ export function ReadingForm({ reading, today, homeCurrency, cards, checks, hidde
         <label className="ui-field">Last day<input name="periodEnd" type="date" defaultValue={value.periodEnd ?? ""} /></label>
         <small className="ui-hint add-entry-hint">What the bill is for, like “11月分”. Information only: the forecast counts it on the due date.</small>
       </details>}
-      {preset?.repeat !== undefined ? <ScheduleFields id={`reading-${id}`} today={today} chosen={repeat} onChoose={setRepeat} /> : <ScheduleFields id={`reading-${id}`} today={today} />}
+      <ScheduleFields id={`reading-${id}`} today={today} chosen={repeat} onChoose={chosen => setSchedule({ preset: repeatPreset, chosen })} />
       <CategoryFields name={value.name ?? ""} defaultCategory={value.category} defaultBp={value.businessBp ?? 0} />
       <label className="ui-field">Card for a charge<select name="cardId" defaultValue={value.cardId ?? ""}><option value="">Choose card</option>{cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
     </div>

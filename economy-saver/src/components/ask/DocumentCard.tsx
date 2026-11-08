@@ -3,15 +3,14 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { Currency } from "@/lib/catalogue/types";
-import type { Check, CheckChoice, CheckKind } from "@/lib/money/checks";
+import type { Check, CheckChoice } from "@/lib/money/checks";
 import { DOCUMENT_WORDS, needsForm as readingNeedsForm, type DocumentCard as Card, type DocumentCardItem } from "@/lib/reader/document-card";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { SessionEnded } from "./SessionEnded";
-import type { Repeat } from "@/components/household/ScheduleFields";
+import { answerCheck, type CheckAnswers } from "@/components/reader/check-answers";
 import { majorText, ReadingForm } from "@/components/reader/ReadingForm";
 
 export type CardForm = { today: string; homeCurrency: Currency; cards: { id: string; label: string }[] };
-type Answers = { kinds: CheckKind[]; repeat?: Repeat; date?: string; amountUnknown?: boolean; dueUnknown?: boolean };
 
 const POLL_MS = 2000, GIVE_UP_MS = 60_000;
 
@@ -72,7 +71,7 @@ export function DocumentCard({ documentId, initial, form, onCard, onCanvas }: {
 }
 
 function Item({ item, form, onDone }: { item: DocumentCardItem; form: CardForm; onDone: () => void }) {
-  const [answers, setAnswers] = useState<Answers>({ kinds: [] });
+  const [answers, setAnswers] = useState<CheckAnswers>({ kinds: [] });
   const [editing, setEditing] = useState<{ focus?: "amount" | "date" } | null>(null);
   const { value } = item;
   if (item.status !== "to_check") return <>
@@ -83,13 +82,7 @@ function Item({ item, form, onDone }: { item: DocumentCardItem; form: CardForm; 
   const next = item.checks.find(check => !answers.kinds.includes(check.kind));
   const answer = (check: Check, choice: CheckChoice) => {
     const step = choice.step;
-    setAnswers(current => {
-      const kinds = current.kinds.includes(check.kind) ? current.kinds : [...current.kinds, check.kind];
-      if (step.do === "repeat") return { ...current, kinds, repeat: step.repeat ?? "" };
-      if (step.do === "date") return { ...current, kinds, date: step.date };
-      if (step.do === "unknown") return { ...current, kinds, amountUnknown: current.amountUnknown || step.fields.includes("amount"), dueUnknown: current.dueUnknown || step.fields.includes("date") };
-      return { ...current, kinds };
-    });
+    setAnswers(current => answerCheck(current, check.kind, choice));
     if (step.do === "edit") setEditing({ focus: step.field });
   };
   const hidden = <>
@@ -123,7 +116,7 @@ function Choices({ check, onChoose }: { check: Check; onChoose: (check: Check, c
     : <button key={choice.label} type="button" className="ui-button" onClick={() => onChoose(check, choice)}>{choice.label}</button>)}</div>;
 }
 
-function ConfirmRow({ item, answers, hidden, onEdit, onDone }: { item: DocumentCardItem; answers: Answers; hidden: React.ReactNode; onEdit: () => void; onDone: () => void }) {
+function ConfirmRow({ item, answers, hidden, onEdit, onDone }: { item: DocumentCardItem; answers: CheckAnswers; hidden: React.ReactNode; onEdit: () => void; onDone: () => void }) {
   const { value } = item;
   const bp = value.businessBp ?? 0;
   const share = bp <= 0 ? "personal" : bp >= 10000 ? "business" : "mixed";

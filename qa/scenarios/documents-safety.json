@@ -1547,12 +1547,16 @@
     "steps": [
       "Upload it",
       "Read \"Does Kawa Gym come again?\"",
-      "Tap Every month"
+      "Edit the amount and tap Every month",
+      "Check the form, then tap Confirm reading",
+      "On a separate new gym reading, tap Not sure"
     ],
     "expected": [
       "Choices: Just this once / Every month / Every year / Not sure",
-      "A choice shows a hint pointing at Repeats (\"Choose Every month under Repeats\") and the Repeats field is filled as chosen",
-      "Not sure keeps the bill one-off"
+      "The Repeats field changes immediately to Every month, the answered check closes, and a hint confirms the choice",
+      "The edited amount and the other reading’s fields retain their values",
+      "The choice only updates the form. Confirm reading saves the bill",
+      "Not sure on a separate reading leaves it one-off"
     ],
     "refs": [
       "BROWSER-CHECKS AC2",
@@ -1576,11 +1580,12 @@
       "A working model (the server's or the Codex bridge)"
     ],
     "steps": [
-      "Open its card"
+      "Open its card",
+      "Tap Not paid yet, count it today"
     ],
     "expected": [
       "A past-due check line with choices (including count it today) in plain words",
-      "Choosing a date choice shows \"Change the date below to <date>\" and does not change it by itself"
+      "Not paid yet, count it today fills Nov 14 in the date field and closes that check. Confirm reading saves the bill"
     ],
     "refs": [
       "D61",

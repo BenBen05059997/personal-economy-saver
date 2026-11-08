@@ -379,7 +379,7 @@ At 375px and 1440px: nothing scrolls sideways, buttons 44px tall.
 ## AC. Checks in To check (D61)
 
 - AC1. Ben's Hikari Denki row in To check shows no check line, and its card shows none; confirming it still gives ¥30,000 on the 27th.
-- AC2. Needs the AI key: upload a copy of a bill already saved → the card shows "Already saved: …" with "Same one, don't add it" and "A different one, add it". Upload a new gym bill (Kawa Gym) → the card shows "Does Kawa Gym come again?" with Just this once / Every month / Every year / Not sure; the choice fills the Repeats field.
+- AC2. Needs the AI key: upload a copy of a bill already saved → the card shows "Already saved: …" with "Same one, don't add it" and "A different one, add it". Upload a new gym bill (Kawa Gym) → the card shows "Does Kawa Gym come again?" with Just this once / Every month / Every year / Not sure. Every month changes Repeats immediately and shows “Repeats is set to Every month.” Not sure leaves a separate reading one-off. On separate readings, Count it today fills the date, and Not known yet ticks the matching missing-field boxes. Previously edited fields on the same reading and fields on other cards retain their values. Confirm reading is what saves the bill.
 
 At 375px and 1440px: nothing scrolls sideways, buttons 44px tall.
 
