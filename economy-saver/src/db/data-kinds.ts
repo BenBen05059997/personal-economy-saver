@@ -1,14 +1,14 @@
 // D59: the kinds of stored data and the one set of operations on them: count a kind, delete a kind, delete one item.
 // Memory, canvases, the journal and documents are real deletes; the record is refused here ("Delete everything" is the household delete).
 // Every query is scoped by household_id.
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 import { documentBucket } from "@/lib/reader/storage";
 import { ReaderError } from "@/lib/reader/settings";
 import { deleteMemory, forgetEverything } from "./memory";
 import { unpinCanvas } from "./canvases";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
+import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import * as s from "./schema";
 
 export const DATA_KINDS = ["record", "memory", "canvases", "journal", "documents", "reminders", "push_subscriptions"] as const;
@@ -46,6 +46,38 @@ export async function countKinds(db: Db, householdId: string): Promise<Record<Da
   const hid = requireHousehold(householdId);
   const counts = await Promise.all(DATA_KINDS.map(kind => countKind(db, hid, kind)));
   return Object.fromEntries(DATA_KINDS.map((kind, i) => [kind, counts[i]])) as Record<DataKind, number>;
+}
+
+/** Document metadata for Your data, without file paths or reading contents. */
+export async function listDocuments(db: Db, householdId: string) {
+  const hid = requireHousehold(householdId);
+  return withHousehold(db, hid, async tx => {
+    const [docs, readings] = await Promise.all([
+      tx.select({ id: s.documents.id, kind: s.documents.kind, mime: s.documents.mime, bytes: s.documents.bytes,
+        createdAt: s.documents.createdAt, fileRemovedAt: s.documents.fileRemovedAt }).from(s.documents)
+        .where(eq(s.documents.householdId, hid)).orderBy(desc(s.documents.createdAt), asc(s.documents.id)),
+      tx.select({ id: s.readings.id, documentId: s.readings.documentId, status: s.readings.status,
+        confirmedName: sql<string | null>`nullif(btrim(${s.readings.extracted}->'confirmed'->>'name'), '')`,
+        proposedName: sql<string | null>`nullif(btrim(${s.readings.extracted}->'proposed'->>'name'), '')`,
+      }).from(s.readings).where(eq(s.readings.householdId, hid)).orderBy(asc(s.readings.createdAt), asc(s.readings.id)),
+    ]);
+    const details = new Map<string, { confirmedName: string | null; proposedName: string | null; waitingReadingId: string | null }>();
+    for (const row of readings) {
+      const document = details.get(row.documentId) ?? { confirmedName: null, proposedName: null, waitingReadingId: null };
+      document.confirmedName ??= row.confirmedName;
+      document.proposedName ??= row.proposedName;
+      if (row.status === "to_check") document.waitingReadingId ??= row.id;
+      details.set(row.documentId, document);
+    }
+    return docs.map(doc => {
+      const reading = details.get(doc.id);
+      const type = doc.mime === "application/pdf" ? "Uploaded PDF" : doc.mime.startsWith("image/") ? "Uploaded photo" : "Uploaded document";
+      return {
+        id: doc.id, name: doc.kind === "email" ? "Forwarded email" : reading?.confirmedName ?? reading?.proposedName ?? type,
+        bytes: doc.bytes, createdAt: doc.createdAt, fileRemoved: doc.fileRemovedAt !== null, waitingReadingId: reading?.waitingReadingId ?? null,
+      };
+    });
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
 /** Removes the Storage objects of the given document rows (all of this household's), then returns. Throws when Storage refuses. */

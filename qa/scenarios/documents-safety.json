@@ -2220,16 +2220,18 @@
     ],
     "how": "browser",
     "preconditions": [
-      "A full Try it household",
+      "A full Try it household with at least two distinct stored documents, including one with a waiting reading",
       "A working model (the server's or the Codex bridge)"
     ],
     "steps": [
-      "Settings → Your data → delete a document",
-      "Upload again"
+      "Open Settings → Your data → Uploaded documents and check the 20 MB cap and each document's name or file type, date and size",
+      "Open a waiting document's To check link and verify the reading opens. Return to Settings, open that document's Remove, choose Keep, then open Remove again and confirm it",
+      "Retry a refused distinct upload that fits the space freed"
     ],
     "expected": [
-      "The upload now succeeds",
-      "The stored count drops by that document's size"
+      "Keep leaves the document and total as they were",
+      "The selected document and its readings disappear. The other documents and any confirmed bills or charges stay",
+      "The storage total drops by that document's size and the upload succeeds"
     ],
     "refs": [
       "BROWSER-CHECKS J4",

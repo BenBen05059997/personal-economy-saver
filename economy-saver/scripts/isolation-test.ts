@@ -131,7 +131,7 @@ const covered = [
   // 27E document-cleanup.ts: Storage bytes and the removal of old raw files
   "storedBytes", "requireStorageRoom", "removeExpiredFiles",
   // D59 data-kinds.ts and restore.ts
-  "countKind", "countKinds", "deleteKind", "deleteOne", "deleteTurn", "deleteConversation", "deleteDocument", "restoreHousehold",
+  "countKind", "countKinds", "listDocuments", "deleteKind", "deleteOne", "deleteTurn", "deleteConversation", "deleteDocument", "restoreHousehold",
   // D59 place.ts (24B)
   "readPlaces", "requireCloud", "itemsToMove", "moveToDevice", "moveToCloud",
 ];
@@ -769,6 +769,9 @@ async function main() {
         const counts = await F.countKinds(store, X.hid);
         assert.deepEqual([counts.memory, counts.canvases, counts.journal], [1, 1, 1], "X counts its own items, not Y's");
         assert.equal(await F.countKind(store, X.hid, "documents"), 3);
+        const documents = await F.listDocuments(store, X.hid);
+        assert.deepEqual(documents.map(doc => doc.id).sort(), [x.document, x.documentFailed, x.documentRead].sort());
+        assert.deepEqual(leaks(JSON.stringify(documents), needles), []);
         assert.equal(await F.deleteOne(store, X.hid, "memory", y.memory, by), false);
         assert.equal(await F.deleteOne(store, X.hid, "canvases", y.canvas, by), false);
         assert.equal(await F.deleteOne(store, X.hid, "journal", y.turn, by), false);

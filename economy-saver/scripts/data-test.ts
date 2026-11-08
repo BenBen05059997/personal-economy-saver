@@ -11,7 +11,8 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { listCanvases, pinCanvas } from "@/db/canvases";
 import { allTurns, saveTurn } from "@/db/conversation";
-import { DATA_KINDS, countKind, countKinds, deleteConversation, deleteDocument, deleteKind, deleteOne, deleteTurn, type DocumentStore } from "@/db/data-kinds";
+import { DATA_KINDS, countKind, countKinds, deleteConversation, deleteDocument, deleteKind, deleteOne, deleteTurn, listDocuments, type DocumentStore } from "@/db/data-kinds";
+import { storedBytes } from "@/db/document-cleanup";
 import { InputError } from "@/db/input-error";
 import { addMemory, listMemory } from "@/db/memory";
 import { DEVICE_MEMORY_WORDS, itemsToMove, moveToCloud, moveToDevice, readPlaces, requireCloud } from "@/db/place";
@@ -67,7 +68,7 @@ async function main() {
     await saveTurn(db, b, turnB);
     const doc = async (hid: string, withReading = true) => {
       const id = randomUUID();
-      await db.insert(schema.documents).values({ id, householdId: hid, kind: "upload", storagePath: `${hid}/${id}`, mime: "application/pdf", status: "read" });
+      await db.insert(schema.documents).values({ id, householdId: hid, kind: "upload", storagePath: `${hid}/${id}`, mime: "application/pdf", status: "read", bytes: 1024 });
       if (withReading) await db.insert(schema.readings).values({ householdId: hid, documentId: id, extracted: { original: {}, proposed: {} }, target: "bill" });
       return id;
     };
@@ -101,6 +102,37 @@ async function main() {
       const other = await countKinds(db, b);
       assert.deepEqual([other.memory, other.canvases, other.journal, other.documents, other.reminders, other.push_subscriptions], [1, 1, 1, 1, 1, 1]);
       await assert.rejects(countKinds(db, ""), /household id is required/);
+    });
+
+    await check("listDocuments returns only the household's display metadata, with deterministic reading names and To check links", async () => {
+      const h = await seedBen(db, { isDemo: true });
+      const at = (day: number) => new Date(Date.UTC(2026, 10, day));
+      const upload = randomUUID(), email = randomUUID(), unread = randomUUID(), proposed = randomUUID();
+      const reference = (id: string) => ({ id, householdId: h, storagePath: `${h}/${id}` });
+      await db.insert(schema.documents).values([
+        { ...reference(upload), kind: "upload", mime: "application/pdf", status: "read", bytes: 2000, createdAt: at(1) },
+        { ...reference(email), kind: "email", mime: "message/rfc822", status: "read", bytes: 400, createdAt: at(2) },
+        { ...reference(unread), kind: "upload", mime: "image/png", status: "queued", bytes: 700, createdAt: at(3) },
+        { ...reference(proposed), kind: "upload", mime: "application/pdf", status: "read", bytes: 500, createdAt: at(4), fileRemovedAt: at(14) },
+      ]);
+      const waiting = randomUUID(), later = randomUUID(), emailReading = randomUUID();
+      await db.insert(schema.readings).values([
+        { id: waiting, householdId: h, documentId: upload, target: "bill", extracted: { proposed: { name: "First proposed" } }, createdAt: at(2) },
+        { id: later, householdId: h, documentId: upload, target: "bill", extracted: { proposed: { name: "Later proposed" } }, createdAt: at(3) },
+        { householdId: h, documentId: upload, target: "bill", status: "confirmed", extracted: { confirmed: { name: "  Fictional Water  " } }, createdAt: at(4) },
+        { householdId: h, documentId: upload, target: "bill", status: "confirmed", extracted: { confirmed: { name: "Later confirmed" } }, createdAt: at(5) },
+        { id: emailReading, householdId: h, documentId: email, target: "bill", extracted: { proposed: { name: "Private reading name" } }, createdAt: at(3) },
+        { householdId: h, documentId: proposed, target: "bill", status: "rejected", extracted: { proposed: { name: "Fictional Gas" } }, createdAt: at(6) },
+      ]);
+      assert.deepEqual(await listDocuments(db, h), [
+        { id: proposed, name: "Fictional Gas", bytes: 500, createdAt: at(4), fileRemoved: true, waitingReadingId: null },
+        { id: unread, name: "Uploaded photo", bytes: 700, createdAt: at(3), fileRemoved: false, waitingReadingId: null },
+        { id: email, name: "Forwarded email", bytes: 400, createdAt: at(2), fileRemoved: false, waitingReadingId: emailReading },
+        { id: upload, name: "Fictional Water", bytes: 2000, createdAt: at(1), fileRemoved: false, waitingReadingId: waiting },
+      ]);
+      assert.deepEqual((await listDocuments(db, b)).map(row => row.id), [docB]);
+      assert.equal(await storedBytes(db, h), 3100, "the expired raw file is excluded from the total");
+      await assert.rejects(listDocuments(db, ""), /household id is required/);
     });
 
     await check("reminders and push subscriptions are private, excluded from export, and removable one at a time or as a kind", async () => {
@@ -152,13 +184,16 @@ async function main() {
       assert.deepEqual((await allTurns(db, a)).map(t => t.question), ["Second?"]);
     });
 
-    await check("delete one document removes its Storage object and its reading, keeps the confirmed bill and charge (link cleared), and refuses another household's", async () => {
+    await check("delete one document removes its Storage object and reading, lowers stored bytes, keeps confirmed entries and refuses another household's", async () => {
       removed.length = 0;
-      assert.equal(await deleteDocument(db, a, docB, form, store), false, "B's document");
+      const bytesBefore = await storedBytes(db, a);
+      assert.equal(await deleteOne(db, a, "documents", docB, form, store), false, "B's document");
       assert.deepEqual(removed, []);
-      assert.equal(await deleteDocument(db, a, docs[0], form, store), true);
+      assert.equal(await deleteOne(db, a, "documents", docs[0], form, store), true);
       assert.deepEqual(removed, [`${a}/${docs[0]}`]);
       assert.equal(await deleteDocument(db, a, docs[0], form, store), false, "again");
+      assert.deepEqual((await listDocuments(db, a)).map(row => row.id), [docs[1]]);
+      assert.equal(await storedBytes(db, a), bytesBefore - 1024);
       assert.equal(await rowCount(schema.documents, a), 1);
       assert.equal((await db.select().from(schema.readings).where(and(eq(schema.readings.householdId, a), eq(schema.readings.documentId, docs[0])))).length, 0, "its reading went");
       const [bill] = await db.select().from(schema.bills).where(eq(schema.bills.id, keptBill.id));

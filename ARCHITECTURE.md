@@ -419,6 +419,8 @@ observeRunway runs before and after, so a change from short to fine or back is r
 
 The five D59 kinds are record, memory, canvases, journal and documents. `DATA_KINDS` in `src/db/data-kinds.ts` also includes reminder history and push subscriptions for counts and deletion in Your data (D65).
 
+Under Uploaded documents, `listDocuments` returns each household document's date, size and first waiting reading, newest documents first. Uploads use the first confirmed reading name, then the first proposed name, then a file-type label. The app does not store original filenames. Forwarded emails use a fixed label. The individual Remove posts `delete_one` to `/api/data`, and `storedBytes` shows the current total against the household's 20 MB Try it or 200 MB signed-in cap. A row whose raw file aged out shows that the file was removed and contributes no bytes to the total.
+
 | Kind of data | Where it is stored | What scopes it | Who can read it | How it leaves |
 |---|---|---|---|---|
 | The household row: name, time zone, currency, bank balance, demo flag and fixed date, forwarding local part, daily run date, `split_since`, the three places, the `ai_*` connection columns | `households` | its id | the signed-in members and a Try it cookie; the family link viewer sees the sentence; the export carries name, currency, time zone, balance and today | Delete everything (`/account` → `/api/household`), Reset, the demo sweep; Import keeps the household's own name, zone, currency and rate |
