@@ -38,7 +38,8 @@ async function main() {
     });
     const legacy = crypto.randomUUID(), legacyOff = crypto.randomUUID();
     await pg.query("insert into households (id, name, home_currency, nudge_after_days) values ($1, 'Fictional 60', 'JPY', 60), ($2, 'Fictional off', 'USD', null)", [legacy, legacyOff]);
-    await pg.query("insert into rules (household_id, match_biller, patch) values ($1, 'bill:kumo water', '{}'::jsonb)", [legacy]);
+    await pg.query("insert into rules (household_id, match_biller, patch) values ($1, 'bill:kumo water', $2::jsonb)", [legacy, JSON.stringify({ category: "utilities" })]);
+    const correctionsBefore = (await pg.query("select * from rules where household_id = $1", [legacy])).rows;
     const migration = steps[28];
     await pg.transaction(async tx => { for (const sql of migration.sql) await tx.exec(sql); });
 
@@ -48,7 +49,11 @@ async function main() {
       assert.deepEqual(await rulesFor(db, legacy), {
         ...defaultRules(), nudge_after: { enabled: true, threshold: 60, currency: null },
       });
-      assert.equal((await db.select().from(schema.rules).where(eq(schema.rules.householdId, legacy))).length, 7);
+      for (const hid of [legacy, legacyOff]) {
+        assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, 6);
+      }
+      assert.deepEqual((await pg.query("select * from rules where household_id = $1", [legacy])).rows, correctionsBefore,
+        "the original reader correction row and its table shape are preserved");
       await pg.query("update households set nudge_after_days = 2 where id = $1", [legacy]);
       assert.equal((await rulesFor(db, legacy)).nudge_after.threshold, 60, "the legacy column is no longer read");
     });

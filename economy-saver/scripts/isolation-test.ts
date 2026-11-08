@@ -277,7 +277,7 @@ async function main() {
       // 27E: ip_buckets (hashed client address) and ai_global_usage (one row a day) exist before and outside any household, and hold no household data.
       assert.deepEqual(everyTable.filter(t => !scoped.includes(t)), ["ai_global_usage", "households", "ip_buckets"]);
       for (const table of ["bills", "charges", "pots", "members", "clients", "invoices", "documents", "readings", "cards", "card_statements", "settlements",
-        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules", "suggestions", "reminder_settings", "push_subscriptions", "reminders", "invites"]) {
+        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules", "standing_rules", "suggestions", "reminder_settings", "push_subscriptions", "reminders", "invites"]) {
         assert.ok(scoped.includes(table), table);
       }
     });
@@ -377,7 +377,7 @@ async function main() {
           if (["rules", "fx_rates"].includes(table)) continue;
           assert.ok(fp[table].length > 0, `${t.name} has no ${table}`);
         }
-        assert.ok(fp.rules.length === 7 && fp.fx_rates.length === 1 && fp.vault.length === 1);
+        assert.deepEqual([fp.rules.length, fp.standing_rules.length, fp.fx_rates.length, fp.vault.length], [1, 6, 1, 1]);
       }
       const [a, b] = [await needlesOf(A), await needlesOf(B)];
       assert.ok(a.strings.length > 100 && b.strings.length > 100);
@@ -867,7 +867,8 @@ async function main() {
       const hid = randomUUID();
       await db.insert(schema.households).values({ id: hid, name: "Fictional rule fixture", homeCurrency: "USD" });
       await F.seedRules(store, hid);
-      assert.equal((await db.select().from(schema.rules).where(eq(schema.rules.householdId, hid))).length, 6);
+      assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, 6);
+      assert.equal((await db.select().from(schema.rules).where(eq(schema.rules.householdId, hid))).length, 0, "seeding standing rules writes no reader corrections");
       assert.equal((await fingerprint(A.hid)).text, beforeA.text);
       assert.equal((await fingerprint(B.hid)).text, beforeB.text);
       await F.deleteHousehold(store, hid);

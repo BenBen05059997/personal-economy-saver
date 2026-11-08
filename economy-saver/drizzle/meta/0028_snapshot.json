@@ -1,5 +1,5 @@
 {
-  "id": "439cdfc1-c35e-456f-8c41-cf37f06a1e22",
+  "id": "6b74d80b-b6a8-4e55-8758-7f635859bdc5",
   "prevId": "bedce64d-b56d-4ec4-a5dd-dfbe2be485e4",
   "version": "7",
   "dialect": "postgresql",
@@ -2275,6 +2275,157 @@
       },
       "isRLSEnabled": true
     },
+    "public.invites": {
+      "name": "invites",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "member_id": {
+          "name": "member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_member_id": {
+          "name": "created_by_member_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accepted_at": {
+          "name": "accepted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "invites_household_member_idx": {
+          "name": "invites_household_member_idx",
+          "columns": [
+            {
+              "expression": "household_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "member_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "invites_household_id_households_id_fk": {
+          "name": "invites_household_id_households_id_fk",
+          "tableFrom": "invites",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "invites_member_household_fk": {
+          "name": "invites_member_household_fk",
+          "tableFrom": "invites",
+          "tableTo": "members",
+          "columnsFrom": [
+            "household_id",
+            "member_id"
+          ],
+          "columnsTo": [
+            "household_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "invites_creator_household_fk": {
+          "name": "invites_creator_household_fk",
+          "tableFrom": "invites",
+          "tableTo": "members",
+          "columnsFrom": [
+            "household_id",
+            "created_by_member_id"
+          ],
+          "columnsTo": [
+            "household_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "invites_token_hash_unique": {
+          "name": "invites_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        },
+        "invites_household_id_uq": {
+          "name": "invites_household_id_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "household_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
     "public.invoices": {
       "name": "invoices",
       "schema": "",
@@ -3405,6 +3556,24 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email_ran_on": {
+          "name": "email_ran_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "push_ran_on": {
+          "name": "push_ran_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -3680,30 +3849,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "enabled": {
-          "name": "enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "threshold": {
-          "name": "threshold",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "currency": {
-          "name": "currency",
-          "type": "char(3)",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -3746,22 +3891,6 @@
           "columns": [
             "household_id",
             "match_biller"
-          ]
-        },
-        "rules_household_id_uq": {
-          "name": "rules_household_id_uq",
-          "nullsNotDistinct": false,
-          "columns": [
-            "household_id",
-            "id"
-          ]
-        },
-        "rules_household_kind_uq": {
-          "name": "rules_household_kind_uq",
-          "nullsNotDistinct": false,
-          "columns": [
-            "household_id",
-            "kind"
           ]
         }
       },
@@ -3910,6 +4039,106 @@
         "settlements_different_members": {
           "name": "settlements_different_members",
           "value": "\"settlements\".\"from_member_id\" <> \"settlements\".\"to_member_id\""
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.standing_rules": {
+      "name": "standing_rules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "household_id": {
+          "name": "household_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "threshold": {
+          "name": "threshold",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "standing_rules_household_id_households_id_fk": {
+          "name": "standing_rules_household_id_households_id_fk",
+          "tableFrom": "standing_rules",
+          "tableTo": "households",
+          "columnsFrom": [
+            "household_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "standing_rules_household_id_uq": {
+          "name": "standing_rules_household_id_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "household_id",
+            "id"
+          ]
+        },
+        "standing_rules_household_kind_uq": {
+          "name": "standing_rules_household_kind_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "household_id",
+            "kind"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "standing_rules_kind_valid": {
+          "name": "standing_rules_kind_valid",
+          "value": "\"standing_rules\".\"kind\" in ('nudge_after', 'statement_ahead', 'bill_ahead', 'cost_up', 'safe_below', 'goal_behind')"
         }
       },
       "isRLSEnabled": true

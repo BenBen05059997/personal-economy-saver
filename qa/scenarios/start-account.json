@@ -1269,7 +1269,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "Fresh Try it household (Ben) at 375px and 1440px"
     ],
     "steps": [

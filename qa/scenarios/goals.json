@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -39,7 +39,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -66,7 +66,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -95,7 +95,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026"
     ],
@@ -124,7 +124,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026"
     ],
@@ -152,7 +152,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026"
     ],
@@ -180,7 +180,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
       "A goal canvas is visible from AJ4"
@@ -208,7 +208,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
       "A goal canvas is visible from AJ4"
@@ -236,7 +236,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
       "Home already has the goal pin from AJ5"
@@ -266,7 +266,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -294,7 +294,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],

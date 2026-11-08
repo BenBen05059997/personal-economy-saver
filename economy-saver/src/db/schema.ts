@@ -470,22 +470,31 @@ export const readings = pgTable(
     foreignKey({ columns: [t.householdId, t.documentId], foreignColumns: [documents.householdId, documents.id], name: "readings_document_household_fk" }).onDelete("cascade")],
 ).enableRLS();
 
-// Reader corrections retain their original biller key and patch. Standing rules use the reserved standing: namespace.
-export const rules = pgTable("rules", {
+export const rules = pgTable(
+  "rules",
+  {
+    id: id(),
+    householdId: householdId(),
+    matchBiller: text("match_biller").notNull(),
+    patch: jsonb("patch").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("rules_household_idx").on(t.householdId), unique("rules_household_biller_uq").on(t.householdId, t.matchBiller)],
+).enableRLS();
+
+export const standingRules = pgTable("standing_rules", {
   id: id(),
   householdId: householdId(),
-  matchBiller: text("match_biller").notNull(),
-  patch: jsonb("patch").notNull(),
-  createdAt: createdAt(),
-  kind: text("kind", { enum: RULE_KINDS }),
-  enabled: boolean("enabled"),
+  kind: text("kind", { enum: RULE_KINDS }).notNull(),
+  enabled: boolean("enabled").notNull(),
   threshold: minor("threshold"),
   currency: char("currency", { length: 3 }),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  index("rules_household_idx").on(t.householdId),
-  unique("rules_household_biller_uq").on(t.householdId, t.matchBiller),
-  unique("rules_household_id_uq").on(t.householdId, t.id),
-  unique("rules_household_kind_uq").on(t.householdId, t.kind),
+  unique("standing_rules_household_id_uq").on(t.householdId, t.id),
+  unique("standing_rules_household_kind_uq").on(t.householdId, t.kind),
+  check("standing_rules_kind_valid", sql`${t.kind} in ('nudge_after', 'statement_ahead', 'bill_ahead', 'cost_up', 'safe_below', 'goal_behind')`),
 ]).enableRLS();
 
 export const suggestions = pgTable("suggestions", {

@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -39,7 +39,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -65,7 +65,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -92,7 +92,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -121,7 +121,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -147,7 +147,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -173,7 +173,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -200,7 +200,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -226,7 +226,7 @@
     ],
     "how": "http",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "Verified test identities or a fake Auth transport"
     ],
     "steps": [
@@ -252,7 +252,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -278,7 +278,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -306,7 +306,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -333,7 +333,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0030 and fictional household records",
+      "Isolated test setup with migration 0028 and fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [

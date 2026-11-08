@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -41,7 +41,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -71,7 +71,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -100,7 +100,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -128,7 +128,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -156,7 +156,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -185,7 +185,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "The model is configured"
@@ -215,17 +215,18 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "375px and 1440px widths",
-      "The household had a 45-day nudge setting before migration 0028"
+      "The household had a 45-day nudge setting and a saved reader correction before migration 0028"
     ],
     "steps": [
-      "Check Rules for the 45-day threshold",
+      "Check Rules for the 45-day threshold and reread a bill from the same biller",
       "Clear On and save with the Days editor blank",
       "Attempt to turn it on with Days blank and at 45, then use 30"
     ],
     "expected": [
       "45 days stays visible in the sentence and the blank editor explains the current limit",
+      "The reader still applies the saved biller correction",
       "The old value can be turned off as-is. Turning it on requires a valid new number and 30 saves."
     ],
     "refs": [
@@ -245,7 +246,7 @@
     ],
     "how": "http",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029"
+      "Separate test app with migration 0028"
     ],
     "steps": [
       "POST /api/rules without a household session",
@@ -272,7 +273,7 @@
     ],
     "how": "http",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "A household session with a fresh rate-limit window"
     ],
     "steps": [

@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -42,7 +42,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -71,7 +71,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Signed-in fictional household with a verified address and configured simulated email"
     ],
@@ -100,7 +100,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Signed-in fictional household with a verified address and configured simulated email",
       "Email reminders is on"
@@ -129,7 +129,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Signed-in fictional household with a verified address and configured simulated email"
     ],
@@ -158,7 +158,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery"
@@ -189,7 +189,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery",
@@ -220,7 +220,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery",
@@ -249,7 +249,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery",
@@ -279,7 +279,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery"
@@ -309,7 +309,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A browser without Push API support"
@@ -338,7 +338,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "One simulated delivery row in the household"
@@ -366,7 +366,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery",
@@ -397,7 +397,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "Separate test app with migration 0028 and simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "RESEND_API_KEY and WEB_PUSH_PUBLIC_KEY are absent"

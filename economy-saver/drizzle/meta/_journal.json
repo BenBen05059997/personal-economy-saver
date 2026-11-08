@@ -201,22 +201,8 @@
     {
       "idx": 28,
       "version": "7",
-      "when": 1794135165609,
-      "tag": "0028_assistant_pass",
-      "breakpoints": true
-    },
-    {
-      "idx": 29,
-      "version": "7",
-      "when": 1794136901533,
-      "tag": "0029_reminder_delivery",
-      "breakpoints": true
-    },
-    {
-      "idx": 30,
-      "version": "7",
-      "when": 1794138555470,
-      "tag": "0030_member_invites",
+      "when": 1794140226528,
+      "tag": "0028_standing_rules_and_assistant",
       "breakpoints": true
     }
   ]

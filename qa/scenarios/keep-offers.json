@@ -125,7 +125,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migrations 0028 and 0029",
+      "Separate test app with migration 0028",
       "Fresh Ben Try it with a configured model",
       "375px and 1440px widths"
     ],

@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14"
     ],
@@ -40,7 +40,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "Regular cost increase is on at 25%",
@@ -70,7 +70,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "Regular cost increase is on at 25%",
@@ -100,7 +100,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "A pending ¥2,500 Kumo Water bill due Nov 17, with no pass run since it was drafted"
@@ -130,7 +130,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "Regular cost increase is on at 25%",
@@ -162,7 +162,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "Bank balance ¥107,000 and Minimum safe to spend on at ¥15,000",
@@ -193,7 +193,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "Bank balance ¥107,000 and Minimum safe to spend on at ¥15,000",
@@ -224,7 +224,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "Regular cost increase is on at 20%",
@@ -286,7 +286,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Ben Nov 23 fixture with the late-client finding for Acme Corp invoice 1042",
       "The invoice has no linked PayPal ID"
@@ -317,7 +317,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "A confirmed ¥2,500 Kumo Water bill with unknown due date"
@@ -347,7 +347,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migrations 0028 and 0029",
+      "Separate setup with migration 0028",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "Regular cost increase is on at 25%",

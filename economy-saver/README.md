@@ -128,7 +128,7 @@ src/db/                     schema, household-scoped queries, seeds, rate limits
 src/lib/                    money (the engine), agent, ai, canvas, schema, paypal, mcp, reader, catalogue
 schema/                     the committed JSON Schemas (npm run schema)
 scripts/                    isolated tests and explicit owner-operated checks
-drizzle/                    ordered schema migrations, thirty-one files (0000–0030)
+drizzle/                    ordered schema migrations, twenty-nine files (0000–0028)
 worker.ts                   Cloudflare Worker entry: the app, the hourly Cron Trigger and the Email Worker handler
 samples/bills/              fictional sample bills for the reader
 ```

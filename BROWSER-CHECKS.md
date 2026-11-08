@@ -457,7 +457,7 @@ Use a fresh Nov 14 Try it household with a configured model. Run at 375px and 14
 
 ## AI. Reminders (D65, 29B)
 
-Use a separate test setup after migrations 0028 and 0029. Check at 375px and 1440px with simulated delivery. Ben’s fresh Try it on Nov 14 still shows ¥18,780 short on Nov 27 and has no scheduled digest. The automated db:notify-test covers scheduling and transports without calling the development cron route.
+Use a separate test setup after migration 0028. Check at 375px and 1440px with simulated delivery. Ben’s fresh Try it on Nov 14 still shows ¥18,780 short on Nov 27 and has no scheduled digest. The automated db:notify-test covers scheduling and transports without calling the development cron route.
 
 - AI1. In fresh Try it open Settings → Reminders. Reminder hour (Asia/Tokyo) starts at 08:00 and Quiet days starts clear. Change the hour to 10:00, select Saturday and Sunday, then Save reminder settings. Expect "Reminder settings saved." After reload the hour and both days remain.
 - AI2. With simulated email configured, Try it shows "Off. Sign in with a verified email to use email reminders." In a signed-in test fixture with a verified fictional address, check Email reminders and save. After reload it is on and reads "Sent to your sign-in email." Clear the checkbox and save, then reload to confirm it is off.
@@ -473,7 +473,7 @@ Use a separate test setup after migrations 0028 and 0029. Check at 375px and 144
 
 ## AJ. Goal pace (D66, 29C)
 
-Check at 375px and 1440px in a separate setup with migrations 0028 and 0029. Use separate Try it copies for the empty, newly saved and existing goal checks. For AJ3–AJ6 use Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved, and a target of ¥120,000 by Dec 14, 2026. Ask requires a configured model.
+Check at 375px and 1440px in a separate setup with migration 0028. Use separate Try it copies for the empty, newly saved and existing goal checks. For AJ3–AJ6 use Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved, and a target of ¥120,000 by Dec 14, 2026. Ask requires a configured model.
 
 - AJ1. Open Memory and select Goals. The Memory, Goals and Rules links fit the screen, Goals is selected, and “No goals yet. Give a pot a target amount and date in Plan.” appears. Open Plan goes to `/plan`.
 - AJ2. On fresh Try it, add a Camera pot in Plan with ¥0 saved and a ¥120,000 target by Dec 14, 2026. Plan and Goals show “By today: ¥0. On pace. A date at this pace is not available yet.” Goals gives ¥120,000 a month. A pot without a target date stays on Plan.
@@ -485,7 +485,7 @@ Check at 375px and 1440px in a separate setup with migrations 0028 and 0029. Use
 
 ## AK. Standing rules (D66, D67, 29D)
 
-Use a separate setup with migrations 0028 and 0029 at 375px and 1440px. Open Memory → Rules. The heading says "Rules make suggestions and reminders. PayPal actions still need your approval." Each rule has an On checkbox and its own Save rule button, at least 44px tall at phone width. A saved change is used on the next suggestion pass. Use a configured model for the Ask checks.
+Use a separate setup with migration 0028 at 375px and 1440px. Open Memory → Rules. The heading says "Rules make suggestions and reminders. PayPal actions still need your approval." Each rule has an On checkbox and its own Save rule button, at least 44px tall at phone width. A saved change is used on the next suggestion pass. Use a configured model for the Ask checks.
 
 - AK1. In fresh Ben Try it, Late-client nudge, Upcoming card statement and Upcoming bill are on at 3 days. Goal behind pace is on. Regular cost increase and Minimum safe to spend are off. Settings → Assistant rules → Open Rules opens this tab.
 - AK2. Change Days in Upcoming card statement to 7, tap Save rule and reload. It reads "Flag a card statement up to 7 days ahead". Attempt 0 and 31 days. The previous value stays saved. Activity has one "Rule changed: Flag a card statement up to 7 days ahead" row.
@@ -494,11 +494,11 @@ Use a separate setup with migrations 0028 and 0029 at 375px and 1440px. Open Mem
 - AK5. Check On for Minimum safe to spend, type 50000 and save. Reload shows "Flag safe to spend below ¥50,000". Attempt 100000001 and verify that ¥50,000 stays saved.
 - AK6. Clear On for Goal behind pace, save and reload. It reads "Flag a goal that is behind pace (off)" and has no number field. Turn it back on and confirm Activity shows both changes.
 - AK7. In fresh Try it ask “Keep ¥50,000 safe to spend.” On the rule offer, tap No. The card disappears and Minimum safe to spend stays off. To test Keep, use AH5 in a fresh copy.
-- AK8. Use a fixture whose nudge setting before 0028 was 45 days. Its Late-client nudge sentence still shows 45 days, with the Days editor blank and a hint naming the current limit. Clear On and save without entering a number. Reload shows the 45-day rule off. Re-enabling it with a blank field or with 45 is refused. Re-enable it with 30 and reload to confirm the new value.
+- AK8. Use a fixture whose nudge setting before 0028 was 45 days and which had a saved reader correction. Confirm the correction still applies when rereading the same biller. Its Late-client nudge sentence still shows 45 days, with the Days editor blank and a hint naming the current limit. Clear On and save without entering a number. Reload shows the 45-day rule off. Re-enabling it with a blank field or with 45 is refused. Re-enable it with 30 and reload to confirm the new value.
 
 ## AL. Suggestions after a save (D64, D54, 29F)
 
-Check at 375px and 1440px in a separate setup with migrations 0028 and 0029. Use a fresh disposable fixture for each check. Open Home after the write to see the immediate finding. The scheduled job stays separate.
+Check at 375px and 1440px in a separate setup with migration 0028. Use a fresh disposable fixture for each check. Open Home after the write to see the immediate finding. The scheduled job stays separate.
 
 - AL1. In Ben’s Nov 14 Try it, add a confirmed Kumo Water bill for ¥2,500 due Nov 17 in Utilities. Home immediately shows "Kumo Water due Nov 17" with "¥2,500, covered even if clients pay late." Review bill opens the saved bill.
 - AL2. In a Nov 14 fixture with confirmed Kumo Water bills for ¥2,000 in both October and November and the cost rule at 25%, edit November’s amount to ¥2,600. Saving puts the increase on Home with "¥600 more than last month."
@@ -515,7 +515,7 @@ Check at 375px and 1440px in a separate setup with migrations 0028 and 0029. Use
 
 ## AM. Members and invitations (D68, 30A)
 
-Use the isolated browser test setup after migration 0030. Test the owner and invitee in separate browser profiles at 375px and 1440px. Use fictional household data and owner-controlled test inboxes for the verified magic-link cases.
+Use the isolated browser test setup after migration 0028. Test the owner and invitee in separate browser profiles at 375px and 1440px. Use fictional household data and owner-controlled test inboxes for the verified magic-link cases.
 
 - AM1. On a signed-in owner’s household, open Settings → People. Invite an existing person with no login. The full join URL appears with Copy invite link. Copy it and reload. The pending invitation remains, and the full URL was shown when it was created.
 - AM2. Invite a new person by name. Settings lists them as a person and shows their pending invitation. Cancelling the invite makes its old join URL unavailable.

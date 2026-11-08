@@ -84,10 +84,10 @@ Cloudflare
         └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0030), 33 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0028), 34 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
 │   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns,
-│   ip_buckets, ai_global_usage, ask_receipts, suggestions, reminder_settings, push_subscriptions, reminders, invites
+│   ip_buckets, ai_global_usage, ask_receipts, standing_rules, suggestions, reminder_settings, push_subscriptions, reminders, invites
 ├── Auth: magic-link login (PKCE), with invited member acceptance bound to the verified email
 ├── Vault: households' own model keys, each sealed in the Worker first (`AI_KEY_SEAL_KEY`)
 └── Storage: the private bucket named by `SUPABASE_DOCUMENT_BUCKET` (`household-documents` in the owner's project): receipt photos, PDFs and raw forwarded emails
@@ -381,7 +381,7 @@ confirms the agent's pending bill, charge, balance or pot from To check.
 
 **Goal pace (D66).** Plan and the Goals tab at `/memory?tab=goals` use `goalPace` over confirmed pots with a target amount and date. The pot’s creation date in the household time zone anchors the pace. Try it stamps new pots on its fixed day. The calculation uses whole minor units for the amount expected by today, the difference from actual saving and the monthly amount remaining. A date at the observed pace needs both elapsed days and some savings. The same calculation serves the `goal_behind` finding, the `goals` read tool in Ask and MCP and the canvas progress query. The Goals tab links each pot to `/plan#pot-<id>`.
 
-**Standing rules (D66).** Memory → Rules shows the six rule kinds, their on or off state and their thresholds in words. The tab and Ask’s rule offers both post to `/api/rules`. That route uses the household session and a 20-per-minute limit. New thresholds are 1–30 days, 1–100 percent, or a positive amount within the home currency’s limits. A nudge threshold copied from before migration 0028 can still be read or turned off at its old value. Re-enabling it requires a value in range. Each actual change records a `rule_changed` event. The next suggestion pass reads the rules from `src/db/rules.ts`.
+**Standing rules (D66).** Memory → Rules shows the six rule kinds, their on or off state and their thresholds in words. The tab and Ask’s rule offers both post to `/api/rules`. That route uses the household session and a 20-per-minute limit. New thresholds are 1–30 days, 1–100 percent, or a positive amount within the home currency’s limits. A nudge threshold copied from before migration 0028 can still be read or turned off at its old value. Re-enabling it requires a value in range. Each actual change records a `rule_changed` event. The next suggestion pass reads `standing_rules` through `src/db/rules.ts`. Reader corrections are stored separately in `rules`.
 
 **A statement CSV (D53).** The browser reads the file (`src/lib/import/csv.ts`, at most 1 MB: UTF-8 or Shift_JIS, the header found, the date, name
 and amount columns guessed from their words and changeable, each row a charge, a skipped credit or an unreadable row with the reason) and posts JSON
@@ -511,7 +511,7 @@ request logs. `events` is the user's audit trail. **The request line (operator l
 
 No automatic database backups are configured; the person's own backup is Export my data, and Import brings that file back into an empty household.
 What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from
-the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. 0028 adds daily suggestions, reminder storage, and standing rules with the existing nudge setting copied into the rule. `0029_reminder_delivery.sql` adds the opted-in verified recipient address and the two last-claim dates. 0000–0026 are applied to the Tokyo database. 0030 adds the invitation table and its household and member references. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
+the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. `0028_standing_rules_and_assistant.sql` adds daily suggestions, standing rules with the existing nudge setting copied into the rule, reminder delivery storage, and household invitations. 0000–0026 are applied to the Tokyo database. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
 
 ### Not limited yet
 
