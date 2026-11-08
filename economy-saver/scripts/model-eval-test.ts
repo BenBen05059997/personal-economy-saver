@@ -7,7 +7,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { PROVIDERS, providerById } from "@/lib/ai/providers";
 import type { Connection } from "@/lib/ai/types";
-import { runEval } from "./model-eval-cases";
+import { runEval, runVoiceEval } from "./model-eval-cases";
 
 function argument(name: string): string | undefined {
   const at = process.argv.indexOf(`--${name}`);
@@ -32,12 +32,16 @@ async function main() {
   const pg = new PGlite();
   const db = drizzle(pg, { schema });
   await migrate(db, { migrationsFolder: "./drizzle" });
-  let results;
+  let results: { name: string; passed: boolean; why: string | null }[];
   try {
-    results = await runEval({
+    const agentResults = await runEval({
       db, connection, scrub,
       onResult: r => console.log(r.passed ? `PASS  ${r.name}` : `FAIL  ${r.name}: ${r.why}`),
     });
+    results = [...agentResults];
+    const voice = await runVoiceEval({ db, connection, scrub });
+    console.log(voice.passed ? `PASS  ${voice.name}` : `FAIL  ${voice.name}: ${voice.why}`);
+    results.push(voice);
   } finally { await pg.close(); }
 
   const failedCases = results.filter(r => !r.passed);

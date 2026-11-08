@@ -16,7 +16,7 @@ export function CheckedInput({ message, ...props }: ComponentProps<"input"> & { 
  * same function (lib/money/amount.ts). `signed` also accepts a minus sign (a bank balance can be overdrawn).
  */
 export function AmountInput({ currency, signed = false, onInput, ...props }: Omit<ComponentProps<"input">, "pattern" | "inputMode"> & { currency: string; signed?: boolean }) {
-  return <input {...props} maxLength={props.maxLength ?? 16} inputMode={currency === "JPY" ? "numeric" : "decimal"}
+  return <input {...props} data-voice-currency={currency} data-voice-signed={signed ? "" : undefined} maxLength={props.maxLength ?? 16} inputMode={currency === "JPY" ? "numeric" : "decimal"}
     onInput={event => {
       const field = event.currentTarget;
       // An empty required field keeps the browser's own message.

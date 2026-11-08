@@ -8,6 +8,7 @@ import { categoryLabel, CategoryKeySchema } from "@/lib/money/categories";
 import { guessCategory, guessRepeat } from "@/lib/money/categorise";
 import { Currency } from "@/lib/catalogue/types";
 import { AmountField } from "./AmountField";
+import { VoiceFill } from "@/components/voice/VoiceFill";
 import { AmountWithUnknown, DueWithUnknown } from "./UnknownFields";
 import { CategoryFields } from "./CategoryFields";
 import { LABELS } from "./labels";
@@ -122,6 +123,7 @@ function BillForm({ id, returnTo, today, currency, people }: FormProps) {
   const dueOffered = repeats === "" && cancelBy === "";
   const split = people.length >= 2; // D45: the split fields exist only for a household of two or more; alone, a bill is saved as shared (no owner), as before
   return <ApiForm action="/api/bills">
+    <VoiceFill />
     <input type="hidden" name="id" value={id} />
     <input type="hidden" name="returnTo" value={returnTo} />
     <label className="ui-field">{LABELS.name}<input name="biller" maxLength={160} required placeholder={LABELS.namePlaceholder} value={name} onChange={event => setName(event.target.value)} /></label>
@@ -148,6 +150,7 @@ function ChargeForm({ id, returnTo, today, currency, people, cards }: FormProps 
   const [other, setOther] = useState("");
   const others = Currency.options.filter(code => code !== currency);
   return <ApiForm action="/api/charges">
+    <VoiceFill />
     <input type="hidden" name="id" value={id} />
     <input type="hidden" name="returnTo" value={returnTo} />
     <label className="ui-field">{LABELS.whatOrWhere}<input name="merchant" maxLength={160} required placeholder={LABELS.whatOrWherePlaceholder} value={name} onChange={event => setName(event.target.value)} /></label>
