@@ -19,6 +19,8 @@ import { group } from "@/lib/money/format";
 import { low, series } from "@/lib/money/runway";
 import { whatIf } from "@/lib/money/whatif";
 import type { MoneyState } from "@/lib/money/types";
+import { fillByVoice, VoiceFillError } from "@/lib/voice/fill";
+import { VoiceFillRequest, type VoiceFillResponse } from "@/lib/voice/schema";
 import { fakeModel, type FakeMode } from "./ai-fake";
 
 export const AGENT_CASES = ["can_i_spend", "whats_due", "declines_stock", "clarifies_client", "what_if_late", "logs_charge", "remembers", "makes_canvas", "foreign_fees"] as const;
@@ -336,4 +338,42 @@ export function scriptedModel(breaks: CaseName | null = null, chargeReply?: stri
     }
   }) as typeof globalThis.fetch;
   return { fetch };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Voice fill (28B): one case on the real model, outside runEval's list. It runs `fillByVoice` (the route's own function) on Ben's Try it
+// household with bill-shaped fields and grades the checked values, never the model's phrasing. `model-eval-test.ts` calls it after `runEval`.
+
+export const VOICE_CASE = { name: "voice_fills_rent", question: "来月の家賃12万円、27日" } as const;
+
+/** null = passed, else why. Today in Ben's Try it household is 2026-11-14, so "来月の27日" is 2026-12-27. */
+export function gradeVoiceFill(response: VoiceFillResponse): string | null {
+  const { values } = response;
+  if (!values.name || !values.name.includes("家賃")) return `The name was ${JSON.stringify(values.name ?? null)}, expected one holding 家賃.`;
+  if (values.amount !== "120000") return `The amount was ${JSON.stringify(values.amount ?? null)}, expected 120000 (12万円).`;
+  if (values.date !== "2026-12-27") return `The date was ${JSON.stringify(values.date ?? null)}, expected 2026-12-27.`;
+  return Object.keys(values).every(k => ["name", "amount", "date", "category"].includes(k)) ? null : "It filled a field that was not asked about.";
+}
+
+export async function runVoiceEval(opts: Pick<RunOptions, "db" | "connection" | "fetch" | "scrub">): Promise<{ name: string; question: string; passed: boolean; why: string | null }> {
+  const scrub = opts.scrub ?? ((text: string) => text);
+  const info = console.info;
+  console.info = (...args: unknown[]) => { if (!String(args[0]).startsWith('{"at":')) info(...args); };
+  let why: string | null;
+  try {
+    const householdId = await seedBen(opts.db, { isDemo: true });
+    const response = await fillByVoice(opts.db, householdId, VoiceFillRequest.parse({
+      text: VOICE_CASE.question,
+      fields: [
+        { kind: "text", name: "name", label: "Name" },
+        { kind: "amount", name: "amount", label: "Amount", currency: "JPY" },
+        { kind: "date", name: "date", label: "Due date" },
+        { kind: "select", name: "category", label: "Category", options: [{ value: "housing", label: "Housing" }, { value: "other", label: "Other" }] },
+      ],
+    }), { fetch: opts.fetch, connection: async () => opts.connection });
+    why = gradeVoiceFill(response);
+  } catch (caught) {
+    why = caught instanceof VoiceFillError || caught instanceof ModelError ? `The call failed: ${caught.message}` : `The case could not run (${caught instanceof Error ? caught.constructor.name : "error"}).`;
+  } finally { console.info = info; }
+  return { name: VOICE_CASE.name, question: VOICE_CASE.question, passed: why === null, why: why === null ? null : scrub(why) };
 }

@@ -25,6 +25,13 @@ type CallLog = {
 
 type ThumbLog = { at: "thumb"; householdId: string; askId: string; thumb: "up" | "down" | null };
 
+/** Voice fill (28B): one line per call, counts and outcome only; never the words, the labels or the values. */
+type VoiceLog = { at: "voice"; householdId: string; fields: number; ok: boolean; ms: number };
+
+export function logVoice(entry: VoiceLog): void {
+  console.info(JSON.stringify(entry));
+}
+
 export function logThumb(entry: ThumbLog): void {
   console.info(JSON.stringify(entry));
 }
