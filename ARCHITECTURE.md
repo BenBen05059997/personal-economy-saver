@@ -27,16 +27,17 @@ Cloudflare
 ├── Cron Trigger (`worker.ts` `scheduled`): hourly discovery and one self-bound GET /api/cron per household with `CRON_SECRET`
 └── Next.js 16 app on Workers (OpenNext adapter); `src/middleware.ts` refreshes the auth cookie on every path except the webhook, cron, MCP and inbound
     ├── Pages (server components): the sidebar is Home /, Ask /canvas, To check /to-check, Activity /activity, Cards /cards, Clients /clients, Plan /plan
-    │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory (Memory, Goals and Rules), /settings, /account (delete my data), /privacy
+    │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory (Profile, Spaces, Goals and Rules), /settings, /account (delete my data), /privacy
     │   ├── /start (Start with my numbers), /login, /onboarding, /join/[token] (D68)
     │   └── /family/[token]: no session; the token resolves to a household (D52); no-store, noindex, no referrer
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
-    │   ├── /api/ask               one question of the Ask conversation `{ id, conversationId, text, source, canvas }`; body at most 128 KiB; the checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers, or an error line)
-    │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 503 a setting missing and named, 502 a service failed, 500 anything else)
+    │   ├── /api/ask               one question in a verified space `{ id, spaceId, text, source, canvas }`; body at most 128 KiB; the checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers, or an error line)
+    │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, `spaceId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 503 a setting missing and named, 502 a service failed, 500 anything else)
     │   ├── /api/ask/thumb         `{ id, thumb }` on one reply; one content-free log line
-    │   ├── /api/canvases          pins on Home (D57): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
+    │   ├── /api/canvases          pins on Home and in spaces (D57, D69): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
     │   ├── /api/canvas/resolve    a recipe → each block's query through the engine → the resolved blocks; body at most 100,000 bytes; nothing is stored
     │   ├── /api/memory            add, edit, delete or forget all of what the assistant remembers; the page /memory
+    │   ├── /api/spaces            POST `kind` create, rename, archive or delete. Same-origin household guard and 20 requests per minute
     │   ├── /api/clients, /api/bills, /api/charges   typed-in client, bill (`kind` add, edit or fill) and card charge ("Paid in another currency", D62)
     │   ├── /api/remove            remove a bill (a repeating bill as a whole series) or a card charge; `kind` and `id`
     │   ├── /api/voice-fill        Fill by voice (D26): `{ text, fields }` → one forced-tool model call on the household's text model → `{ values, heard, notes }` checked by `checkFill`; writes nothing, no rate limit, 16 KiB cap, 503 names the missing AI setting
@@ -64,10 +65,10 @@ Cloudflare
     │   ├── /api/settings, /api/settings/ai-model, /api/forwarding   name and balance, a card (with its foreign fee, D62); Your AI model; forwarding address
     │   ├── /api/invites            owner creates or cancels a link. A verified invitee can accept and a member can leave (D68)
     │   ├── /api/household         delete my data (the signed-in owner, `confirmation=delete`)
-    │   ├── /api/export            Export my data: the version 2 snapshot with events, memory, canvases and journal, as a JSON download (D44)
+    │   ├── /api/export            Export my data: the version 3 snapshot with events, memory, canvases, spaces and journal, as a JSON download (D44)
     │   ├── /api/data              Settings → Your data (D59): `kind` delete_kind, delete_one or delete_conversation
     │   ├── /api/data/move         where memory, canvases and the journal are kept (D59): `step` read, to_device or to_cloud; JSON at most 2 MB
-    │   ├── /api/restore           Import (D59, D44): a version 2 household file (JSON, at most 1 MB) into a household that has nothing in it yet
+    │   ├── /api/restore           Import (D59, D44): a household snapshot (JSON, at most 1 MB) into a household that has nothing in it yet
     │   ├── /api/cron              lists due households, or runs one with `?household=<id>` (bearer `CRON_SECRET`)
     │   └── /api/health            readiness: setting names and reasons, with separate optional email and push results
     └── Core (pure TypeScript, no I/O)
@@ -187,13 +188,13 @@ Nov 12; Web Push after.
 
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
-| 1. Question | `AskPage.tsx` (/canvas; the top and phone Ask links open /canvas#ask on Enter or Space, and hand a typed character over in `sessionStorage` `pes-ask-draft`; browser shortcuts keep their usual behavior) → POST /api/ask | the canvas on screen; on a device, its memory (≤ 200) and the last 3 turns ride in the body | nothing | the question in the conversation |
-| 2. Gate | `answerQuestion` (`src/db/ask.ts`) | `readPlaces`; `turnById` and `askReceipt` for a retried id (cloud journal); `askReceipt` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
+| 1. Question | `AskPage.tsx` (`/canvas?space=<id>`, General by default; the top and phone Ask links open /canvas#ask on Enter or Space, and hand a typed character over in `sessionStorage` `pes-ask-draft`; browser shortcuts keep their usual behavior) → POST /api/ask | the canvas on screen; on a device, its memory (≤ 200) and the last 3 turns ride in the body | nothing | the question in the conversation |
+| 2. Gate | `answerQuestion` (`src/db/ask.ts`) | the selected household space; `readPlaces`; `turnById` and `askReceipt` for a retried id (cloud journal); `askReceipt` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
 | 3. Context | `conversationContext` | the last 3 turns of the conversation when its latest is under 10 minutes old (24 hours while an attached document is queued, reading or in To check); a document turn's card as text (`cardContext`) | nothing | — |
 | 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | `MODEL_RULES` + `ASK_RULES` + `memoryContext` (≤ 6,000 characters); `aiConnection(db, hid, "text")` per call | nothing | — |
 | 5. Tools | the catalogue over the engine; the read tools of one model turn run together (`callAll`), draft tools alone in the order asked, results in the order asked | the money state, loaded once per tool turn | draft tools: pending rows in To check, an invoice draft, a memory item (`made_by = ask`, `ask_id`) | the latest step in fixed words (`TOOL_WORDS`) in the line under the box |
 | 6. Reply kind | `chooseReply` (`reply.ts`) + `unconfirmedAmounts` | the question, this question's tool results, the memory block | nothing | — |
-| 7. Save | after a declined reply `consumeRequest` decides the limit atomically; `saveTurn` (200 a household); `resolveRecipe` draws the canvas | `loadCanvasContext` | `conversation_turns`; the out-of-scope bucket on a decline | the reply, the canvas, "Based on", Pin to Home, thumbs |
+| 7. Save | after a declined reply `consumeRequest` decides the limit atomically; `saveTurn`; `resolveRecipe` draws the canvas | `loadCanvasContext` | `conversation_turns`; the out-of-scope bucket on a decline | the reply, the canvas, "Based on", Pin to Home, thumbs |
 
 ```mermaid
 flowchart LR
@@ -256,10 +257,22 @@ links (To check, the invoice draft, Memory), stored as a turn like any other, so
 **A retried id** (the browser resent a question after a lost response): a question whose `id` is already a stored turn of the household returns that
 turn through `turnById` with its canvas drawn again, no model call and no changes, and `links` and `pending` as the first reply had them, read from its receipt; the same id with other words is refused. A household that keeps its conversations on the device (D59) has no stored turn, so `run.ts` calls `onWrote` after the first draft tool succeeds (a `remember` or `forget` on a device memory does not: its change travels in the reply) and `noteAskWrote` (`src/db/ask-receipts.ts`) keeps a receipt first. `ask_receipts` holds (household_id, ask_id, pending, links, created_at); the links are fixed words and app paths, never the question or answer. `noteAskReply` writes `pending` and `links` after the reply, for both cloud- and device-journal replies, when the reply has a To check flag or links; a retry with that id finds the receipt through `askReceipt` and gets `FIXED.alreadySaved` ("This question already saved what you told me. Open To check to see it.") with a link to To check, no model call and no write.
 
-**The turn and the page.** The turn (question, kind, reply, choices, recipe, sources) is stored in `conversation_turns` (200 a household, the oldest
-dropped, `src/db/conversation.ts`); the reply carries kind, text, choices, the canvas the engine drew, "Based on" links to the pages the tools read,
+**Spaces and threads (D69).** Migration 0030 adds `spaces`, the nullable household-and-space foreign keys on
+`memories`, `canvases`, `standing_rules` and `reminders`, and the trigram indexes on turn questions, turn replies
+and memory text. The migration backfills one permanent General per household and a household-insert trigger
+creates it for new households. The app bootstrap also ensures it exists. The space id becomes the conversation id
+for questions and attachments. Ask verifies the selected space within the household before accepting new turns.
+General lists legacy conversations separately as read-only threads. Space navigation in Ask lists open spaces.
+Memory → Spaces creates and renames spaces, archives them, and confirms deletion. The household can keep up to 20
+spaces open, including General. Archived spaces keep their content and can be opened read-only or deleted from
+Archived spaces in Memory. Each space row can show the first line of its brief. Deleting a space clears the space, its thread, notes and pins in one transaction.
+Attached documents stay in the household, and rules and reminder history lose their space link. Cloud pins are scoped to their space.
+Home draws General and legacy pins. A task space lists its own pins under "Pinned in this space".
+
+**The turn and the page.** The turn (question, kind, reply, choices, recipe, sources) is stored in `conversation_turns`
+(`src/db/conversation.ts`) and a thread keeps its turns until deletion; the reply carries kind, text, choices, the canvas the engine drew, "Based on" links to the pages the tools read,
 links, `pending`, the first-use line (`firstUse(host)`, shown until the household's first answer, D60), `memoryChanges` and `wait`. The page shows
-"Pin to Home" (saves the recipe through `/api/canvases`) and two thumb buttons (`/api/ask/thumb`, a content-free line with the ids and the thumb).
+"Pin to Home" in General or "Pin to this space" in a task space (saves through `/api/canvases` for cloud pins), and two thumb buttons (`/api/ask/thumb`, a content-free line with the ids and the thumb).
 Each Ask writes one content-free JSON line to standard output (`src/lib/agent/log.ts`: household id, `ask_id`, source, reply kind, whether it had a
 canvas, last stop reason, model calls, tool names with ok and milliseconds, outcome, total milliseconds, input and output tokens, protocol and whether
 the model was the household's own; never the question, answer, arguments, results or key).
@@ -428,8 +441,8 @@ Under Uploaded documents, `listDocuments` returns each household document's date
 | The PayPal connection: balance, as-of, merchant, `environment = SANDBOX` | `paypal_connections` | `household_id` and the owner member | members; the export carries the balance and its currency only | with the household |
 | Documents: the files and their readings | the object at `<household id>/<document id>` in the private bucket; `documents`, `readings`, `rules` | `household_id` and the path prefix (checked on every removal) | members and Try it; the model provider receives the bytes to read them | Your data (the object, the readings, the row; bills and charges keep their rows and lose the link); with the household; never in the export |
 | Memory: what the assistant remembers | `memories` (200 items, 400 characters), or the `memory` store of IndexedDB `pes-device-<household id>` | `household_id`, or the device | members and Try it; the agent's system text; MCP `recall` (and `remember`/`forget` with the draft scope) in the cloud only | export (from a device only when exported on that device); Import; Your data delete; Forget everything; `/api/data/move`; with the household |
-| Canvases: the pins on Home | `canvases` (at most 8), or the `canvases` store on the device | `household_id`, or the device | members and Try it on Home; never MCP | export; Import; unpin; Your data; `/api/data/move`; with the household |
-| The journal: Ask conversations | `conversation_turns` (200), or the `journal` store on the device | `household_id`, or the device | members and Try it; the agent's context (the last 3 turns, with the attached documents' cards) | export; Import; Delete this conversation; Your data; `/api/data/move`; with the household |
+| Canvases: General pins on Home and task pins in Ask | `canvases` (at most 8), or the `canvases` store on the device | `household_id`, or the device | members and Try it on Home; never MCP | export; Import; unpin; Your data; `/api/data/move`; with the household |
+| The journal: Ask spaces and their conversations | `spaces` and `conversation_turns`; turns can be kept in the `journal` store on the device | `household_id`, or the device | members and Try it; the agent's context (the last 3 turns, with the attached documents' cards) | export; Import; space deletion; Your data; `/api/data/move`; with the household |
 | Reminder settings and last channel claims | `reminder_settings` (hour, quiet days, email on, opted-in verified address, claimed dates) | `household_id` and member | the member’s settings and the hourly job | settings change or household deletion. Claim dates survive history deletion |
 | Push devices and reminder history | `push_subscriptions` (endpoint and encryption keys) and `reminders` (channel, day, suggestion IDs, sent or failed) | `household_id` and member | the reminder job, and counts in Your data. Settings compares a device’s endpoint hash | unsubscribe, expired endpoints and Your data. History expires after 30 days. Household deletion clears both. The export excludes both |
 | Events: the audit trail and the bell | `events` | `household_id` | members and Try it (Activity, the bell, `/api/events`); the export | with the household; the export; never imported (the trail starts again) |
@@ -442,13 +455,17 @@ Under Uploaded documents, `listDocuments` returns each household document's date
 | Identities | `users` (auth user id → member), `members` | `household_id`, `auth_user_id` unique | the export carries members' names, roles and shares, never auth ids | with the household |
 | Sessions | browser cookies: Supabase `pes-auth` (30 days), `household` (a demo UUID, 30 days), `upgrade-demo` (1 hour) | the browser | — | logout; deletion clears them |
 
+Your data counts named spaces with the cloud journal and shows the space count separately when turns are kept on this device. General does not contribute a space to the count.
+Deleting the cloud journal removes the named spaces with their threads, notes, pins and briefs and clears the General thread and brief. General and all documents stay.
+Deleting the device journal removes local turns. Named spaces are still managed in Memory.
+
 **Export and Import (D44, D59).** `loadHouseholdSnapshot` (`src/db/snapshot.ts`) is the only builder: one read transaction, `requireHousehold`,
 named columns (it never selects a secret or pointer column), and it parses its own result. `/api/export` (a POST form, so nothing is in a URL)
-downloads the version 2 snapshot with `events`, `memory`, `canvases` and `journal`; `ExportData.tsx` adds this device's items to the file in the
-browser before it is saved when a kind is kept on the device. `/api/restore` reads a version 2 file (at most 1 MB) into a household that has nothing
-in it yet (`restoreHousehold`): the file's ids are mapped to new ones, the owner becomes the household's own owner, every row is `made_by = import`,
-one `household_imported` event is recorded; it refuses a truncated file, a version 1 file, another currency, more memory, pins or turns than the app
-keeps, a memory item with a long number, and any household that keeps a kind on the device. Not restored, on purpose: events, documents, the PayPal
+downloads the version 3 snapshot with `events`, `memory`, `canvases`, `spaces` and `journal`. `ExportData.tsx` adds this device's items to the file in the
+browser before it is saved when a kind is kept on the device. `/api/restore` accepts version 2 and version 3 files (at most 1 MB) into an empty household
+(`restoreHousehold`). It maps imported spaces to destination ids and reconnects their turns, notes and pins. The owner becomes the household's own
+owner, imported records carry `made_by = import`, and one `household_imported` event is recorded. Import refuses truncated files, version 1 files,
+another currency, memory or pins beyond the app limits, a memory item with a long number, and any household that keeps a kind on the device. Not restored, on purpose: events, documents, the PayPal
 invoice ids, and the household's own name, zone, currency and rate. The file and the `household_snapshot` tool never carry the AI key or its Vault
 id, auth ids, MCP token data, webhook payloads, storage paths or document files.
 
@@ -466,9 +483,9 @@ The existing `DATABASE_URL` connects as the database owner through the Supabase 
 `0029_tenant_wall.sql` gives that owner permission to switch to the `NOLOGIN` role `pes_app`. For household work,
 `withHousehold` in `src/db/household.ts` starts a transaction, sets `SET LOCAL ROLE pes_app`, and sets
 `app.household_id` to the verified household with transaction-local `set_config`. Both settings end at commit or rollback.
-The policies apply to the 32 household tables and allow reads and writes only where `household_id` matches, or where
+The policies apply to the 33 household tables and allow reads and writes only where `household_id` matches, or where
 `households.id` matches. A missing or reset setting sees no household rows. The data layer still validates the id,
-filters by it, and uses composite foreign keys. Rate limits, record writes, and post-commit suggestion refreshes keep their
+filters by it, and uses composite foreign keys. Migration 0030 adds the same policy and grants on `spaces`. Rate limits, record writes, and post-commit suggestion refreshes keep their
 separate commit boundaries. Ask, reading, reminder delivery, PayPal refresh and import use scoped database phases around
 external calls. Invoice approval keeps its existing scoped row locks during the atomic PayPal draft and send phases.
 
@@ -530,11 +547,11 @@ Optional reminder email needs `RESEND_API_KEY` and `REMINDER_FROM`. Browser push
 
 ### What is held, and for how long
 
-Most sensitive first: raw forwarded emails and receipts in the private bucket (the file is removed 30 days after the last reading from it is confirmed or dismissed, by the daily job's `removeExpiredFiles`; the `documents` row with its `bytes` and `file_removed_at`, the readings and the bills and charges made from them stay; at most 200 MiB a household, 20 MiB for a Try it household, `requireStorageRoom`); the last 200 questions and replies of a household
-(`conversation_turns`, with their canvases and thumbs) and what the assistant remembers (`memories`), both removed with the household, or deleted on
-their own in Settings → Your data (or kept on one device, where the server holds neither); `webhook_deliveries` (the invoice id and PayPal's create
+Most sensitive first: raw forwarded emails and receipts in the private bucket (the file is removed 30 days after the last reading from it is confirmed or dismissed, by the daily job's `removeExpiredFiles`; the `documents` row with its `bytes` and `file_removed_at`, the readings and the bills and charges made from them stay; at most 200 MiB a household, 20 MiB for a Try it household, `requireStorageRoom`); the household's Ask spaces and their questions and replies
+(`spaces` and `conversation_turns`, with their canvases and thumbs) and what the assistant remembers (`memories`). Your data can delete them, and
+turns and memory can be kept on one device. Space names stay in the cloud while the spaces exist. Other records include `webhook_deliveries` (the invoice id and PayPal's create
 time, kept indefinitely); `ask_receipts` (a household id, a question's id, `pending`, `links` (fixed words and app paths) and a time, never the question or answer; pruned by the daily job after a day); `ip_buckets` (a SHA-256 of a client address, a purpose, the window and a count; windows over a day old are pruned by the daily job); balances, bills, charges including `place`, `readings.extracted`; clients' names and emails (third-party data); invoice
-items and notes, member display names, the forwarding address. Export my data downloads the household record, events, memory, canvases and journal as one JSON file. Import brings supported data back into an empty household.
+items and notes, member display names, the forwarding address. Export my data downloads the household record, events, memory, canvases, spaces and journal as one JSON file. Import brings supported data back into an empty household.
 
 ### Logs
 
@@ -584,12 +601,11 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
   128 KiB, `/api/canvas/resolve` at 100,000 bytes, `/api/data/move` at 2 MB and `/api/restore` at 1 MB; sign-in links return to the required
   `APP_URL`, never to the request's Origin header.
 - No server-side image or PDF processing (Workers' CPU budget); files go to the model as uploaded.
-- **One household schema (D44).** `HouseholdSnapshot` (`src/lib/schema/household.ts`, strict zod, version 2) is the one description of a
+- **One household schema (D44).** `HouseholdSnapshot` (`src/lib/schema/household.ts`, strict zod, version 3) is the one description of a
   household: money as integer minor units plus currency, dates as ISO strings, ids as UUIDs. The export route, the `household_snapshot` tool and
-  the files in `schema/` (`household.v2.json`, `recipe.v1.json`, `memory.v1.json`, `turn.v1.json`, `cash-flow-event.v1.json`, generated by
-  `npm run schema`, each checked for drift by `db:snapshot-test`) all come from the zod definitions. Version 2 keeps every version 1 field and adds
-  `memory`, `canvases` and `journal` to the export only, like `events`; a card's `foreignFeeBp` and a charge's `fxEstimated` are optional, so older
-  files still import (D62); the `household_snapshot` tool stays the record. `CashFlowEvent` (`src/lib/schema/cash-flow.ts`, version 1) is one dated
+  the files in `schema/` (`household.v3.json`, `recipe.v1.json`, `memory.v1.json`, `turn.v1.json`, `cash-flow-event.v1.json`, generated by
+  `npm run schema`, each checked for drift by `db:snapshot-test`) all come from the zod definitions. The export carries
+  `events`, `memory`, `canvases`, `spaces` and `journal`. The `household_snapshot` tool stays the record. `CashFlowEvent` (`src/lib/schema/cash-flow.ts`, version 1) is one dated
   in or out as `timeline()` returns it; the `timeline` tool's items carry its `direction` and parse against it. The household block carries the
   PayPal balance and the USD rate (with its day) from the same functions `loadMoneyState` uses (`paypalTotalMinor`, `usdRate`), so the agent sees
   total cash and an export needs nothing else to be read.

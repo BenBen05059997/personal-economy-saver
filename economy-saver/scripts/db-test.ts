@@ -2,6 +2,7 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/db-test.ts
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq, getTableName, is, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -105,7 +106,7 @@ async function rows(db: Db, table: PgTable, householdId: string) {
 }
 
 async function main() {
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema }) as unknown as Db;
   await migrate(drizzle(pg), { migrationsFolder: "./drizzle" });
 
@@ -399,7 +400,7 @@ async function main() {
 
   await check("row level security is on for every table and only pes_app has household policies", async () => {
     const tables = allTables().map((t) => getTableConfig(t).name);
-    assert.equal(tables.length, 34);
+    assert.equal(tables.length, 35);
     const on = (await pg.query<{ relname: string }>(`select relname from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace and relrowsecurity`)).rows.map((r) => r.relname);
     assert.deepStrictEqual(on.sort(), tables.sort());
     const policies = (await pg.query<{ tablename: string; roles: string; cmd: string; qual: string; with_check: string }>(

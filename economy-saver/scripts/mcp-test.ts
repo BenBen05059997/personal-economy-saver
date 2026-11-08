@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { once } from "node:events";
 import { randomBytes } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -23,7 +24,7 @@ const realInfo = console.info;
 console.info = (...args: unknown[]) => { const first = String(args[0]); if (first.startsWith('{"at":')) logged.push(JSON.parse(first)); else realInfo(...args); };
 async function main() {
   process.env.MCP_TOKEN_KEY = randomBytes(32).toString("base64url");
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema: s });
   const http = createServer(async (incoming, outgoing) => {
     try {
@@ -88,7 +89,7 @@ async function main() {
     const snapshotCall = await client.callTool({ name: "household_snapshot", arguments: {} });
     assert.ok(!snapshotCall.isError);
     const snapshot = JSON.parse((snapshotCall.content as { text: string }[])[0].text);
-    assert.equal(snapshot.version, 2);
+    assert.equal(snapshot.version, 3);
     assert.equal(snapshot.household.id, hid);
     assert.equal(snapshot.clients.length, 3);
     assert.ok(!("events" in snapshot) && !JSON.stringify(snapshot).includes(other));

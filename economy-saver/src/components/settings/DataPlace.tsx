@@ -8,6 +8,7 @@ import { clearDevice, countDevice, listDevice, replaceDevice } from "@/lib/store
 
 type Props = {
   householdId: string; kind: Movable; place: Place; cloudCount: number; name: string; unit: [string, string]; what: string; all: string;
+  journalSpaceCount?: number;
   href?: { to: string; label: string };
   /** The delete for the cloud copy (a server-rendered form), shown only while the kind is in our cloud. */
   children?: ReactNode;
@@ -25,7 +26,7 @@ async function post(body: unknown): Promise<unknown> {
  * device only, and the delete. Moving to the device: fetch the items, store them, read the count back, then confirm (the server deletes its
  * copies and sets the place in one transaction). Back to the cloud: post the items; once the server has them the browser clears its copy.
  */
-export function DataPlace({ householdId, kind, place, cloudCount, name, unit, what, all, href, children }: Props) {
+export function DataPlace({ householdId, kind, place, cloudCount, name, unit, what, all, href, journalSpaceCount, children }: Props) {
   const router = useRouter();
   const [deviceCount, setDeviceCount] = useState<number | null>(null);
   const [panel, setPanel] = useState<"move" | "delete" | null>(null);
@@ -67,16 +68,18 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
   }
 
   const n = onDevice ? deviceCount : cloudCount;
+  const deleteLabel = onDevice && kind === "journal" ? "all conversations" : all;
   return <div className="settings-bill" data-kind={kind} data-place={place}>
     <p>{name} · {n === null ? "…" : `${n} ${unit[n === 1 ? 0 : 1]}`}</p>
     <p className="ui-hint">{onDevice ? "On this device only." : "In our cloud, Tokyo."} {what}</p>
+    {onDevice && journalSpaceCount !== undefined && <p className="ui-hint">{journalSpaceCount} named {journalSpaceCount === 1 ? "space" : "spaces"} in our cloud. Manage these in <Link href="/memory?tab=spaces">Memory → Spaces</Link>.</p>}
     {onDevice
       ? <p className="ui-hint">Other devices and connected assistants (MCP) see none of it. Clearing this browser’s data deletes it. The export file holds only what our cloud has, so Export from this device adds this to the file.</p>
       : <p className="ui-hint">You can keep this on this device only instead.</p>}
     {href && <Link className="account-link" href={href.to}>{href.label} ›</Link>}
     {onDevice && n !== null && n > 0 && <details className="ui-remove" open={panel === "delete"} onToggle={event => setPanel(event.currentTarget.open ? "delete" : null)}>
-      <summary aria-label={`Delete ${all}`}>Delete</summary>
-      <p>Delete {all} from this device? This can’t be undone.</p>
+      <summary aria-label={`Delete ${deleteLabel}`}>Delete</summary>
+      <p>Delete {deleteLabel} from this device? This can’t be undone.</p>
       <div className="ui-remove-buttons"><button type="button" className="ui-button" onClick={() => setPanel(null)}>Keep</button>
         <button type="button" className="ui-button" disabled={busy} onClick={() => void remove()}>Delete</button></div>
     </details>}

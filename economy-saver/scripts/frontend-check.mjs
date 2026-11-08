@@ -638,7 +638,7 @@ await step("action", "export-my-data", async () => {
   expect(/^attachment; filename="personal-economy-saver-\d{4}-\d{2}-\d{2}\.json"$/.test(headers.get("content-disposition") ?? ""), "export-disposition");
   expect(/no-store/.test(headers.get("cache-control") ?? ""), "export-no-store");
   const data = JSON.parse(result.body);
-  expect(data.version === 2 && Array.isArray(data.events) && data.clients.length === 3, "export-shape");
+  expect(data.version === 3 && Array.isArray(data.spaces) && Array.isArray(data.events) && data.clients.length === 3, "export-shape");
   expect(Array.isArray(data.memory) && Array.isArray(data.canvases) && Array.isArray(data.journal), "export-stored-kinds");
   expect(!/ai_?key|tokenHash|storagePath|payload/i.test(result.body), "export-no-secrets");
   const get = await fetch(new URL("/api/export", base), { headers: { Cookie: cookie, Origin: base.origin }, redirect: "manual" });
@@ -673,7 +673,7 @@ await step("action", "your-data-delete-one-and-delete-all-memory", async () => {
   const bad = await request("/api/data", { method: "POST", form: { kind: "delete_kind", what: "nothing", returnTo: "/settings" } });
   expect(bad.response.status === 400, "data-bad-kind");
 });
-// D59 step 2: Import reads a version 2 file into an empty household only, and says why when it cannot.
+// D59 step 2: Import reads a version 2 or 3 file into an empty household only, and says why when it cannot.
 await step("action", "import-refuses-a-full-household-an-old-file-and-an-oversize-body", async () => {
   const full = await request("/api/restore", { method: "POST", json: JSON.parse(tryItExport) });
   expect(full.response.status === 400 && full.body === "Import works on an empty household. Start with my numbers first.", "import-full-refused");

@@ -1,35 +1,50 @@
 // The canvases pinned to Home (D57): a title and a recipe, which holds queries and never numbers. Home draws them with the engine each time,
 // with no model call. At most 8; position 0 is first. Each change checks the recipe and records an event.
-import { and, asc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
+import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
+import { generalSpace, requireSpace } from "./spaces";
 import { canvases } from "./schema";
 import { MAX_PINS, recipeOf, titleOf, type Recipe } from "@/lib/canvas/schema";
 
 export { MAX_PINS };
-export type PinnedCanvas = { id: string; title: string; recipe: Recipe; position: number; madeBy: string; createdAt: string; updatedAt: string };
+export type PinnedCanvas = { id: string; spaceId: string | null; title: string; recipe: Recipe; position: number; madeBy: string; createdAt: string; updatedAt: string };
 type Row = typeof canvases.$inferSelect;
 
 const pinOf = (row: Row): PinnedCanvas => ({
-  id: row.id, title: row.title, recipe: row.recipe as Recipe, position: row.position, madeBy: row.madeBy,
+  id: row.id, spaceId: row.spaceId, title: row.title, recipe: row.recipe as Recipe, position: row.position, madeBy: row.madeBy,
   createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
 });
 
-export async function listCanvases(db: Db, householdId: string): Promise<PinnedCanvas[]> {
+type CanvasScope = { spaceId: string; includeLegacy?: boolean } | { all: true };
+const atSpace = (spaceId: string, includeLegacy: boolean) =>
+  includeLegacy ? or(eq(canvases.spaceId, spaceId), isNull(canvases.spaceId)) : eq(canvases.spaceId, spaceId);
+
+export async function listCanvases(db: Db, householdId: string, scope?: CanvasScope): Promise<PinnedCanvas[]> {
   const hid = requireHousehold(householdId);
-  return (await db.select().from(canvases).where(eq(canvases.householdId, hid)).orderBy(asc(canvases.position), asc(canvases.createdAt))).map(pinOf);
+  return withHousehold(db, hid, async tx => {
+    const where = scope && "all" in scope ? undefined
+      : scope ? atSpace(scope.spaceId, scope.includeLegacy ?? false)
+      : atSpace((await generalSpace(tx, hid)).id, true);
+    return (await tx.select().from(canvases).where(and(eq(canvases.householdId, hid), where))
+      .orderBy(asc(canvases.position), asc(canvases.createdAt))).map(pinOf);
+  });
 }
 
 /** Pins a canvas last. The ninth is refused. */
-export async function pinCanvas(db: Db, householdId: string, input: { title: string; recipe: unknown }, by: Maker): Promise<PinnedCanvas> {
+export async function pinCanvas(db: Db, householdId: string, input: { title: string; recipe: unknown; spaceId?: string }, by: Maker): Promise<PinnedCanvas> {
   const hid = requireHousehold(householdId);
   const title = titleOf(input.title), recipe = recipeOf(input.recipe);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     await tx.execute(sql`select 1 from households where id = ${hid} for update`);
+    const space = input.spaceId ? await requireSpace(tx, hid, input.spaceId, true) : await generalSpace(tx, hid);
     const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(canvases).where(eq(canvases.householdId, hid));
     if (n >= MAX_PINS) throw new InputError("Unpin one first.");
-    const [row] = await tx.insert(canvases).values({ householdId: hid, title, recipe, position: n, madeBy: by.madeBy, askId: by.askId ?? null }).returning();
-    await recordEvent(tx, hid, { ...by, kind: "canvas_pinned", title: `Pinned “${title}” to Home`, ref: { type: "canvas", id: row.id } });
+    const [last] = await tx.select({ position: canvases.position }).from(canvases)
+      .where(and(eq(canvases.householdId, hid), atSpace(space.id, space.isGeneral)))
+      .orderBy(sql`${canvases.position} desc`).limit(1);
+    const [row] = await tx.insert(canvases).values({ householdId: hid, spaceId: space.id, title, recipe, position: last ? last.position + 1 : 0, madeBy: by.madeBy, askId: by.askId ?? null }).returning();
+    await recordEvent(tx, hid, { ...by, kind: "canvas_pinned", title: space.isGeneral ? `Pinned “${title}” to Home` : `Pinned “${title}” in ${space.name}`, ref: { type: "canvas", id: row.id } });
     return pinOf(row);
   });
 }
@@ -53,14 +68,19 @@ export async function moveCanvas(db: Db, householdId: string, id: string, direct
   const hid = requireHousehold(householdId);
   return db.transaction(async tx => {
     const all = await tx.select().from(canvases).where(eq(canvases.householdId, hid)).orderBy(asc(canvases.position), asc(canvases.createdAt)).for("update");
-    const at = all.findIndex(row => row.id === id);
+    const moving = all.find(row => row.id === id);
+    if (!moving) return false;
+    const general = await generalSpace(tx, hid);
+    const scope = all.filter(row => moving.spaceId === null || moving.spaceId === general.id
+      ? row.spaceId === null || row.spaceId === general.id : row.spaceId === moving.spaceId);
+    const at = scope.findIndex(row => row.id === id);
     if (at < 0) return false;
     const to = direction === "up" ? at - 1 : at + 1;
-    if (to < 0 || to >= all.length) return true;
-    const order = all.map(row => row.id);
+    if (to < 0 || to >= scope.length) return true;
+    const order = scope.map(row => row.id);
     [order[at], order[to]] = [order[to], order[at]];
     for (const [position, rowId] of order.entries()) await tx.update(canvases).set({ position }).where(and(eq(canvases.householdId, hid), eq(canvases.id, rowId)));
-    await recordEvent(tx, hid, { ...by, kind: "canvas_changed", title: `Pinned canvas “${all[at].title}” moved ${direction}`, ref: { type: "canvas", id } });
+    await recordEvent(tx, hid, { ...by, kind: "canvas_changed", title: `Pinned canvas “${moving.title}” moved ${direction}`, ref: { type: "canvas", id } });
     return true;
   });
 }
@@ -71,7 +91,10 @@ export async function unpinCanvas(db: Db, householdId: string, id: string, by: M
   return db.transaction(async tx => {
     const gone = await tx.delete(canvases).where(and(eq(canvases.householdId, hid), eq(canvases.id, id))).returning();
     if (gone.length === 0) return false;
-    await tx.update(canvases).set({ position: sql`${canvases.position} - 1` }).where(and(eq(canvases.householdId, hid), gt(canvases.position, gone[0].position)));
+    const general = await generalSpace(tx, hid);
+    const spaceId = gone[0].spaceId ?? general.id;
+    await tx.update(canvases).set({ position: sql`${canvases.position} - 1` })
+      .where(and(eq(canvases.householdId, hid), atSpace(spaceId, spaceId === general.id), gt(canvases.position, gone[0].position)));
     await recordEvent(tx, hid, { ...by, kind: "canvas_unpinned", title: `Unpinned “${gone[0].title}” from Home`, ref: { type: "canvas", id } });
     return true;
   });

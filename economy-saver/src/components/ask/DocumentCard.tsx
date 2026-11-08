@@ -15,8 +15,8 @@ export type CardForm = { today: string; homeCurrency: Currency; cards: { id: str
 const POLL_MS = 2000, GIVE_UP_MS = 60_000;
 
 /** D61: the card under a document turn in Ask. Every word on it is written by code. It reads (polling), asks each failed check one at a time, then offers Confirm, Edit and Don't add it for every item. */
-export function DocumentCard({ documentId, initial, form, onCard, onCanvas }: {
-  documentId: string; initial: Card | null; form: CardForm;
+export function DocumentCard({ documentId, initial, form, readOnly, returnTo, onCard, onCanvas }: {
+  documentId: string; initial: Card | null; form: CardForm; readOnly: boolean; returnTo: string;
   onCard: (card: Card) => void; onCanvas: (canvas: NonNullable<Card["canvas"]>) => void;
 }) {
   const [card, setCard] = useState<Card | null>(initial);
@@ -64,13 +64,15 @@ export function DocumentCard({ documentId, initial, form, onCard, onCanvas }: {
     {reading && gaveUp && <p className="ask-document-link"><Link prefetch={false} href="/to-check">To check</Link></p>}
     {card.status === "read" && card.items.length > 0 && <ul className="ask-document-items">
       {card.items.map(item => <li key={item.readingId} className="ask-document-item">
-        <Item item={item} form={form} onDone={() => void load(true)} />
+        {readOnly && item.status === "to_check"
+          ? <><p className="ask-document-read">{item.read}</p><Link prefetch={false} href="/to-check">Open in To check ›</Link></>
+          : <Item item={item} form={form} returnTo={returnTo} onDone={() => void load(true)} />}
       </li>)}
     </ul>}
   </div>;
 }
 
-function Item({ item, form, onDone }: { item: DocumentCardItem; form: CardForm; onDone: () => void }) {
+function Item({ item, form, returnTo, onDone }: { item: DocumentCardItem; form: CardForm; returnTo: string; onDone: () => void }) {
   const [answers, setAnswers] = useState<CheckAnswers>({ kinds: [] });
   const [editing, setEditing] = useState<{ focus?: "amount" | "date" } | null>(null);
   const { value } = item;
@@ -86,7 +88,7 @@ function Item({ item, form, onDone }: { item: DocumentCardItem; form: CardForm; 
     if (step.do === "edit") setEditing({ focus: step.field });
   };
   const hidden = <>
-    <input type="hidden" name="from" value="ask" /><input type="hidden" name="returnTo" value="/canvas" />
+    <input type="hidden" name="from" value="ask" /><input type="hidden" name="returnTo" value={returnTo} />
     {answers.kinds.map(kind => <input key={kind} type="hidden" name="answered" value={kind} />)}
   </>;
   const preset = { repeat: answers.repeat ?? value.repeat ?? "", date: answers.date, amountUnknown: answers.amountUnknown, dueUnknown: answers.dueUnknown };

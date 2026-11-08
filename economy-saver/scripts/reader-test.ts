@@ -1,6 +1,7 @@
 // PGlite + local HTTP boundary doubles. The reader never contacts Supabase or Anthropic in this script.
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
@@ -32,7 +33,7 @@ async function test() {
   process.env.AI_TEXT_MODEL = "fixture-text";
   process.env.FORWARDING_DOMAIN = "inbox.example";
   process.env.INBOUND_ADDRESS_KEY = "ab".repeat(32);
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const originalFetch = globalThis.fetch;
   try {
     const db = drizzle(pg, { schema });

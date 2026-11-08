@@ -1,9 +1,9 @@
-// The Ask conversation (D60): the turns, kept in the database, 200 a household. A conversation carries on for ten minutes after its last turn.
+// The Ask conversation (D60, D69): each space has a persistent thread. Earlier conversations keep their original ids.
 // A failed question is never stored. Every query is scoped by the household.
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
-import { requireHousehold, type Db } from "./household";
-import { conversationTurns, documents, readings } from "./schema";
-import { CONTEXT_TURNS, live, TURN_LIMIT, TURN_VERSION, type ConversationTurn, type TurnKind, type TurnSource } from "@/lib/schema/turn";
+import { and, asc, desc, eq, inArray, notExists, sql } from "drizzle-orm";
+import { requireHousehold, withHousehold, type Db } from "./household";
+import { conversationTurns, documents, readings, spaces } from "./schema";
+import { CONTEXT_TURNS, live, TURN_VERSION, type ConversationTurn, type TurnKind, type TurnSource } from "@/lib/schema/turn";
 import type { Recipe } from "@/lib/canvas/schema";
 
 export type NewTurn = {
@@ -31,14 +31,33 @@ async function holdsWaiting(db: Db, hid: string, conversationId: string): Promis
   return !!reading;
 }
 
-/** Stores one turn (a retried question has the same id, so it is one row), then drops the oldest beyond 200, in one transaction. */
+/** Stores one turn. A retry with the same id is one row. */
 export async function saveTurn(db: Db, householdId: string, turn: NewTurn, at: Date = new Date()): Promise<void> {
   const hid = requireHousehold(householdId);
   const { documentId, ...rest } = turn;
-  await db.transaction(async tx => {
-    await tx.insert(conversationTurns).values({ ...rest, documentId: documentId ?? null, householdId: hid, createdAt: at }).onConflictDoNothing({ target: conversationTurns.id });
-    await tx.delete(conversationTurns).where(and(eq(conversationTurns.householdId, hid), sql`${conversationTurns.id} not in (
-      select id from conversation_turns where household_id = ${hid} order by created_at desc, id desc limit ${TURN_LIMIT})`));
+  await db.insert(conversationTurns).values({ ...rest, documentId: documentId ?? null, householdId: hid, createdAt: at })
+    .onConflictDoNothing({ target: conversationTurns.id });
+}
+
+/** The full thread, oldest first. A space and an earlier conversation use the same turn shape. */
+export async function spaceThread(db: Db, householdId: string, conversationId: string): Promise<ConversationTurn[]> {
+  const hid = requireHousehold(householdId);
+  return withHousehold(db, hid, async tx => (await tx.select().from(conversationTurns)
+    .where(and(eq(conversationTurns.householdId, hid), eq(conversationTurns.conversationId, conversationId)))
+    .orderBy(asc(conversationTurns.createdAt), asc(conversationTurns.id))).map(turnOf));
+}
+
+/** Conversations predating spaces, as individual threads in General. */
+export async function legacyThreads(db: Db, householdId: string): Promise<{ id: string; question: string }[]> {
+  const hid = requireHousehold(householdId);
+  return withHousehold(db, hid, async tx => {
+    const assigned = tx.select({ id: spaces.id }).from(spaces)
+      .where(and(eq(spaces.householdId, hid), eq(spaces.id, conversationTurns.conversationId)));
+    const rows = await tx.selectDistinctOn([conversationTurns.conversationId], {
+      id: conversationTurns.conversationId, question: conversationTurns.question, at: conversationTurns.createdAt,
+    }).from(conversationTurns).where(and(eq(conversationTurns.householdId, hid), notExists(assigned)))
+      .orderBy(asc(conversationTurns.conversationId), asc(conversationTurns.createdAt), asc(conversationTurns.id));
+    return rows.sort((a, b) => b.at.getTime() - a.at.getTime()).map(({ id, question }) => ({ id, question }));
   });
 }
 

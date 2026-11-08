@@ -10,12 +10,14 @@ import { households } from "@/db/schema";
 import { listMemory } from "@/db/memory";
 import { readPlaces } from "@/db/place";
 import { rulesFor } from "@/db/rules";
+import { listSpaces } from "@/db/spaces";
 import { loadNavigationData } from "@/db/workspace";
 import { DeviceMemoryView } from "@/components/memory/DeviceMemoryView";
 import { GoalsView } from "@/components/memory/GoalsView";
 import { MemoryTabs, type MemoryTab } from "@/components/memory/MemoryTabs";
 import { MemoryView } from "@/components/memory/MemoryView";
 import { RulesView } from "@/components/memory/RulesView";
+import { SpacesView } from "@/components/memory/SpacesView";
 import { WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
 import { Currency } from "@/lib/catalogue/types";
 import { goalPaces } from "@/lib/money/goals";
@@ -24,6 +26,10 @@ import { currentHouseholdId } from "@/lib/session";
 type Search = Promise<{ tab?: string | string[] }>;
 
 async function tabContent(tx: Db, hid: string, tab: MemoryTab) {
+  if (tab === "spaces") {
+    const [spaces, places] = await Promise.all([listSpaces(tx, hid), readPlaces(tx, hid)]);
+    return <SpacesView spaces={spaces} householdId={hid} places={places} />;
+  }
   if (tab === "goals") {
     const state = await loadMoneyState(tx, hid, await householdDate(tx, hid));
     return <GoalsView goals={goalPaces(state)} />;
@@ -48,7 +54,7 @@ async function tabContent(tx: Db, hid: string, tab: MemoryTab) {
 async function Memory({ search }: { search: Search }) {
   const [hid, { tab }] = await Promise.all([currentHouseholdId(), search]);
   if (!hid) redirect("/");
-  const active = tab === "goals" || tab === "rules" ? tab : "memory";
+  const active = tab === "spaces" || tab === "goals" || tab === "rules" ? tab : "memory";
   const { workspace, content } = await withHousehold(db(), hid, async tx => {
     const workspace = await loadNavigationData(tx, hid);
     const content = await tabContent(tx, hid, active);

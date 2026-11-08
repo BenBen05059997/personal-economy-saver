@@ -1,12 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "HouseholdSnapshot",
-  "description": "A whole household at one moment: version 2 of the Personal Economy Saver household schema. Version 2 adds memory, canvases and journal to version 1, in the export only.",
+  "description": "A whole household at one moment: version 3 of the Personal Economy Saver household schema, including spaces in the export.",
   "type": "object",
   "properties": {
     "version": {
       "type": "number",
-      "const": 2
+      "const": 3
     },
     "generatedAt": {
       "type": "string",
@@ -1410,6 +1410,10 @@
               }
             ]
           },
+          "spaceId": {
+            "type": "string",
+            "format": "uuid"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -1449,7 +1453,11 @@
           "position": {
             "type": "integer",
             "minimum": 0,
-            "description": "0 is first on Home."
+            "description": "0 is first in this space."
+          },
+          "spaceId": {
+            "type": "string",
+            "format": "uuid"
           },
           "recipe": {
             "type": "object",
@@ -3482,6 +3490,10 @@
             "format": "uuid"
           },
           "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "spaceId": {
             "type": "string",
             "format": "uuid"
           },
@@ -5595,6 +5607,81 @@
         "additionalProperties": false
       },
       "description": "The conversation turns, oldest first (D60). Only in the export."
+    },
+    "spaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "isGeneral": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "archived"
+            ]
+          },
+          "brief": {
+            "type": "object",
+            "additionalProperties": {}
+          },
+          "briefUpdatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "An instant, ISO 8601 in UTC."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An instant, ISO 8601 in UTC."
+          },
+          "briefUpdatedBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ask",
+                  "form"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "An instant, ISO 8601 in UTC."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isGeneral",
+          "status",
+          "brief",
+          "briefUpdatedAt",
+          "briefUpdatedBy",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "description": "The journal’s spaces, with their briefs (D69). Only in the export."
     }
   },
   "required": [

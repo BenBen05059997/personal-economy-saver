@@ -2,7 +2,8 @@ import Link from "next/link";
 import "./memory.css";
 
 const TABS = [
-  { id: "memory", label: "Memory", href: "/memory" },
+  { id: "memory", label: "Profile", href: "/memory" },
+  { id: "spaces", label: "Spaces", href: "/memory?tab=spaces" },
   { id: "goals", label: "Goals", href: "/memory?tab=goals" },
   { id: "rules", label: "Rules", href: "/memory?tab=rules" },
 ] as const;

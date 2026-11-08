@@ -2,6 +2,7 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/sweep-test.ts
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { eq, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -15,7 +16,7 @@ const NOW = new Date("2026-11-20T04:00:00Z");
 const ago = (days: number) => new Date(NOW.getTime() - days * DAY);
 
 async function main() {
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
   const store = db as unknown as Db;
   let passed = 0;

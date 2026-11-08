@@ -8,7 +8,7 @@ import { householdRequest } from "@/lib/session";
 
 const MAX_BYTES = 1_000_000;
 
-/** Import (D59): a version 2 household file as the JSON body, at most 1 MB, into a household that has nothing in it yet. The answer is JSON `{ imported: counts }`, or a sentence on a refusal. */
+/** Import (D59): a version 2 or 3 household file as the JSON body, at most 1 MB, into a household that has nothing in it yet. The answer is JSON `{ imported: counts }`, or a sentence on a refusal. */
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;

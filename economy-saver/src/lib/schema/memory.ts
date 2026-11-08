@@ -34,6 +34,7 @@ export const MemoryItem = z.object({
   text: MemoryText,
   madeBy: z.enum(["form", "ask", "mcp"]),
   askId: z.string().uuid().nullable(),
+  spaceId: z.string().uuid().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 }).strict();

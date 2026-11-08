@@ -2,6 +2,7 @@ import { ApiForm } from "@/components/ui/ApiForm";
 import { listCanvases, type PinnedCanvas } from "@/db/canvases";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
+import { generalSpace } from "@/db/spaces";
 import { readPlaces } from "@/db/place";
 import { DevicePins } from "./DevicePins";
 import { PinCard } from "./PinCard";
@@ -30,14 +31,14 @@ export async function Pinned({ state }: { state: MoneyState }) {
   // Pins kept on this device only (D59) are read in the browser and drawn through the resolve route; the server holds none of them.
   const current = state.today.slice(0, 7);
   const saved = await withHousehold(db(), hid, async tx => {
-    if ((await readPlaces(tx, hid)).canvases === "device") return "device";
+    if ((await readPlaces(tx, hid)).canvases === "device") return { place: "device" as const, generalId: (await generalSpace(tx, hid)).id };
     const pins = await listCanvases(tx, hid);
     if (!pins.length) return null;
     const spending = await loadSpending(tx, hid, { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last });
-    return { pins, spending };
+    return { place: "cloud" as const, pins, spending };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
-  if (saved === "device") return <DevicePins householdId={hid} />;
   if (!saved) return null;
+  if (saved.place === "device") return <DevicePins householdId={hid} generalId={saved.generalId} />;
   const { pins, spending } = saved;
   const context: CanvasContext = { state, spending };
   return <section id="pins" className="home-pins" aria-label="Pinned canvases">

@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -44,7 +45,7 @@ function fakeStore() {
 }
 
 async function main() {
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema }) as unknown as Db;
   let passed = 0;
   async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
@@ -271,7 +272,7 @@ async function main() {
     await check("Import refuses: a version 1 file in words, a file that is not a household, a partial file, a file in another currency, a long number in memory", async () => {
       const c = await emptyHousehold("Fictional Importer");
       await assert.rejects(restoreHousehold(db, c.id, { ...file, version: 1 }), (e: unknown) => e instanceof InputError && e.message === OLD_VERSION && /version 1/.test(e.message));
-      await assert.rejects(restoreHousehold(db, c.id, { version: 2, nonsense: true }), (e: unknown) => e instanceof InputError && /not a household file/.test(e.message));
+      await assert.rejects(restoreHousehold(db, c.id, { version: 3, nonsense: true }), (e: unknown) => e instanceof InputError && /not a household file/.test(e.message));
       await assert.rejects(restoreHousehold(db, c.id, "text"), InputError);
       await assert.rejects(restoreHousehold(db, c.id, { ...file, truncated: { ...file.truncated, bills: true } }), /only part of a household/);
       await assert.rejects(restoreHousehold(db, c.id, { ...file, household: { ...file.household, homeCurrency: "USD" } }), /in USD and this household uses JPY/);
@@ -282,7 +283,7 @@ async function main() {
 
     // Ids are new on import; references are mapped. Compare two snapshots with every id (and every reference to one) taken out, and
     // check the references separately.
-    const ID_KEYS = new Set(["id", "memberId", "paidByMemberId", "fromMemberId", "toMemberId", "cardId", "clientId", "seriesBillId", "conversationId", "documentId", "billId", "madeBy"]);
+    const ID_KEYS = new Set(["id", "memberId", "paidByMemberId", "fromMemberId", "toMemberId", "cardId", "clientId", "seriesBillId", "conversationId", "spaceId", "documentId", "billId", "madeBy"]);
     const bare = (value: unknown): unknown => Array.isArray(value) ? value.map(bare) : value && typeof value === "object"
       ? Object.fromEntries(Object.entries(value).filter(([k]) => !ID_KEYS.has(k)).map(([k, v]) => [k, bare(v)])) : value;
     const sorted = (rows: unknown[]) => rows.map(r => JSON.stringify(bare(r))).sort();
@@ -312,7 +313,7 @@ async function main() {
         );
       }
       // Every id is new, in both households and across them; the owner is the household's own.
-      const idsOf = (snap: typeof back) => [snap.cards, snap.statements, snap.charges, snap.bills, snap.clients, snap.invoices, snap.pots, snap.settlements, snap.balanceUpdates, snap.memory!, snap.canvases!, snap.journal!].flatMap(list => list.map(x => x.id));
+      const idsOf = (snap: typeof back) => [snap.cards, snap.statements, snap.charges, snap.bills, snap.clients, snap.invoices, snap.pots, snap.settlements, snap.balanceUpdates, snap.memory!, snap.canvases!, snap.journal!, snap.spaces!].flatMap(list => list.map(x => x.id));
       const sourceIds = new Set([...idsOf(exported), ...exported.members.map(m => m.id)]);
       const ids1 = idsOf(back), ids2 = idsOf(back2);
       assert.ok(ids1.length > 20);
@@ -338,6 +339,8 @@ async function main() {
       assert.notEqual(journalTurn.conversationId, convOne);
       assert.notEqual(journalTurn.conversationId, journalTurn2.conversationId);
       assert.deepEqual(back.canvases!.map(p => p.position), [0, 1, 2]);
+      const general = back.spaces!.find(space => space.isGeneral)!;
+      assert.ok(back.canvases!.every(pin => pin.spaceId === general.id), "the pins reference the imported General");
       assert.deepEqual(back.memory!.map(x => x.madeBy).sort(), ["ask", "form"], "memory keeps who said it");
       assert.equal(back.documents.length, 0);
       assert.ok(back.invoices.every(i => i.paypalInvoiceId === null), "PayPal ids are never taken from a file");
@@ -377,8 +380,11 @@ async function main() {
       await assert.rejects(restoreHousehold(db, filled.id, file2), (e: unknown) => e instanceof InputError && e.message === NOT_EMPTY);
     });
 
-    await check("an older file without foreignFeeBp and fxEstimated still imports (D62): the fee is not entered and the charge is not an estimate", async () => {
+    await check("a version 2 file without spaces, foreignFeeBp or fxEstimated still imports (D62, D69): the fee is not entered and the charge is not an estimate", async () => {
       const old = JSON.parse(JSON.stringify(file));
+      old.version = 2;
+      delete old.spaces;
+      for (const row of [...old.memory, ...old.canvases]) delete row.spaceId;
       for (const card of old.cards) delete card.foreignFeeBp;
       for (const charge of old.charges) delete charge.fxEstimated;
       const c = await emptyHousehold("Fictional Importer Old File");
@@ -484,21 +490,21 @@ async function main() {
       assert.throws(() => applyMemoryChanges(items, [{ op: "add", item: { id: "x" } }]));
     });
 
-    await check("journal and pin operations: 200 turns, ten minutes, the last three, at most 8 pins in order", () => {
+    await check("journal and pin operations: all turns kept, the recent context window, and at most 8 pins in order", () => {
       const conv = randomUUID();
       const turn = (i: number, conversationId = conv): ConversationTurn => ({
         version: 1, id: randomUUID(), conversationId, question: `Q${i}`, kind: "answer", reply: "Yes.", choices: null, recipe: null, sources: [], thumb: null, createdAt: new Date(Date.UTC(2026, 10, 6, 1, 0, i)).toISOString(),
       });
       let turns: ConversationTurn[] = [];
       for (let i = 0; i < 205; i++) turns = appendTurn(turns, turn(i));
-      assert.equal(turns.length, 200);
-      assert.equal(turns[0].question, "Q5", "the oldest five went");
-      assert.equal(appendTurn(turns, turns[3]).length, 200, "a retried question is one turn");
+      assert.equal(turns.length, 205);
+      assert.equal(turns[0].question, "Q0", "the oldest turn stays");
+      assert.equal(appendTurn(turns, turns[3]).length, 205, "a retried question is one turn");
       const near = new Date(Date.UTC(2026, 10, 6, 1, 5)), far = new Date(Date.UTC(2026, 10, 6, 1, 30));
       assert.deepEqual(recentOf(turns, conv, near).map(x => x.question), ["Q202", "Q203", "Q204"]);
       assert.deepEqual(recentOf(turns, conv, far), [], "older than ten minutes");
       assert.deepEqual(recentOf(turns, randomUUID(), near), []);
-      assert.equal(latestOf(turns, near)?.turns.length, 200);
+      assert.equal(latestOf(turns, near)?.turns.length, 205);
       assert.equal(latestOf(turns, far), null);
       const other = turn(300, randomUUID());
       assert.equal(latestOf([...turns, other], new Date(Date.UTC(2026, 10, 6, 1, 6)))?.conversationId, other.conversationId);
@@ -518,6 +524,10 @@ async function main() {
       assert.deepEqual([gone.length, gone[0].position, gone[6].position], [7, 0, 6]);
       assert.equal(updatePin(pins, randomUUID(), r), null);
       assert.equal(updatePin(pins, pins[2].id, recipe("Changed"))![2].recipe.title, "Changed");
+      const generalId = randomUUID(), workId = randomUUID();
+      const scoped = [pins[0], { ...pins[1], spaceId: workId }, { ...pins[2], spaceId: generalId }];
+      assert.deepEqual(movePin(scoped, pins[0].id, "down", generalId)?.map(p => p.id),
+        [pins[2].id, pins[1].id, pins[0].id], "a legacy General pin moves within General past a work space pin");
       assert.ok(DEVICE_MEMORY_WORDS.includes("one device"));
     });
 

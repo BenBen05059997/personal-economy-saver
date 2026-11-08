@@ -14,6 +14,7 @@ type Row = typeof memories.$inferSelect;
 
 const itemOf = (r: Row): MemoryItem => ({
   id: r.id, kind: r.kind, text: r.text, madeBy: r.madeBy as MemoryItem["madeBy"], askId: r.askId,
+  ...(r.spaceId !== null && { spaceId: r.spaceId }),
   createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(),
 });
 

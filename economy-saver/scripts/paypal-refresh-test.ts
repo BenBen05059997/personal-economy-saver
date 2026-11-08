@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { and, eq } from "drizzle-orm";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as s from "@/db/schema";
@@ -18,7 +19,7 @@ async function test() {
   process.env.PAYPAL_ENVIRONMENT = "SANDBOX";
   process.env.PAYPAL_CLIENT_ID = "fictional-test-client";
   process.env.PAYPAL_CLIENT_SECRET = "fictional-test-secret";
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   try {
     const queries: string[] = [];
     const db = drizzle(pg, { schema: s, logger: { logQuery(query) { queries.push(query); } } });

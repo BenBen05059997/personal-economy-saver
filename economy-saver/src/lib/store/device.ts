@@ -4,7 +4,7 @@
 import type { MemoryItem } from "@/lib/schema/memory";
 import type { ConversationTurn } from "@/lib/schema/turn";
 import { applyMemoryChanges, addMemoryItem, editMemoryItem, forgetMemoryItem, sortMemory } from "./memory-ops";
-import { appendTurn, latestOf, movePin, orderedPins, pinItem, recentOf, unpinItem, updatePin, type DevicePin } from "./journal-ops";
+import { movePin, orderedPins, pinItem, recentOf, unpinItem, updatePin, type DevicePin } from "./journal-ops";
 
 const DEVICE_KINDS = ["memory", "canvases", "journal"] as const;
 export type DeviceKind = (typeof DEVICE_KINDS)[number];
@@ -82,10 +82,9 @@ export async function forgetDeviceMemory(householdId: string, id: string): Promi
 
 // ------------------------------------------------------------------ journal
 export async function saveDeviceTurn(householdId: string, turn: ConversationTurn): Promise<void> {
-  await replaceDevice(householdId, "journal", appendTurn(await listDevice(householdId, "journal"), turn));
+  await run(householdId, "journal", "readwrite", store => store.put(turn));
 }
 export const deviceRecent = async (householdId: string, conversationId: string, now = new Date(), waiting: ReadonlySet<string> = new Set()) => recentOf(await listDevice(householdId, "journal"), conversationId, now, waiting);
-export const deviceLatest = async (householdId: string, now = new Date(), waiting: ReadonlySet<string> = new Set()) => latestOf(await listDevice(householdId, "journal"), now, waiting);
 export async function setDeviceThumb(householdId: string, id: string, thumb: 1 | -1 | null): Promise<boolean> {
   const turns = await listDevice(householdId, "journal");
   if (!turns.some(turn => turn.id === id)) return false;
@@ -101,7 +100,7 @@ export async function deleteDeviceConversation(householdId: string, conversation
 
 // ------------------------------------------------------------------ pinned canvases
 export const devicePins = async (householdId: string): Promise<DevicePin[]> => orderedPins(await listDevice(householdId, "canvases"));
-export async function pinOnDevice(householdId: string, input: { title: string; recipe: unknown }): Promise<void> {
+export async function pinOnDevice(householdId: string, input: { title: string; recipe: unknown; spaceId?: string }): Promise<void> {
   await replaceDevice(householdId, "canvases", pinItem(await listDevice(householdId, "canvases"), input, new Date(), crypto.randomUUID()));
 }
 export async function updateDevicePin(householdId: string, id: string, recipe: unknown): Promise<boolean> {
@@ -109,8 +108,8 @@ export async function updateDevicePin(householdId: string, id: string, recipe: u
   if (next) await replaceDevice(householdId, "canvases", next);
   return next !== null;
 }
-export async function moveDevicePin(householdId: string, id: string, direction: "up" | "down"): Promise<boolean> {
-  const next = movePin(await listDevice(householdId, "canvases"), id, direction);
+export async function moveDevicePin(householdId: string, id: string, direction: "up" | "down", generalId?: string): Promise<boolean> {
+  const next = movePin(await listDevice(householdId, "canvases"), id, direction, generalId);
   if (next) await replaceDevice(householdId, "canvases", next);
   return next !== null;
 }
@@ -118,4 +117,27 @@ export async function unpinOnDevice(householdId: string, id: string): Promise<bo
   const next = unpinItem(await listDevice(householdId, "canvases"), id);
   if (next) await replaceDevice(householdId, "canvases", next);
   return next !== null;
+}
+
+/** Clears the copies this browser keeps for a deleted space in a single IndexedDB transaction. */
+export async function deleteDeviceSpace(householdId: string, spaceId: string, kinds: DeviceKind[]): Promise<void> {
+  if (kinds.length === 0) return;
+  const database = await open(householdId);
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = database.transaction(kinds, "readwrite");
+      tx.oncomplete = () => resolve();
+      tx.onerror = tx.onabort = () => reject(new DeviceStoreError(UNAVAILABLE));
+      for (const kind of kinds) {
+        const rows = tx.objectStore(kind).openCursor();
+        rows.onsuccess = () => {
+          const row = rows.result;
+          if (!row) return;
+          if ((kind === "journal" ? row.value.conversationId : row.value.spaceId) === spaceId) row.delete();
+          row.continue();
+        };
+      }
+    });
+  } catch { throw new DeviceStoreError(UNAVAILABLE); }
+  finally { database.close(); }
 }

@@ -7,6 +7,8 @@ import { documents, readings } from "./schema";
 import { readPlaces } from "./place";
 import { readerInbox } from "./reader-inbox";
 import { storeDocument } from "./reader-job";
+import { requireSpace } from "./spaces";
+import { InputError } from "./input-error";
 import { saveTurn } from "./conversation";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { readingProposal } from "@/lib/money/checks";
@@ -51,15 +53,20 @@ export async function documentCard(db: Db, householdId: string, documentId: stri
  * The same file twice is one document.
  */
 export async function attachDocument(
-  db: Db, householdId: string, input: { id: string; conversationId: string; text: string | null; mime: string; bytes: ArrayBuffer }, at: Date = new Date(),
+  db: Db, householdId: string, input: { id: string; conversationId: string; spaceId?: string; text: string | null; mime: string; bytes: ArrayBuffer }, at: Date = new Date(),
 ): Promise<{ turn: ConversationTurn; card: DocumentCard; documentId: string }> {
   const hid = requireHousehold(householdId);
+  if (input.spaceId !== undefined) {
+    if (input.conversationId !== input.spaceId) throw new InputError("Use the thread of the selected space.");
+    await requireSpace(db, hid, input.spaceId);
+  }
   const documentId = await storeDocument(db, hid, "upload", input.mime, input.bytes);
   const turn: ConversationTurn = {
     version: TURN_VERSION, id: input.id, conversationId: input.conversationId, question: input.text ?? DOCUMENT_WORDS.question, kind: DOCUMENT,
     reply: DOCUMENT_WORDS.sent, choices: null, recipe: null, sources: [], documentId, thumb: null, createdAt: at.toISOString(),
   };
   return withHousehold(db, hid, async tx => {
+    if (input.spaceId !== undefined) await requireSpace(tx, hid, input.spaceId, true);
     if ((await readPlaces(tx, hid)).journal === "cloud") {
       await saveTurn(tx, hid, { id: turn.id, conversationId: turn.conversationId, question: turn.question, kind: DOCUMENT, reply: turn.reply, choices: null, recipe: null, sources: [], documentId }, at);
     }

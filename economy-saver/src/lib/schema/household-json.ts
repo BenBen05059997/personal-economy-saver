@@ -7,7 +7,7 @@ import { HouseholdSnapshot } from "./household";
 import { MemoryItem } from "./memory";
 import { ConversationTurn } from "./turn";
 
-export const SCHEMA_FILE = "schema/household.v2.json";
+export const SCHEMA_FILE = "schema/household.v3.json";
 
 function titled(schema: Parameters<typeof zodToJsonSchema>[0], title: string): string {
   const { $schema, description, ...rest } = zodToJsonSchema(schema, { $refStrategy: "none" }) as Record<string, unknown>;

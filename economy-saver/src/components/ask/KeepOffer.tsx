@@ -11,8 +11,8 @@ import { MEMORY_KINDS } from "@/lib/schema/memory";
 import { addDeviceMemory } from "@/lib/store/device";
 import { ApiForm } from "@/components/ui/ApiForm";
 
-export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemory }: {
-  offer: KeepOffer; householdId: string; clock: ClockHousehold; currency: Currency; deviceMemory: boolean;
+export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemory, returnTo }: {
+  offer: KeepOffer; householdId: string; clock: ClockHousehold; currency: Currency; deviceMemory: boolean; returnTo: string;
 }) {
   const [status, setStatus] = useState<"ready" | "saving" | "kept" | "dismissed">("ready");
   const [problem, setProblem] = useState("");
@@ -81,7 +81,7 @@ export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemor
       {problem && <p role="status" className="ui-problem">{problem}</p>}
     </> : <ApiForm action={action} onDone={() => setStatus("kept")}>
       {fields}
-      <input type="hidden" name="returnTo" value="/canvas" />
+      <input type="hidden" name="returnTo" value={returnTo} />
       <div className="ask-choices">
         <button type="submit" className="ui-button primary" aria-describedby={description}>Keep</button>
         {no}

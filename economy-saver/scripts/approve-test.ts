@@ -1,6 +1,7 @@
 // Only this test supplies simulated PayPal tools. No external calls or settings.
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
@@ -13,7 +14,7 @@ import { applyVerifiedDelivery } from "@/lib/events";
 import { homeSentence } from "@/lib/money/sentence";
 
 async function main() {
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   try {
     const db = drizzle(pg, { schema });
     await migrate(db, { migrationsFolder: "./drizzle" });

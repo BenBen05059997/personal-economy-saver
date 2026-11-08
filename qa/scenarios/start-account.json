@@ -2494,7 +2494,7 @@
     ],
     "expected": [
       "A file personal-economy-saver-2026-11-14.json downloads",
-      "It opens as JSON with \"version\": 2, household, members, cards, bills, clients, invoices, pots, events, and arrays memory, canvases and journal (each [] when empty)",
+      "It opens as JSON with \"version\": 3, the record keys, and arrays memory, canvases, spaces and journal. A fresh Try it has General in spaces",
       "It has no AI key, tokens, sign-in email or uploaded files"
     ],
     "refs": [
@@ -2778,7 +2778,7 @@
     ],
     "expected": [
       "Canvases read \"1 canvas\" with \"On this device only. Layouts only; …\" and the canvases store holds one item",
-      "The conversations row moves with \"On this device only. Your questions and the answers, up to 200.\"",
+      "The conversations row moves and reads \"On this device only.\"",
       "Home draws the pin with \"On this device only.\", Move up, Move down and Unpin (44px at 375px) and the numbers of the household today with no /api/canvases request"
     ],
     "refs": [
@@ -2834,7 +2834,7 @@
     ],
     "expected": [
       "The message \"Saved, with what you keep on this device added.\" shows",
-      "The file is version 2 with the device's items in memory, canvases and journal; with nothing on the device the button reads \"Export my data\""
+      "The file is version 3 with the device's items in memory, canvases and journal; with nothing on the device the button reads \"Export my data\""
     ],
     "refs": [
       "BROWSER-CHECKS AA11"

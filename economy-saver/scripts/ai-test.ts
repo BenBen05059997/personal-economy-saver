@@ -3,6 +3,7 @@
 // no network, no credentials.
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
@@ -357,7 +358,7 @@ async function main() {
   });
 
   await check("the evaluation's graders: a scripted good model passes every case on both protocols, and the key never reaches a result", async () => {
-    const pg = new PGlite();
+    const pg = new PGlite({ extensions: { pg_trgm } });
     try {
       const db = drizzle(pg, { schema });
       await migrate(db, { migrationsFolder: "./drizzle" });
@@ -384,7 +385,7 @@ async function main() {
   });
 
   await check("the evaluation's graders: a failed question, a wrong number and a missing canvas are named in words", async () => {
-    const pg = new PGlite();
+    const pg = new PGlite({ extensions: { pg_trgm } });
     try {
       const db = drizzle(pg, { schema });
       await migrate(db, { migrationsFolder: "./drizzle" });
@@ -408,7 +409,7 @@ async function main() {
   });
 
   await check("logs_charge grader: echoing \"you paid\" passes; sent, marked as paid, settled or confirmed fail; denials pass; both protocols", async () => {
-    const pg = new PGlite();
+    const pg = new PGlite({ extensions: { pg_trgm } });
     try {
       const db = drizzle(pg, { schema });
       await migrate(db, { migrationsFolder: "./drizzle" });
@@ -429,7 +430,7 @@ async function main() {
   });
 
   await check("foreign_fees grader: the tool called and the engine's total quoted passes; a wrong number, no tool call, another provider or leaving PayPal fail; both protocols", async () => {
-    const pg = new PGlite();
+    const pg = new PGlite({ extensions: { pg_trgm } });
     try {
       const db = drizzle(pg, { schema });
       await migrate(db, { migrationsFolder: "./drizzle" });

@@ -211,6 +211,13 @@
       "when": 1794142945249,
       "tag": "0029_tenant_wall",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794146122382,
+      "tag": "0030_ask_spaces",
+      "breakpoints": true
     }
   ]
 }

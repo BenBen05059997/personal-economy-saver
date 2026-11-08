@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { changeStandingRule } from "@/db/rules";
-import { badFields, failure, formOf, redirectTo, tooMany } from "@/lib/door";
+import { badFields, failure, formOf, redirectTo, returnPath, tooMany } from "@/lib/door";
 import { RULE_KINDS } from "@/lib/money/suggestion-types";
 import { householdRequest } from "@/lib/session";
 
@@ -24,7 +24,8 @@ export async function POST(request: Request) {
   if (!parsed.success) return badFields();
   try {
     await withHousehold(store, hid, tx => changeStandingRule(tx, hid, parsed.data));
-    return redirectTo(form.get("returnTo") === "/canvas" ? "/canvas" : "/memory?tab=rules", request);
+    const destination = returnPath(form.get("returnTo"));
+    return redirectTo(destination === "/canvas" || destination.startsWith("/canvas?space=") ? destination : "/memory?tab=rules", request);
   } catch (error) {
     return failure(error);
   }

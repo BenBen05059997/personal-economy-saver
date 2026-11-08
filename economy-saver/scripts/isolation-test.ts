@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { PGlite, type Transaction } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -56,6 +57,7 @@ import * as runwayEvents from "@/db/runway-events";
 import * as settingsMod from "@/db/settings";
 import * as settle from "@/db/settle";
 import * as snapshotMod from "@/db/snapshot";
+import * as spacesMod from "@/db/spaces";
 import * as statementCharge from "@/db/statement-charge";
 import * as spendingMod from "@/db/spending"; // Stage 17 spending
 import * as fxCostMod from "@/db/fx-cost"; // D62 foreign costs
@@ -67,6 +69,7 @@ import type { Db } from "@/db/household";
 import { ImportRefused } from "@/db/paypal-import";
 import { ApprovalError } from "@/db/approval";
 import { AiKeyError } from "@/db/ai-key";
+import { InputError } from "@/db/input-error";
 import { potInput } from "@/db/pots";
 import { seedBen } from "@/db/seed";
 import { tools, type ToolContext } from "@/lib/agent/tools";
@@ -124,6 +127,8 @@ const covered = [
   // D57 pins: canvases.ts; D60 conversation: conversation.ts and ask.ts; rate-limit.ts
   "listCanvases", "pinCanvas", "updateCanvas", "moveCanvas", "unpinCanvas",
   "saveTurn", "turnById", "recentTurns", "latestConversation", "allTurns", "setThumb", "conversationContext", "firstUseLine", "requestCount",
+  // D69 spaces.ts and conversation.ts
+  "listSpaces", "generalSpace", "seedGeneralSpace", "requireSpace", "createSpace", "renameSpace", "archiveSpace", "deleteSpace", "spaceThread", "legacyThreads",
   // D59 ask-receipts.ts
   "noteAskWrote", "noteAskReply", "askReceipt", "pruneAskReceipts",
   // D61 document-card.ts
@@ -203,7 +208,7 @@ function leaks(text: string, needles: Needles): string[] {
 }
 
 async function main() {
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
   const store = db as unknown as Db;
   let passed = 0;
@@ -221,6 +226,7 @@ async function main() {
     ...rulesMod, ...suggestionsMod, ...remindersMod, // D64–D66
     ...memoryMod, // D58 memory
     ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
+    ...spacesMod, // D69 spaces
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
   };
   const F = new Proxy(modules, {
@@ -280,7 +286,7 @@ async function main() {
       // 27E: ip_buckets (hashed client address) and ai_global_usage (one row a day) exist before and outside any household, and hold no household data.
       assert.deepEqual(everyTable.filter(t => !scoped.includes(t)), ["ai_global_usage", "households", "ip_buckets"]);
       for (const table of ["bills", "charges", "pots", "members", "clients", "invoices", "documents", "readings", "cards", "card_statements", "settlements",
-        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules", "standing_rules", "suggestions", "reminder_settings", "push_subscriptions", "reminders", "invites"]) {
+        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules", "standing_rules", "suggestions", "reminder_settings", "push_subscriptions", "reminders", "invites", "spaces"]) {
         assert.ok(scoped.includes(table), table);
       }
     });
@@ -454,6 +460,32 @@ async function main() {
       });
       await assert.rejects(F.withHousehold(store, A.hid, async () => { throw new Error("abort tenant transaction"); }), /abort tenant transaction/);
       await asApp(null, tx => assertVisibleTenants(tx, []));
+    });
+
+    await check("spaces and legacy threads are household-scoped, including the foreign key for space notes", async () => {
+      const generalA = await F.generalSpace(store, A.hid);
+      const generalB = await F.generalSpace(store, B.hid);
+      await F.withHousehold(store, A.hid, tx => F.seedGeneralSpace(tx, A.hid));
+      assert.deepEqual((await F.listSpaces(store, A.hid)).map(space => space.id), [generalA.id]);
+      assert.notEqual(generalA.id, generalB.id);
+      const foreign = await F.createSpace(store, B.hid, "Fictional B project");
+      const beforeB = await fingerprint(B.hid);
+      assert.ok(!(await F.listSpaces(store, A.hid)).some(space => space.id === foreign.id));
+      await assert.rejects(F.requireSpace(store, A.hid, foreign.id), InputError);
+      await assert.rejects(F.renameSpace(store, A.hid, foreign.id, "Blocked rename"), InputError);
+      await assert.rejects(F.archiveSpace(store, A.hid, foreign.id), InputError);
+      await assert.rejects(F.deleteSpace(store, A.hid, foreign.id), InputError);
+      const foreignLegacy = (await F.legacyThreads(store, B.hid))[0].id;
+      assert.ok(!(await F.legacyThreads(store, A.hid)).some(thread => thread.id === foreignLegacy));
+      assert.deepEqual(await F.spaceThread(store, A.hid, foreignLegacy), []);
+      assert.deepEqual((await F.spaceThread(store, B.hid, foreignLegacy)).map(turn => turn.id), [B.ids.turn]);
+      await assert.rejects(asApp(A.hid, tx => tx.query(
+        "insert into public.memories (household_id, space_id, kind, text) values ($1, $2, 'fact', 'Blocked foreign note')",
+        [A.hid, foreign.id],
+      )), { code: "23503" });
+      assert.deepEqual(await fingerprint(B.hid), beforeB);
+      assert.equal((await F.requireSpace(store, B.hid, foreign.id)).id, foreign.id);
+      await F.deleteSpace(store, B.hid, foreign.id);
     });
 
     await check("the detectors work: B's own text matches B's needles, A's does not, and a write to B changes B's fingerprint", async () => {

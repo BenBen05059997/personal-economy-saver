@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -55,18 +56,18 @@ async function main() {
   let passed = 0;
   async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 
-  await check("schema/household.v2.json equals the schema generated from the zod definition, and so do the recipe, memory, turn and cash-flow schemas (drift for all five files)", () => {
+  await check("schema/household.v3.json equals the schema generated from the zod definition, and so do the recipe, memory, turn and cash-flow schemas (drift for all five files)", () => {
     const committed = readFileSync(SCHEMA_FILE, "utf8");
     assert.equal(committed, householdJsonSchema(), `${SCHEMA_FILE} is out of date. Run \`npm run schema\` and commit the result.`);
     const files = schemaFiles();
-    assert.deepEqual(files.map(f => f.file), ["schema/household.v2.json", "schema/recipe.v1.json", "schema/memory.v1.json", "schema/turn.v1.json", "schema/cash-flow-event.v1.json"]);
+    assert.deepEqual(files.map(f => f.file), ["schema/household.v3.json", "schema/recipe.v1.json", "schema/memory.v1.json", "schema/turn.v1.json", "schema/cash-flow-event.v1.json"]);
     for (const { file, text } of files) assert.equal(readFileSync(file, "utf8"), text, `${file} is out of date. Run \`npm run schema\` and commit the result.`);
     assert.equal(existsSync("schema/household.v1.json"), false, "version 1 file is not kept");
     const json = JSON.parse(committed);
     assert.equal(json.additionalProperties, false);
-    assert.equal(json.properties.version.const, 2);
-    for (const optional of ["events", "memory", "canvases", "journal"]) assert.deepEqual(json.required.includes(optional), false, `${optional} is optional`);
-    for (const key of ["memory", "canvases", "journal"]) assert.ok(key in json.properties, key);
+    assert.equal(json.properties.version.const, 3);
+    for (const optional of ["events", "memory", "canvases", "journal", "spaces"]) assert.deepEqual(json.required.includes(optional), false, `${optional} is optional`);
+    for (const key of ["memory", "canvases", "journal", "spaces"]) assert.ok(key in json.properties, key);
   });
 
   await check("D53: travel is one of the fourteen category keys in the committed schema, on bills and charges (a new key only widens the enum)", () => {
@@ -78,7 +79,7 @@ async function main() {
     }
   });
 
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });
@@ -115,9 +116,9 @@ async function main() {
     const full = await loadHouseholdSnapshot(db, a, { events: true });
     const json = JSON.stringify(full);
 
-    await check("Ben's household parses with the schema, version 2, and the household block is right", () => {
+    await check("Ben's household parses with the schema, version 3, and the household block is right", () => {
       assert.deepEqual(HouseholdSnapshot.parse(JSON.parse(JSON.stringify(snap))), snap);
-      assert.equal(snap.version, 2);
+      assert.equal(snap.version, 3);
       assert.deepEqual(snap.household, { id: a, name: "Ben", homeCurrency: "JPY", timeZone: "Asia/Tokyo", today: DEMO_DATE, isDemo: true,
         bankBalanceMinor: snap.household.bankBalanceMinor, paypalBalanceMinor: snap.household.paypalBalanceMinor,
         usdRateMicro: snap.household.usdRateMicro, usdRateDate: snap.household.usdRateDate, splitSince: null });
@@ -159,7 +160,7 @@ async function main() {
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, household: { ...snap.household, bankBalanceMinor: 12.5 } }));
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, household: { ...snap.household, homeCurrency: "yen" } }));
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 1 }));
-      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 3 }));
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 4 }));
     });
 
     await check("unknown keys are refused at every level", () => {
@@ -185,7 +186,7 @@ async function main() {
       assert.equal(snap.bills.filter(bill => bill.biller === "Fictional Cloud").length, 1, "one row, not one per year");
       const rent = snap.bills.find(bill => bill.biller === "Rent")!;
       assert.deepEqual([rent.repeatUnit, rent.repeatDay, rent.nextAmountMinor, rent.nextAmountFrom, rent.cancelBy, rent.repeatUntil ?? null], ["month", 27, null, null, null, null]);
-      assert.equal(snap.version, 2);
+      assert.equal(snap.version, 3);
       // A document written before these fields existed written before these fields existed has none of them and still validates.
       const old: Record<string, unknown> = { ...yearly };
       for (const key of ["repeatUnit", "nextAmountMinor", "nextAmountFrom", "cancelBy", "repeatUntil"]) delete old[key];
@@ -227,7 +228,7 @@ async function main() {
         assert.ok(list.length > 0);
         for (const row of list) assert.ok(["form", "ask", "mcp", "reader", "cron", "paypal", "import"].includes(row.madeBy ?? ""), JSON.stringify(row));
       }
-      assert.equal(snap.version, 2);
+      assert.equal(snap.version, 3);
       const old = JSON.parse(JSON.stringify(snap.pots[0])) as Record<string, unknown>;
       delete old.madeBy;
       assert.deepEqual(HouseholdSnapshot.parse({ ...JSON.parse(JSON.stringify(snap)), pots: [old] }).pots.length, 1, "a snapshot without madeBy still parses");
@@ -310,7 +311,7 @@ async function main() {
       assert.ok(SNAPSHOT_TOOL_WINDOW >= 50 && SNAPSHOT_TOOL_WINDOW <= 200);
     });
 
-    await check("D59: memory, canvases and turns are in the export only, in the household's own scope; the version 1 fields are unchanged", async () => {
+    await check("D59 and D69: memory, canvases, turns and spaces are in the export only, in the household's own scope; the version 1 fields are unchanged", async () => {
       const by = { madeBy: "form" as const };
       const mem = await addMemory(db, a, { kind: "fact", text: "Rent goes up in April (snapshot test)" }, by);
       await addMemory(db, b, { kind: "fact", text: "ZZ B memory marker" }, by);
@@ -324,14 +325,14 @@ async function main() {
       const record = await loadHouseholdSnapshot(db, a, { events: false });
       const withEvents = await loadHouseholdSnapshot(db, a, { events: true });
       const exported = await loadHouseholdSnapshot(db, a, { events: true, stored: true });
-      for (const key of ["memory", "canvases", "journal"]) { assert.ok(!(key in record) && !(key in withEvents), `${key} is not in the record`); assert.ok(key in exported, `${key} is in the export`); }
+      for (const key of ["memory", "canvases", "journal", "spaces"]) { assert.ok(!(key in record) && !(key in withEvents), `${key} is not in the record`); assert.ok(key in exported, `${key} is in the export`); }
       assert.deepEqual(exported.memory!.map(m => m.id), [mem.id]);
       assert.deepEqual(MemoryItem.parse(exported.memory![0]), exported.memory![0]);
       assert.deepEqual(exported.canvases!.map(c => [c.id, c.title, c.position]), [[pin.id, "Cash today", 0]]);
       assert.deepEqual(exported.journal!.map(t => t.id), [turnId]);
       assert.deepEqual(ConversationTurn.parse(exported.journal![0]), exported.journal![0]);
-      // Every version 1 field is unchanged: the export minus the three new keys is the events build, apart from the moment it was made.
-      const { memory, canvases, journal, ...rest } = exported; void memory; void canvases; void journal;
+      // The export minus the stored kinds is the events build, apart from the moment it was made.
+      const { memory, canvases, journal, spaces, ...rest } = exported; void memory; void canvases; void journal; void spaces;
       assert.deepEqual({ ...rest, generatedAt: "" }, { ...withEvents, generatedAt: "" });
       const text = JSON.stringify(exported);
       assert.ok(!text.includes("ZZ B"), "another household's memory, canvas and turns never appear");

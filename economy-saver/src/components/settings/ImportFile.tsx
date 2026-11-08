@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 const MAX_BYTES = 1_000_000;
 
-/** Import (D59): reads a version 2 household file in the browser and posts it to /api/restore. The route answers with a sentence when it refuses. */
+/** Import (D59): reads a version 2 or 3 household file in the browser and posts it to /api/restore. The route answers with a sentence when it refuses. */
 export function ImportFile() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);

@@ -4218,38 +4218,36 @@
   {
     "id": "CONV-003",
     "area": "Conversation",
-    "action": "Start a new conversation",
-    "user_goal": "I want a clean slate for a new topic",
+    "action": "Start a thread for a new task",
+    "user_goal": "I want a clean thread for a new topic",
     "type": "happy",
     "priority": "P2",
     "needs": [
-      "model"
+      "none"
     ],
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "A working model (the server's or the Codex bridge)",
-      "Ask open at /canvas",
-      "At least one answer in the list"
+      "At least one saved answer in General"
     ],
     "steps": [
-      "Press \"New conversation\"",
-      "Ask \"and the week after?\""
+      "Open Memory → Spaces and create a space named March paperwork",
+      "Open General again"
     ],
     "expected": [
-      "The list on screen is empty and the canvas is cleared",
-      "The follow-up is not understood as a follow-up: a clarifying question or a decline"
+      "Ask opens March paperwork with an empty thread and no canvas from General",
+      "General keeps the earlier question and reply"
     ],
     "refs": [
-      "BROWSER-CHECKS Z7",
-      "D60"
+      "BROWSER-CHECKS AP2",
+      "D69"
     ]
   },
   {
     "id": "CONV-004",
     "area": "Conversation",
-    "action": "Reload Ask within ten minutes",
-    "user_goal": "I want my chat back after a reload",
+    "action": "Reopen Ask after ten minutes",
+    "user_goal": "I want my task’s conversation back after a reload",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -4258,27 +4256,26 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "A working model (the server's or the Codex bridge)",
-      "Ask open at /canvas",
-      "An answer with a canvas (\"What if Northwind pays two weeks late?\") less than ten minutes old"
+      "A working model (the server’s or the Codex bridge)",
+      "A named space with a saved turn"
     ],
     "steps": [
-      "Reload /canvas"
+      "Close the space",
+      "Reopen its /canvas?space=<id> URL after ten minutes"
     ],
     "expected": [
-      "The conversation and the canvas that came with it are still there",
-      "Reopen after ten minutes and the page shows the three example buttons again"
+      "The same space is selected and its saved question and answer are still visible"
     ],
     "refs": [
       "BROWSER-CHECKS Z10",
-      "D60"
+      "D69"
     ]
   },
   {
     "id": "CONV-005",
     "area": "Conversation",
-    "action": "Keep only 200 turns",
-    "user_goal": "My journal should not grow forever",
+    "action": "Keep a thread past 200 turns",
+    "user_goal": "I want a long-running task to keep its history",
     "type": "edge",
     "priority": "P3",
     "needs": [
@@ -4292,12 +4289,12 @@
       "Run npm run db:conversation-test"
     ],
     "expected": [
-      "Saving a turn beyond 200 drops the oldest in the same transaction",
-      "The 200 newest remain, in order"
+      "Saving a turn beyond 200 retains the oldest",
+      "All saved turns remain in order"
     ],
     "refs": [
       "db:conversation-test",
-      "D60"
+      "D69"
     ]
   },
   {
@@ -4315,7 +4312,7 @@
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
       "A working model (the server's or the Codex bridge)",
       "Ask open at /canvas",
-      "A conversation of two turns, a memory item and a pinned canvas"
+      "General has two turns, a profile item and a pinned canvas"
     ],
     "steps": [
       "Press Delete (\"Delete this conversation\") and confirm"

@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import Module from "node:module";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -13,7 +14,7 @@ import { seedBen } from "@/db/seed";
 import { openSuggestions } from "@/db/suggestions";
 
 async function main() {
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
   let passed = 0;
   async function check(name: string, run: () => Promise<void>) { await run(); passed++; console.log("✓ " + name); }

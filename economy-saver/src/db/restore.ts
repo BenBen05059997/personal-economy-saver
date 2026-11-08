@@ -1,4 +1,4 @@
-// D59, D44: import. Reads a version 2 household file into a household that has nothing in it yet and keeps the file's ids.
+// D59, D44: import. Reads a version 2 or 3 file into a household that has nothing in it yet, assigning new ids.
 // Every restored row is marked made_by = import (memory items keep the maker they had, because a memory item can only be form, ask or mcp),
 // and one event records it. Anything else is refused in words; a refused import changes nothing (one transaction).
 //
@@ -8,29 +8,33 @@
 // keeps what it was set up with; a file in another currency is refused).
 import { and, eq, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
-import { HouseholdSnapshot, type HouseholdSnapshot as Snapshot } from "@/lib/schema/household";
+import { HouseholdSnapshot, SNAPSHOT_VERSION, type HouseholdSnapshot as Snapshot } from "@/lib/schema/household";
 import { MAX_PINS } from "./canvases";
 import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db } from "./household";
 import { MEMORY_LIMIT, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
-import { TURN_LIMIT } from "@/lib/schema/turn";
+import { generalSpace, SPACE_LIMIT } from "./spaces";
+import { z } from "zod";
 import * as s from "./schema";
 
 export const NOT_EMPTY = "Import works on an empty household. Start with my numbers first.";
-export const OLD_VERSION = "This file is an older export (version 1). Import reads version 2 files. Export again from the app that made it, then import that file.";
+export const OLD_VERSION = "This file is an older export (version 1). Import reads version 2 or 3 files. Export again from the app that made it, then import that file.";
 
 type RestoreCounts = { members: number; cards: number; bills: number; charges: number; clients: number; invoices: number; pots: number; memory: number; canvases: number; journal: number; other: number };
 
 /** The file's text, parsed with the schema. Anything else is refused with a sentence. */
 export function readSnapshotFile(input: unknown): Snapshot {
   if (input && typeof input === "object" && (input as { version?: unknown }).version === 1) throw new InputError(OLD_VERSION);
-  const parsed = HouseholdSnapshot.safeParse(input);
+  const version2 = input && typeof input === "object" && (input as { version?: unknown }).version === 2;
+  const parsed = version2
+    ? HouseholdSnapshot.omit({ spaces: true }).extend({ version: z.literal(2) }).safeParse(input)
+    : HouseholdSnapshot.safeParse(input);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const path = issue?.path.map(part => (typeof part === "number" ? `#${part + 1}` : String(part))).join(" > ");
     throw new InputError(`This is not a household file Import can read${path ? ` (${path}: ${issue.message})` : ""}.`);
   }
-  return parsed.data;
+  return { ...parsed.data, version: SNAPSHOT_VERSION };
 }
 
 function dbCode(error: unknown): string | undefined {
@@ -53,8 +57,10 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
   const owners = file.members.filter(m => m.role === "owner");
   if (owners.length !== 1) throw new InputError("This file needs exactly one owner among its people.");
   if (file.members.reduce((sum, m) => sum + m.shareBp, 0) !== 10_000) throw new InputError("The people's shares in this file do not add up to 100%.");
-  const memory = file.memory ?? [], pins = file.canvases ?? [], journal = file.journal ?? [];
-  if (memory.length > MEMORY_LIMIT || pins.length > MAX_PINS || journal.length > TURN_LIMIT) throw new InputError("This file holds more memory, pinned canvases or conversation than the app keeps.");
+  const memory = file.memory ?? [], pins = file.canvases ?? [], journal = file.journal ?? [], spaces = file.spaces ?? [];
+  if (memory.length > MEMORY_LIMIT || pins.length > MAX_PINS) throw new InputError("This file holds more memory or pinned canvases than the app keeps.");
+  if (file.spaces && (spaces.filter(space => space.isGeneral).length !== 1 || spaces.filter(space => space.status === "open").length > SPACE_LIMIT))
+    throw new InputError("This file needs one General space and up to 20 open spaces.");
   if (memory.some(item => hasLongNumber(item.text))) throw new InputError(SECRET_REFUSAL);
 
   try {
@@ -71,6 +77,10 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
         if (n > 0) throw new InputError(NOT_EMPTY);
       }
 
+      const general = await generalSpace(tx, hid);
+      const named = await tx.select({ id: s.spaces.id }).from(s.spaces).where(and(eq(s.spaces.householdId, hid), eq(s.spaces.isGeneral, false))).limit(1);
+      if (named.length || Object.keys(general.brief).length) throw new InputError(NOT_EMPTY);
+
       // One old to new table for every id in the file. The file's owner is the household's own owner (so the login keeps working).
       const fresh = new Map<string, string>([[owners[0].id, ownerId]]);
       const next = (old: string): string => {
@@ -83,8 +93,27 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
         if (!mapped) throw new InputError("This file is not consistent with itself (a row refers to something it does not hold, or a value is out of range).");
         return mapped;
       };
-      for (const list of [file.members, file.cards, file.clients, file.bills, file.statements, file.charges, file.invoices, file.pots, file.settlements, file.balanceUpdates, memory, pins, journal]) for (const row of list) next(row.id);
+      const sourceGeneral = spaces.find(space => space.isGeneral);
+      if (sourceGeneral) fresh.set(sourceGeneral.id, general.id);
+      const sourceSpaceIds = new Set(spaces.map(space => space.id));
+      const spaceRef = (id: string | undefined) => {
+        if (id === undefined) return null;
+        if (!sourceSpaceIds.has(id)) throw new InputError("This file refers to a space it does not list.");
+        return ref(id);
+      };
+      for (const list of [spaces, file.members, file.cards, file.clients, file.bills, file.statements, file.charges, file.invoices, file.pots, file.settlements, file.balanceUpdates, memory, pins, journal]) for (const row of list) next(row.id);
       for (const t of journal) next(t.conversationId);
+      const importedSpaces = spaces.map(space => ({
+        ...space, id: ref(space.id), householdId: hid, createdAt: new Date(space.createdAt),
+        briefUpdatedAt: space.briefUpdatedAt ? new Date(space.briefUpdatedAt) : null,
+      }));
+      await insertChunks(tx, s.spaces, importedSpaces.filter(space => !space.isGeneral));
+      if (sourceGeneral) {
+        await tx.update(s.spaces).set({
+          brief: sourceGeneral.brief, briefUpdatedBy: sourceGeneral.briefUpdatedBy,
+          briefUpdatedAt: sourceGeneral.briefUpdatedAt ? new Date(sourceGeneral.briefUpdatedAt) : null,
+        }).where(and(eq(s.spaces.householdId, hid), eq(s.spaces.id, general.id)));
+      }
       // A recipe names clients and bills by id (sliders, what-if changes); a bill may be `<id>@<date>`.
       const remap = (value: unknown): unknown => {
         if (Array.isArray(value)) return value.map(remap);
@@ -123,9 +152,9 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       await insertChunks(tx, s.pots, file.pots.map(p => ({ ...p, id: ref(p.id), ...made, memberId: who(p.memberId) })));
       await insertChunks(tx, s.settlements, file.settlements.map(x => ({ ...x, id: ref(x.id), householdId: hid, fromMemberId: who(x.fromMemberId)!, toMemberId: who(x.toMemberId)!, settledAt: new Date(x.settledAt), createdAt: new Date(x.createdAt) })));
       await insertChunks(tx, s.balanceUpdates, file.balanceUpdates.map(u => ({ ...u, id: ref(u.id), ...made, createdAt: new Date(u.createdAt) })));
-      await insertChunks(tx, s.memories, memory.map(m => ({ ...m, id: ref(m.id), householdId: hid, createdAt: new Date(m.createdAt), updatedAt: new Date(m.updatedAt) })));
-      await insertChunks(tx, s.canvases, [...pins].sort((a, b) => a.position - b.position).map((p, position) => ({
-        id: ref(p.id), householdId: hid, title: p.title, recipe: remap(p.recipe), position, madeBy: "import" as const, createdAt: new Date(p.createdAt),
+      await insertChunks(tx, s.memories, memory.map(m => ({ ...m, id: ref(m.id), householdId: hid, spaceId: spaceRef(m.spaceId), createdAt: new Date(m.createdAt), updatedAt: new Date(m.updatedAt) })));
+      await insertChunks(tx, s.canvases, pins.map(p => ({
+        id: ref(p.id), householdId: hid, title: p.title, recipe: remap(p.recipe), position: p.position, spaceId: spaceRef(p.spaceId), madeBy: "import" as const, createdAt: new Date(p.createdAt),
       })));
       await insertChunks(tx, s.conversationTurns, journal.map(t => ({
         id: ref(t.id), householdId: hid, conversationId: ref(t.conversationId), question: t.question, kind: t.kind, reply: t.reply, choices: t.choices, recipe: remap(t.recipe),

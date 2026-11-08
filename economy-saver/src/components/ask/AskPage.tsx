@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Canvas } from "@/components/canvas/Canvas";
 import { ApiForm } from "@/components/ui/ApiForm";
@@ -18,8 +19,9 @@ import type { Place } from "@/db/place";
 import type { MemoryItem } from "@/lib/schema/memory";
 import type { ConversationTurn, TurnKind } from "@/lib/schema/turn";
 import {
-  applyDeviceMemoryChanges, deleteDeviceConversation, deviceLatest, deviceMemory, deviceRecent, devicePins, listDevice, pinOnDevice, saveDeviceTurn, setDeviceThumb, updateDevicePin,
+  applyDeviceMemoryChanges, deleteDeviceConversation, deviceMemory, deviceRecent, devicePins, listDevice, pinOnDevice, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin,
 } from "@/lib/store/device";
+import { legacyOf, threadOf } from "@/lib/store/journal-ops";
 import { DRAFT_EVENT, takeStoredDraft } from "./draft";
 import { useSpeech } from "../voice/use-speech";
 import "./ask.css";
@@ -30,6 +32,8 @@ export type TurnView = {
 };
 export type Drawn = { key: string; title: string; recipe: Recipe; blocks: ResolvedBlock[] };
 type Pin = { id: string; title: string };
+type SpaceChoice = { id: string; name: string; status: string };
+type Earlier = { id: string; question: string };
 type Places = { memory: Place; journal: Place; canvases: Place };
 
 const viewOf = (turn: ConversationTurn): TurnView => ({
@@ -46,7 +50,6 @@ async function drawOnServer(recipe: Recipe): Promise<ResolvedBlock[] | string> {
 
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
 const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-const DAY_MS = 24 * 60 * 60 * 1000;
 /** A card is waiting while its file is being read or one of its readings still needs the person's OK. */
 const isWaiting = (card: Card) => card.status === "reading" || card.items.some(item => item.status === "to_check");
 
@@ -56,9 +59,11 @@ const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays 
  * Ask (D60): the conversation beside the canvas. The question box, the microphone and Enter-to-ask are here; the top bar only links to this
  * page. A reply is chosen by the server (answer, a clarifying question with buttons, or a fixed decline); a canvas comes with it when it helps.
  */
-export function AskPage({ householdId, places, clock, pinId, conversationId: initialConversation, turns: initialTurns, starters, shown, pin, firstUse, unavailable, form }: {
-  householdId: string; form: CardForm; places: Places; clock: ClockHousehold; pinId: string | null;
-  conversationId: string; turns: TurnView[]; starters: Drawn[]; shown: Drawn | null; pin: Pin | null; firstUse: string | null; unavailable: string | null;
+export function AskPage({ householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin, firstUse, unavailable, form }: {
+  householdId: string; form: CardForm; places: Places; clock: ClockHousehold;
+  space: SpaceChoice & { isGeneral: boolean }; spaces: SpaceChoice[]; earlier: Earlier[]; legacyId: string | null;
+  pinId: string | null; pins: Pin[]; turns: TurnView[]; starters: Drawn[]; shown: Drawn | null; pin: Pin | null;
+  firstUse: string | null; unavailable: string | null;
 }) {
   // D59: a kind kept on this device is read from and written to this browser; the question carries what the server needs for it and the server keeps none of it.
   const onDevice = { memory: places.memory === "device", journal: places.journal === "device", canvases: places.canvases === "device" };
@@ -68,7 +73,15 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
   const requestId = useRef("");
   // The text the id was first sent with: a retry reuses the id only for the same question.
   const requestText = useRef("");
-  const [conversationId, setConversationId] = useState(initialConversation);
+  const conversationId = legacyId ?? space.id;
+  const spaceHref = `/canvas?space=${space.id}`;
+  const readOnly = space.status === "archived" || legacyId !== null;
+  const pinsReturnTo = space.isGeneral ? "/" : spaceHref;
+  const [deviceReady, setDeviceReady] = useState(!onDevice.journal);
+  const [deviceEarlier, setDeviceEarlier] = useState<Earlier[]>([]);
+  const [localPins, setLocalPins] = useState<Pin[]>([]);
+  const earlierThreads = onDevice.journal ? deviceEarlier : earlier;
+  const spacePins = onDevice.canvases ? localPins : pins;
   const [turns, setTurns] = useState(initialTurns);
   const [canvas, setCanvas] = useState<Drawn | null>(shown);
   const [starter, setStarter] = useState(0);
@@ -88,49 +101,42 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
   const canvasChosen = useRef(false);
   const waiting = new Set(Object.values(cards).filter(isWaiting).map(card => card.documentId));
 
-  // Conversations and pins kept on this device are read here, once: the newest conversation (under ten minutes old) and the canvas it or the pin shows.
+  // This page is keyed by space, thread and pin. Device history loads only this thread; older threads are listed under General.
   useEffect(() => {
-    if (!onDevice.journal && !(onDevice.canvases && pinId)) return;
+    if (!onDevice.journal && !onDevice.canvases) return;
     let cancelled = false;
     (async () => {
       try {
-        const pinned = onDevice.canvases && pinId ? (await devicePins(householdId)).find(item => item.id === pinId) : undefined;
-        // The newest conversation's files are asked about first, so a reading still waiting keeps that conversation for 24 hours.
-        const loaded: Record<string, Card> = {};
-        let docShown = false;
-        if (onDevice.journal) {
-          const all = await listDevice(householdId, "journal");
-          const newest = all.reduce<ConversationTurn | null>((best, turn) => (best === null || turn.createdAt > best.createdAt ? turn : best), null);
-          if (newest && Date.now() - Date.parse(newest.createdAt) < DAY_MS) {
-            const ids = all.filter(turn => turn.conversationId === newest.conversationId && turn.documentId).map(turn => turn.documentId as string);
-            await Promise.all(ids.map(async documentId => {
-              const response = await fetch(`/api/ask/document?id=${encodeURIComponent(documentId)}`, { cache: "no-store" }).catch(() => null);
-              if (response?.ok) loaded[documentId] = (await response.json() as { card: Card }).card;
-            }));
-          }
-        }
-        const latest = onDevice.journal ? await deviceLatest(householdId, new Date(), new Set(Object.values(loaded).filter(isWaiting).map(card => card.documentId))) : null;
-        const answered = onDevice.journal ? (await listDevice(householdId, "journal")).some(turn => turn.kind === "answer") : false;
+        const allPins = onDevice.canvases ? await devicePins(householdId) : [];
+        const currentPins = allPins.filter(item => item.spaceId === space.id || (space.isGeneral && item.spaceId == null));
+        const pinned = pinId ? currentPins.find(item => item.id === pinId) : undefined;
+        const all = onDevice.journal ? await listDevice(householdId, "journal") : [];
+        const history = space.isGeneral ? legacyOf(all, new Set(spaces.map(item => item.id))) : [];
+        const thread = legacyId && !history.some(item => item.id === legacyId) ? [] : threadOf(all, conversationId);
         if (cancelled) return;
-        if (latest) {
-          setCards(loaded); setConversationId(latest.conversationId); setTurns(latest.turns.map(viewOf));
-          const lastTurn = latest.turns[latest.turns.length - 1];
-          const lastCard = lastTurn?.documentId ? loaded[lastTurn.documentId] : undefined;
-          if (lastCard?.canvas && !pinned) { canvasChosen.current = true; docCanvases.current += 1; setCanvas({ key: `doc-${lastCard.documentId}-${docCanvases.current}`, title: lastCard.canvas.recipe.title, recipe: lastCard.canvas.recipe, blocks: lastCard.canvas.blocks }); docShown = true; }
+        if (onDevice.journal) {
+          setTurns(thread.map(viewOf));
+          setDeviceEarlier(history);
+          setDeviceReady(true);
+          if (all.some(turn => turn.kind === "answer")) setIntro(null);
+          if (legacyId && thread.length === 0) setProblem("That conversation is not on this device.");
         }
-        if (answered) setIntro(null);
+        setLocalPins(currentPins);
         if (pinned) setDevicePin({ id: pinned.id, title: pinned.title });
-        const last = latest?.turns.findLast(turn => turn.recipe !== null);
+        const last = thread.findLast(turn => turn.recipe !== null);
         const recipe = pinned?.recipe ?? last?.recipe ?? null;
         const key = pinned ? `pin-${pinned.id}` : last?.id;
-        if (recipe && key && !docShown) {
+        if (recipe && key) {
+          if (pinned) canvasChosen.current = true;
           const blocks = await drawOnServer(recipe);
           if (cancelled) return;
-          if (typeof blocks === "string") setProblem(blocks); else setCanvas({ key, title: recipe.title, recipe, blocks });
+          if (typeof blocks === "string") setProblem(blocks);
+          else if (pinned || !canvasChosen.current) setCanvas({ key, title: recipe.title, recipe, blocks });
         }
       } catch (error) { if (!cancelled) setProblem(wordsOf(error)); }
     })();
     return () => { cancelled = true; };
+  // The keyed page gets a new mount on selection, but a refresh on the same page keeps its unsent draft.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -178,7 +184,7 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
     if (attached.current?.key !== key) attached.current = { key, id: crypto.randomUUID() };
     try {
       const body = new FormData();
-      body.set("document", file); body.set("id", attached.current.id); body.set("conversationId", conversationId); body.set("text", note);
+      body.set("document", file); body.set("id", attached.current.id); body.set("conversationId", conversationId); body.set("spaceId", space.id); body.set("text", note);
       const response = await fetch("/api/ask/document", { method: "POST", body });
       if (!response.ok) return response.status === 401 ? SESSION_ENDED : (await response.text()) || "Upload failed.";
       const { turn, card } = await response.json() as { turn: ConversationTurn; card: Card };
@@ -186,7 +192,7 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
       setCards(current => ({ ...current, [card.documentId]: card }));
       setTurns(current => [...current.filter(item => item.id !== turn.id), viewOf(turn)]);
       if (onDevice.journal) {
-        try { await saveDeviceTurn(householdId, turn); } catch (error) { return wordsOf(error); }
+        try { await saveDeviceTurn(householdId, { ...turn, spaceId: space.id }); } catch (error) { return wordsOf(error); }
       }
       return null;
     } catch { return "Couldn’t reach your household. Try again."; }
@@ -194,7 +200,7 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
 
   /** Several files go one after another, each its own turn and card; the typed note goes with the first, and a refused file does not stop the others. */
   async function attach(files: File[]) {
-    if (files.length === 0 || busy) return;
+    if (files.length === 0 || busy || readOnly || !deviceReady) return;
     setBusy(true);
     setProblem("");
     const problems: string[] = [];
@@ -211,7 +217,7 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
 
   async function ask(question: string, how: "manual" | "voice") {
     const trimmed = question.trim();
-    if (!trimmed || busy) return;
+    if (!trimmed || busy || readOnly || !deviceReady) return;
     setBusy(true);
     setStep("");
     setProblem("");
@@ -227,7 +233,7 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
         if (onDevice.journal) recent = await deviceRecent(householdId, conversationId, new Date(), waiting);
       } catch (error) { setProblem(wordsOf(error)); return; }
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, conversationId, text: trimmed, source: how, canvas: canvas?.recipe ?? null, ...(memory && { memory }), ...(recent && { recent }) }) });
+        body: JSON.stringify({ id, conversationId, spaceId: space.id, text: trimmed, source: how, canvas: canvas?.recipe ?? null, ...(memory && { memory }), ...(recent && { recent }) }) });
       // A 503 carries a fixed message written for this box, such as a missing key.
       if (!response.ok) { setProblem(response.status === 401 ? SESSION_ENDED : response.status === 429 ? "Ask again in a minute." : response.status === 503 || response.status === 400 ? await response.text() : "Couldn’t check your household. Try again."); return; }
       const last = await readAskStream(response, setStep);
@@ -242,7 +248,7 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
       if (onDevice.journal) {
         try {
           await saveDeviceTurn(householdId, {
-            version: 1, id: reply.id, conversationId, question: trimmed, kind: reply.kind, reply: reply.text, choices: reply.choices,
+            version: 1, id: reply.id, conversationId, spaceId: space.id, question: trimmed, kind: reply.kind, reply: reply.text, choices: reply.choices,
             recipe: reply.canvas?.recipe ?? null, sources: reply.sources, thumb: null, createdAt: new Date().toISOString(),
           });
         } catch (error) { setProblem(wordsOf(error)); }
@@ -271,9 +277,8 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
     if (response?.ok || onDevice.journal) setTurns(current => current.map(item => (item.id === turn.id ? { ...item, thumb: next } : item)));
   }
 
-  function fresh() {
+  function clearThread() {
     speech.stop();
-    setConversationId(crypto.randomUUID());
     setTurns([]); setCards({}); setCanvas(null); canvasChosen.current = false; attached.current = null; setText(""); setProblem(unavailable ?? ""); requestId.current = "";
     field.current?.focus();
   }
@@ -292,33 +297,57 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
     if (!showing) return;
     try {
       if (update && devicePin) { if (!await updateDevicePin(householdId, devicePin.id, showing.recipe)) { setProblem("That canvas is no longer pinned on this device."); return; } }
-      else await pinOnDevice(householdId, { title: showing.recipe.title, recipe: showing.recipe });
-      router.push("/");
+      else await pinOnDevice(householdId, { title: showing.recipe.title, recipe: showing.recipe, spaceId: space.id });
+      if (space.isGeneral) router.push("/");
+      else setLocalPins((await devicePins(householdId)).filter(item => item.spaceId === space.id));
+    } catch (error) { setProblem(wordsOf(error)); }
+  }
+  async function unpinHere(id: string) {
+    try {
+      if (!await unpinOnDevice(householdId, id)) { setProblem("That canvas is no longer pinned on this device."); return; }
+      if (devicePin?.id === id) setDevicePin(null);
+      setLocalPins(current => current.filter(item => item.id !== id));
+      if (pinId === id) router.push(spaceHref);
     } catch (error) { setProblem(wordsOf(error)); }
   }
   const pinFields = (recipe: Recipe) => <>
     <input type="hidden" name="recipe" value={JSON.stringify(recipe)} />
-    <input type="hidden" name="returnTo" value="/" />
+    <input type="hidden" name="spaceId" value={space.id} />
+    <input type="hidden" name="returnTo" value={pinsReturnTo} />
   </>;
 
   return <div className="ask-page">
     <section className="ask-conversation" aria-label="Conversation">
       <div className="ask-head">
         <h1 className="ui-title">Ask</h1>
-        {turns.length > 0 && <button type="button" className="ui-button" onClick={fresh}>New conversation</button>}
+        <Link href="/memory?tab=spaces" prefetch={false} className="ui-button">Spaces</Link>
       </div>
-      {turns.length > 0 && onDevice.journal && <details className="ui-remove" open={confirmDelete} onToggle={event => setConfirmDelete(event.currentTarget.open)}>
+      <details className="ask-spaces">
+        <summary aria-label={`Current space: ${space.name}`}>{space.name}</summary>
+        <ul>{spaces.filter(item => item.status === "open").map(item =>
+          <li key={item.id}><Link className="ui-button" href={`/canvas?space=${item.id}`} prefetch={false}
+            aria-current={item.id === space.id && !legacyId ? "page" : undefined}>{item.name}</Link></li>)}</ul>
+      </details>
+      {space.status === "archived" && <p className="ui-hint">Archived space</p>}
+      {legacyId && <Link href={spaceHref} prefetch={false} className="ui-button">Back to General</Link>}
+      {earlierThreads.length > 0 && <details className="ask-spaces">
+        <summary>Earlier conversations</summary>
+        <ul>{earlierThreads.map(item => <li key={item.id}><Link className="ui-button" prefetch={false}
+          href={`${spaceHref}&thread=${item.id}`} aria-current={legacyId === item.id ? "page" : undefined}>{item.question}</Link></li>)}</ul>
+      </details>}
+      {!readOnly && space.isGeneral && turns.length > 0 && onDevice.journal && <details className="ui-remove" open={confirmDelete} onToggle={event => setConfirmDelete(event.currentTarget.open)}>
         <summary aria-label="Delete this conversation">Delete</summary>
         <p>Delete this conversation? Its questions and answers are removed from this device for good. What the assistant remembers and your pinned canvases stay.</p>
         <div className="ui-remove-buttons">
           <button type="button" className="ui-button" onClick={() => setConfirmDelete(false)}>Keep</button>
           <button type="button" className="ui-button" onClick={() => void (async () => {
-            try { await deleteDeviceConversation(householdId, conversationId); setConfirmDelete(false); fresh(); } catch (error) { setProblem(wordsOf(error)); }
+            try { await deleteDeviceConversation(householdId, conversationId); setConfirmDelete(false); clearThread(); } catch (error) { setProblem(wordsOf(error)); }
           })()}>Delete</button>
         </div>
       </details>}
-      {turns.length > 0 && !onDevice.journal && <ConfirmRemove kind="conversation" id={conversationId} label="this conversation" note="Its questions and answers are removed for good. What the assistant remembers and your pinned canvases stay." returnTo="/canvas" onDone={fresh} />}
-      {turns.length === 0 && <div className="ask-empty">
+      {!readOnly && space.isGeneral && turns.length > 0 && !onDevice.journal && <ConfirmRemove kind="conversation" id={conversationId} label="this conversation" note="Its questions and answers are removed for good. What the assistant remembers and your pinned canvases stay." returnTo={spaceHref} onDone={clearThread} />}
+      {!readOnly && !deviceReady && !problem && <p className="ui-hint" role="status">Opening this space on this device…</p>}
+      {!readOnly && deviceReady && turns.length === 0 && <div className="ask-empty">
         <p className="ui-hint">Ask in your own words about your money. Every number comes from your records.</p>
         <ul className="ask-examples">{EXAMPLES.map(example => <li key={example}><button type="button" className="ui-button" disabled={busy || unavailable !== null} onClick={() => void ask(example, "manual")}>{example}</button></li>)}</ul>
       </div>}
@@ -326,17 +355,17 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
         {turns.map(turn => <li key={turn.id} className="ask-turn">
           <p className="ask-question">{turn.question}</p>
           <p className={`ask-reply is-${turn.kind}`}>{turn.text}</p>
-          {turn.offers?.map(offer => <KeepOfferCard key={JSON.stringify(offer)}
-            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} />)}
+          {!readOnly && turn.offers?.map(offer => <KeepOfferCard key={JSON.stringify(offer)}
+            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} returnTo={spaceHref} />)}
           {turn.kind === "document" && (turn.documentId
-            ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} onCard={takeCard}
+            ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} readOnly={readOnly} returnTo={spaceHref} onCard={takeCard}
               onCanvas={drawn => showDocumentCanvas(turn.documentId as string, drawn, true)} />
             : <p className="ui-hint">{DOCUMENT_WORDS.notKept}</p>)}
-          {turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
+          {!readOnly && turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
             <button key={choice} type="button" className="ui-button" disabled={busy} onClick={() => void ask(choice, "manual")}>{choice}</button>)}</div>}
           {turn.links.length > 0 && <div className="ask-links">{turn.links.map(link => <a key={link.href} className="ui-button primary" href={link.href}>{link.label}</a>)}</div>}
           {turn.sources.length > 0 && <p className="ask-sources ui-hint">Based on: {turn.sources.map((item, index) => <span key={item.href + item.label}>{index > 0 && ", "}<a href={item.href}>{item.label}</a></span>)}</p>}
-          {turn.kind === "answer" && <div className="ask-thumbs">
+          {!readOnly && turn.kind === "answer" && <div className="ask-thumbs">
             <button type="button" className="ui-button" aria-pressed={turn.thumb === 1} onClick={() => void thumb(turn, 1)}>Helpful</button>
             <button type="button" className="ui-button" aria-pressed={turn.thumb === -1} onClick={() => void thumb(turn, -1)}>Not helpful</button>
           </div>}
@@ -344,31 +373,44 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
       </ol>
       {busy && <p role="status" aria-live="polite" className="ui-hint">{step || "Checking your numbers…"}</p>}
       {(problem || speech.problem) && <p role="alert" className="ui-problem">{problem === SESSION_ENDED ? <SessionEnded /> : problem || speech.problem}</p>}
-      {intro && <p className="ask-intro ui-hint">{intro}</p>}
-      <form id="ask" className="ask-form" onSubmit={submit}>
+      {!readOnly && intro && <p className="ask-intro ui-hint">{intro}</p>}
+      {!readOnly && <form id="ask" className="ask-form" onSubmit={submit}>
         <label className="ui-field">Your question
           <textarea ref={field} maxLength={320} rows={3} value={text} required placeholder="What’s due this week? Can I spend ¥4,000?"
             onKeyDown={enterAsks}
             onChange={event => { setText(event.target.value); setSource("manual"); requestId.current = ""; }} />
         </label>
         <div className="ask-buttons">
-          <button type="button" className="ui-button" disabled={busy} onClick={listening ? speech.stop : speak}>{listening ? "Stop listening" : "Use microphone"}</button>
+          <button type="button" className="ui-button" disabled={busy || !deviceReady} onClick={listening ? speech.stop : speak}>{listening ? "Stop listening" : "Use microphone"}</button>
           <label className={`ui-button ask-attach${busy ? " is-disabled" : ""}`}>Attach a bill
-            <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={busy}
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={busy || !deviceReady}
               onChange={event => { const input = event.currentTarget; void attach(Array.from(input.files ?? [])).finally(() => { input.value = ""; }); }} />
           </label>
-          <button className="ui-button primary" disabled={busy || listening || unavailable !== null}>{busy ? "Checking…" : "Ask"}</button>
+          <button className="ui-button primary" disabled={busy || !deviceReady || listening || unavailable !== null}>{busy ? "Checking…" : "Ask"}</button>
         </div>
-      </form>
+      </form>}
     </section>
     <section className="ask-canvas" ref={canvasRef} aria-label="Canvas" tabIndex={-1}>
+      {!space.isGeneral && spacePins.length > 0 && <div className="ask-space-pins">
+        <h2>Pinned in this space</h2>
+        <ul>{spacePins.map(item => <li key={item.id}>
+          <Link className="ui-button" href={`${spaceHref}&pin=${item.id}`} prefetch={false}>{item.title}</Link>
+          {!readOnly && (onDevice.canvases
+            ? <button type="button" className="ui-button" onClick={() => void unpinHere(item.id)}>Unpin</button>
+            : <ApiForm action="/api/canvases" className="ask-pin-form">
+              <input type="hidden" name="kind" value="unpin" /><input type="hidden" name="id" value={item.id} />
+              <input type="hidden" name="returnTo" value={spaceHref} />
+              <button className="ui-button">Unpin</button>
+            </ApiForm>)}
+        </li>)}</ul>
+      </div>}
       {onStarters && <nav className="ask-starters" aria-label="Canvases to start from">
         {starters.map((item, index) => <button key={item.key} type="button" aria-pressed={index === starter} onClick={() => setStarter(index)}>{item.title}</button>)}
       </nav>}
       {showing && <Canvas key={showing.key} recipe={showing.recipe} initial={showing.blocks}>
-        {onDevice.canvases ? <div className="ask-pin">
+        {!readOnly && (onDevice.canvases ? <div className="ask-pin">
           {devicePin && canvas && <button type="button" className="ui-button primary" onClick={() => void pinHere(true)}>Save to this pin</button>}
-          <button type="button" className="ui-button" onClick={() => void pinHere(false)}>Pin to Home</button>
+          <button type="button" className="ui-button" onClick={() => void pinHere(false)}>{space.isGeneral ? "Pin to Home" : "Pin to this space"}</button>
           <p className="ui-hint">Pinned on this device only.</p>
         </div> : <div className="ask-pin">
           {pin && canvas && <ApiForm action="/api/canvases" className="ask-pin-form">
@@ -377,9 +419,9 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
           </ApiForm>}
           <ApiForm action="/api/canvases" className="ask-pin-form">
             <input type="hidden" name="kind" value="pin" /><input type="hidden" name="title" value={showing.recipe.title} />{pinFields(showing.recipe)}
-            <button className="ui-button">Pin to Home</button>
+            <button className="ui-button">{space.isGeneral ? "Pin to Home" : "Pin to this space"}</button>
           </ApiForm>
-        </div>}
+        </div>)}
       </Canvas>}
     </section>
   </div>;

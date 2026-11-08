@@ -4,6 +4,7 @@
 // The result is parsed with the schema before it is returned, so the shape is enforced at the source.
 import { desc, eq } from "drizzle-orm";
 import { HouseholdSnapshot, SNAPSHOT_VERSION } from "@/lib/schema/household";
+import { listSpaces } from "./spaces";
 import { listCanvases } from "./canvases";
 import { allTurns } from "./conversation";
 import { listMemory } from "./memory";
@@ -106,7 +107,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
     ]);
 
     const stored = options.stored
-      ? { memory: await listMemory(tx, hid), canvases: await listCanvases(tx, hid), journal: await allTurns(tx, hid) }
+      ? { memory: await listMemory(tx, hid), canvases: await listCanvases(tx, hid, { all: true }), journal: await allTurns(tx, hid), spaces: await listSpaces(tx, hid) }
       : undefined;
     const st = window(statements, recent), ch = window(charges, recent), bi = window(bills, recent);
     const inv = window(invoices, recent), bu = window(balanceUpdates, recent), doc = window(documents, recent);
@@ -129,8 +130,12 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
       ...(events && { events: events.map(e => ({ ...e, readAt: isoOrNull(e.readAt), occurredAt: iso(e.occurredAt) })) }),
       ...(stored && {
         memory: stored.memory,
-        canvases: stored.canvases.map(c => ({ id: c.id, title: c.title, position: c.position, recipe: c.recipe, createdAt: c.createdAt })),
+        canvases: stored.canvases.map(c => ({ id: c.id, title: c.title, position: c.position, ...(c.spaceId && { spaceId: c.spaceId }), recipe: c.recipe, createdAt: c.createdAt })),
         journal: stored.journal,
+        spaces: stored.spaces.map(space => ({
+          id: space.id, name: space.name, isGeneral: space.isGeneral, status: space.status, brief: space.brief,
+          briefUpdatedBy: space.briefUpdatedBy, createdAt: iso(space.createdAt), briefUpdatedAt: isoOrNull(space.briefUpdatedAt),
+        })),
       }),
     });
   }, { isolationLevel: "repeatable read", accessMode: "read only" });

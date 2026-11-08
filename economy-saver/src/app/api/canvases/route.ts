@@ -30,7 +30,10 @@ export async function POST(request: Request) {
     return await withHousehold(db(), hid, async tx => {
       await requireCloud(tx, hid, "canvases");
       if (kind === "pin") {
-        await pinCanvas(tx, hid, { title: String(form.get("title") ?? ""), recipe }, by);
+        const rawSpace = form.get("spaceId");
+        const space = rawSpace === null ? null : idOf(rawSpace);
+        if (space && !space.success) return badFields();
+        await pinCanvas(tx, hid, { title: String(form.get("title") ?? ""), recipe, spaceId: space?.data }, by);
       } else {
         const id = idOf(form.get("id"));
         if (!id.success) return badFields();

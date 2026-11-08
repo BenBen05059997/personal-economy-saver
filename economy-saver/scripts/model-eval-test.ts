@@ -2,6 +2,7 @@
 // The key is read only as process.env.EVAL_API_KEY; it is sent to the provider's host and never printed, logged or put in a URL.
 // The household is Ben's Try it copy in a throwaway PGlite database; nothing is written anywhere else.
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
@@ -29,7 +30,7 @@ async function main() {
   const scrub = (text: string) => text.split(key!).join("[key]");
   console.log(`Evaluating ${provider!.id} / ${model} at ${new URL(connection.baseUrl).host}`);
 
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
   await migrate(db, { migrationsFolder: "./drizzle" });
   let results: { name: string; passed: boolean; why: string | null }[];

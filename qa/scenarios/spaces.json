@@ -1,0 +1,370 @@
+[
+  {
+    "id": "SPACE-001",
+    "area": "Ask spaces",
+    "action": "Open the default General space",
+    "user_goal": "I want a starting place for ordinary questions",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030"
+    ],
+    "steps": [
+      "Open Ask from the sidebar",
+      "Open Memory → Spaces",
+      "Return to Home"
+    ],
+    "expected": [
+      "General is selected by default",
+      "Memory has Profile, Spaces, Goals and Rules",
+      "General has no Rename, Archive or Delete controls",
+      "Ben still has ¥0 safe to spend and is ¥18,780 short on Nov 27 if clients pay late"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP1",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-002",
+    "area": "Ask spaces",
+    "action": "Create a space",
+    "user_goal": "I want a place for one task",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030"
+    ],
+    "steps": [
+      "Open Memory → Spaces → New space",
+      "Enter \"Tax for March\" and choose Create space"
+    ],
+    "expected": [
+      "Ask opens at /canvas?space=<id> in Tax for March with an empty thread",
+      "General remains available and the space controls fit at 375px and 1440px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP2",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-003",
+    "area": "Ask spaces",
+    "action": "Rename a space",
+    "user_goal": "I want the task name to reflect what I am doing",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "An open space called \"Tax for March\""
+    ],
+    "steps": [
+      "Note the space’s current URL",
+      "In Memory → Spaces, rename Tax for March to March paperwork"
+    ],
+    "expected": [
+      "The new name appears in Memory and Ask",
+      "The space has the same URL and keeps its thread"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP3",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-004",
+    "area": "Ask spaces",
+    "action": "Ask in a task space and reopen it",
+    "user_goal": "I want the task’s thread to stay separate",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "An open space called \"Tax for March\"",
+      "A working model"
+    ],
+    "steps": [
+      "In Tax for March, ask \"Can I afford ¥4,000 tonight?\"",
+      "Open General",
+      "After ten minutes, reopen Tax for March and reload it"
+    ],
+    "expected": [
+      "The answer says ¥4,000 does not fit using Ben’s numbers",
+      "General does not show the question",
+      "Tax for March still shows its question and answer"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP4",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-005",
+    "area": "Ask spaces",
+    "action": "Read a conversation from before spaces",
+    "user_goal": "I want to find an earlier conversation",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A household with two stored conversations that predate spaces and migration 0030 applied"
+    ],
+    "steps": [
+      "Open General, then Earlier conversations",
+      "Open each legacy thread and return to General"
+    ],
+    "expected": [
+      "The legacy threads remain separate with their original turns",
+      "Legacy threads are read-only, and General can accept a new question"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP5",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-006",
+    "area": "Ask spaces",
+    "action": "Archive a space",
+    "user_goal": "I want a finished task out of the way and still readable",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A task space with a saved fictional turn"
+    ],
+    "steps": [
+      "Archive the space from Memory → Spaces",
+      "Check Ask’s open-space navigation",
+      "Open the space under Archived spaces"
+    ],
+    "expected": [
+      "It leaves the open lists",
+      "Its saved thread is available read-only"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP6",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-007",
+    "area": "Ask spaces",
+    "action": "Delete a space with a document attached",
+    "user_goal": "I want to remove the task and keep its uploaded file",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "An expendable space with a saved turn, pinned canvas and attached fictional document"
+    ],
+    "steps": [
+      "Open Delete on the space and choose Keep",
+      "Open Delete again and confirm",
+      "Open Your data → Uploaded documents"
+    ],
+    "expected": [
+      "The confirmation explains what is removed and that attached documents stay",
+      "Keep leaves the space unchanged",
+      "Confirming removes the space and thread; the file still appears under Uploaded documents and the waiting reading opens in To check"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP7",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-008",
+    "area": "Ask spaces",
+    "action": "Pin a canvas to a task space",
+    "user_goal": "I want task canvases with that task",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "An open space called \"Tax for March\"",
+      "A working model"
+    ],
+    "steps": [
+      "Choose Pin to this space on an Ask canvas in Tax for March",
+      "Open General and choose Pin to Home on a different canvas",
+      "Open Home and then return to Tax for March"
+    ],
+    "expected": [
+      "Home draws the General pin",
+      "The task pin opens from Pinned in this space in Tax for March and is absent from Home"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP8",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-009",
+    "area": "Ask spaces",
+    "action": "Export a space with its thread",
+    "user_goal": "I want a copy of my tasks and conversations",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A task space with a saved fictional turn"
+    ],
+    "steps": [
+      "Check the Ask conversations count in Settings → Your data",
+      "Choose Export my data and inspect the JSON"
+    ],
+    "expected": [
+      "The cloud journal count includes the saved turn and the named space, and excludes General itself",
+      "The export is version 3, with General and the task in spaces",
+      "The saved turn’s conversationId equals the exported task’s id"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP9",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-010",
+    "area": "Ask spaces",
+    "action": "Import spaces into an empty household",
+    "user_goal": "I want my task threads back in a new household",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A version 3 export containing General, a task space and its thread",
+      "A fresh Start with my numbers household in the same currency"
+    ],
+    "steps": [
+      "Import the file under Settings → Your data",
+      "Open the imported task from Ask"
+    ],
+    "expected": [
+      "The task’s name and thread are restored",
+      "The task and thread use destination ids"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP10",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-011",
+    "area": "Ask spaces",
+    "action": "Reach the open-space limit",
+    "user_goal": "I want a clear result when I already have many spaces",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "PGlite fixtures with no credentials"
+    ],
+    "steps": [
+      "Run npm run db:spaces-test"
+    ],
+    "expected": [
+      "The household can keep 20 open spaces including General",
+      "The next create is refused and archiving frees a slot"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP11",
+      "db:spaces-test",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-012",
+    "area": "Ask spaces",
+    "action": "Try to open another household’s space",
+    "user_goal": "I want my spaces private to my household",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Two PGlite households with space fixtures"
+    ],
+    "steps": [
+      "Run npm run db:isolation-test and npm run db:spaces-test"
+    ],
+    "expected": [
+      "The tenant role sees no other household’s spaces",
+      "A request by another household cannot access or mutate the space"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP11",
+      "db:isolation-test",
+      "db:spaces-test",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-013",
+    "area": "Ask spaces",
+    "action": "Delete a space and its saved context together",
+    "user_goal": "I want deleting a task to remove its saved context",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A PGlite space with a thread, notes, pins, brief and attached documents"
+    ],
+    "steps": [
+      "Run npm run db:spaces-test"
+    ],
+    "expected": [
+      "One deletion removes the space, notes, thread, pins and brief",
+      "The household keeps the documents"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP11",
+      "db:spaces-test",
+      "D69"
+    ]
+  }
+]

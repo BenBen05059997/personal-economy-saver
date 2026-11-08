@@ -1,3 +1,4 @@
+import { seedGeneralSpace } from "./spaces";
 import { seedRules } from "./rules";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -77,6 +78,7 @@ export async function createHousehold(db: Db, id: string, data: Setup, opts: { i
       throw new Error("Household unavailable");
     }
     await seedRules(tx, id);
+    await seedGeneralSpace(tx, id);
     if (reference) await storeReferenceRate(tx, id, reference);
     const [owner] = await tx.insert(members).values({
       householdId: id, displayName: data.name, role: "owner", shareBp: 10_000, authUserId: opts.authUserId ?? null,

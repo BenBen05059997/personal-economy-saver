@@ -1,7 +1,8 @@
-// The Ask conversation and the pins on Home (D60, D57): turns kept 200 a household, the ten-minute window, thumbs, the pins' order and cap,
+// The Ask conversation and the pins on Home (D60, D57): all turns kept, the ten-minute context window, thumbs, the pins' order and cap,
 // scope across households, and removal with the household or by Reset. Fictional data only; PGlite, no credentials.
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { eq } from "drizzle-orm";
@@ -27,7 +28,7 @@ const turn = (conversationId: string, question: string, extra: Partial<NewTurn> 
 });
 
 async function main() {
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema }) as unknown as Db;
   let passed = 0;
   async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
@@ -89,13 +90,15 @@ async function main() {
       await assert.rejects(setThumb(db, "", first.id, 1), /household id/);
     });
 
-    await check("at most 200 turns a household: the oldest go in the same transaction, another household is untouched", async () => {
+    await check("a thread keeps all turns, including the oldest, and another household is untouched", async () => {
+      const earlier = await allTurns(db, a);
       await saveTurn(db, b, turn(crypto.randomUUID(), "Household b keeps this"), at(0));
       const thread = crypto.randomUUID();
       for (let i = 0; i < 205; i++) await saveTurn(db, a, turn(thread, `Bulk ${i}`), at(100 + i));
       const turns = await allTurns(db, a);
-      assert.equal(turns.length, 200);
-      assert.equal(turns[0].question, "Bulk 5");
+      assert.equal(turns.length, earlier.length + 205);
+      assert.deepEqual(turns.slice(0, earlier.length), earlier);
+      assert.equal(turns[earlier.length].question, "Bulk 0");
       assert.equal(turns.at(-1)!.question, "Bulk 204");
       assert.equal((await allTurns(db, b)).length, 1);
     });

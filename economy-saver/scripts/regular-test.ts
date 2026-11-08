@@ -3,6 +3,7 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/regular-test.ts
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
@@ -171,7 +172,7 @@ async function main() {
   });
 
   // ------------------------------------------------------------ the database
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });

@@ -9,6 +9,7 @@ import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { RecipeSchema, type Recipe } from "@/lib/canvas/schema";
 import { askReceipt, noteAskReply, noteAskWrote } from "./ask-receipts";
+import { requireSpace } from "./spaces";
 import { recentTurns, saveTurn, turnById } from "./conversation";
 import { documentCard } from "./document-card";
 import { conversationTurns, households } from "./schema";
@@ -24,6 +25,7 @@ import { appUrl } from "@/lib/supabase-auth";
 
 export const askInput = z.object({
   id: z.string().uuid(), conversationId: z.string().uuid(), text: z.string().trim().min(1).max(320),
+  spaceId: z.string().uuid().optional(),
   source: z.enum(["voice", "manual"]),
   /** The canvas on screen, so "make it a table" or "what about March?" can change it. */
   canvas: RecipeSchema.nullable(),
@@ -97,10 +99,15 @@ export async function firstUseLine(db: Db, householdId: string, options: { skipA
 
 /** Free-form questions go to the agent (D40). `pending` is true when a tool left a bill or charge in To check (D39). */
 export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date; onStep?: (step: string) => void } = {}): Promise<AskReply> {
-  const { id, conversationId, text, source, canvas, memory, recent } = askInput.parse(input);
+  const { id, conversationId, spaceId, text, source, canvas, memory, recent } = askInput.parse(input);
   const householdId = requireHousehold(hid);
   const prepared = await withHousehold<{ reply: AskReply } | { context: string; deviceMemory?: DeviceMemory }>(db, householdId, async tx => {
     // A kind kept on the device comes with the question and is never stored here; a kind kept in the cloud is read here and the question must not carry it.
+    if (spaceId !== undefined) {
+      await requireSpace(tx, householdId, spaceId);
+      if (conversationId !== spaceId || recent?.some(turn => turn.conversationId !== spaceId))
+        throw new InputError("Use the thread of the selected space.");
+    }
     const places = await readPlaces(tx, householdId);
     if ((places.memory === "device") !== (memory !== undefined)) throw new InputError(places.memory === "device"
       ? "This household keeps its memory on this device, so the question has to bring it. Reload the page and ask again."
@@ -110,7 +117,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
       : "This household keeps its conversations in our cloud. Reload the page and ask again.");
     // A question retried after its reply was lost has the same id: the saved turn is the reply, and nothing runs or writes again.
     const kept = recent === undefined ? await turnById(tx, householdId, id) : null;
-    if (kept && kept.question !== text) throw new InputError("This question was already answered. Reload the page and ask again.");
+    if (kept && (kept.question !== text || kept.conversationId !== conversationId)) throw new InputError("This question was already answered. Reload the page and ask again.");
     if (kept) {
       const receipt = await askReceipt(tx, householdId, id);
       const drawn = kept.recipe ? { recipe: kept.recipe, blocks: resolveRecipe(kept.recipe, await loadCanvasContext(tx, householdId, kept.recipe)) } : null;
@@ -146,6 +153,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending, offers: [] };
   }
   await withHousehold(db, householdId, async tx => {
+    if (spaceId !== undefined) await requireSpace(tx, householdId, spaceId, true);
     await noteAskReply(tx, householdId, id, result);
     if (recent === undefined) {
       await saveTurn(tx, householdId, {

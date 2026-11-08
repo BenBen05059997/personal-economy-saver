@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import { drizzle } from "drizzle-orm/pglite";
@@ -26,7 +27,7 @@ const sampleBill = { id: "fictional-bill", status: "pending", biller: "Kumo Wate
   category: "utilities", businessBp: 0 } satisfies Bill;
 
 async function main() {
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
   let passed = 0;
   async function check(name: string, run: () => Promise<void> | void) { await run(); passed++; console.log("✓ " + name); }

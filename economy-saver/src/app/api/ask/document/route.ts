@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/db/client";
+import { InputError } from "@/db/input-error";
 import { withHousehold } from "@/db/household";
 import { attachDocument, documentCard } from "@/db/document-card";
 import { requireReaderModel } from "@/db/reader-job";
@@ -12,6 +13,7 @@ import { currentHouseholdId, householdRequest } from "@/lib/session";
 
 const fields = z.object({
   id: z.string().uuid(), conversationId: z.string().uuid(),
+  spaceId: z.string().uuid().optional(),
   text: z.string().trim().max(320).optional(),
 });
 
@@ -21,13 +23,14 @@ export async function POST(request: Request) {
   if (hid instanceof Response) return hid;
   try {
     const { mime, bytes, form } = await readUpload(request);
-    const parsed = fields.safeParse({ id: form.get("id"), conversationId: form.get("conversationId"), text: form.get("text") ?? undefined });
+    const parsed = fields.safeParse({ id: form.get("id"), conversationId: form.get("conversationId"), spaceId: form.get("spaceId") ?? undefined, text: form.get("text") ?? undefined });
     if (!parsed.success) return new Response(BAD_FIELDS, { status: 400 });
     await requireReaderModel(db(), hid);
-    const { turn, card, documentId } = await attachDocument(db(), hid, { id: parsed.data.id, conversationId: parsed.data.conversationId, text: parsed.data.text || null, mime, bytes });
+    const { turn, card, documentId } = await attachDocument(db(), hid, { id: parsed.data.id, conversationId: parsed.data.conversationId, spaceId: parsed.data.spaceId, text: parsed.data.text || null, mime, bytes });
     after(() => readDocumentInBackground(hid, documentId));
     return Response.json({ turn, card }, { headers: NO_STORE });
   } catch (error) {
+    if (error instanceof InputError) return new Response(error.message, { status: 400 });
     return new Response(error instanceof ReaderError ? error.message : "Upload failed.", { status: error instanceof ReaderError ? error.status : 500 });
   }
 }

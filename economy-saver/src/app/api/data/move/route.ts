@@ -14,9 +14,9 @@ const Body = z.discriminatedUnion("step", [
   /** To this device, step 1: the browser takes the items. Nothing changes here. */
   z.object({ step: z.literal("read"), what: What }).strict(),
   /** To this device, step 2: the browser has stored the items with these ids and confirms; the server deletes its copies and sets the place. */
-  z.object({ step: z.literal("to_device"), what: What, ids: z.array(z.string().uuid()).max(200) }).strict(),
+  z.object({ step: z.literal("to_device"), what: What, ids: z.array(z.string().uuid()) }).strict(),
   /** Back to the cloud: the browser posts the items; the server checks each against its schema, inserts them and sets the place. */
-  z.object({ step: z.literal("to_cloud"), what: What, items: z.array(z.unknown()).max(200) }).strict(),
+  z.object({ step: z.literal("to_cloud"), what: What, items: z.array(z.unknown()) }).strict(),
 ]);
 
 /** Where memory, canvases and conversations are kept (D59). JSON in, JSON out; a real move, never a copy. */

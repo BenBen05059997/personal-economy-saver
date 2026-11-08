@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import Module from "node:module";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { count } from "drizzle-orm";
@@ -90,7 +91,7 @@ async function main() {
   ok("checkFill: amounts need the said number and currency, dates the limit, selects their options, unknown names dropped; the request schema's limits");
 
   // ---------------------------------------------------------------- the route
-  const pg = new PGlite();
+  const pg = new PGlite({ extensions: { pg_trgm } });
   const originalFetch = globalThis.fetch;
   const savedEnv = { ...process.env };
   let cookie: string | null = null;

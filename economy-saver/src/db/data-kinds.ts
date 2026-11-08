@@ -1,7 +1,7 @@
 // D59: the kinds of stored data and the one set of operations on them: count a kind, delete a kind, delete one item.
 // Memory, canvases, the journal and documents are real deletes; the record is refused here ("Delete everything" is the household delete).
 // Every query is scoped by household_id.
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 import { documentBucket } from "@/lib/reader/storage";
 import { ReaderError } from "@/lib/reader/settings";
@@ -30,7 +30,11 @@ export async function countKind(db: Db, householdId: string, kind: DataKind): Pr
   switch (kind) {
     case "memory": return count(db, s.memories, hid);
     case "canvases": return count(db, s.canvases, hid);
-    case "journal": return count(db, s.conversationTurns, hid);
+    case "journal": {
+      const [turns, [{ n }]] = await Promise.all([count(db, s.conversationTurns, hid),
+        db.select({ n: sql<number>`count(*)::int` }).from(s.spaces).where(and(eq(s.spaces.householdId, hid), eq(s.spaces.isGeneral, false)))]);
+      return turns + n;
+    }
     case "documents": return count(db, s.documents, hid);
     case "reminders": return count(db, s.reminders, hid);
     case "push_subscriptions": return count(db, s.pushSubscriptions, hid);
@@ -156,10 +160,22 @@ export async function deleteKind(db: Db, householdId: string, kind: DataKind, by
       for (const { id } of rows) if (await unpinCanvas(db, hid, id, by)) n++;
       return n;
     }
-    case "journal": {
-      const gone = await db.delete(s.conversationTurns).where(eq(s.conversationTurns.householdId, hid)).returning({ id: s.conversationTurns.id });
-      return gone.length;
-    }
+    case "journal":
+      return withHousehold(db, hid, async tx => {
+        await lock(tx, hid);
+        const scope = eq(s.spaces.householdId, hid);
+        const named = await tx.select({ id: s.spaces.id }).from(s.spaces)
+          .where(and(scope, eq(s.spaces.isGeneral, false))).for("update");
+        const turns = await tx.delete(s.conversationTurns).where(eq(s.conversationTurns.householdId, hid))
+          .returning({ id: s.conversationTurns.id });
+        await tx.update(s.standingRules).set({ spaceId: null })
+          .where(and(eq(s.standingRules.householdId, hid), isNotNull(s.standingRules.spaceId)));
+        await tx.update(s.reminders).set({ spaceId: null })
+          .where(and(eq(s.reminders.householdId, hid), isNotNull(s.reminders.spaceId)));
+        await tx.delete(s.spaces).where(and(scope, eq(s.spaces.isGeneral, false)));
+        await tx.update(s.spaces).set({ brief: {}, briefUpdatedAt: null, briefUpdatedBy: null }).where(and(scope, eq(s.spaces.isGeneral, true)));
+        return turns.length + named.length;
+      });
     case "reminders":
     case "push_subscriptions":
       return deleteReminderRows(db, hid, kind, by);

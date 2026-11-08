@@ -25,16 +25,18 @@ export function ExportData({ householdId, device }: { householdId: string; devic
       const response = await fetch("/api/export", { method: "POST" });
       if (!response.ok) throw new Error(await response.text());
       const file = await response.json() as Record<string, unknown> & { household: { today: string } };
+      const spaceIds = new Set((Array.isArray(file.spaces) ? file.spaces : []).map(space => space.id));
+      const inKnownSpace = (item: { spaceId?: string | null }) => !item.spaceId || spaceIds.has(item.spaceId);
       if (device.includes("memory") || device.includes("journal")) {
         const parts = Parts.parse({
           memory: device.includes("memory") ? await listDevice(householdId, "memory") : file.memory ?? [],
           journal: device.includes("journal") ? await listDevice(householdId, "journal") : file.journal ?? [],
         });
-        if (device.includes("memory")) file.memory = parts.memory;
-        if (device.includes("journal")) file.journal = [...parts.journal].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+        if (device.includes("memory")) file.memory = parts.memory.filter(inKnownSpace);
+        if (device.includes("journal")) file.journal = parts.journal.filter(inKnownSpace).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
       }
       if (device.includes("canvases")) {
-        file.canvases = (await listDevice(householdId, "canvases")).map(({ id, title, position, recipe, createdAt }) => ({ id, title, position, recipe, createdAt }));
+        file.canvases = (await listDevice(householdId, "canvases")).filter(inKnownSpace).map(({ id, title, position, recipe, createdAt, spaceId }) => ({ id, title, position, recipe, createdAt, ...(spaceId && { spaceId }) }));
       }
       const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2) + "\n"], { type: "application/json" }));
       const link = document.createElement("a");

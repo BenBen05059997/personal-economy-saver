@@ -3,8 +3,6 @@ import { z } from "zod";
 import { RecipeSchema } from "@/lib/canvas/schema";
 
 export const TURN_VERSION = 1;
-/** The most turns a household keeps; the oldest go first. */
-export const TURN_LIMIT = 200;
 /** A conversation carries on while its last turn is younger than this; the last three turns then go to the model as context. */
 const CONVERSATION_MINUTES = 10;
 export const CONTEXT_TURNS = 3;
@@ -23,6 +21,8 @@ export const ConversationTurn = z.object({
   version: z.literal(TURN_VERSION),
   id: z.string().uuid(),
   conversationId: z.string().uuid(),
+  /** A device turn in a space carries its scope so a later deletion cannot turn it into a legacy conversation. */
+  spaceId: z.string().uuid().optional(),
   question: z.string().min(1).max(320),
   kind: TurnKind,
   reply: z.string().min(1),

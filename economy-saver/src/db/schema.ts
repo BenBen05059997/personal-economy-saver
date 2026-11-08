@@ -27,6 +27,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -482,9 +483,30 @@ export const rules = pgTable(
   (t) => [index("rules_household_idx").on(t.householdId), unique("rules_household_biller_uq").on(t.householdId, t.matchBiller)],
 ).enableRLS();
 
+// D69: a persistent task and its visible brief. General is the household's permanent default.
+export const spaces = pgTable("spaces", {
+  id: id(),
+  householdId: householdId(),
+  name: text("name").notNull(),
+  isGeneral: boolean("is_general").notNull().default(false),
+  status: text("status", { enum: ["open", "archived"] }).notNull().default("open"),
+  brief: jsonb("brief").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  briefUpdatedAt: timestamp("brief_updated_at", { withTimezone: true }),
+  briefUpdatedBy: text("brief_updated_by", { enum: ["ask", "form"] }),
+  createdAt: createdAt(),
+}, t => [
+  unique("spaces_household_id_uq").on(t.householdId, t.id),
+  uniqueIndex("spaces_household_general_uq").on(t.householdId).where(sql`${t.isGeneral}`),
+  check("spaces_name_valid", sql`char_length(${t.name}) between 1 and 60`),
+  check("spaces_status_valid", sql`${t.status} in ('open', 'archived')`),
+  check("spaces_general_valid", sql`${t.isGeneral} = (${t.name} = 'General') and (not ${t.isGeneral} or ${t.status} = 'open')`),
+  check("spaces_brief_maker_valid", sql`${t.briefUpdatedBy} in ('ask', 'form')`),
+]).enableRLS();
+
 export const standingRules = pgTable("standing_rules", {
   id: id(),
   householdId: householdId(),
+  spaceId: uuid("space_id"),
   kind: text("kind", { enum: RULE_KINDS }).notNull(),
   enabled: boolean("enabled").notNull(),
   threshold: minor("threshold"),
@@ -492,6 +514,7 @@ export const standingRules = pgTable("standing_rules", {
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
+  foreignKey({ columns: [t.householdId, t.spaceId], foreignColumns: [spaces.householdId, spaces.id], name: "standing_rules_space_household_fk" }),
   unique("standing_rules_household_id_uq").on(t.householdId, t.id),
   unique("standing_rules_household_kind_uq").on(t.householdId, t.kind),
   check("standing_rules_kind_valid", sql`${t.kind} in ('nudge_after', 'statement_ahead', 'bill_ahead', 'cost_up', 'safe_below', 'goal_behind')`),
@@ -555,6 +578,7 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
 export const reminders = pgTable("reminders", {
   id: id(),
   householdId: householdId(),
+  spaceId: uuid("space_id"),
   memberId: uuid("member_id").notNull(),
   channel: text("channel", { enum: ["email", "push"] }).notNull(),
   day: date("day", { mode: "string" }).notNull(),
@@ -562,6 +586,7 @@ export const reminders = pgTable("reminders", {
   status: text("status", { enum: ["sent", "failed"] }).notNull(),
   createdAt: createdAt(),
 }, (t) => [
+  foreignKey({ columns: [t.householdId, t.spaceId], foreignColumns: [spaces.householdId, spaces.id], name: "reminders_space_household_fk" }),
   unique("reminders_household_id_uq").on(t.householdId, t.id),
   unique("reminders_household_member_channel_day_uq").on(t.householdId, t.memberId, t.channel, t.day),
   foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "reminders_member_household_fk" }).onDelete("cascade"),
@@ -686,6 +711,7 @@ export const memories = pgTable(
   {
     id: id(),
     householdId: householdId(),
+    spaceId: uuid("space_id"),
     kind: memoryKind("kind").notNull(),
     text: text("text").notNull(),
     madeBy: madeByColumn(),
@@ -693,7 +719,7 @@ export const memories = pgTable(
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("memories_household_idx").on(t.householdId), check("memories_text_valid", sql`char_length(${t.text}) between 1 and 400`)],
+  (t) => [foreignKey({ columns: [t.householdId, t.spaceId], foreignColumns: [spaces.householdId, spaces.id], name: "memories_space_household_fk" }).onDelete("cascade"), index("memories_household_idx").on(t.householdId), index("memories_text_trgm_idx").using("gin", t.text.op("gin_trgm_ops")), check("memories_text_valid", sql`char_length(${t.text}) between 1 and 400`)],
 ).enableRLS();
 
 // D57: a canvas pinned to Home. The recipe holds queries, never numbers; `position` 0 is first.
@@ -702,6 +728,7 @@ export const canvases = pgTable(
   {
     id: id(),
     householdId: householdId(),
+    spaceId: uuid("space_id"),
     title: text("title").notNull(),
     recipe: jsonb("recipe").notNull(), // a RecipeSchema value; its version is inside
     position: integer("position").notNull(),
@@ -710,7 +737,7 @@ export const canvases = pgTable(
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("canvases_household_position_idx").on(t.householdId, t.position), check("canvases_title_valid", sql`char_length(${t.title}) between 1 and 80`)],
+  (t) => [foreignKey({ columns: [t.householdId, t.spaceId], foreignColumns: [spaces.householdId, spaces.id], name: "canvases_space_household_fk" }).onDelete("cascade"), index("canvases_household_position_idx").on(t.householdId, t.position), check("canvases_title_valid", sql`char_length(${t.title}) between 1 and 80`)],
 ).enableRLS();
 
 // D60: one question and its reply. `id` is the question's ask_id, so a retried question is one row.
@@ -732,6 +759,8 @@ export const conversationTurns = pgTable(
   },
   (t) => [
     index("conversation_turns_household_idx").on(t.householdId, t.conversationId, t.createdAt),
+    index("conversation_turns_question_trgm_idx").using("gin", t.question.op("gin_trgm_ops")),
+    index("conversation_turns_reply_trgm_idx").using("gin", t.reply.op("gin_trgm_ops")),
     check("conversation_turns_question_valid", sql`char_length(${t.question}) between 1 and 320`),
     check("conversation_turns_kind_valid", sql`${t.kind} in ('answer', 'clarify', 'declined', 'document')`),
     check("conversation_turns_thumb_valid", sql`${t.thumb} is null or ${t.thumb} in (-1, 1)`),

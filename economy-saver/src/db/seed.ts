@@ -1,3 +1,4 @@
+import { seedGeneralSpace } from "./spaces";
 import { seedRules } from "./rules";
 import { refreshSuggestions } from "./suggestions";
 // Seeds a household with Ben's data: the demo household and every "Try it" copy (D34). Each call makes a fresh one.
@@ -44,6 +45,7 @@ export async function seedBenRows(tx: Db, opts: SeedOptions): Promise<string> {
     })
     .returning({ id: s.households.id });
   const hid = household.id;
+  await seedGeneralSpace(tx, hid);
   // Queue independent inserts together on the transaction's single connection.
   // Each wave finishes before rows that reference it are inserted.
   const member = { id: crypto.randomUUID() };
