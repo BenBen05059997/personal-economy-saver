@@ -21,12 +21,16 @@ export async function householdDate(db: Db, id: string, now?: Date) {
   return (await householdClock(db, id, now)).today;
 }
 
-// A sole owner's household has their verified Supabase uid as its id. Both predicates
-// are required: the id is a routing key and never an authorization credential.
+/** Resolve a verified login to its one household and role. The verified auth uid is the routing key here. */
+export async function accountMembership(db: Db, verifiedUid: string) {
+  const [membership] = await db.select({ householdId: users.householdId, memberId: users.memberId, role: members.role }).from(users)
+    .innerJoin(members, and(eq(members.householdId, users.householdId), eq(members.id, users.memberId)))
+    .where(eq(users.authUserId, requireHousehold(verifiedUid)));
+  return membership ?? null;
+}
+
 export async function accountHousehold(db: Db, verifiedUid: string) {
-  const [membership] = await db.select({ id: users.householdId }).from(users)
-    .where(and(eq(users.householdId, requireHousehold(verifiedUid)), eq(users.authUserId, verifiedUid)));
-  return membership?.id ?? null;
+  return (await accountMembership(db, verifiedUid))?.householdId ?? null;
 }
 
 const blank = (value: unknown) => (typeof value === "string" && value.trim() === "" ? undefined : value);
@@ -66,7 +70,10 @@ export async function createHousehold(db: Db, id: string, data: Setup, opts: { i
 
     }).onConflictDoNothing({ target: households.id }).returning({ id: households.id });
     if (!created) {
-      if (opts.authUserId && await accountHousehold(tx, id)) return id;
+      if (opts.authUserId) {
+        const current = await accountHousehold(tx, opts.authUserId);
+        if (current) return current;
+      }
       throw new Error("Household unavailable");
     }
     await seedRules(tx, id);
@@ -97,17 +104,16 @@ export async function createHousehold(db: Db, id: string, data: Setup, opts: { i
 
 export async function finishSetup(db: Db, verifiedUid: string, data: Setup, demo: string | null) {
   const id = requireHousehold(verifiedUid);
-  if (await accountHousehold(db, id)) return id;
+  const current = await accountHousehold(db, id);
+  if (current) return current;
   return createHousehold(db, id, data, { isDemo: false, authUserId: verifiedUid, replaceDemo: demo });
 }
 
 export async function deleteOwnedHousehold(db: Db, verifiedUid: string) {
-  const id = requireHousehold(verifiedUid);
   return db.transaction(async tx => {
-    const [owner] = await tx.select({ id: members.id }).from(users)
-      .innerJoin(members, and(eq(members.id, users.memberId), eq(members.householdId, users.householdId)))
-      .where(and(eq(users.householdId, id), eq(users.authUserId, verifiedUid), eq(members.role, "owner")));
-    if (!owner) return false;
+    const owner = await accountMembership(tx, verifiedUid);
+    if (owner?.role !== "owner") return false;
+    const id = owner.householdId;
     const [household] = await tx.select({ id: households.id }).from(households)
       .where(and(eq(households.id, id), eq(households.isDemo, false))).for("update");
     if (!household) return false;

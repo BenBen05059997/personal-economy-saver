@@ -1,0 +1,350 @@
+[
+  {
+    "id": "MEMBER-001",
+    "area": "Household members",
+    "action": "Invite an existing person",
+    "user_goal": "I want someone already in our split to sign in",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "As owner, invite an existing person and enter the invited email",
+      "Copy the join link and reload"
+    ],
+    "expected": [
+      "The complete link is displayed on creation",
+      "The pending invitation remains after reload"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM1",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-002",
+    "area": "Household members",
+    "action": "Invite a new person",
+    "user_goal": "I want to add a person and give them a login",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "As owner, choose a new person and enter their name and email"
+    ],
+    "expected": [
+      "One person and one pending invitation appear"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM2",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-003",
+    "area": "Household members",
+    "action": "Cancel an invitation",
+    "user_goal": "I want to withdraw a pending join link",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "Cancel the invite in People",
+      "Open its old join URL"
+    ],
+    "expected": [
+      "The invite disappears from People and its link is unavailable"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM2",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-004",
+    "area": "Household members",
+    "action": "Request a magic link from Join",
+    "user_goal": "I want to sign in to the household I was invited to",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "Open Join in a separate profile",
+      "Enter the invited test email and request its sign-in link",
+      "Open the link in the same profile"
+    ],
+    "expected": [
+      "The invitation opens Home in the correct household with the existing figures",
+      "The invitee never enters onboarding"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM3",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-005",
+    "area": "Household members",
+    "action": "Try the wrong email",
+    "user_goal": "Only the invited address should accept my link",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "Open Join and enter a different email"
+    ],
+    "expected": [
+      "The join attempt is refused"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM3",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-006",
+    "area": "Household members",
+    "action": "Open an expired or used link",
+    "user_goal": "I want an invite to stop working after use or expiry",
+    "type": "negative",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "Open a used link and an expired link in a fresh profile"
+    ],
+    "expected": [
+      "Both links are unavailable"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM4",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-007",
+    "area": "Household members",
+    "action": "Accept as a verified invitee",
+    "user_goal": "I want to join using my verified login",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "Open an invitation as a verified login with no household",
+      "Tap the Join control"
+    ],
+    "expected": [
+      "The invite is consumed and Home opens for the intended member"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM3",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-008",
+    "area": "Household members",
+    "action": "Add records as a member",
+    "user_goal": "I want my own login to record our shared expenses",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "As the joined member, add a fictional bill and settle shared costs"
+    ],
+    "expected": [
+      "Both actions use the same household’s records"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM5",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-009",
+    "area": "Household members",
+    "action": "Try owner-only routes as a member",
+    "user_goal": "I want sensitive operations restricted to the owner",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "Verified test identities or a fake Auth transport"
+    ],
+    "steps": [
+      "As a member, POST to approve, remove a person, change the model, create or cancel an invite, and delete the household"
+    ],
+    "expected": [
+      "The owner check returns 403 for every owner-only action"
+    ],
+    "refs": [
+      "db:members-test",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-010",
+    "area": "Household members",
+    "action": "Review Who has access",
+    "user_goal": "I want to know which people and links can see my data",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "As owner, open Who has access in People"
+    ],
+    "expected": [
+      "People, current family links and active MCP keys are listed without full credentials"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM6",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-011",
+    "area": "Household members",
+    "action": "Leave the household",
+    "user_goal": "I want my login removed without changing the household’s money history",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "As a member, open Account and confirm leaving",
+      "Reopen People in the owner profile"
+    ],
+    "expected": [
+      "The former member can no longer open the household",
+      "Their person record and shares stay with the household"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM7",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-012",
+    "area": "Household members",
+    "action": "Remove a signed-in person",
+    "user_goal": "As owner I want to remove a member after the balances are settled",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "Settle outstanding shared costs",
+      "As owner remove that person from People"
+    ],
+    "expected": [
+      "The person loses login access and existing settlement guards are respected"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM7",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-013",
+    "area": "Household members",
+    "action": "Use anonymous Try it",
+    "user_goal": "I want to try the app without opening a real account",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0030 and fictional household records",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "Open Try it and review the existing sandbox invoice action"
+    ],
+    "expected": [
+      "The demo works without a login and provides no invite controls"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AM8",
+      "D68"
+    ]
+  }
+]

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { loadSettings } from "@/db/settings";
+import type { McpTokenInfo } from "@/db/mcp-tokens";
 import type { reminderView } from "@/db/reminders";
 import { fromMinor } from "@/db/money";
 import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
@@ -20,6 +21,8 @@ import { YourData } from "./YourData";
 import { Reminders } from "./Reminders";
 import { EditAmounts } from "./EditAmounts";
 import { FamilyShare, type FamilyLinkRow } from "./FamilyShare";
+import { HouseholdAccess } from "./HouseholdAccess";
+import { InvitePeople, type InviteRow } from "./InvitePeople";
 import { ResetDemo } from "./ResetDemo";
 import { ImportStatement } from "./ImportStatement";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
@@ -120,7 +123,10 @@ function CardFields({ data, card }: { data: SettingsData; card?: SettingsData["c
     <button className="ui-button">{card ? "Save card" : "Add card"}</button></>;
 }
 
-export function SettingsView({ data, canImportPayPal = false, familyLinks, reminders }: { data: SettingsData; canImportPayPal?: boolean; familyLinks: FamilyLinkRow[]; reminders: Awaited<ReturnType<typeof reminderView>> }) {
+export function SettingsView({ data, canImportPayPal = false, familyLinks, reminders, canManage, access }: {
+  data: SettingsData; canImportPayPal?: boolean; familyLinks: FamilyLinkRow[]; reminders: Awaited<ReturnType<typeof reminderView>>;
+  canManage: boolean; access: { invites: InviteRow[]; tokens: McpTokenInfo[]; invited: string[] } | null;
+}) {
   const { household, people, cards, bills } = data;
   const isPast = (bill: SettingsData["bills"][number]) => bill.status === "confirmed" && bill.repeatUnit === null && bill.due !== null && bill.due < data.today; // a one-off already due: history, kept below the rest
   const current = bills.filter(bill => !isPast(bill));
@@ -150,10 +156,12 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks, remin
         <p className="ui-hint">{people.length > 1 ? "Adding someone splits the shared costs equally again." : "Add a partner or housemate to split shared bills and charges. You start equal and can change the shares afterwards."}</p>
         <label key={people.length} className="ui-field">Add a person<input name="name" maxLength={80} required /></label>
         <button className="ui-button">Add person</button></ApiForm></ApiFormGroup>
-      {people.length > 1 && <div className="settings-remove-people"><p className="ui-hint">A person can be removed once they owe nobody and nobody owes them.</p>
+      {canManage && people.length > 1 && <div className="settings-remove-people"><p className="ui-hint">A person can be removed once they owe nobody and nobody owes them.</p>
         {people.filter(person => person.role !== "owner").map(person => <RemovePerson key={person.id} person={person} people={people} cards={cards} />)}</div>}
+      {access && <InvitePeople people={people.filter(person => person.role === "member" && !person.signedIn && !access.invited.includes(person.id))} invites={access.invites} />}
       <FamilyShare links={familyLinks} />
     </section>
+    {access && <HouseholdAccess people={people} familyLinks={familyLinks} tokens={access.tokens} />}
     <section className="ui-panel" id="cards"><h2>Cards</h2><p className="ui-hint">31 means month end. The payment day is in the following month.</p>
       {cards.map(card => <details key={card.id}><summary>{card.label} · {people.find(p => p.id === card.memberId)?.name ?? "Shared"}{card.foreignFeeBp == null ? "" : ` · Foreign fee ${card.foreignFeeBp / 100}%`}</summary><ApiForm><CardFields data={data} card={card} /></ApiForm></details>)}
       <details><summary>Add a card</summary><ApiForm><CardFields key={cards.length} data={data} /></ApiForm></details>
@@ -168,10 +176,10 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks, remin
       <p className="ui-hint">Add the clients and invoices from your PayPal sandbox account. This only reads from PayPal and never changes your balance.</p>
       <form method="post" action="/api/paypal/import"><button className="ui-button">Import clients and invoices from PayPal</button></form>
     </section>}
-    <Suspense fallback={<section className="ui-panel" id="ai-model"><h2>Your AI model</h2><p className="ui-hint">Loading…</p></section>}>
-      <AiModelPanel demo={household.demo} /></Suspense>
-    <Suspense fallback={<section className="ui-panel" id="your-data"><h2>Your data</h2><p className="ui-hint">Loading…</p></section>}><YourData /></Suspense>
-    <section className="ui-panel"><h2>Account</h2><p className="ui-hint">{household.demo ? "This is a fictional Try it household. Sign in to start with your own balances." : "Manage sign-in and delete your household data."}</p><Link className="ui-button" prefetch={false} href="/account">Open account</Link> <Link className="account-link" href="/privacy">Privacy ›</Link>
+    {canManage && <Suspense fallback={<section className="ui-panel" id="ai-model"><h2>Your AI model</h2><p className="ui-hint">Loading…</p></section>}>
+      <AiModelPanel demo={household.demo} /></Suspense>}
+    <Suspense fallback={<section className="ui-panel" id="your-data"><h2>Your data</h2><p className="ui-hint">Loading…</p></section>}><YourData canDeleteHousehold={canManage} /></Suspense>
+    <section className="ui-panel"><h2>Account</h2><p className="ui-hint">{household.demo ? "This is a fictional Try it household. Sign in to start with your own balances." : canManage ? "Manage sign-in and delete your household data." : "Manage sign-in or leave this household."}</p><Link className="ui-button" prefetch={false} href="/account">Open account</Link> <Link className="account-link" href="/privacy">Privacy ›</Link>
       {household.demo && <ResetDemo />}</section>
   </>;
 }

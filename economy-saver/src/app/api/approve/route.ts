@@ -8,10 +8,10 @@ import { consumeRequest } from "@/db/rate-limit";
 import { env } from "@/lib/env";
 import { runTool } from "@/lib/paypal/toolkit";
 import { formOf, redirectTo } from "@/lib/door";
-import { householdRequest } from "@/lib/session";
+import { ownerRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
-  const householdId = await householdRequest(request);
+  const householdId = await ownerRequest(request);
   if (householdId instanceof Response) return householdId;
   if (!await consumeRequest(db(), householdId, "approve", 10)) return new Response("Approval limit reached. Try again in a minute.", { status: 429, headers: { "Retry-After": "60" } });
   const form = await formOf(request);

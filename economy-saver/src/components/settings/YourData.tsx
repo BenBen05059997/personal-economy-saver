@@ -19,13 +19,13 @@ const ROWS: { kind: DataKind; name: string; unit: [string, string]; what: string
 ];
 
 /** Settings → "Your data" (D59): each kind of stored data, where it is kept, how much, and the delete for it; then export, import and delete everything. */
-export async function YourData() {
+export async function YourData({ canDeleteHousehold = true }: { canDeleteHousehold?: boolean }) {
   const hid = await currentHouseholdId();
   const counts = hid ? await countKinds(db(), hid) : null;
   const places: Places | null = hid ? await readPlaces(db(), hid) : null;
   const device = places ? (["memory", "canvases", "journal"] as const).filter(kind => places[kind] === "device") : [];
   return <section className="ui-panel" id="your-data"><h2>Your data</h2>
-    <p className="ui-hint">What the app keeps about you, where it is kept, and how to delete it. A question you ask still goes to the AI model in Your AI model above.</p>
+    <p className="ui-hint">What the app keeps about you, where it is kept, and how to delete it. A question you ask goes to the household’s AI model.</p>
     {ROWS.map(row => {
       const n = counts?.[row.kind] ?? 0;
       const remove = row.all && n > 0 ? <ConfirmRemove kind="data" id={row.kind} label={row.all} note="This can’t be undone." returnTo="/settings" /> : null;
@@ -45,8 +45,8 @@ export async function YourData() {
     <div className="settings-bill"><p>Import</p>
       <p className="ui-hint">Bring a file you exported back. It works on an empty household only, so start with your numbers first and then import.</p>
       <ImportFile /></div>
-    <div className="settings-bill"><p>Delete everything</p>
+    {canDeleteHousehold && <div className="settings-bill"><p>Delete everything</p>
       <p className="ui-hint">Deletes the household and all of the above for good.</p>
-      <Link className="ui-button" prefetch={false} href="/account">Delete everything</Link></div>
+      <Link className="ui-button" prefetch={false} href="/account">Delete everything</Link></div>}
   </section>;
 }

@@ -512,3 +512,16 @@ Check at 375px and 1440px in a separate setup with migrations 0028 and 0029. Use
 - AL10. In a Nov 23 fixture for Ben, with no PayPal ID on Acme Corp invoice 1042 and its late-client finding open, open that invoice and tap Mark paid outside PayPal. Home removes the finding and the bank balance rises from ¥67,000 to ¥247,000. Activity records the payment once.
 - AL11. Prepare a confirmed ¥2,500 Kumo Water bill with no known date. In To check → Missing, fill Nov 17 and save. The missing-date row clears and Home immediately shows "Kumo Water due Nov 17" with ¥2,500.
 - AL12. With the October charge and cost rule from AL3, confirm a Kumo Market receipt reading for ¥2,600 dated Nov 14 in Food. Home immediately shows the ¥600 increase and the charge appears once on the chosen card.
+
+## AM. Members and invitations (D68, 30A)
+
+Use the isolated browser test setup after migration 0030. Test the owner and invitee in separate browser profiles at 375px and 1440px. Use fictional household data and owner-controlled test inboxes for the verified magic-link cases.
+
+- AM1. On a signed-in owner’s household, open Settings → People. Invite an existing person with no login. The full join URL appears with Copy invite link. Copy it and reload. The pending invitation remains, and the full URL was shown when it was created.
+- AM2. Invite a new person by name. Settings lists them as a person and shows their pending invitation. Cancelling the invite makes its old join URL unavailable.
+- AM3. Open a valid invite in the invitee profile. The join page names the household and member without printing the invited email. A different address is refused. The invited address requests a magic link through the usual sign-in flow. Open it in the same browser profile and verify Home opens in the invited household, with its existing figures and no onboarding.
+- AM4. Try the used or expired link in a fresh profile. It is unavailable. A login already in another household keeps its existing membership.
+- AM5. As the joined member, add a fictional bill and settle shared costs. Confirm that owner controls for approval, removal, model changes, invitations and household deletion are unavailable or refused. A crafted request to each owner-only route returns 403.
+- AM6. In the owner profile, Settings → People → Who has access lists signed-in people, active family links and MCP keys. It shows link dates and key labels without full bearer credentials.
+- AM7. As the member, Account → Leave household. Their login loses access and their reminder settings and subscriptions are cleared. The owner still sees the person, saved records and the same split. The owner can remove the person once the existing settlement checks allow it.
+- AM8. Fresh Try it still opens without a login. It has no household invitations and retains the existing sandbox approval review.

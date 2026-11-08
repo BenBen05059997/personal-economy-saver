@@ -26,7 +26,7 @@ Cloudflare
 └── Next.js 16 app on Workers (OpenNext adapter); `src/middleware.ts` refreshes the auth cookie on every path except the webhook, cron, MCP and inbound
     ├── Pages (server components): the sidebar is Home /, Ask /canvas, To check /to-check, Activity /activity, Cards /cards, Clients /clients, Plan /plan
     │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory (Memory, Goals and Rules), /settings, /account (delete my data), /privacy
-    │   ├── /start (Start with my numbers), /login, /onboarding
+    │   ├── /start (Start with my numbers), /login, /onboarding, /join/[token] (D68)
     │   └── /family/[token]: no session; the token resolves to a household (D52); no-store, noindex, no referrer
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
     │   ├── /api/ask               one question of the Ask conversation `{ id, conversationId, text, source, canvas }`; body at most 128 KiB; the checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers, or an error line)
@@ -60,6 +60,7 @@ Cloudflare
     │   ├── /api/auth/link, /callback, /logout   magic-link request, callback and logout
     │   ├── /api/onboarding        first-run setup for a signed-in person through `createHousehold`; upgrades a Try it or blank demo household
     │   ├── /api/settings, /api/settings/ai-model, /api/forwarding   name and balance, a card (with its foreign fee, D62); Your AI model; forwarding address
+    │   ├── /api/invites            owner creates or cancels a link. A verified invitee can accept and a member can leave (D68)
     │   ├── /api/household         delete my data (the signed-in owner, `confirmation=delete`)
     │   ├── /api/export            Export my data: the version 2 snapshot with events, memory, canvases and journal, as a JSON download (D44)
     │   ├── /api/data              Settings → Your data (D59): `kind` delete_kind, delete_one or delete_conversation
@@ -83,11 +84,11 @@ Cloudflare
         └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0029), 32 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0030), 33 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
 │   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns,
-│   ip_buckets, ai_global_usage, ask_receipts, suggestions, reminder_settings, push_subscriptions, reminders
-├── Auth: magic-link login (PKCE)
+│   ip_buckets, ai_global_usage, ask_receipts, suggestions, reminder_settings, push_subscriptions, reminders, invites
+├── Auth: magic-link login (PKCE), with invited member acceptance bound to the verified email
 ├── Vault: households' own model keys, each sealed in the Worker first (`AI_KEY_SEAL_KEY`)
 └── Storage: the private bucket named by `SUPABASE_DOCUMENT_BUCKET` (`household-documents` in the owner's project): receipt photos, PDFs and raw forwarded emails
 
@@ -471,6 +472,14 @@ callback at the required `APP_URL`) → callback → Supabase auth cookies (`pes
 (D52). Cron: `CRON_SECRET`, compared in constant time. Email Worker: `INBOUND_WORKER_SECRET` and the internal origin. PayPal: the webhook signature.
 The daily job deletes those quiet for seven days (D49).
 
+### Members and access (D68)
+
+accountMembership resolves the verified Supabase user id through users and its household-scoped member row. The account can belong to one household. Anonymous Try it keeps its demo cookie and sandbox approval path. Signed-in owners manage invitations, remove people, change the household model, approve sandbox invoice sends or reminders, and delete the household. A member may use the household's money screens, add records and settle. Authorization runs in the write routes.
+
+The owner creates a link in Settings → People for a person who has no login, or adds a person with the invite. The link lasts seven days and is displayed when created. The database keeps the token hash, invited email, member, creator, expiry and acceptance time. The join screen keeps the address private. The existing PKCE magic link returns to its standard callback, which uses a short-lived HttpOnly invite cookie and compares the verified email to the stored address. Acceptance atomically links that login and consumes the invite. A verified person with no membership can also accept on the join screen. Join responses use no-store and no-referrer. The app log masks the token path.
+
+Cancelling an invite invalidates the link. A member can leave in Account, which removes their login and reminder settings and subscriptions, and keeps the person, records and shares. Owners can remove a member once the usual settlement checks allow it. Who has access lists household people, current family links and active MCP tokens.
+
 ### Credentials, three classes
 
 (a) Owner secrets: `.env.local` locally and Workers secrets in production (encrypted, write-only). (b) A household's own model (D56, D33): the
@@ -502,7 +511,7 @@ request logs. `events` is the user's audit trail. **The request line (operator l
 
 No automatic database backups are configured; the person's own backup is Export my data, and Import brings that file back into an empty household.
 What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from
-the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. 0028 adds daily suggestions, reminder storage, and standing rules with the existing nudge setting copied into the rule. `0029_reminder_delivery.sql` adds the opted-in verified recipient address and the two last-claim dates. 0000–0026 are applied to the Tokyo database. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
+the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. 0028 adds daily suggestions, reminder storage, and standing rules with the existing nudge setting copied into the rule. `0029_reminder_delivery.sql` adds the opted-in verified recipient address and the two last-claim dates. 0000–0026 are applied to the Tokyo database. 0030 adds the invitation table and its household and member references. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
 
 ### Not limited yet
 

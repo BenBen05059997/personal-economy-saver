@@ -64,3 +64,9 @@
 .settings-push { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--rule); }
 .settings-push h3 { font: 500 15px/1.3 var(--sans); margin: 0 0 var(--space-2); }
 .settings-reminder-actions { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); }
+
+.settings-invite-form { justify-self: stretch; min-width: 0; }
+.settings-invite-form.ui-row { flex-wrap: wrap; }
+.settings-access h3 { margin: var(--space-4) 0 var(--space-1); font: 500 15px/1.4 var(--sans); }
+.settings-access ul { padding-inline-start: var(--space-4); margin-block: var(--space-2); }
+.settings-access li + li { margin-top: var(--space-2); }

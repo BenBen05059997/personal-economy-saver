@@ -5,12 +5,12 @@ import { households } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { checkConnection } from "@/lib/ai/check";
 import { NO_STORE, text, tooMany } from "@/lib/door";
-import { householdRequest } from "@/lib/session";
+import { ownerRequest } from "@/lib/session";
 
 const field = (form: FormData, name: string) => { const v = form.get(name); return typeof v === "string" ? v : ""; };
 
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
+  const hid = await ownerRequest(request);
   if (hid instanceof Response) return hid;
   if (!await consumeRequest(db(), hid, "ai-model", 6)) return tooMany("Too many changes. Try again in a minute.");
   const form = await smallForm(request, 4096);

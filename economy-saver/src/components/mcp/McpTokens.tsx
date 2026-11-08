@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import type { McpTokenInfo } from "@/db/mcp-tokens";
 
 export function McpTokens({ tokens }: { tokens: McpTokenInfo[] }) {
+  const router = useRouter();
   const [items, setItems] = useState(tokens);
   const [issued, setIssued] = useState<{ id: string; value: string } | null>(null);
   const [message, setMessage] = useState("");
@@ -25,6 +27,7 @@ export function McpTokens({ tokens }: { tokens: McpTokenInfo[] }) {
       setItems(current => [result.info, ...current]);
       setIssued({ id: result.info.id, value: result.token });
       form.reset();
+      router.refresh();
     } catch { setMessage("Couldn’t create the key. Check the list below before trying again."); }
     finally { setBusy(false); }
   }
@@ -39,6 +42,7 @@ export function McpTokens({ tokens }: { tokens: McpTokenInfo[] }) {
       setItems(current => current.filter(token => token.id !== id));
       if (issued?.id === id) setIssued(null);
       setMessage("Key revoked.");
+      router.refresh();
     } catch { setMessage("Couldn’t revoke this key."); }
     finally { setBusy(false); }
   }

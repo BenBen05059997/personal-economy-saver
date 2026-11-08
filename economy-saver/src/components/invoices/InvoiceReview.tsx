@@ -10,7 +10,7 @@ import "./invoice.css";
 
 type Review = NonNullable<Awaited<ReturnType<typeof invoiceReview>>>;
 
-export function InvoiceReview({ review, state }: { review: Review; state: MoneyState }) {
+export function InvoiceReview({ review, state, canApprove }: { review: Review; state: MoneyState; canApprove: boolean }) {
   const { invoice, client } = review;
   const draft = invoice.status === "draft" || invoice.status === "unbilled";
   const late = invoice.status === "sent" && invoice.dueOn !== null && invoice.dueOn < state.today;
@@ -36,13 +36,13 @@ export function InvoiceReview({ review, state }: { review: Review; state: MoneyS
       {invoice.note && <div className="ui-row"><dt>Note</dt><dd>{invoice.note}</dd></div>}
     </dl>
     {/* The sandbox call takes 5 to 10 s: ApiForm disables the button while it runs, and the busy line shows (invoice.css). */}
-    {draft || reminder ? <ApiForm action="/api/approve" className="invoice-approve">
+    {draft || reminder ? (canApprove ? <ApiForm action="/api/approve" className="invoice-approve">
       <input type="hidden" name="approve_key" value={invoice.approveKey} />
       <input type="hidden" name="action" value={draft ? "send" : "remind"} />
       <button className="ui-button primary">{label}</button>
       <p className="ui-hint invoice-sending">Sending through PayPal sandbox…</p>
       <p className="ui-hint invoice-send-hint">{`PayPal sandbox sends this ${draft ? "invoice" : "reminder"} for ${minorMoney(invoice.amountMinor, currency)} to ${client.split(" ")[0]}’s test address. No real money moves.`}</p>
-    </ApiForm> : <p className="invoice-status">
+    </ApiForm> : <p className="invoice-status">Only the household owner can approve PayPal actions.</p>) : <p className="invoice-status">
       {invoice.status === "paid" ? `Paid ${dayLabel(invoice.paidOn!)}.`
         : invoice.status === "closed" ? "Closed in PayPal Sandbox."
         : invoice.remindedAt ? "Reminder sent through PayPal Sandbox."

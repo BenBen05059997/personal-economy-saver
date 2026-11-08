@@ -140,6 +140,23 @@ export const users = pgTable(
   (t) => [index("users_household_idx").on(t.householdId), foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "users_member_household_fk" }).onDelete("cascade")],
 ).enableRLS();
 
+export const invites = pgTable("invites", {
+  id: id(),
+  householdId: householdId(),
+  memberId: uuid("member_id").notNull(),
+  createdByMemberId: uuid("created_by_member_id").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  email: text("email").notNull(),
+  createdAt: createdAt(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+}, (t) => [
+  unique("invites_household_id_uq").on(t.householdId, t.id),
+  index("invites_household_member_idx").on(t.householdId, t.memberId),
+  foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "invites_member_household_fk" }).onDelete("cascade"),
+  foreignKey({ columns: [t.householdId, t.createdByMemberId], foreignColumns: [members.householdId, members.id], name: "invites_creator_household_fk" }).onDelete("cascade"),
+]).enableRLS();
+
 export const paypalConnections = pgTable(
   "paypal_connections",
   {

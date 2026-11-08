@@ -39,6 +39,7 @@ import * as household from "@/db/household";
 import * as importChargesMod from "@/db/import-charges"; // Stage 17 import
 import * as invoiceDraft from "@/db/invoice-draft";
 import * as invoicePaid from "@/db/invoice-paid";
+import * as invitesMod from "@/db/invites";
 import * as mcpTokens from "@/db/mcp-tokens";
 import * as memoryMod from "@/db/memory"; // D58 memory
 import * as paypalImport from "@/db/paypal-import";
@@ -77,9 +78,11 @@ import { CanvasError } from "@/lib/canvas/resolve";
 // called through the tracked module object F below, so a name cannot sit here without a test behind it.
 const covered = [
   // account.ts
-  "householdClock", "householdDate", "accountHousehold", "createHousehold", "finishSetup", "deleteOwnedHousehold",
+  "householdClock", "householdDate", "accountHousehold", "accountMembership", "createHousehold", "finishSetup", "deleteOwnedHousehold",
   // ai-key.ts
   "aiConnection", "saveHouseholdConnection", "deleteHouseholdConnection", "connectionView", "deleteHouseholdKey",
+  // D68 invites.ts
+  "activeInvites", "createInvite", "cancelInvite", "inviteView", "inviteMatchesEmail", "acceptInvite", "leaveHousehold",
   // approval.ts
   "invoiceReview", "approveInvoice",
   // bank-balance.ts, bills.ts, charges.ts, clients.ts, confirm.ts
@@ -207,7 +210,7 @@ async function main() {
   const used = new Set<string>();
   const modules = {
     ...account, ...aiKeys, ...approval, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
-    ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...mcpTokens, ...paypalImport, ...paypalRefresh, ...people, ...potsMod, ...rateLimit,
+    ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...invitesMod, ...mcpTokens, ...paypalImport, ...paypalRefresh, ...people, ...potsMod, ...rateLimit,
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
     ...importChargesMod, // Stage 17 import
     ...spendingMod, // Stage 17 spending
@@ -274,7 +277,7 @@ async function main() {
       // 27E: ip_buckets (hashed client address) and ai_global_usage (one row a day) exist before and outside any household, and hold no household data.
       assert.deepEqual(everyTable.filter(t => !scoped.includes(t)), ["ai_global_usage", "households", "ip_buckets"]);
       for (const table of ["bills", "charges", "pots", "members", "clients", "invoices", "documents", "readings", "cards", "card_statements", "settlements",
-        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules", "suggestions", "reminder_settings", "push_subscriptions", "reminders"]) {
+        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules", "suggestions", "reminder_settings", "push_subscriptions", "reminders", "invites"]) {
         assert.ok(scoped.includes(table), table);
       }
     });
@@ -326,6 +329,10 @@ async function main() {
       const settlement = one(await db.insert(schema.settlements).values({
         householdId: hid, fromMemberId: aki, toMemberId: ownerRow.id, amountMinor: 4242, currency: "JPY", through: "2026-11-10",
       }).returning({ id: schema.settlements.id })).id;
+      await db.insert(schema.invites).values({
+        householdId: hid, memberId: aki, createdByMemberId: ownerRow.id, tokenHash: l.repeat(64),
+        email: "isolation-" + l + "-invite@example.test", expiresAt: new Date("2026-11-21T00:00:00Z"),
+      });
       const authUid = randomUUID();
       const user = one(await db.insert(schema.users).values({ householdId: hid, memberId: ownerRow.id, authUserId: authUid }).returning({ id: schema.users.id })).id;
       const webhookEvent = `ISO-${tag}-EVT-1`;
@@ -872,6 +879,47 @@ async function main() {
       assert.equal((await fingerprint(B.hid)).text, bBefore.text, name + " changed household B");
       assert.equal((await fingerprint(A.hid)).text, aBefore.text, name + " changed household A");
     };
+    await check("an invited member's login can act in its own household and cannot reach another household's invitations or records", async () => {
+      const own = randomUUID(), other = randomUUID(), uid = randomUUID();
+      await F.finishSetup(store, own, { ...SETUP, name: "Fictional Orchid Household" }, null);
+      await F.finishSetup(store, other, { ...SETUP, name: "Fictional Linden Household", bank: "4321" }, null);
+      const email = "orchid-member@example.test", otherEmail = "linden-member@example.test";
+      const now = new Date("2026-11-14T00:00:00Z");
+      const invitation = await F.createInvite(store, own, own, { email, name: "Fictional Orchid Member" }, now);
+      const otherInvite = await F.createInvite(store, other, other, { email: otherEmail, name: "Fictional Linden Member" }, now);
+      const ownList = await F.activeInvites(store, own, own, now);
+      assert.deepEqual(ownList.map(row => row.id), [invitation.id]);
+      assert.deepEqual((await F.activeInvites(store, other, other, now)).map(row => row.id), [otherInvite.id]);
+      assert.deepEqual(await F.inviteView(store, invitation.token, now), {
+        householdName: "Fictional Orchid Household", memberName: "Fictional Orchid Member",
+      });
+      assert.equal(await F.inviteMatchesEmail(store, invitation.token, otherEmail, now), false);
+      assert.equal(await F.acceptInvite(store, invitation.token, { uid, email }, now), own);
+      const membership = await F.accountMembership(store, uid);
+      assert.deepEqual(membership, { householdId: own, memberId: ownList[0].memberId, role: "member" });
+      assert.equal(await F.finishSetup(store, uid, SETUP, null), own, "joining does not create a second household");
+      const otherBefore = await fingerprint(other);
+      await assert.rejects(F.activeInvites(store, own, uid, now), /owner/);
+      await assert.rejects(F.activeInvites(store, other, uid, now), /owner/);
+      await assert.rejects(F.createInvite(store, other, uid, { email, name: "Fictional Intrusion" }, now), /owner/);
+      await assert.rejects(F.cancelInvite(store, other, uid, otherInvite.id, now), /owner/);
+      assert.equal(await F.cancelInvite(store, own, own, otherInvite.id, now), false);
+      await assert.rejects(F.acceptInvite(store, otherInvite.token, { uid, email: otherEmail }, now), /already belongs/);
+      assert.equal(await F.leaveHousehold(store, other, uid), false);
+      assert.equal(await F.deleteOwnedHousehold(store, uid), false);
+      const sessionHousehold = await F.accountHousehold(store, uid);
+      assert.equal(sessionHousehold, own);
+      assert.equal((await F.loadMoneyState(store, sessionHousehold!, DEMO_DATE)).bank, 1000);
+      await F.insertClient(store, sessionHousehold!, { id: randomUUID(), name: "Fictional Orchid Client", email: "orchid-client@example.test", termsDays: 14 });
+      assert.equal((await fingerprint(other)).text, otherBefore.text);
+      assert.equal(await F.leaveHousehold(store, own, uid), true);
+      assert.equal(await F.accountMembership(store, uid), null);
+      assert.equal((await fingerprint(other)).text, otherBefore.text);
+      assert.equal(await F.cancelInvite(store, other, other, otherInvite.id, now), true);
+      assert.equal(await F.deleteOwnedHousehold(store, own), true);
+      assert.equal(await F.deleteOwnedHousehold(store, other), true);
+      await bothUntouched("invited member’s session");
+    });
     await check("account functions: sign-in lookup, setup and delete act on one account's household and never on a demo or another household", async () => {
       const uid = randomUUID();
       assert.equal(await F.finishSetup(store, uid, SETUP, null), uid);

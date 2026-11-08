@@ -16,6 +16,8 @@ export function noteHousehold(householdId: string): void {
 
 /** `/cards/<uuid>` becomes `/cards/:id`; the query string is never read. */
 export function routePattern(pathname: string): string {
+  // The join link is a bearer credential. Even a malformed URL under it must not reach the log.
+  if (/^\/join\/.+/i.test(pathname)) return "/join/:token";
   return pathname.replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=\/|$)/gi, "/:id").replace(/\/\d+(?=\/|$)/g, "/:id");
 }
 

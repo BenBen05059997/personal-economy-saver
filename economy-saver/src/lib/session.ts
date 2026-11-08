@@ -1,4 +1,4 @@
-import { accountHousehold } from "@/db/account";
+import { accountHousehold, accountMembership } from "@/db/account";
 import { verifiedUid } from "./auth-request";
 import { FORM_REDIRECT_HEADER, postedByForm } from "./form-fetch";
 import { hasAuthCookie } from "./supabase-auth";
@@ -30,6 +30,20 @@ async function resolveHouseholdId(): Promise<string | null> {
 export async function householdRequest(request: Request): Promise<string | Response> {
   if (!sameOrigin(request)) return new Response("Same-origin request required", { status: 403 });
   return await currentHouseholdId() ?? new Response("Household session required", { status: 401 });
+}
+
+/** An authenticated owner or the anonymous owner of the current Try it household. */
+export async function hasHouseholdOwnerAccess(hid: string): Promise<boolean> {
+  const uid = await verifiedUid();
+  if (!uid) return Boolean(await findDemoHousehold(db(), hid));
+  const member = await accountMembership(db(), uid);
+  return member?.householdId === hid && member.role === "owner";
+}
+
+export async function ownerRequest(request: Request): Promise<string | Response> {
+  const hid = await householdRequest(request);
+  if (hid instanceof Response) return hid;
+  return await hasHouseholdOwnerAccess(hid) ? hid : new Response("Household owner required", { status: 403 });
 }
 
 /** Sets the demo cookie and sends the visitor Home: a 303, or, to a post made by `ApiForm` (pass the request), 204 with the destination in a header. */
