@@ -8,16 +8,20 @@ import { removeExpiredFiles } from "./document-cleanup";
 import { pruneAskReceipts } from "./ask-receipts";
 import { fetchReferenceRate, storeReferenceRate } from "./reference-rate";
 import { observeRunway } from "./runway-events";
+import { runReminders } from "./reminders";
 import { runPass } from "./suggestions";
 
-/** The owner's reminder hour schedules the household pass. Select across households only at this scheduler entry point. */
+/** Start the pass when the earliest member reminder hour arrives. */
 export async function dueHouseholds(db: Db, now = new Date()) {
   const local = sql`timezone(${households.timeZone}, ${now.toISOString()}::timestamptz)`;
-  const hour = sql`coalesce((
+  const ownerHour = sql`coalesce((
     select min(${reminderSettings.hour}) from ${reminderSettings}
     join ${members} on ${members.householdId} = ${reminderSettings.householdId} and ${members.id} = ${reminderSettings.memberId}
     where ${reminderSettings.householdId} = ${households.id} and ${members.role} = 'owner'
   ), 8)`;
+  const hour = sql`least(${ownerHour}, (
+    select min(${reminderSettings.hour}) from ${reminderSettings} where ${reminderSettings.householdId} = ${households.id}
+  ))`;
   const rows = await db.select({ id: households.id }).from(households).where(and(
     eq(households.isDemo, false),
     sql`(${households.dailyRanOn} is null or ${households.dailyRanOn} < ${local}::date)`,
@@ -31,7 +35,10 @@ export async function runDaily(db: Db, id: string, now = new Date()) {
   const [household] = await db.select().from(households).where(eq(households.id, hid));
   if (!household) throw new Error("Scheduled household not found");
   const { today } = clockForHousehold(household, now);
-  if (household.dailyRanOn !== null && household.dailyRanOn >= today) return { ok: true };
+  if (household.dailyRanOn !== null && household.dailyRanOn >= today) {
+    await runReminders(db, hid, now);
+    return { ok: true };
+  }
   const rate = !household.isDemo && household.homeCurrency === "JPY" ? await fetchReferenceRate() : null;
   await pruneAskReceipts(db, hid);
   await db.transaction(async tx => {
@@ -54,6 +61,7 @@ export async function runDaily(db: Db, id: string, now = new Date()) {
     await observeRunway(tx, hid, updated);
     await tx.update(households).set({ dailyRanOn: today }).where(eq(households.id, hid));
   });
+  await runReminders(db, hid, now);
   await removeExpiredFiles(db, hid, now);
   return { ok: true };
 }

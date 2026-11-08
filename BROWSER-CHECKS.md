@@ -454,3 +454,18 @@ Use a fresh Nov 14 Try it household with a configured model. Run at 375px and 14
 - AH3. Ask "I'm saving ¥120,000 for a camera by June 30, 2027. What should I plan for?" The offer shows "Goal · Camera · ¥120,000 by 2027-06-30", or the model’s equivalent pot name. In a second tab, Plan has no Camera pot before the tap. Keep creates one pot with target ¥120,000, date June 30, 2027 and saved ¥0.
 - AH4. Move Memory to This device only, then use a fresh preference in Ask. Keep shows "Kept." and this browser's Memory lists the preference. Another browser has none of that device's memory.
 - AH5. Ask "Keep ¥50,000 safe to spend." The rule offer stays hidden until the Rules route is available. The stored rules stay as they were.
+
+## AI. Reminders (D65, 29B)
+
+Use a separate test setup after migrations 0028 and 0029. Check at 375px and 1440px with simulated delivery. Ben’s fresh Try it on Nov 14 still shows ¥18,780 short on Nov 27 and has no scheduled digest. The automated db:notify-test covers scheduling and transports without calling the development cron route.
+
+- AI1. In fresh Try it open Settings → Reminders. Reminder hour (Asia/Tokyo) starts at 08:00 and Quiet days starts clear. Change the hour to 10:00, select Saturday and Sunday, then Save reminder settings. Expect "Reminder settings saved." After reload the hour and both days remain.
+- AI2. With simulated email configured, Try it shows "Off. Sign in with a verified email to use email reminders." In a signed-in test fixture with a verified fictional address, check Email reminders and save. After reload it is on and reads "Sent to your sign-in email." Clear the checkbox and save, then reload to confirm it is off.
+- AI3. In the signed-in fixture tap Send a test email. Expect "Test reminder sent." The simulated transport receives one message addressed to the verified sign-in email, with "Your test reminder arrived." and the configured Home URL.
+- AI4. In a browser that supports Web Push, tap Turn on push in Try it and allow notifications. Expect "Push is on for this device." and "On for this device." after reload. Settings in a different browser shows push off for that device.
+- AI5. In the enrolled browser tap Send a test push. Expect "Test reminder sent." The simulated transport targets that browser’s enrolled endpoint. In the worker simulation, a valid notification shows "Personal Economy Saver" and "Your test reminder arrived." Clicking it opens or focuses Home.
+- AI6. Tap Turn off push. Expect "Push is off for this device." After reload the device is off and its test push action is absent.
+- AI7. With a fresh device, decline the notification permission after tapping Turn on push. The panel says "Allow notifications in your browser settings, then try again." Your data shows zero push subscriptions. In an unsupported browser the panel explains what push needs and disables enrollment.
+- AI8. Use a fixture with one reminder history row. In Your data check "Reminder history · 1 delivery". Remove all reminder history and confirm, then check "Reminder history · 0 deliveries". The same day’s scheduled claim stays spent.
+- AI9. Enroll one device in a fresh household. In Your data check "Push subscriptions · 1 device". Remove all push subscriptions and confirm. The count becomes "0 devices" and Reminders shows push off.
+- AI10. With RESEND_API_KEY and WEB_PUSH_PUBLIC_KEY unset in the isolated setup, Settings shows both channels off and names the missing variable for each. The health response lists separate email and push reasons. The rest of Settings still works.

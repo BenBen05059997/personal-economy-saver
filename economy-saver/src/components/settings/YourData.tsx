@@ -13,6 +13,8 @@ const ROWS: { kind: DataKind; name: string; unit: [string, string]; what: string
   { kind: "memory", name: "What the assistant remembers", unit: ["thing", "things"], what: "Facts, preferences, goals and corrections you gave it.", all: "all the assistant remembers", href: { to: "/memory", label: "See what it remembers" } },
   { kind: "canvases", name: "Canvases pinned to Home", unit: ["canvas", "canvases"], what: "Layouts only; they hold no numbers, so they always show today’s.", all: "all pinned canvases" },
   { kind: "journal", name: "Ask conversations", unit: ["question", "questions"], what: "Your questions and the answers, up to 200.", all: "all conversations" },
+  { kind: "reminders", name: "Reminder history", unit: ["delivery", "deliveries"], what: "Sent and failed reminders from the last 30 days.", all: "all reminder history" },
+  { kind: "push_subscriptions", name: "Push subscriptions", unit: ["device", "devices"], what: "The push connection for each device that turned it on.", all: "all push subscriptions" },
   { kind: "documents", name: "Uploaded documents", unit: ["document", "documents"], what: "Files you uploaded or forwarded, and the readings waiting in To check. Bills and charges you confirmed stay.", all: "all uploaded documents" },
 ];
 
@@ -38,7 +40,7 @@ export async function YourData() {
       </div>;
     })}
     <div className="settings-bill"><p>Export my data</p>
-      <p className="ui-hint">Download everything above, plus your activity history, as one JSON file. Whatever you keep on this device only is added from this browser. It has no AI key, sign-in details or uploaded files.</p>
+      <p className="ui-hint">Download your record, Memory, canvases, Ask conversations and Activity as one JSON file. Whatever you keep on this device only is added from this browser. It has no AI key, sign-in details or uploaded files.</p>
       {hid && <ExportData householdId={hid} device={device} />}</div>
     <div className="settings-bill"><p>Import</p>
       <p className="ui-hint">Bring a file you exported back. It works on an empty household only, so start with your numbers first and then import.</p>

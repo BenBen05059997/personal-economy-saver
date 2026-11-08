@@ -27,13 +27,13 @@ async function main() {
 
   try {
     const steps = readMigrationFiles({ migrationsFolder: "./drizzle" });
-    for (const migration of steps.slice(0, -1)) await pg.transaction(async tx => {
+    for (const migration of steps.slice(0, 28)) await pg.transaction(async tx => {
       for (const sql of migration.sql) await tx.exec(sql);
     });
     const legacy = crypto.randomUUID(), legacyOff = crypto.randomUUID();
     await pg.query("insert into households (id, name, home_currency, nudge_after_days) values ($1, 'Fictional 60', 'JPY', 60), ($2, 'Fictional off', 'USD', null)", [legacy, legacyOff]);
     await pg.query("insert into rules (household_id, match_biller, patch) values ($1, 'bill:kumo water', '{}'::jsonb)", [legacy]);
-    const migration = steps.at(-1)!;
+    const migration = steps[28];
     await pg.transaction(async tx => { for (const sql of migration.sql) await tx.exec(sql); });
 
     await check("0028 copies both old nudge settings, adds the other defaults and preserves reader corrections", async () => {

@@ -500,6 +500,9 @@ export const reminderSettings = pgTable("reminder_settings", {
   hour: integer("hour").notNull().default(8),
   quietDays: smallint("quiet_days").array().notNull().default(sql`'{}'::smallint[]`),
   emailOn: boolean("email_on").notNull().default(false),
+  email: text("email"), // Verified sign-in address, retained only while email reminders are on.
+  emailRanOn: date("email_ran_on", { mode: "string" }),
+  pushRanOn: date("push_ran_on", { mode: "string" }),
 }, (t) => [
   unique("reminder_settings_household_id_uq").on(t.householdId, t.id),
   unique("reminder_settings_household_member_uq").on(t.householdId, t.memberId),

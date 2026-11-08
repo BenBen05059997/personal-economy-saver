@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { loadSettings } from "@/db/settings";
+import type { reminderView } from "@/db/reminders";
 import { fromMinor } from "@/db/money";
 import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
@@ -16,6 +17,7 @@ import { dueLabel } from "@/db/bills";
 import { Suspense } from "react";
 import { AiModelPanel } from "./AiModelPanel";
 import { YourData } from "./YourData";
+import { Reminders } from "./Reminders";
 import { EditAmounts } from "./EditAmounts";
 import { FamilyShare, type FamilyLinkRow } from "./FamilyShare";
 import { ResetDemo } from "./ResetDemo";
@@ -118,7 +120,7 @@ function CardFields({ data, card }: { data: SettingsData; card?: SettingsData["c
     <button className="ui-button">{card ? "Save card" : "Add card"}</button></>;
 }
 
-export function SettingsView({ data, canImportPayPal = false, familyLinks }: { data: SettingsData; canImportPayPal?: boolean; familyLinks: FamilyLinkRow[] }) {
+export function SettingsView({ data, canImportPayPal = false, familyLinks, reminders }: { data: SettingsData; canImportPayPal?: boolean; familyLinks: FamilyLinkRow[]; reminders: Awaited<ReturnType<typeof reminderView>> }) {
   const { household, people, cards, bills } = data;
   const isPast = (bill: SettingsData["bills"][number]) => bill.status === "confirmed" && bill.repeatUnit === null && bill.due !== null && bill.due < data.today; // a one-off already due: history, kept below the rest
   const current = bills.filter(bill => !isPast(bill));
@@ -137,6 +139,7 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks }: { d
         <p className="ui-hint">It only suggests. Sending a reminder still needs your tap.</p>
         <button className="ui-button">Save nudge setting</button></ApiForm>
     </section>
+    <Reminders view={reminders} timeZone={household.timeZone} />
     <section className="ui-panel" id="people"><h2>People</h2>
       <ApiFormGroup><ApiForm action="/api/people"><input type="hidden" name="kind" value="people" />
         {people.length > 1 && <p className="ui-hint">Each person’s share of the shared bills and charges. The shares must total 100%.</p>}

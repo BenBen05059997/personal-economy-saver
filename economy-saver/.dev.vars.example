@@ -31,3 +31,11 @@ INBOUND_ADDRESS_KEY=
 INBOUND_WORKER_SECRET=
 PAYPAL_BALANCE_HOUSEHOLD_ID=
 CLIENT_IP_HEADER=cf-connecting-ip
+
+# Optional email reminders. The From address must belong to the Resend sender domain.
+RESEND_API_KEY=
+REMINDER_FROM=
+# Optional web push. npm run push:keys writes the two VAPID keys. The subject is a mailto or HTTPS contact URL.
+WEB_PUSH_PUBLIC_KEY=
+WEB_PUSH_PRIVATE_KEY=
+WEB_PUSH_SUBJECT=

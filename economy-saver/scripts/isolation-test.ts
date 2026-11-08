@@ -47,6 +47,7 @@ import * as people from "@/db/people";
 import * as potsMod from "@/db/pots";
 import * as rateLimit from "@/db/rate-limit";
 import * as readerInbox from "@/db/reader-inbox";
+import * as remindersMod from "@/db/reminders";
 import * as readerJob from "@/db/reader-job";
 import * as readings from "@/db/readings";
 import * as referenceRate from "@/db/reference-rate";
@@ -87,6 +88,8 @@ const covered = [
   "runDaily", "findDemoHousehold", "tryItKind", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
   // D64–D66 suggestions and standing rules
   "seedRules", "rulesFor", "setStandingRule", "runPass", "openSuggestions", "dismiss", "notNow", "closeByRef",
+  // D65 reminders.ts
+  "reminderView", "saveReminderSettings", "subscribeReminder", "unsubscribeReminder", "sendTestReminder", "runReminders",
   // household.ts
   "householdOwnerName", "usdRate", "usdRateMicro", "loadSplitState", "loadMoneyState", "recordEvent", "listEvents", "unreadCount", "markRead",
   "recordWebhookDelivery", "deleteHousehold",
@@ -158,6 +161,7 @@ const notApplicable: Record<string, string> = {
   sandboxRead: "PayPal sandbox HTTP reader; takes no household id",
   isMovable: "pure check that a value is one of the three movable kind names", contextText: "pure text from turns passed in; conversationContext, which reads them, is covered above",
   dueHouseholds: "global Cron scheduler selector, restricted to non-demo households and tested in cron-test",
+  dueReminderHouseholds: "global Cron selector for already-scanned non-demo households, tested in notify-test",
   defaultRules: "pure default values for standing rules, no database",
   seedBen: "creates a new household with a fresh id; touches no existing household",
   sealAiKey: "pure: seals a key text for the household id it is given; the isolation check below proves a key sealed for one household does not open for another", unsealAiKey: "pure: opens a sealed key for the household id it is given; same check",
@@ -171,7 +175,7 @@ type Ids = {
   owner: string; aki: string; card: string; client: string; billConfirmed: string; billPending: string; charge: string; chargePending: string;
   pot: string; potPending: string; balanceConfirmed: string; balancePending: string; invoiceDraft: string; invoiceSent: string; approveKey: string;
   paypalInvoice: string; document: string; documentFailed: string; documentRead: string; reading: string; settlement: string; token: string;
-  suggestion: string; statement: string; webhookEvent: string; secret: string; user: string; familyLink: string; memory: string; canvas: string; turn: string;
+  suggestion: string; statement: string; webhookEvent: string; secret: string; user: string; authUid: string; familyLink: string; memory: string; canvas: string; turn: string;
 };
 type Tenant = {
   hid: string; tag: "A" | "B"; name: string; bankYen: number; rateMicro: number; key: string; tokenString: string; familyToken: string; ids: Ids; akiName: string;
@@ -208,7 +212,7 @@ async function main() {
     ...importChargesMod, // Stage 17 import
     ...spendingMod, // Stage 17 spending
     ...fxCostMod, // D62 foreign costs
-    ...rulesMod, ...suggestionsMod, // D64–D66
+    ...rulesMod, ...suggestionsMod, ...remindersMod, // D64–D66
     ...memoryMod, // D58 memory
     ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
@@ -322,7 +326,8 @@ async function main() {
       const settlement = one(await db.insert(schema.settlements).values({
         householdId: hid, fromMemberId: aki, toMemberId: ownerRow.id, amountMinor: 4242, currency: "JPY", through: "2026-11-10",
       }).returning({ id: schema.settlements.id })).id;
-      const user = one(await db.insert(schema.users).values({ householdId: hid, memberId: ownerRow.id, authUserId: randomUUID() }).returning({ id: schema.users.id })).id;
+      const authUid = randomUUID();
+      const user = one(await db.insert(schema.users).values({ householdId: hid, memberId: ownerRow.id, authUserId: authUid }).returning({ id: schema.users.id })).id;
       const webhookEvent = `ISO-${tag}-EVT-1`;
       await F.recordWebhookDelivery(db, hid, { paypalEventId: webhookEvent, eventType: "PAYMENT.SALE.COMPLETED", verified: true, payload: { note: `${T} payload` } });
       const issued = await F.issueMcpToken(db, hid, { name: `${T} token`, scopes: ["read"] });
@@ -346,12 +351,12 @@ async function main() {
       const member = { householdId: hid, memberId: ownerRow.id };
       await db.insert(schema.reminderSettings).values(member);
       await db.insert(schema.pushSubscriptions).values({ ...member, endpoint: "https://push.example.test/" + tag, p256dh: "test-" + tag, auth: "test-" + tag });
-      await db.insert(schema.reminders).values({ ...member, channel: "push", day: DEMO_DATE, status: "sent", suggestionIds: [suggestion] });
+      await db.insert(schema.reminders).values({ ...member, channel: "push", day: "2026-11-13", status: "sent", suggestionIds: [suggestion] });
       return {
         hid, tag, name: T, bankYen, rateMicro, key, tokenString: issued.token, familyToken: family.token, akiName,
         ids: { owner: ownerRow.id, aki, card: card.id, client, billConfirmed, billPending, charge, chargePending, pot, potPending, balanceConfirmed, balancePending,
           invoiceDraft, invoiceSent: sent.id, approveKey: sent.approveKey, paypalInvoice, document, documentFailed, documentRead, reading, settlement, token: issued.info.id,
-          suggestion, statement, webhookEvent, secret, user, familyLink: family.info.id, memory, canvas, turn },
+          suggestion, statement, webhookEvent, secret, user, authUid, familyLink: family.info.id, memory, canvas, turn },
       };
     }
     const A = await populate("A", 5_550_001, 149_876_543);
@@ -1139,6 +1144,84 @@ async function main() {
       assert.equal(await F.storedBytes(store, B.hid), bBefore, "B's count did not move");
       assert.equal(await F.storedBytes(store, A.hid), aBefore - 1000);
       await F.requireStorageRoom(store, B.hid, 10); // each household is counted against its own bytes only
+    });
+
+    await check("reminder settings, subscriptions, test sends and digest delivery stay in the calling household", async () => {
+      const vapid = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+      const browser = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+      const rawPoint = async (key: CryptoKey) => Buffer.from(await crypto.subtle.exportKey("raw", key)).toString("base64url");
+      const privateKey = (await crypto.subtle.exportKey("jwk", vapid.privateKey)).d;
+      assert.ok(privateKey);
+      const config = {
+        APP_URL: "https://saver.example.test", RESEND_API_KEY: "fictional-reminder-key", REMINDER_FROM: "Fictional Saver <saver@example.test>",
+        WEB_PUSH_PUBLIC_KEY: await rawPoint(vapid.publicKey),
+        WEB_PUSH_PRIVATE_KEY: privateKey,
+        WEB_PUSH_SUBJECT: "mailto:saver@example.test",
+      };
+      const beforeConfig = Object.fromEntries(Object.keys(config).map(key => [key, process.env[key]]));
+      Object.assign(process.env, config);
+      try {
+        const identity = (t: Tenant) => ({ uid: t.ids.authUid, email: "fictional-" + t.tag.toLowerCase() + "@example.test" });
+        const p256dh = await rawPoint(browser.publicKey);
+        const subscription = (t: Tenant) => ({
+          endpoint: "https://fcm.googleapis.com/fcm/send/fictional-isolation-" + t.tag,
+          p256dh, auth: randomBytes(16).toString("base64url"),
+        });
+        const aSub = subscription(A), bSub = subscription(B);
+        const due = { hour: 8, quietDays: [], emailOn: false };
+        await F.saveReminderSettings(store, B.hid, identity(B), { ...due, hour: 9, quietDays: [1] });
+        await F.subscribeReminder(store, B.hid, identity(B), bSub);
+        const beforeB = await fingerprint(B.hid);
+        const aIdentity = identity(A), bIdentity = identity(B);
+        const missing = /member of this household/;
+        await assert.rejects(F.reminderView(store, A.hid, bIdentity), missing);
+        await assert.rejects(F.saveReminderSettings(store, A.hid, bIdentity, due), missing);
+        await assert.rejects(F.subscribeReminder(store, A.hid, bIdentity, aSub), missing);
+        await assert.rejects(F.unsubscribeReminder(store, A.hid, bIdentity, bSub.endpoint), missing);
+
+        const sent: string[] = [];
+        const fakeFetch: typeof fetch = async input => {
+          sent.push(String(input));
+          return new Response(null, { status: 201 });
+        };
+        await assert.rejects(F.sendTestReminder(store, A.hid, bIdentity, "push", bSub.endpoint, fakeFetch), missing);
+        await assert.rejects(F.sendTestReminder(store, A.hid, aIdentity, "push", bSub.endpoint, fakeFetch), /Turn on push/);
+        assert.equal(await F.unsubscribeReminder(store, A.hid, aIdentity, bSub.endpoint), false);
+        assert.deepEqual(sent, []);
+
+        await F.saveReminderSettings(store, A.hid, aIdentity, due);
+        await F.subscribeReminder(store, A.hid, aIdentity, aSub);
+        const aView = await F.reminderView(store, A.hid, aIdentity), bView = await F.reminderView(store, B.hid, bIdentity);
+        assert.deepEqual([aView.hour, aView.quietDays, bView.hour, bView.quietDays], [8, [], 9, [1]]);
+        const hash = async (endpoint: string) => Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint))).toString("hex");
+        assert.ok(aView.endpointHashes.includes(await hash(aSub.endpoint)));
+        assert.ok(!aView.endpointHashes.includes(await hash(bSub.endpoint)));
+        assert.ok(bView.endpointHashes.includes(await hash(bSub.endpoint)));
+        assert.ok(!bView.endpointHashes.includes(await hash(aSub.endpoint)));
+        assert.equal(await F.sendTestReminder(store, A.hid, aIdentity, "push", aSub.endpoint, fakeFetch), true);
+        assert.deepEqual(sent.splice(0), [aSub.endpoint]);
+        assert.equal((await fingerprint(B.hid)).text, beforeB.text);
+        // Give each household a due finding. A's pass must only deliver A's, even when B is eligible.
+        const day = DEMO_DATE;
+        for (const t of [A, B]) await db.insert(schema.suggestions).values({
+          householdId: t.hid, kind: "bill_due", key: "isolation-reminder-" + t.tag, title: "Fictional bill", reason: "¥600, covered.",
+          action: "bill", refId: t.ids.billConfirmed, urgency: 3, createdOn: day,
+        });
+        const bBeforePass = await fingerprint(B.hid);
+        await F.runReminders(store, A.hid, new Date(day + "T04:00:00Z"), fakeFetch);
+        assert.deepEqual(sent, [aSub.endpoint]);
+        const receipts = await db.select().from(schema.reminders).where(and(eq(schema.reminders.householdId, A.hid), eq(schema.reminders.day, day)));
+        assert.equal(receipts.length, 1);
+        assert.equal(receipts[0].status, "sent");
+        assert.deepEqual(leaks(JSON.stringify(receipts), await needlesOf(B)), []);
+        assert.equal((await fingerprint(B.hid)).text, bBeforePass.text);
+        assert.equal(await F.unsubscribeReminder(store, A.hid, aIdentity, aSub.endpoint), true);
+        assert.equal((await fingerprint(B.hid)).text, bBeforePass.text);
+      } finally {
+        for (const [key, value] of Object.entries(beforeConfig)) {
+          if (value === undefined) delete process.env[key]; else process.env[key] = value;
+        }
+      }
     });
 
     // ---------------------------------------------------------------- the guard

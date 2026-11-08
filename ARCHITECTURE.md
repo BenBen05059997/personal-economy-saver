@@ -6,10 +6,10 @@ A Next.js 16 app on Cloudflare Workers (OpenNext) over household-scoped Postgres
 Try it and magic-link sessions, Home and invoice review, typed-in data (clients, bills, card charges, pots, people, invoices marked paid),
 statement and PayPal history import, the reader (upload, forwarded email, a file attached in Ask), the in-app agent with its canvas and memory,
 MCP, the family view, Your data (export, import, delete, this device only), what foreign money costs (D62), PayPal approval and verified-webhook
-handling are implemented, along with daily suggestions from the money engine (D64) and Keep this? offers in Ask (D67). The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local
+handling are implemented, along with daily suggestions from the money engine (D64) optional email and push reminders (D65), and Keep this? offers in Ask (D67). The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local
 Worker read a fictional household from the Tokyo project; Vault and the private Storage bucket are verified there. Not yet verified live:
 magic-link delivery, a live model call, the deployed Worker, Email Routing, and a real PayPal send-to-webhook round trip. The repository and
-the app are private. Decisions: D18, D31–D62 in [DECISIONS.md](DECISIONS.md).
+the app are private. Decisions: D18, D31–D67 in [DECISIONS.md](DECISIONS.md).
 
 ## The stack tree
 
@@ -53,6 +53,7 @@ Cloudflare
     │   ├── /api/paypal/import     read the sandbox merchant's invoices → clients and invoices (the one household in `PAYPAL_BALANCE_HOUSEHOLD_ID`)
     │   ├── /api/mcp, /api/mcp/tokens   the MCP server (token → household); issue and revoke tokens
     │   ├── /api/suggestions       POST `kind` dismiss or not_now for one open finding (D64)
+    │   ├── /api/reminders        POST per-member settings, subscribe, unsubscribe or test (D65)
     │   ├── /api/events            GET events since a time plus the feed summary; POST mark read (the bell)
     │   ├── /api/try, /api/try/reset, /api/try/blank   Try it (Ben's demo household); demo-only reset; Start with my numbers (D47)
     │   ├── /api/auth/link, /callback, /logout   magic-link request, callback and logout
@@ -63,8 +64,8 @@ Cloudflare
     │   ├── /api/data              Settings → Your data (D59): `kind` delete_kind, delete_one or delete_conversation
     │   ├── /api/data/move         where memory, canvases and the journal are kept (D59): `step` read, to_device or to_cloud; JSON at most 2 MB
     │   ├── /api/restore           Import (D59, D44): a version 2 household file (JSON, at most 1 MB) into a household that has nothing in it yet
-    │   ├── /api/cron              the daily job (bearer `CRON_SECRET`)
-    │   └── /api/health            readiness: setting names and reasons, never values
+    │   ├── /api/cron              the daily pass and due member reminders (bearer `CRON_SECRET`)
+    │   └── /api/health            readiness: setting names and reasons, with separate optional email and push results
     └── Core (pure TypeScript, no I/O)
         ├── Engine `src/lib/money`: runway.ts (availableCash, series, low, safeToSpend, roomOnCard, ladder, timeline, statementItems), repeat, window (`stateThrough`, `dayView`), plan,
         │   split, month, spending, period (the month a bill covers, D63), name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check, suggest (D64)
@@ -81,7 +82,7 @@ Cloudflare
         └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0028), 32 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0029), 32 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
 │   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns,
 │   ip_buckets, ai_global_usage, ask_receipts, suggestions, reminder_settings, push_subscriptions, reminders
@@ -92,10 +93,11 @@ Supabase
 Outside
 ├── Model providers: the server's `AI_` connection (not capped), or a household's own model (a listed provider or an OpenAI-compatible address, key in Vault)
 ├── PayPal sandbox API (`api-m.sandbox.paypal.com`): send invoice, send reminder, read invoices and the balance; webhooks come back in
+├── Resend and browser push services: optional member reminders, one Home link (D65)
 └── The ECB daily reference rate (`eurofxref-daily.xml`): the daily job's USD/JPY for real JPY households
 ```
 
-**The forms.** Every form that posts to a route is the one client component `src/components/ui/ApiForm.tsx` (upload keeps its own: several files, each posted on its own, one after another, with a line per file). It posts with
+**The forms.** Forms that post to a route use the client component `src/components/ui/ApiForm.tsx` (upload keeps its own: several files, each posted on its own, one after another, with a line per file). The push controls use the browser Push API before posting their device subscription. The shared form posts with
 fetch and the header `x-form-fetch: 1`, shows the route's text answer in its status line when the route refuses (keeping what was typed), refreshes
 the page when the route answers 200, and follows the route's redirect when it answers one. A route that redirects takes the request
 (`redirectTo(location, request)`, `privateRedirect(location, request)`): to a fetch with the header it answers 204 with `x-form-redirect: <location>`;
@@ -391,12 +393,13 @@ household is refused; already-paid invoices credit no balance.
 |---|---|---|---|
 | 1. Trigger | Hourly Cron Trigger → GET /api/cron with Bearer CRON_SECRET | The bearer is compared in constant time | worker.ts logs the status |
 | 2. Housekeeping | sweepDemoHouseholds (D49), then pruneIpBuckets | Demo households unchanged for seven days, oldest first, up to 200. Per-address windows over a day old | Each demo is deleted in its own transaction. Vault and Storage are cleared before the household row. Sweeper failures are counted and logged |
-| 3. Households | dueHouseholds, then runDaily | Non-demo households with a local hour at or after the owner’s reminder hour (08:00 by default) and daily_ran_on before the local date or unset. Up to 100, least recently served first | runDaily locks each household and advances daily_ran_on only after a successful pass. A failure is counted and the remaining households are still processed |
+| 3. Households | dueHouseholds, then runDaily | Non-demo households with a local hour at or after the earliest member hour, including the owner’s hour (08:00 by default), and daily_ran_on before the local date or unset. Least recently served first | runDaily locks each household and advances daily_ran_on only after a successful pass. A failure is counted and the remaining households are still processed |
 | 4. Rate and statements | fetchReferenceRate for real JPY households. closingOnOrAfter and cycle for cards | The ECB daily XML and each card closing today with an open total | One dated fx_rates row and one card_statements row per card and closing day |
 | 5. Suggestions | runPass, rulesFor, findSuggestions | Money state and standing rules | New findings, current reasons for open findings, resolved findings and reopened deferrals. Closed rows are pruned after 90 days |
-| 6. Retention | pruneAskReceipts and removeExpiredFiles | The household’s receipts over a day old and raw documents whose readings were all confirmed or dismissed at least 30 days ago | Receipts removed. Raw files removed from Storage and marked on the document row |
+| 6. Reminders | runReminders, then dueReminderHouseholds on later hourly invocations | New eligible suggestions still open, members whose local hour has arrived, and their channels and quiet days. Up to 100 households across the pass and delivery work per invocation | Each member’s channel day is claimed before a send. A delivery row records sent or failed. A gone push endpoint is removed. Delivery rows older than 30 days are pruned |
+| 7. Retention | pruneAskReceipts and removeExpiredFiles | The household’s receipts over a day old and raw documents whose readings were all confirmed or dismissed at least 30 days ago | Receipts removed. Raw files removed from Storage and marked on the document row |
 
-Try it and Reset also run the suggestion pass on Ben’s fixed date. The pass calls no model. Home shows findings by urgency and its review links open existing invoice, To check, bill, card and Plan screens. The approve, confirm, bill and pot write flows close the finding they complete in the same database transaction. Suggestion activity keeps a stable finding reference so pruning cannot produce a duplicate. Ask and MCP share the read tool suggestions. The nudge setting in Settings edits the standing nudge_after row. The reminders tables are reserved for the outbound channels in 29B.
+Try it and Reset also run the suggestion pass on Ben’s fixed date. The pass calls no model. Home shows findings by urgency and its review links open existing invoice, To check, bill, card and Plan screens. The approve, confirm, bill and pot write flows close the finding they complete in the same database transaction. Suggestion activity keeps a stable finding reference so pruning cannot produce a duplicate. Ask and MCP share the read tool suggestions. The nudge setting in Settings edits the standing nudge_after row. The daily digest uses fixed words and bounded engine amounts. Its sole link opens Home at APP_URL. Each member can request a fixed test message from Settings. The test reaches their verified sign-in email or their enrolled browser. In Try it, push can be enrolled and tested on the device; the demo date remains fixed.
 
 observeRunway runs before and after, so a change from short to fine or back is recorded. A late charge confirmation and statement closing share the household lock, which keeps the charge counted once. Confirmed charges after a card’s latest stored statement are grouped by their closing cycle.
 
@@ -404,8 +407,7 @@ observeRunway runs before and after, so a change from short to fine or back is r
 
 ## Data: where it lives and how it is shared
 
-One list of kinds (`DATA_KINDS` in `src/db/data-kinds.ts`: record, memory, canvases, journal, documents) with the same operations for each: count,
-delete one, delete all (D59). The table below is every kind of stored data, those five and the rest.
+The five D59 kinds are record, memory, canvases, journal and documents. `DATA_KINDS` in `src/db/data-kinds.ts` also includes reminder history and push subscriptions for counts and deletion in Your data (D65).
 
 | Kind of data | Where it is stored | What scopes it | Who can read it | How it leaves |
 |---|---|---|---|---|
@@ -416,6 +418,8 @@ delete one, delete all (D59). The table below is every kind of stored data, thos
 | Memory: what the assistant remembers | `memories` (200 items, 400 characters), or the `memory` store of IndexedDB `pes-device-<household id>` | `household_id`, or the device | members and Try it; the agent's system text; MCP `recall` (and `remember`/`forget` with the draft scope) in the cloud only | export (from a device only when exported on that device); Import; Your data delete; Forget everything; `/api/data/move`; with the household |
 | Canvases: the pins on Home | `canvases` (at most 8), or the `canvases` store on the device | `household_id`, or the device | members and Try it on Home; never MCP | export; Import; unpin; Your data; `/api/data/move`; with the household |
 | The journal: Ask conversations | `conversation_turns` (200), or the `journal` store on the device | `household_id`, or the device | members and Try it; the agent's context (the last 3 turns, with the attached documents' cards) | export; Import; Delete this conversation; Your data; `/api/data/move`; with the household |
+| Reminder settings and last channel claims | `reminder_settings` (hour, quiet days, email on, opted-in verified address, claimed dates) | `household_id` and member | the member’s settings and the hourly job | settings change or household deletion. Claim dates survive history deletion |
+| Push devices and reminder history | `push_subscriptions` (endpoint and encryption keys) and `reminders` (channel, day, suggestion IDs, sent or failed) | `household_id` and member | the reminder job, and counts in Your data. Settings compares a device’s endpoint hash | unsubscribe, expired endpoints and Your data. History expires after 30 days. Household deletion clears both. The export excludes both |
 | Events: the audit trail and the bell | `events` | `household_id` | members and Try it (Activity, the bell, `/api/events`); the export | with the household; the export; never imported (the trail starts again) |
 | Webhook deliveries | `webhook_deliveries` (`payload` holds the invoice id and PayPal's create time) | PayPal's event id, unique across households; `household_id`, null for an event that matched no household | GET `/api/paypal/webhook` lists the caller's deliveries without the payload | with the household; never in the export |
 | Rate-limit counters | `request_buckets` (one row per household and purpose; a window reuses its row) | `household_id` and purpose | nobody | with the household |
@@ -471,27 +475,27 @@ never replaced by another key. A question or document travels to the host Settin
 under the owner's key; no call is capped (D33). Saving a model runs `checkConnection` (uses_tools, ignores_injection, stays_on_money) and stores the result in `ai_check`. MCP
 tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
 
+Optional reminder email needs `RESEND_API_KEY` and `REMINDER_FROM`. Browser push needs `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` and `WEB_PUSH_SUBJECT`. The owner generates the VAPID pair with `npm run push:keys`, which writes the two ignored local settings files without printing the keys. Only the public key goes to the browser. `/api/health` reports each channel’s setting names or readiness separately.
+
 ### What is held, and for how long
 
 Most sensitive first: raw forwarded emails and receipts in the private bucket (the file is removed 30 days after the last reading from it is confirmed or dismissed, by the daily job's `removeExpiredFiles`; the `documents` row with its `bytes` and `file_removed_at`, the readings and the bills and charges made from them stay; at most 200 MiB a household, 20 MiB for a Try it household, `requireStorageRoom`); the last 200 questions and replies of a household
 (`conversation_turns`, with their canvases and thumbs) and what the assistant remembers (`memories`), both removed with the household, or deleted on
 their own in Settings → Your data (or kept on one device, where the server holds neither); `webhook_deliveries` (the invoice id and PayPal's create
 time, kept indefinitely); `ask_receipts` (a household id, a question's id, `pending`, `links` (fixed words and app paths) and a time, never the question or answer; pruned by the daily job after a day); `ip_buckets` (a SHA-256 of a client address, a purpose, the window and a count; windows over a day old are pruned by the daily job); balances, bills, charges including `place`, `readings.extracted`; clients' names and emails (third-party data); invoice
-items and notes, member display names, the forwarding address. The user can download everything the app holds about their household, minus secrets
-and files, as one JSON file with Export my data, and can bring it back with Import into an empty household.
+items and notes, member display names, the forwarding address. Export my data downloads the household record, events, memory, canvases and journal as one JSON file. Import brings supported data back into an empty household.
 
 ### Logs
 
-The app writes seven `console` lines in total: the webhook rejection reason, the cron status in `worker.ts`, the demo sweeper's failure count, the
-request line (below), the agent and MCP log line (`logCall`), the thumb line with the ids and the thumb only, and one dev-only catalogue warning; user-facing errors are fixed
-strings. Platform logs exist outside the app: Cloudflare request logs, Supabase Postgres, Auth and Storage logs, the model provider's and PayPal's
+The app logs the webhook rejection reason, the cron status in `worker.ts`, the demo sweeper’s failure count, the
+request line (below), the agent and MCP log line (`logCall`), the thumb line with the ids and the thumb only, a dev-only catalogue warning, and the missing setting name when an opted-in reminder channel cannot run. User-facing errors use fixed strings. Platform logs exist outside the app: Cloudflare request logs, Supabase Postgres, Auth and Storage logs, the model provider's and PayPal's
 request logs. `events` is the user's audit trail. **The request line (operator log).** `worker.ts` wraps the OpenNext fetch in `logged` (`src/lib/request-log.ts`), which writes one JSON line per request after it finishes: `{"at":"request","ray","method","route","householdId","status","ms"}`. `route` is the path with uuid and numeric segments as `:id` and no query; `householdId` is set when `currentHouseholdId()` (`src/lib/session.ts`) resolves a session, carried through `AsyncLocalStorage` (`noteHousehold`); a handler that throws is logged as 500. `/_next/`, `/fonts/` and the favicon are skipped, and `next dev` writes no line (only the Worker wraps). It never holds a body, query, cookie, address or user agent. A person's "Reference: <ray>" on an error page finds the line: `src/middleware.ts` sets the `pes-ray` cookie from `cf-ray` on page requests (not `/api/`), and `ErrorReference.tsx` reads it on `error.tsx` and `global-error.tsx`.
 
 ### Backups and migrations
 
 No automatic database backups are configured; the person's own backup is Export my data, and Import brings that file back into an empty household.
 What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from
-the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. 0028 adds daily suggestions, reminder storage, and standing rules with the existing nudge setting copied into the rule. 0000–0026 are applied to the Tokyo database. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
+the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. 0028 adds daily suggestions, reminder storage, and standing rules with the existing nudge setting copied into the rule. `0029_reminder_delivery.sql` adds the opted-in verified recipient address and the two last-claim dates. 0000–0026 are applied to the Tokyo database. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
 
 ### Not limited yet
 
@@ -522,7 +526,7 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
 - Every PayPal call stops with a clear error unless `PAYPAL_ENVIRONMENT` is `SANDBOX` (`env()` in `src/lib/env.ts`, read on first use);
   `paypal_connections.environment` is checked to be `SANDBOX` in the schema.
 - Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10,
-  PayPal import 2, suggestions 30, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
+  PayPal import 2, suggestions 30, reminders 10, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
   AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10. Declined questions, uploads, Ask's attach, retries and forwarded email, Try it,
   Start with my numbers, document reads and model calls (the server's key or a household's own) have no cap. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): sign-in links 5 an hour. `households.ai_reads_today`, `ai_reads_day` and the table `ai_global_usage` exist in the schema and are unused; PLAN.md has the migration that drops them.
 - The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB, `/api/ask` at

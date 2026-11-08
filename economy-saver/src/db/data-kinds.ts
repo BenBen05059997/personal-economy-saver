@@ -1,4 +1,4 @@
-// D59: the five kinds of stored data and the one set of operations on them: count a kind, delete a kind, delete one item.
+// D59: the kinds of stored data and the one set of operations on them: count a kind, delete a kind, delete one item.
 // Memory, canvases, the journal and documents are real deletes; the record is refused here ("Delete everything" is the household delete).
 // Every query is scoped by household_id.
 import { and, eq, sql } from "drizzle-orm";
@@ -11,7 +11,7 @@ import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
 import * as s from "./schema";
 
-export const DATA_KINDS = ["record", "memory", "canvases", "journal", "documents"] as const;
+export const DATA_KINDS = ["record", "memory", "canvases", "journal", "documents", "reminders", "push_subscriptions"] as const;
 export type DataKind = (typeof DATA_KINDS)[number];
 export const isDataKind = (value: unknown): value is DataKind => (DATA_KINDS as readonly unknown[]).includes(value);
 
@@ -32,6 +32,8 @@ export async function countKind(db: Db, householdId: string, kind: DataKind): Pr
     case "canvases": return count(db, s.canvases, hid);
     case "journal": return count(db, s.conversationTurns, hid);
     case "documents": return count(db, s.documents, hid);
+    case "reminders": return count(db, s.reminders, hid);
+    case "push_subscriptions": return count(db, s.pushSubscriptions, hid);
     case "record": {
       const parts = await Promise.all([s.bills, s.charges, s.cardStatements, s.clients, s.invoices, s.pots, s.settlements].map(table => count(db, table, hid)));
       return parts.reduce((a, b) => a + b, 0);
@@ -104,6 +106,8 @@ export async function deleteOne(db: Db, householdId: string, kind: DataKind, id:
     case "canvases": return uuid(id) ? unpinCanvas(db, hid, id, by) : false;
     case "journal": return deleteTurn(db, hid, id);
     case "documents": return deleteDocument(db, hid, id, by, store);
+    case "reminders":
+    case "push_subscriptions": return uuid(id) && (await deleteReminderRows(db, hid, kind, by, id)) > 0;
     case "record": throw new InputError("Delete a bill, charge, client, invoice or pot from its own page, or delete everything.");
   }
 }
@@ -124,6 +128,9 @@ export async function deleteKind(db: Db, householdId: string, kind: DataKind, by
       const gone = await db.delete(s.conversationTurns).where(eq(s.conversationTurns.householdId, hid)).returning({ id: s.conversationTurns.id });
       return gone.length;
     }
+    case "reminders":
+    case "push_subscriptions":
+      return deleteReminderRows(db, hid, kind, by);
     case "documents":
       return db.transaction(async tx => {
         await lock(tx, hid);
@@ -137,4 +144,17 @@ export async function deleteKind(db: Db, householdId: string, kind: DataKind, by
         return rows.length;
       });
   }
+}
+
+type ReminderDataKind = Extract<DataKind, "reminders" | "push_subscriptions">;
+
+async function deleteReminderRows(db: Db, hid: string, kind: ReminderDataKind, by: Maker, id?: string) {
+  const table = kind === "reminders" ? s.reminders : s.pushSubscriptions;
+  return db.transaction(async tx => {
+    const removed = await tx.delete(table).where(and(eq(table.householdId, hid), id ? eq(table.id, id) : undefined)).returning({ id: table.id });
+    if (removed.length) await recordEvent(tx, hid, {
+      ...by, kind: "data_deleted", title: kind === "reminders" ? "Deleted reminder history" : "Deleted push subscriptions",
+    });
+    return removed.length;
+  });
 }

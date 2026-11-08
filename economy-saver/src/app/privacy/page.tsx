@@ -31,6 +31,9 @@ export default function PrivacyPage() {
       <li><strong>Your browser’s speech service.</strong> When you tap a microphone, your browser turns what you say into text. Chrome sends the audio to Google to do this; Safari can do it on your device. The app never receives audio, only the words, handled like typed text: a question goes to Ask; words for a form go to the AI model provider above, with that form’s field names and choices (such as your card and client names), to fill its fields. Nothing is saved until you tap the form’s button.</li>
       <li><strong>PayPal</strong> (sandbox) gets the invoices and reminders you approve, and is asked for invoice status and balance.</li>
     </ul>
+    <h2>Reminders</h2>
+    <p>Reminders are optional. Email reminders use Resend and go to your sign-in address. Web push goes through your browser’s push service. A reminder contains a short summary of new findings, their amounts when relevant, and a link to the app’s Home page. Document contents are excluded.</p>
+    <p>The app keeps delivery records for 30 days. It stores a push endpoint and the keys needed to encrypt messages for that device. You can turn off either channel in Settings. Your data lets you remove reminder records and push subscriptions. The household export excludes them.</p>
     <h2>Clients’ details</h2>
     <p>You type or import your clients’ names and emails to invoice them; they go to PayPal only on an invoice you approve.</p>
     <h2>Try it and Start with my numbers</h2>

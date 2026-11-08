@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { FORM_REDIRECT_HEADER, postedByForm } from "./form-fetch";
@@ -23,7 +24,7 @@ export async function routeAuth(response: NextResponse) {
   });
 }
 
-export async function verifiedUid() {
+export const verifiedIdentity = cache(async () => {
   const store = await cookies();
   if (!hasAuthCookie(store.getAll())) return null;
   // Middleware has already refreshed the request cookies. getUser checks revocation
@@ -31,5 +32,9 @@ export async function verifiedUid() {
   const auth = supabaseAuth({ getAll: () => store.getAll() });
   const { data, error } = await auth.auth.getUser();
   if (error && (!error.status || error.status >= 500)) throw new Error("Supabase Auth is unavailable");
-  return data.user?.id ?? null;
+  return data.user ? { uid: data.user.id, email: data.user.email_confirmed_at ? data.user.email ?? null : null } : null;
+});
+
+export async function verifiedUid() {
+  return (await verifiedIdentity())?.uid ?? null;
 }

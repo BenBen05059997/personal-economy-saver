@@ -28,5 +28,5 @@ export async function middleware(request: NextRequest) {
   return withRay(request, response);
 }
 export const config = {
-  matcher: ["/((?!_next/|fonts/|favicon.ico|api/paypal/webhook|api/cron|api/mcp|api/inbound).*)"],
+  matcher: ["/((?!_next/|fonts/|favicon.ico|push-sw.js|api/paypal/webhook|api/cron|api/mcp|api/inbound).*)"],
 };

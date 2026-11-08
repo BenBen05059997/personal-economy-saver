@@ -2,6 +2,7 @@ import { connection } from "next/server";
 
 import { db } from "@/db/client";
 import { dueHouseholds, runDaily } from "@/db/daily";
+import { dueReminderHouseholds } from "@/db/reminders";
 import { pruneIpBuckets } from "@/db/rate-limit";
 import { sweepDemoHouseholds } from "@/db/demo";
 
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
   const { swept, failed } = await sweepDemoHouseholds(store, now);
   await pruneIpBuckets(store);
   const ids = await dueHouseholds(store, now);
+  ids.push(...await dueReminderHouseholds(store, now, 100 - ids.length));
   const runs = { completed: 0, failed: 0 };
   for (const id of ids) {
     try {

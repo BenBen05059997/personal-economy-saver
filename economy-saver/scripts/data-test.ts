@@ -1,4 +1,4 @@
-// D59, D44: the five kinds of stored data (count, delete a kind, delete one item), the refusal for the record, documents deleted with their
+// D59, D44, D65: stored data (count, delete a kind, delete one item), the refusal for the record, documents deleted with their
 // Storage objects while their confirmed bills stay, scope across households, and Import into an empty household (a round trip, the refusals).
 // PGlite only; no network, no credentials; Storage is a recording stand-in passed to the functions. Every value is fictional.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/data-test.ts
@@ -79,15 +79,47 @@ async function main() {
     const rowCount = async (table: typeof schema.documents | typeof schema.readings | typeof schema.memories | typeof schema.canvases | typeof schema.conversationTurns, hid: string) =>
       (await db.select().from(table).where(eq(table.householdId, hid))).length;
 
-    await check("DATA_KINDS are the five kinds; countKind and countKinds say how many of each, scoped to the household", async () => {
-      assert.deepEqual([...DATA_KINDS], ["record", "memory", "canvases", "journal", "documents"]);
+    const reminderData = async (hid: string, tag: string, days: string[]) => {
+      const [member] = await db.select({ id: schema.members.id }).from(schema.members).where(eq(schema.members.householdId, hid));
+      const memberRef = { householdId: hid, memberId: member.id };
+      const receipts = await db.insert(schema.reminders).values(days.map(day => ({
+        ...memberRef, channel: "push" as const, status: "sent" as const, day, suggestionIds: [],
+      }))).returning({ id: schema.reminders.id });
+      const devices = await db.insert(schema.pushSubscriptions).values(days.map((_, index) => ({
+        ...memberRef, endpoint: "https://push.example.test/fictional-" + tag + "-" + index, p256dh: "fixture-point", auth: "fixture-auth",
+      }))).returning({ id: schema.pushSubscriptions.id, endpoint: schema.pushSubscriptions.endpoint });
+      return { receipts, devices };
+    };
+    const remindersA = await reminderData(a, "a", ["2026-11-13", DEMO_DATE]), remindersB = await reminderData(b, "b", [DEMO_DATE]);
+
+    await check("countKind and countKinds report each kind for the requested household", async () => {
+      assert.deepEqual([...DATA_KINDS], ["record", "memory", "canvases", "journal", "documents", "reminders", "push_subscriptions"]);
       const counts = await countKinds(db, a);
-      assert.deepEqual([counts.memory, counts.canvases, counts.journal, counts.documents], [3, 3, 3, 2]);
+      assert.deepEqual([counts.memory, counts.canvases, counts.journal, counts.documents, counts.reminders, counts.push_subscriptions], [3, 3, 3, 2, 2, 2]);
       assert.ok(counts.record > 10, "Ben's record has bills, charges, clients, invoices");
       for (const kind of DATA_KINDS) assert.equal(await countKind(db, a, kind), counts[kind]);
       const other = await countKinds(db, b);
-      assert.deepEqual([other.memory, other.canvases, other.journal, other.documents], [1, 1, 1, 1]);
+      assert.deepEqual([other.memory, other.canvases, other.journal, other.documents, other.reminders, other.push_subscriptions], [1, 1, 1, 1, 1, 1]);
       await assert.rejects(countKinds(db, ""), /household id is required/);
+    });
+
+    await check("reminders and push subscriptions are private, excluded from export, and removable one at a time or as a kind", async () => {
+      const exported = JSON.stringify(await loadHouseholdSnapshot(db, a, { events: true, stored: true }));
+      for (const row of remindersA.receipts) assert.ok(!exported.includes(row.id));
+      for (const row of remindersA.devices) assert.ok(!exported.includes(row.id) && !exported.includes(row.endpoint));
+      const kinds = [
+        ["reminders", remindersA.receipts[0].id, remindersB.receipts[0].id],
+        ["push_subscriptions", remindersA.devices[0].id, remindersB.devices[0].id],
+      ] as const;
+      for (const [kind, own, other] of kinds) {
+        assert.equal(await deleteOne(db, a, kind, other, form), false);
+        assert.equal(await deleteOne(db, a, kind, own, form), true);
+        assert.equal(await deleteOne(db, a, kind, own, form), false);
+        assert.equal(await countKind(db, a, kind), 1);
+        assert.equal(await deleteKind(db, a, kind, form), 1);
+        assert.equal(await countKind(db, a, kind), 0);
+        assert.equal(await countKind(db, b, kind), 1);
+      }
     });
 
     await check("the record is refused, by kind and by item, in words", async () => {

@@ -1,0 +1,497 @@
+[
+  {
+    "id": "REM-001",
+    "area": "Reminders",
+    "action": "Save a reminder hour",
+    "user_goal": "I want my reminder at a time that works for me",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "Open Settings and find Reminders",
+      "Set Reminder hour to 10:00 and save",
+      "Reload Settings"
+    ],
+    "expected": [
+      "The hour starts at 08:00 in Asia/Tokyo",
+      "Reminder settings saved. appears",
+      "The saved hour is 10:00"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI1",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-002",
+    "area": "Reminders",
+    "action": "Save quiet days",
+    "user_goal": "I want weekend mornings quiet",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "Select Saturday and Sunday in Quiet days and save",
+      "Reload Settings"
+    ],
+    "expected": [
+      "Both days remain selected",
+      "Unselected days stay clear"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI1",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-003",
+    "area": "Reminders",
+    "action": "Turn on reminder email",
+    "user_goal": "I want new findings sent to my sign-in address",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Signed-in fictional household with a verified address and configured simulated email"
+    ],
+    "steps": [
+      "Check Email reminders and save",
+      "Reload Settings"
+    ],
+    "expected": [
+      "Email reminders stays selected",
+      "The hint reads Sent to your sign-in email."
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI2",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-004",
+    "area": "Reminders",
+    "action": "Turn off reminder email",
+    "user_goal": "I want to stop email reminders",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Signed-in fictional household with a verified address and configured simulated email",
+      "Email reminders is on"
+    ],
+    "steps": [
+      "Clear Email reminders and save",
+      "Reload Settings"
+    ],
+    "expected": [
+      "Email reminders stays off"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI2",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-005",
+    "area": "Reminders",
+    "action": "Send a test email reminder",
+    "user_goal": "I want to verify the email destination",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Signed-in fictional household with a verified address and configured simulated email"
+    ],
+    "steps": [
+      "Tap Send a test email",
+      "Inspect the simulated transport request"
+    ],
+    "expected": [
+      "Test reminder sent. appears",
+      "The test uses the verified sign-in address, Your test reminder arrived., and the configured Home URL"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI3",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-006",
+    "area": "Reminders",
+    "action": "Enroll the browser in push reminders",
+    "user_goal": "I want push reminders on this device",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14",
+      "A secure browser context with Web Push support and configured simulated delivery"
+    ],
+    "steps": [
+      "Tap Turn on push and allow notifications",
+      "Reload Settings and check the same household in a separate browser"
+    ],
+    "expected": [
+      "Push is on for this device. appears",
+      "The enrolled browser shows On for this device. after reload",
+      "The other browser shows push off"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI4",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-007",
+    "area": "Reminders",
+    "action": "Send a test push reminder",
+    "user_goal": "I want to verify my push enrollment",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14",
+      "A secure browser context with Web Push support and configured simulated delivery",
+      "The browser is enrolled"
+    ],
+    "steps": [
+      "Tap Send a test push",
+      "Inspect the simulated transport"
+    ],
+    "expected": [
+      "Test reminder sent. appears",
+      "The only destination is this device’s enrolled endpoint"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI5",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-008",
+    "area": "Reminders",
+    "action": "Open the app from a push notification",
+    "user_goal": "I want the reminder to take me to Home",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14",
+      "A secure browser context with Web Push support and configured simulated delivery",
+      "A simulated test push reaches the service worker"
+    ],
+    "steps": [
+      "Click the Personal Economy Saver notification"
+    ],
+    "expected": [
+      "The notification closes and the app opens or focuses Home"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI5",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-009",
+    "area": "Reminders",
+    "action": "Unsubscribe this device",
+    "user_goal": "I want to stop reminders on this device",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14",
+      "A secure browser context with Web Push support and configured simulated delivery",
+      "The browser is enrolled"
+    ],
+    "steps": [
+      "Tap Turn off push and reload Settings"
+    ],
+    "expected": [
+      "Push is off for this device. appears",
+      "Push stays off and the test push action is absent"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI6",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-010",
+    "area": "Reminders",
+    "action": "Decline notification permission",
+    "user_goal": "I want to choose whether my browser shows notifications",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14",
+      "A secure browser context with Web Push support and configured simulated delivery"
+    ],
+    "steps": [
+      "Tap Turn on push and decline the browser’s notification permission",
+      "Open Your data"
+    ],
+    "expected": [
+      "The panel asks the person to allow notifications in browser settings and try again",
+      "The device count is zero"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI7",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-011",
+    "area": "Reminders",
+    "action": "Open Reminders in an unsupported browser",
+    "user_goal": "I want a clear explanation when this browser cannot receive push",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14",
+      "A browser without Push API support"
+    ],
+    "steps": [
+      "Open Settings and find Push on this device"
+    ],
+    "expected": [
+      "The panel explains the browser and address requirements",
+      "The turn-on button is disabled"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI7",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-012",
+    "area": "Reminders",
+    "action": "Delete reminder delivery history",
+    "user_goal": "I want to remove my old delivery records",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14",
+      "One simulated delivery row in the household"
+    ],
+    "steps": [
+      "Open Your data and confirm removal of all reminder history"
+    ],
+    "expected": [
+      "The Reminder history count changes from 1 delivery to 0 deliveries"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI8",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-013",
+    "area": "Reminders",
+    "action": "Delete all push subscriptions",
+    "user_goal": "I want to remove the devices receiving reminders",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14",
+      "A secure browser context with Web Push support and configured simulated delivery",
+      "One device is enrolled"
+    ],
+    "steps": [
+      "Open Your data and confirm removal of all push subscriptions",
+      "Check the Reminders panel"
+    ],
+    "expected": [
+      "The Push subscriptions count changes from 1 device to 0 devices",
+      "This device is off in Reminders"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI9",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-014",
+    "area": "Reminders",
+    "action": "Check missing reminder settings",
+    "user_goal": "I want to know why delivery is off",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029 and simulated reminder transports",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14",
+      "RESEND_API_KEY and WEB_PUSH_PUBLIC_KEY are absent"
+    ],
+    "steps": [
+      "Open Settings and find Reminders"
+    ],
+    "expected": [
+      "Email and push both show off",
+      "Email names RESEND_API_KEY and push names WEB_PUSH_PUBLIC_KEY"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI10",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-015",
+    "area": "Reminders",
+    "action": "Check separate reminder channel health",
+    "user_goal": "I want the missing setting for each channel",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Isolated test app missing RESEND_API_KEY and WEB_PUSH_PUBLIC_KEY"
+    ],
+    "steps": [
+      "GET /api/health"
+    ],
+    "expected": [
+      "The reminders email and push entries give separate missing-setting reasons",
+      "The response includes setting names and no values"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AI10",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-016",
+    "area": "Reminders",
+    "action": "Run the scheduled and simulated delivery checks",
+    "user_goal": "I want quiet days and repeat protection to hold when the job runs",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "PGlite and fake fetch"
+    ],
+    "steps": [
+      "Run npm run db:notify-test"
+    ],
+    "expected": [
+      "Eligible new findings deliver at most once per member, local day and channel",
+      "Quiet days and empty findings skip delivery",
+      "History expiry, failures, 404 or 410 removal and the RFC 8291 example pass"
+    ],
+    "refs": [
+      "db:notify-test",
+      "D65"
+    ]
+  },
+  {
+    "id": "REM-017",
+    "area": "Reminders",
+    "action": "Attempt to change reminders outside the app session",
+    "user_goal": "I want my subscription managed only by my session",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Isolated test app with a Try it session"
+    ],
+    "steps": [
+      "POST reminder settings without a session",
+      "POST reminder settings with a foreign Origin and the session cookie"
+    ],
+    "expected": [
+      "The two requests answer 401 and 403 respectively",
+      "The household’s settings stay as they were"
+    ],
+    "refs": [
+      "D65",
+      "D65"
+    ]
+  }
+]

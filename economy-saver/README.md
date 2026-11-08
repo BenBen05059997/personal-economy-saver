@@ -22,12 +22,13 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 - The same tool catalogue and rules serve MCP (the server's `instructions`), except `clarify` and `out_of_scope`, which only the Ask page offers. Each Ask and each MCP call writes one content-free JSON log line to standard output.
 - A family view by link: Settings → People makes a link that lasts 7 days (at most 5 live, stoppable at once; only its hash is stored, so the full link and a ready-to-paste LINE message show once). The page at `/family/<token>` needs no sign-in and has no actions: the sentence, the shared bills coming up and who owes whom. `APP_URL` sets the address in the link.
 - One versioned household schema: Settings has Export my data (a version 2 JSON download: the record with the household's events, plus memory, pinned canvases and the conversation), the `household_snapshot` read tool gives the agent and MCP the record without events, and the files in `schema/` (`household.v2.json`, `recipe.v1.json`, `memory.v1.json`, `turn.v1.json`, `cash-flow-event.v1.json`) are generated from the same zod definitions.
-- Your data: Settings → Your data lists five kinds (the record, memory, canvases, the conversation, documents) with where each is kept and how many there are. Memory, canvases and the conversation can be deleted all at once or one by one, and Ask has "Delete this conversation"; documents can be deleted too (confirmed bills and charges stay); "Delete everything" goes to the account page. Import reads a version 2 export into a household that has nothing in it yet (what it restores and leaves out: D44 in [DECISIONS.md](../DECISIONS.md)).
+- Your data: Settings → Your data lists the record, memory, canvases, conversation and documents, plus reminder history and push subscriptions. It shows where each is kept and how many there are. Memory, canvases and the conversation can be deleted all at once or one by one, and Ask has "Delete this conversation"; documents can be deleted too (confirmed bills and charges stay); "Delete everything" goes to the account page. Import reads a version 2 export into a household that has nothing in it yet (what it restores and leaves out: D44 in [DECISIONS.md](../DECISIONS.md)).
 - This device only: memory, canvases and the conversation can be kept in the browser instead of our cloud (Settings → Your data). The server then holds none of it and stores nothing from a question; other devices and MCP see none of it, clearing the browser deletes it, and Import is refused while anything is kept there. Export from that device adds its items to the file (D59).
 - PayPal sandbox REST and Agent Toolkit integration, with the draft/read tools separate from the server approval path; verified webhook deliveries are idempotent; a read-only import of sandbox invoice history.
 - Per-household rate limits on every browser-facing route and an app-wide cap on Try it (the numbers: [ARCHITECTURE.md](../ARCHITECTURE.md)); PayPal toolkit calls time out after 20 s.
 - Ask can offer a lasting memory or dated goal after an answer. Keep saves it through the existing Memory or Plan controls, including device-only Memory.
-- An hourly Cron Trigger runs the daily suggestion pass at each household’s local reminder hour. Home lists what the assistant noticed and opens the existing review screens. Sending a sandbox invoice reminder still needs approval.
+- An hourly Cron Trigger runs the daily suggestion pass by the earliest local reminder hour, including the owner’s hour (08:00 by default). Home lists what the assistant noticed and opens the existing review screens. Sending a sandbox invoice reminder still needs approval.
+- Optional email and web push reminders send the day’s new findings once per channel at each member’s chosen hour. Settings has quiet days and separate test buttons. Reminder history and push subscriptions can be deleted in Your data.
 - Every row and event records who made it (`made_by`); To check and Activity say "Drafted by Ask" or "Drafted through MCP" after what the agent drafted. The invoice review and the client panel show how fast a client usually pays.
 - Isolated PGlite test suites (see Checks); they do not show that hosted services are configured.
 
@@ -63,6 +64,7 @@ This is a private hackathon project in development. Next.js dev and the local Wo
    - **A household's own AI key:** `AI_KEY_SEAL_KEY`, a dedicated random 32-byte key as unpadded base64url (generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`). A saved key is sealed with it in the Worker (AES-GCM) before it goes into Vault; keep the same value, because a key sealed with another value cannot be opened and has to be saved again. Saving or using a household's own key stops with a clear error when it is missing.
    - **MCP tokens:** `MCP_TOKEN_KEY`, a dedicated random 32-byte key as unpadded base64url. Keep the same key across instances; rotating it invalidates tokens.
    - **Cron:** `CRON_SECRET`.
+   - **Optional reminders:** email needs `RESEND_API_KEY` and `REMINDER_FROM` for the owner’s sending domain. Push needs `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` and `WEB_PUSH_SUBJECT` (an HTTPS or mailto URL). The owner runs `npm run push:keys` to write the VAPID pair to the ignored `.env.local` and `.dev.vars` without printing it. `/api/health` reports each channel’s readiness separately.
 
    For the local Cloudflare preview, copy the needed settings to the ignored `.dev.vars`. Worker values are runtime bindings: the build does not package values from `.env.local`; local preview reads `.dev.vars` and deployed Workers get owner-managed secrets. The build hook checks its pinned OpenNext version and emits empty generated project-env exports so build-machine dotenv values are not embedded.
 
@@ -88,13 +90,13 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all thirty-five suites (listed below)
+npm run db:test      # all thirty-six suites (listed below)
 npm run schema       # rewrites the five files in schema/ from the zod definitions (db:test fails when one is stale)
 npx tsc --noEmit -p .
 npm run lint
 ```
 
-Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test` (including Keep this? offers), `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:fx-cost-test`, `db:checks-test`, `db:canvas-test`, `db:conversation-test`, `db:ask-document-test`, `db:ask-routes-test`, `db:charge-routes-test`, `db:memory-test`, `db:data-test`, `db:cron-test`, `db:suggest-test` (daily findings, lifecycle and the legacy rule migration), `db:sweep-test`, `db:isolation-test`, `db:voice-test` (voice fill: the schema, the checks and the route on a fake model), `db:limits-test` (per-address limits, the AI budget, the storage cap, file retention), `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
+Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test` (including Keep this? offers), `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:fx-cost-test`, `db:checks-test`, `db:canvas-test`, `db:conversation-test`, `db:ask-document-test`, `db:ask-routes-test`, `db:charge-routes-test`, `db:memory-test`, `db:data-test`, `db:cron-test`, `db:suggest-test` (daily findings, lifecycle and the legacy rule migration), `db:notify-test` (simulated email and push, schedule, deduplication and RFC 8291), `db:sweep-test`, `db:isolation-test`, `db:voice-test` (voice fill: the schema, the checks and the route on a fake model), `db:limits-test` (per-address limits, the AI budget, the storage cap, file retention), `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
 
 The model eval calls a real provider, so it is not part of `db:test`: `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` runs the real agent on Ben's fictional household in a throwaway database, reads the key from `EVAL_API_KEY` in `.env.local`, and prints one line per case and the `TESTED` line to add to `src/lib/ai/tested.ts`. Its graders are tested on the fake transport in `db:ai-test`.
 
@@ -124,8 +126,8 @@ src/db/                     schema, household-scoped queries, seeds, rate limits
 src/lib/                    money (the engine), agent, ai, canvas, schema, paypal, mcp, reader, catalogue
 schema/                     the committed JSON Schemas (npm run schema)
 scripts/                    isolated tests and explicit owner-operated checks
-drizzle/                    ordered schema migrations, twenty-nine files (0000–0028)
-worker.ts                   Cloudflare Worker entry: the app, the daily Cron Trigger and the Email Worker handler
+drizzle/                    ordered schema migrations, thirty files (0000–0029)
+worker.ts                   Cloudflare Worker entry: the app, the hourly Cron Trigger and the Email Worker handler
 samples/bills/              fictional sample bills for the reader
 ```
 

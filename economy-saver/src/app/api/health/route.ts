@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 import { env } from "@/lib/env";
+import { reminderSettings } from "@/lib/notify/settings";
 
 // Setup check. Never calls PayPal and never returns values, only variable names and reasons.
 export async function GET() {
@@ -21,12 +22,14 @@ export async function GET() {
     problems = lines.length > 1 ? lines.slice(1) : lines;
   }
 
+  const { email, push } = reminderSettings();
   return Response.json({
     ok: envReady,
     environment: "SANDBOX",
     envReady,
     problems,
     webhookConfigured,
+    reminders: { email: email.problem, push: push.problem },
     time: new Date().toISOString(),
   });
 }
