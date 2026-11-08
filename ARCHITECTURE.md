@@ -410,7 +410,7 @@ delete one, delete all (D59). The table below is every kind of stored data, thos
 
 | Kind of data | Where it is stored | What scopes it | Who can read it | How it leaves |
 |---|---|---|---|---|
-| The household row: name, time zone, currency, bank balance, demo flag and fixed date, forwarding local part, nudge rule, `split_since`, the three places, the `ai_*` connection columns, `ai_reads_today` | `households` | its id | the signed-in members and a Try it cookie; the family link viewer sees the sentence; the export carries name, currency, time zone, balance and today | Delete everything (`/account` → `/api/household`), Reset, the demo sweep; Import keeps the household's own name, zone, currency and rate |
+| The household row: name, time zone, currency, bank balance, demo flag and fixed date, forwarding local part, nudge rule, `split_since`, the three places, the `ai_*` connection columns | `households` | its id | the signed-in members and a Try it cookie; the family link viewer sees the sentence; the export carries name, currency, time zone, balance and today | Delete everything (`/account` → `/api/household`), Reset, the demo sweep; Import keeps the household's own name, zone, currency and rate |
 | The record (a one-off bill also holds `period_start` and `period_end`, the month it covers, D63): `members`, `clients`, `invoices`, `bills`, `cards`, `card_statements`, `charges`, `pots`, `settlements`, `balance_updates` | their tables | `household_id` (every foreign key is a `(household_id, id)` pair, so another household's row cannot be referenced) | members and Try it; an MCP token (the read tools); the family link viewer (shared bills, the month, who owes whom, no actions); the export; the `household_snapshot` tool | export; Import into an empty household (new ids, `made_by = import`, no PayPal invoice ids); the remove routes; with the household |
 | The PayPal connection: balance, as-of, merchant, `environment = SANDBOX` | `paypal_connections` | `household_id` and the owner member | members; the export carries the balance and its currency only | with the household |
 | Documents: the files and their readings | the object at `<household id>/<document id>` in the private bucket; `documents`, `readings`, `rules` | `household_id` and the path prefix (checked on every removal) | members and Try it; the model provider receives the bytes to read them | Your data (the object, the readings, the row; bills and charges keep their rows and lose the link); with the household; never in the export |
@@ -459,7 +459,7 @@ callback at the required `APP_URL`) → callback → Supabase auth cookies (`pes
 `users` → `members` → household; a Try it household can be upgraded through sign-in (`upgrade-demo`, one hour). MCP client: a token hashed in
 `api_tokens`, scoped and revocable. Family view: a random token in the link, hashed in `family_links`, valid seven days of real time and stoppable
 (D52). Cron: `CRON_SECRET`, compared in constant time. Email Worker: `INBOUND_WORKER_SECRET` and the internal origin. PayPal: the webhook signature.
-Demo households are rate-capped and the daily job deletes those quiet for seven days (D49).
+The daily job deletes those quiet for seven days (D49).
 
 ### Credentials, three classes
 
@@ -477,7 +477,7 @@ tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in produc
 Most sensitive first: raw forwarded emails and receipts in the private bucket (the file is removed 30 days after the last reading from it is confirmed or dismissed, by the daily job's `removeExpiredFiles`; the `documents` row with its `bytes` and `file_removed_at`, the readings and the bills and charges made from them stay; at most 200 MiB a household, 20 MiB for a Try it household, `requireStorageRoom`); the last 200 questions and replies of a household
 (`conversation_turns`, with their canvases and thumbs) and what the assistant remembers (`memories`), both removed with the household, or deleted on
 their own in Settings → Your data (or kept on one device, where the server holds neither); `webhook_deliveries` (the invoice id and PayPal's create
-time, kept indefinitely); `ask_receipts` (a household id, a question's id, `pending`, `links` (fixed words and app paths) and a time, never the question or answer; pruned by the daily job after a day); `ip_buckets` (a SHA-256 of a client address, a purpose, the window and a count; windows over a day old are pruned by the daily job) and `ai_global_usage` (one count a day, seven days kept); balances, bills, charges including `place`, `readings.extracted`; clients' names and emails (third-party data); invoice
+time, kept indefinitely); `ask_receipts` (a household id, a question's id, `pending`, `links` (fixed words and app paths) and a time, never the question or answer; pruned by the daily job after a day); `ip_buckets` (a SHA-256 of a client address, a purpose, the window and a count; windows over a day old are pruned by the daily job); balances, bills, charges including `place`, `readings.extracted`; clients' names and emails (third-party data); invoice
 items and notes, member display names, the forwarding address. The user can download everything the app holds about their household, minus secrets
 and files, as one JSON file with Export my data, and can bring it back with Import into an empty household.
 
@@ -496,7 +496,7 @@ the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`i
 
 ### Not limited yet
 
-The per-address limits count a connection, not a person: people behind one shared address share its 30 demos and 5 sign-in links an hour. The AI budget counts calls, not cost.
+The per-address limit counts a connection, not a person: people behind one shared address share its 5 sign-in links an hour.
 
 ### Environments
 
@@ -525,7 +525,7 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
 - Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10,
   PayPal import 2, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
   AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10. Declined questions, uploads, Ask's attach, retries and forwarded email, Try it,
-  Start with my numbers, document reads and model calls (the server's key or a household's own) have no cap. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): sign-in links 5 an hour. `households.ai_reads_today`, `ai_reads_day` and the table `ai_global_usage` are no longer written; a later migration drops them (PLAN.md).
+  Start with my numbers, document reads and model calls (the server's key or a household's own) have no cap. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): sign-in links 5 an hour. `households.ai_reads_today`, `ai_reads_day` and the table `ai_global_usage` exist in the schema and are unused; PLAN.md has the migration that drops them.
 - The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB, `/api/ask` at
   128 KiB, `/api/canvas/resolve` at 100,000 bytes, `/api/data/move` at 2 MB and `/api/restore` at 1 MB; sign-in links return to the required
   `APP_URL`, never to the request's Origin header.
