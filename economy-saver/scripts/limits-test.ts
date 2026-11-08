@@ -123,6 +123,15 @@ async function main() {
       assert.equal((await db.select().from(schema.documents).where(eq(schema.documents.householdId, demo))).length, 2, "the refused file left no row");
     });
 
+    await check("no per-minute limit: eight different files in a row are all stored, identical bytes stay one document", async () => {
+      const hid = await seedBen(db);
+      const ids: string[] = [];
+      for (let i = 0; i < 8; i++) ids.push(await storeDocument(store, hid, "upload", "application/pdf", pdf(`file ${i}`, 100)));
+      assert.equal(new Set(ids).size, 8);
+      assert.equal(await storeDocument(store, hid, "upload", "application/pdf", pdf("file 3", 100)), ids[3]);
+      assert.equal((await db.select().from(schema.documents).where(eq(schema.documents.householdId, hid))).length, 8);
+    });
+
     // ---------------------------------------------------------------- 4. retention
     await check("retention: a file goes RAW_FILE_RETENTION_DAYS after its last reading was confirmed or dismissed; rows, readings and the document stay", async () => {
       assert.equal(RAW_FILE_RETENTION_DAYS, 30);

@@ -18,7 +18,7 @@
     ],
     "expected": [
       "Heading \"Upload a bill or receipt\" and the text about reviewing amount and date first",
-      "Hint \"JPEG, PNG, WebP or PDF · up to 6 MiB\"",
+      "Hint \"JPEG, PNG, WebP or PDF · up to 6 MiB each · choose as many as you like\"",
       "A file field, an \"Upload and read\" button and a \"To check\" link",
       "Nothing scrolls sideways at 375px and 1440px"
     ],
@@ -2038,26 +2038,84 @@
   {
     "id": "LIM-005",
     "area": "Limits",
-    "action": "Upload is limited to 6 requests a minute",
-    "user_goal": "a burst of files must be slowed",
+    "action": "Send many files in one minute",
+    "user_goal": "a burst of files is never refused for being a burst",
     "type": "edge",
     "priority": "P2",
     "needs": [
       "none"
     ],
-    "how": "http",
+    "how": "suite",
     "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
+      "A household with room in its storage cap"
     ],
     "steps": [
-      "POST 7 invalid uploads quickly to /api/upload"
+      "Store eight different small files in a row with the upload path (storeDocument), then the first one again"
     ],
     "expected": [
-      "The 7th returns 429 \"Upload limit reached. Try again in a minute.\"",
-      "After a minute uploads work again"
+      "All eight are accepted; no request answers 429",
+      "The repeated file is the same document, not a ninth",
+      "What still guards uploads: 6 MiB a file, the storage cap, a household session or the Worker secret, one document per identical file"
     ],
     "refs": [
-      "D32"
+      "D36",
+      "db:limits-test"
+    ]
+  },
+  {
+    "id": "UP-001",
+    "area": "Upload",
+    "action": "Choose three files at once on the Upload page",
+    "user_goal": "I want to upload two photos and a PDF in one go",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) with the AI settings",
+      "Two different images and one PDF, each under 6 MiB"
+    ],
+    "steps": [
+      "Open /upload at 375px and at 1440px",
+      "Choose the three files in the one file field and tap Upload and read"
+    ],
+    "expected": [
+      "Three lines appear below the button, one per file: \"name — sent\"; the button does not move",
+      "All three go to To check, each as its own row"
+    ],
+    "refs": [
+      "BROWSER-CHECKS J5",
+      "D36"
+    ]
+  },
+  {
+    "id": "UP-002",
+    "area": "Upload",
+    "action": "Choose several files where one is refused",
+    "user_goal": "one bad file must not lose the others",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) with the AI settings",
+      "Two good files and one 7 MiB file"
+    ],
+    "steps": [
+      "Open /upload and choose the three files, the 7 MiB one in the middle",
+      "Tap Upload and read"
+    ],
+    "expected": [
+      "The big file's line reads \"name — Document exceeds the 6 MiB limit.\"; the other two lines read \"sent\"",
+      "The page stays on Upload with the button usable again (a refused file keeps the person here); the two good files are in To check"
+    ],
+    "refs": [
+      "BROWSER-CHECKS J5",
+      "D36"
     ]
   },
   {

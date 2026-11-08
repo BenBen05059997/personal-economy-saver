@@ -108,10 +108,12 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 
 ## J. Upload and forwarded email
 
-- J1. Upload accepts JPEG, PNG, WebP and PDF up to 6 MiB, and refuses other files with a message on the Upload page (never a bare text page).
+- J1. Upload accepts JPEG, PNG, WebP and PDF up to 6 MiB each (the file field takes several), and refuses other files with a message on the Upload page (never a bare text page).
 - J2. Needs the AI settings: upload `samples/bills/kokuho-2026-nouhusho.png` → "Document ready to read" at once → a To check row in ≤ 30 s → confirm → safe to spend changes.
 - J3. Needs Email Routing: forward a mail with the PDF attached → the same as J2.
 - J4. The storage cap: a Try it household that has stored 20 MiB of documents (four 6 MiB files uploaded) refuses the next with "Your stored documents are full (20 MB). Delete some in Settings, under Your data, then try again." on the Upload page and in Ask's Attach a bill; a signed-in household says 200 MB. Deleting a document in Settings → Your data makes room again.
+
+- J5. Several files: on `/upload` at 375px and 1440px choose 3 files (2 images and a PDF) → three lines under the button, each "name — sent", the button does not move, and all go to To check. Choose 3 with a 7 MiB file among them → its line reads "name — Document exceeds the 6 MiB limit.", the other two read "sent" and appear in To check, and the page stays on Upload. There is no per-minute limit: eight files in a row are all accepted. In Ask, "Attach a bill" takes the same several files, each producing its own turn and card.
 
 ## K. Ask
 

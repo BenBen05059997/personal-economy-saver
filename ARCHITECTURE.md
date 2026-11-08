@@ -30,7 +30,7 @@ Cloudflare
     │   └── /family/[token]: no session; the token resolves to a household (D52); no-store, noindex, no referrer
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
     │   ├── /api/ask               one question of the Ask conversation `{ id, conversationId, text, source, canvas }`; body at most 128 KiB; the checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply or an error line)
-    │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 429, 503 a setting missing and named, 502 a service failed, 500 anything else)
+    │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 503 a setting missing and named, 502 a service failed, 500 anything else)
     │   ├── /api/ask/thumb         `{ id, thumb }` on one reply; one content-free log line
     │   ├── /api/canvases          pins on Home (D57): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
     │   ├── /api/canvas/resolve    a recipe → each block's query through the engine → the resolved blocks; body at most 100,000 bytes; nothing is stored
@@ -44,8 +44,8 @@ Cloudflare
     │   ├── /api/family-links      create a family view link (the full link and the LINE message, once) or stop one (D52)
     │   ├── /api/import            Settings → Import a statement (D53): up to 500 CSV rows the browser parsed, for one card
     │   ├── /api/invoices/draft, /api/invoices/paid   an invoice draft; mark an invoice paid outside PayPal
-    │   ├── /api/upload            photo or PDF (`readUpload`) → Storage → documents → reader; answers 400 a problem with the person's file, 429 the limit, 503 a server setting missing (named in the sentence: the AI model settings, or a Storage setting), 502 Storage failed, 500 anything else
-    │   ├── /api/inbound           forwarded email (the Email Worker only) → Storage → documents → reader; 403 with no body for a missing Worker origin or a wrong secret, 503 with no body and one server log line naming the variable when the server lacks a setting it needs, 404 no household, 429, 202 accepted
+    │   ├── /api/upload            photo or PDF (`readUpload`) → Storage → documents → reader; answers 400 a problem with the person's file, 503 a server setting missing (named in the sentence: the AI model settings, or a Storage setting), 502 Storage failed, 500 anything else
+    │   ├── /api/inbound           forwarded email (the Email Worker only) → Storage → documents → reader; 403 with no body for a missing Worker origin or a wrong secret, 503 with no body and one server log line naming the variable when the server lacks a setting it needs, 404 no household, 202 accepted
     │   ├── /api/readings/retry    read a document again
     │   ├── /api/confirm           a reading or a pending row → a bill, a charge, a bank balance or a pot; corrections become rules
     │   ├── /api/approve           the user's tap → PayPal sandbox send or reminder → events (the only place that sends, D12)
@@ -94,7 +94,7 @@ Outside
 └── The ECB daily reference rate (`eurofxref-daily.xml`): the daily job's USD/JPY for real JPY households
 ```
 
-**The forms.** Every form that posts to a route is the one client component `src/components/ui/ApiForm.tsx` (upload keeps its own). It posts with
+**The forms.** Every form that posts to a route is the one client component `src/components/ui/ApiForm.tsx` (upload keeps its own: several files, each posted on its own, one after another, with a line per file). It posts with
 fetch and the header `x-form-fetch: 1`, shows the route's text answer in its status line when the route refuses (keeping what was typed), refreshes
 the page when the route answers 200, and follows the route's redirect when it answers one. A route that redirects takes the request
 (`redirectTo(location, request)`, `privateRedirect(location, request)`): to a fetch with the header it answers 204 with `x-form-redirect: <location>`;
@@ -312,7 +312,7 @@ flowchart LR
 `image/png`, `image/webp`, `application/pdf`, its header matching (`matchesFileType`), at most 6 MiB (`MAX_DOCUMENT_BYTES`). `/api/inbound` accepts
 only the Email Worker: origin `https://worker.internal`, `INBOUND_WORKER_SECRET` compared in constant time, and the envelope recipient's 64-character
 local part on `FORWARDING_DOMAIN` resolved to a household (`householdForRecipient`); unknown addresses get 404 and the Worker rejects the mail. The
-four entry points share the uploads limit (6 a minute). The document id is a content digest of household, media type and bytes (`contentId`), so a
+four entry points have no per-minute limit; a file is guarded by its size, the storage cap, the session or the Worker secret, and the digest below. The document id is a content digest of household, media type and bytes (`contentId`), so a
 redelivered email or a double upload is one document; a `failed` placeholder row is reserved before Storage is touched, so even an interrupted
 upload is removable with the household.
 
@@ -333,7 +333,7 @@ reject marks the reading `rejected` (`reading_rejected`); a confirm writes a `bi
 lock), with a null amount or date when the user says it is not known yet (D55), links a one-off to its amount-varies series (`linkToSeries`, D54),
 upserts the `rules` row when the name, category, work share or card was changed, and with the ticked box "Also tell the assistant: …" saves the
 correction as a memory item too; `readings.extracted` gets `confirmed` and the saved row's id as `targetId`. **A file attached in Ask (D61).**
-"Attach a bill" posts the file to `/api/ask/document`, which stores it as a document of kind `upload` (the same file is one document), saves a
+"Attach a bill" (one or several files, each posted on its own, one after another, each its own turn and card) posts the file to `/api/ask/document`, which stores it as a document of kind `upload` (the same file is one document), saves a
 `document` turn (question "Here's my bill" or what was typed, reply "Got your file. Nothing is added until you confirm.", `documentId`) and schedules
 the read after the response. The page draws `DocumentCard` under the turn and asks `GET /api/ask/document?id=` every 2 seconds while the tab is
 visible (after 60 seconds it says the file will be waiting in To check). `documentCard` (`src/db/document-card.ts`) builds the card in code with
@@ -522,9 +522,9 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
 - Every model call goes through `src/lib/ai` (D56): lint fails a model SDK import anywhere else, and in `src/app/api/approve/route.ts`.
 - Every PayPal call stops with a clear error unless `PAYPAL_ENVIRONMENT` is `SANDBOX` (`env()` in `src/lib/env.ts`, read on first use);
   `paypal_connections.environment` is checked to be `SANDBOX` in the schema.
-- Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10, uploads and retries 6,
+- Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10,
   PayPal import 2, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
-  AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10. Declined questions, Try it,
+  AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10. Declined questions, uploads, Ask's attach, retries and forwarded email, Try it,
   Start with my numbers, document reads and model calls (the server's key or a household's own) have no cap. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): sign-in links 5 an hour. `households.ai_reads_today`, `ai_reads_day` and the table `ai_global_usage` are no longer written; a later migration drops them (PLAN.md).
 - The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB, `/api/ask` at
   128 KiB, `/api/canvas/resolve` at 100,000 bytes, `/api/data/move` at 2 MB and `/api/restore` at 1 MB; sign-in links return to the required

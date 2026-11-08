@@ -1,7 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
 import { db } from "@/db/client";
-import { consumeRequest } from "@/db/rate-limit";
 import { storeDocument } from "@/db/reader-job";
 import { readDocumentInBackground } from "@/db/reader-background";
 import { householdForRecipient } from "@/lib/reader/forwarding";
@@ -24,7 +23,6 @@ export async function POST(request: Request) {
   try {
     const hid = await householdForRecipient(db(), request.headers.get("x-envelope-to") ?? "");
     if (!hid) return new Response(null, { status: 404 });
-    if (!await consumeRequest(db(), hid, "upload", 6)) return new Response(null, { status: 429 });
     const bytes = await limitedBody(request, MAX_DOCUMENT_BYTES);
     const doc = await storeDocument(db(), hid, "email", "message/rfc822", bytes);
     after(() => readDocumentInBackground(hid, doc));

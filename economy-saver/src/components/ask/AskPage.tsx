@@ -167,29 +167,43 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
     if (!canvasChosen.current && last?.documentId === card.documentId && card.canvas) showDocumentCanvas(card.documentId, card.canvas);
   }
 
-  async function attach(file: File | undefined) {
-    if (!file || busy) return;
-    if (file.size > MAX_FILE_BYTES) { setProblem("Document exceeds the 6 MiB limit."); return; }
-    if (!FILE_TYPES.includes(file.type)) { setProblem("Select a PDF, JPEG, PNG or WebP file."); return; }
-    setBusy(true);
-    setProblem("");
-    const key = `${file.name}|${file.size}|${file.lastModified}|${text}`;
+  /** Attaches one file as its own turn and card; returns the sentence for a refusal, or null when it went through. */
+  async function attachOne(file: File, note: string): Promise<string | null> {
+    if (file.size > MAX_FILE_BYTES) return "Document exceeds the 6 MiB limit.";
+    if (!FILE_TYPES.includes(file.type)) return "Select a PDF, JPEG, PNG or WebP file.";
+    const key = `${file.name}|${file.size}|${file.lastModified}|${note}`;
     if (attached.current?.key !== key) attached.current = { key, id: crypto.randomUUID() };
     try {
       const body = new FormData();
-      body.set("document", file); body.set("id", attached.current.id); body.set("conversationId", conversationId); body.set("text", text.trim());
+      body.set("document", file); body.set("id", attached.current.id); body.set("conversationId", conversationId); body.set("text", note);
       const response = await fetch("/api/ask/document", { method: "POST", body });
-      if (!response.ok) { setProblem(response.status === 401 ? SESSION_ENDED : (await response.text()) || "Upload failed."); return; }
+      if (!response.ok) return response.status === 401 ? SESSION_ENDED : (await response.text()) || "Upload failed.";
       const { turn, card } = await response.json() as { turn: ConversationTurn; card: Card };
       attached.current = null;
-      setText(""); setSource("manual"); requestId.current = "";
       setCards(current => ({ ...current, [card.documentId]: card }));
       setTurns(current => [...current.filter(item => item.id !== turn.id), viewOf(turn)]);
       if (onDevice.journal) {
-        try { await saveDeviceTurn(householdId, turn); } catch (error) { setProblem(wordsOf(error)); }
+        try { await saveDeviceTurn(householdId, turn); } catch (error) { return wordsOf(error); }
       }
-    } catch { setProblem("Couldn’t reach your household. Try again."); }
-    finally { setBusy(false); }
+      return null;
+    } catch { return "Couldn’t reach your household. Try again."; }
+  }
+
+  /** Several files go one after another, each its own turn and card; the typed note goes with the first, and a refused file does not stop the others. */
+  async function attach(files: File[]) {
+    if (files.length === 0 || busy) return;
+    setBusy(true);
+    setProblem("");
+    const problems: string[] = [];
+    let note = text.trim();
+    for (const file of files) {
+      const refused = await attachOne(file, note);
+      if (refused === SESSION_ENDED) { problems.length = 0; problems.push(SESSION_ENDED); break; }
+      if (refused) problems.push(files.length > 1 ? `${file.name}: ${refused}` : refused);
+      else if (note || text) { note = ""; setText(""); setSource("manual"); requestId.current = ""; }
+    }
+    setProblem(problems.join(" "));
+    setBusy(false);
   }
 
   async function ask(question: string, how: "manual" | "voice") {
@@ -335,8 +349,8 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
         <div className="ask-buttons">
           <button type="button" className="ui-button" disabled={busy} onClick={listening ? speech.stop : speak}>{listening ? "Stop listening" : "Use microphone"}</button>
           <label className={`ui-button ask-attach${busy ? " is-disabled" : ""}`}>Attach a bill
-            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" disabled={busy}
-              onChange={event => { const input = event.currentTarget; void attach(input.files?.[0]).finally(() => { input.value = ""; }); }} />
+            <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={busy}
+              onChange={event => { const input = event.currentTarget; void attach(Array.from(input.files ?? [])).finally(() => { input.value = ""; }); }} />
           </label>
           <button className="ui-button primary" disabled={busy || listening || unavailable !== null}>{busy ? "Checking…" : "Ask"}</button>
         </div>
