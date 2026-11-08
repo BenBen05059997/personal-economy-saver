@@ -8,6 +8,7 @@ import "./voice-fill.css";
 
 // One utility for every form (D26, D42): put <VoiceFill /> inside a form and it describes that form's own fields at the moment of the tap.
 // It fills what the route returns and never submits; the form's own button saves.
+// It always renders, so the form never moves when the page wakes up; a browser without speech recognition says so on the tap (useSpeech).
 
 type Control = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
 const NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
@@ -110,7 +111,6 @@ export function VoiceFill() {
 
   const speech = useSpeech(words => { void send(words); });
 
-  if (!speech.supported) return null;
   return <div className="voice-fill" data-voice="off">
     <button ref={button} type="button" className="ui-button voice-fill-button" aria-pressed={speech.listening} disabled={busy}
       onClick={() => { if (speech.listening) speech.stop(); else speech.start(); }}>
