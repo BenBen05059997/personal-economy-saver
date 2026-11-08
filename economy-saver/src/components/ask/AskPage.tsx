@@ -326,7 +326,7 @@ export function AskPage({ householdId, places, clock, pinId, conversationId: ini
         {turns.map(turn => <li key={turn.id} className="ask-turn">
           <p className="ask-question">{turn.question}</p>
           <p className={`ask-reply is-${turn.kind}`}>{turn.text}</p>
-          {turn.offers?.map(offer => offer.kind === "rule" ? null : <KeepOfferCard key={JSON.stringify(offer)}
+          {turn.offers?.map(offer => <KeepOfferCard key={JSON.stringify(offer)}
             offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} />)}
           {turn.kind === "document" && (turn.documentId
             ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} onCard={takeCard}

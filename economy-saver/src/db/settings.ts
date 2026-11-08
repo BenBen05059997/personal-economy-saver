@@ -1,4 +1,3 @@
-import { rulesFor, setStandingRule } from "./rules";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { setBankBalance } from "./bank-balance";
@@ -21,7 +20,6 @@ export const settingsInput = z.discriminatedUnion("kind", [
     memberId, closingDay: z.coerce.number().int().min(1).max(31), dueDay: z.coerce.number().int().min(1).max(31),
     limit: z.union([amount, z.literal("")]),
     foreignFee: z.string().trim().max(6).optional() }), // D62: a percentage with up to two decimals ("" = not entered, absent = unchanged)
-  z.object({ kind: z.literal("nudge"), afterDays: z.union([z.literal(""), z.coerce.number().int().min(1).max(60)]) }), // D50: "" = off
 ]);
 
 /** D62: the card's foreign transaction fee typed as a percentage ("2.2") in basis points (220); "" is null. 0 to 10 percent, up to two decimals. */
@@ -41,15 +39,14 @@ export async function loadSettings(db: Db, householdId: string) {
     .from(households).where(eq(households.id, hid));
   if (!household) throw new SettingsError("Household no longer exists");
   const { fixedToday, ...shown } = household;
-  const [people, cardRows, billRows, standing] = await Promise.all([
+  const [people, cardRows, billRows] = await Promise.all([
     db.select({ id: members.id, name: members.displayName, role: members.role, shareBp: members.shareBp }).from(members).where(eq(members.householdId, hid))
       .orderBy(sql`(${members.role} = 'owner') desc`, members.createdAt, members.id),
     db.select().from(cards).where(eq(cards.householdId, hid)).orderBy(cards.createdAt),
     db.select({ id: bills.id, biller: bills.biller, amountMinor: bills.amountMinor, currency: bills.currency, due: bills.due, category: bills.category, businessBp: bills.businessBp, repeatDay: bills.repeatDay, repeatUnit: bills.repeatUnit, nextAmountMinor: bills.nextAmountMinor, nextAmountFrom: bills.nextAmountFrom, cancelBy: bills.cancelBy, repeatUntil: bills.repeatUntil, periodStart: bills.periodStart, periodEnd: bills.periodEnd, amountVaries: bills.amountVaries, seriesBillId: bills.seriesBillId, status: bills.status, memberId: bills.memberId, paidByMemberId: bills.paidByMemberId }).from(bills).where(eq(bills.householdId, hid)).orderBy(bills.due),
-    rulesFor(db, hid),
   ]);
   // `today` is the household's own date, for the bill edit form's amounts and dates.
-  return { household: { ...shown, nudgeAfterDays: standing.nudge_after.enabled ? standing.nudge_after.threshold : null }, today: clockForHousehold({ isDemo: household.demo, fixedToday, timeZone: household.timeZone }).today, people, cards: cardRows, bills: billRows };
+  return { household: shown, today: clockForHousehold({ isDemo: household.demo, fixedToday, timeZone: household.timeZone }).today, people, cards: cardRows, bills: billRows };
 }
 
 export async function updateSettings(db: Db, householdId: string, input: z.infer<typeof settingsInput>) {
@@ -71,11 +68,6 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
       await tx.update(households).set({ name: data.name }).where(eq(households.id, hid));
       // D42: the one way to set the balance
       if (parseMinor(data.bank, household.currency) !== household.bank) await setBankBalance(tx, hid, { id: crypto.randomUUID(), amount: data.bank }, "confirmed", { madeBy: "form" });
-    } else if (data.kind === "nudge") {
-      const after = data.afterDays === "" ? null : data.afterDays;
-      const current = (await rulesFor(tx, hid)).nudge_after;
-      if (after !== (current.enabled ? current.threshold : null)) title = after === null ? "Nudge suggestions turned off" : `Nudge suggestions on, ${after} days past due`;
-      await setStandingRule(tx, hid, "nudge_after", { enabled: after !== null, threshold: after, currency: null });
     } else if (data.kind === "card") {
       const limitMinor = data.limit ? parseMinor(data.limit, household.currency) : null;
       if (limitMinor !== null && limitMinor < 0) throw new SettingsError("Credit limit cannot be negative");

@@ -87,7 +87,7 @@ const covered = [
   // daily.ts, demo.ts, document-cleanup.ts, event-feed.ts
   "runDaily", "findDemoHousehold", "tryItKind", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
   // D64–D66 suggestions and standing rules
-  "seedRules", "rulesFor", "setStandingRule", "runPass", "openSuggestions", "dismiss", "notNow", "closeByRef",
+  "seedRules", "rulesFor", "setStandingRule", "changeStandingRule", "runPass", "openSuggestions", "dismiss", "notNow", "closeByRef",
   // D65 reminders.ts
   "reminderView", "saveReminderSettings", "subscribeReminder", "unsubscribeReminder", "sendTestReminder", "runReminders",
   // household.ts
@@ -830,6 +830,11 @@ async function main() {
         await own("lockRunway", () => F.lockRunway(store, X.hid));
         await own("beginMoneyChange", () => F.beginMoneyChange(store, X.hid));
         await own("observeRunway", () => F.observeRunway(store, X.hid));
+        await own("changeStandingRule", async () => {
+          const threshold = X.tag === "A" ? 8 : 9;
+          await F.changeStandingRule(store, X.hid, { ruleKind: "statement_ahead", enabled: true, value: String(threshold) });
+          assert.deepEqual((await F.rulesFor(store, X.hid)).statement_ahead, { enabled: true, threshold, currency: null });
+        });
         await own("runDaily", () => F.runDaily(store, X.hid, new Date("2026-11-03T04:00:00Z")));
         await own("settleUp", () => F.settleUp(store, X.hid));
         await own("unreadCount and listEvents", () => Promise.all([F.unreadCount(store, X.hid), F.listEvents(store, X.hid)]));

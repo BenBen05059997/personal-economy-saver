@@ -116,7 +116,7 @@
   {
     "id": "KEEP-005",
     "area": "Keep this?",
-    "action": "Ask about a rule before rule editing is available",
+    "action": "Keep a standing rule offered in Ask",
     "user_goal": "I want my standing rules changed only by my choice",
     "type": "happy",
     "priority": "P2",
@@ -125,14 +125,18 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Ben Try it with a configured model after migration 0028",
+      "Separate test app with migrations 0028 and 0029",
+      "Fresh Ben Try it with a configured model",
       "375px and 1440px widths"
     ],
     "steps": [
-      "Ask Keep ¥50,000 safe to spend"
+      "Ask Keep ¥50,000 safe to spend",
+      "In a second tab check Minimum safe to spend in Memory → Rules",
+      "Tap Keep on the rule offer and reload Rules"
     ],
     "expected": [
-      "The rule offer is hidden and the stored rule stays unchanged"
+      "The offer appears under the answer with Keep and No, while the rule is still off",
+      "Keep shows Kept. Rules shows Flag safe to spend below ¥50,000 and Activity shows the matching rule change"
     ],
     "refs": [
       "BROWSER-CHECKS AH5",

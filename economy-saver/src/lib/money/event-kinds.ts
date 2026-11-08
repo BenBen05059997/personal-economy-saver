@@ -39,6 +39,7 @@ export const EVENT_KIND_LABELS = {
   pot_updated: "Pot changed",
   reading_rejected: "Reading dismissed",
   reminder_sent: "Invoice reminder sent",
+  rule_changed: "Rule changed",
   runway_clear: "Clear for 30 days",
   runway_short: "Short",
   settings_updated: "Settings changed",

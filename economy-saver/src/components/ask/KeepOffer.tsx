@@ -6,12 +6,13 @@ import type { KeepOffer } from "@/lib/agent/keep-offer";
 import type { Currency } from "@/lib/catalogue/types";
 import { readAmount } from "@/lib/money/amount";
 import { minorMoney } from "@/lib/money/format";
+import { readRule, ruleWords } from "@/lib/money/rules";
 import { MEMORY_KINDS } from "@/lib/schema/memory";
 import { addDeviceMemory } from "@/lib/store/device";
 import { ApiForm } from "@/components/ui/ApiForm";
 
 export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemory }: {
-  offer: Exclude<KeepOffer, { kind: "rule" }>; householdId: string; clock: ClockHousehold; currency: Currency; deviceMemory: boolean;
+  offer: KeepOffer; householdId: string; clock: ClockHousehold; currency: Currency; deviceMemory: boolean;
 }) {
   const [status, setStatus] = useState<"ready" | "saving" | "kept" | "dismissed">("ready");
   const [problem, setProblem] = useState("");
@@ -31,7 +32,7 @@ export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemor
       <input type="hidden" name="memoryKind" value={offer.memoryKind} />
       <input type="hidden" name="text" value={offer.text} />
     </>;
-  } else {
+  } else if (offer.kind === "goal") {
     const amount = readAmount(offer.target, currency, false);
     if (!("minor" in amount)) return null;
     action = "/api/pots";
@@ -41,6 +42,18 @@ export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemor
       <input type="hidden" name="name" value={offer.name} />
       <input type="hidden" name="target" value={offer.target} />
       <input type="hidden" name="targetDate" value={offer.targetDate} />
+    </>;
+  } else {
+    const value = offer.value ?? "";
+    const rule = readRule(offer.ruleKind, offer.enabled, value, currency);
+    if ("problem" in rule) return null;
+    action = "/api/rules";
+    words = "Rule · " + ruleWords(offer.ruleKind, rule);
+    fields = <>
+      <input type="hidden" name="kind" value="set" />
+      <input type="hidden" name="ruleKind" value={offer.ruleKind} />
+      {offer.enabled && <input type="hidden" name="enabled" value="on" />}
+      <input type="hidden" name="value" value={value} />
     </>;
   }
 

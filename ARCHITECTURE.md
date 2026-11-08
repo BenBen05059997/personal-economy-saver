@@ -6,7 +6,7 @@ A Next.js 16 app on Cloudflare Workers (OpenNext) over household-scoped Postgres
 Try it and magic-link sessions, Home and invoice review, typed-in data (clients, bills, card charges, pots, people, invoices marked paid),
 statement and PayPal history import, the reader (upload, forwarded email, a file attached in Ask), the in-app agent with its canvas and memory,
 MCP, the family view, Your data (export, import, delete, this device only), what foreign money costs (D62), PayPal approval and verified-webhook
-handling are implemented, along with daily suggestions from the money engine (D64) optional email and push reminders (D65), and Keep this? offers in Ask (D67). The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local
+handling are implemented, along with daily suggestions from the money engine (D64), optional email and push reminders (D65), goals and standing rules (D66), and Keep this? offers in Ask (D67). The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local
 Worker read a fictional household from the Tokyo project; Vault and the private Storage bucket are verified there. Not yet verified live:
 magic-link delivery, a live model call, the deployed Worker, Email Routing, and a real PayPal send-to-webhook round trip. The repository and
 the app are private. Decisions: D18, D31–D67 in [DECISIONS.md](DECISIONS.md).
@@ -53,12 +53,13 @@ Cloudflare
     │   ├── /api/paypal/import     read the sandbox merchant's invoices → clients and invoices (the one household in `PAYPAL_BALANCE_HOUSEHOLD_ID`)
     │   ├── /api/mcp, /api/mcp/tokens   the MCP server (token → household); issue and revoke tokens
     │   ├── /api/suggestions       POST `kind` dismiss or not_now for one open finding (D64)
+    │   ├── /api/rules            POST `kind` set for one household standing rule (D66)
     │   ├── /api/reminders        POST per-member settings, subscribe, unsubscribe or test (D65)
     │   ├── /api/events            GET events since a time plus the feed summary; POST mark read (the bell)
     │   ├── /api/try, /api/try/reset, /api/try/blank   Try it (Ben's demo household); demo-only reset; Start with my numbers (D47)
     │   ├── /api/auth/link, /callback, /logout   magic-link request, callback and logout
     │   ├── /api/onboarding        first-run setup for a signed-in person through `createHousehold`; upgrades a Try it or blank demo household
-    │   ├── /api/settings, /api/settings/ai-model, /api/forwarding   name and balance, a card (with its foreign fee, D62), the nudge rule; Your AI model; forwarding address
+    │   ├── /api/settings, /api/settings/ai-model, /api/forwarding   name and balance, a card (with its foreign fee, D62); Your AI model; forwarding address
     │   ├── /api/household         delete my data (the signed-in owner, `confirmation=delete`)
     │   ├── /api/export            Export my data: the version 2 snapshot with events, memory, canvases and journal, as a JSON download (D44)
     │   ├── /api/data              Settings → Your data (D59): `kind` delete_kind, delete_one or delete_conversation
@@ -377,7 +378,9 @@ card charge is removed through `/api/remove` (`removeBill`, `removeCharge`: dele
 `charge_removed` event, and a confirmed charge is taken back out of the stored statement of its cycle). `confirmPending` (`src/db/confirm.ts`)
 confirms the agent's pending bill, charge, balance or pot from To check.
 
-**Goal pace (D66).** Plan and the Goals tab at `/memory?tab=goals` use `goalPace` over confirmed pots with a target amount and date. The pot’s creation date in the household time zone anchors the pace. Try it stamps new pots on its fixed day. The calculation uses whole minor units for the amount expected by today, the difference from actual saving and the monthly amount remaining. A date at the observed pace needs both elapsed days and some savings. The same calculation serves the `goal_behind` finding, the `goals` read tool in Ask and MCP and the canvas progress query. The Goals tab links each pot to `/plan#pot-<id>`. The Rules tab at `/memory?tab=rules` links to the nudge setting.
+**Goal pace (D66).** Plan and the Goals tab at `/memory?tab=goals` use `goalPace` over confirmed pots with a target amount and date. The pot’s creation date in the household time zone anchors the pace. Try it stamps new pots on its fixed day. The calculation uses whole minor units for the amount expected by today, the difference from actual saving and the monthly amount remaining. A date at the observed pace needs both elapsed days and some savings. The same calculation serves the `goal_behind` finding, the `goals` read tool in Ask and MCP and the canvas progress query. The Goals tab links each pot to `/plan#pot-<id>`.
+
+**Standing rules (D66).** Memory → Rules shows the six rule kinds, their on or off state and their thresholds in words. The tab and Ask’s rule offers both post to `/api/rules`. That route uses the household session and a 20-per-minute limit. New thresholds are 1–30 days, 1–100 percent, or a positive amount within the home currency’s limits. A nudge threshold copied from before migration 0028 can still be read or turned off at its old value. Re-enabling it requires a value in range. Each actual change records a `rule_changed` event. The next suggestion pass reads the rules from `src/db/rules.ts`.
 
 **A statement CSV (D53).** The browser reads the file (`src/lib/import/csv.ts`, at most 1 MB: UTF-8 or Shift_JIS, the header found, the date, name
 and amount columns guessed from their words and changeable, each row a charge, a skipped credit or an unreadable row with the reason) and posts JSON
@@ -401,11 +404,11 @@ household is refused; already-paid invoices credit no balance.
 | 6. Reminders | runReminders, then dueReminderHouseholds on later hourly invocations | New eligible suggestions still open, members whose local hour has arrived, and their channels and quiet days. Up to 100 households across the pass and delivery work per invocation | Each member’s channel day is claimed before a send. A delivery row records sent or failed. A gone push endpoint is removed. Delivery rows older than 30 days are pruned |
 | 7. Retention | pruneAskReceipts and removeExpiredFiles | The household’s receipts over a day old and raw documents whose readings were all confirmed or dismissed at least 30 days ago | Receipts removed. Raw files removed from Storage and marked on the document row |
 
-Try it and Reset also run the suggestion pass on Ben’s fixed date. The pass calls no model. Home shows findings by urgency and its review links open existing invoice, To check, bill, card and Plan screens. The approve, confirm, bill and pot write flows close the finding they complete in the same database transaction. Suggestion activity keeps a stable finding reference so pruning cannot produce a duplicate. Ask and MCP share the read tool suggestions. The nudge setting in Settings edits the standing nudge_after row. The daily digest uses fixed words and bounded engine amounts. Its sole link opens Home at APP_URL. Each member can request a fixed test message from Settings. The test reaches their verified sign-in email or their enrolled browser. In Try it, push can be enrolled and tested on the device; the demo date remains fixed.
+Try it and Reset also run the suggestion pass on Ben’s fixed date. The pass calls no model. Home shows findings by urgency and its review links open existing invoice, To check, bill, card and Plan screens. The approve, confirm, bill and pot write flows close the finding they complete in the same database transaction. Suggestion activity keeps a stable finding reference so pruning cannot produce a duplicate. Ask and MCP share the read tool suggestions. The daily digest uses fixed words and bounded engine amounts. Its sole link opens Home at APP_URL. Each member can request a fixed test message from Settings. The test reaches their verified sign-in email or their enrolled browser. In Try it, push can be enrolled and tested on the device; the demo date remains fixed.
 
 observeRunway runs before and after, so a change from short to fine or back is recorded. A late charge confirmation and statement closing share the household lock, which keeps the charge counted once. Confirmed charges after a card’s latest stored statement are grouped by their closing cycle.
 
-**Keep this? (D67).** The Ask-only offer_keep tool collects up to three distinct proposals for a memory, a dated goal pot or a fixed rule. Code checks the proposed text and amounts and excludes items the household already keeps. The streamed answer carries the offers. They are transient in the current conversation view. Keep uses /api/memory or /api/pots, or the existing IndexedDB operation when Memory is on this device. No dismisses the card in the view. The rule cards stay hidden until the Rules route is available.
+**Keep this? (D67).** The Ask-only offer_keep tool collects up to three distinct proposals for a memory, a dated goal pot or a fixed rule. Code checks the proposed text and amounts and excludes items the household already keeps. The streamed answer carries the offers. They are transient in the current conversation view. Keep uses `/api/memory`, `/api/pots` or `/api/rules`. It uses the existing IndexedDB operation when Memory is on this device. No dismisses the card in the view.
 
 ## Data: where it lives and how it is shared
 
@@ -528,7 +531,7 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
 - Every PayPal call stops with a clear error unless `PAYPAL_ENVIRONMENT` is `SANDBOX` (`env()` in `src/lib/env.ts`, read on first use);
   `paypal_connections.environment` is checked to be `SANDBOX` in the schema.
 - Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10,
-  PayPal import 2, suggestions 30, reminders 10, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
+  PayPal import 2, suggestions 30, rules 20, reminders 10, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
   AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10. Declined questions, uploads, Ask's attach, retries and forwarded email, Try it,
   Start with my numbers, document reads and model calls (the server's key or a household's own) have no cap. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): sign-in links 5 an hour. `households.ai_reads_today`, `ai_reads_day` and the table `ai_global_usage` exist in the schema and are unused; PLAN.md has the migration that drops them.
 - The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB, `/api/ask` at

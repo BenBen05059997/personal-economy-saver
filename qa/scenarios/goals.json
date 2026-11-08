@@ -257,8 +257,8 @@
   {
     "id": "GOAL-010",
     "area": "Goals",
-    "action": "Open the nudge setting from Rules",
-    "user_goal": "I want to find the late-client rule from the assistant tabs",
+    "action": "Open the Rules tab from Goals",
+    "user_goal": "I want to switch from savings goals to standing rules",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -271,12 +271,11 @@
       "Fresh Ben Try it on Nov 14"
     ],
     "steps": [
-      "From Memory select Rules",
-      "Tap Open nudge setting"
+      "Open Memory → Goals and select Rules"
     ],
     "expected": [
-      "Rules points to the existing nudge setting",
-      "Settings opens at /settings#nudge"
+      "The Rules tab is selected at /memory?tab=rules",
+      "All six standing rules are shown"
     ],
     "refs": [
       "BROWSER-CHECKS AJ7",

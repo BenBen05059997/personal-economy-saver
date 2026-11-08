@@ -1259,7 +1259,7 @@
   },
   {
     "id": "SET-006",
-    "area": "Settings",
+    "area": "Rules",
     "action": "Turn the nudge rule on, off and out of range",
     "user_goal": "I want a nudge for late clients",
     "type": "happy",
@@ -1269,22 +1269,24 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it household (Ben)"
+      "Separate test app with migrations 0028 and 0029",
+      "Fresh Try it household (Ben) at 375px and 1440px"
     ],
     "steps": [
-      "Type 5 and press Save nudge setting",
-      "Reload",
-      "Type 0, then 61",
-      "Clear the field and save"
+      "Open Memory → Rules",
+      "Set the nudge rule to 5 days and save",
+      "Reload and try 0 and 31 days",
+      "Turn the nudge rule off and save"
     ],
     "expected": [
-      "\"Settings saved\" shows, the field keeps 5 and Activity's newest row is \"Nudge suggestions on, 5 days past due\" (Type: Settings changed)",
-      "0 and 61 are refused and change nothing",
-      "Empty saves and Activity says \"Nudge suggestions turned off\"",
-      "The button is at least 44px tall at 375px; the hint says it only suggests and sending needs a tap"
+      "The nudge rule starts enabled at 3 days and keeps 5 after a successful save and reload",
+      "0 and 31 are refused and 5 stays saved",
+      "Activity shows a Rule changed row for each saved change",
+      "Turning it off keeps the rule off on reload and the Save button is at least 44px tall at 375px"
     ],
     "refs": [
-      "BROWSER-CHECKS Q2"
+      "BROWSER-CHECKS Q2",
+      "D66"
     ]
   },
   {

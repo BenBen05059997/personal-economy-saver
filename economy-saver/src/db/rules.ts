@@ -1,8 +1,10 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { Currency } from "@/lib/catalogue/types";
 import { RULE_KINDS, type RuleKind, type StandingRule, type StandingRules } from "@/lib/money/suggestion-types";
-import { requireHousehold, type Db } from "./household";
-import { rules } from "./schema";
+import { readRule, ruleWords } from "@/lib/money/rules";
+import { recordEvent, requireHousehold, type Db } from "./household";
+import { households, rules } from "./schema";
+import { InputError } from "./input-error";
 
 export function defaultRules(): StandingRules {
   return {
@@ -41,4 +43,21 @@ export async function setStandingRule(db: Db, id: string, kind: RuleKind, rule: 
   const hid = requireHousehold(id);
   await db.insert(rules).values(ruleRow(hid, kind, rule))
     .onConflictDoUpdate({ target: [rules.householdId, rules.kind], set: rule });
+}
+
+export async function changeStandingRule(db: Db, id: string, input: { ruleKind: RuleKind; enabled: boolean; value: string | null }) {
+  const hid = requireHousehold(id);
+  return db.transaction(async tx => {
+    const [household] = await tx.select({ currency: households.homeCurrency }).from(households).where(eq(households.id, hid)).for("update");
+    if (!household) throw new InputError("Household not found");
+    const current = (await rulesFor(tx, hid))[input.ruleKind];
+    const value = input.value?.trim() || null;
+    const keepValue = !input.enabled && (value === null || (input.ruleKind === "nudge_after" && value === String(current.threshold)));
+    const next = keepValue ? { ...current, enabled: false } : readRule(input.ruleKind, input.enabled, value, Currency.parse(household.currency));
+    if ("problem" in next) throw new InputError(next.problem);
+    if (next.enabled === current.enabled && next.threshold === current.threshold && next.currency === current.currency) return false;
+    await setStandingRule(tx, hid, input.ruleKind, next);
+    await recordEvent(tx, hid, { madeBy: "form", kind: "rule_changed", title: "Rule changed: " + ruleWords(input.ruleKind, next) });
+    return true;
+  });
 }

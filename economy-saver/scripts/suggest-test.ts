@@ -6,10 +6,11 @@ import { drizzle } from "drizzle-orm/pglite";
 import { approveInvoice } from "@/db/approval";
 import { confirmPending } from "@/db/confirm";
 import { resetDemoHousehold } from "@/db/demo";
-import { defaultRules, rulesFor, setStandingRule } from "@/db/rules";
+import { changeStandingRule, defaultRules, rulesFor, setStandingRule } from "@/db/rules";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { dismiss, notNow, openSuggestions, runPass } from "@/db/suggestions";
+import { readRule, ruleWords } from "@/lib/money/rules";
 import { findSuggestions } from "@/lib/money/suggest";
 import { benMoney } from "@/lib/sample/ben";
 import type { Bill, MoneyState } from "@/lib/money/types";
@@ -45,6 +46,31 @@ async function main() {
       assert.equal((await db.select().from(schema.rules).where(eq(schema.rules.householdId, legacy))).length, 7);
       await pg.query("update households set nudge_after_days = 2 where id = $1", [legacy]);
       assert.equal((await rulesFor(db, legacy)).nudge_after.threshold, 60, "the legacy column is no longer read");
+    });
+
+    await check("new rule edits validate days, percent, currency and money limits in the same parser as Ask", () => {
+      for (const kind of ["nudge_after", "bill_ahead", "statement_ahead"] as const) {
+        for (const value of ["0", "31", "2.5", "1e1", "-1"]) assert.ok("problem" in readRule(kind, true, value, "JPY"), kind + " " + value);
+        assert.deepEqual(readRule(kind, true, "30", "JPY"), { enabled: true, threshold: 30, currency: null });
+      }
+      assert.ok("problem" in readRule("cost_up", true, "101", "JPY"));
+      assert.deepEqual(readRule("cost_up", true, "100", "JPY"), { enabled: true, threshold: 100, currency: null });
+      assert.ok("problem" in readRule("goal_behind", true, "1", "JPY"));
+      assert.deepEqual(readRule("goal_behind", true, null, "JPY"), { enabled: true, threshold: null, currency: null });
+      for (const value of ["¥100,000,001", "0", "$5", "-100"]) assert.ok("problem" in readRule("safe_below", true, value, "JPY"), value);
+      assert.deepEqual(readRule("safe_below", true, "¥100,000,000", "JPY"), { enabled: true, threshold: 100_000_000, currency: "JPY" });
+      assert.deepEqual(readRule("safe_below", true, "12.34", "USD"), { enabled: true, threshold: 1_234, currency: "USD" });
+    });
+
+    await check("a migrated 60-day rule can be turned off as it stands, and turning it on requires a valid number", async () => {
+      assert.equal(await changeStandingRule(db, legacy, { ruleKind: "nudge_after", enabled: false, value: "60" }), true);
+      const off = (await rulesFor(db, legacy)).nudge_after;
+      assert.deepEqual(off, { enabled: false, threshold: 60, currency: null });
+      assert.equal(ruleWords("nudge_after", off), "Nudge a client 60 days after an invoice is due (off)");
+      await assert.rejects(changeStandingRule(db, legacy, { ruleKind: "nudge_after", enabled: true, value: "60" }), /1 to 30/);
+      assert.equal(await changeStandingRule(db, legacy, { ruleKind: "nudge_after", enabled: true, value: "1" }), true);
+      assert.equal(ruleWords("nudge_after", (await rulesFor(db, legacy)).nudge_after), "Nudge a client 1 day after an invoice is due");
+      assert.equal((await rulesFor(db, legacyOff)).nudge_after.enabled, false);
     });
 
     const quiet: MoneyState = { ...benMoney, bills: [], storedBills: [], invoices: [], statements: [], charges: [], pots: [] };

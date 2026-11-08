@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { InputError } from "@/db/input-error";
+import type { Currency } from "@/lib/catalogue/types";
+import { readRule } from "@/lib/money/rules";
 import { readAmount } from "@/lib/money/amount";
 import { SECRET_REFUSAL } from "@/lib/schema/memory";
 import { keepOffer, offerHasLongNumber, type KeepOffer } from "./keep-offer";
@@ -10,26 +12,14 @@ export const MAX_KEEP_OFFERS = 3;
 const input = z.object({ offer: keepOffer }).strict();
 
 /** Check the proposed data with the household's currency and return its numeric value, in minor units for money. */
-export function offerValue(offer: KeepOffer, currency: string): number | null {
+export function offerValue(offer: KeepOffer, currency: Currency): number | null {
   if (offerHasLongNumber(offer)) throw new InputError(SECRET_REFUSAL);
   if (offer.kind === "memory") return null;
   if (offer.kind === "goal") return positiveAmount(offer.target, currency);
 
-  const { ruleKind, value, enabled } = offer;
-  if (ruleKind === "goal_behind") {
-    if (value !== null) throw new InputError("This rule uses on or off.");
-    return null;
-  }
-  if (value === null) {
-    if (enabled) throw new InputError("This rule needs a number.");
-    return null;
-  }
-  if (ruleKind === "safe_below") return positiveAmount(value, currency);
-  const limit = ruleKind === "cost_up" ? 100 : 30;
-  if (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > limit) {
-    throw new InputError(`Use a whole number from 1 to ${limit} for this rule.`);
-  }
-  return Number(value);
+  const rule = readRule(offer.ruleKind, offer.enabled, offer.value, currency);
+  if ("problem" in rule) throw new InputError(rule.problem);
+  return rule.threshold;
 }
 
 function positiveAmount(text: string, currency: string): number {

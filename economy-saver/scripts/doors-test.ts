@@ -21,7 +21,7 @@ import { parseAmountMinor, parseMinor } from "@/db/money";
 import { amountProblem } from "@/lib/money/amount";
 import { returnPath } from "@/lib/door";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
-import { rulesFor } from "@/db/rules";
+import { changeStandingRule, rulesFor } from "@/db/rules";
 import { seedBen } from "@/db/seed";
 import { loadMoneyState } from "@/db/household";
 import { cancelNotices, expandBills, lastOneWords, lastPayment, nextOccurrenceAfter, occurrenceDates } from "@/lib/money/repeat";
@@ -29,7 +29,7 @@ import { loadNavigationData } from "@/db/workspace";
 import { draftedLabel, toCheck } from "@/lib/money/to-check";
 import { clientPace, paceLine } from "@/lib/money/pace";
 import { publicEvent } from "@/db/event-feed";
-import { loadSettings, settingsInput, updateSettings } from "@/db/settings";
+import { settingsInput } from "@/db/settings";
 import { homeSentence } from "@/lib/money/sentence";
 /** The two strings a sentence is made of (its other parts are tested in pots-test). */
 const lines = (sentence: ReturnType<typeof homeSentence>) => ({ lead: sentence.lead, emphasis: sentence.emphasis });
@@ -703,8 +703,8 @@ async function main() {
       assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, stillThere.id as string))).length, 1);
     });
 
-    await check("D57/D58 doors: /api/canvas/resolve and /api/memory start with the same-origin and session guard, and the return path lists /memory and /canvas", async () => {
-      for (const route of ["./src/app/api/canvas/resolve/route.ts", "./src/app/api/memory/route.ts"]) {
+    await check("the canvas, memory and rules routes start with the same-origin and session guard, and the return path lists /memory and /canvas", async () => {
+      for (const route of ["./src/app/api/canvas/resolve/route.ts", "./src/app/api/memory/route.ts", "./src/app/api/rules/route.ts"]) {
         const source = readFileSync(route, "utf8");
         const guard = source.indexOf("await householdRequest(request)");
         assert.ok(guard > 0 && source.includes("hid instanceof Response"), `${route} must call the household guard and return its response`);
@@ -739,6 +739,7 @@ async function main() {
       assert.equal(eventKindLabel("runway_clear"), "Clear for 30 days");
       assert.equal(eventKindLabel("runway_short"), "Short");
       assert.equal(eventKindLabel("settings_updated"), "Settings changed");
+      assert.equal(eventKindLabel("rule_changed"), "Rule changed");
       assert.equal(eventKindLabel("to_check"), "Waiting in To check");
     });
 
@@ -770,22 +771,21 @@ async function main() {
       for (const client of state.clients) assert.equal(clientPace(client)?.usual, client.daysToPay.length ? medianLow(client.daysToPay) : undefined);
     });
 
-    await check("D50: the nudge setting round-trips: empty is off, 1 to 60 is a number, anything else is refused, and Activity says so", async () => {
-      const read = async () => (await loadSettings(db, a)).household.nudgeAfterDays;
-      assert.equal(await read(), 3, "three days by default");
-      await updateSettings(db, a, settingsInput.parse({ kind: "nudge", afterDays: "9" }));
-      assert.equal(await read(), 9);
-      assert.equal((await events(a, "settings_updated")).at(-1)?.title, "Nudge suggestions on, 9 days past due");
-      const count = (await events(a, "settings_updated")).length;
-      await updateSettings(db, a, settingsInput.parse({ kind: "nudge", afterDays: "9" }));
-      assert.equal((await events(a, "settings_updated")).length, count, "unchanged records nothing");
-      await updateSettings(db, a, settingsInput.parse({ kind: "nudge", afterDays: "" }));
-      assert.equal(await read(), null);
-      assert.equal((await events(a, "settings_updated")).at(-1)?.title, "Nudge suggestions turned off");
-      for (const bad of ["0", "61", "2.5", "abc", "-3"]) assert.equal(settingsInput.safeParse({ kind: "nudge", afterDays: bad }).success, false, bad);
-      await assert.rejects(pg.query("update households set nudge_after_days = 61 where id = $1", [a]), /households_nudge_after_days_valid/);
-      assert.equal(await read(), null);
-      assert.equal((await loadSettings(db, b)).household.nudgeAfterDays, 3, "another household is untouched");
+    await check("D66: changing and switching off a nudge rule records Activity, preserves its value and leaves another household alone", async () => {
+      const read = async () => (await rulesFor(db, a)).nudge_after;
+      const set = { ruleKind: "nudge_after", enabled: true, value: "9" } as const;
+      const title = "Rule changed: Nudge a client 9 days after an invoice is due";
+      assert.deepEqual(await read(), { enabled: true, threshold: 3, currency: null });
+      await changeStandingRule(db, a, set);
+      assert.deepEqual(await read(), { enabled: true, threshold: 9, currency: null });
+      assert.deepEqual((await events(a, "rule_changed")).map(event => event.title), [title]);
+      await changeStandingRule(db, a, set);
+      assert.equal((await events(a, "rule_changed")).length, 1, "saving the same rule makes no event");
+      await changeStandingRule(db, a, { ...set, enabled: false, value: "" });
+      assert.deepEqual(await read(), { enabled: false, threshold: 9, currency: null });
+      assert.ok((await events(a, "rule_changed")).some(event => event.title === title + " (off)"));
+      assert.deepEqual((await rulesFor(db, b)).nudge_after, { enabled: true, threshold: 3, currency: null });
+      assert.equal(settingsInput.safeParse({ kind: "nudge", afterDays: "9" }).success, false, "Settings no longer accepts nudge updates");
     });
 
     await check("a last payment (D41): the expansion stops after it, the refusals use their words, edits say what changed, and the table refuses a one-off with one", async () => {

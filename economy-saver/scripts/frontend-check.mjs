@@ -701,26 +701,25 @@ await step("action", "settings-save-fictional-name", async () => {
   const result = await request("/api/settings", { method: "POST", form: { kind: "household", name: "Fictional Check", bank: "67000" } });
   expect(result.response.status === 200 && result.body === "Settings saved", "save-settings-result");
 });
-// D50: the one standing rule. Off by default; 1 to 60 or empty; it only suggests (the page says sending still needs the tap).
-await step("page", "settings-nudge-is-off-and-says-it-only-suggests", async () => {
-  const content = plain(pageContent(await page("/settings", /Suggest a nudge when a client is N days past due/)));
-  expect(content.includes("It only suggests. Sending a reminder still needs your tap."), "nudge-hint");
+// D66: nudge rules now live alongside the other standing rules in Memory.
+await step("page", "rules-default-nudge-and-approval-hint", async () => {
+  const content = plain(pageContent(await page("/memory?tab=rules", /Nudge a client 3 days after an invoice is due/)));
+  expect(/suggest|approv/i.test(content), "rule-approval-hint");
 });
-await step("guard", "settings-nudge-out-of-range-refused", async () => {
-  for (const afterDays of ["0", "61", "2.5", "abc"]) {
-    const result = await request("/api/settings", { method: "POST", form: { kind: "nudge", afterDays } });
-    expect(result.response.status === 400, "nudge-refused-" + afterDays);
+await step("guard", "rules-nudge-out-of-range-refused", async () => {
+  for (const value of ["0", "31", "2.5", "abc"]) {
+    const result = await request("/api/rules", { method: "POST", form: { kind: "set", ruleKind: "nudge_after", enabled: "on", value } });
+    expect(result.response.status === 400, "nudge-refused-" + value);
   }
 });
-await step("action", "settings-nudge-on-then-off", async () => {
-  const on = await request("/api/settings", { method: "POST", form: { kind: "nudge", afterDays: "5" } });
-  expect(on.response.status === 200 && on.body === "Settings saved", "nudge-on-result");
-  const shown = (await request("/settings")).body;
-  expect(/name="afterDays"[^>]*value="5"|value="5"[^>]*name="afterDays"/.test(shown) || /"name"\s*:\s*"afterDays"[^}]*"(?:defaultValue|value)"\s*:\s*"?5/.test(flight(shown)), "nudge-saved-value");
-  await page("/activity", /Nudge suggestions on, 5 days past due/);
-  const off = await request("/api/settings", { method: "POST", form: { kind: "nudge", afterDays: "" } });
-  expect(off.response.status === 200, "nudge-off-result");
-  await page("/activity", /Nudge suggestions turned off/);
+await step("action", "rules-nudge-on-then-off", async () => {
+  const on = await request("/api/rules", { method: "POST", form: { kind: "set", ruleKind: "nudge_after", enabled: "on", value: "5" } });
+  expect(on.response.status === 303 && on.response.headers.get("location") === "/memory?tab=rules", "nudge-on-result");
+  await page("/memory?tab=rules", /Nudge a client 5 days after an invoice is due/);
+  await page("/activity", /Rule changed: Nudge a client 5 days after an invoice is due/);
+  const off = await request("/api/rules", { method: "POST", form: { kind: "set", ruleKind: "nudge_after", value: "" } });
+  expect(off.response.status === 303, "nudge-off-result");
+  await page("/activity", /Rule changed: Nudge a client 5 days after an invoice is due \(off\)/);
 });
 await step("page", "settings-reload-saved-name", async () => {
   const html = await page("/settings", /Settings/);

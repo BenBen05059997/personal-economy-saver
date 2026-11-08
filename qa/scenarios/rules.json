@@ -1,0 +1,290 @@
+[
+  {
+    "id": "RULE-001",
+    "area": "Rules",
+    "action": "Read default standing rules",
+    "user_goal": "I want to see which rules are active",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "Open Memory → Rules",
+      "In Settings use Assistant rules → Open Rules"
+    ],
+    "expected": [
+      "Nudge, card statement and bill rules are on at 3 days and the goal pace rule is on",
+      "Regular-cost increase and Safe to spend rules are off",
+      "Open Rules opens /memory?tab=rules"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AK1",
+      "D66"
+    ]
+  },
+  {
+    "id": "RULE-002",
+    "area": "Rules",
+    "action": "Change the card statement lead time",
+    "user_goal": "I want more notice before card statements are due",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "Set the statement rule to 7 days and save",
+      "Reload",
+      "Attempt 0 and 31 days"
+    ],
+    "expected": [
+      "The rule reads Flag a card statement up to 7 days ahead",
+      "The out-of-range values are refused and Activity has one rule change for the accepted value"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AK2",
+      "D66"
+    ]
+  },
+  {
+    "id": "RULE-003",
+    "area": "Rules",
+    "action": "Change and turn off the bill lead time",
+    "user_goal": "I want to choose when bills are suggested",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "Set the bill rule to 30 days and save",
+      "Reload then turn it off and save"
+    ],
+    "expected": [
+      "The bill rule holds 30 days until turned off",
+      "The card statement rule stays at 3 days"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AK3",
+      "D66"
+    ]
+  },
+  {
+    "id": "RULE-004",
+    "area": "Rules",
+    "action": "Save a regular-cost increase threshold",
+    "user_goal": "I want to hear when a regular cost rises enough to matter",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "Turn on the regular-cost rule at 25% and save",
+      "Reload and attempt 101%"
+    ],
+    "expected": [
+      "The rule stays on at 25% and the invalid percentage does not save"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AK4",
+      "D66"
+    ]
+  },
+  {
+    "id": "RULE-005",
+    "area": "Rules",
+    "action": "Save a minimum safe-to-spend amount",
+    "user_goal": "I want the assistant to notice when my spending room drops",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "Turn on the Safe to spend rule at ¥50,000 and save",
+      "Reload and attempt ¥100,000,001"
+    ],
+    "expected": [
+      "The rule remains on at ¥50,000 and the excessive amount is refused"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AK5",
+      "D66"
+    ]
+  },
+  {
+    "id": "RULE-006",
+    "area": "Rules",
+    "action": "Toggle the goal pace rule",
+    "user_goal": "I want to control whether the assistant flags a goal behind pace",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "Turn the goal pace rule off and save",
+      "Reload, turn it on and save again"
+    ],
+    "expected": [
+      "The setting follows each saved state and has no numeric field",
+      "Activity shows both rule changes"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AK6",
+      "D66"
+    ]
+  },
+  {
+    "id": "RULE-007",
+    "area": "Rules",
+    "action": "Decline an offered standing rule",
+    "user_goal": "I want to choose which rule is saved",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14",
+      "The model is configured"
+    ],
+    "steps": [
+      "Ask Keep ¥50,000 safe to spend",
+      "Tap No on the rule offer and check Memory → Rules"
+    ],
+    "expected": [
+      "The offer disappears",
+      "The Safe to spend rule stays off"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AK7",
+      "D66"
+    ]
+  },
+  {
+    "id": "RULE-008",
+    "area": "Rules",
+    "action": "Turn off an older nudge threshold",
+    "user_goal": "I want to keep control over my migrated setting",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "The household had a 45-day nudge setting before migration 0028"
+    ],
+    "steps": [
+      "Check Rules for the 45-day threshold",
+      "Clear On and save with the Days editor blank",
+      "Attempt to turn it on with Days blank and at 45, then use 30"
+    ],
+    "expected": [
+      "45 days stays visible in the sentence and the blank editor explains the current limit",
+      "The old value can be turned off as-is. Turning it on requires a valid new number and 30 saves."
+    ],
+    "refs": [
+      "BROWSER-CHECKS AK8",
+      "D66"
+    ]
+  },
+  {
+    "id": "RULE-009",
+    "area": "Rules",
+    "action": "Refuse unauthenticated or cross-origin rule writes",
+    "user_goal": "I want only my signed-in household to change rules",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029"
+    ],
+    "steps": [
+      "POST /api/rules without a household session",
+      "Repeat with a valid session and an unrelated Origin"
+    ],
+    "expected": [
+      "The first request is refused with 401 and the second with 403",
+      "No rule or Activity row changes"
+    ],
+    "refs": [
+      "db:doors-test",
+      "D66"
+    ]
+  },
+  {
+    "id": "RULE-010",
+    "area": "Rules",
+    "action": "Enforce the household rule write limit",
+    "user_goal": "I want repeated requests bounded per household",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "A household session with a fresh rate-limit window"
+    ],
+    "steps": [
+      "Send 21 valid same-origin rule saves in one minute"
+    ],
+    "expected": [
+      "The 21st request is refused with 429",
+      "The limit is scoped to that household"
+    ],
+    "refs": [
+      "db:doors-test",
+      "D66"
+    ]
+  }
+]

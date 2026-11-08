@@ -133,11 +133,9 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks, remin
         <p className="ui-hint">{household.timeZone} · The bank balance is the amount you enter. PayPal stays in sandbox.</p>
         <button className="ui-button">Save household</button></ApiForm>
     </section>
-    <section className="ui-panel" id="nudge"><h2>Late-client nudge</h2>
-      <ApiForm><input type="hidden" name="kind" value="nudge" />
-        <label className="ui-field">Suggest a nudge when a client is N days past due (1–60, empty = off)<input name="afterDays" type="number" min="1" max="60" step="1" defaultValue={household.nudgeAfterDays ?? ""} /></label>
-        <p className="ui-hint">It only suggests. Sending a reminder still needs your tap.</p>
-        <button className="ui-button">Save nudge setting</button></ApiForm>
+    <section className="ui-panel" id="nudge"><h2>Assistant rules</h2>
+      <p className="ui-hint">Choose when the assistant suggests a nudge or flags an upcoming expense.</p>
+      <Link className="ui-button" href="/memory?tab=rules" prefetch={false}>Open Rules</Link>
     </section>
     <Reminders view={reminders} timeZone={household.timeZone} />
     <section className="ui-panel" id="people"><h2>People</h2>
