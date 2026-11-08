@@ -204,6 +204,13 @@
       "when": 1794140226528,
       "tag": "0028_standing_rules_and_assistant",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794142945249,
+      "tag": "0029_tenant_wall",
+      "breakpoints": true
     }
   ]
 }

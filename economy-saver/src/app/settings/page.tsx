@@ -4,6 +4,7 @@ import { ScrollToHash } from "@/components/ui/ScrollToHash";
 import { redirect } from "next/navigation";
 import { accountMembership } from "@/db/account";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { activeInvites } from "@/db/invites";
 import { canImportPayPal } from "@/db/paypal-import";
 import { loadSettings } from "@/db/settings";
@@ -21,7 +22,7 @@ import { currentHouseholdId } from "@/lib/session";
 async function Settings() {
   const [hid, identity] = await Promise.all([currentHouseholdId(), verifiedIdentity()]);
   if (!hid) redirect("/");
-  const { workspace, data, tokens, canImport, familyLinks, reminders, access, canManage } = await db().transaction(async tx => {
+  const { workspace, data, tokens, canImport, familyLinks, reminders, access, canManage } = await withHousehold(db(), hid, async tx => {
     const [workspace, data, canImport, reminders, membership] = await Promise.all([
       loadNavigationData(tx, hid), loadSettings(tx, hid), canImportPayPal(tx, hid),
       reminderView(tx, hid, identity), identity ? accountMembership(tx, identity.uid) : null,

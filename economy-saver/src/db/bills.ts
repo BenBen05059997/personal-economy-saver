@@ -2,7 +2,7 @@ import { closeByRef, refreshSuggestions } from "./suggestions";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
+import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import { checkAmountMinor, fromMinor, parseAmountMinor } from "./money";
 import { Currency } from "@/lib/catalogue/types";
 import { dayLabel, minorMoney, minorPerUnit, repeatWords } from "@/lib/money/format";
@@ -140,7 +140,7 @@ async function checkWhose(tx: Db, hid: string, memberId: string | null, paidByMe
 export async function insertBill(db: Db, householdId: string, input: z.input<typeof billInput>, status: "confirmed" | "pending", by: Maker): Promise<string> {
   const hid = requireHousehold(householdId);
   const data = billInput.parse(input);
-  const refresh = await db.transaction(async tx => {
+  const refresh = await withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
@@ -260,7 +260,7 @@ export async function linkToSeries(db: Db, householdId: string, billId: string):
 export async function removeBill(db: Db, householdId: string, id: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
   const billId = z.string().uuid().parse(id);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ id: households.id, previous: households.runwayShort }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
     if (household.previous === null) await observeRunway(tx, hid);
@@ -311,7 +311,7 @@ const bpWords = (bp: number) => (bp === 0 ? "personal" : bp === 10_000 ? "work" 
 export async function updateBill(db: Db, householdId: string, input: z.infer<typeof billEditInput>, by: Maker): Promise<boolean> {
   const hid = requireHousehold(householdId);
   const data = billEditInput.parse(input);
-  const result = await db.transaction(async tx => {
+  const result = await withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
@@ -439,7 +439,7 @@ export async function fillGap(db: Db, householdId: string, billId: string, fill:
   const hid = requireHousehold(householdId);
   const id = z.string().uuid().parse(billId);
   const due = fill.due === undefined ? undefined : z.string().date().parse(fill.due);
-  const result = await db.transaction(async tx => {
+  const result = await withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ id: households.id, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
@@ -477,7 +477,7 @@ export async function fillGap(db: Db, householdId: string, billId: string, fill:
 /** `fillGap` for what a person typed: the amount as text (read in the household's currency like any typed amount), the date as YYYY-MM-DD; empty text is not given. */
 export async function fillGapFromText(db: Db, householdId: string, billId: string, typed: { amount?: string; due?: string }, by: Maker = { madeBy: "form" }): Promise<boolean> {
   const hid = requireHousehold(householdId);
-  const [household] = await db.select({ currency: households.homeCurrency }).from(households).where(eq(households.id, hid));
+  const [household] = await withHousehold(db, hid, async tx => tx.select({ currency: households.homeCurrency }).from(households).where(eq(households.id, hid)));
   if (!household) throw new InputError("Household not found");
   const amount = typed.amount?.trim();
   return fillGap(db, hid, billId, { ...(amount ? { amountMinor: parseAmountMinor(amount, household.currency) } : {}), ...(typed.due ? { due: typed.due } : {}) }, by);

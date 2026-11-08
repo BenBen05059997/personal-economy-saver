@@ -5,7 +5,7 @@ import { closeByRef, refreshSuggestions } from "./suggestions";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
+import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import { fromMinor, parseAmountMinor, parseMinor } from "./money";
 import { householdMoment } from "./clock";
 import { observeRunway } from "./runway-events";
@@ -99,7 +99,7 @@ function addedEvent(tx: Db, hid: string, id: string, f: Fields, currency: string
 export async function savePot(db: Db, householdId: string, input: PotInput, status: "confirmed" | "pending", by: Maker): Promise<string> {
   const hid = requireHousehold(householdId);
   const data = potInput.parse(input);
-  const refresh = await db.transaction(async tx => {
+  const refresh = await withHousehold(db, hid, async tx => {
     const household = await lockHousehold(tx, hid);
     const currency = Currency.parse(household.currency);
     const fields = fieldsOf(data, household.currency);
@@ -160,7 +160,7 @@ export async function confirmPot(tx: Db, householdId: string, id: string): Promi
 export async function removePot(db: Db, householdId: string, id: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
   const potId = z.string().uuid().parse(id);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const household = await lockHousehold(tx, hid);
     if (household.previous === null) await observeRunway(tx, hid);
     const [row] = await tx.delete(pots).where(and(eq(pots.householdId, hid), eq(pots.id, potId))).returning();

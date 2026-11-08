@@ -397,12 +397,22 @@ async function main() {
     );
   });
 
-  await check("row level security is on for every table, with no policies", async () => {
+  await check("row level security is on for every table and only pes_app has household policies", async () => {
     const tables = allTables().map((t) => getTableConfig(t).name);
     assert.equal(tables.length, 34);
     const on = (await pg.query<{ relname: string }>(`select relname from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace and relrowsecurity`)).rows.map((r) => r.relname);
     assert.deepStrictEqual(on.sort(), tables.sort());
-    assert.equal((await pg.query(`select 1 from pg_policies`)).rows.length, 0);
+    const policies = (await pg.query<{ tablename: string; roles: string; cmd: string; qual: string; with_check: string }>(
+      "select tablename, roles::text, cmd, qual, with_check from pg_policies where schemaname = 'public' order by tablename",
+    )).rows;
+    assert.deepStrictEqual(policies.map(row => row.tablename), tables.filter(table => table !== "ai_global_usage" && table !== "ip_buckets"));
+    for (const policy of policies) {
+      const tenantColumn = policy.tablename === "households" ? "id" : "household_id";
+      assert.equal(policy.roles, "{pes_app}");
+      assert.equal(policy.cmd, "ALL");
+      assert.ok(policy.qual.includes(tenantColumn + " =") && policy.qual.includes("'app.household_id'"));
+      assert.equal(policy.with_check, policy.qual);
+    }
   });
 
   await check("every table but households has household_id (not null except webhook_deliveries, cascade, indexed)", async () => {

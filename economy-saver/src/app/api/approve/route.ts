@@ -2,7 +2,7 @@ import { z } from "zod";
 import { ApprovalError, approveInvoice } from "@/db/approval";
 import { householdClock } from "@/db/account";
 import { db } from "@/db/client";
-import { usdRate } from "@/db/household";
+import { usdRate, withHousehold } from "@/db/household";
 import { fromRateMicro } from "@/db/money";
 import { consumeRequest } from "@/db/rate-limit";
 import { env } from "@/lib/env";
@@ -13,7 +13,10 @@ import { ownerRequest } from "@/lib/session";
 export async function POST(request: Request) {
   const householdId = await ownerRequest(request);
   if (householdId instanceof Response) return householdId;
-  if (!await consumeRequest(db(), householdId, "approve", 10)) return new Response("Approval limit reached. Try again in a minute.", { status: 429, headers: { "Retry-After": "60" } });
+  const connection = db();
+  if (!await withHousehold(connection, householdId, tx => consumeRequest(tx, householdId, "approve", 10))) {
+    return new Response("Approval limit reached. Try again in a minute.", { status: 429, headers: { "Retry-After": "60" } });
+  }
   const form = await formOf(request);
   if (form instanceof Response) return form;
   const input = z.object({ approve_key: z.string().uuid(), action: z.enum(["send", "remind"]) }).safeParse(Object.fromEntries(form));
@@ -26,9 +29,10 @@ export async function POST(request: Request) {
     return new Response((error as Error).message, { status: 503 });
   }
   if (!recipient) return new Response("SANDBOX_CLIENT_EMAIL is not set", { status: 503 });
-  const connection = db();
-  const { today, currency } = await householdClock(connection, householdId);
-  const { rateMicro } = await usdRate(connection, householdId, currency, today);
+  const { today, rateMicro } = await withHousehold(connection, householdId, async tx => {
+    const { today, currency } = await householdClock(tx, householdId);
+    return { today, ...await usdRate(tx, householdId, currency, today) };
+  });
   try {
     const id = await approveInvoice({ db: connection, householdId, today, usdRate: fromRateMicro(rateMicro),
       approveKey: input.data.approve_key, recipient, tool: runTool }, input.data.action);

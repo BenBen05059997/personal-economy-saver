@@ -4,7 +4,7 @@ import { env } from "@/lib/env";
 import { readMerchantInvoices, type MerchantInvoice } from "@/lib/paypal/invoices";
 import { closedInvoiceStates } from "@/lib/paypal/status";
 import { clientInput, insertClient } from "./clients";
-import { type Db, recordEvent, requireHousehold } from "./household";
+import { type Db, recordEvent, requireHousehold, withHousehold } from "./household";
 import { InputError } from "./input-error";
 import { parseAmountMinor } from "./money";
 import { sandboxRead, type ReadRemote } from "./paypal-refresh";
@@ -55,13 +55,13 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
  */
 export async function importPayPalHistory(db: Db, householdId: string, read: ReadRemote = sandboxRead) {
   const hid = requireHousehold(householdId);
-  await requireDesignated(db, hid);
+  await withHousehold(db, hid, tx => requireDesignated(tx, hid));
   if (read === sandboxRead) {
     try { env(); } catch (error) { throw new ImportSetupError((error as Error).message); }
   }
   const remote = await readMerchantInvoices(read);
 
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     await requireDesignated(tx, hid, true);
     await beginMoneyChange(tx, hid);
     const known = new Set((await tx.select({ id: invoices.paypalInvoiceId }).from(invoices)

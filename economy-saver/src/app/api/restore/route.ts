@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { MOVABLE, requireCloud } from "@/db/place";
 import { consumeRequest } from "@/db/rate-limit";
 import { restoreHousehold } from "@/db/restore";
@@ -14,14 +15,16 @@ export async function POST(request: Request) {
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > MAX_BYTES) return text("This file is over 1 MB, which is more than Import takes.", 413);
   try {
-    if (!await consumeRequest(db(), hid, "restore", 2)) return tooMany("Import limit reached. Try again in a minute.");
+    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "restore", 2))) return tooMany("Import limit reached. Try again in a minute.");
     const body = await request.text();
     if (new TextEncoder().encode(body).length > MAX_BYTES) return text("This file is over 1 MB, which is more than Import takes.", 413);
     let file: unknown;
     try { file = JSON.parse(body); } catch { return text("This is not a JSON file.", 400); }
     // The file's memory, canvases and conversations go to the cloud, so a household that keeps any of them on this device (D59) moves them back first.
-    for (const kind of MOVABLE) await requireCloud(db(), hid, kind);
-    const counts = await restoreHousehold(db(), hid, file);
+    const counts = await withHousehold(db(), hid, async tx => {
+      for (const kind of MOVABLE) await requireCloud(tx, hid, kind);
+      return restoreHousehold(tx, hid, file);
+    });
     return new Response(JSON.stringify({ imported: counts }), { headers: { ...NO_STORE, "Content-Type": "application/json" } });
   } catch (error) {
     return failure(error);

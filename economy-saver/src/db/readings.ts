@@ -1,6 +1,6 @@
 import { lockRunway, observeRunway } from "./runway-events";
 import { and, desc, eq, lte, sql } from "drizzle-orm";
-import { type Db, loadMoneyState, recordEvent, requireHousehold } from "./household";
+import { type Db, loadMoneyState, recordEvent, requireHousehold, withHousehold } from "./household";
 import { bills, cards, charges, documents, fxRates, households, readings, rules } from "./schema";
 import { checkSchedule, linkToSeries, repeatDayFor } from "./bills";
 import { clockForHousehold } from "./clock";
@@ -62,7 +62,7 @@ export async function proposeReadings(db: Db, id: string, documentId: string, it
  */
 export async function reviewReading(db: Db, id: string, readingId: string, fields: Extracted | null, unknown: { amount?: boolean; date?: boolean } = {}, remember = false, answered?: readonly CheckKind[]) {
   const hid = requireHousehold(id);
-  const saved = await db.transaction(async tx => {
+  const saved = await withHousehold(db, hid, async tx => {
     const previous = await lockRunway(tx, hid);
     const [row] = await tx.select({
       data: readings.extracted, documentId: readings.documentId, source: documents.kind, currency: households.homeCurrency, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone,

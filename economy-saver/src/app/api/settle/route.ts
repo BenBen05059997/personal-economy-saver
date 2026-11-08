@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { settleUp } from "@/db/settle";
 import { failure, formOf, redirectTo, returnPath, tooMany } from "@/lib/door";
@@ -11,8 +12,8 @@ export async function POST(request: Request) {
   const form = await formOf(request);
   if (form instanceof Response) return form;
   try {
-    if (!await consumeRequest(db(), hid, "settle", 10)) return tooMany("Too many settlements. Try again in a minute.");
-    await settleUp(db(), hid);
+    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "settle", 10))) return tooMany("Too many settlements. Try again in a minute.");
+    await withHousehold(db(), hid, tx => settleUp(tx, hid));
     return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {
     return failure(error);

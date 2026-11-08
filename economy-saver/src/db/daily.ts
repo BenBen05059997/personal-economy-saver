@@ -3,7 +3,7 @@ import { CRON_BATCH_SIZE } from "@/lib/cron";
 import { jobError } from "@/lib/job-error";
 import { closingOnOrAfter, cycle } from "@/lib/money/runway";
 import { clockForHousehold } from "./clock";
-import { loadMoneyState, requireHousehold, type Db } from "./household";
+import { loadMoneyState, requireHousehold, withHousehold, type Db } from "./household";
 import { cardStatements, households, members, reminderSettings } from "./schema";
 import { toMinor } from "./money";
 import { removeExpiredFiles } from "./document-cleanup";
@@ -42,7 +42,7 @@ export function logDailyError(at: "cron_household_failed" | "cron_fx_unavailable
 
 export async function runDaily(db: Db, id: string, now = new Date()) {
   const hid = requireHousehold(id);
-  const [household] = await db.select().from(households).where(eq(households.id, hid));
+  const [household] = await withHousehold(db, hid, async tx => tx.select().from(households).where(eq(households.id, hid)));
   if (!household) throw new Error("Scheduled household not found");
   const { today } = clockForHousehold(household, now);
   if (household.dailyRanOn !== null && household.dailyRanOn >= today) {
@@ -55,8 +55,8 @@ export async function runDaily(db: Db, id: string, now = new Date()) {
       return null; // loadMoneyState reads the latest dated rate already stored for this household.
     })
     : null;
-  await pruneAskReceipts(db, hid);
-  await db.transaction(async tx => {
+  await withHousehold(db, hid, tx => pruneAskReceipts(tx, hid));
+  await withHousehold(db, hid, async tx => {
     // Serialize the rate and statement updates for overlapping deliveries.
     const [locked] = await tx.select().from(households).where(eq(households.id, hid)).for("update");
     if (!locked || (locked.dailyRanOn !== null && locked.dailyRanOn >= today)) return;
@@ -74,7 +74,7 @@ export async function runDaily(db: Db, id: string, now = new Date()) {
     }
   });
   // Keep the committed rate and statements if the suggestion pass needs another attempt.
-  await db.transaction(async tx => {
+  await withHousehold(db, hid, async tx => {
     const [locked] = await tx.select().from(households).where(eq(households.id, hid)).for("update");
     if (!locked || (locked.dailyRanOn !== null && locked.dailyRanOn >= today)) return;
     const updated = await runPass(tx, hid, now);

@@ -7,6 +7,7 @@ import { firstUseLine } from "@/db/ask";
 import { connectionView } from "@/db/ai-key";
 import { listCanvases } from "@/db/canvases";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { latestConversation } from "@/db/conversation";
 import { readPlaces } from "@/db/place";
 import { loadSpending } from "@/db/spending";
@@ -29,21 +30,24 @@ async function AskContent({ search }: { search: Search }) {
   const { pin: pinParam } = await search;
   const hid = await currentHouseholdId();
   if (!hid) redirect("/");
-  const [workspace, suggestions] = await Promise.all([loadWorkspace(hid), openSuggestions(db(), hid)]);
+  const [workspace, suggestions] = await Promise.all([loadWorkspace(hid), withHousehold(db(), hid, tx => openSuggestions(tx, hid))]);
   const { state } = workspace;
   const current = state.today.slice(0, 7);
-  const spending = await loadSpending(db(), hid, { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last });
+  const { spending, places, conversation, pins, own, firstUse } = await withHousehold(db(), hid, async tx => {
+    // D59: a kind kept on this device is not read here at all; the page reads it in the browser.
+    const places = await readPlaces(tx, hid);
+    const spending = await loadSpending(tx, hid, { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last });
+    const [conversation, pins, own, firstUse] = await Promise.all([
+      places.journal === "device" ? null : latestConversation(tx, hid),
+      places.canvases === "device" ? [] : listCanvases(tx, hid),
+      connectionView(tx, hid),
+      firstUseLine(tx, hid, { skipAnswered: places.journal === "device" }),
+    ]);
+    return { spending, places, conversation, pins, own, firstUse };
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
   const context: CanvasContext = { state, spending };
   const nudgeIds = suggestions.flatMap(row => row.action === "remind" && row.refId ? [row.refId] : []);
   const starters = starterRecipes(state, nudgeIds).flatMap(starter => draw(starter.id, starter.recipe, context) ?? []);
-  // D59: a kind kept on this device is not read here at all; the page reads it in the browser.
-  const places = await readPlaces(db(), hid);
-  const [conversation, pins, own, firstUse] = await Promise.all([
-    places.journal === "device" ? null : latestConversation(db(), hid),
-    places.canvases === "device" ? [] : listCanvases(db(), hid),
-    connectionView(db(), hid),
-    firstUseLine(db(), hid, { skipAnswered: places.journal === "device" }),
-  ]);
 
   const pinned = typeof pinParam === "string" ? pins.find(item => item.id === pinParam) ?? null : null;
   const last = conversation?.turns.findLast(turn => turn.recipe !== null);

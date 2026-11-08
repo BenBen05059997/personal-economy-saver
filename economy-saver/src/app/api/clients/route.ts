@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { clientInput, insertClient } from "@/db/clients";
 import { badFields, failure, redirectTo, formOf } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
@@ -11,7 +12,8 @@ export async function POST(request: Request) {
   const data = clientInput.safeParse(Object.fromEntries(body));
   if (!data.success) return badFields();
   try {
-    return redirectTo(`/clients/${await insertClient(db(), hid, data.data)}`, request);
+    const id = await withHousehold(db(), hid, tx => insertClient(tx, hid, data.data));
+    return redirectTo(`/clients/${id}`, request);
   } catch (error) {
     return failure(error);
   }

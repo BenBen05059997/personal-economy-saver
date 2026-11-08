@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { changeStandingRule } from "@/db/rules";
 import { badFields, failure, formOf, redirectTo, tooMany } from "@/lib/door";
@@ -16,13 +17,13 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   const store = db();
-  if (!await consumeRequest(store, hid, "rules", 20)) return tooMany("Too many rule changes. Try again in a minute.");
+  if (!await withHousehold(store, hid, tx => consumeRequest(tx, hid, "rules", 20))) return tooMany("Too many rule changes. Try again in a minute.");
   const form = await formOf(request);
   if (form instanceof Response) return form;
   const parsed = fields.safeParse(Object.fromEntries(form));
   if (!parsed.success) return badFields();
   try {
-    await changeStandingRule(store, hid, parsed.data);
+    await withHousehold(store, hid, tx => changeStandingRule(tx, hid, parsed.data));
     return redirectTo(form.get("returnTo") === "/canvas" ? "/canvas" : "/memory?tab=rules", request);
   } catch (error) {
     return failure(error);

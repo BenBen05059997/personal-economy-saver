@@ -535,3 +535,8 @@ Use the isolated browser test setup after migration 0028. Test the owner and inv
 ## AN. Provider adapters (D56, 31B)
 
 - AN1. Run `db:agent-test`, `db:reader-test`, `db:ai-test` and `db:voice-test` to check the neutral contract and both wire protocols with fictional transports. In the browser round, use a configured provider for Ask, a photo or PDF where the provider accepts it, and voice fill. Repeat with the other protocol and confirm the existing results and refusal words in J, K and AD.
+
+## AO. Tenant database role (31C)
+
+- AO1. Run `db:isolation-test` with the 0029 PGlite fixture. With no household id, the app role sees no household rows. In A’s transaction, unfiltered reads on every household table hide B, a direct update of B matches zero rows, and an insert for B or reassignment to B is refused. A later transaction cannot reuse A’s scope.
+- AO2. After the owner applies 0029, run the HTTP suites in an isolated app without a live cron probe. Check Try it Home and Reset, rule and money saves, and reopening settings and Activity. In the browser round, repeat the owner and member flows in AM in separate profiles.

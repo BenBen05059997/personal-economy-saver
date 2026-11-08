@@ -1,6 +1,7 @@
 import { AiKeyError } from "@/db/ai-key";
 import { answerQuestion, askInput } from "@/db/ask";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { consumeRequest } from "@/db/rate-limit";
 import { AgentError } from "@/lib/agent/run";
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
   const data = askInput.safeParse(body);
   if (!data.success) return text("Enter a question of up to 320 characters.", 400);
   const connection = db();
-  if (!await consumeRequest(connection, hid, "ask")) return tooMany("Ask again in a minute.");
+  if (!await withHousehold(connection, hid, tx => consumeRequest(tx, hid, "ask"))) return tooMany("Ask again in a minute.");
   // After these checks the answer is one stream of JSON lines: `{"step":"…"}` lines, then `{"reply": AskReply}` or `{"error": "…"}`.
   // An InputError raised before the first model call (the question does not fit the household) is still a plain 400.
   const encoder = new TextEncoder();

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { refreshPayPal } from "@/db/paypal-refresh";
 import { loadNavigationData, loadWorkspaceData } from "@/db/workspace";
 import { missingForwardingSetting } from "@/components/reader/ForwardingSettings";
@@ -7,12 +8,12 @@ import { Shell, type Section } from "./Shell";
 
 export async function loadWorkspace(hid: string, home = false) {
   const freshness = home ? await refreshPayPal(db(), hid) : null;
-  return db().transaction(tx => loadWorkspaceData(tx, hid, home, freshness),
+  return withHousehold(db(), hid, tx => loadWorkspaceData(tx, hid, home, freshness),
     home ? undefined : { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
 export async function loadNavigation(hid: string) {
-  return db().transaction(tx => loadNavigationData(tx, hid),
+  return withHousehold(db(), hid, tx => loadNavigationData(tx, hid),
     { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 

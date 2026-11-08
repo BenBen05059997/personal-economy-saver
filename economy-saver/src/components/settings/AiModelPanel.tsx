@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { connectionView } from "@/db/ai-key";
 import { askUnavailable, missingAskSetting, serverDefaultHost } from "@/lib/agent/availability";
 import { CHECK_NAMES, type ConnectionCheck } from "@/lib/ai/check";
@@ -23,7 +24,7 @@ function CheckLine({ tested, check }: { tested: boolean; check: ConnectionCheck 
 /** Settings → "Your AI model" (D56). A server component: it reads the saved model itself and never receives a key. */
 export async function AiModelPanel({ demo }: { demo: boolean }) {
   const hid = await currentHouseholdId();
-  const view = hid ? await connectionView(db(), hid) : null;
+  const view = hid ? await withHousehold(db(), hid, tx => connectionView(tx, hid)) : null;
   const missing = missingAskSetting(Boolean(view?.textModel));
   const host = view ? view.host : serverDefaultHost();
   return <section className="ui-panel" id="ai-model"><h2>Your AI model</h2>

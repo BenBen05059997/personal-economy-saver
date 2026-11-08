@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { requireCloud } from "@/db/place";
 import { moveCanvas, pinCanvas, unpinCanvas, updateCanvas } from "@/db/canvases";
 import { consumeRequest } from "@/db/rate-limit";
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
   const by = { madeBy: "form" } as const;
   const kind = form.get("kind");
   if (kind !== "pin" && kind !== "update" && kind !== "move" && kind !== "unpin") return badFields();
-  if (!await consumeRequest(db(), hid, "pins", 20)) return tooMany("Too many changes. Try again in a minute.");
+  if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "pins", 20))) return tooMany("Too many changes. Try again in a minute.");
   const recipeText = String(form.get("recipe") ?? "");
   if (recipeText.length > MAX_RECIPE) return text("This canvas is too large.", 413);
   let recipe: unknown = null;
@@ -26,19 +27,21 @@ export async function POST(request: Request) {
     try { recipe = JSON.parse(recipeText); } catch { return badFields(); }
   }
   try {
-    await requireCloud(db(), hid, "canvases");
-    if (kind === "pin") {
-      await pinCanvas(db(), hid, { title: String(form.get("title") ?? ""), recipe }, by);
-    } else {
-      const id = idOf(form.get("id"));
-      if (!id.success) return badFields();
-      const done = kind === "update" ? await updateCanvas(db(), hid, id.data, recipe, by)
-        : kind === "move" ? form.get("direction") === "up" || form.get("direction") === "down" ? await moveCanvas(db(), hid, id.data, form.get("direction") as "up" | "down", by) : null
-        : await unpinCanvas(db(), hid, id.data, by);
-      if (done === null) return badFields();
-      if (!done) return text("That canvas is no longer pinned. Reload the page.", 404);
-    }
-    return redirectTo(returnPath(form.get("returnTo")), request);
+    return await withHousehold(db(), hid, async tx => {
+      await requireCloud(tx, hid, "canvases");
+      if (kind === "pin") {
+        await pinCanvas(tx, hid, { title: String(form.get("title") ?? ""), recipe }, by);
+      } else {
+        const id = idOf(form.get("id"));
+        if (!id.success) return badFields();
+        const done = kind === "update" ? await updateCanvas(tx, hid, id.data, recipe, by)
+          : kind === "move" ? form.get("direction") === "up" || form.get("direction") === "down" ? await moveCanvas(tx, hid, id.data, form.get("direction") as "up" | "down", by) : null
+          : await unpinCanvas(tx, hid, id.data, by);
+        if (done === null) return badFields();
+        if (!done) return text("That canvas is no longer pinned. Reload the page.", 404);
+      }
+      return redirectTo(returnPath(form.get("returnTo")), request);
+    });
   } catch (error) {
     return failure(error);
   }

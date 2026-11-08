@@ -152,14 +152,20 @@ async function main() {
       assert.ok(!result1.is_error);
     });
 
-    await check("household_snapshot through the transport: the whole household of the asker, without events, valid against the schema", async () => {
+    await check("snapshot, spending and foreign costs share one read group; the snapshot is scoped, event-free and schema-valid", async () => {
       const { fetch, bodies } = transport([
-        () => reply("tool_use", [toolUse("toolu_snap", "household_snapshot", {})]),
+        () => reply("tool_use", [
+          toolUse("toolu_snap", "household_snapshot", {}),
+          toolUse("toolu_spend", "month_by_category", { month: null }),
+          toolUse("toolu_fx", "foreign_costs", {}),
+        ]),
         () => reply("end_turn", [text("You have three clients.")]),
       ]);
       assert.equal((await ask(a, "What do I have set up?", fetch)).answer, "You have three clients.");
-      const [result1] = toolResults(bodies[1]);
-      assert.ok(!result1.is_error);
+      const results = toolResults(bodies[1]);
+      assert.deepEqual(results.map(result => [result.tool_use_id, Boolean(result.is_error)]),
+        [["toolu_snap", false], ["toolu_spend", false], ["toolu_fx", false]]);
+      const [result1] = results;
       const snapshot = HouseholdSnapshot.parse(JSON.parse(result1.content));
       assert.equal(snapshot.household.id, a);
       assert.equal(snapshot.clients.length, aState.clients.length);
@@ -1556,6 +1562,36 @@ async function main() {
       const otherReply = await answerQuestion(db, other, input, { fetch: o.fetch });
       assert.notEqual(otherReply.text, FIXED.alreadySaved);
       assert.ok(o.bodies.length > 0);
+    });
+
+    await check("a device memory tool does not suppress the receipt for a later committed draft in the same turn", async () => {
+      const h = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ memoryPlace: "device", journalPlace: "device" }).where(eq(schema.households.id, h));
+      const owner = (await pg.query<{ role: string }>("select current_user as role")).rows[0].role;
+      const id = crypto.randomUUID(), billId = crypto.randomUUID();
+      const input = askInput.parse({
+        id, conversationId: crypto.randomUUID(), text: "Remember that water is shared and add the new water bill.",
+        source: "manual", canvas: null, memory: [], recent: [],
+      });
+      const bill = { id: billId, biller: "Scoped Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, repeat: null };
+      const provider = transport([
+        () => reply("tool_use", [toolUse("r", "remember", { kind: "fact", text: "Water is shared" }), toolUse("b", "add_bill", bill)]),
+        () => reply("end_turn", [text("It is waiting in To check.")]),
+      ]);
+      const fetch: typeof globalThis.fetch = async (request, init) => {
+        assert.equal((await pg.query<{ role: string }>("select current_user as role")).rows[0].role, owner, "model fetch runs outside tenant scope");
+        if (provider.bodies.length === 1) {
+          const [draft] = await db.select().from(schema.bills).where(eq(schema.bills.id, billId));
+          const [receipt] = await db.select().from(schema.askReceipts).where(and(eq(schema.askReceipts.householdId, h), eq(schema.askReceipts.askId, id)));
+          assert.equal(draft?.status, "pending", "the draft already committed");
+          assert.ok(receipt, "the receipt already committed");
+        }
+        return provider.fetch(request, init);
+      };
+      const answer = await answerQuestion(db, h, input, { fetch });
+      assert.equal(answer.text, "It is waiting in To check.");
+      assert.equal(answer.pending, true);
+      assert.equal(answer.memoryChanges.length, 1);
     });
 
     await check("a cloud-journal retry of a question that left a pending bill returns the same links and pending flag", async () => {

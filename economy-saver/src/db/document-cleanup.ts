@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { type Db, requireHousehold } from "./household";
+import { type Db, requireHousehold, withHousehold } from "./household";
 import { documents, households, readings } from "./schema";
 import { documentBucket } from "@/lib/reader/storage";
 import { ReaderError } from "@/lib/reader/settings";
@@ -52,14 +52,16 @@ export async function requireStorageRoom(db: Db, id: string, incomingBytes: numb
 export async function removeExpiredFiles(db: Db, id: string, now = new Date(), store?: { remove(paths: string[]): PromiseLike<{ error: unknown }> }): Promise<number> {
   const hid = requireHousehold(id);
   const cutoff = new Date(now.getTime() - RAW_FILE_RETENTION_DAYS * 86_400_000);
-  const open = db.select({ one: sql`1` }).from(readings)
-    .where(and(eq(readings.householdId, hid), eq(readings.documentId, documents.id), eq(readings.status, "to_check")));
-  const recent = db.select({ one: sql`1` }).from(readings)
-    .where(and(eq(readings.householdId, hid), eq(readings.documentId, documents.id), sql`coalesce(${readings.confirmedAt}, ${readings.createdAt}) >= ${cutoff.toISOString()}::timestamptz`));
-  const settled = db.select({ one: sql`1` }).from(readings).where(and(eq(readings.householdId, hid), eq(readings.documentId, documents.id)));
-  const rows = await db.select({ id: documents.id, path: documents.storagePath }).from(documents)
-    .where(and(eq(documents.householdId, hid), eq(documents.status, "read"), isNull(documents.fileRemovedAt),
-      sql`exists (${settled})`, sql`not exists (${open})`, sql`not exists (${recent})`));
+  const rows = await withHousehold(db, hid, async tx => {
+    const open = tx.select({ one: sql`1` }).from(readings)
+      .where(and(eq(readings.householdId, hid), eq(readings.documentId, documents.id), eq(readings.status, "to_check")));
+    const recent = tx.select({ one: sql`1` }).from(readings)
+      .where(and(eq(readings.householdId, hid), eq(readings.documentId, documents.id), sql`coalesce(${readings.confirmedAt}, ${readings.createdAt}) >= ${cutoff.toISOString()}::timestamptz`));
+    const settled = tx.select({ one: sql`1` }).from(readings).where(and(eq(readings.householdId, hid), eq(readings.documentId, documents.id)));
+    return tx.select({ id: documents.id, path: documents.storagePath }).from(documents)
+      .where(and(eq(documents.householdId, hid), eq(documents.status, "read"), isNull(documents.fileRemovedAt),
+        sql`exists (${settled})`, sql`not exists (${open})`, sql`not exists (${recent})`));
+  });
   if (!rows.length) return 0;
   if (rows.some(row => !row.path.startsWith(hid + "/"))) throw new ReaderError("Document storage path does not belong to this household.");
   const bucket = store ?? await documentBucket();
@@ -70,6 +72,7 @@ export async function removeExpiredFiles(db: Db, id: string, now = new Date(), s
     if (error) throw new ReaderError("Could not remove old documents from Storage.");
     ids.push(...chunk.map(row => row.id));
   }
-  await db.update(documents).set({ fileRemovedAt: now }).where(and(eq(documents.householdId, hid), inArray(documents.id, ids), isNull(documents.fileRemovedAt)));
+  await withHousehold(db, hid, async tx => tx.update(documents).set({ fileRemovedAt: now })
+    .where(and(eq(documents.householdId, hid), inArray(documents.id, ids), isNull(documents.fileRemovedAt))));
   return ids.length;
 }

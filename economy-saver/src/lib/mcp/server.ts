@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { householdDate } from "@/db/account";
-import { loadMoneyState, type Db } from "@/db/household";
+import { loadMoneyState, withHousehold, type Db } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { authenticateMcpToken } from "@/db/mcp-tokens";
 import { consumeRequest } from "@/db/rate-limit";
@@ -39,16 +39,19 @@ export async function mcpRequest(request: Request, connection: () => Db) {
   const db = connection();
   const caller = await authenticateMcpToken(db, token);
   if (!caller) return unauthorized();
-  if (!await consumeRequest(db, caller.householdId, "mcp")) return new Response("Request limit reached", { status: 429, headers: { "Retry-After": "60" } });
   const { householdId: hid, scopes } = caller;
+  if (!await withHousehold(db, hid, tx => consumeRequest(tx, hid, "mcp"))) {
+    return new Response("Request limit reached", { status: 429, headers: { "Retry-After": "60" } });
+  }
   const server = new McpServer({ name: "personal-economy-saver", version: "1.0.0" }, { instructions: MODEL_RULES });
-  const state = async () => loadMoneyState(db, hid, await householdDate(db, hid));
-  const ctx = { madeBy: "mcp" as const, db, householdId: hid, state, appUrl: endpoint };
   for (const tool of tools) {
     // Ask-only tools (clarify, out_of_scope) end an Ask turn and mean nothing to another client: never offered, whatever the token holds.
     if (tool.scope === "ask" || !scopes.includes(tool.scope)) continue;
     server.registerTool(tool.name, { description: tool.description, inputSchema: tool.input.shape },
-      params => answer(hid, tool.name, () => tool.run(ctx, params as never)));
+      params => answer(hid, tool.name, () => withHousehold(db, hid, tx => {
+        const state = async () => loadMoneyState(tx, hid, await householdDate(tx, hid));
+        return tool.run({ madeBy: "mcp", db: tx, householdId: hid, state, appUrl: endpoint }, params as never);
+      })));
   }
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   try {

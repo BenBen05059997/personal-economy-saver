@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { FamilyView } from "@/components/family/FamilyView";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { loadFamilyView, resolveFamilyLink } from "@/db/family-links";
 
 // D52: a shared link opens without a session; the page is never indexed, cached or sent as a referrer.
@@ -19,7 +20,8 @@ async function Family({ params }: { params: Promise<{ token: string }> }) {
   await connection(); // whether a link is still live depends on the time of the request
   const hid = await resolveFamilyLink(db(), token);
   if (!hid) notFound();
-  const { name, state } = await loadFamilyView(db(), hid);
+  const { name, state } = await withHousehold(db(), hid, tx => loadFamilyView(tx, hid),
+    { isolationLevel: "repeatable read", accessMode: "read only" });
   return <FamilyView name={name} state={state} />;
 }
 

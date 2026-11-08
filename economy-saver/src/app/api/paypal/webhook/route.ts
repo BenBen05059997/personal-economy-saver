@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { env } from "@/lib/env";
 import { applyVerifiedDelivery, recentDeliveries } from "@/lib/events";
 import { verifyWebhook } from "@/lib/paypal/webhook";
@@ -21,5 +22,5 @@ export async function GET() {
   env();
   const hid = await currentHouseholdId();
   if (!hid) return Response.json({ error: "Household session required" }, { status: 401 });
-  return Response.json({ events: await recentDeliveries(db(), hid) }, { headers: NO_STORE });
+  return Response.json({ events: await withHousehold(db(), hid, async tx => recentDeliveries(tx, hid)) }, { headers: NO_STORE });
 }

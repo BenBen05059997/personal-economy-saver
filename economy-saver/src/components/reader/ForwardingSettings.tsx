@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { requireHousehold } from "@/db/household";
+import { withHousehold } from "@/db/household";
 import { households } from "@/db/schema";
 import { ReaderError, readerSetting } from "@/lib/reader/settings";
 import "./reader.css";
@@ -25,8 +25,8 @@ export async function ForwardingSettings({ householdId }: { householdId: string 
   if (missing) status = `Email forwarding isn’t available on this server yet (${missing}).`;
   else try {
     const domain = readerSetting("FORWARDING_DOMAIN");
-    const [row] = await db().select({ token: households.forwardingLocalpart }).from(households)
-      .where(eq(households.id, requireHousehold(householdId)));
+    const [row] = await withHousehold(db(), householdId, async tx => tx.select({ token: households.forwardingLocalpart }).from(households)
+      .where(eq(households.id, householdId)));
     if (row?.token) address = row.token + "@" + domain;
   } catch (error) {
     if (!(error instanceof ReaderError)) throw error;

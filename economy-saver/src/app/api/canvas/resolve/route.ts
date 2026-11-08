@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { resolveCanvasRequest } from "@/lib/canvas/request";
 import { CanvasError } from "@/lib/canvas/resolve";
@@ -13,7 +14,7 @@ const PER_MINUTE = 120;
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  if (!await consumeRequest(db(), hid, "canvas", PER_MINUTE)) return tooMany("Too many canvas requests. Try again in a minute.");
+  if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "canvas", PER_MINUTE))) return tooMany("Too many canvas requests. Try again in a minute.");
   const raw = await request.text();
   if (new TextEncoder().encode(raw).length > MAX_BODY) return text("This canvas is too large.", 413);
   let body: unknown;
@@ -23,7 +24,9 @@ export async function POST(request: Request) {
     return text("This is not a canvas request.", 400);
   }
   try {
-    return Response.json({ blocks: await resolveCanvasRequest(db(), hid, body) }, { headers: NO_STORE });
+    const blocks = await withHousehold(db(), hid, tx => resolveCanvasRequest(tx, hid, body),
+      { isolationLevel: "repeatable read", accessMode: "read only" });
+    return Response.json({ blocks }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof CanvasError) return text(error.message, 400);
     return text("The canvas could not be drawn. Try again.", 503);

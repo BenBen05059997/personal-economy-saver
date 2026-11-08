@@ -5,6 +5,7 @@ import { hasAuthCookie } from "./supabase-auth";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { findDemoHousehold } from "@/db/demo";
 import { noteHousehold } from "./request-log";
 
@@ -36,7 +37,7 @@ export async function householdRequest(request: Request): Promise<string | Respo
 export async function hasHouseholdOwnerAccess(hid: string): Promise<boolean> {
   const uid = await verifiedUid();
   if (!uid) return Boolean(await findDemoHousehold(db(), hid));
-  const member = await accountMembership(db(), uid);
+  const member = await withHousehold(db(), hid, tx => accountMembership(tx, uid));
   return member?.householdId === hid && member.role === "owner";
 }
 

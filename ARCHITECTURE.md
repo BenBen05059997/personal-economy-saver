@@ -84,7 +84,7 @@ Cloudflare
         └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0028), 34 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0029), 34 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
 │   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns,
 │   ip_buckets, ai_global_usage, ask_receipts, standing_rules, suggestions, reminder_settings, push_subscriptions, reminders, invites
@@ -458,9 +458,40 @@ Events record that data was deleted (`data_deleted`), moved (`data_moved`) or im
 
 ### The tenant wall
 
-The app connects as the database owner through `DATABASE_URL`. RLS is enabled on every table with no policies, which guards Supabase's REST path only
-(the app does not use it). The effective wall is the household-scoped data layer: `requireHousehold()` in `src/db/household.ts` throws without a
-household id, every table except `households` carries `household_id` with an index and a cascade, and child rows reference `(household_id, id)` pairs.
+The existing `DATABASE_URL` connects as the database owner through the Supabase transaction pooler. Migration
+`0029_tenant_wall.sql` gives that owner permission to switch to the `NOLOGIN` role `pes_app`. For household work,
+`withHousehold` in `src/db/household.ts` starts a transaction, sets `SET LOCAL ROLE pes_app`, and sets
+`app.household_id` to the verified household with transaction-local `set_config`. Both settings end at commit or rollback.
+The policies apply to the 32 household tables and allow reads and writes only where `household_id` matches, or where
+`households.id` matches. A missing or reset setting sees no household rows. The data layer still validates the id,
+filters by it, and uses composite foreign keys. Rate limits, record writes, and post-commit suggestion refreshes keep their
+separate commit boundaries. Ask, reading, reminder delivery, PayPal refresh and import use scoped database phases around
+external calls. Invoice approval keeps its existing scoped row locks during the atomic PayPal draft and send phases.
+
+Owner-role paths and their boundaries:
+
+- **Demo sweep and cron discovery.** Both select across households. Discovery also prunes global per-address counters.
+  Each scheduled household run switches to `pes_app` after its id is known. The sweeper retains the owner lifecycle transaction for each deletion.
+- **Verified PayPal webhook delivery lookup.** The sandbox invoice id routes the delivery to a household.
+  Its receipt and payment update then run in one scoped transaction. An unmatched verified delivery keeps a global
+  deduplication receipt with no household id.
+- **MCP token authentication.** The owner handle validates the bearer and records its last use before granting a household
+  and scopes. Request limits and tool calls then use the tenant role.
+- **Family link and invite token lookup.** An opaque hash determines the household. Family view reads and the invite's
+  preview and acceptance use the tenant role after routing. Invitation acceptance also checks the verified login's
+  global membership and relies on its unique constraint for concurrent joins.
+- **Try it creation and signed-in onboarding.** Creation establishes a new household and its login, if any. Reset and
+  onboarding that replaces a demo can touch two households. Their lifecycle writes keep one owner transaction.
+- **Sign-in callback, session routing and sign-in rate limits.** The verified Supabase uid identifies the household
+  through the global membership lookup. The per-address request bucket is outside household scope.
+- **Vault key reads.** Vault is outside the app schema. The connection first reads household metadata under `pes_app`
+  and the owner-only key read matches the household, Vault pointer and saved provider address.
+- **Vault changes and household deletion.** Saving or clearing a model connection can change Vault and its household
+  pointer atomically. Deleting a household locks it while cleaning up Vault and Storage before its cascading row
+  deletion. Those operations retain the owner transaction to preserve their existing lock and cleanup boundaries.
+
+Owner queries keep their existing permissions during the expand migration. The PGlite isolation suite exercises the
+database policies directly, with no tenant predicate in its own SQL, and verifies that the next transaction cannot inherit a prior scope.
 
 ### Identities
 
@@ -511,7 +542,7 @@ request logs. `events` is the user's audit trail. **The request line (operator l
 
 No automatic database backups are configured; the person's own backup is Export my data, and Import brings that file back into an empty household.
 What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from
-the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. `0028_standing_rules_and_assistant.sql` adds daily suggestions, standing rules with the existing nudge setting copied into the rule, reminder delivery storage, and household invitations. 0000–0028 are applied to the Tokyo database. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
+the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. `0028_standing_rules_and_assistant.sql` adds daily suggestions, standing rules with the existing nudge setting copied into the rule, reminder delivery storage, and household invitations. Migration `0029_tenant_wall.sql` adds the app role and its household policies. Migrations 0000–0028 are applied to the Tokyo database, and 0029 is queued for the owner. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
 
 ### Not limited yet
 

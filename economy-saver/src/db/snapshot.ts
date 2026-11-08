@@ -9,7 +9,7 @@ import { allTurns } from "./conversation";
 import { listMemory } from "./memory";
 import { clockForHousehold } from "./clock";
 import { fromRateMicro } from "./money";
-import { paypalTotalMinor, requireHousehold, usdRate, type Db } from "./household";
+import { paypalTotalMinor, requireHousehold, usdRate, withHousehold, type Db } from "./household";
 import * as s from "./schema";
 
 type SnapshotOptions = {
@@ -39,7 +39,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
   const fetchLimit = recent === undefined ? undefined : recent + 1;
   const cap = <Q extends { limit(n: number): Q }>(query: Q) => (fetchLimit === undefined ? query : query.limit(fetchLimit));
 
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const [household] = await tx.select({
       id: s.households.id, name: s.households.name, homeCurrency: s.households.homeCurrency, timeZone: s.households.timeZone,
       isDemo: s.households.isDemo, fixedToday: s.households.fixedToday, bankBalanceMinor: s.households.bankBalanceMinor, splitSince: s.households.splitSince,

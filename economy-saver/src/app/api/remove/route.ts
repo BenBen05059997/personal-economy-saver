@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { removeBill } from "@/db/bills";
 import { removeCharge } from "@/db/charges";
 import { consumeRequest } from "@/db/rate-limit";
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   const data = input.safeParse({ kind: form.get("kind"), id: form.get("id") });
   if (!data.success) return badFields();
   try {
-    if (!await consumeRequest(db(), hid, "remove", 20)) return tooMany("Too many removals. Try again in a minute.");
+    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "remove", 20))) return tooMany("Too many removals. Try again in a minute.");
     if (data.data.kind === "bill") await removeBill(db(), hid, data.data.id);
     else await removeCharge(db(), hid, data.data.id);
     return redirectTo(returnPath(form.get("returnTo")), request);

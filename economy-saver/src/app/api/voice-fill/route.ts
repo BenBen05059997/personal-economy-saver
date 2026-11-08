@@ -1,5 +1,6 @@
 import { db } from "@/db/client";
 import { connectionView } from "@/db/ai-key";
+import { withHousehold } from "@/db/household";
 import { missingAskSetting } from "@/lib/agent/availability";
 import { logVoice } from "@/lib/agent/log";
 import { NO_STORE, text } from "@/lib/door";
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
   const data = VoiceFillRequest.safeParse(body);
   if (!data.success) return text("Say up to 400 characters, for a form of up to 20 fields.", 400);
   const connection = db();
-  const view = await connectionView(connection, hid);
+  const view = await withHousehold(connection, hid, tx => connectionView(tx, hid));
   const missing = missingAskSetting(Boolean(view?.textModel));
   if (missing) return text(`Voice fill needs an AI model on this server (${missing}). Type the fields instead.`, 503);
   const started = Date.now();

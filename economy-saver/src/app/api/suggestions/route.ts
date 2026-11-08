@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { dismiss, notNow } from "@/db/suggestions";
 import { badFields, formOf, redirectTo, text } from "@/lib/door";
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   const connection = db();
-  if (!await consumeRequest(connection, hid, "suggestions", 30)) {
+  if (!await withHousehold(connection, hid, tx => consumeRequest(tx, hid, "suggestions", 30))) {
     return new Response("Suggestion limit reached. Try again in a minute.", { status: 429, headers: { "Retry-After": "60" } });
   }
   const form = await formOf(request);
@@ -19,6 +20,6 @@ export async function POST(request: Request) {
   const parsed = input.safeParse(Object.fromEntries(form));
   if (!parsed.success) return badFields();
   const change = parsed.data.kind === "dismiss" ? dismiss : notNow;
-  if (!await change(connection, hid, parsed.data.id)) return text("Suggestion is no longer available.", 404);
+  if (!await withHousehold(connection, hid, tx => change(tx, hid, parsed.data.id))) return text("Suggestion is no longer available.", 404);
   return redirectTo("/", request);
 }

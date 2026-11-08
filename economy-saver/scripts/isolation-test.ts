@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { randomBytes, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
-import { PGlite } from "@electric-sql/pglite";
+import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -95,7 +95,7 @@ const covered = [
   "reminderView", "saveReminderSettings", "subscribeReminder", "unsubscribeReminder", "sendTestReminder", "runReminders",
   // household.ts
   "householdOwnerName", "usdRate", "usdRateMicro", "loadSplitState", "loadMoneyState", "recordEvent", "listEvents", "unreadCount", "markRead",
-  "recordWebhookDelivery", "deleteHousehold",
+  "recordWebhookDelivery", "deleteHousehold", "withHousehold",
   // family-links.ts
   "listFamilyLinks", "createFamilyLink", "stopFamilyLink", "resolveFamilyLink", "loadFamilyView",
   // invoice-draft.ts, invoice-paid.ts, mcp-tokens.ts
@@ -385,6 +385,75 @@ async function main() {
       const [a, b] = [await needlesOf(A), await needlesOf(B)];
       assert.ok(a.strings.length > 100 && b.strings.length > 100);
       assert.equal(a.strings.filter(s => b.strings.includes(s)).length, 0, "no id or name is in both households");
+    });
+
+    // Check the database wall with SQL that deliberately omits the app's household predicates.
+    const tenantTables = [...scoped, "households"].sort();
+    const asApp = <T>(hid: string | null, run: (tx: Transaction) => Promise<T>) =>
+      pg.transaction(async tx => {
+        await tx.exec("set local role pes_app");
+        if (hid) await tx.query("select set_config('app.household_id', $1, true)", [hid]);
+        return run(tx);
+      });
+    async function assertVisibleTenants(tx: Transaction, expected: string[]) {
+      for (const table of tenantTables) {
+        const column = table === "households" ? "id" : "household_id";
+        const { rows } = await tx.query<{ tenant: string }>('select distinct ' + column + ' as tenant from public."' + table + '"');
+        assert.deepEqual(rows.map(row => row.tenant), expected, table);
+      }
+    }
+
+    await check("pes_app is a non-login role with no bypass or access to global counters", async () => {
+      const { rows } = await pg.query(
+        "select rolcanlogin, rolsuper, rolbypassrls, rolcreatedb, rolcreaterole, rolreplication from pg_roles where rolname = 'pes_app'",
+      );
+      assert.deepEqual(rows, [{
+        rolcanlogin: false, rolsuper: false, rolbypassrls: false, rolcreatedb: false, rolcreaterole: false, rolreplication: false,
+      }]);
+      const membership = await pg.query(
+        "select m.inherit_option, m.set_option from pg_auth_members m join pg_roles r on r.oid = m.roleid"
+        + " join pg_roles member_role on member_role.oid = m.member where r.rolname = 'pes_app' and member_role.rolname = current_user",
+      );
+      assert.deepEqual(membership.rows, [{ inherit_option: false, set_option: true }]);
+      for (const table of ["ai_global_usage", "ip_buckets"]) {
+        await assert.rejects(asApp(A.hid, tx => tx.query("select * from public." + table)), { code: "42501" });
+      }
+    });
+
+    await check("pes_app sees only its household across every tenant table and no rows without a scope", async () => {
+      await asApp(null, tx => assertVisibleTenants(tx, []));
+      await asApp(A.hid, tx => assertVisibleTenants(tx, [A.hid]));
+      // PostgreSQL can leave a custom transaction-local setting as an empty string after commit.
+      await asApp(null, tx => assertVisibleTenants(tx, []));
+      assert.deepEqual((await db.select({ id: schema.households.id }).from(schema.households)).map(row => row.id).sort(),
+        [A.hid, B.hid].sort(), "the owner still sees both households");
+    });
+
+    await check("pes_app permits own writes and blocks foreign inserts, updates and tenant reassignment", async () => {
+      const before = await Promise.all([fingerprint(A.hid), fingerprint(B.hid)]);
+      const insert = "insert into public.clients(household_id, name, email) values($1, 'Isolation wall', 'wall@example.test') returning id";
+      await asApp(A.hid, async tx => {
+        const { rows } = await tx.query<{ id: string }>(insert, [A.hid]);
+        assert.equal(rows.length, 1);
+        await tx.query("delete from public.clients where id = $1", [rows[0].id]);
+        assert.deepEqual((await tx.query("update public.clients set name = 'Blocked' where id = $1 returning id", [B.ids.client])).rows, []);
+        assert.deepEqual((await tx.query("delete from public.clients where id = $1 returning id", [B.ids.client])).rows, []);
+      });
+      await assert.rejects(asApp(null, tx => tx.query(insert, [A.hid])), { code: "42501" });
+      await assert.rejects(asApp(A.hid, tx => tx.query(insert, [B.hid])), { code: "42501" });
+      await assert.rejects(asApp(A.hid, tx => tx.query("update public.clients set household_id = $1 where id = $2", [B.hid, A.ids.client])), { code: "42501" });
+      assert.deepEqual(await Promise.all([fingerprint(A.hid), fingerprint(B.hid)]), before);
+    });
+
+    await check("withHousehold applies the tenant role, shares same-household scope and refuses a different nested scope", async () => {
+      await assert.rejects(F.withHousehold(store, "", async () => assert.fail("invalid scope ran")), /A household id is required/);
+      await F.withHousehold(store, A.hid, async tx => {
+        assert.deepEqual(await tx.select({ id: schema.households.id }).from(schema.households), [{ id: A.hid }]);
+        await F.withHousehold(tx, A.hid.toUpperCase(), async inner => { assert.equal(inner, tx); });
+        await assert.rejects(F.withHousehold(tx, B.hid, async () => assert.fail("foreign scope ran")), /Cannot change households/);
+      });
+      await assert.rejects(F.withHousehold(store, A.hid, async () => { throw new Error("abort tenant transaction"); }), /abort tenant transaction/);
+      await asApp(null, tx => assertVisibleTenants(tx, []));
     });
 
     await check("the detectors work: B's own text matches B's needles, A's does not, and a write to B changes B's fingerprint", async () => {

@@ -7,7 +7,7 @@ import type { StoredBill } from "@/lib/money/types";
 import { clockForHousehold } from "./clock";
 import type { PeriodBill } from "@/lib/money/period";
 import { monthBounds, type SpendingInput } from "@/lib/money/spending";
-import { requireHousehold, usdRate, type Db } from "./household";
+import { requireHousehold, usdRate, withHousehold, type Db } from "./household";
 import { convertMinor, fromMinor, fromRateMicro } from "./money";
 import * as s from "./schema";
 
@@ -22,7 +22,7 @@ export async function loadSpending(db: Db, householdId: string, range: { from: s
   const hid = requireHousehold(householdId);
   const { from, to } = range;
   if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error("A spending range is two YYYY-MM-DD dates, from on or before to");
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ homeCurrency: s.households.homeCurrency, isDemo: s.households.isDemo, fixedToday: s.households.fixedToday, timeZone: s.households.timeZone }).from(s.households).where(eq(s.households.id, hid));
     if (!household) throw new Error("Household not found");
     const home = Currency.parse(household.homeCurrency);

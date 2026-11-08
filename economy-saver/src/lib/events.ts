@@ -1,6 +1,6 @@
 import { refreshSuggestions } from "@/db/suggestions";
 import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
-import { type Db, recordEvent, recordWebhookDelivery, requireHousehold, usdRateMicro } from "@/db/household";
+import { type Db, recordEvent, recordWebhookDelivery, requireHousehold, usdRateMicro, withHousehold } from "@/db/household";
 import { beginMoneyChange, lockRunway, observeRunway } from "@/db/runway-events";
 import { convertMinor, fromMinor, fromRateMicro } from "@/db/money";
 import { fillPots } from "@/db/pots";
@@ -12,24 +12,26 @@ export const storedPayload = (event: PayPalWebhookEvent, invoiceId: string | und
 
 /** The signature has already been verified. Receipt, invoice transition and notification commit together. */
 export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): Promise<void> {
-  const hid = await db.transaction(async (tx) => {
-    const resource = event.resource;
-    const invoiceId = event.event_type.startsWith("INVOICING.INVOICE.") ? resource?.id : undefined;
-    // PayPal sends its globally unique invoice id, not our household id. Resolve only its owning household.
-    const [owner] = invoiceId
-      ? await tx.select({ householdId: invoices.householdId, timeZone: households.timeZone, fixedToday: households.fixedToday, home: households.homeCurrency }).from(invoices)
-          .innerJoin(households, eq(households.id, invoices.householdId))
-          .where(eq(invoices.paypalInvoiceId, invoiceId))
-      : [];
-    if (owner) await lockRunway(tx, owner.householdId);
-    const inserted = await recordWebhookDelivery(tx, owner?.householdId ?? null, {
-      paypalEventId: event.id,
-      eventType: event.event_type,
-      verified: true,
-      payload: storedPayload(event, invoiceId),
-    });
+  const resource = event.resource;
+  const invoiceId = event.event_type.startsWith("INVOICING.INVOICE.") ? resource?.id : undefined;
+  // Verified PayPal deliveries name a globally unique invoice id, so resolve its household as owner.
+  const [match] = invoiceId
+    ? await db.select({ id: invoices.householdId }).from(invoices).where(eq(invoices.paypalInvoiceId, invoiceId))
+    : [];
+  const receipt = { paypalEventId: event.id, eventType: event.event_type, verified: true, payload: storedPayload(event, invoiceId) };
+  if (!match || !invoiceId) {
+    // A verified event without a household still gets a global deduplication receipt.
+    await recordWebhookDelivery(db, null, receipt);
+    return;
+  }
+  const hid = match.id;
+  const paid = await withHousehold(db, hid, async tx => {
+    await lockRunway(tx, hid);
+    const [owner] = await tx.select({ householdId: households.id, timeZone: households.timeZone, fixedToday: households.fixedToday, home: households.homeCurrency })
+      .from(households).where(eq(households.id, hid));
+    const inserted = await recordWebhookDelivery(tx, hid, receipt);
     // PayPal also emits INVOICE.PAID for partial and pending payments.
-    if (!inserted || !owner || !invoiceId || event.event_type !== "INVOICING.INVOICE.PAID" || resource?.status !== "PAID") return;
+    if (!inserted || event.event_type !== "INVOICING.INVOICE.PAID" || resource?.status !== "PAID") return;
     if (!event.create_time || !Number.isFinite(Date.parse(event.create_time))) {
       throw new Error("Paid invoice delivery is missing a valid create_time");
     }
@@ -91,10 +93,10 @@ export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): 
         await fillPots(tx, owner.householdId, homeCredit, `${client.name}'s payment`);
       }
       await observeRunway(tx, owner.householdId);
-      return owner.householdId;
+      return true;
     }
   });
-  if (hid) await refreshSuggestions(db, hid, "applyVerifiedDelivery");
+  if (paid) await refreshSuggestions(db, hid, "applyVerifiedDelivery");
 }
 
 export function recentDeliveries(db: Db, householdId: string) {

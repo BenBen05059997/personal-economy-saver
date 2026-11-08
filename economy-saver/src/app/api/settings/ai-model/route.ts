@@ -1,3 +1,4 @@
+import { withHousehold } from "@/db/household";
 import { db } from "@/db/client";
 import { AiKeyError, deleteHouseholdConnection, saveHouseholdConnection } from "@/db/ai-key";
 import { consumeRequest } from "@/db/rate-limit";
@@ -12,7 +13,7 @@ const field = (form: FormData, name: string) => { const v = form.get(name); retu
 export async function POST(request: Request) {
   const hid = await ownerRequest(request);
   if (hid instanceof Response) return hid;
-  if (!await consumeRequest(db(), hid, "ai-model", 6)) return tooMany("Too many changes. Try again in a minute.");
+  if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "ai-model", 6))) return tooMany("Too many changes. Try again in a minute.");
   const form = await smallForm(request, 4096);
   if (!form) return text("That request is too large", 413);
   try {
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
       return text("This household now uses the app’s default model.", 200, NO_STORE);
     }
     if (field(form, "kind") !== "save") return text("Check the fields and try again.", 400);
-    const [household] = await db().select({ demo: households.isDemo }).from(households).where(eq(households.id, hid));
+    const [household] = await withHousehold(db(), hid, async tx => tx.select({ demo: households.isDemo }).from(households).where(eq(households.id, hid)));
     await saveHouseholdConnection(db(), hid, {
       provider: field(form, "provider"), baseUrl: field(form, "baseUrl"), textModel: field(form, "textModel"),
       documentModel: field(form, "documentModel"), sameForDocuments: form.get("sameForDocuments") === "on", key: field(form, "key"),

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { itemsToMove, MOVABLE, moveToCloud, moveToDevice } from "@/db/place";
 import { consumeRequest } from "@/db/rate-limit";
@@ -29,11 +30,12 @@ export async function POST(request: Request) {
   const body = Body.safeParse(json);
   if (!body.success) return text("Choose what to move and where.", 400);
   try {
-    if (!await consumeRequest(db(), hid, "move", 10)) return tooMany("Too many requests. Try again in a minute.");
+    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "move", 10))) return tooMany("Too many requests. Try again in a minute.");
     const by = { madeBy: "form" } as const;
     const data = body.data;
-    if (data.step === "read") return Response.json({ items: await itemsToMove(db(), hid, data.what) }, { headers: NO_STORE });
-    const moved = data.step === "to_device" ? await moveToDevice(db(), hid, data.what, data.ids, by) : await moveToCloud(db(), hid, data.what, data.items, by);
+    if (data.step === "read") return Response.json({ items: await withHousehold(db(), hid, tx => itemsToMove(tx, hid, data.what)) }, { headers: NO_STORE });
+    const moved = await withHousehold(db(), hid, tx => data.step === "to_device"
+      ? moveToDevice(tx, hid, data.what, data.ids, by) : moveToCloud(tx, hid, data.what, data.items, by));
     return Response.json({ moved }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof InputError) return text(error.message, 400);

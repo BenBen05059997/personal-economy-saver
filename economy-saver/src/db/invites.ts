@@ -1,7 +1,7 @@
 import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { accountMembership } from "./account";
-import { recordEvent, requireHousehold, type Db } from "./household";
+import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { InputError } from "./input-error";
 import { addMember } from "./people";
 import { households, invites, members, pushSubscriptions, reminderSettings, users } from "./schema";
@@ -52,7 +52,7 @@ export async function createInvite(db: Db, id: string, uid: string, input: Invit
   const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
   const tokenHash = await hashToken(token);
   const expiresAt = new Date(now.getTime() + SEVEN_DAYS);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     await lockHousehold(tx, hid);
     const createdByMemberId = await ownerMember(tx, hid, uid);
     const [existing] = await tx.select({ id: invites.id }).from(invites).where(and(eq(invites.householdId, hid), open(now),
@@ -72,7 +72,7 @@ export async function createInvite(db: Db, id: string, uid: string, input: Invit
 
 export async function cancelInvite(db: Db, id: string, uid: string, inviteId: string, now = new Date()) {
   const hid = requireHousehold(id);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     await lockHousehold(tx, hid);
     await ownerMember(tx, hid, uid);
     const [removed] = await tx.delete(invites).where(and(sameInvite(hid, inviteId), open(now))).returning({ id: invites.id });
@@ -92,9 +92,9 @@ async function findByToken(db: Db, token: string) {
 export async function inviteView(db: Db, token: string, now = new Date()) {
   const row = await findByToken(db, token);
   if (!row || row.acceptedAt || row.expiresAt <= now) return null;
-  const [result] = await db.select({ householdName: households.name, memberName: members.displayName }).from(members)
+  const [result] = await withHousehold(db, row.householdId, async tx => tx.select({ householdName: households.name, memberName: members.displayName }).from(members)
     .innerJoin(households, and(eq(households.id, row.householdId), eq(households.isDemo, false)))
-    .where(and(eq(members.householdId, row.householdId), eq(members.id, row.memberId), isNull(members.authUserId), eq(members.role, "member")));
+    .where(and(eq(members.householdId, row.householdId), eq(members.id, row.memberId), isNull(members.authUserId), eq(members.role, "member"))));
   return result ?? null;
 }
 
@@ -110,7 +110,9 @@ export async function acceptInvite(db: Db, token: string, identity: Identity, no
   if (!found || found.email !== email || found.expiresAt <= now) return null;
   const hid = found.householdId;
   const uid = requireHousehold(identity.uid);
-  return db.transaction(async tx => {
+  const membership = await accountMembership(db, uid);
+  if (membership && membership.householdId !== hid) throw new InputError("This login already belongs to a household.");
+  return withHousehold(db, hid, async tx => {
     await lockHousehold(tx, hid);
     const [invite] = await tx.select().from(invites).where(sameInvite(hid, found.id));
     if (!invite || invite.expiresAt <= now || invite.email !== email) return null;
@@ -137,7 +139,7 @@ export async function acceptInvite(db: Db, token: string, identity: Identity, no
 
 export async function leaveHousehold(db: Db, id: string, uid: string) {
   const hid = requireHousehold(id);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     await lockHousehold(tx, hid);
     const [person] = await tx.select({ id: members.id, name: members.displayName }).from(users)
       .innerJoin(members, and(eq(members.householdId, hid), eq(members.id, users.memberId), eq(members.role, "member")))

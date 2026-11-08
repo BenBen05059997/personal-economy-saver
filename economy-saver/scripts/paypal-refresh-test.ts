@@ -33,7 +33,10 @@ async function test() {
     queries.length = 0;
     const noRead = async (): Promise<never> => { throw new Error("Untouched demos must not call PayPal"); };
     assert.deepEqual(await refreshPayPal(db, untouched, noRead, now), { stale: null, asOf: null });
-    assert.equal(queries.length, 1, "untouched demo only checks its connection and scoped tracked invoice existence");
+    assert.ok(queries.some(query => /^set local role pes_app$/i.test(query)), "untouched demo enters the tenant role");
+    assert.ok(queries.some(query => /^select set_config\('app.household_id'/i.test(query)), "untouched demo sets the tenant id");
+    const reads = queries.filter(query => !/^(?:set local role|select set_config|begin|commit)\b/i.test(query));
+    assert.equal(reads.length, 1, "untouched demo only checks its connection and scoped tracked invoice existence");
     assert.ok(!queries.some(query => /for update|from "(?:bills|cards|charges|fx_rates)"/i.test(query)), "no runway locks or money-state loads without provider data");
     assert.equal((await conn(untouched)).balanceMinor, untouchedBalance);
     const [untouchedHousehold] = await db.select().from(s.households).where(eq(s.households.id, untouched));

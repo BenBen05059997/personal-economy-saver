@@ -6,7 +6,7 @@ import type { Finding } from "@/lib/money/suggestion-types";
 import { monthsBack } from "@/lib/money/spending";
 import { REGULAR_MONTHS } from "@/lib/money/regular";
 import { clockForHousehold } from "./clock";
-import { CHARGE_LOOKBACK_DAYS, loadMoneyState, recordEvent, requireHousehold, type Db } from "./household";
+import { CHARGE_LOOKBACK_DAYS, loadMoneyState, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { rulesFor } from "./rules";
 import { events, households, invoices, suggestions } from "./schema";
 
@@ -24,7 +24,7 @@ async function findingId(hid: string, key: string) {
 
 export async function runPass(db: Db, id: string, now = new Date()) {
   const hid = requireHousehold(id);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const [household] = await tx.select().from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new Error("Household not found");
     const { today } = clockForHousehold(household, now);
@@ -88,7 +88,7 @@ export async function openSuggestions(db: Db, id: string) {
 
 export async function dismiss(db: Db, id: string, suggestionId: string, now = new Date()) {
   const hid = requireHousehold(id);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const [row] = await tx.update(suggestions).set({ status: "dismissed", closedAt: now })
       .where(and(eq(suggestions.householdId, hid), eq(suggestions.id, suggestionId), active()))
       .returning({ title: suggestions.title });

@@ -3,7 +3,7 @@
 // form's own route saves after the person's tap.
 import { householdClock } from "@/db/account";
 import { AiKeyError, aiConnection } from "@/db/ai-key";
-import type { Db } from "@/db/household";
+import { withHousehold, type Db } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { callModel } from "@/lib/ai/call";
 import { ModelError, type Connection } from "@/lib/ai/types";
@@ -35,7 +35,7 @@ const toolSchema = (fields: FieldSpec[]) => ({
 });
 
 export async function fillByVoice(db: Db, householdId: string, request: VoiceFillRequest, opts: { fetch?: typeof globalThis.fetch; connection?: () => Promise<Connection> } = {}): Promise<VoiceFillResponse> {
-  const { today, currency } = await householdClock(db, householdId);
+  const { today, currency } = await withHousehold(db, householdId, tx => householdClock(tx, householdId));
   const weekday = WEEKDAYS[new Date(`${today}T00:00:00Z`).getUTCDay()];
   let reply;
   try {

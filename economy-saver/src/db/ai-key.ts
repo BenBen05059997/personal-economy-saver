@@ -6,7 +6,7 @@ import { readCheck, type ConnectionCheck } from "@/lib/ai/check";
 import { providerById } from "@/lib/ai/providers";
 import { isTested } from "@/lib/ai/tested";
 import type { Connection } from "@/lib/ai/types";
-import { recordEvent, requireHousehold, type Db } from "./household";
+import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { households } from "./schema";
 
 /** Messages contain configuration names and fixed text only; safe for a response. */
@@ -64,10 +64,15 @@ export async function unsealAiKey(hid: string, stored: string): Promise<string> 
   } catch { throw new AiKeyError("Saved AI key could not be opened. Save your key again in Settings."); }
 }
 
-async function vaultKey(tx: Db, hid: string): Promise<string | null> {
+type SavedKey = Pick<typeof households.$inferSelect, "aiKeySecretId" | "aiBaseUrl" | "aiProvider">;
+
+// Vault is private to the owner. Match the scoped metadata so a concurrent host change cannot move a key.
+async function vaultKey(tx: Db, hid: string, expected: SavedKey): Promise<string | null> {
+  if (!expected.aiKeySecretId || !expected.aiBaseUrl || !expected.aiProvider) return null;
   const [secret] = await tx.select({ key: decrypted.key }).from(decrypted)
     .innerJoin(households, eq(households.aiKeySecretId, decrypted.id))
-    .where(and(eq(households.id, hid), eq(decrypted.name, secretName(hid))));
+    .where(and(eq(households.id, hid), eq(decrypted.name, secretName(hid)), eq(decrypted.id, expected.aiKeySecretId),
+      eq(households.aiBaseUrl, expected.aiBaseUrl), eq(households.aiProvider, expected.aiProvider)));
   return secret?.key ? unsealAiKey(hid, secret.key) : null;
 }
 
@@ -85,31 +90,30 @@ const NO_MODEL = (need: ModelNeed) => new AiKeyError(`Your AI model has no model
 export async function aiConnection(db: Db, householdId: string, need: ModelNeed): Promise<Connection> {
   const hid = requireHousehold(householdId);
   try {
-    return await db.transaction(async tx => {
-      const household = await lockedHousehold(tx, hid);
-      if (household.aiProtocol && household.aiBaseUrl) {
-        const model = need === "text" ? household.aiTextModel : household.aiDocumentModel;
-        if (!model) throw NO_MODEL(need);
-        let baseUrl: string;
-        try { baseUrl = checkBaseUrl(household.aiBaseUrl, { allowLocal: allowLocal() }); }
-        catch (error) { if (error instanceof InputError) throw new AiKeyError("Your AI model's address can't be used. Choose it again in Settings."); throw error; }
-        const key = household.aiKeySecretId ? await vaultKey(tx, hid) : null;
-        if (household.aiKeySecretId && !key) throw new AiKeyError("Saved AI key is unavailable. Replace it in Settings.");
-        if (!key && household.aiProvider !== "custom") throw new AiKeyError("Your AI model has no key. Add one in Settings.");
-        return { protocol: household.aiProtocol as Connection["protocol"], baseUrl, key,
-          textModel: household.aiTextModel, documentModel: household.aiDocumentModel, own: true } satisfies Connection;
-      }
-      const wanted = settingOf(need === "text" ? "AI_TEXT_MODEL" : "AI_DOCUMENT_MODEL");
-      const models = {
-        textModel: need === "text" ? wanted : process.env.AI_TEXT_MODEL?.trim() || null,
-        documentModel: need === "document" ? wanted : process.env.AI_DOCUMENT_MODEL?.trim() || null,
-      };
-      const protocol = settingOf("AI_PROTOCOL");
-      if (protocol !== "anthropic" && protocol !== "openai") throw new AiKeyError("AI_PROTOCOL must be anthropic or openai");
-      const baseUrl = protocol === "anthropic" ? anthropicHost : settingOf("AI_BASE_URL");
-      const key = settingOf("AI_API_KEY");
-      return { protocol, baseUrl, key, ...models, own: false } satisfies Connection;
-    });
+    const [household] = await withHousehold(db, hid, async tx => tx.select().from(households).where(eq(households.id, hid)));
+    if (!household) throw new AiKeyError("Household no longer exists");
+    if (household.aiProtocol && household.aiBaseUrl) {
+      const model = need === "text" ? household.aiTextModel : household.aiDocumentModel;
+      if (!model) throw NO_MODEL(need);
+      let baseUrl: string;
+      try { baseUrl = checkBaseUrl(household.aiBaseUrl, { allowLocal: allowLocal() }); }
+      catch (error) { if (error instanceof InputError) throw new AiKeyError("Your AI model's address can't be used. Choose it again in Settings."); throw error; }
+      const key = household.aiKeySecretId ? await vaultKey(db, hid, household) : null;
+      if (household.aiKeySecretId && !key) throw new AiKeyError("Saved AI key is unavailable. Replace it in Settings.");
+      if (!key && household.aiProvider !== "custom") throw new AiKeyError("Your AI model has no key. Add one in Settings.");
+      return { protocol: household.aiProtocol as Connection["protocol"], baseUrl, key,
+        textModel: household.aiTextModel, documentModel: household.aiDocumentModel, own: true } satisfies Connection;
+    }
+    const wanted = settingOf(need === "text" ? "AI_TEXT_MODEL" : "AI_DOCUMENT_MODEL");
+    const models = {
+      textModel: need === "text" ? wanted : process.env.AI_TEXT_MODEL?.trim() || null,
+      documentModel: need === "document" ? wanted : process.env.AI_DOCUMENT_MODEL?.trim() || null,
+    };
+    const protocol = settingOf("AI_PROTOCOL");
+    if (protocol !== "anthropic" && protocol !== "openai") throw new AiKeyError("AI_PROTOCOL must be anthropic or openai");
+    const baseUrl = protocol === "anthropic" ? anthropicHost : settingOf("AI_BASE_URL");
+    const key = settingOf("AI_API_KEY");
+    return { protocol, baseUrl, key, ...models, own: false } satisfies Connection;
   } catch (error) {
     if (error instanceof AiKeyError) throw error;
     throw new AiKeyError(STORAGE_DOWN);
@@ -165,11 +169,11 @@ export async function saveHouseholdConnection(db: Db, householdId: string, input
   const newKey = input.key.trim();
   if (newKey && !KEY_SHAPE.test(newKey)) throw new AiKeyError("The key must be 1 to 500 characters with no spaces.");
   try {
-    const [before] = await db.select().from(households).where(eq(households.id, hid));
+    const [before] = await withHousehold(db, hid, async tx => tx.select().from(households).where(eq(households.id, hid)));
     if (!before) throw new AiKeyError("Household no longer exists");
     // Without a new key, the saved one is kept only for the same provider and address; a key never moves to another host.
     const sameHost = before.aiProvider === provider.id && before.aiBaseUrl === baseUrl;
-    const key = newKey || (sameHost && before.aiKeySecretId ? await db.transaction(tx => vaultKey(tx, hid)) : null);
+    const key = newKey || (sameHost && before.aiKeySecretId ? await vaultKey(db, hid, before) : null);
     if (!key && provider.id !== "custom") throw new AiKeyError("Enter the key for this provider.");
     const connection: Connection = { protocol: provider.protocol, baseUrl, key, textModel, documentModel, own: true };
     const tested = isTested(provider.id, textModel);

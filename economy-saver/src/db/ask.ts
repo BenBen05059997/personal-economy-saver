@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { aiConnection, connectionView } from "./ai-key";
-import { requireHousehold, type Db } from "./household";
+import { requireHousehold, withHousehold, type Db } from "./household";
 import { householdMoment } from "./clock";
 import { InputError } from "./input-error";
 import { readPlaces } from "./place";
@@ -56,8 +56,10 @@ async function clockMoment(db: Db, hid: string, at?: Date): Promise<Date> {
 }
 
 export async function conversationContext(db: Db, hid: string, input: Pick<z.infer<typeof askInput>, "conversationId" | "canvas">, now = new Date()): Promise<string> {
-  const turns = await recentTurns(db, hid, input.conversationId, now);
-  return contextText(turns, input.canvas, await documentCards(db, hid, turns));
+  return withHousehold(db, hid, async tx => {
+    const turns = await recentTurns(tx, hid, input.conversationId, now);
+    return contextText(turns, input.canvas, await documentCards(tx, hid, turns));
+  });
 }
 
 /** The cards of the document turns among these turns (D61), without the money state: their words and read lines only. */
@@ -82,65 +84,81 @@ export function contextText(turns: ConversationTurn[], canvas: Recipe | null, ca
 /** The line above the question box until the household has an answer: null once it has one, or while no model is set up. */
 export async function firstUseLine(db: Db, householdId: string, options: { skipAnswered?: boolean } = {}): Promise<string | null> {
   const hid = requireHousehold(householdId);
-  // `skipAnswered`: the conversations are on the device, which knows whether it has an answer; the server cannot look.
-  const [answered] = options.skipAnswered ? [] : await db.select({ id: conversationTurns.id }).from(conversationTurns)
-    .where(and(eq(conversationTurns.householdId, hid), eq(conversationTurns.kind, "answer"))).limit(1);
-  if (answered) return null;
-  const own = await connectionView(db, hid);
-  const host = own?.host ?? serverDefaultHost();
-  return host ? firstUse(host) : null;
+  return withHousehold(db, hid, async tx => {
+    // `skipAnswered`: the conversations are on the device, which knows whether it has an answer; the server cannot look.
+    const [answered] = options.skipAnswered ? [] : await tx.select({ id: conversationTurns.id }).from(conversationTurns)
+      .where(and(eq(conversationTurns.householdId, hid), eq(conversationTurns.kind, "answer"))).limit(1);
+    if (answered) return null;
+    const own = await connectionView(tx, hid);
+    const host = own?.host ?? serverDefaultHost();
+    return host ? firstUse(host) : null;
+  });
 }
 
 /** Free-form questions go to the agent (D40). `pending` is true when a tool left a bill or charge in To check (D39). */
 export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date; onStep?: (step: string) => void } = {}): Promise<AskReply> {
   const { id, conversationId, text, source, canvas, memory, recent } = askInput.parse(input);
   const householdId = requireHousehold(hid);
-  // A kind kept on the device comes with the question and is never stored here; a kind kept in the cloud is read here and the question must not carry it.
-  const places = await readPlaces(db, householdId);
-  if ((places.memory === "device") !== (memory !== undefined)) throw new InputError(places.memory === "device"
-    ? "This household keeps its memory on this device, so the question has to bring it. Reload the page and ask again."
-    : "This household keeps its memory in our cloud. Reload the page and ask again.");
-  if ((places.journal === "device") !== (recent !== undefined)) throw new InputError(places.journal === "device"
-    ? "This household keeps its conversations on this device, so the question has to bring the last ones. Reload the page and ask again."
-    : "This household keeps its conversations in our cloud. Reload the page and ask again.");
-  // A question retried after its reply was lost has the same id: the saved turn is the reply, and nothing runs or writes again.
-  const kept = recent === undefined ? await turnById(db, householdId, id) : null;
-  if (kept && kept.question !== text) throw new InputError("This question was already answered. Reload the page and ask again.");
-  if (kept) {
-    const receipt = await askReceipt(db, householdId, id);
-    const drawn = kept.recipe ? { recipe: kept.recipe, blocks: resolveRecipe(kept.recipe, await loadCanvasContext(db, householdId, kept.recipe)) } : null;
-    return {
-      id, kind: kept.kind === "document" ? ANSWER : kept.kind, text: kept.reply, choices: kept.choices, canvas: drawn,
-      sources: kept.sources, links: receipt?.links ?? [], pending: receipt?.pending ?? false, firstUse: await firstUseLine(db, householdId), memoryChanges: [], offers: [],
-    };
-  }
-  // The conversations are on the device, so no turn is stored here to replay; the receipt says this id already wrote, and nothing runs or writes again.
-  const wrote = recent !== undefined ? await askReceipt(db, householdId, id) : null;
-  if (wrote) {
-    return {
-      id, kind: ANSWER, text: FIXED.alreadySaved, choices: null, canvas: null, sources: [],
-      links: wrote.links.length ? wrote.links : [{ label: "Open To check", href: new URL("/to-check", appUrl()).href }], pending: wrote.pending, firstUse: null, memoryChanges: [], offers: [],
-    };
-  }
-  const context = recent !== undefined ? contextText(recent, canvas, await documentCards(db, householdId, recent)) : await conversationContext(db, householdId, { conversationId, canvas }, deps.at);
-  const deviceMemory: DeviceMemory | undefined = memory === undefined ? undefined : { items: [...memory], changes: [], moment: await clockMoment(db, householdId, deps.at) };
+  const prepared = await withHousehold<{ reply: AskReply } | { context: string; deviceMemory?: DeviceMemory }>(db, householdId, async tx => {
+    // A kind kept on the device comes with the question and is never stored here; a kind kept in the cloud is read here and the question must not carry it.
+    const places = await readPlaces(tx, householdId);
+    if ((places.memory === "device") !== (memory !== undefined)) throw new InputError(places.memory === "device"
+      ? "This household keeps its memory on this device, so the question has to bring it. Reload the page and ask again."
+      : "This household keeps its memory in our cloud. Reload the page and ask again.");
+    if ((places.journal === "device") !== (recent !== undefined)) throw new InputError(places.journal === "device"
+      ? "This household keeps its conversations on this device, so the question has to bring the last ones. Reload the page and ask again."
+      : "This household keeps its conversations in our cloud. Reload the page and ask again.");
+    // A question retried after its reply was lost has the same id: the saved turn is the reply, and nothing runs or writes again.
+    const kept = recent === undefined ? await turnById(tx, householdId, id) : null;
+    if (kept && kept.question !== text) throw new InputError("This question was already answered. Reload the page and ask again.");
+    if (kept) {
+      const receipt = await askReceipt(tx, householdId, id);
+      const drawn = kept.recipe ? { recipe: kept.recipe, blocks: resolveRecipe(kept.recipe, await loadCanvasContext(tx, householdId, kept.recipe)) } : null;
+      return { reply: {
+        id, kind: kept.kind === "document" ? ANSWER : kept.kind, text: kept.reply, choices: kept.choices, canvas: drawn,
+        sources: kept.sources, links: receipt?.links ?? [], pending: receipt?.pending ?? false, firstUse: await firstUseLine(tx, householdId), memoryChanges: [], offers: [],
+      } };
+    }
+    // The conversations are on the device, so no turn is stored here to replay; the receipt says this id already wrote, and nothing runs or writes again.
+    const wrote = recent !== undefined ? await askReceipt(tx, householdId, id) : null;
+    if (wrote) {
+      return { reply: {
+        id, kind: ANSWER, text: FIXED.alreadySaved, choices: null, canvas: null, sources: [],
+        links: wrote.links.length ? wrote.links : [{ label: "Open To check", href: new URL("/to-check", appUrl()).href }], pending: wrote.pending, firstUse: null, memoryChanges: [], offers: [],
+      } };
+    }
+    const context = recent !== undefined ? contextText(recent, canvas, await documentCards(tx, householdId, recent)) : await conversationContext(tx, householdId, { conversationId, canvas }, deps.at);
+    const deviceMemory = memory === undefined ? undefined : { items: [...memory], changes: [], moment: await clockMoment(tx, householdId, deps.at) };
+    return { context, deviceMemory };
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
+  if ("reply" in prepared) return prepared.reply;
+  const { context, deviceMemory } = prepared;
   let result: AskResult;
   try {
-    result = await runAgent({ db, householdId, question: text, askId: id, source, appUrl: appUrl(), context, fetch: deps.fetch, deviceMemory, onStep: deps.onStep, onWrote: recent === undefined ? undefined : () => noteAskWrote(db, householdId, id), connection: () => aiConnection(db, householdId, "text") });
+    result = await runAgent({
+      db, householdId, question: text, askId: id, source, appUrl: appUrl(), context, fetch: deps.fetch, deviceMemory, onStep: deps.onStep,
+      onWrote: recent === undefined ? undefined : () => withHousehold(db, householdId, tx => noteAskWrote(tx, householdId, id)),
+      connection: () => aiConnection(db, householdId, "text"),
+    });
   } catch (error) {
     // A write tool already succeeded: what it kept is shown, with the reason the answer stopped, instead of an error that hides it (a retry would write it twice).
     if (!(error instanceof AgentError) || !error.saved) throw error;
     result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending, offers: [] };
   }
-  await noteAskReply(db, householdId, id, result);
-  if (recent === undefined) {
-    await saveTurn(db, householdId, {
-      id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources,
-    }, deps.at);
-  }
-  const drawn = result.recipe ? { recipe: result.recipe, blocks: resolveRecipe(result.recipe, await loadCanvasContext(db, householdId, result.recipe)) } : null;
+  await withHousehold(db, householdId, async tx => {
+    await noteAskReply(tx, householdId, id, result);
+    if (recent === undefined) {
+      await saveTurn(tx, householdId, {
+        id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources,
+      }, deps.at);
+    }
+  });
+  const { drawn, firstUse } = await withHousehold(db, householdId, async tx => ({
+    drawn: result.recipe ? { recipe: result.recipe, blocks: resolveRecipe(result.recipe, await loadCanvasContext(tx, householdId, result.recipe)) } : null,
+    firstUse: recent === undefined ? await firstUseLine(tx, householdId) : null,
+  }), { isolationLevel: "repeatable read", accessMode: "read only" });
   return {
     id, kind: result.kind, text: result.answer, choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending,
-    firstUse: recent === undefined ? await firstUseLine(db, householdId) : null, memoryChanges: deviceMemory?.changes ?? [], offers: result.offers,
+    firstUse, memoryChanges: deviceMemory?.changes ?? [], offers: result.offers,
   };
 }

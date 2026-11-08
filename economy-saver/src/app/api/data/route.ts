@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { DATA_KINDS, deleteConversation, deleteKind, deleteOne } from "@/db/data-kinds";
 import { isMovable, requireCloud } from "@/db/place";
 import { consumeRequest } from "@/db/rate-limit";
@@ -26,15 +27,17 @@ export async function POST(request: Request) {
   if (kind === "delete_conversation" && !id.success) return badFields();
   const by = { madeBy: "form" } as const;
   try {
-    if (!await consumeRequest(db(), hid, "data", 10)) return tooMany("Too many requests. Try again in a minute.");
-    // A kind kept on the device is deleted in the browser; the server has none of it.
-    if (kind !== "delete_conversation" && isMovable(what.data)) await requireCloud(db(), hid, what.data);
-    if (kind === "delete_conversation") await requireCloud(db(), hid, "journal");
-    if (kind === "delete_kind") await deleteKind(db(), hid, what.data!, by);
-    else if (kind === "delete_one") {
-      if (!await deleteOne(db(), hid, what.data!, id.data!, by)) return text("That is already gone.", 404);
-    } else await deleteConversation(db(), hid, id.data!);
-    return redirectTo(returnPath(form.get("returnTo")), request);
+    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "data", 10))) return tooMany("Too many requests. Try again in a minute.");
+    return await withHousehold(db(), hid, async tx => {
+      // A kind kept on the device is deleted in the browser; the server has none of it.
+      if (kind !== "delete_conversation" && isMovable(what.data)) await requireCloud(tx, hid, what.data);
+      if (kind === "delete_conversation") await requireCloud(tx, hid, "journal");
+      if (kind === "delete_kind") await deleteKind(tx, hid, what.data!, by);
+      else if (kind === "delete_one") {
+        if (!await deleteOne(tx, hid, what.data!, id.data!, by)) return text("That is already gone.", 404);
+      } else await deleteConversation(tx, hid, id.data!);
+      return redirectTo(returnPath(form.get("returnTo")), request);
+    });
   } catch (error) {
     return failure(error);
   }

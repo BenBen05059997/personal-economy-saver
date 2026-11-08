@@ -2,7 +2,7 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { listEvents } from "@/db/household";
+import { listEvents, withHousehold } from "@/db/household";
 import { publicEvent } from "@/db/event-feed";
 import { ActivityView } from "@/components/household/ActivityView";
 import { loadNavigation, WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
@@ -18,7 +18,7 @@ async function Activity({ searchParams }: Props) {
   if (typeof page !== "string" || !/^[1-9]\d{0,5}$/.test(page)) notFound();
   const index = Number(page);
   const [workspace, rows] = await Promise.all([
-    loadNavigation(hid), listEvents(db(), hid, undefined, pageSize + 1, (index - 1) * pageSize),
+    loadNavigation(hid), withHousehold(db(), hid, tx => listEvents(tx, hid, undefined, pageSize + 1, (index - 1) * pageSize)),
   ]);
   if (index > 1 && rows.length === 0) notFound();
   return <WorkspaceFrame workspace={workspace} section="activity">

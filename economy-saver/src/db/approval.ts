@@ -2,7 +2,7 @@ import { closeByRef } from "./suggestions";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { recordEvent, requireHousehold, type Db } from "./household";
+import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { fromMinor, toRateMicro } from "./money";
 import { clients, invoices } from "./schema";
 
@@ -65,7 +65,7 @@ async function getRemote(ctx: ApprovalContext, remoteId: string) {
 }
 
 async function prepareDraft(ctx: ApprovalContext) {
-  await ctx.db.transaction(async tx => {
+  await withHousehold(ctx.db, ctx.householdId, async tx => {
     const invoice = await lockedInvoice(tx, ctx);
     if (invoice.status === "closed") throw new ApprovalError("This sandbox invoice is closed.");
     if (invoice.paypalInvoiceId || invoice.status === "paid" || invoice.status === "sent") return;
@@ -97,7 +97,7 @@ async function prepareDraft(ctx: ApprovalContext) {
 async function sendInvoice(ctx: ApprovalContext) {
   // Commit the remote ID before the send. A webhook can now identify this invoice, even if the send times out.
   await prepareDraft(ctx);
-  return ctx.db.transaction(async tx => {
+  return withHousehold(ctx.db, ctx.householdId, async tx => {
     await beginMoneyChange(tx, ctx.householdId);
     const invoice = await lockedInvoice(tx, ctx);
     if (invoice.status === "sent" || invoice.status === "paid") return invoice.id;
@@ -120,7 +120,7 @@ async function sendInvoice(ctx: ApprovalContext) {
 }
 
 async function remind(ctx: ApprovalContext) {
-  const claim = await ctx.db.transaction(async tx => {
+  const claim = await withHousehold(ctx.db, ctx.householdId, async tx => {
     const invoice = await lockedInvoice(tx, ctx);
     if (invoice.remindedAt) return { id: invoice.id };
     if (invoice.reminderAttemptedAt) throw new ApprovalError("A reminder was requested. Check its delivery in PayPal before taking further action.");
@@ -135,7 +135,7 @@ async function remind(ctx: ApprovalContext) {
   });
   if (claim.remoteId) {
     await ctx.tool("send_invoice_reminder", { invoice_id: claim.remoteId }, requestId(ctx.approveKey, "R"));
-    await ctx.db.transaction(async tx => {
+    await withHousehold(ctx.db, ctx.householdId, async tx => {
       await tx.update(invoices).set({ remindedAt: new Date() }).where(invoiceWhere(ctx, claim.id));
       await recordEvent(tx, ctx.householdId, { madeBy: "form", kind: "reminder_sent", title: "Invoice reminder sent", ref: { type: "invoice", id: claim.id } });
       await closeByRef(tx, ctx.householdId, claim.id, ["remind", "invoice"]);

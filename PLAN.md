@@ -121,7 +121,7 @@ Round 3
 *Stage 31: the platform*
 - [ ] 31A. Contract migration, only after a deployed Worker no longer reads them (owner says when): drop `households.ai_reads_today`, `ai_reads_day`, `nudge_after_days` and the table `ai_global_usage`
 - [x] 31B (20C). `callModel` uses the Vercel AI SDK core and pinned Anthropic and OpenAI-compatible providers. The neutral contract and callers are unchanged. The Worker is smaller than the Stage 30 baseline (box S).
-- [ ] 31C (owner gate for the role). An app database role with row-level security on `app.household_id`: the policies as a migration and the connection setting; the owner creates the role and the setting in Supabase
+- [x] 31C. Migration 0029 creates the `pes_app` role and policies for all 32 household tables. Household work uses `withHousehold` with transaction-local role and `app.household_id` on the existing pooler connection. The tenant wall section in ARCHITECTURE lists the owner-role paths. PGlite checks unscoped, cross-household and pooled transaction behavior. HTTP checks wait for the owner to apply 0029.
 
 *Stage 28: voice that fills forms (D26, D55)*
 - [x] 28A (listening and the bars). `useSpeech(onText)` in `src/components/voice/use-speech.ts` is the one listening hook (browser speech recognition in `navigator.language`), used by Ask's "Use microphone", the top bar and phone bar mic buttons in `Shell.tsx` ("Listening… tap to stop"; Ask opens with the words in the box through `draft.ts`, `{ text, source: "voice" }`, never sent until Ask or Enter) and Fill by voice; without recognition the bar says so and the link still works
@@ -188,7 +188,8 @@ One database function per job, called by both the form and the agent tool (D39).
 
 ### J. Foundation and security hardening (last stage, D38)
 - [ ] Manual encrypted database dump before demo day (owner)
-- [ ] Later: app database role with RLS policies on `app.household_id`; separate production Supabase project; secret rotation procedure; Pro-plan backups
+- [x] Household work uses `pes_app` and RLS on the transaction-local `app.household_id` (31C).
+- [ ] Later: separate production Supabase project, secret rotation procedure and Pro-plan backups
 
 ## Open checklist (owner)
 
@@ -207,6 +208,7 @@ Phase A, the OK before the first deploy and before the repo goes public, answers
 - [ ] Reminders by email (D65): a Resend account, the sending domain verified (the forwarding domain), then `RESEND_API_KEY` and `REMINDER_FROM` in `.env.local` and `.dev.vars`
 - [ ] Reminders by push (D65): after 29B, `npm run push:keys` (writes the key pair without printing it) and `WEB_PUSH_SUBJECT` (a `mailto:` address of the owner's) in `.env.local` and `.dev.vars`
 - [x] Migration 0028 (Stages 29 and 30) applied to the owner's database
+- [ ] Apply migration 0029 (`0029_tenant_wall.sql`) as the database owner used by the app, then confirm so the isolated HTTP suites can run.
 
 ### B. First deploy and the live PayPal loop (owner runs the deploy)
 - [ ] Secrets and settings set with `wrangler secret put` (including `CLIENT_IP_HEADER=cf-connecting-ip`, `MCP_TOKEN_KEY`, and `AI_KEY_SEAL_KEY`: a new random value for production, kept as it is afterwards because a household's saved key can be opened only with the value that sealed it); the owner runs `npm run cf:deploy` (owner's OK, D22); the deployed URL is set as `APP_URL` and added to the Tokyo project's Authentication redirect URLs

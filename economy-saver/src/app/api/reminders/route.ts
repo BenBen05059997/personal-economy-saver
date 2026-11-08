@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { saveReminderSettings, sendTestReminder, subscribeReminder, unsubscribeReminder } from "@/db/reminders";
 import { verifiedIdentity } from "@/lib/auth-request";
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   const store = db();
-  if (!await consumeRequest(store, hid, "reminders", 10)) return tooMany("Too many reminder requests. Try again in a minute.");
+  if (!await withHousehold(store, hid, tx => consumeRequest(tx, hid, "reminders", 10))) return tooMany("Too many reminder requests. Try again in a minute.");
   const form = await formOf(request);
   if (form instanceof Response) return form;
   try {
@@ -23,19 +24,19 @@ export async function POST(request: Request) {
       case "settings": {
         const parsed = z.object({ hour, quietDays: quiet }).safeParse({ hour: form.get("hour"), quietDays: form.getAll("quietDays") });
         if (!parsed.success) return badFields();
-        await saveReminderSettings(store, hid, identity, { ...parsed.data, emailOn: form.get("emailOn") === "on" });
+        await withHousehold(store, hid, tx => saveReminderSettings(tx, hid, identity, { ...parsed.data, emailOn: form.get("emailOn") === "on" }));
         return text("Reminder settings saved.", 200);
       }
       case "subscribe": {
         const parsed = z.object({ endpoint, p256dh: z.string().max(128), auth: z.string().max(64) }).safeParse(Object.fromEntries(form));
         if (!parsed.success) return badFields();
-        await subscribeReminder(store, hid, identity, parsed.data);
+        await withHousehold(store, hid, tx => subscribeReminder(tx, hid, identity, parsed.data));
         return text("Push is on for this device.", 200);
       }
       case "unsubscribe": {
         const parsed = endpoint.safeParse(form.get("endpoint"));
         if (!parsed.success) return badFields();
-        await unsubscribeReminder(store, hid, identity, parsed.data);
+        await withHousehold(store, hid, tx => unsubscribeReminder(tx, hid, identity, parsed.data));
         return text("Push is off for this device.", 200);
       }
       case "test": {

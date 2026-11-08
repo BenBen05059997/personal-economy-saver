@@ -2,7 +2,7 @@ import { refreshSuggestions } from "./suggestions";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, usdRateMicro, type Db } from "./household";
+import { recordEvent, requireHousehold, withHousehold, usdRateMicro, type Db } from "./household";
 import { convertMinor, fromMinor, fromRateMicro } from "./money";
 import { fillPots } from "./pots";
 import { observeRunway } from "./runway-events";
@@ -20,7 +20,7 @@ export async function markPaidOutside(db: Db, householdId: string, invoiceId: st
   const hid = requireHousehold(householdId);
   const day = z.string().date().parse(today);
   const id = z.string().uuid().parse(invoiceId);
-  const saved = await db.transaction(async tx => {
+  const saved = await withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, bank: households.bankBalanceMinor, previous: households.runwayShort })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) return false;

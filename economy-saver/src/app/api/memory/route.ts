@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { requireCloud } from "@/db/place";
 import { addMemory, deleteMemory, editMemory, forgetEverything } from "@/db/memory";
 import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
@@ -14,30 +15,32 @@ export async function POST(request: Request) {
   const by = { madeBy: "form" } as const;
   const field = (name: string) => String(form.get(name) ?? "");
   try {
-    await requireCloud(db(), hid, "memory");
-    switch (field("kind")) {
-      case "add":
-        await addMemory(db(), hid, { kind: field("memoryKind"), text: field("text") }, by);
-        break;
-      case "edit": {
-        const id = z.string().uuid().safeParse(field("id"));
-        if (!id.success) return badFields();
-        if (!await editMemory(db(), hid, id.data, { kind: field("memoryKind"), text: field("text") }, by)) return text("That is no longer here. Reload the page.", 404);
-        break;
+    return await withHousehold(db(), hid, async tx => {
+      await requireCloud(tx, hid, "memory");
+      switch (field("kind")) {
+        case "add":
+          await addMemory(tx, hid, { kind: field("memoryKind"), text: field("text") }, by);
+          break;
+        case "edit": {
+          const id = z.string().uuid().safeParse(field("id"));
+          if (!id.success) return badFields();
+          if (!await editMemory(tx, hid, id.data, { kind: field("memoryKind"), text: field("text") }, by)) return text("That is no longer here. Reload the page.", 404);
+          break;
+        }
+        case "delete": {
+          const id = z.string().uuid().safeParse(field("id"));
+          if (!id.success) return badFields();
+          if (!await deleteMemory(tx, hid, id.data, by)) return text("That is already gone.", 404);
+          break;
+        }
+        case "forget_all":
+          await forgetEverything(tx, hid, by);
+          break;
+        default:
+          return badFields();
       }
-      case "delete": {
-        const id = z.string().uuid().safeParse(field("id"));
-        if (!id.success) return badFields();
-        if (!await deleteMemory(db(), hid, id.data, by)) return text("That is already gone.", 404);
-        break;
-      }
-      case "forget_all":
-        await forgetEverything(db(), hid, by);
-        break;
-      default:
-        return badFields();
-    }
-    return redirectTo(returnPath(form.get("returnTo")), request);
+      return redirectTo(returnPath(form.get("returnTo")), request);
+    });
   } catch (error) {
     return failure(error);
   }

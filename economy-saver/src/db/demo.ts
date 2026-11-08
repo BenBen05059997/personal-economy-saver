@@ -1,6 +1,6 @@
 import { and, asc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
-import { type Db, requireHousehold } from "./household";
+import { type Db, requireHousehold, withHousehold } from "./household";
 import { events, households } from "./schema";
 import { seedBenRows } from "./seed";
 import { refreshSuggestions } from "./suggestions";
@@ -9,8 +9,8 @@ import { removeHouseholdDocuments } from "./document-cleanup";
 
 export async function findDemoHousehold(db: Db, id: string): Promise<string | null> {
   if (!z.string().uuid().safeParse(id).success) return null;
-  const [demo] = await db.select({ id: households.id }).from(households)
-    .where(and(eq(households.id, requireHousehold(id)), eq(households.isDemo, true)));
+  const [demo] = await withHousehold(db, id, async tx => tx.select({ id: households.id }).from(households)
+    .where(and(eq(households.id, requireHousehold(id)), eq(households.isDemo, true))));
   return demo?.id ?? null;
 }
 

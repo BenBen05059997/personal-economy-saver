@@ -2,14 +2,14 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { foreignCosts as engine, type FxCosts, type FxInput } from "@/lib/money/fx-cost";
 import { householdDate } from "./account";
-import { requireHousehold, type Db } from "./household";
+import { requireHousehold, withHousehold, type Db } from "./household";
 import { fromRateMicro } from "./money";
 import * as s from "./schema";
 
 /** Paid USD invoices, charges with an original amount, the cards and the household's reference-rate history, in one read-only transaction. */
 export async function foreignCostInputs(db: Db, householdId: string, today: string): Promise<FxInput> {
   const hid = requireHousehold(householdId);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ homeCurrency: s.households.homeCurrency }).from(s.households).where(eq(s.households.id, hid));
     if (!household) throw new Error("Household not found");
     const home = household.homeCurrency;
@@ -41,11 +41,12 @@ export async function foreignCostInputs(db: Db, householdId: string, today: stri
         return perUsd === null ? [] : [{ id: i.id, clientId: i.clientId, clientName: i.clientName, amountUsdMinor: i.amountMinor, paidOn: i.paidOn!, perUsd }];
       }),
     };
-  });
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
 /** The last twelve months of foreign costs at the household's own date. */
 export async function foreignCosts(db: Db, householdId: string): Promise<FxCosts> {
   const hid = requireHousehold(householdId);
-  return engine(await foreignCostInputs(db, hid, await householdDate(db, hid)));
+  return withHousehold(db, hid, async tx => engine(await foreignCostInputs(tx, hid, await householdDate(tx, hid))),
+    { isolationLevel: "repeatable read", accessMode: "read only" });
 }

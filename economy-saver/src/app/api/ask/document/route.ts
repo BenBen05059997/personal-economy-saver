@@ -1,6 +1,7 @@
 import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { attachDocument, documentCard } from "@/db/document-card";
 import { requireReaderModel } from "@/db/reader-job";
 import { readDocumentInBackground } from "@/db/reader-background";
@@ -37,5 +38,5 @@ export async function GET(request: Request) {
   if (!hid) return new Response("Household session required", { status: 401, headers: NO_STORE });
   const id = new URL(request.url).searchParams.get("id");
   if (!z.string().uuid().safeParse(id).success) return new Response("Invalid item", { status: 400, headers: NO_STORE });
-  return Response.json({ card: await documentCard(db(), hid, id!) }, { headers: NO_STORE });
+  return Response.json({ card: await withHousehold(db(), hid, tx => documentCard(tx, hid, id!)) }, { headers: NO_STORE });
 }

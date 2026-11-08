@@ -2,7 +2,7 @@ import { refreshSuggestions } from "./suggestions";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
+import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import { fromMinor, parseAmountMinor, toRateMicro } from "./money";
 import { observeRunway } from "./runway-events";
 import { clockForHousehold } from "./clock";
@@ -45,7 +45,7 @@ export async function insertCharge(
 ): Promise<string> {
   const hid = requireHousehold(householdId);
   const data = chargeInput.parse(input);
-  const refresh = await db.transaction(async tx => {
+  const refresh = await withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
@@ -108,7 +108,7 @@ export async function insertCharge(
 export async function removeCharge(db: Db, householdId: string, id: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
   const chargeId = z.string().uuid().parse(id);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ id: households.id, previous: households.runwayShort }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
     const [row] = await tx.select().from(charges).where(and(eq(charges.householdId, hid), eq(charges.id, chargeId)));

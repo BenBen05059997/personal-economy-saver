@@ -42,6 +42,9 @@ async function main() {
     const correctionsBefore = (await pg.query("select * from rules where household_id = $1", [legacy])).rows;
     const migration = steps[28];
     await pg.transaction(async tx => { for (const sql of migration.sql) await tx.exec(sql); });
+    for (const next of steps.slice(29)) await pg.transaction(async tx => {
+      for (const sql of next.sql) await tx.exec(sql);
+    });
 
     await check("0028 copies both old nudge settings, adds the other defaults and preserves reader corrections", async () => {
       assert.deepEqual((await rulesFor(db, legacy)).nudge_after, { enabled: true, threshold: 60, currency: null });

@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { householdClock, householdDate } from "@/db/account";
 import { db } from "@/db/client";
 import { householdMoment } from "@/db/clock";
-import { loadMoneyState, type Db } from "@/db/household";
+import { loadMoneyState, withHousehold, type Db } from "@/db/household";
 import { households } from "@/db/schema";
 import { listMemory } from "@/db/memory";
 import { readPlaces } from "@/db/place";
@@ -29,7 +29,8 @@ async function tabContent(tx: Db, hid: string, tab: MemoryTab) {
     return <GoalsView goals={goalPaces(state)} />;
   }
   if (tab === "rules") {
-    const [rules, { currency }] = await Promise.all([rulesFor(tx, hid), householdClock(tx, hid)]);
+    const { currency } = await householdClock(tx, hid);
+    const rules = await rulesFor(tx, hid);
     return <RulesView rules={rules} currency={Currency.parse(currency)} />;
   }
 
@@ -48,8 +49,11 @@ async function Memory({ search }: { search: Search }) {
   const [hid, { tab }] = await Promise.all([currentHouseholdId(), search]);
   if (!hid) redirect("/");
   const active = tab === "goals" || tab === "rules" ? tab : "memory";
-  const [workspace, content] = await db().transaction(tx => Promise.all([loadNavigationData(tx, hid), tabContent(tx, hid, active)]),
-    active === "rules" ? { isolationLevel: "read committed" } : { isolationLevel: "repeatable read", accessMode: "read only" });
+  const { workspace, content } = await withHousehold(db(), hid, async tx => {
+    const workspace = await loadNavigationData(tx, hid);
+    const content = await tabContent(tx, hid, active);
+    return { workspace, content };
+  }, active === "rules" ? { isolationLevel: "read committed" } : { isolationLevel: "repeatable read", accessMode: "read only" });
   return <WorkspaceFrame workspace={workspace} section="memory">
     <MemoryTabs active={active} />
     {content}

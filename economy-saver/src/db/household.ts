@@ -1,8 +1,7 @@
-// The household-scoped data layer. Every function takes the household id first and throws without one,
-// and every query filters on it, so a route cannot read another household's rows by forgetting a clause.
+// The household-scoped data layer validates the id and filters by it. The tenant role also enforces the scope in Postgres.
 
 import { and, count, desc, eq, gt, gte, inArray, isNull, isNotNull, lte, sql } from "drizzle-orm";
-import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+import type { PgDatabase, PgQueryResultHKT, PgTransactionConfig } from "drizzle-orm/pg-core";
 import { Currency } from "@/lib/catalogue/types";
 import { CategoryKeySchema as CategoryKey } from "@/lib/money/categories";
 import { cancelNotices, expandBills, RepeatUnitSchema } from "@/lib/money/repeat";
@@ -23,6 +22,28 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function requireHousehold(householdId: string | null | undefined): string {
   if (!householdId || !UUID.test(householdId)) throw new Error("A household id is required");
   return householdId;
+}
+
+const householdTransactions = new WeakMap<Db, string>();
+
+/** Both the role and the household id expire at the transaction boundary, including on a pooled connection. */
+export async function withHousehold<T>(db: Db, id: string, work: (tx: Db) => Promise<T>, options?: PgTransactionConfig): Promise<T> {
+  const hid = requireHousehold(id).toLowerCase();
+  const scoped = householdTransactions.get(db);
+  if (scoped !== undefined) {
+    if (scoped !== hid) throw new Error("Cannot change households inside a household transaction");
+    return work(db);
+  }
+  return db.transaction(async tx => {
+    await tx.execute(sql`set local role pes_app`);
+    await tx.execute(sql`select set_config('app.household_id', ${hid}, true)`);
+    householdTransactions.set(tx, hid);
+    try {
+      return await work(tx);
+    } finally {
+      householdTransactions.delete(tx);
+    }
+  }, options);
 }
 
 export async function householdOwnerName(db: Db, householdId: string): Promise<string> {

@@ -3077,5 +3077,35 @@
       "BROWSER-CHECKS V-D",
       "D55"
     ]
+  },
+  {
+    "id": "SEC-022",
+    "area": "Security",
+    "action": "Enforce household isolation with the database role",
+    "user_goal": "I want records from other households to stay inaccessible at the database",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "PGlite migrated through 0029 with two fictional households"
+    ],
+    "steps": [
+      "Run db:isolation-test",
+      "Read the pes_app policy, direct read and write, and transaction reuse checks"
+    ],
+    "expected": [
+      "No household rows are visible without a set household id",
+      "Unfiltered reads under A cannot see B on any household table",
+      "The database hides B from updates and rejects cross-household inserts and reassignment",
+      "Commit and rollback clear the scope"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AO1",
+      "db:isolation-test",
+      "PLAN 31C"
+    ]
   }
 ]

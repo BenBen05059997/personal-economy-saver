@@ -2,7 +2,7 @@
 // provider-neutral model call (lib/ai). It logs one content-free line per Ask (log.ts) and nothing else: never the key, the question, a tool
 // argument or result, or the answer.
 import { householdDate } from "@/db/account";
-import { loadMoneyState, requireHousehold, type Db } from "@/db/household";
+import { loadMoneyState, requireHousehold, withHousehold, type Db } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { listMemory } from "@/db/memory";
 import { unconfirmedAmounts } from "@/lib/ai/number-check";
@@ -129,13 +129,16 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   let outOfScope: "off_topic" | "not_offered" | null = null;
   const used: string[] = [];
   let called = false;
-  let wrote = false, wroteMemory = false;
+  let wrote = false, wroteToServer = false, wroteMemory = false;
   // The household's state is read once per tool turn, so tools in one turn agree with each other.
   let loaded: Promise<MoneyState> | undefined;
-  const state = () => (loaded ??= householdDate(opts.db, hid).then(today => loadMoneyState(opts.db, hid, today)));
-  const initialState = await state();
+  const state = (tx: Db) => (loaded ??= householdDate(tx, hid).then(today => loadMoneyState(tx, hid, today)));
+  const [initialState, initialMemory] = await withHousehold(opts.db, hid, async tx => Promise.all([
+    state(tx),
+    opts.deviceMemory?.items ?? listMemory(tx, hid),
+  ]));
   const { today, homeCurrency } = initialState;
-  const ctx: ToolContext = {
+  const ctx: ScopedToolContext = {
     madeBy: "ask", db: opts.db, householdId: hid, state, appUrl: opts.appUrl, askId: opts.askId, source: opts.source,
     addLink: link => { if (!links.some(known => known.href === link.href)) links.push(link); },
     onCanvas: next => { recipe = next; },
@@ -151,7 +154,6 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     deviceMemory: opts.deviceMemory,
     onPending: () => { pending = true; ctx.addLink?.({ label: "Open To check", href: new URL("/to-check", opts.appUrl).href }); },
   };
-  const initialMemory = opts.deviceMemory?.items ?? await listMemory(opts.db, hid);
   const memory = memoryBlock(initialMemory);
   const system = systemPrompt(today, homeCurrency, memory);
   const turns: Turn[] = [{ role: "user", parts: [{ type: "text", text: opts.context ? `${opts.question}\n\n${opts.context}` : opts.question }] }];
@@ -204,21 +206,9 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
         trace.tools.push(log);
         if (clarify !== null || outOfScope !== null) return await finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe, sources }));
         results.push(result);
+        await recordResult(result);
       }
-      results.push(...await callAll(ctx, reply.calls.filter(call => call !== ending), trace, now, deadline));
-      for (const result of results) {
-        // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
-        if (!NOT_SOURCES.has(result.name)) sources.push(result.content);
-        if (tools.some(t => t.name === result.name) && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
-        if (!result.isError) used.push(result.name);
-        if (!result.isError && tools.some(t => t.name === result.name && t.scope === "draft")) {
-          // `remember` and `forget` on a memory kept on the device change a copy the reply carries, not the server.
-          const onDevice = opts.deviceMemory !== undefined && (result.name === "remember" || result.name === "forget");
-          if (!wrote && !onDevice) await opts.onWrote?.();
-          wrote = true;
-          if (result.name === "remember" || result.name === "forget") wroteMemory = true;
-        }
-      }
+      results.push(...await callAll(ctx, reply.calls.filter(call => call !== ending), trace, now, deadline, recordResult));
       turns.push({ role: "tools", results });
     }
   } catch (error) {
@@ -230,14 +220,34 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     throw error;
   }
 
+  async function recordResult(result: ToolResult) {
+    // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
+    if (!NOT_SOURCES.has(result.name)) sources.push(result.content);
+    const tool = tools.find(candidate => candidate.name === result.name);
+    if (tool && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
+    if (result.isError) return;
+    used.push(result.name);
+    if (tool?.scope !== "draft") return;
+    const memoryTool = result.name === "remember" || result.name === "forget";
+    const onDevice = opts.deviceMemory !== undefined && memoryTool;
+    wrote = true;
+    if (memoryTool) wroteMemory = true;
+    // A tool's transaction committed before this point. Note its write before starting the next tool.
+    if (!wroteToServer && !onDevice) {
+      await opts.onWrote?.();
+      wroteToServer = true;
+    }
+  }
+
   async function finish(chosen: ReturnType<typeof chooseReply>): Promise<AskResult> {
     if (!chosen) throw new AgentError("The model gave an amount the app could not confirm from your numbers, so the answer is not shown. Ask again, or choose another model in Settings.", "unconfirmed_amount");
     const candidates = chosen.kind === "answer" ? [...offers.values()] : [];
-    const [memoryNow, standingRules] = await Promise.all([
-      opts.deviceMemory?.items ?? (wroteMemory && candidates.some(({ offer }) => offer.kind === "memory")
-        ? listMemory(opts.db, hid) : initialMemory),
-      candidates.some(({ offer }) => offer.kind === "rule") ? rulesFor(opts.db, hid) : null,
-    ]);
+    const readMemory = !opts.deviceMemory && wroteMemory && candidates.some(({ offer }) => offer.kind === "memory");
+    const readRules = candidates.some(({ offer }) => offer.kind === "rule");
+    const currentMemory = opts.deviceMemory?.items ?? initialMemory;
+    const [memoryNow, standingRules] = readMemory || readRules
+      ? await withHousehold(opts.db, hid, tx => Promise.all([readMemory ? listMemory(tx, hid) : currentMemory, readRules ? rulesFor(tx, hid) : null]))
+      : [currentMemory, null] as const;
     const available = candidates.filter(({ offer, value }) => {
       if (offer.kind === "memory") {
         return !memoryNow.some(item => item.kind === offer.memoryKind && normalise(item.text) === normalise(offer.text))
@@ -264,9 +274,10 @@ function offerKey(offer: KeepOffer): string {
 }
 
 type Call = { id: string; name: string; input: unknown };
+type ScopedToolContext = Omit<ToolContext, "state"> & { state: (tx: Db) => Promise<MoneyState> };
 
 /** Reads in a row run together; a write (or a name outside the catalogue) runs alone, so the writes keep the order they were asked in. The results come back in the order asked. */
-async function callAll(ctx: ToolContext, calls: Call[], trace: Trace, now: () => number, deadline: number): Promise<ToolResult[]> {
+async function callAll(ctx: ScopedToolContext, calls: Call[], trace: Trace, now: () => number, deadline: number, onResult: (result: ToolResult) => Promise<void>): Promise<ToolResult[]> {
   const isRead = (call: Call) => tools.some(tool => tool.name === call.name && tool.scope === "read");
   const results: ToolResult[] = [];
   for (let at = 0; at < calls.length;) {
@@ -274,10 +285,23 @@ async function callAll(ctx: ToolContext, calls: Call[], trace: Trace, now: () =>
     if (isRead(calls[at])) while (end < calls.length && isRead(calls[end])) end++;
     // Each call times itself; the log keeps the order asked, not the order they finished in.
     const group = calls.slice(at, end);
-    const running = Promise.all(group.map(call => callTool(ctx, call, now)));
+    const runGroup = (context: ScopedToolContext) => Promise.all(group.map(call => callTool(context, call, now)));
+    const step = group[0].name;
     // Only reads are raced against the budget; a write that has started is waited for, never abandoned half-way.
-    const batch = isRead(group[0]) ? await beforeDeadline(running, Math.max(0, deadline - now()), group[0].name) : await running;
-    for (const { result, log } of batch) { results.push(result); trace.tools.push(log); }
+    const batch = isRead(group[0]) ? await beforeDeadline(
+      withHousehold(ctx.db, ctx.householdId, tx => {
+        const remaining = deadline - now();
+        if (remaining <= 0) throw toolTimeout(step);
+        // Share one scope for concurrent reads, and release it even when a tool times out.
+        return beforeDeadline(runGroup({ ...ctx, db: tx }), remaining, step);
+      }, { isolationLevel: "repeatable read", accessMode: "read only" }),
+      Math.max(0, deadline - now()), step,
+    ) : await runGroup(ctx);
+    for (const { result, log } of batch) {
+      results.push(result);
+      trace.tools.push(log);
+      await onResult(result);
+    }
     at = end;
   }
   return results;
@@ -287,21 +311,22 @@ async function callAll(ctx: ToolContext, calls: Call[], trace: Trace, now: () =>
 async function beforeDeadline<T>(work: Promise<T>, ms: number, tool: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new AgentError(`That took too long while ${lowerFirst(toolWords(tool))}. Try a simpler question.`, "budget")), ms);
+    timer = setTimeout(() => reject(toolTimeout(tool)), ms);
   });
   try { return await Promise.race([work, late]); } finally { clearTimeout(timer); }
 }
 
 const lowerFirst = (words: string) => words.charAt(0).toLowerCase() + words.slice(1);
+const toolTimeout = (tool: string) => new AgentError(`That took too long while ${lowerFirst(toolWords(tool))}. Try a simpler question.`, "budget");
 
-async function callTool(ctx: ToolContext, call: Call, now: () => number): Promise<{ result: ToolResult; log: ToolLog }> {
+async function callTool(ctx: ScopedToolContext, call: Call, now: () => number): Promise<{ result: ToolResult; log: ToolLog }> {
   const started = now();
   const result = await executeTool(ctx, call);
   // The model chose the name, so only a name in the catalogue is logged.
   return { result, log: { name: tools.some(t => t.name === call.name) ? call.name : "unknown", ok: !result.isError, ms: now() - started } };
 }
 
-async function executeTool(ctx: ToolContext, call: Call): Promise<ToolResult> {
+async function executeTool(ctx: ScopedToolContext, call: Call): Promise<ToolResult> {
   const error = (message: string): ToolResult => ({ id: call.id, name: call.name, content: message, isError: true });
   const tool = tools.find(candidate => candidate.name === call.name);
   if (!tool) return error("Unknown tool.");
@@ -312,7 +337,14 @@ async function executeTool(ctx: ToolContext, call: Call): Promise<ToolResult> {
     return error("Invalid input for this tool: " + paths.join(", "));
   }
   try {
-    return { id: call.id, name: call.name, content: await tool.run(ctx, input.data as never), isError: false };
+    const afterCommit: (() => void)[] = [];
+    const content = await withHousehold(ctx.db, ctx.householdId, tx => tool.run({
+      ...ctx, db: tx, state: () => ctx.state(tx),
+      addLink: link => afterCommit.push(() => ctx.addLink?.(link)),
+      onPending: () => afterCommit.push(() => ctx.onPending?.()),
+    }, input.data as never));
+    for (const effect of afterCommit) effect();
+    return { id: call.id, name: call.name, content, isError: false };
   } catch (failure) {
     // An InputError is written for the user (an unknown member name, a missing second person): the model may relay it.
     return error(failure instanceof InputError ? failure.message : "This tool could not complete the request.");

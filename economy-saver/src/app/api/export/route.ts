@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { failure, NO_STORE, tooMany } from "@/lib/door";
@@ -9,8 +10,9 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   try {
-    if (!await consumeRequest(db(), hid, "export", 6)) return tooMany("Export limit reached. Try again in a minute.");
-    const snapshot = await loadHouseholdSnapshot(db(), hid, { events: true, stored: true });
+    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "export", 6))) return tooMany("Export limit reached. Try again in a minute.");
+    const snapshot = await withHousehold(db(), hid, tx => loadHouseholdSnapshot(tx, hid, { events: true, stored: true }),
+      { isolationLevel: "repeatable read", accessMode: "read only" });
     return new Response(JSON.stringify(snapshot, null, 2) + "\n", {
       headers: {
         ...NO_STORE,

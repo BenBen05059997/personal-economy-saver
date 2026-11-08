@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
 import { countKinds, type DataKind } from "@/db/data-kinds";
-import { isMovable, readPlaces, type Places } from "@/db/place";
+import { isMovable, readPlaces } from "@/db/place";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { currentHouseholdId } from "@/lib/session";
 import { DataPlace } from "./DataPlace";
@@ -21,8 +22,7 @@ const ROWS: { kind: DataKind; name: string; unit: [string, string]; what: string
 /** Settings → "Your data" (D59): each kind of stored data, where it is kept, how much, and the delete for it; then export, import and delete everything. */
 export async function YourData({ canDeleteHousehold = true }: { canDeleteHousehold?: boolean }) {
   const hid = await currentHouseholdId();
-  const counts = hid ? await countKinds(db(), hid) : null;
-  const places: Places | null = hid ? await readPlaces(db(), hid) : null;
+  const [counts, places] = hid ? await withHousehold(db(), hid, tx => Promise.all([countKinds(tx, hid), readPlaces(tx, hid)])) : [null, null];
   const device = places ? (["memory", "canvases", "journal"] as const).filter(kind => places[kind] === "device") : [];
   return <section className="ui-panel" id="your-data"><h2>Your data</h2>
     <p className="ui-hint">What the app keeps about you, where it is kept, and how to delete it. A question you ask goes to the household’s AI model.</p>

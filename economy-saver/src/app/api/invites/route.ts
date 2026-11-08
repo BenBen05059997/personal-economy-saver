@@ -2,6 +2,7 @@ import { z } from "zod";
 import { accountMembership } from "@/db/account";
 import { db } from "@/db/client";
 import { acceptInvite, cancelInvite, createInvite, INVITE_TOKEN, leaveHousehold } from "@/db/invites";
+import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { privateRedirect, verifiedIdentity } from "@/lib/auth-request";
 import { badFields, failure, formOf, NO_STORE, text, tooMany } from "@/lib/door";
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
 
     if (kind !== "create" && kind !== "cancel") return badFields();
     if (access.role !== "owner") return text("Household owner required", 403);
-    if (!await consumeRequest(store, hid, "invites", 20)) return tooMany("Too many invitation changes. Try again in a minute.");
+    if (!await withHousehold(store, hid, tx => consumeRequest(tx, hid, "invites", 20))) return tooMany("Too many invitation changes. Try again in a minute.");
     if (kind === "cancel") {
       const id = z.string().uuid().safeParse(form.get("id"));
       if (!id.success) return badFields();

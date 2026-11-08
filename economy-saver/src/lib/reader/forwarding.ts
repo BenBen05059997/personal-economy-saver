@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { type Db, requireHousehold } from "@/db/household";
+import { type Db, requireHousehold, withHousehold } from "@/db/household";
 import { households } from "@/db/schema";
 import { ReaderError, readerSetting } from "./settings";
 
@@ -45,7 +45,7 @@ export async function forwardingAddress(db: Db, id: string) {
   const hid = requireHousehold(id);
   const domain = routingDomain();
   const key = await routingKey();
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const [row] = await tx.select({ local: households.forwardingLocalpart }).from(households)
       .where(eq(households.id, hid)).for("update");
     if (!row) throw new ReaderError("Household not found.");
@@ -69,6 +69,7 @@ export async function householdForRecipient(db: Db, recipient: string) {
   } catch { return null; }
   const hex = Buffer.from(plain).toString("hex");
   const hid = requireHousehold(hex.replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5"));
-  const [row] = await db.select({ local: households.forwardingLocalpart }).from(households).where(eq(households.id, hid));
+  const [row] = await withHousehold(db, hid, async tx =>
+    tx.select({ local: households.forwardingLocalpart }).from(households).where(eq(households.id, hid)));
   return row?.local === local ? hid : null;
 }

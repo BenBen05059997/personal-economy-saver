@@ -5,7 +5,7 @@ import { isPushSubscription, sendReminderPush } from "@/lib/notify/push";
 import { reminderSettings as deliverySettings } from "@/lib/notify/settings";
 import { appUrl } from "@/lib/supabase-auth";
 import { clockForHousehold } from "./clock";
-import { requireHousehold, type Db } from "./household";
+import { requireHousehold, withHousehold, type Db } from "./household";
 import { InputError } from "./input-error";
 import { households, members, pushSubscriptions, reminderSettings, reminders, suggestions, users } from "./schema";
 
@@ -92,28 +92,31 @@ async function deliverPush(db: Db, hid: string, settings: NonNullable<ReturnType
     const result = await sendReminderPush(settings, subscription, digest, fetcher);
     const where = and(eq(pushSubscriptions.householdId, hid), eq(pushSubscriptions.memberId, subscription.memberId),
       eq(pushSubscriptions.id, subscription.id), eq(pushSubscriptions.p256dh, subscription.p256dh), eq(pushSubscriptions.auth, subscription.auth));
-    if (result === "gone") await db.delete(pushSubscriptions).where(where);
-    else {
-      if (result === "sent") sent = true;
-      await db.update(pushSubscriptions).set({ failures: result === "sent" ? 0 : sql`${pushSubscriptions.failures} + 1` }).where(where);
-    }
+    await withHousehold(db, hid, async tx => {
+      if (result === "gone") await tx.delete(pushSubscriptions).where(where);
+      else await tx.update(pushSubscriptions).set({ failures: result === "sent" ? 0 : sql`${pushSubscriptions.failures} + 1` }).where(where);
+    });
+    if (result === "sent") sent = true;
   }
   return sent;
 }
 
 export async function sendTestReminder(db: Db, id: string, identity: Identity, channel: Channel, endpoint?: string, fetcher = fetch) {
   const hid = requireHousehold(id);
-  const memberId = await memberFor(db, hid, identity);
   const config = deliverySettings();
   if (channel === "email") {
+    await withHousehold(db, hid, tx => memberFor(tx, hid, identity));
     if (!identity?.email) throw new InputError("Sign in with a verified email to use email reminders.");
     if (config.email.problem) throw new InputError(config.email.problem);
     return sendReminderEmail(config.email.value!, identity.email, testReminder(appUrl().href), fetcher);
   }
-  if (config.push.problem) throw new InputError(config.push.problem);
-  if (!endpoint) throw new InputError("Turn on push for this device first.");
-  const rows = await db.select().from(pushSubscriptions).where(and(eq(pushSubscriptions.householdId, hid),
-    eq(pushSubscriptions.memberId, memberId), eq(pushSubscriptions.endpoint, endpoint)));
+  const rows = await withHousehold(db, hid, async tx => {
+    const memberId = await memberFor(tx, hid, identity);
+    if (config.push.problem) throw new InputError(config.push.problem);
+    if (!endpoint) throw new InputError("Turn on push for this device first.");
+    return tx.select().from(pushSubscriptions).where(and(eq(pushSubscriptions.householdId, hid),
+      eq(pushSubscriptions.memberId, memberId), eq(pushSubscriptions.endpoint, endpoint)));
+  });
   if (!rows.length) throw new InputError("Turn on push for this device first.");
   return deliverPush(db, hid, config.push.value!, rows, testReminder(appUrl().href), fetcher);
 }
@@ -123,7 +126,7 @@ const beforeDay = (column: typeof reminderSettings.emailRanOn | typeof reminderS
 
 async function claimReminder(db: Db, hid: string, recipient: Recipient, channel: Channel, today: string, ids: string[]) {
   const lastDay = channel === "email" ? reminderSettings.emailRanOn : reminderSettings.pushRanOn;
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const [claimed] = await tx.update(reminderSettings)
       .set(channel === "email" ? { emailRanOn: today } : { pushRanOn: today })
       .where(and(eq(reminderSettings.householdId, hid), eq(reminderSettings.memberId, recipient.memberId), beforeDay(lastDay, today),
@@ -142,18 +145,23 @@ function hourOf(timeZone: string, now: Date) {
 
 export async function runReminders(db: Db, id: string, now = new Date(), fetcher = fetch) {
   const hid = requireHousehold(id);
-  const [household] = await db.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-    .from(households).where(eq(households.id, hid));
-  if (!household) return;
-  await db.delete(reminders).where(and(eq(reminders.householdId, hid), lt(reminders.createdAt, new Date(now.getTime() - 30 * 86_400_000))));
-  const { today } = clockForHousehold(household, now);
-  const [findings, recipients, subscriptions] = await Promise.all([
-    db.select({ id: suggestions.id, kind: suggestions.kind, reason: suggestions.reason }).from(suggestions)
-      .where(and(eq(suggestions.householdId, hid), eq(suggestions.createdOn, today), eq(suggestions.status, "open"), inArray(suggestions.kind, DIGEST_KINDS)))
-      .orderBy(suggestions.urgency, suggestions.id),
-    db.select().from(reminderSettings).where(eq(reminderSettings.householdId, hid)),
-    db.select().from(pushSubscriptions).where(eq(pushSubscriptions.householdId, hid)),
-  ]);
+  const snapshot = await withHousehold(db, hid, async tx => {
+    const [household] = await tx.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
+      .from(households).where(eq(households.id, hid));
+    if (!household) return null;
+    await tx.delete(reminders).where(and(eq(reminders.householdId, hid), lt(reminders.createdAt, new Date(now.getTime() - 30 * 86_400_000))));
+    const { today } = clockForHousehold(household, now);
+    const [findings, recipients, subscriptions] = await Promise.all([
+      tx.select({ id: suggestions.id, kind: suggestions.kind, reason: suggestions.reason }).from(suggestions)
+        .where(and(eq(suggestions.householdId, hid), eq(suggestions.createdOn, today), eq(suggestions.status, "open"), inArray(suggestions.kind, DIGEST_KINDS)))
+        .orderBy(suggestions.urgency, suggestions.id),
+      tx.select().from(reminderSettings).where(eq(reminderSettings.householdId, hid)),
+      tx.select().from(pushSubscriptions).where(eq(pushSubscriptions.householdId, hid)),
+    ]);
+    return { household, today, findings, recipients, subscriptions };
+  });
+  if (!snapshot) return;
+  const { household, today, findings, recipients, subscriptions } = snapshot;
   if (!findings.length) return;
   const hour = hourOf(household.timeZone, now);
   const weekday = new Date(today + "T00:00:00Z").getUTCDay();
@@ -183,7 +191,8 @@ export async function runReminders(db: Db, id: string, now = new Date(), fetcher
       } catch {
         // The claim stays failed. A transport failure or interruption must not send a second digest.
       }
-      if (sent) await db.update(reminders).set({ status: "sent" }).where(and(eq(reminders.householdId, hid), eq(reminders.id, receipt)));
+      if (sent) await withHousehold(db, hid, async tx => tx.update(reminders).set({ status: "sent" })
+        .where(and(eq(reminders.householdId, hid), eq(reminders.id, receipt))));
     }
   }
 }

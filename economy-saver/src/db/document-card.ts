@@ -2,7 +2,7 @@
 // the file and the turn. The reading itself is scheduled by the route. Every query is scoped by the household.
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { requireHousehold, type Db } from "./household";
+import { requireHousehold, withHousehold, type Db } from "./household";
 import { documents, readings } from "./schema";
 import { readPlaces } from "./place";
 import { readerInbox } from "./reader-inbox";
@@ -59,8 +59,10 @@ export async function attachDocument(
     version: TURN_VERSION, id: input.id, conversationId: input.conversationId, question: input.text ?? DOCUMENT_WORDS.question, kind: DOCUMENT,
     reply: DOCUMENT_WORDS.sent, choices: null, recipe: null, sources: [], documentId, thumb: null, createdAt: at.toISOString(),
   };
-  if ((await readPlaces(db, hid)).journal === "cloud") {
-    await saveTurn(db, hid, { id: turn.id, conversationId: turn.conversationId, question: turn.question, kind: DOCUMENT, reply: turn.reply, choices: null, recipe: null, sources: [], documentId }, at);
-  }
-  return { turn, card: await documentCard(db, hid, documentId), documentId };
+  return withHousehold(db, hid, async tx => {
+    if ((await readPlaces(tx, hid)).journal === "cloud") {
+      await saveTurn(tx, hid, { id: turn.id, conversationId: turn.conversationId, question: turn.question, kind: DOCUMENT, reply: turn.reply, choices: null, recipe: null, sources: [], documentId }, at);
+    }
+    return { turn, card: await documentCard(tx, hid, documentId), documentId };
+  });
 }
