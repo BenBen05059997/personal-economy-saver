@@ -1,6 +1,6 @@
 // Missing data (D55). Pure: no I/O, no clock. A known bill is never ¥0 and an assumed number always says where it came from.
 // A bill can be stored with its amount or its date not known yet. An unknown amount is estimated from the same name key's last
-// three real amounts (the series' own for an amount-varies bill); with no history it is not estimated and counts for nothing.
+// three real amounts (earlier linked bills first for an amount-varies series); with no history it is not estimated and counts for nothing.
 // An unknown date counts as due today. `openGaps` lists every gap for every face; the word functions are the only place the
 // words are written. Integer minor units of the home currency throughout, except where a field says it is in units like `Bill.amount`.
 

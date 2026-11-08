@@ -108,6 +108,24 @@ async function main() {
     assert.deepEqual(cancelNotices([{ ...bare, cancelBy: "2026-11-05" }], "2026-11-01", "JPY").map(n => n.amount), [null], "a cancel notice with nothing to estimate from has no amount");
   });
 
+  await check("a new amount-varies Hikari Denki series can estimate from Ben's two earlier one-off bills", () => {
+    const hikari = stored({ id: "hikari-series", biller: "Hikari Denki", due: "2026-11-25", repeatUnit: "month", repeatDay: 25, amountVaries: true });
+    const gap = openGaps(stateWith([hikari])).find(item => item.id === hikari.id)!;
+    assert.equal(gapAmountWords(gap), "about ¥9,330 (¥8,640–¥10,020, from your last 2 bills)");
+    assert.equal(gap.estimate?.from, "bills");
+    const later = stored({ id: "hikari-later", biller: "Hikari Denki", due: "2026-11-26", amount: 50000 });
+    const nextWithoutLink = expandBills([...benStoredBills, hikari, later], "2026-12-01", "2026-12-30", "JPY")
+      .find(bill => bill.id === "hikari-series@2026-12-25")!;
+    assert.equal(nextWithoutLink.amount, 9330, "only one-offs from before the series can supply its history");
+    const linked = stored({ id: "hikari-linked", biller: "Hikari Denki", due: "2026-11-10", amount: 12300, seriesBillId: hikari.id });
+    const next = expandBills([...benStoredBills, hikari, linked], "2026-12-01", "2026-12-30", "JPY").find(bill => bill.id === "hikari-series@2026-12-25")!;
+    assert.deepEqual([next.amount, next.basis?.count, next.basis?.from], [12300, 1, "series"], "linked history takes precedence");
+    const other = stored({ ...hikari, id: "other-series", due: "2026-09-25", amount: 10000 });
+    const foreign = { ...linked, seriesBillId: other.id };
+    const own = openGaps(stateWith([hikari, other, foreign])).find(item => item.id === hikari.id)!;
+    assert.equal(gapAmountWords(own), "about ¥9,330 (¥8,640–¥10,020, from your last 2 bills)", "another series's linked bill is excluded");
+  });
+
   // ---------------------------------------------------------------- the forecast (pure)
   await check("the usual case counts the average and the late case the high end; the two series differ by exactly high − average from the due day", () => {
     const gap = stateWith([...history, gasGap()]);

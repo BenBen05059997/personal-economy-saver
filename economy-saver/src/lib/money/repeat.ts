@@ -174,6 +174,14 @@ export function resolveBills(bills: StoredBill[], today: string, currency?: Curr
   return bills.map(bill => resolveOne(bill, today, unit, bills, real));
 }
 
+/** Earlier one-offs can estimate a new series before it has a real bill of its own. */
+function unlinkedHistory(bills: StoredBill[], bill: StoredBill, unit: number) {
+  const start = bill.due;
+  if (start === null) return [];
+  const earlier = bills.filter(row => row.seriesBillId === undefined && row.due !== null && row.due < start);
+  return nameHistory(earlier, bill.biller, bill.category, unit);
+}
+
 /**
  * Turns stored bills into the bills the engine reads. A confirmed bill that repeats becomes one bill per occurrence, each
  * with the id `<id>@<date>` so keys stay unique, the amount that applies on its date, and `startsOn` the stored due date.
@@ -181,7 +189,7 @@ export function resolveBills(bills: StoredBill[], today: string, currency?: Curr
  * An amount-varies monthly bill (D54) has no occurrence in a month that holds one of its real bills (the real bill, a one-off
  * here, is the month's amount, counted once on its own date); every other occurrence is `estimated` at `variesEstimate`.
  * A bill whose amount or date is not known (D55) is resolved by `resolveOne`: the same rule for a one-off, and for an amount-varies
- * series without an amount of its own each occurrence is estimated from the series' real bills before it, or `uncounted`.
+ * series without an amount of its own each occurrence is estimated from earlier linked bills or matching one-offs, if available.
  * `currency` (the home currency) is needed exactly when there is such a bill: the estimate is rounded to its minor unit.
  */
 export function expandBills(bills: StoredBill[], today: string, through: string, currency?: Currency): Bill[] {
@@ -194,11 +202,14 @@ export function expandBills(bills: StoredBill[], today: string, through: string,
     const series = { startsOn: bill.due, ...(bill.amount === null ? {} : { startAmount: bill.amount }) };
     if (bill.amountVaries) {
       const history = real.get(bill.id) ?? [];
+      const older = bill.amount === null ? unlinkedHistory(bills, bill, unit) : [];
       return variesOccurrences({ due: bill.due, repeatDay: bill.repeatDay ?? null, storedMinor: bill.amount === null ? null : Math.round(bill.amount * unit), until: bill.repeatUntil ?? null }, history, today, through, unpriced.get(bill.id) ?? [])
         .map(({ date, amountMinor }) => {
           const occurrence = { ...bill, id: `${bill.id}@${date}`, due: date, ...series };
           if (bill.amount !== null) return { ...occurrence, amount: amountMinor! / unit, estimated: true as const };
-          return { ...occurrence, amountUnknown: true as const, ...estimatedFields(gapEstimate(history, date), unit, "series") };
+          const linked = gapEstimate(history, date);
+          return { ...occurrence, amountUnknown: true as const,
+            ...estimatedFields(linked ?? gapEstimate(older, date), unit, linked ? "series" : "bills") };
         });
     }
     if (bill.amount === null) throw new Error("A repeating bill with a fixed amount has its amount");
@@ -229,7 +240,8 @@ export function cancelNotices(bills: StoredBill[], today: string, currency?: Cur
     const next = nextAmountOf(bill);
     let amount: number | null;
     if (bill.amountVaries) {
-      const estimate = gapEstimate(real.get(bill.id) ?? [], renewsOn)?.averageMinor ?? (bill.amount === null ? null : Math.round(bill.amount * unit));
+      const estimate = gapEstimate(real.get(bill.id) ?? [], renewsOn)?.averageMinor
+        ?? (bill.amount === null ? gapEstimate(unlinkedHistory(bills, bill, unit), renewsOn)?.averageMinor ?? null : Math.round(bill.amount * unit));
       amount = estimate === null ? null : estimate / unit;
     } else if (bill.amount === null) {
       const resolved = resolveOne(bill, today, unit, bills, real);

@@ -1487,19 +1487,22 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A repeating bill with Amount changes every month and no amount"
+      "Fresh Try it household (Ben, today Nov 14)"
     ],
     "steps": [
+      "Add Hikari Denki in Utilities with Due date Nov 25 and Repeats Every month",
+      "Tick Amount changes every month and Amount not known yet, then save",
       "Open Coming up and Settings"
     ],
     "expected": [
       "The guess line \"Every month · varies · Utilities · Change ›\" works",
-      "The row shows \"about\" with the estimate"
+      "Coming up shows about ¥9,330 (¥8,640–¥10,020, from your last 2 bills) from the confirmed September and October one-offs",
+      "Settings shows the amount is unknown on the stored series"
     ],
     "refs": [
       "BROWSER-CHECKS V-D",
-      "D54"
+      "D54",
+      "db:gaps-test"
     ]
   },
   {
