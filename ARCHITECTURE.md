@@ -210,6 +210,8 @@ flowchart LR
     S --> R
 ```
 
+On phones, Ask’s Based on links extend their tap area with a CSS pseudo-element.
+
 **The stream.** `/api/ask` runs its checks first (same origin, session, body, the per-household limit) and answers a refusal as plain text (400, 401,
 403, 429). After them it answers 200 `application/x-ndjson`: a `{"step": "…"}` line each time `runAgent` calls `onStep` (the fixed words in
 `src/lib/agent/words.ts`: `THINKING_WORDS`, one `TOOL_WORDS` line per tool, never an amount, argument or result), then one last line, `{"reply": AskReply}` or

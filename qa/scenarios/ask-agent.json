@@ -2203,10 +2203,11 @@
     "expected": [
       "\"Based on:\" is followed by links named for the pages used (Safe to spend, Coming up, Options, Clients, Plan, Shared costs, To check or Memory)",
       "Each link opens the page it names",
-      "At 375px each link is at least 44px tall"
+      "At 375px each link’s tap area is at least 44px tall, including its invisible ::after area"
     ],
     "refs": [
       "BROWSER-CHECKS Z2",
+      "BROWSER-CHECKS L2",
       "D60"
     ]
   },
