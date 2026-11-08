@@ -1880,7 +1880,7 @@
     ],
     "expected": [
       "No session gives 401 and a foreign Origin gives 403, each as plain text",
-      "A body over 128 KiB gives 400 \"That is more than one question can carry. …\"",
+      "An ordinary Ask body over 128 KiB gives 400 \"That is more than one question can carry. …\"",
       "321 characters or empty text or a bad id gives 400 \"Enter a question of up to 320 characters.\"",
       "No model call happens and no turn is stored in any case"
     ],
@@ -3762,7 +3762,7 @@
       "Ask open at /canvas"
     ],
     "steps": [
-      "Type \"Remember that rent goes up in April\"",
+      "Type \"Remember this in my profile from now on: rent goes up in April\"",
       "Press Enter",
       "Open /memory"
     ],
@@ -4319,7 +4319,7 @@
       "Press Delete (\"Delete this conversation\") and confirm"
     ],
     "expected": [
-      "The text \"Its questions and answers are removed for good. What the assistant remembers and your pinned canvases stay.\" shows before the confirm",
+      "The text \"Its questions and answers are removed for good. What the assistant remembers, the brief and your pinned canvases stay.\" shows before the confirm",
       "The turns and canvas leave the screen and stay gone after reload",
       "The memory item and the pin are still there",
       "Activity has no text of the questions"

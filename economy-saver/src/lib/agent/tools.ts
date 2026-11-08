@@ -43,6 +43,8 @@ import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
 import { memoryTools } from "./memory-tools";
+import type { ContextTurn } from "./context";
+import { historyTools } from "./history-tools";
 import { briefTools } from "./brief-tools";
 import type { Brief } from "./brief";
 import { offerTools } from "./offer-tools";
@@ -75,6 +77,11 @@ export type ToolContext = {
   deviceMemory?: DeviceMemory;
   /** Ask only (D67): collect offers for the reply without writing any records. */
   onOffer?: (offer: KeepOffer) => void;
+  spaceId?: string;
+  memorySpaceId?: string;
+  canRemember?: boolean;
+  deviceHistory?: ContextTurn[];
+  onMemoryRead?: (id: string) => void;
   onBrief?: (brief: Brief) => void;
 };
 
@@ -508,6 +515,7 @@ export const tools: Tool[] = [
   ...memoryTools,
   ...offerTools,
   ...briefTools,
+  ...historyTools,
 ];
 
 /**

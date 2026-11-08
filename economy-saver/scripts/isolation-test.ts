@@ -37,6 +37,7 @@ import * as documentCleanup from "@/db/document-cleanup";
 import * as eventFeed from "@/db/event-feed";
 import * as familyLinksMod from "@/db/family-links";
 import * as household from "@/db/household";
+import * as historyMod from "@/db/history";
 import * as importChargesMod from "@/db/import-charges"; // Stage 17 import
 import * as invoiceDraft from "@/db/invoice-draft";
 import * as invoicePaid from "@/db/invoice-paid";
@@ -129,6 +130,8 @@ const covered = [
   "saveTurn", "turnById", "allTurns", "setThumb", "assembleContext", "firstUseLine", "requestCount",
   // D69 spaces.ts and conversation.ts
   "listSpaces", "generalSpace", "seedGeneralSpace", "requireSpace", "createSpace", "renameSpace", "archiveSpace", "deleteSpace", "spaceThread", "legacyThreads", "saveBrief",
+  // D70 history.ts
+  "searchHistory", "resolveMemorySpace",
   // D59 ask-receipts.ts
   "noteAskWrote", "noteAskReply", "askReceipt", "pruneAskReceipts",
   // D61 document-card.ts
@@ -226,7 +229,7 @@ async function main() {
     ...rulesMod, ...suggestionsMod, ...remindersMod, // D64–D66
     ...memoryMod, // D58 memory
     ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
-    ...spacesMod, // D69 spaces
+    ...spacesMod, ...historyMod, // D69 spaces and D70 history
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
   };
   const F = new Proxy(modules, {
@@ -472,6 +475,10 @@ async function main() {
       const beforeB = await fingerprint(B.hid);
       assert.ok(!(await F.listSpaces(store, A.hid)).some(space => space.id === foreign.id));
       await assert.rejects(F.requireSpace(store, A.hid, foreign.id), InputError);
+      await assert.rejects(F.resolveMemorySpace(store, A.hid, foreign.id), InputError);
+      assert.equal((await F.resolveMemorySpace(store, B.hid, "fictional b project")).id, foreign.id);
+      assert.deepEqual((await F.searchHistory(store, A.hid, { text: "Isolation B" })).hits, []);
+      assert.deepEqual((await F.searchHistory(store, B.hid, { text: "Isolation B" })).hits.map(hit => hit.id).sort(), [B.ids.turn, B.ids.memory].sort());
       await assert.rejects(F.renameSpace(store, A.hid, foreign.id, "Blocked rename"), InputError);
       await assert.rejects(F.archiveSpace(store, A.hid, foreign.id), InputError);
       await assert.rejects(F.deleteSpace(store, A.hid, foreign.id), InputError);
@@ -518,6 +525,7 @@ async function main() {
 
     // ---------------------------------------------------------------- reads
     const toolInputs: Record<string, unknown> = {
+      search_history: { text: "Isolation" },
       can_i_spend: { amount_minor: 1_000 }, timeline: { scenario: "late" }, plan_for: { target_minor: 100_000, target_date: "2027-06-01" }, bills_for_month: { month: "2026-11" },
     };
     function toolContext(t: Tenant): ToolContext {

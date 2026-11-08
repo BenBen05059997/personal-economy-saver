@@ -2967,7 +2967,7 @@
     ],
     "steps": [
       "Ask \"What's due this week?\"",
-      "Ask \"Remember that rent goes up in April\"",
+      "Ask \"Remember this in my profile from now on: rent goes up in April\"",
       "Ask \"Forget that\""
     ],
     "expected": [

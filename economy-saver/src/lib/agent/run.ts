@@ -16,6 +16,8 @@ import { logCall, type ToolLog } from "./log";
 import type { Recipe } from "@/lib/canvas/schema";
 import { chooseReply, type ReplyKind, type Source } from "./reply";
 import { briefWords, type Brief } from "./brief";
+import { memorySourceLabel, type MemorySource } from "@/lib/schema/turn";
+import type { ContextTurn } from "./context";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { memoryBlock } from "./memory-prompt";
 import type { KeepOffer } from "./keep-offer";
@@ -34,7 +36,7 @@ export class AgentError extends Error {
 }
 
 /** Tools whose result repeats text the model wrote. */
-const NOT_SOURCES = new Set(["remember", "forget", "make_canvas", "offer_keep", "update_brief"]);
+const NOT_SOURCES = new Set(["remember", "forget", "make_canvas", "offer_keep", "update_brief", "search_history"]);
 
 const MAX_TOOL_TURNS = 4;
 const BUDGET_MS = 20_000;
@@ -83,6 +85,7 @@ type AskOptions = {
   context?: string;
   assembled?: { systemData: string; memoryForAmounts: string[]; memory: MemoryItem[] };
   spaceId?: string;
+  deviceHistory?: ContextTurn[];
   /** D59: when the household keeps its memory on one device, the list the question carried. It is used for this question only; `remember` and `forget` change it in place and record `changes` for the reply. Without it, memory is read from the cloud. */
   deviceMemory?: DeviceMemory;
   /** Progress for the person waiting: fixed words when a model call starts and when a tool turn starts (words.ts). Never an amount, an argument or a result. */
@@ -92,7 +95,7 @@ type AskOptions = {
 };
 export type AskResult = {
   kind: ReplyKind; answer: string; choices: string[] | null; recipe: Recipe | null; sources: Source[];
-  links: { label: string; href: string }[]; pending: boolean; offers: KeepOffer[]; brief?: Brief;
+  links: { label: string; href: string }[]; pending: boolean; offers: KeepOffer[]; brief?: Brief; memoryChanged?: boolean;
 };
 
 export async function runAgent(opts: AskOptions): Promise<AskResult> {
@@ -130,6 +133,13 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   let pending = false;
   let brief: Brief | undefined;
   const toolAmounts: string[] = [];
+  const citedIds = new Set<string>();
+  const readIds = new Set<string>();
+  // The person’s question, rather than the model’s reformulation, determines the scope.
+  const always = /\b(?:always|from now on|every time)\b|いつも|今後|これからは/i.test(opts.question);
+  const memorySpaceId = always ? undefined : opts.spaceId;
+  const wantsMemory = /\b(?:remember|keep (?:this|that|it) in mind|(?:save|add) .{1,60} to (?:my |your )?memory)\b|覚えて|記憶して|記録して/i.test(opts.question)
+    && !/\b(?:do not|don't|never) remember\b|覚えないで|記憶しないで|記録しないで/i.test(opts.question);
   let recipe: Recipe | null = null;
   let clarify: { question: string; choices: string[] } | null = null;
   let outOfScope: "off_topic" | "not_offered" | null = null;
@@ -157,7 +167,8 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       if (offers.size >= MAX_KEEP_OFFERS) throw new InputError(`Offer at most ${MAX_KEEP_OFFERS} different things to keep.`);
       offers.set(key, { offer, value });
     },
-    deviceMemory: opts.deviceMemory,
+    deviceMemory: opts.deviceMemory, deviceHistory: opts.deviceHistory, spaceId: opts.spaceId, memorySpaceId, canRemember: wantsMemory,
+    onMemoryRead: id => { readIds.add(id); },
     onBrief: opts.spaceId ? next => { brief = next; } : undefined,
     onPending: () => { pending = true; ctx.addLink?.({ label: "Open To check", href: new URL("/to-check", opts.appUrl).href }); },
   };
@@ -190,7 +201,10 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       trace.outputTokens += reply.outputTokens;
 
       if (reply.stop === "end") {
-        const answer = reply.text.trim();
+        const answer = reply.text.replace(/[ \t]*\[\[memory:([0-9a-f-]+)\]\]/gi, (_, id: string) => {
+          citedIds.add(id.toLowerCase());
+          return "";
+        }).trim();
         if (!answer) throw failure("empty");
         return await finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe, sources }));
       }
@@ -230,12 +244,12 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
 
   async function recordResult(result: ToolResult) {
     // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
-    if (!NOT_SOURCES.has(result.name)) sources.push(result.content);
+    if (!result.isError && !NOT_SOURCES.has(result.name)) sources.push(result.content);
     const tool = tools.find(candidate => candidate.name === result.name);
     if (tool && result.name !== "update_brief" && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
     if (result.isError) return;
     used.push(result.name);
-    if (tool?.scope === "read" && !NOT_SOURCES.has(result.name)) toolAmounts.push(result.content);
+    if (tool?.scope === "read" && result.name !== "recall" && !NOT_SOURCES.has(result.name)) toolAmounts.push(result.content);
     if (tool?.scope !== "draft") return;
     const memoryTool = result.name === "remember" || result.name === "forget";
     const onDevice = opts.deviceMemory !== undefined && memoryTool;
@@ -259,7 +273,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       : [currentMemory, null] as const;
     const available = candidates.filter(({ offer, value }) => {
       if (offer.kind === "memory") {
-        return !memoryNow.some(item => item.kind === offer.memoryKind && normalise(item.text) === normalise(offer.text))
+        return !memoryNow.some(item => (item.spaceId ?? undefined) === memorySpaceId && item.kind === offer.memoryKind && normalise(item.text) === normalise(offer.text))
           && unconfirmedAmounts(offer.text, sources).length === 0;
       }
       if (offer.kind === "goal") {
@@ -269,7 +283,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       const current = standingRules?.[offer.ruleKind];
       if (current?.enabled === offer.enabled && (current.threshold === value || !offer.enabled && value === null)) return false;
       return offer.ruleKind !== "safe_below" || value === null || unconfirmedAmounts(minorMoney(value, homeCurrency), sources).length === 0;
-    }).map(({ offer }) => offer);
+    }).map(({ offer }) => offer.kind === "memory" && memorySpaceId ? { ...offer, spaceId: memorySpaceId } : offer);
     const validSources = new Set([
       ...tools.map(tool => tool.name),
       ...initialMemory.filter(item => !item.spaceId || item.spaceId === opts.spaceId).map(item => item.id),
@@ -277,7 +291,17 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     const checkedBrief = chosen.kind === "answer" && brief && brief.state.every(line => validSources.has(line.source))
       && unconfirmedAmounts(briefWords(brief).join("\n"), toolAmounts).length === 0
       ? brief : undefined;
-    return { ...(checkedBrief && { brief: checkedBrief }), kind: chosen.kind, answer: chosen.text, choices: chosen.choices, recipe: chosen.recipe, sources: chosen.sources, links, pending, offers: available };
+    const memorySources: MemorySource[] = [];
+    if (chosen.kind === "answer") {
+      for (const id of citedIds) {
+        const item = memoryNow.find(item => item.id === id);
+        const quoted = (opts.assembled?.memoryForAmounts ?? [memory]).some(block => block.includes(JSON.stringify(id)));
+        if (!item || !(readIds.has(id) || quoted)) continue;
+        memorySources.push({ kind: "memory", id, label: memorySourceLabel(item.text) });
+      }
+    }
+    return { ...(checkedBrief && { brief: checkedBrief }), ...(wroteMemory && { memoryChanged: true }), kind: chosen.kind, answer: chosen.text,
+      choices: chosen.choices, recipe: chosen.recipe, sources: [...chosen.sources, ...memorySources], links, pending, offers: available };
   }
 }
 

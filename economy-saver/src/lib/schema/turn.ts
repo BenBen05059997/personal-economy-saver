@@ -3,7 +3,17 @@ import { z } from "zod";
 import { RecipeSchema } from "@/lib/canvas/schema";
 
 export const TURN_VERSION = 1;
-export const TurnSource = z.object({ label: z.string().min(1).max(60), href: z.string().min(1).max(200) }).strict();
+const sourceLabel = z.string().min(1).max(60);
+export const LinkSource = z.object({ label: sourceLabel, href: z.string().min(1).max(200) }).strict();
+export type LinkSource = z.infer<typeof LinkSource>;
+export const DEVICE_MEMORY_SOURCE_LABEL = "Memory on this device";
+export function memorySourceLabel(text: string): string {
+  const line = text.replace(/\s+/g, " ").trim();
+  return line.length <= 60 ? line : `${line.slice(0, 59).replace(/[\uD800-\uDBFF]$/, "")}…`;
+}
+export const MemorySource = z.object({ kind: z.literal("memory"), id: z.string().uuid(), label: sourceLabel }).strict();
+export type MemorySource = z.infer<typeof MemorySource>;
+export const TurnSource = z.union([LinkSource, MemorySource]);
 export type TurnSource = z.infer<typeof TurnSource>;
 export const TurnKind = z.enum(["answer", "clarify", "declined", "document"]);
 export type TurnKind = z.infer<typeof TurnKind>;

@@ -10,18 +10,22 @@ import { householdRequest } from "@/lib/session";
 import { askUnavailable } from "@/lib/agent/availability";
 import { MissingAuthSetting } from "@/lib/supabase-auth";
 
-// D59: a question that carries the memory and the recent turns from a device still fits in 128 KiB.
+// D59: device questions carry notes, a brief, and a bounded local history.
 const MAX_BODY = 128 * 1024;
+const MAX_DEVICE_BODY = 512 * 1024;
+const tooLarge = () => text("That is more than one question can carry. Delete some of what the assistant remembers, or ask in a new space.", 400);
 
 /** One question of the Ask conversation (D60): `{ id, conversationId, text, source, canvas }` in, the reply (`AskReply`) out. */
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   const raw = await request.text();
-  if (new TextEncoder().encode(raw).length > MAX_BODY) return text("That is more than one question can carry. Delete some of what the assistant remembers, or start a new conversation.", 400);
+  const bytes = new TextEncoder().encode(raw).length;
+  if (bytes > MAX_DEVICE_BODY) return tooLarge();
   let body: unknown = null;
   try { body = JSON.parse(raw); } catch { /* answered below */ }
   const data = askInput.safeParse(body);
+  if (bytes > MAX_BODY && (!data.success || (data.data.memory === undefined && data.data.recent === undefined))) return tooLarge();
   if (!data.success) return text("Enter a question of up to 320 characters.", 400);
   const connection = db();
   if (!await withHousehold(connection, hid, tx => consumeRequest(tx, hid, "ask"))) return tooMany("Ask again in a minute.");

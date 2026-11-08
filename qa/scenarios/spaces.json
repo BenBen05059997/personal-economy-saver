@@ -619,5 +619,330 @@
       "BROWSER-CHECKS AP16",
       "D59"
     ]
+  },
+  {
+    "id": "SPACE-023",
+    "area": "Ask spaces",
+    "action": "Add a note to a space",
+    "user_goal": "I want the note to stay with this task",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A space named March paperwork",
+      "A second open space"
+    ],
+    "steps": [
+      "Open March paperwork and choose Add a note under Space notes",
+      "Save \"March invoices need a separate folder\"",
+      "Open the second space and Memory → Profile"
+    ],
+    "expected": [
+      "The note appears under Space notes in March paperwork",
+      "It is absent from the other space and the profile"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP18",
+      "D70"
+    ]
+  },
+  {
+    "id": "SPACE-024",
+    "area": "Ask spaces",
+    "action": "Edit or delete a space note",
+    "user_goal": "I want to correct or remove the task’s notes",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A space named March paperwork",
+      "Two saved notes in March paperwork and one saved profile item"
+    ],
+    "steps": [
+      "Edit one space note, save and reload",
+      "Delete that note",
+      "Open Memory → Profile"
+    ],
+    "expected": [
+      "The edit stays after reload",
+      "Deleting the note preserves the other note and the profile item"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP18",
+      "D70"
+    ]
+  },
+  {
+    "id": "SPACE-025",
+    "area": "Ask spaces",
+    "action": "Remember a fact in the current space",
+    "user_goal": "I want Ask to keep this task’s next step here",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A space named March paperwork",
+      "A working model"
+    ],
+    "steps": [
+      "In March paperwork ask \"Remember that I’ll check the March invoices on Friday.\"",
+      "Check Space notes and Profile"
+    ],
+    "expected": [
+      "Ask says it kept the fact",
+      "The fact appears under Space notes with \"Said in Ask\" and stays out of Profile"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP19",
+      "D70"
+    ]
+  },
+  {
+    "id": "SPACE-026",
+    "area": "Ask spaces",
+    "action": "Remember a standing preference in the profile",
+    "user_goal": "I want this preference to apply across my spaces",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A space named March paperwork",
+      "A working model"
+    ],
+    "steps": [
+      "In March paperwork ask \"Remember this from now on: use short summaries.\"",
+      "Check Profile and reopen Ask in General"
+    ],
+    "expected": [
+      "The standing preference is saved in Profile",
+      "The preference is available when asking in General"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP19",
+      "D70"
+    ]
+  },
+  {
+    "id": "SPACE-027",
+    "area": "Ask spaces",
+    "action": "Keep a memory offer in the task space",
+    "user_goal": "I want to choose which detail is remembered here",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A space named March paperwork",
+      "A working model"
+    ],
+    "steps": [
+      "In March paperwork say \"I prefer to group this task’s invoices by client. What’s due this week?\"",
+      "Check Space notes before choosing",
+      "Choose Keep on the preference offer and recheck Space notes and Profile"
+    ],
+    "expected": [
+      "The preference is absent until Keep",
+      "After Keep the preference appears in Space notes and Profile is unchanged"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP20",
+      "D67",
+      "D70"
+    ]
+  },
+  {
+    "id": "SPACE-028",
+    "area": "Ask spaces",
+    "action": "Follow the note or profile item in Based on",
+    "user_goal": "I want to know which saved words Ask used",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A space named March paperwork",
+      "A working model",
+      "A note with the short name March folder and a profile preference for short summaries"
+    ],
+    "steps": [
+      "Ask to use both items when reviewing the next bill",
+      "Follow each memory citation in Based on",
+      "Reopen the saved reply"
+    ],
+    "expected": [
+      "Based on names the items beside the tool sources",
+      "Each source opens its visible item in Space notes or Profile",
+      "The saved reply keeps the citations"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP21",
+      "D70"
+    ]
+  },
+  {
+    "id": "SPACE-029",
+    "area": "Ask spaces",
+    "action": "Search earlier words and read the latest amount",
+    "user_goal": "I want past context and the current figure",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A Card A review space with a saved note or turn containing \"late studio shift\" and an old ¥54,000 estimate",
+      "A working model"
+    ],
+    "steps": [
+      "Ask \"Find where I wrote ‘late studio shift’ in Card A review. What is Card A’s current statement amount?\""
+    ],
+    "expected": [
+      "Ask uses the matching line and identifies the space and date",
+      "The current statement amount is ¥58,000 due Nov 26"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP22",
+      "D70"
+    ]
+  },
+  {
+    "id": "SPACE-030",
+    "area": "Ask spaces",
+    "action": "Search Japanese and English history",
+    "user_goal": "I want to find either language in what I kept",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "PGlite households with both Japanese and English saved text"
+    ],
+    "steps": [
+      "Run npm run db:memory-test and npm run db:agent-test"
+    ],
+    "expected": [
+      "An English search and a Japanese search each hit",
+      "A space filter limits results to that space",
+      "The ten newest hits carry matching lines, space names and dates"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP24",
+      "db:memory-test",
+      "db:agent-test",
+      "D70"
+    ]
+  },
+  {
+    "id": "SPACE-031",
+    "area": "Ask spaces",
+    "action": "Search history without crossing households",
+    "user_goal": "I want the search to keep our history private",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Two PGlite households with matching fictional words in their own turns and notes"
+    ],
+    "steps": [
+      "Run npm run db:memory-test"
+    ],
+    "expected": [
+      "The caller sees only the matches from its own household"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP24",
+      "db:memory-test",
+      "D70"
+    ]
+  },
+  {
+    "id": "SPACE-032",
+    "area": "Ask spaces",
+    "action": "Use device notes and search device history",
+    "user_goal": "I want my browser to keep my saved task text",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A space named March paperwork",
+      "Memory and the journal set to this device",
+      "A local note, brief and saved turn with a distinctive phrase",
+      "A working model"
+    ],
+    "steps": [
+      "Ask to find the distinctive phrase and use the local note",
+      "Reload in the same browser",
+      "Open the space from another browser that has access to the household"
+    ],
+    "expected": [
+      "Ask can use the matching local history and cite the note",
+      "The note, brief and turn persist in the original browser",
+      "The other browser sees the space name with none of that local text"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP23",
+      "D59",
+      "D70"
+    ]
+  },
+  {
+    "id": "SPACE-033",
+    "area": "Ask spaces",
+    "action": "Clear notes or profile items in their own scope",
+    "user_goal": "I want to clear one kind of saved memory while keeping the rest",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Two spaces with saved notes and one profile item"
+    ],
+    "steps": [
+      "Choose Forget space notes in one space and confirm",
+      "In Profile choose Forget everything and confirm",
+      "Reopen the other space"
+    ],
+    "expected": [
+      "The first action clears only the selected space’s notes",
+      "Profile’s confirmation says Space notes stay",
+      "The other space still shows its notes and the 200-item counter includes them"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP25",
+      "D70"
+    ]
   }
 ]

@@ -4,7 +4,7 @@ import { ConversationTurn } from "@/lib/schema/turn";
 export const THREAD_CONTEXT_MAX = 12_000;
 
 export const ContextTurn = ConversationTurn.pick({
-  id: true, conversationId: true, question: true, reply: true, kind: true, documentId: true, createdAt: true,
+  id: true, conversationId: true, spaceId: true, question: true, reply: true, kind: true, documentId: true, createdAt: true,
 }).strip();
 export type ContextTurn = z.infer<typeof ContextTurn>;
 
@@ -23,4 +23,20 @@ export function contextTail(input: readonly ContextTurn[]): { turns: ContextTurn
     start--;
   }
   return { turns: input.slice(start).map(turn => ContextTurn.parse(turn)), omitted: start };
+}
+
+/** A searchable copy of the newest local turns that fit in the device request. It stays out of the model prompt until a search. */
+export function historyTail(input: readonly ContextTurn[]): ContextTurn[] {
+  const encoder = new TextEncoder();
+  const kept: ContextTurn[] = [];
+  let size = 2;
+  const newest = [...input].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+  for (const raw of newest) {
+    const turn = ContextTurn.parse(raw);
+    const length = encoder.encode(JSON.stringify(turn)).length + 1;
+    if (size + length > 64 * 1024) break;
+    size += length;
+    kept.push(turn);
+  }
+  return kept.reverse();
 }

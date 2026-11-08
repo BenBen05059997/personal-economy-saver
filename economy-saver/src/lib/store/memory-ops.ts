@@ -1,6 +1,6 @@
 // D59: the operations on what the assistant remembers, as pure functions over a list. The browser's device store (index.ts) runs them on its
 // own copy; the server runs them on the list that came with a question (the household keeps its memory on one device) and sends the change
-// back in the reply. The same rules as src/db/memory.ts: 400 characters, no run of 12 digits, 200 items, the same text under the same kind is one item.
+// back in the reply. The same rules as src/db/memory.ts: 400 characters, no run of 12 digits, 200 items, the same text under the same kind and scope is one item.
 import { z } from "zod";
 import { InputError } from "@/db/input-error";
 import { MEMORY_CLASH, MEMORY_KIND_KEYS, MEMORY_LIMIT, memoryFull, MemoryItem, MemoryKind, MemoryText, SECRET_REFUSAL, hasLongNumber } from "@/lib/schema/memory";
@@ -18,6 +18,8 @@ export type MemoryChange = z.infer<typeof MemoryChange>;
 /** The memory a question carried from the device (`items`, changed in place as the tools run) and what the tools changed (`changes`, returned in the reply). */
 /** `moment` is the household's now (householdMoment, D34), so an item made by a question is dated like the cloud's. */
 export type DeviceMemory = { items: MemoryItem[]; changes: MemoryChange[]; moment: Date };
+
+export const inMemoryScope = (item: MemoryItem, spaceId?: string | null) => spaceId === undefined || (item.spaceId ?? null) === spaceId;
 
 type By = { madeBy: "form" | "ask" | "mcp"; askId?: string };
 
@@ -41,30 +43,30 @@ export const textOf = (text: unknown) => {
 };
 
 /** Adds one thing. The same text under the same kind returns the existing item (`added` false). */
-export function addMemoryItem(items: MemoryItem[], input: { kind: string; text: string }, by: By, now: Date, id: string): { items: MemoryItem[]; item: MemoryItem; added: boolean } {
+export function addMemoryItem(items: MemoryItem[], input: { kind: string; text: string; spaceId?: string | null }, by: By, now: Date, id: string): { items: MemoryItem[]; item: MemoryItem; added: boolean } {
   const kind = kindOf(input.kind), text = textOf(input.text);
-  const same = items.find(item => item.kind === kind && item.text === text);
+  const same = items.find(item => item.kind === kind && item.text === text && inMemoryScope(item, input.spaceId ?? null));
   if (same) return { items, item: same, added: false };
   if (items.length >= MEMORY_LIMIT) throw new InputError(memoryFull());
   const stamp = now.toISOString();
-  const item: MemoryItem = { id, kind, text, madeBy: by.madeBy, askId: by.askId ?? null, createdAt: stamp, updatedAt: stamp };
+  const item: MemoryItem = { id, kind, text, ...(input.spaceId && { spaceId: input.spaceId }), madeBy: by.madeBy, askId: by.askId ?? null, createdAt: stamp, updatedAt: stamp };
   return { items: sortMemory([...items, item]), item, added: true };
 }
 
 /** Changes the kind, the text, or both. Null when the id is not in the list. */
-export function editMemoryItem(items: MemoryItem[], id: string, changes: { kind?: string; text?: string }, now: Date): { items: MemoryItem[]; item: MemoryItem } | null {
-  const current = items.find(item => item.id === id);
+export function editMemoryItem(items: MemoryItem[], id: string, changes: { kind?: string; text?: string; spaceId?: string | null }, now: Date): { items: MemoryItem[]; item: MemoryItem } | null {
+  const current = items.find(item => item.id === id && inMemoryScope(item, changes.spaceId));
   if (!current) return null;
   const next = { kind: changes.kind === undefined ? current.kind : kindOf(changes.kind), text: changes.text === undefined ? current.text : textOf(changes.text) };
   if (next.kind === current.kind && next.text === current.text) return { items, item: current };
-  if (items.some(item => item.id !== id && item.kind === next.kind && item.text === next.text)) throw new InputError(MEMORY_CLASH);
+  if (items.some(item => item.id !== id && inMemoryScope(item, current.spaceId ?? null) && item.kind === next.kind && item.text === next.text)) throw new InputError(MEMORY_CLASH);
   const item: MemoryItem = { ...current, ...next, updatedAt: now.toISOString() };
   return { items: sortMemory(items.map(existing => (existing.id === id ? item : existing))), item };
 }
 
 /** Removes one item. `removed` is false when the id is not in the list. */
-export function forgetMemoryItem(items: MemoryItem[], id: string): { items: MemoryItem[]; removed: boolean } {
-  const rest = items.filter(item => item.id !== id);
+export function forgetMemoryItem(items: MemoryItem[], id: string, spaceId?: string | null): { items: MemoryItem[]; removed: boolean } {
+  const rest = items.filter(item => item.id !== id || !inMemoryScope(item, spaceId));
   return { items: rest, removed: rest.length !== items.length };
 }
 
@@ -74,7 +76,7 @@ export function applyMemoryChanges(items: MemoryItem[], changes: unknown): Memor
   let next = items;
   for (const change of parsed) {
     if (change.op === "forget") next = forgetMemoryItem(next, change.id).items;
-    else if (!next.some(item => item.id === change.item.id || (item.kind === change.item.kind && item.text === change.item.text))) next = sortMemory([...next, change.item]);
+    else if (!next.some(item => item.id === change.item.id || (inMemoryScope(item, change.item.spaceId ?? null) && item.kind === change.item.kind && item.text === change.item.text))) next = sortMemory([...next, change.item]);
   }
   return next.slice(0, MEMORY_LIMIT);
 }

@@ -20,7 +20,7 @@ import { DEVICE_MEMORY_WORDS, itemsToMove, moveToCloud, moveToDevice, readPlaces
 import { addMemoryItem, applyMemoryChanges, editMemoryItem, forgetMemoryItem } from "@/lib/store/memory-ops";
 import { MAX_PINS } from "@/lib/canvas/schema";
 import { appendTurn, movePin, pinItem, threadOf, unpinItem, updatePin, type DevicePin } from "@/lib/store/journal-ops";
-import type { ConversationTurn } from "@/lib/schema/turn";
+import { DEVICE_MEMORY_SOURCE_LABEL, type ConversationTurn } from "@/lib/schema/turn";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { NOT_EMPTY, OLD_VERSION, restoreHousehold } from "@/db/restore";
 import { seedBen } from "@/db/seed";
@@ -416,7 +416,7 @@ async function main() {
       const pins = [await pinCanvas(db, c, { title: "Cash", recipe: recipe("Cash") }, form), await pinCanvas(db, c, { title: "Bills", recipe: recipe("Bills") }, form)];
       const conv = randomUUID();
       const t = (question: string) => ({ id: randomUUID(), conversationId: conv, question, kind: "answer" as const, reply: "Yes.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }] });
-      const stored = [t("One?"), t("Two?")];
+      const stored = [{ ...t("One?"), sources: [{ kind: "memory" as const, id: mem[0].id, label: mem[0].text }] }, t("Two?")];
       for (const [i, x] of stored.entries()) await saveTurn(db, c, x, new Date(Date.UTC(2026, 10, 6, 1, i)));
       await db.update(schema.conversationTurns).set({ thumb: 1 }).where(eq(schema.conversationTurns.id, stored[0].id));
       assert.deepEqual(await readPlaces(db, c), { memory: "cloud", canvases: "cloud", journal: "cloud" });
@@ -432,6 +432,7 @@ async function main() {
         assert.equal(await moveToDevice(db, c, kind, taken[kind].map(i => i.id), form), taken[kind].length);
         assert.equal(await countKind(db, c, kind), 0, `${kind}: nothing is left on the server`);
         assert.equal((await readPlaces(db, c))[kind], "device");
+        if (kind === "memory") assert.equal((await allTurns(db, c))[0].sources[0].label, DEVICE_MEMORY_SOURCE_LABEL);
         await assert.rejects(moveToDevice(db, c, kind, [], form), (e: unknown) => e instanceof InputError && /already kept on this device/.test(e.message));
         await assert.rejects(itemsToMove(db, c, kind), InputError);
         await assert.rejects(requireCloud(db, c, kind), (e: unknown) => e instanceof InputError && /on this device only/.test(e.message));

@@ -10,7 +10,8 @@ export const keepOffer = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("goal"), name: shortText(60), target: shortText(30), targetDate: z.string().date() }).strict(),
   z.object({ kind: z.literal("rule"), ruleKind, enabled: z.boolean(), value: shortText(30).nullable() }).strict(),
 ]);
-export type KeepOffer = z.infer<typeof keepOffer>;
+type Offer = z.infer<typeof keepOffer>;
+export type KeepOffer = Exclude<Offer, { kind: "memory" }> | (Extract<Offer, { kind: "memory" }> & { spaceId?: string });
 
 export function offerHasLongNumber(offer: KeepOffer): boolean {
   switch (offer.kind) {

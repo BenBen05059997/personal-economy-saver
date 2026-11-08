@@ -2,14 +2,14 @@
 // A kind is read from one place only. Moving is two steps in the browser (fetch, store, confirm); the server deletes its copies and sets the
 // place in one transaction, or (back to the cloud) inserts what the browser posts, checked against the schemas, and sets the place.
 // Every query is scoped by household_id.
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import { canvases, conversationTurns, households, memories, spaces } from "./schema";
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { MEMORY_LIMIT, MemoryItem, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
-import { ConversationTurn, TURN_VERSION } from "@/lib/schema/turn";
+import { ConversationTurn, DEVICE_MEMORY_SOURCE_LABEL, TURN_VERSION } from "@/lib/schema/turn";
 import { MAX_PINS } from "@/lib/canvas/schema";
 import { DeviceBriefSchema, type DeviceBrief } from "@/lib/schema/device-brief";
 
@@ -124,6 +124,16 @@ export async function moveToDevice(db: Db, householdId: string, what: Movable, i
     const briefs = what === "journal" ? await briefRows(tx, hid) : [];
     if (await briefRevision(briefs) !== expectedBriefRevision) throw new JournalMoveChanged(CHANGED);
     await tx.delete(table).where(eq(table.householdId, hid));
+    if (what === "memory") {
+      // The cloud journal can remember that it cited an item without keeping a copy of the device note's text.
+      await tx.update(conversationTurns).set({ sources: sql`(
+        select jsonb_agg(case when item->>'kind' = 'memory'
+          then jsonb_set(item, '{label}', to_jsonb(${DEVICE_MEMORY_SOURCE_LABEL}::text))
+          else item end order by ord)
+        from jsonb_array_elements(${conversationTurns.sources}) with ordinality as source(item, ord)
+      )` }).where(and(eq(conversationTurns.householdId, hid), sql`${conversationTurns.sources} @> '[{"kind":"memory"}]'::jsonb`));
+    }
+
     if (briefs.length > 0) await tx.update(spaces).set({ brief: {}, briefUpdatedAt: null, briefUpdatedBy: null })
       .where(eq(spaces.householdId, hid));
     await tx.update(households).set({ [COLUMN[what]]: "device" }).where(eq(households.id, hid));

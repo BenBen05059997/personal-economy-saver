@@ -75,3 +75,5 @@
 .ask-brief .ui-button { min-height: 44px; }
 .ask-brief textarea { width: 100%; min-width: 0; box-sizing: border-box; resize: vertical; }
 .ask-brief summary { min-height: 44px; padding-block: 12px; cursor: pointer; color: var(--accent); }
+
+.ask-notes-link { justify-self: start; display: inline-flex; align-items: center; min-height: 44px; }

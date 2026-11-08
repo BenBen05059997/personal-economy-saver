@@ -8,8 +8,10 @@ import { firstUseLine } from "@/db/ask";
 import { connectionView } from "@/db/ai-key";
 import { listCanvases } from "@/db/canvases";
 import { db } from "@/db/client";
+import { householdMoment } from "@/db/clock";
 import { withHousehold } from "@/db/household";
 import { legacyThreads, spaceThread } from "@/db/conversation";
+import { listMemory } from "@/db/memory";
 import { readPlaces } from "@/db/place";
 import { listSpaces } from "@/db/spaces";
 import { loadSpending } from "@/db/spending";
@@ -39,7 +41,7 @@ async function AskContent({ search }: { search: Search }) {
   const [workspace, suggestions] = await Promise.all([loadWorkspace(hid), withHousehold(db(), hid, tx => openSuggestions(tx, hid))]);
   const { state } = workspace;
   const current = state.today.slice(0, 7);
-  const { spending, places, space, spaces, thread, earlier, pins, own, firstUse } = await withHousehold(db(), hid, async tx => {
+  const { spending, places, space, spaces, thread, earlier, pins, own, firstUse, memory } = await withHousehold(db(), hid, async tx => {
     // D59: a kind kept on this device is not read here at all; the page reads it in the browser.
     const [places, spaces, spending, own] = await Promise.all([
       readPlaces(tx, hid), listSpaces(tx, hid),
@@ -50,12 +52,13 @@ async function AskContent({ search }: { search: Search }) {
     if (!space || (!space.isGeneral && legacyId.data)) notFound();
     const earlier = space.isGeneral && places.journal === "cloud" ? await legacyThreads(tx, hid) : [];
     if (places.journal === "cloud" && legacyId.data && !earlier.some(item => item.id === legacyId.data)) notFound();
-    const [thread, pins, firstUse] = await Promise.all([
+    const [thread, pins, firstUse, memory] = await Promise.all([
       places.journal === "device" ? [] : spaceThread(tx, hid, legacyId.data ?? space.id),
       places.canvases === "device" ? [] : listCanvases(tx, hid, { spaceId: space.id, includeLegacy: space.isGeneral }),
       firstUseLine(tx, hid, { skipAnswered: places.journal === "device" }),
+      places.memory === "device" ? [] : listMemory(tx, hid),
     ]);
-    return { spending, places, space, spaces, thread, earlier, pins, own, firstUse };
+    return { spending, places, space, spaces, thread, earlier, pins, own, firstUse, memory };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
   const context: CanvasContext = { state, spending };
   const nudgeIds = suggestions.flatMap(row => row.action === "remind" && row.refId ? [row.refId] : []);
@@ -71,9 +74,15 @@ async function AskContent({ search }: { search: Search }) {
   const brief: BriefRecord | null = places.journal === "cloud" && !legacyId.data && space.briefUpdatedAt && (space.briefUpdatedBy === "ask" || space.briefUpdatedBy === "form")
     ? { brief: BriefSchema.parse(space.brief), updatedAt: space.briefUpdatedAt.toISOString(), updatedBy: space.briefUpdatedBy } : null;
 
+  const clock = { isDemo: workspace.demo, fixedToday: workspace.tryIt ? state.today : null, timeZone: workspace.timeZone };
+  const cloudMemory = {
+    notes: legacyId.data ? [] : memory.filter(item => item.spaceId === space.id),
+    profileIds: memory.filter(item => !item.spaceId).map(item => item.id),
+    totalCount: memory.length,
+  };
   return <WorkspaceFrame workspace={workspace} section="canvas">
     <AskPage key={`${space.id}:${legacyId.data ?? ""}:${typeof pinParam === "string" ? pinParam : ""}`} householdId={hid} places={places}
-      clock={{ isDemo: workspace.demo, fixedToday: workspace.tryIt ? state.today : null, timeZone: workspace.timeZone }}
+      clock={clock} memoryMoment={householdMoment(clock).toISOString()} cloudMemory={cloudMemory}
       space={{ id: space.id, name: space.name, isGeneral: space.isGeneral, status: space.status }}
       spaces={spaces.map(item => ({ id: item.id, name: item.name, status: item.status }))} earlier={earlier} legacyId={legacyId.data ?? null}
       pinId={typeof pinParam === "string" ? pinParam : null} pins={pins.map(({ id, title }) => ({ id, title }))}

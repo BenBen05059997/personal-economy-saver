@@ -11,8 +11,9 @@ import { MEMORY_KINDS } from "@/lib/schema/memory";
 import { addDeviceMemory } from "@/lib/store/device";
 import { ApiForm } from "@/components/ui/ApiForm";
 
-export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemory, returnTo }: {
+export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemory, returnTo, onDeviceMemoryKept }: {
   offer: KeepOffer; householdId: string; clock: ClockHousehold; currency: Currency; deviceMemory: boolean; returnTo: string;
+  onDeviceMemoryKept?: () => void;
 }) {
   const [status, setStatus] = useState<"ready" | "saving" | "kept" | "dismissed">("ready");
   const [problem, setProblem] = useState("");
@@ -31,6 +32,7 @@ export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemor
       <input type="hidden" name="kind" value="add" />
       <input type="hidden" name="memoryKind" value={offer.memoryKind} />
       <input type="hidden" name="text" value={offer.text} />
+      {offer.spaceId && <input type="hidden" name="spaceId" value={offer.spaceId} />}
     </>;
   } else if (offer.kind === "goal") {
     const amount = readAmount(offer.target, currency, false);
@@ -62,7 +64,8 @@ export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemor
     setStatus("saving");
     setProblem("");
     try {
-      await addDeviceMemory(householdId, { kind: offer.memoryKind, text: offer.text }, householdMoment(clock));
+      await addDeviceMemory(householdId, { kind: offer.memoryKind, text: offer.text, spaceId: offer.spaceId }, householdMoment(clock));
+      onDeviceMemoryKept?.();
       setStatus("kept");
     } catch (error) {
       setProblem(error instanceof Error ? error.message : "Couldn’t save on this device. Try again.");

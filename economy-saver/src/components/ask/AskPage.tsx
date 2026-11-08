@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Canvas } from "@/components/canvas/Canvas";
+import { DeviceMemoryView } from "@/components/memory/DeviceMemoryView";
+import { MemoryView } from "@/components/memory/MemoryView";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { DocumentCard, type CardForm } from "./DocumentCard";
 import { readAskStream } from "./read-stream";
 import { KeepOfferCard } from "./KeepOffer";
 import { SpaceBrief } from "./SpaceBrief";
-import { contextTail } from "@/lib/agent/context";
+import { contextTail, historyTail } from "@/lib/agent/context";
 import type { Brief, BriefRecord } from "@/lib/agent/brief";
 import type { KeepOffer } from "@/lib/agent/keep-offer";
 import type { ClockHousehold } from "@/db/clock";
@@ -19,7 +21,8 @@ import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
 import type { Place } from "@/db/place";
-import type { ConversationTurn, TurnKind } from "@/lib/schema/turn";
+import type { MemoryItem } from "@/lib/schema/memory";
+import { DEVICE_MEMORY_SOURCE_LABEL, memorySourceLabel, type ConversationTurn, type TurnKind, type TurnSource } from "@/lib/schema/turn";
 import {
   applyDeviceMemoryChanges, deleteDeviceConversation, deviceMemory, devicePins, listDevice, pinOnDevice, readDeviceBrief, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin, writeDeviceBrief,
 } from "@/lib/store/device";
@@ -30,13 +33,14 @@ import "./ask.css";
 
 export type TurnView = {
   id: string; question: string; kind: TurnKind; text: string; choices: string[] | null;
-  sources: { label: string; href: string }[]; links: { label: string; href: string }[]; thumb: 1 | -1 | null; documentId: string | null; offers?: KeepOffer[];
+  sources: TurnSource[]; links: { label: string; href: string }[]; thumb: 1 | -1 | null; documentId: string | null; offers?: KeepOffer[];
 };
 export type Drawn = { key: string; title: string; recipe: Recipe; blocks: ResolvedBlock[] };
 type Pin = { id: string; title: string };
 type SpaceChoice = { id: string; name: string; status: string };
 type Earlier = { id: string; question: string };
 type Places = { memory: Place; journal: Place; canvases: Place };
+type MemoryLinks = { notes: ReadonlyMap<string, string>; profile: ReadonlyMap<string, string> };
 
 const viewOf = (turn: ConversationTurn): TurnView => ({
   id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, sources: turn.sources, links: [], thumb: turn.thumb, documentId: turn.documentId ?? null,
@@ -59,11 +63,12 @@ const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays 
  * Ask (D60): the conversation beside the canvas. The question box, the microphone and Enter-to-ask are here; the top bar only links to this
  * page. A reply is chosen by the server (answer, a clarifying question with buttons, or a fixed decline); a canvas comes with it when it helps.
  */
-export function AskPage({ householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin, firstUse, unavailable, form, cloudBrief }: {
+export function AskPage({ householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin, firstUse, unavailable, form, cloudBrief, cloudMemory, memoryMoment }: {
   householdId: string; form: CardForm; places: Places; clock: ClockHousehold;
   space: SpaceChoice & { isGeneral: boolean }; spaces: SpaceChoice[]; earlier: Earlier[]; legacyId: string | null;
   pinId: string | null; pins: Pin[]; turns: TurnView[]; starters: Drawn[]; shown: Drawn | null; pin: Pin | null;
   firstUse: string | null; unavailable: string | null; cloudBrief: BriefRecord | null;
+  cloudMemory: { notes: MemoryItem[]; profileIds: string[]; totalCount: number }; memoryMoment: string;
 }) {
   // D59: a kind kept on this device is read from and written to this browser; the question carries what the server needs for it and the server keeps none of it.
   const onDevice = { memory: places.memory === "device", journal: places.journal === "device", canvases: places.canvases === "device" };
@@ -80,6 +85,15 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
   const [deviceReady, setDeviceReady] = useState(!onDevice.journal);
   const [deviceEarlier, setDeviceEarlier] = useState<Earlier[]>([]);
   const [latestBrief, setLatestBrief] = useState<BriefRecord | null>(null);
+  const [localMemoryLinks, setLocalMemoryLinks] = useState<MemoryLinks | null>(null);
+  const [notesVersion, setNotesVersion] = useState(0);
+  const notesChanged = () => setNotesVersion(version => version + 1);
+  const noteLinks = useCallback((items: MemoryItem[]) => {
+    setLocalMemoryLinks({
+      notes: new Map(items.filter(item => item.spaceId === space.id).map(item => [item.id, memorySourceLabel(item.text)])),
+      profile: new Map(items.filter(item => !item.spaceId).map(item => [item.id, memorySourceLabel(item.text)])),
+    });
+  }, [space.id]);
   const replyIsNewer = latestBrief !== null && (cloudBrief === null || latestBrief.updatedAt > cloudBrief.updatedAt);
   const brief = onDevice.journal || replyIsNewer ? latestBrief : cloudBrief;
   const [localPins, setLocalPins] = useState<Pin[]>([]);
@@ -241,11 +255,14 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       if (!local) return;
       const [memory, journal, storedBrief] = local;
       const tail = journal ? contextTail(threadOf(journal, conversationId)) : null;
+      const spaceIds = new Set(spaces.map(item => item.id));
+      const history = journal ? historyTail(journal.filter(turn => !turn.spaceId || spaceIds.has(turn.spaceId))) : undefined;
+      const visibleMemory = memory?.filter(item => !item.spaceId || spaceIds.has(item.spaceId));
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id, conversationId, spaceId: space.id, text: trimmed, source: how, canvas: canvas?.recipe ?? null,
-          ...(memory && { memory }),
-          ...(tail && { recent: tail.turns, earlierCount: tail.omitted, deviceBrief: storedBrief?.brief ?? {} }),
+          ...(visibleMemory && { memory: visibleMemory }),
+          ...(tail && { recent: tail.turns, earlierCount: tail.omitted, deviceBrief: storedBrief?.brief ?? {}, history }),
         }) });
       // A 503 carries a fixed message written for this box, such as a missing key.
       if (!response.ok) { setProblem(response.status === 401 ? SESSION_ENDED : response.status === 429 ? "Ask again in a minute." : response.status === 503 || response.status === 400 ? await response.text() : "Couldn’t check your household. Try again."); return; }
@@ -268,14 +285,15 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
         } catch (error) { setProblem(wordsOf(error)); }
       } else if (reply.brief) setLatestBrief(reply.brief);
       if (onDevice.memory && reply.memoryChanges.length > 0) {
-        try { await applyDeviceMemoryChanges(householdId, reply.memoryChanges); } catch (error) { setProblem(wordsOf(error)); }
+        try { await applyDeviceMemoryChanges(householdId, reply.memoryChanges); notesChanged(); }
+        catch (error) { setProblem(wordsOf(error)); }
       }
       if (reply.canvas) {
         canvasChosen.current = true;
         setCanvas({ key: reply.id, title: reply.canvas.recipe.title, recipe: reply.canvas.recipe, blocks: reply.canvas.blocks });
         scrollToCanvas();
       }
-      if (reply.pending) router.refresh();
+      if (reply.pending || (!onDevice.memory && reply.memoryChanged)) router.refresh();
     } catch { setProblem("Couldn’t reach your household. Try again."); }
     finally { setBusy(false); setStep(""); }
   }
@@ -336,6 +354,17 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
     <input type="hidden" name="returnTo" value={pinsReturnTo} />
   </>;
 
+  function sourceDisplay(item: TurnSource): { href?: string; label: string } {
+    if ("href" in item) return item;
+    const localNote = localMemoryLinks?.notes.get(item.id);
+    const localProfile = localMemoryLinks?.profile.get(item.id);
+    const note = onDevice.memory ? Boolean(localNote) : cloudMemory.notes.some(note => note.id === item.id);
+    const profile = onDevice.memory ? Boolean(localProfile) : cloudMemory.profileIds.includes(item.id);
+    const href = note ? `#memory-${item.id}` : profile ? `/memory#memory-${item.id}` : undefined;
+    const label = item.label === DEVICE_MEMORY_SOURCE_LABEL ? localNote ?? localProfile ?? item.label : item.label;
+    return { href, label };
+  }
+
   return <div className="ask-page">
     <section className="ask-conversation" aria-label="Conversation">
       <div className="ask-head">
@@ -350,8 +379,11 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       </details>
       {space.status === "archived" && <p className="ui-hint">Archived space</p>}
       {legacyId && <Link href={spaceHref} prefetch={false} className="ui-button">Back to General</Link>}
-      {!legacyId && <SpaceBrief id={space.id} record={brief} timeZone={clock.timeZone} ready={deviceReady}
-        readOnly={readOnly} busy={busy} saveOnDevice={onDevice.journal ? saveLocalBrief : undefined} />}
+      {!legacyId && <>
+        <SpaceBrief id={space.id} record={brief} timeZone={clock.timeZone} ready={deviceReady}
+          readOnly={readOnly} busy={busy} saveOnDevice={onDevice.journal ? saveLocalBrief : undefined} />
+        <a href="#space-notes" className="ask-notes-link">Space notes ↓</a>
+      </>}
       {earlierThreads.length > 0 && <details className="ask-spaces">
         <summary>Earlier conversations</summary>
         <ul>{earlierThreads.map(item => <li key={item.id}><Link className="ui-button" prefetch={false}
@@ -378,7 +410,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
           <p className="ask-question">{turn.question}</p>
           <p className={`ask-reply is-${turn.kind}`}>{turn.text}</p>
           {!readOnly && turn.offers?.map(offer => <KeepOfferCard key={JSON.stringify(offer)}
-            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} returnTo={spaceHref} />)}
+            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} returnTo={spaceHref} onDeviceMemoryKept={notesChanged} />)}
           {turn.kind === "document" && (turn.documentId
             ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} readOnly={readOnly} returnTo={spaceHref} onCard={takeCard}
               onCanvas={drawn => showDocumentCanvas(turn.documentId as string, drawn, true)} />
@@ -386,7 +418,12 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
           {!readOnly && turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
             <button key={choice} type="button" className="ui-button" disabled={busy} onClick={() => void ask(choice, "manual")}>{choice}</button>)}</div>}
           {turn.links.length > 0 && <div className="ask-links">{turn.links.map(link => <a key={link.href} className="ui-button primary" href={link.href}>{link.label}</a>)}</div>}
-          {turn.sources.length > 0 && <p className="ask-sources ui-hint">Based on: {turn.sources.map((item, index) => <span key={item.href + item.label}>{index > 0 && ", "}<a href={item.href}>{item.label}</a></span>)}</p>}
+          {turn.sources.length > 0 && <p className="ask-sources ui-hint">Based on: {turn.sources.map((item, index) => {
+            const { href, label } = sourceDisplay(item);
+            return <span key={"href" in item ? item.href + item.label : item.id}>
+              {index > 0 && ", "}{href ? <a href={href}>{label}</a> : label}
+            </span>;
+          })}</p>}
           {!readOnly && turn.kind === "answer" && <div className="ask-thumbs">
             <button type="button" className="ui-button" aria-pressed={turn.thumb === 1} onClick={() => void thumb(turn, 1)}>Helpful</button>
             <button type="button" className="ui-button" aria-pressed={turn.thumb === -1} onClick={() => void thumb(turn, -1)}>Not helpful</button>
@@ -445,6 +482,11 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
           </ApiForm>
         </div>)}
       </Canvas>}
+      {!legacyId && (onDevice.memory
+        ? <DeviceMemoryView householdId={householdId} spaceId={space.id} timeZone={clock.timeZone} momentNow={memoryMoment}
+          readOnly={readOnly} refreshKey={notesVersion} onItems={noteLinks} />
+        : <MemoryView items={cloudMemory.notes} timeZone={clock.timeZone} spaceId={space.id} readOnly={readOnly}
+          totalCount={cloudMemory.totalCount} />)}
     </section>
   </div>;
 }

@@ -106,7 +106,7 @@ const GRADES: Record<AgentCase, Grade> = {
   whats_due(o) {
     if (failed(o)) return failed(o);
     if (!used(o, "whats_due", "timeline")) return "It called neither whats_due nor timeline.";
-    return kindIs(o, "answer") ?? (o.result!.sources.some(s => s.href.includes("coming-up")) ? null : "The answer did not come from the coming-up list.");
+    return kindIs(o, "answer") ?? (o.result!.sources.some(s => "href" in s && s.href.includes("coming-up")) ? null : "The answer did not come from the coming-up list.");
   },
   declines_stock(o) {
     if (failed(o)) return failed(o);

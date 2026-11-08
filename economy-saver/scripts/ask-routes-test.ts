@@ -92,26 +92,33 @@ async function main() {
     // ------------------------------------------------------------ /api/ask: body, input, limit
     cookie = a;
     const MAX = 128 * 1024;
-    const pad = (size: number) => JSON.stringify({ ...question(), memory: [], pad: "x".repeat(size) });
+    const pad = (size: number, device = false) => JSON.stringify({ ...question(), ...(device && { memory: [] }), pad: "x".repeat(size) });
     const encoded = (text: string) => new TextEncoder().encode(text).length;
     const room = MAX - encoded(pad(0));
     const atLimit = await say(await ask(json("/api/ask", pad(room))));
     assert.equal(encoded(pad(room)), MAX);
-    assert.notEqual(atLimit.text, "That is more than one question can carry. Delete some of what the assistant remembers, or start a new conversation.", "exactly 128 KiB is not too big");
+    assert.notEqual(atLimit.text, "That is more than one question can carry. Delete some of what the assistant remembers, or ask in a new space.", "exactly 128 KiB is not too big");
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
     const over = await say(await ask(json("/api/ask", pad(room + 1))));
-    assert.deepEqual([over.status, over.text], [400, "That is more than one question can carry. Delete some of what the assistant remembers, or start a new conversation."]);
+    assert.deepEqual([over.status, over.text], [400, "That is more than one question can carry. Delete some of what the assistant remembers, or ask in a new space."]);
     assert.equal(over.headers.get("cache-control"), "private, no-store");
     const multibyte = "あ".repeat(Math.ceil(MAX / 3) + 1); // few characters, over the limit in bytes
     assert.ok(multibyte.length < MAX && encoded(multibyte) > MAX);
     assert.equal((await ask(json("/api/ask", multibyte))).status, 400);
     assert.equal(await requestCount(db, a, "ask"), 0, "an oversize body spends no request");
-    ok("/api/ask: 128 KiB (counted in bytes, not characters) is the limit; over it is 400 with the fixed sentence and no request spent");
+    const deviceRoom = 512 * 1024 - encoded(pad(0, true));
+    const deviceAtLimit = await say(await ask(json("/api/ask", pad(deviceRoom, true))));
+    assert.match(deviceAtLimit.text, /keeps its memory in our cloud/, "a 512 KiB device request reaches placement validation");
+    await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
+    const deviceOver = await say(await ask(json("/api/ask", pad(deviceRoom + 1, true))));
+    assert.deepEqual([deviceOver.status, deviceOver.text], [400, over.text]);
+    assert.equal(await requestCount(db, a, "ask"), 0, "an oversize device body spends no request");
+    ok("/api/ask: ordinary and device caps are 128 and 512 KiB in bytes, and an oversize request spends no request");
 
     for (const [label, body] of [["not JSON", "{nope"], ["empty body", ""], ["JSON null", "null"], ["an array", "[]"], ["no id", JSON.stringify({ ...question(), id: undefined })],
       ["an id that is not a uuid", JSON.stringify(question({ id: "1" }))], ["blank text", JSON.stringify(question({ text: "   " }))], ["321 characters", JSON.stringify(question({ text: "a".repeat(321) }))],
       ["a source that is neither", JSON.stringify(question({ source: "telepathy" }))], ["a canvas that is not a recipe", JSON.stringify(question({ canvas: { blocks: "no" } }))],
-      ["201 memory items", JSON.stringify(question({ memory: Array.from({ length: 201 }, () => ({})) }))], ["four recent turns", JSON.stringify(question({ recent: [{}, {}, {}, {}] }))]] as const) {
+      ["201 memory items", JSON.stringify(question({ memory: Array.from({ length: 201 }, () => ({})) }))], ["invalid recent turns", JSON.stringify(question({ recent: [{}, {}, {}, {}] }))]] as const) {
       const answer = await say(await ask(json("/api/ask", body)));
       assert.deepEqual([answer.status, answer.text], [400, "Enter a question of up to 320 characters."], label);
     }

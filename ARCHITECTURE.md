@@ -31,7 +31,7 @@ Cloudflare
     │   ├── /start (Start with my numbers), /login, /onboarding, /join/[token] (D68)
     │   └── /family/[token]: no session; the token resolves to a household (D52); no-store, noindex, no referrer
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
-    │   ├── /api/ask               one question in a verified space `{ id, spaceId, text, source, canvas }`; body at most 128 KiB; the checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers, or an error line)
+    │   ├── /api/ask               one question in a verified space `{ id, spaceId, text, source, canvas }`; body at most 128 KiB, or 512 KiB with device data. Checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers, or an error line)
     │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, `spaceId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 503 a setting missing and named, 502 a service failed, 500 anything else)
     │   ├── /api/ask/thumb         `{ id, thumb }` on one reply; one content-free log line
     │   ├── /api/canvases          pins on Home and in spaces (D57, D69): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
@@ -188,12 +188,12 @@ Nov 12; Web Push after.
 
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
-| 1. Question | `AskPage.tsx` (`/canvas?space=<id>`, General by default; the top and phone Ask links open /canvas#ask on Enter or Space, and hand a typed character over in `sessionStorage` `pes-ask-draft`; browser shortcuts keep their usual behavior) → POST /api/ask | the canvas on screen. Device memory and the selected space’s journal context ride in the body when stored locally | nothing | the question in the conversation |
+| 1. Question | `AskPage.tsx` (`/canvas?space=<id>`, General by default; the top and phone Ask links open /canvas#ask on Enter or Space, and hand a typed character over in `sessionStorage` `pes-ask-draft`; browser shortcuts keep their usual behavior) → POST /api/ask | the canvas on screen, plus device profile, notes, brief and history when stored locally | nothing | the question in the conversation |
 | 2. Gate | `answerQuestion` (`src/db/ask.ts`) | the selected household space; `readPlaces`; `turnById` and `askReceipt` for a retried id (cloud journal); `askReceipt` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
 | 3. Context | `assembleContext` (`src/db/ask.ts`) | rules, profile (6,000 characters), brief (2,000), space notes (3,000), recent turns (12,000), their live document cards, then canvas | nothing | — |
 | 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | the assembled context and tool catalogue. `aiConnection(db, hid, "text")` supplies the connection per call | nothing | — |
 | 5. Tools | the catalogue over the engine; the read tools of one model turn run together (`callAll`), draft tools alone in the order asked, results in the order asked | the money state, loaded once per tool turn | draft tools: pending rows in To check, an invoice draft, a memory item (`made_by = ask`, `ask_id`) | the latest step in fixed words (`TOOL_WORDS`) in the line under the box |
-| 6. Reply kind and brief | `chooseReply` (`reply.ts`) + `unconfirmedAmounts` | the question, its tool results and memory for the answer. A brief update can cite amounts only from this question’s tool results | nothing | — |
+| 6. Reply kind and brief | `chooseReply` (`reply.ts`) + `unconfirmedAmounts` | the question, its tool results and memory for the answer. Memory source ids are checked in code. A brief update uses amounts only from this question’s tool results | nothing | — |
 | 7. Save | after a declined reply `consumeRequest` decides the limit atomically; `saveTurn`; `resolveRecipe` draws the canvas | `loadCanvasContext` | the turn, then the accepted brief. Cloud saves record a content-free `brief_updated` event | the reply, the canvas, "Based on", pins, thumbs and the updated brief |
 
 ```mermaid
@@ -227,14 +227,13 @@ attempt asks for its own connection); the ask limit is 30 a minute; declined que
 **Context budget (D71).** `assembleContext` assembles Ask context from fixed rules, then profile items up to
 6,000 characters, the space brief up to 2,000, and up to 3,000 characters of the newest space notes. The recent
 thread is a contiguous suffix up to 12,000 characters. The context states how many earlier turns remain in the
-thread. It includes the live `cardContext` for each document in that suffix, then the canvas on screen. The model
+thread and points the model to `search_history`. It includes the live `cardContext` for each document in that suffix, then the canvas on screen. The model
 gets its tool catalogue with that context. The same thread can continue after any interval. Amounts from earlier
-turns, the brief and document card text are read again from current tools before being used in an answer.
+turns, the brief, document card text and history search results are read again from current tools before being used in an answer.
 
-**The tools (one catalogue, `src/lib/agent/tools.ts`).** Twenty read tools return the engine's numbers, which the model quotes verbatim in one or
-two sentences: `where_am_i`, `whats_due`, `open_gaps`, `can_i_spend`, `list_clients_and_cards`, `timeline`, `options_when_short`, `list_invoices`,
+**The tools (one catalogue, `src/lib/agent/tools.ts`).** Read tools return the engine’s numbers and relevant context: `where_am_i`, `whats_due`, `open_gaps`, `can_i_spend`, `list_clients_and_cards`, `timeline`, `options_when_short`, `list_invoices`,
 `household_snapshot`, `plan_for`, `who_owes_whom`, `month_by_category`, `search_spending`, `bills_for_month`, `regular_costs`, `foreign_costs`, `what_if`, `make_canvas`,
-`recall`, `to_check`. `bills_for_month` (input `{ month, text }`, D63) lists the stored bills, confirmed or waiting in To check, past or due later up to two years ahead, whose period overlaps the month ("November's electricity" is the bill that says 11月分, though it is paid in December): `billsForMonth` in `src/lib/money/period.ts` builds the summary in code and the totals per currency, `loadPeriodBills` in `src/db/spending.ts` reads the rows, and its note says a bill with no period counts by its due date and points to `month_by_category`; its step words are "Finding the bills for that month" and its "Based on" source is Plan. `what_if` runs the engine on a copy of the household (`src/lib/money/whatif.ts`), so nothing is written. `make_canvas` takes a
+`recall`, `search_history`, `to_check`. `bills_for_month` (input `{ month, text }`, D63) lists the stored bills, confirmed or waiting in To check, past or due later up to two years ahead, whose period overlaps the month ("November's electricity" is the bill that says 11月分, though it is paid in December): `billsForMonth` in `src/lib/money/period.ts` builds the summary in code and the totals per currency, `loadPeriodBills` in `src/db/spending.ts` reads the rows, and its note says a bill with no period counts by its due date and points to `month_by_category`; its step words are "Finding the bills for that month" and its "Based on" source is Plan. `what_if` runs the engine on a copy of the household (`src/lib/money/whatif.ts`), so nothing is written. `make_canvas` takes a
 recipe as JSON text, checks it, has the engine fill it and returns a summary; the last valid recipe of the question becomes the reply's canvas (a
 note's `by` is forced to the assistant). `household_snapshot` gives the whole household as one JSON document for context (the most recent 100 rows of
 each long list, `SNAPSHOT_TOOL_WINDOW`; no events, no secrets). `list_clients_and_cards` and `list_invoices` return each client's usual and slowest
@@ -288,7 +287,7 @@ leaves the previous brief in place. Ask shows the Space brief with "Agent update
 fields, with each State line entered as `source | detail`. A cloud save posts `kind=brief` to `/api/spaces`.
 
 **The turn and the page.** The turn (question, kind, reply, choices, recipe, sources) is stored in `conversation_turns`
-(`src/db/conversation.ts`) and a thread keeps its turns until deletion; the reply carries kind, text, choices, the canvas the engine drew, "Based on" links to the pages the tools read,
+(`src/db/conversation.ts`) and a thread keeps its turns until deletion; the reply carries kind, text, choices, the canvas the engine drew, "Based on" sources from the tools and the individual profile items and space notes the model cited,
 links, `pending`, the first-use line (`firstUse(host)`, shown until the household's first answer, D60), `memoryChanges` and `wait`. The page shows
 "Pin to Home" in General or "Pin to this space" in a task space (saves through `/api/canvases` for cloud pins), and two thumb buttons (`/api/ask/thumb`, a content-free line with the ids and the thumb).
 Each Ask writes one content-free JSON line to standard output (`src/lib/agent/log.ts`: household id, `ask_id`, source, reply kind, whether it had a
@@ -305,22 +304,35 @@ stored bill's id: the chart rings the first day that bill falls on in the window
 "Marked: …") and the timeline rows of that bill get `marked` and read "This bill"; a bill not in the window (repeating bills exist only inside the
 plan window, about 30 days) draws no mark. A `flow_chart` or `events` block expands the state through its `days`. A `foreign_costs` block (D62) shows the total cost ("about" when estimated) as a number, or a row per client and per card, then Total, as a table; `loadCanvasContext` (`request.ts`) loads the foreign-cost inputs only when `asksForeignCosts(recipe)`, and it has no starter. A `bills_for_month` table (D63) lists the bills whose period overlaps the month, a row per bill and per-currency totals, with the same note as the tool; `loadCanvasContext` loads `periodBills` only when `asksPeriodBills(recipe)`. A `{ q: "goals" }` progress block (D66) reads confirmed dated pots from the current money state and shows each goal’s amounts, deadline and pace. The recipe holds only the query, so a Home pin reflects later pot edits.
 
-**Memory (D58).** `MemoryItem`s (kind fact, preference, goal, instruction or correction; 1 to 400 characters; 200 a household; a long digit run is
-refused with `SECRET_REFUSAL`) live in `memories` through `src/db/memory.ts`, one function per change, each change an event with titles only.
-`memoryContext` quotes them as JSON, instructions first, within 6,000 characters. The To check card's "Also tell the assistant" box saves a correction
-as a memory item in the same transaction as the confirm (`correctionText`, `src/lib/reader/correction.ts`).
+**Profile and space notes (D58, D70).** `MemoryItem`s keep the kind, text, source and dates. A household can keep
+200 items total, each up to 400 characters. A null `space_id` puts an item in the profile, which is available in every space.
+A note’s `space_id` limits its automatic context to that space. The Profile tab and the selected space’s note editor show
+the saved items. Profile’s Forget everything clears the profile. Forget space notes clears the selected space’s notes.
+Your data can delete the entire memory category. `recall` reads the profile or a named space. An explicit `remember` or a confirmed Keep this? memory
+offer goes to the current space unless the person says it is standing information, such as "always" or "from now on".
+Standing information goes to the profile. The To check card’s "Also tell the assistant" box saves a profile correction
+with the confirmation. Cloud writes use `src/db/memory.ts` under the household role and emit content-free Activity events.
 
-**When memory or the journal is kept on this device (D59).** The question carries what the server must not keep: `memory` (at most 200 items) and
-the selected space’s budgeted recent turns and brief ride in the body. The request validates which data belongs
-to the device. The server uses local context for the question and saves no copies of the device’s turn, memory or brief. `remember` and `forget` change the list in hand and come back in the reply as `memoryChanges`, which the browser applies to its own store; the
-browser saves the turn itself. A thumb is kept on the device and still writes the content-free log line. MCP `recall`, `remember` and `forget` answer
-"This household keeps its memory on one device. Ask in the app on that device." and touch nothing.
+**History and sources (D70).** The read tool `search_history` in Ask and MCP accepts `{ text, space? }`, with an optional
+space name or id. `src/db/history.ts` searches the household’s turn questions, replies and memory text for a literal
+substring, including English and Japanese. The trigram indexes from 0030 support the database search. It returns up to
+ten newest matches with their dates, space names and matching lines. Results are context for choosing current read tools.
+The model cites an individual note or profile item with `[[memory:<id>]]`. `run.ts` checks the id against the memory the
+model saw in context or through a memory read, removes the marker from the display text, and stores a
+`{ kind: "memory", id, label }` turn source for Based on. A visible item links to its note or profile entry. A cloud journal stores a neutral label for a device-memory citation. The browser that holds the item can display its text.
+
+**When memory or the journal is kept on this device (D59).** The browser sends the profile and scoped notes when memory
+is local. For a local journal it sends the selected space’s brief and recent turns and a newest-first search window with
+up to 64 KiB of serialized history entries. `search_history` searches the device history present in the request. The server
+uses the device data for that question and leaves storage to the browser. Local memory changes return as `memoryChanges`.
+The browser saves its turn, accepted brief and thumb. MCP sees cloud-held data, and device-held text is available only
+to Ask requests from the device.
 
 **How MCP differs.** An MCP client presents a bearer token → `authenticateMcpToken` (`api_tokens`, hashed) → household; the same-origin check applies
 when an Origin header is present; the limit is 30 a minute. `mcpRequest` (`src/lib/mcp/server.ts`) builds a stateless SDK server per request with
 `MODEL_RULES` as its `instructions` and registers tools eligible for MCP. Draft tools require the
-`draft` scope: where am I, what's due, draft an invoice, `what_if`, `make_canvas` (its summary text; nothing is stored or pinned from MCP), `recall`,
-`foreign_costs`, and `remember`/`forget` for a draft token. Rows it writes carry `made_by = mcp`. Each tool call writes the same kind of content-free
+`draft` scope. Read tools include where am I, what’s due, `what_if`, `make_canvas` for a text summary, `recall`,
+`search_history` and `foreign_costs`. Draft tokens can also draft an invoice, remember or forget. Rows it writes carry `made_by = mcp`. Each tool call writes the same kind of content-free
 log line. There is no conversation, no canvas drawing and no reply chooser; sending still needs the tap in the app.
 
 ### 3. The reader loop: a bill arrives
@@ -443,7 +455,7 @@ Try it and Reset also run the suggestion pass on Ben’s fixed date after the de
 
 observeRunway runs before and after, so a change from short to fine or back is recorded. A late charge confirmation and statement closing share the household lock, which keeps the charge counted once. Confirmed charges after a card’s latest stored statement are grouped by their closing cycle.
 
-**Keep this? (D67).** The Ask-only offer_keep tool collects up to three distinct proposals for a memory, a dated goal pot or a fixed rule. Code checks the proposed text and amounts and excludes items the household already keeps. The streamed answer carries the offers. They are transient in the current conversation view. Keep uses `/api/memory`, `/api/pots` or `/api/rules`. It uses the existing IndexedDB operation when Memory is on this device. No dismisses the card in the view.
+**Keep this? (D67).** The Ask-only offer_keep tool collects up to three distinct proposals for a memory, a dated goal pot or a fixed rule. Code checks the proposed text and amounts and excludes items the household already keeps. The streamed answer carries the offers. They are transient in the current conversation view. Keep uses `/api/memory`, `/api/pots` or `/api/rules`. Memory offers target the current space or the profile according to the person’s wording. The device operation applies the same scope when memory is local. No dismisses the card in the view.
 
 ## Data: where it lives and how it is shared
 
@@ -616,7 +628,7 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
   AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10. Declined questions, uploads, Ask's attach, retries and forwarded email, Try it,
   Start with my numbers, document reads and model calls (the server's key or a household's own) have no cap. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): sign-in links 5 an hour. `households.ai_reads_today`, `ai_reads_day` and the table `ai_global_usage` exist in the schema and are unused; PLAN.md has the migration that drops them.
 - The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB, `/api/ask` at
-  128 KiB, `/api/canvas/resolve` at 100,000 bytes, `/api/data/move` at 2 MB and `/api/restore` at 1 MB; sign-in links return to the required
+  128 KiB for cloud context or 512 KiB for device context, `/api/canvas/resolve` at 100,000 bytes, `/api/data/move` at 2 MB and `/api/restore` at 1 MB; sign-in links return to the required
   `APP_URL`, never to the request's Origin header.
 - No server-side image or PDF processing (Workers' CPU budget); files go to the model as uploaded.
 - **One household schema (D44).** `HouseholdSnapshot` (`src/lib/schema/household.ts`, strict zod, version 3) is the one description of a

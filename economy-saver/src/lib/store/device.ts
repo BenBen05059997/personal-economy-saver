@@ -4,7 +4,7 @@
 import type { DeviceBrief } from "@/lib/schema/device-brief";
 import type { MemoryItem } from "@/lib/schema/memory";
 import type { ConversationTurn } from "@/lib/schema/turn";
-import { applyMemoryChanges, addMemoryItem, editMemoryItem, forgetMemoryItem, sortMemory } from "./memory-ops";
+import { applyMemoryChanges, addMemoryItem, editMemoryItem, forgetMemoryItem, inMemoryScope, sortMemory } from "./memory-ops";
 import { movePin, orderedPins, pinItem, unpinItem, updatePin, type DevicePin } from "./journal-ops";
 
 const DEVICE_KINDS = ["memory", "canvases", "journal"] as const;
@@ -87,26 +87,31 @@ export async function clearDevice(householdId: string, kind: DeviceKind): Promis
 // ------------------------------------------------------------------ memory
 /** The household's moment now: `moment` (ISO, from the server) plus the time passed since `openedAt` (a browser clock reading). */
 export const householdMomentSince = (moment: string, openedAt: number): Date => new Date(Date.parse(moment) + (Date.now() - openedAt));
-export const deviceMemory = async (householdId: string): Promise<MemoryItem[]> => sortMemory(await listDevice(householdId, "memory"));
+export const deviceMemory = async (householdId: string, spaceId?: string | null): Promise<MemoryItem[]> => sortMemory((await listDevice(householdId, "memory")).filter(item => inMemoryScope(item, spaceId)));
 export async function applyDeviceMemoryChanges(householdId: string, changes: unknown): Promise<void> {
   await replaceDevice(householdId, "memory", applyMemoryChanges(await listDevice(householdId, "memory"), changes));
 }
-export async function addDeviceMemory(householdId: string, input: { kind: string; text: string }, now: Date): Promise<MemoryItem> {
+export async function addDeviceMemory(householdId: string, input: { kind: string; text: string; spaceId?: string | null }, now: Date): Promise<MemoryItem> {
   const result = addMemoryItem(await listDevice(householdId, "memory"), input, { madeBy: "form" }, now, crypto.randomUUID());
   if (result.added) await replaceDevice(householdId, "memory", result.items);
   return result.item;
 }
-export async function editDeviceMemory(householdId: string, id: string, changes: { kind?: string; text?: string }, now: Date): Promise<MemoryItem | null> {
+export async function editDeviceMemory(householdId: string, id: string, changes: { kind?: string; text?: string; spaceId?: string | null }, now: Date): Promise<MemoryItem | null> {
   const result = editMemoryItem(await listDevice(householdId, "memory"), id, changes, now);
   if (!result) return null;
   await replaceDevice(householdId, "memory", result.items);
   return result.item;
 }
-export async function forgetDeviceMemory(householdId: string, id: string): Promise<boolean> {
-  const result = forgetMemoryItem(await listDevice(householdId, "memory"), id);
+export async function forgetDeviceMemory(householdId: string, id: string, spaceId?: string | null): Promise<boolean> {
+  const result = forgetMemoryItem(await listDevice(householdId, "memory"), id, spaceId);
   if (result.removed) await replaceDevice(householdId, "memory", result.items);
   return result.removed;
 }
+
+export async function forgetDeviceMemoryScope(householdId: string, spaceId: string | null): Promise<void> {
+  await replaceDevice(householdId, "memory", (await listDevice(householdId, "memory")).filter(item => !inMemoryScope(item, spaceId)));
+}
+
 
 // ------------------------------------------------------------------ journal
 function journalSnapshot(tx: IDBTransaction, onRead?: (value: DeviceJournal) => void): () => DeviceJournal {

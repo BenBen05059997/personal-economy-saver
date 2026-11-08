@@ -5542,24 +5542,52 @@
           "sources": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "label": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 60
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 60
+                    },
+                    "href": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "href"
+                  ],
+                  "additionalProperties": false
                 },
-                "href": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 200
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "const": "memory"
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 60
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "label"
+                  ],
+                  "additionalProperties": false
                 }
-              },
-              "required": [
-                "label",
-                "href"
-              ],
-              "additionalProperties": false
+              ]
             }
           },
           "documentId": {

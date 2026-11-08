@@ -51,7 +51,8 @@ async function tabContent(tx: Db, hid: string, tab: MemoryTab) {
   if (places.memory === "device") {
     return <DeviceMemoryView householdId={hid} timeZone={household.timeZone} momentNow={householdMoment(household).toISOString()} />;
   }
-  return <MemoryView items={await listMemory(tx, hid)} timeZone={household.timeZone} />;
+  const items = await listMemory(tx, hid);
+  return <MemoryView items={items.filter(item => !item.spaceId)} totalCount={items.length} timeZone={household.timeZone} />;
 }
 
 async function Memory({ search }: { search: Search }) {

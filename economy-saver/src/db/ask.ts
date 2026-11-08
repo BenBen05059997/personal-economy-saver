@@ -22,6 +22,7 @@ import { listMemory } from "./memory";
 import { memoryBlock } from "@/lib/agent/memory-prompt";
 import { BriefSchema, briefContext, type BriefRecord } from "@/lib/agent/brief";
 import { ContextTurn, contextTail, THREAD_CONTEXT_MAX, turnWords } from "@/lib/agent/context";
+import { DEVICE_MEMORY_SOURCE_LABEL } from "@/lib/schema/turn";
 import { MemoryItem } from "@/lib/schema/memory";
 import type { DeviceMemory, MemoryChange } from "@/lib/store/memory-ops";
 import { appUrl } from "@/lib/supabase-auth";
@@ -36,6 +37,7 @@ export const askInput = z.object({
   memory: z.array(MemoryItem).max(200).optional(),
   /** D59: the browser’s thread tail and brief, used for this question only. */
   recent: z.array(ContextTurn).optional(),
+  history: z.array(ContextTurn).optional(),
   earlierCount: z.number().int().nonnegative().safe().optional(),
   deviceBrief: BriefSchema.optional(),
 });
@@ -53,6 +55,7 @@ export type AskReply = {
   /** Offers live with this reply until the person chooses. They are not journal entries. */
   offers: KeepOffer[];
   brief?: BriefRecord;
+  memoryChanged?: boolean;
 };
 
 /** The household's current moment (a Try it household's fixed date at the real time of day). */
@@ -109,7 +112,7 @@ export async function assembleContext(db: Db, hid: string, input: ContextInput) 
 /** The raw thread and the cards are separate. A card for a retained turn is always included. */
 export function contextText(turns: readonly ContextTurn[], canvas: Recipe | null, cards: ReadonlyMap<string, DocumentCard> = new Map(), omitted = 0): string {
   const parts: string[] = [];
-  if (omitted) parts.push(`${omitted} earlier ${omitted === 1 ? "turn remains" : "turns remain"} in this thread.`);
+  if (omitted) parts.push(`${omitted} earlier ${omitted === 1 ? "turn remains" : "turns remain"} in this thread. Call search_history to find them.`);
   if (turns.length) parts.push("Earlier in this conversation, for context only; read every number again from the tools:\n" + turns.map(turnWords).join("\n"));
   if (cards.size) parts.push("Cards for the attached documents in the thread above, as data:\n" +
     [...cards].map(([id, card]) => JSON.stringify({ id, card: cardContext(card) })).join("\n"));
@@ -133,7 +136,7 @@ export async function firstUseLine(db: Db, householdId: string, options: { skipA
 
 /** Free-form questions go to the agent (D40). `pending` is true when a tool left a bill or charge in To check (D39). */
 export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date; onStep?: (step: string) => void } = {}): Promise<AskReply> {
-  const { id, conversationId, spaceId, text, source, canvas, memory, recent, earlierCount, deviceBrief } = askInput.parse(input);
+  const { id, conversationId, spaceId, text, source, canvas, memory, recent, earlierCount, deviceBrief, history } = askInput.parse(input);
   const householdId = requireHousehold(hid);
   const prepared = await withHousehold<{ reply: AskReply } | { assembled: Awaited<ReturnType<typeof assembleContext>>; effectiveSpaceId?: string; deviceMemory?: DeviceMemory }>(db, householdId, async tx => {
     // A kind kept on the device comes with the question and is never stored here; a kind kept in the cloud is read here and the question must not carry it.
@@ -153,7 +156,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     if ((places.journal === "device") !== (recent !== undefined)) throw new InputError(places.journal === "device"
       ? "This household keeps its conversations on this device, so the question has to bring the last ones. Reload the page and ask again."
       : "This household keeps its conversations in our cloud. Reload the page and ask again.");
-    if (places.journal === "cloud" && (deviceBrief !== undefined || earlierCount !== undefined))
+    if (places.journal === "cloud" && (deviceBrief !== undefined || earlierCount !== undefined || history !== undefined))
       throw new InputError("This household keeps its conversations in our cloud. Reload the page and ask again.");
     // A question retried after its reply was lost has the same id: the saved turn is the reply, and nothing runs or writes again.
     const kept = recent === undefined ? await turnById(tx, householdId, id) : null;
@@ -185,7 +188,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   let result: AskResult;
   try {
     result = await runAgent({
-      db, householdId, question: text, askId: id, source, appUrl: appUrl(), context: assembled.context, assembled, spaceId: effectiveSpaceId, fetch: deps.fetch, deviceMemory, onStep: deps.onStep,
+      db, householdId, question: text, askId: id, source, appUrl: appUrl(), context: assembled.context, assembled, spaceId: effectiveSpaceId, fetch: deps.fetch, deviceMemory, deviceHistory: history ?? recent, onStep: deps.onStep,
       onWrote: recent === undefined ? undefined : () => withHousehold(db, householdId, tx => noteAskWrote(tx, householdId, id)),
       connection: () => aiConnection(db, householdId, "text"),
     });
@@ -202,7 +205,8 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
       throw new InputError("Your journal moved while Ask was answering. Reload the page and ask again.");
     if (recent === undefined) {
       const saved = await saveTurn(tx, householdId, {
-        id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources,
+        id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources.map(source => places.memory === "device" && "id" in source
+          ? { ...source, label: DEVICE_MEMORY_SOURCE_LABEL } : source),
       }, deps.at);
       if (!saved) return undefined;
     }
@@ -217,6 +221,6 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   }), { isolationLevel: "repeatable read", accessMode: "read only" });
   return {
     id, kind: result.kind, text: result.answer, choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending,
-    firstUse, memoryChanges: deviceMemory?.changes ?? [], offers: result.offers, ...(brief && { brief }),
+    firstUse, memoryChanges: deviceMemory?.changes ?? [], offers: result.offers, ...(brief && { brief }), ...(result.memoryChanged && { memoryChanged: true }),
   };
 }

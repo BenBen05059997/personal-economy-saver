@@ -10,10 +10,16 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { createHousehold, setupForm } from "@/db/account";
+import { saveTurn } from "@/db/conversation";
+import { resolveMemorySpace, searchHistory } from "@/db/history";
 import { findDemoHousehold, resetDemoHousehold } from "@/db/demo";
 import { InputError } from "@/db/input-error";
 import { addMemory, deleteMemory, editMemory, forgetEverything, listMemory } from "@/db/memory";
 import { seedBen } from "@/db/seed";
+import { archiveSpace, createSpace, generalSpace } from "@/db/spaces";
+import { moveToDevice } from "@/db/place";
+import { historyTools } from "@/lib/agent/history-tools";
+import type { ContextTurn } from "@/lib/agent/context";
 import { aiConnection } from "@/db/ai-key";
 import { householdDate } from "@/db/account";
 import { loadMoneyState } from "@/db/household";
@@ -292,6 +298,114 @@ async function main() {
         assert.ok(systems.every(sy => sy.includes("¥300,000 for a trip in March") && sy.includes("never override the rules above")));
         assert.ok(JSON.stringify(result).includes("¥300,000"));
       } finally { for (const [n, v] of Object.entries(saved)) { if (v === undefined) delete process.env[n]; else process.env[n] = v; } }
+    });
+
+    await check("remember writes the supplied scope and recall separates Profile, current notes and a named space", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const task = await createSpace(db, hid, "Fictional first space");
+      const other = await createSpace(db, hid, "Fictional second space");
+      const base = ctxOf(hid);
+      const remember = tool("remember"), recall = tool("recall");
+      const put = (ctx: ToolContext, text: string) => remember.run(ctx, remember.input.parse({ kind: "fact", text }) as never);
+      const get = async (ctx: ToolContext, args: unknown = {}) => (JSON.parse(
+        await recall.run(ctx, recall.input.parse(args) as never),
+      ) as { text: string }[]).map(item => item.text).sort();
+      await put({ ...base, spaceId: task.id, memorySpaceId: task.id }, "First-space note");
+      await put({ ...base, spaceId: other.id, memorySpaceId: other.id }, "Second-space note");
+      await put({ ...base, spaceId: task.id }, "Standing Profile fact");
+      assert.deepEqual(await get({ ...base, spaceId: task.id }), ["First-space note", "Standing Profile fact"]);
+      assert.deepEqual(await get({ ...base, madeBy: "mcp" }), ["Standing Profile fact"]);
+      assert.deepEqual(await get(base, { space: other.name.toUpperCase() }), ["Second-space note"]);
+      await archiveSpace(db, hid, task.id);
+      assert.deepEqual(await get(base, { space: task.id }), ["First-space note"]);
+      assert.deepEqual((await listMemory(db, hid, null)).map(item => item.text), ["Standing Profile fact"]);
+    });
+
+    await check("history finds exact English and Japanese lines under the tenant role, including General’s legacy turns", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const own = await createSpace(db, hid, "Fictional utilities");
+      const foreign = await createSpace(db, b, "Fictional utilities");
+      const english = randomUUID(), japanese = randomUUID(), general = randomUUID();
+      const turn = { kind: "answer" as const, choices: null, recipe: null, sources: [] };
+      const at = (day: number) => new Date(Date.UTC(2026, 10, day));
+      await saveTurn(db, hid, { ...turn, id: english, conversationId: own.id, question: "Review the bill.", reply: "First line.\nElectricity falls due next week.\nLast line." }, at(10));
+      await saveTurn(db, hid, { ...turn, id: general, conversationId: randomUUID(), question: "Legacy electricity question", reply: "Earlier conversation." }, at(9));
+      await saveTurn(db, b, { ...turn, id: randomUUID(), conversationId: foreign.id, question: "Electricity from another household", reply: "Private." }, at(15));
+      await db.insert(schema.memories).values([
+        { id: japanese, householdId: hid, spaceId: own.id, kind: "fact", text: "家計のメモ\n十一月の電気代を確認する。", createdAt: at(11) },
+        { householdId: hid, kind: "fact", text: "Electricity is a household expense.", createdAt: at(8) },
+        { householdId: b, spaceId: foreign.id, kind: "fact", text: "別世帯の電気代", createdAt: at(16) },
+      ]);
+      const found = await searchHistory(db, hid, { text: "eLeCtRiCiTy" });
+      assert.deepEqual(found.hits.map(x => [x.space, x.line]), [
+        [own.name, "Electricity falls due next week."],
+        ["General", "Legacy electricity question"],
+        ["Profile", "Electricity is a household expense."],
+      ]);
+      assert.deepEqual(found.unavailable, []);
+      assert.deepEqual((await searchHistory(db, hid, { text: "電気代", space: own.name.toUpperCase() })).hits, [
+        { kind: "memory", id: japanese, date: at(11).toISOString(), space: own.name, line: "十一月の電気代を確認する。" },
+      ]);
+      assert.deepEqual((await searchHistory(db, hid, { text: "electricity", space: "General" })).hits.map(x => x.id), [general]);
+      assert.deepEqual((await searchHistory(db, hid, { text: "electricity", space: own.id })).hits.map(x => x.id), [english]);
+      await assert.rejects(searchHistory(db, hid, { text: "electricity", space: foreign.id }), /Choose a space/);
+
+      await archiveSpace(db, hid, own.id);
+      assert.equal((await resolveMemorySpace(db, hid, own.name)).status, "archived");
+      const sameName = await createSpace(db, hid, own.name.toUpperCase());
+      await assert.rejects(resolveMemorySpace(db, hid, own.name), /More than one space/);
+      assert.equal((await resolveMemorySpace(db, hid, sameName.id)).id, sameName.id);
+    });
+
+    await check("history treats SQL wildcards literally and returns only the ten newest mixed results", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const [literal] = await db.insert(schema.memories).values([
+        { householdId: hid, kind: "fact", text: "A %_\\ marker is written literally." },
+        { householdId: hid, kind: "fact", text: "A xyz marker is written literally." },
+      ]).returning({ id: schema.memories.id });
+      assert.deepEqual((await searchHistory(db, hid, { text: "%_\\" })).hits.map(x => x.id), [literal.id]);
+      await assert.rejects(searchHistory(db, hid, { text: " " }), /word or phrase/);
+
+      const general = await generalSpace(db, hid);
+      const dated = Array.from({ length: 12 }, (_, i) => ({ id: randomUUID(), createdAt: new Date(Date.UTC(2026, 10, i + 1)) }));
+      await db.insert(schema.memories).values(dated.filter((_, i) => i % 2 === 0).map((row, i) => ({
+        ...row, householdId: hid, kind: "fact" as const, text: `Fictional tally note ${i}`,
+      })));
+      await db.insert(schema.conversationTurns).values(dated.filter((_, i) => i % 2 === 1).map((row, i) => ({
+        ...row, householdId: hid, conversationId: general.id, kind: "answer", question: `Fictional tally question ${i}`, reply: "Use the record.",
+      })));
+      assert.deepEqual((await searchHistory(db, hid, { text: "tally" })).hits.map(x => x.id), dated.slice(2).reverse().map(x => x.id));
+    });
+
+    await check("history searches only the selected cloud or device copy of each kind, and reports matched note ids", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const own = await createSpace(db, hid, "Fictional review");
+      const note = await addMemory(db, hid, { kind: "fact", text: "Quarterly review in April." }, form);
+      const id = randomUUID(), other = randomUUID();
+      const onDevice: ContextTurn & { spaceId: string } = {
+        id, spaceId: own.id, conversationId: own.id, kind: "answer", question: "Quarterly review from this device", reply: "Use the forecast.", createdAt: "2026-11-16T00:00:00Z",
+      };
+      const orphan = { ...onDevice, id: randomUUID(), conversationId: other, spaceId: other, question: "Quarterly review from a deleted space" };
+      const deviceNote = { ...note, id: randomUUID(), spaceId: own.id, text: "Quarterly review note from this device." };
+      const copies = { turns: [onDevice, orphan], notes: [deviceNote] };
+      assert.deepEqual((await searchHistory(db, hid, { text: "quarterly" }, copies)).hits.map(x => x.id), [note.id], "cloud place ignores device data");
+      await moveToDevice(db, hid, "journal", [], form);
+      const both = await searchHistory(db, hid, { text: "quarterly" }, copies);
+      assert.deepEqual(both.hits.map(x => x.id).sort(), [note.id, id].sort(), "device turns and cloud notes, never the orphan or an unselected copy");
+      const read = new Set<string>();
+      const historyTool = historyTools[0];
+      assert.equal(historyTool.scope, "read");
+      assert.ok(tools.includes(historyTool));
+      assert.equal(toolInputSchema(historyTool).additionalProperties, false);
+      const ctx = { ...ctxOf(hid, "mcp"), onMemoryRead: (id: string) => { read.add(id); } };
+      const mcp = JSON.parse(await historyTool.run(ctx, historyTool.input.parse({ text: "quarterly" }) as never));
+      assert.deepEqual(mcp.hits.map((x: { id: string }) => x.id), [note.id]);
+      assert.match(mcp.note, /conversation history on one device/);
+      assert.deepEqual([...read], [note.id]);
+      await moveToDevice(db, hid, "memory", [note.id], form);
+      assert.deepEqual((await searchHistory(db, hid, { text: "quarterly" }, copies)).hits.map(x => x.id).sort(), [id, deviceNote.id].sort());
+      assert.deepEqual((await searchHistory(db, hid, { text: "quarterly" }, { turns: [], notes: [] })), { hits: [], unavailable: [] });
+      assert.deepEqual((await searchHistory(db, hid, { text: "quarterly" })).unavailable, ["journal", "memory"]);
     });
 
     console.log(`Memory checks passed (${passed}).`);

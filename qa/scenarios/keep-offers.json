@@ -15,7 +15,7 @@
       "375px and 1440px widths"
     ],
     "steps": [
-      "Ask I like short answers about my money. What's due this week?",
+      "Ask From now on I prefer short answers about my money. What's due this week?",
       "In a second tab, check Memory for the offered preference before choosing",
       "Tap Keep and check Memory again"
     ],
@@ -45,10 +45,10 @@
     ],
     "steps": [
       "Ask I like answers in Japanese. What's due this week?",
-      "Tap No on the preference offer"
+      "Tap No on the preference offer and check Space notes"
     ],
     "expected": [
-      "The card disappears and Memory has no new preference"
+      "The card disappears and the space has no new preference"
     ],
     "refs": [
       "BROWSER-CHECKS AH2",
@@ -100,7 +100,7 @@
       "Memory is set to This device only"
     ],
     "steps": [
-      "Ask I like short answers about my money. What's due this week?",
+      "Ask From now on I prefer short answers about my money. What's due this week?",
       "Tap Keep",
       "Open Memory here and in another browser"
     ],

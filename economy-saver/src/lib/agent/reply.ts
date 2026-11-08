@@ -1,10 +1,11 @@
 // The reply of one Ask, chosen by code after the model loop (D60): a clarifying question, a decline or an answer. The model never picks
 // the kind; the tools it called do. The fixed sentences and the "Based on" sources live here, each in one place.
 import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import type { LinkSource, TurnSource } from "@/lib/schema/turn";
 import type { Recipe } from "@/lib/canvas/schema";
 
 export type ReplyKind = "answer" | "clarify" | "declined";
-export type Source = { label: string; href: string };
+export type Source = TurnSource;
 
 export const FIXED = {
   off_topic: "I can help with your money: what you have, what's coming, what you spend and getting paid. Try “Am I OK until the end of the month?”, “What if a client pays two weeks late?” or “Where did last month go?”",
@@ -17,7 +18,7 @@ export const FIXED = {
 export const firstUse = (host: string) => `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to ${host}.`;
 
 /** The page each tool's answer came from. `make_canvas`, `what_if` and `household_snapshot` add none. */
-const TOOL_SOURCES: Record<string, Source> = {
+const TOOL_SOURCES: Record<string, LinkSource> = {
   where_am_i: { label: "Your next 30 days", href: "/#next-30-days" },
   suggestions: { label: "From your assistant", href: "/#assistant-suggestions" },
   whats_due: { label: "Coming up", href: "/#coming-up" },
@@ -38,12 +39,13 @@ const TOOL_SOURCES: Record<string, Source> = {
   to_check: { label: "To check", href: "/to-check" },
   remember: { label: "Memory", href: "/memory" },
   forget: { label: "Memory", href: "/memory" },
+  search_history: { label: "Ask history", href: "/canvas" },
   recall: { label: "Memory", href: "/memory" },
 };
 
 /** The distinct sources of the tools an answer used, in the order first used. */
-function sourcesFor(toolNames: readonly string[]): Source[] {
-  const found: Source[] = [];
+function sourcesFor(toolNames: readonly string[]): LinkSource[] {
+  const found: LinkSource[] = [];
   for (const name of toolNames) {
     const source = Object.hasOwn(TOOL_SOURCES, name) ? TOOL_SOURCES[name] : undefined;
     if (source && !found.some(known => known.href === source.href && known.label === source.label)) found.push(source);

@@ -15,6 +15,7 @@ import { recordEvent, requireHousehold, type Db } from "./household";
 import { MEMORY_LIMIT, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
 import { generalSpace, SPACE_LIMIT } from "./spaces";
 import { z } from "zod";
+import type { TurnSource } from "@/lib/schema/turn";
 import { BriefSchema } from "@/lib/agent/brief";
 import * as s from "./schema";
 
@@ -97,6 +98,7 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       const sourceGeneral = spaces.find(space => space.isGeneral);
       if (sourceGeneral) fresh.set(sourceGeneral.id, general.id);
       const sourceSpaceIds = new Set(spaces.map(space => space.id));
+      const sourceMemoryIds = new Set(memory.map(item => item.id));
       const spaceRef = (id: string | undefined) => {
         if (id === undefined) return null;
         if (!sourceSpaceIds.has(id)) throw new InputError("This file refers to a space it does not list.");
@@ -170,7 +172,9 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       })));
       await insertChunks(tx, s.conversationTurns, journal.map(t => ({
         id: ref(t.id), householdId: hid, conversationId: ref(t.conversationId), question: t.question, kind: t.kind, reply: t.reply, choices: t.choices, recipe: remap(t.recipe),
-        sources: t.sources, thumb: t.thumb, createdAt: new Date(t.createdAt),
+        sources: t.sources.flatMap<TurnSource>(source => "id" in source
+          ? sourceMemoryIds.has(source.id) ? [{ ...source, id: ref(source.id) }] : []
+          : [source]), thumb: t.thumb, createdAt: new Date(t.createdAt),
       })));
 
       const other = file.statements.length + file.settlements.length + file.balanceUpdates.length;

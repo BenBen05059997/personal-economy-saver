@@ -27,33 +27,38 @@ export type MemoryForms = {
   addKey: string | number;
 };
 
-export function MemoryHeader({ note }: { note?: string }) {
+export function MemoryHeader({ note, spaceId }: { note?: string; spaceId?: string | null }) {
   return <header>
-    <h1 className="ui-title">What the assistant knows</h1>
-    <p className="ui-hint">This shapes how the assistant answers. It never changes your numbers.</p>
+    {spaceId ? <h2 id="space-notes">Space notes</h2> : <h1 className="ui-title">What the assistant knows</h1>}
+    <p className="ui-hint">{spaceId ? "These notes belong to this space." : "This shapes how the assistant answers. It never changes your numbers."}</p>
     {note && <p className="ui-hint">{note}</p>}
   </header>;
 }
 
 /** The list, the add box and Forget everything, shared by the cloud page and the device page; only `forms` differs. */
-export function MemoryLayout({ items, timeZone, forms, note }: { items: MemoryItem[]; timeZone: string; forms: MemoryForms; note?: string }) {
+export function MemoryLayout({ items, timeZone, forms, note, spaceId = null, readOnly = false, totalCount = items.length }: {
+  items: MemoryItem[]; timeZone: string; forms: MemoryForms; note?: string; spaceId?: string | null; readOnly?: boolean; totalCount?: number;
+}) {
   const day = dayIn(timeZone), how = howIn(day);
   const { form, busy, status } = forms;
+  const Heading = spaceId ? "h3" : "h2";
   return <div className="memory-page">
-    <MemoryHeader note={note} />
+    <MemoryHeader note={note} spaceId={spaceId} />
 
     {items.length === 0 ? <section className="memory-empty ui-panel">
-      <p>Nothing yet. When you tell the assistant something to keep, or add it here, it will appear in this list, where you can change or delete it.</p>
-      <ul>{MEMORY_KIND_KEYS.map(key => <li key={key}><b>{MEMORY_KINDS[key].label}:</b> “{MEMORY_KINDS[key].example}”</li>)}</ul>
+      {spaceId ? <p>No notes yet.</p> : <>
+        <p>Nothing yet. When you tell the assistant something to keep, or add it here, it will appear in this list, where you can change or delete it.</p>
+        <ul>{MEMORY_KIND_KEYS.map(key => <li key={key}><b>{MEMORY_KINDS[key].label}:</b> “{MEMORY_KINDS[key].example}”</li>)}</ul>
+      </>}
     </section> : MEMORY_KIND_KEYS.map(key => {
       const group = items.filter(item => item.kind === key);
       return group.length === 0 ? null : <section key={key} className="memory-group" aria-labelledby={`memory-${key}`}>
-        <h2 id={`memory-${key}`}>{MEMORY_KINDS[key].label}</h2>
+        <Heading id={`memory-${key}`}>{MEMORY_KINDS[key].label}</Heading>
         <p className="ui-hint">{MEMORY_KINDS[key].help}</p>
-        <ul>{group.map(item => <li key={`${item.id}-${item.updatedAt}`} className="memory-item">
+        <ul>{group.map(item => <li key={`${item.id}-${item.updatedAt}`} id={`memory-${item.id}`} className="memory-item">
           <p className="memory-text">{item.text}</p>
           <p className="ui-hint">{how(item)}{item.updatedAt !== item.createdAt && ` · edited ${day(item.updatedAt)}`}</p>
-          <div className="memory-actions">
+          {!readOnly && <div className="memory-actions">
             <details className="memory-edit">
               <summary>Edit</summary>
               {form("edit", item.id, <>
@@ -71,28 +76,29 @@ export function MemoryLayout({ items, timeZone, forms, note }: { items: MemoryIt
                 {status(item.id)}
               </>)}
             </details>
-          </div>
+          </div>}
         </li>)}</ul>
       </section>;
     })}
 
-    <section className="memory-add ui-panel">
-      <h2>Add something</h2>
+    {!readOnly && <section className="memory-add ui-panel">
+      <Heading>{spaceId ? "Add a note" : "Add something"}</Heading>
       <Fragment key={forms.addKey}>{form("add", "add", <>
         <KindSelect />
-        <label className="ui-field">What should it know?<textarea name="text" required maxLength={MEMORY_TEXT_MAX} rows={3} placeholder="e.g. Rent goes up in April" /></label>
+        <label className="ui-field">{spaceId ? "What should this space know?" : "What should it know?"}<textarea name="text" required maxLength={MEMORY_TEXT_MAX} rows={3} placeholder="e.g. Rent goes up in April" /></label>
         <button className="ui-button primary" disabled={busy}>Add</button>
         {status("add")}
       </>)}</Fragment>
-      <p className="ui-hint">{items.length} of {MEMORY_LIMIT} used.</p>
-    </section>
+      <p className="ui-hint">{totalCount} of {MEMORY_LIMIT} used.{spaceId || totalCount !== items.length ? " The limit is shared by the profile and all spaces." : ""}</p>
+    </section>}
 
-    {items.length > 0 && <section className="memory-forget">
+    {!readOnly && items.length > 0 && <section className="memory-forget">
       <details className="memory-edit">
-        <summary>Forget everything</summary>
+        <summary>{spaceId ? "Forget space notes" : "Forget everything"}</summary>
         {form("forget_all", "forget", <>
-          <p>Delete all {items.length} {items.length === 1 ? "thing" : "things"} for good? This cannot be undone.</p>
-          <button className="ui-button" disabled={busy}>Yes, forget everything</button>
+          <p>Delete all {items.length} {items.length === 1 ? (spaceId ? "note" : "thing") : (spaceId ? "notes" : "things")} for good? This cannot be undone.
+            {!spaceId && totalCount > items.length && " Space notes stay."}</p>
+          <button className="ui-button" disabled={busy}>{spaceId ? "Yes, forget these notes" : "Yes, forget everything"}</button>
           {status("forget")}
         </>)}
       </details>
@@ -101,17 +107,20 @@ export function MemoryLayout({ items, timeZone, forms, note }: { items: MemoryIt
 }
 
 /** The cloud page: each action posts to /api/memory and the page reloads. */
-export function MemoryView({ items, timeZone }: { items: MemoryItem[]; timeZone: string }) {
+export function MemoryView({ items, timeZone, spaceId = null, readOnly, totalCount }: {
+  items: MemoryItem[]; timeZone: string; spaceId?: string | null; readOnly?: boolean; totalCount?: number;
+}) {
   const forms: MemoryForms = {
     busy: false,
     status: () => null,
     addKey: items.length,
     form: (op, id, children) => <ApiForm action="/api/memory">
       <input type="hidden" name="kind" value={op} />
-      <input type="hidden" name="returnTo" value="/memory" />
+      {spaceId && <input type="hidden" name="spaceId" value={spaceId} />}
+      <input type="hidden" name="returnTo" value={spaceId ? `/canvas?space=${spaceId}` : "/memory"} />
       {op !== "add" && op !== "forget_all" && <input type="hidden" name="id" value={id} />}
       {children}
     </ApiForm>,
   };
-  return <MemoryLayout items={items} timeZone={timeZone} forms={forms} />;
+  return <MemoryLayout items={items} timeZone={timeZone} forms={forms} spaceId={spaceId} readOnly={readOnly} totalCount={totalCount} />;
 }

@@ -15,7 +15,7 @@ import { addMemory, listMemory } from "@/db/memory";
 import { removeBill } from "@/db/bills";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
-import { generalSpace, saveBrief } from "@/db/spaces";
+import { createSpace, generalSpace, saveBrief } from "@/db/spaces";
 import { BriefSchema } from "@/lib/agent/brief";
 import { seedBen } from "@/db/seed";
 import { AgentError, runAgent } from "@/lib/agent/run";
@@ -43,7 +43,7 @@ import { InputError } from "@/db/input-error";
 import { DEVICE_MEMORY_WORDS } from "@/db/place";
 import { applyMemoryChanges, MAX_MEMORY_CHANGES } from "@/lib/store/memory-ops";
 import type { MemoryItem } from "@/lib/schema/memory";
-import type { ConversationTurn } from "@/lib/schema/turn";
+import { DEVICE_MEMORY_SOURCE_LABEL, type ConversationTurn } from "@/lib/schema/turn";
 
 type Block = Record<string, unknown>;
 const text = (value: string): Block => ({ type: "text", text: value });
@@ -197,7 +197,7 @@ async function main() {
     await check("tools only see the asking household: no other household's data in any tool output", async () => {
       const names = tools.filter(t => t.scope === "read").map(t => t.name);
       const calls = [...names.map((name, i) => toolUse(`r${i}`, name, name === "timeline" ? { scenario: "late" } : name === "can_i_spend" ? { amount_minor: 4000, card_id: null }
-        : name === "plan_for" ? { target_minor: 1_200_000, target_date: "2027-03-31", monthly_minor: null, pot_id: null } : {})),
+        : name === "plan_for" ? { target_minor: 1_200_000, target_date: "2027-03-31", monthly_minor: null, pot_id: null } : name === "search_history" ? { text: "ZZ Secret" } : {})),
         toolUse("spend-b-card", "can_i_spend", { amount_minor: 4000, card_id: bState.cards[0].id }),
         toolUse("draft-b-client", "draft_invoice", { id: crypto.randomUUID(), clientId: bState.clients[0].id, item: "Poster", amount: "10.00", note: "" })];
       const { fetch, bodies } = transport([() => reply("tool_use", calls), () => reply("end_turn", [text("Done.")])]);
@@ -372,7 +372,7 @@ async function main() {
       assert.equal(out.guidance.source.url, "https://www.paypal.com/jp/webapps/mpp/merchant-fees");
       assert.match(out.guidance.mustNotSay, /leave PayPal/);
       assert.ok(out.guidance.steps.length > 0 && out.guidance.traps.length > 0 && out.guidance.maySay);
-      assert.deepEqual(result.sources?.map((x: { href: string }) => x.href), ["/clients"]);
+      assert.deepEqual(result.sources?.map(x => "href" in x ? x.href : x.label), ["/clients"]);
 
       const bare = await seedBen(db, { isDemo: true });
       await db.update(schema.invoices).set({ paidOn: null, sentOn: null, status: "draft" }).where(eq(schema.invoices.householdId, bare));
@@ -1168,6 +1168,89 @@ async function main() {
       const followup = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Here is the latest.")])]);
       await askInSpace(followup.fetch, "What about today?");
       assert.match(JSON.stringify(followup.bodies[0].system), /Space brief.*Checked cash/);
+    });
+
+    await check("the profile and current note reach Ask, and Based on names only the memory item it cited", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const here = await createSpace(db, hid, "Fictional tax desk"), elsewhere = await createSpace(db, hid, "Fictional repair desk");
+      await addMemory(db, hid, { kind: "fact", text: "Profile says to use Japanese." }, { madeBy: "form" });
+      const note = await addMemory(db, hid, { kind: "fact", text: "Keep the tax receipt in the March folder.", spaceId: here.id }, { madeBy: "form" });
+      const other = await addMemory(db, hid, { kind: "fact", text: "An unrelated repair note.", spaceId: elsewhere.id }, { madeBy: "form" });
+      const model = transport([
+        () => reply("tool_use", [toolUse("w", "where_am_i", {})]),
+        () => reply("end_turn", [text(`Keep the receipt in March. [[memory:${note.id}]] [[memory:${other.id}]]`)]),
+      ]);
+      const input = askInput.parse({ id: crypto.randomUUID(), conversationId: here.id, spaceId: here.id, text: "Where does the tax receipt go?", source: "manual", canvas: null });
+      const answer = await answerQuestion(db, hid, input, { fetch: model.fetch });
+      const prompt = JSON.stringify(model.bodies[0].system);
+      assert.ok(prompt.indexOf("Profile says") < prompt.indexOf("Keep the tax receipt") && prompt.includes("Profile says"));
+      assert.ok(!prompt.includes("unrelated repair"));
+      assert.equal(answer.text, "Keep the receipt in March.");
+      const sources = [{ kind: "memory", id: note.id, label: note.text }];
+      assert.deepEqual(answer.sources.filter(source => "id" in source), sources);
+      const replay = await answerQuestion(db, hid, input, { fetch: transport([]).fetch });
+      assert.deepEqual(replay.sources.filter(source => "id" in source), sources);
+    });
+
+    await check("a cloud journal never stores the citation text of device-only memory", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const space = await generalSpace(db, hid);
+      await db.update(schema.households).set({ memoryPlace: "device" }).where(eq(schema.households.id, hid));
+      const stamp = new Date().toISOString();
+      const note = { id: crypto.randomUUID(), kind: "fact", text: "Local fictional receipt note.", madeBy: "form", askId: null, createdAt: stamp, updatedAt: stamp } as const;
+      const model = transport([
+        () => reply("tool_use", [toolUse("w", "where_am_i", {})]),
+        () => reply("end_turn", [text(`I found the note. [[memory:${note.id}]]`)]),
+      ]);
+      const input = askInput.parse({ id: crypto.randomUUID(), conversationId: space.id, spaceId: space.id, text: "Find the note.", source: "manual", canvas: null, memory: [note] });
+      assert.equal((await answerQuestion(db, hid, input, { fetch: model.fetch })).sources.at(-1)?.label, note.text);
+      const [saved] = await db.select({ sources: schema.conversationTurns.sources }).from(schema.conversationTurns)
+        .where(and(eq(schema.conversationTurns.householdId, hid), eq(schema.conversationTurns.id, input.id)));
+      assert.ok(!JSON.stringify(saved.sources).includes(note.text));
+      assert.ok(JSON.stringify(saved.sources).includes(DEVICE_MEMORY_SOURCE_LABEL));
+    });
+
+    await check("remember and Keep choose notes for this task and the profile for an explicit always", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const here = await createSpace(db, hid, "Fictional paperwork");
+      const askHere = (text: string, fetch: typeof globalThis.fetch) => answerQuestion(db, hid, askInput.parse({
+        id: crypto.randomUUID(), conversationId: here.id, spaceId: here.id, text, source: "manual", canvas: null,
+      }), { fetch });
+      const remember = (words: string) => transport([
+        () => reply("tool_use", [toolUse("r", "remember", { kind: "instruction", text: words })]),
+        () => reply("end_turn", [text("I remembered it.")]),
+      ]);
+      const silent = remember("Do not write this silently.");
+      await askHere("What is due?", silent.fetch);
+      assert.equal(toolResults(silent.bodies[1])[0].is_error, true);
+      assert.deepEqual(await listMemory(db, hid), []);
+      await askHere("Remember the current invoice uses a blue label.", remember("Use a blue label for the current invoice.").fetch);
+      await askHere("Always show due dates first. Remember that.", remember("Show due dates first.").fetch);
+      const items = await listMemory(db, hid);
+      assert.equal(items.find(item => item.text.startsWith("Use a blue"))?.spaceId, here.id);
+      assert.equal(items.find(item => item.text.startsWith("Show due"))?.spaceId, undefined);
+      const offer = () => transport([
+        () => reply("tool_use", [toolUse("k", "offer_keep", { offer: { kind: "memory", memoryKind: "preference", text: "Use plain labels." } })]),
+        () => reply("end_turn", [text("I can keep this.")]),
+      ]);
+      assert.deepEqual((await askHere("Use plain labels for this task.", offer().fetch)).offers, [{ kind: "memory", memoryKind: "preference", text: "Use plain labels.", spaceId: here.id }]);
+      assert.deepEqual((await askHere("From now on, use plain labels.", offer().fetch)).offers, [{ kind: "memory", memoryKind: "preference", text: "Use plain labels." }]);
+    });
+
+    await check("an amount found in history still needs a current tool result", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const space = await generalSpace(db, hid);
+      const earlier = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Did you mean the ¥7,777 fixture?", choices: ["Yes", "No"] })])]);
+      const askHere = (text: string, fetch: typeof globalThis.fetch) => answerQuestion(db, hid, askInput.parse({
+        id: crypto.randomUUID(), conversationId: space.id, spaceId: space.id, text, source: "manual", canvas: null,
+      }), { fetch });
+      await askHere("Was the ¥7,777 fixture due?", earlier.fetch);
+      const later = transport([
+        () => reply("tool_use", [toolUse("h", "search_history", { text: "fixture", space: "General" })]),
+        () => reply("end_turn", [text("You owe ¥7,777.")]),
+      ]);
+      await assert.rejects(askHere("Find the old question.", later.fetch), (error: unknown) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      assert.ok(toolResults(later.bodies[1])[0].content.includes("7,777"));
     });
 
     await check("an ending tool that fails its schema is an ordinary tool error: the loop goes on and the answer is returned", async () => {
