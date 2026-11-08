@@ -14,8 +14,8 @@ const SLIDER_DAYS = 30;
 const first = (name: string) => name.split(" ")[0];
 
 /** The one PayPal or review step to offer, where one exists: invoice finished work, nudge a late client, or open To check. */
-function nextAction(state: MoneyState): Block | null {
-  const nudged = state.nudgedInvoiceIds?.map(id => state.invoices.find(i => i.id === id && i.status === "sent")).find(i => i !== undefined);
+function nextAction(state: MoneyState, nudgeIds: readonly string[]): Block | null {
+  const nudged = nudgeIds.map(id => state.invoices.find(i => i.id === id && i.status === "sent")).find(i => i !== undefined);
   const unbilled = state.invoices.find(i => i.status === "unbilled");
   for (const [invoice, verb] of [[nudged, "Nudge"], [unbilled, "Invoice"]] as const) {
     const client = invoice && state.clients.find(c => c.id === invoice.clientId);
@@ -25,10 +25,10 @@ function nextAction(state: MoneyState): Block | null {
   return waiting > 0 ? { type: "action", label: `${waiting} ${waiting === 1 ? "item" : "items"} to check`, href: "/to-check" } : null;
 }
 
-export function starterRecipes(state: MoneyState): Starter[] {
+export function starterRecipes(state: MoneyState, nudgeIds: readonly string[] = []): Starter[] {
   const current = state.today.slice(0, 7);
   const last = monthsBack(current, 2);
-  const action = nextAction(state);
+  const action = nextAction(state, nudgeIds);
   const openClients = [...new Set(state.invoices.filter(i => i.status === "sent").map(i => i.clientId))].filter(id => state.clients.some(c => c.id === id)).slice(0, 4);
 
   const thisMonth: Recipe = {

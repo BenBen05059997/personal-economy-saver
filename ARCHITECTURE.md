@@ -6,7 +6,7 @@ A Next.js 16 app on Cloudflare Workers (OpenNext) over household-scoped Postgres
 Try it and magic-link sessions, Home and invoice review, typed-in data (clients, bills, card charges, pots, people, invoices marked paid),
 statement and PayPal history import, the reader (upload, forwarded email, a file attached in Ask), the in-app agent with its canvas and memory,
 MCP, the family view, Your data (export, import, delete, this device only), what foreign money costs (D62), PayPal approval and verified-webhook
-handling are implemented. The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local
+handling are implemented, along with daily suggestions from the money engine (D64). The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local
 Worker read a fictional household from the Tokyo project; Vault and the private Storage bucket are verified there. Not yet verified live:
 magic-link delivery, a live model call, the deployed Worker, Email Routing, and a real PayPal send-to-webhook round trip. The repository and
 the app are private. Decisions: D18, D31–D62 in [DECISIONS.md](DECISIONS.md).
@@ -22,7 +22,7 @@ Clients
 
 Cloudflare
 ├── Email Worker (`worker.ts` `email`): Email Routing hands it each mail → POST /api/inbound with `INBOUND_WORKER_SECRET`; over 6 MiB is rejected
-├── Cron Trigger (`worker.ts` `scheduled`): once a day → GET /api/cron with `CRON_SECRET`
+├── Cron Trigger (`worker.ts` `scheduled`): every hour → GET /api/cron with `CRON_SECRET`
 └── Next.js 16 app on Workers (OpenNext adapter); `src/middleware.ts` refreshes the auth cookie on every path except the webhook, cron, MCP and inbound
     ├── Pages (server components): the sidebar is Home /, Ask /canvas, To check /to-check, Activity /activity, Cards /cards, Clients /clients, Plan /plan
     │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory, /settings, /account (delete my data), /privacy
@@ -52,6 +52,7 @@ Cloudflare
     │   ├── /api/paypal/webhook    verify the signature → webhook_deliveries → events → invoice paid; GET: the caller's recent deliveries, no payload
     │   ├── /api/paypal/import     read the sandbox merchant's invoices → clients and invoices (the one household in `PAYPAL_BALANCE_HOUSEHOLD_ID`)
     │   ├── /api/mcp, /api/mcp/tokens   the MCP server (token → household); issue and revoke tokens
+    │   ├── /api/suggestions       POST `kind` dismiss or not_now for one open finding (D64)
     │   ├── /api/events            GET events since a time plus the feed summary; POST mark read (the bell)
     │   ├── /api/try, /api/try/reset, /api/try/blank   Try it (Ben's demo household); demo-only reset; Start with my numbers (D47)
     │   ├── /api/auth/link, /callback, /logout   magic-link request, callback and logout
@@ -66,7 +67,7 @@ Cloudflare
     │   └── /api/health            readiness: setting names and reasons, never values
     └── Core (pure TypeScript, no I/O)
         ├── Engine `src/lib/money`: runway.ts (availableCash, series, low, safeToSpend, roomOnCard, ladder, timeline, statementItems), repeat, window (`stateThrough`, `dayView`), plan,
-        │   split, month, spending, period (the month a bill covers, D63), name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check
+        │   split, month, spending, period (the month a bill covers, D63), name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check, suggest (D64)
         ├── Sentence composer `src/lib/money/sentence.ts`: engine output → "You're fine if … If late, ¥18,780 short on the 27th."
         ├── Agent `src/lib/agent`: one tool catalogue (tools.ts, canvas-tools.ts, memory-tools.ts, check-tools.ts), run.ts, words.ts (the step words), reply.ts, rules.ts, memory-prompt.ts, log.ts
         ├── Model call `src/lib/ai`: `callModel` (anthropic.ts, openai.ts), `checkBaseUrl`, `unconfirmedAmounts`, `checkConnection`, `PROVIDERS`, the tested list
@@ -80,10 +81,10 @@ Cloudflare
         └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0027), 28 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0028), 32 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
 │   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns,
-│   ip_buckets, ai_global_usage, ask_receipts
+│   ip_buckets, ai_global_usage, ask_receipts, suggestions, reminder_settings, push_subscriptions, reminders
 ├── Auth: magic-link login (PKCE)
 ├── Vault: households' own model keys, each sealed in the Worker first (`AI_KEY_SEAL_KEY`)
 └── Storage: the private bucket named by `SUPABASE_DOCUMENT_BUCKET` (`household-documents` in the owner's project): receipt photos, PDFs and raw forwarded emails
@@ -107,7 +108,7 @@ to a native post (no JavaScript, the HTTP suites) the 303 it always sent (`src/l
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
 | 1. Open | page → `currentHouseholdId` (auth cookie → `getUser()` → `users` → `members`; or the demo cookie → `findDemoHousehold`) → `loadWorkspaceData` | `households`; on Home `refreshPayPal` first | on Home `paypal_connections` (PayPal's status word on tracked invoices, `paypal_fetched_at`, the balance for the bound household; never an invoice's own `status`) | the page opening |
-| 2. Engine | `loadMoneyState(db, hid, today)` → `src/lib/money` | paypal_connections, bills, cards, charges (the last 62 days, `CHARGE_LOOKBACK_DAYS`), unpaid card_statements, clients, invoices, pending balance_updates, pots, members and settlements (the split), the `nudge_suggested` invoices, fx_rates (`usdRateMicro`) | nothing | — |
+| 2. Engine | `loadMoneyState(db, hid, today)` → `src/lib/money` | paypal_connections, bills, cards, charges (the last 62 days, `CHARGE_LOOKBACK_DAYS`), unpaid card_statements, clients, invoices, pending balance_updates, pots, members and settlements (the split), fx_rates (`usdRateMicro`) | nothing | — |
 | 3. Sentence | `homeSentence` and the panels | the engine's result | nothing; no AI call on open | the sentence with one action, safe to spend, Coming up, the pinned canvases, the events |
 | 4. Approve | tap → `ApiForm` POST /api/approve `{ approve_key, action: send \| remind }` → `approveInvoice` → `runTool` | the invoice by `approve_key` (locked), `SANDBOX_CLIENT_EMAIL`, the USD rate | `invoices.paypal_invoice_id`, `number`, `fx_rate_micro`, then `status = sent`, `sent_on`, `due_on`; an `invoice_sent` event; a reminder stamps `reminder_attempted_at` then `reminded_at` | redirect to /invoices/[id] |
 | 5. Webhook | PayPal POST /api/paypal/webhook → `verifyWebhook` → `applyVerifiedDelivery` (`src/lib/events.ts`) | the owning household by `paypal_invoice_id`, the owner's `paypal_connections`, fx_rates when the row has no rate | one transaction: `webhook_deliveries` (unique on `paypal_event_id`), `invoices.status = paid`, `paid_on`, the balance credit, `invoice_paid` with the bell, `pot_filled` rows | nothing yet |
@@ -152,7 +153,7 @@ out. `sendInvoice` checks with `get_invoice` that the only recipient is the sand
 PayPal still holds a draft, and in the same transaction sets `sent`, `sent_on`, `due_on` and records `invoice_sent`. `remind` commits
 `reminder_attempted_at` before the network call (PayPal documents no idempotent retry for it) and `reminded_at` after. Every PayPal call goes through
 `runTool` (`src/lib/paypal/toolkit.ts`): `sandbox: true`, a 20 s timeout. The engine finds the low point and ranks the options; the one action on
-Home is to invoice finished work, to nudge a late client, or the daily job's `nudge_suggested` (D50).
+Home follows the runway’s recommendation. From your assistant also links to any invoice reminder found by the daily pass (D64).
 
 **The webhook, in detail.** A rejected signature writes one `console.warn` with the reason and answers `{ received: false }` 400; an anonymous caller
 learns nothing. A verified delivery: the household is found by PayPal's invoice id (never a household id from PayPal); `lockRunway`;
@@ -388,20 +389,16 @@ household is refused; already-paid invoices credit no balance.
 
 | Step | What runs | What is read | What is written |
 |---|---|---|---|
-| 1. Trigger | the Cron Trigger → GET /api/cron with `Bearer CRON_SECRET` (compared in constant time; no secret configured refuses everything); `worker.ts` logs the status | — | — |
-| 2. Sweep | `sweepDemoHouseholds` (D49), before anything else so it runs even without `CRON_HOUSEHOLD_IDS` | demo households created and unchanged (no event) for 7 days, oldest first, up to 200 a run | each deleted in its own transaction (`deleteDemoHousehold`: Vault key, Storage objects, the row; cascades take the rest); failures counted and logged |
-| 3. Households | `runDaily` for each id in `CRON_HOUSEHOLD_IDS` (missing or invalid → 503 naming it) | the household, its clock, the money state | the household row is locked for the run |
-| 4. Rate | `fetchReferenceRate` for a real JPY household | the ECB daily XML (10 s timeout) | one `fx_rates` row (USD → JPY, dated; on conflict nothing); demo FX stays fictional |
-| 5. Statements | `closingOnOrAfter`, `cycle` | each card closing today with an open total | a `card_statements` row (unique per card and closing day) |
-| 6. Reminders | `dueItems`, `medianLow` | bills due in 3 days; sent invoices past the client's usual days to pay | one `daily_reminder` event a day ("Money reminders · <date>", with the bell) |
-| 7. Nudges | `suggestNudges` (D50) when `nudge_after_days` is set | sent, unreminded invoices that many days past their due date (the expected date when they have none) | one `nudge_suggested` per invoice, `made_by = cron`, with the bell, never twice |
-| 8. Housekeeping | `pruneIpBuckets`, `pruneAskReceipts` (this household's receipts over a day old), then last `removeExpiredFiles` | `ip_buckets` windows over a day old, `ask_receipts` over a day old; documents whose readings are all confirmed or dismissed, the last 30 days ago or more (`RAW_FILE_RETENTION_DAYS`) | the rows deleted; the raw file removed from Storage and `documents.file_removed_at` set (the row, readings and bills stay) |
+| 1. Trigger | Hourly Cron Trigger → GET /api/cron with Bearer CRON_SECRET | The bearer is compared in constant time | worker.ts logs the status |
+| 2. Housekeeping | sweepDemoHouseholds (D49), then pruneIpBuckets | Demo households unchanged for seven days, oldest first, up to 200. Per-address windows over a day old | Each demo is deleted in its own transaction. Vault and Storage are cleared before the household row. Sweeper failures are counted and logged |
+| 3. Households | dueHouseholds, then runDaily | Non-demo households with a local hour at or after the owner’s reminder hour (08:00 by default) and daily_ran_on before the local date or unset. Up to 100, least recently served first | runDaily locks each household and advances daily_ran_on only after a successful pass. A failure is counted and the remaining households are still processed |
+| 4. Rate and statements | fetchReferenceRate for real JPY households. closingOnOrAfter and cycle for cards | The ECB daily XML and each card closing today with an open total | One dated fx_rates row and one card_statements row per card and closing day |
+| 5. Suggestions | runPass, rulesFor, findSuggestions | Money state and standing rules | New findings, current reasons for open findings, resolved findings and reopened deferrals. Closed rows are pruned after 90 days |
+| 6. Retention | pruneAskReceipts and removeExpiredFiles | The household’s receipts over a day old and raw documents whose readings were all confirmed or dismissed at least 30 days ago | Receipts removed. Raw files removed from Storage and marked on the document row |
 
-The job never calls PayPal: Home shows the nudge as its one action until the user taps through the approve route. `observeRunway` runs before and
-after, so a change from short to fine (or back) is recorded. A late charge confirmation and statement closing share the household lock so neither
-can drop or double-count the charge. The engine treats a card's stored statements as everything up to the latest one's `closedOn`; confirmed charges
-after that line are grouped by the cycle they close in, so a cycle that has closed with no stored statement (a closing day that was changed, a
-missed close) is a computed closed statement due on `dueDateFor`, and the cycle still open is the open one (`statementItems` in `runway.ts`).
+Try it and Reset also run the suggestion pass on Ben’s fixed date. The pass calls no model. Home shows findings by urgency and its review links open existing invoice, To check, bill, card and Plan screens. The approve, confirm, bill and pot write flows close the finding they complete in the same database transaction. Suggestion activity keeps a stable finding reference so pruning cannot produce a duplicate. Ask and MCP share the read tool suggestions. The nudge setting in Settings edits the standing nudge_after row. The reminders tables are reserved for the outbound channels in 29B.
+
+observeRunway runs before and after, so a change from short to fine or back is recorded. A late charge confirmation and statement closing share the household lock, which keeps the charge counted once. Confirmed charges after a card’s latest stored statement are grouped by their closing cycle.
 
 ## Data: where it lives and how it is shared
 
@@ -410,7 +407,7 @@ delete one, delete all (D59). The table below is every kind of stored data, thos
 
 | Kind of data | Where it is stored | What scopes it | Who can read it | How it leaves |
 |---|---|---|---|---|
-| The household row: name, time zone, currency, bank balance, demo flag and fixed date, forwarding local part, nudge rule, `split_since`, the three places, the `ai_*` connection columns | `households` | its id | the signed-in members and a Try it cookie; the family link viewer sees the sentence; the export carries name, currency, time zone, balance and today | Delete everything (`/account` → `/api/household`), Reset, the demo sweep; Import keeps the household's own name, zone, currency and rate |
+| The household row: name, time zone, currency, bank balance, demo flag and fixed date, forwarding local part, daily run date, `split_since`, the three places, the `ai_*` connection columns | `households` | its id | the signed-in members and a Try it cookie; the family link viewer sees the sentence; the export carries name, currency, time zone, balance and today | Delete everything (`/account` → `/api/household`), Reset, the demo sweep; Import keeps the household's own name, zone, currency and rate |
 | The record (a one-off bill also holds `period_start` and `period_end`, the month it covers, D63): `members`, `clients`, `invoices`, `bills`, `cards`, `card_statements`, `charges`, `pots`, `settlements`, `balance_updates` | their tables | `household_id` (every foreign key is a `(household_id, id)` pair, so another household's row cannot be referenced) | members and Try it; an MCP token (the read tools); the family link viewer (shared bills, the month, who owes whom, no actions); the export; the `household_snapshot` tool | export; Import into an empty household (new ids, `made_by = import`, no PayPal invoice ids); the remove routes; with the household |
 | The PayPal connection: balance, as-of, merchant, `environment = SANDBOX` | `paypal_connections` | `household_id` and the owner member | members; the export carries the balance and its currency only | with the household |
 | Documents: the files and their readings | the object at `<household id>/<document id>` in the private bucket; `documents`, `readings`, `rules` | `household_id` and the path prefix (checked on every removal) | members and Try it; the model provider receives the bytes to read them | Your data (the object, the readings, the row; bills and charges keep their rows and lose the link); with the household; never in the export |
@@ -492,7 +489,7 @@ request logs. `events` is the user's audit trail. **The request line (operator l
 
 No automatic database backups are configured; the person's own backup is Export my data, and Import brings that file back into an empty household.
 What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from
-the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`, adds only) are the latest; 0000–0026 are applied to the Tokyo database. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
+the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. 0028 adds daily suggestions, reminder storage, and standing rules with the existing nudge setting copied into the rule. 0000–0026 are applied to the Tokyo database. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
 
 ### Not limited yet
 
@@ -523,7 +520,7 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
 - Every PayPal call stops with a clear error unless `PAYPAL_ENVIRONMENT` is `SANDBOX` (`env()` in `src/lib/env.ts`, read on first use);
   `paypal_connections.environment` is checked to be `SANDBOX` in the schema.
 - Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10,
-  PayPal import 2, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
+  PayPal import 2, suggestions 30, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
   AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10. Declined questions, uploads, Ask's attach, retries and forwarded email, Try it,
   Start with my numbers, document reads and model calls (the server's key or a household's own) have no cap. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): sign-in links 5 an hour. `households.ai_reads_today`, `ai_reads_day` and the table `ai_global_usage` exist in the schema and are unused; PLAN.md has the migration that drops them.
 - The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB, `/api/ask` at

@@ -35,7 +35,7 @@ export function CheckView({ state, inbox, people, entryIds, from }: {
         <GapFill id={gap.id} missing={gap.missing} today={state.today} currency={state.homeCurrency} />
       </div>)}
     </section>}
-    {rows.map(row => <div key={row.id} className="ui-row check-row">
+    {rows.map(row => <div key={row.id} id={"check-" + row.id} className="ui-row check-row">
       <div>{row.title}{draftedLabel(row.madeBy) && <span className="ui-hint drafted-by"> · {draftedLabel(row.madeBy)}</span>}<p className="ui-hint">{row.detail}</p>
         {checkWords(row.id).map(words => <p key={words} className="ui-hint check-line">{words}</p>)}
         {row.kind === "bill" && row.gap && <GapFill id={row.id} missing={[...(row.gap.amount ? ["amount" as const] : []), ...(row.gap.date ? ["date" as const] : [])]} today={state.today} currency={state.homeCurrency} />}</div>

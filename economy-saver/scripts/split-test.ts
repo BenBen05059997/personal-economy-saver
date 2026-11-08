@@ -318,7 +318,7 @@ async function main() {
       assert.deepEqual([...(toolInputSchema(tool("add_bill")) as unknown as { required: string[] }).required].sort(),
         ["amount", "biller", "business_bp", "cancel_by", "category", "due", "id", "memberId", "next_amount", "next_amount_from", "paidBy", "period_end", "period_start", "repeat", "repeat_until", "shared"]);
       assert.ok((toolInputSchema(tool("log_charge")) as unknown as { required: string[] }).required.includes("shared"));
-      assert.equal(tools.filter(t => t.scope === "read").length, 20);
+      assert.equal(tools.filter(t => t.scope === "read").length, 21);
 
       const mine = JSON.parse(await run(a, "who_owes_whom", {}));
       assert.deepEqual([mine.summary, mine.currency, mine.split, mine.transfers.length], ["Aki owes Ben ¥9,000.", "JPY", true, 1]);

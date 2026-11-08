@@ -1,3 +1,5 @@
+import { seedRules } from "./rules";
+import { runPass } from "./suggestions";
 // Seeds a household with Ben's data: the demo household and every "Try it" copy (D34). Each call makes a fresh one.
 // Fictional people and companies only.
 
@@ -187,6 +189,8 @@ export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
       ),
     ]);
 
+    await seedRules(tx, hid);
+    if (opts.isDemo) await runPass(tx, hid);
     return hid;
   });
 }

@@ -1,3 +1,4 @@
+import { seedRules } from "./rules";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { fetchReferenceRate, storeReferenceRate } from "./reference-rate";
@@ -61,13 +62,14 @@ export async function createHousehold(db: Db, id: string, data: Setup, opts: { i
   if (limit !== null && limit < 0) throw new InputError("Credit limit cannot be negative");
   return db.transaction(async tx => {
     const [created] = await tx.insert(households).values({
-      id, name: data.name, timeZone: data.timeZone, homeCurrency: data.currency, bankBalanceMinor: bank, isDemo: opts.isDemo, nudgeAfterDays: 3, // D51: the nudge rule is on for a new household; fixedToday stays null (the real date)
+      id, name: data.name, timeZone: data.timeZone, homeCurrency: data.currency, bankBalanceMinor: bank, isDemo: opts.isDemo,
 
     }).onConflictDoNothing({ target: households.id }).returning({ id: households.id });
     if (!created) {
       if (opts.authUserId && await accountHousehold(tx, id)) return id;
       throw new Error("Household unavailable");
     }
+    await seedRules(tx, id);
     if (reference) await storeReferenceRate(tx, id, reference);
     const [owner] = await tx.insert(members).values({
       householdId: id, displayName: data.name, role: "owner", shareBp: 10_000, authUserId: opts.authUserId ?? null,

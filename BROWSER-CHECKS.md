@@ -207,12 +207,12 @@ No sign-in needed; open it in a private window and again signed in.
 
 ## Q. Traceable drafts, client pace, the nudge rule
 
-A fresh Try it household (Ben). Demo date Nov 14. Q3 and Q4 need the daily job, which a demo household never runs from the browser; they are covered by `npm run db:cron-test` and by Q5 once deployed.
+A fresh Try it household (Ben). Demo date Nov 14. Q3 and Q4 need a prepared fictional invoice and a completed daily suggestion pass.
 
 - Q1. Invoice review shows the client's pace. Home's action opens the Beacon Studio invoice (E1): under the amount a row reads "Beacon Studio usually pays 2 days after you send, slowest 3". Open Northwind's sent invoice from Clients: "Northwind usually pays 12 days after you send, slowest 16"; Acme Corp's: "14 days … slowest 25". A client with no paid invoice shows no such row. The Clients panel's "Time to pay" row says the same numbers ("12 days usual · 16 slowest" for Northwind). At 375px the row wraps without overlap.
-- Q2. Settings → "Late-client nudge" shows the field "Suggest a nudge when a client is N days past due (1–60, empty = off)", empty, with the line "It only suggests. Sending a reminder still needs your tap." Save 5 → "Settings saved", the field keeps 5 after a reload and Activity's newest row is "Nudge suggestions on, 5 days past due" (Type: Settings changed). Save 0 or 61 → the form refuses it and nothing changes. Save it empty → Activity says "Nudge suggestions turned off". The Save button is at least 44px tall at 375px.
-- Q3. Needs the daily job (deployed Cron Trigger, or `npm run db:cron-test` here). With the rule at 2 days and a sent invoice whose due date was 2 or more days ago, Activity gains one row "Nudge Northwind: 2 days past due", Type "Nudge suggested", and the bell counts it. It never appears twice for the same invoice, never for an invoice that already has a reminder, and nothing is sent to PayPal.
-- Q4. Needs the daily job and a sent invoice linked to PayPal. Home's one action then reads "Nudge Northwind $800" (the first name and the amount) in place of the usual action and opens the invoice review with "Approve reminder"; PayPal is called only after that tap (E4). Once the reminder is sent, or the rule is turned off, Home's action goes back to what it was.
+- Q2. Settings → "Late-client nudge" shows the field "Suggest a nudge when a client is N days past due (1–60, empty = off)", starting at 3 days, with the line "It only suggests. Sending a reminder still needs your tap." Save 5 → "Settings saved", the field keeps 5 after a reload and Activity's newest row is "Nudge suggestions on, 5 days past due" (Type: Settings changed). Save 0 or 61 → the form refuses it and nothing changes. Save it empty → Activity says "Nudge suggestions turned off". The Save button is at least 44px tall at 375px.
+- Q3. In an isolated fictional household with a sent sandbox invoice for Northwind four days past its due date and the rule at 4 days, run the daily pass. Activity has one "Nudge Northwind" row, Type "Suggestion made". Home says "The invoice is 4 days past due." The finding appears once. The credential-free db:suggest-test covers this with a simulated sandbox invoice.
+- Q4. With that finding open, "Review reminder" opens the existing invoice review and its "Approve reminder" control. Using a simulated PayPal transport, approve the reminder. Home no longer shows the finding and Activity has a "Suggestion approved" row. Opening the review alone leaves the finding open.
 - Q5. Needs the AI settings (K3) or an MCP client (I5). A bill, charge, pot or bank balance the agent drafts waits in To check with a small muted "· Drafted by Ask" after its title (through MCP: "· Drafted through MCP"); Activity's "Waiting in To check" row for it says the same. A bill typed in or read from a document has no such words. After Confirm the row leaves To check and nothing else on screen changes.
 
 ## R. The first ten minutes
@@ -425,3 +425,21 @@ A fresh Try it household (today Nov 14). AF1 to AF5 need the AI key (a working `
 - AF9. Needs the owner's key: Settings → Your AI model, save a listed provider with the key (Y5) → "Saved: …{last four}", and Ask answers through it. If a key was saved before sealing existed, Ask says "Your saved AI key predates sealed storage. Save your key again in Settings."; saving the key again fixes it. With `AI_KEY_SEAL_KEY` empty the save does not go through.
 
 At 375px and 1440px: nothing scrolls sideways, buttons 44px tall.
+
+## AG. From your assistant (D64, 29A)
+
+Run these after migration 0028 on a separate browser-test setup at 375px and 1440px. Fresh Try it (Nov 14) and Reset show zero suggestions and the usual ¥18,780 shortfall on Nov 27.
+
+For AG2–AG4 use separate disposable copies of Ben’s Try it. Prepare a pending Kumo Water bill for ¥2,500 due Nov 17 and run the suggestion pass for that household on Nov 14. This fixture is exercised by db:suggest-test.
+
+- AG1. Open fresh Try it and then Reset. The "From your assistant" panel is absent on both. Ben’s numbers match A1.
+- AG2. Open Home. Above Coming up, "From your assistant" contains "Kumo Water due Nov 17" and "¥2,500, covered even if clients pay late." Review in To check opens that exact pending row. Confirm it and return to Home. The finding is gone, the bill is confirmed once, and Activity has a "Suggestion approved" row titled "Kumo Water due Nov 17".
+- AG3. Tap Not now. The finding disappears through a reload on Nov 14. In the fixture advance the household date to Nov 15 and run its suggestion pass. The Kumo Water finding is back. CloudBox Plus enters the three-day window on Nov 15 as a separate finding.
+- AG4. Tap Dismiss. The finding disappears through a reload and stays gone after the Nov 15 pass. Activity has one "Suggestion dismissed" row titled "Kumo Water due Nov 17".
+- AG5. Ask "What needs my attention?" with the Kumo Water fixture and a configured model. Expect the tool step "Checking what needs your attention" and the title and ¥2,500 reason from the open finding. "Based on" links to "From your assistant". On fresh Try it the suggestions tool returns an empty list.
+- AG6. On a disposable Nov 23 copy of Ben's household, run the pass. Card A statement due Nov 26 reads "¥58,000, covered even if clients pay late." Review statement opens Card A.
+- AG7. On that Nov 23 copy, Review invoice on "Acme Corp is past their usual payment day" opens invoice 1042. Its reason names Nov 22.
+- AG8. On Nov 15 with a completed pass, Review bill on "CloudBox Plus due Nov 18" opens CloudBox Plus in Settings. The reason includes ¥1,980. After editing and saving that bill, Activity records Suggestion approved.
+- AG9. On a Nov 14 fixture with Kumo Water at ¥2,000 in October and ¥2,500 in November and the cost rule at 24%, Review regular costs on "Kumo Water costs more this month" opens Regular costs in Plan. The reason reads "¥500 more than last month."
+- AG10. On a fixture with a Camera pot targeting ¥120,000 by Dec 14, saved ¥0, and no expected income, Review pot opens the Camera form in Plan. The reason gives ¥120,000 still to set aside. Saving the updated pot closes its finding.
+- AG11. On fresh Nov 14 Try it with a ¥50,000 minimum safe-to-spend rule and a completed pass, Review safe to spend opens Next 30 days on Home. The reason reads "¥0 safe to spend, below ¥50,000."

@@ -18,7 +18,6 @@ export const EVENT_KIND_LABELS = {
   client_added: "Client added",
   data_deleted: "Stored data deleted",
   data_moved: "Stored data moved",
-  daily_reminder: "Daily reminder",
   document_failed: "Document needs attention",
   document_queued: "Document waiting to be read",
   document_read: "Document read",
@@ -34,7 +33,6 @@ export const EVENT_KIND_LABELS = {
   member_renamed: "Person renamed",
   person_removed: "Person removed",
   paypal_imported: "Imported from PayPal",
-  nudge_suggested: "Nudge suggested",
   pot_added: "Pot added",
   pot_filled: "Set aside for a pot",
   pot_removed: "Pot removed",
@@ -46,12 +44,21 @@ export const EVENT_KIND_LABELS = {
   settings_updated: "Settings changed",
   settled: "Shared costs settled",
   shares_updated: "Shares changed",
+  suggestion_made: "Suggestion made",
+  suggestion_dismissed: "Suggestion dismissed",
+  suggestion_approved: "Suggestion approved",
   to_check: "Waiting in To check",
 } as const;
 
+const HISTORICAL_LABELS: Record<string, string> = {
+  daily_reminder: "Daily reminder",
+  nudge_suggested: "Nudge suggested",
+};
 type EventKind = keyof typeof EVENT_KIND_LABELS;
 
 /** The words for an event kind. A kind recorded by an older version and no longer written shows as its own name in words. */
 export function eventKindLabel(kind: string): string {
-  return Object.hasOwn(EVENT_KIND_LABELS, kind) ? EVENT_KIND_LABELS[kind as EventKind] : kind.replaceAll("_", " ");
+  if (Object.hasOwn(EVENT_KIND_LABELS, kind)) return EVENT_KIND_LABELS[kind as EventKind];
+  if (Object.hasOwn(HISTORICAL_LABELS, kind)) return HISTORICAL_LABELS[kind];
+  return kind.replaceAll("_", " ");
 }

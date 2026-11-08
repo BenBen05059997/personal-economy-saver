@@ -1,3 +1,5 @@
+import { db } from "@/db/client";
+import { openSuggestions } from "@/db/suggestions";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { Landing } from "@/components/auth/Landing";
@@ -13,8 +15,8 @@ async function SessionHome({ search }: { search: Search }) {
   const id = await currentHouseholdId();
   if (!id) return <Landing />;
   const { added } = await search;
-  const workspace = await loadWorkspace(id, true);
-  return <WorkspaceFrame workspace={workspace} section="home"><HomeView state={workspace.state} people={workspace.people} entryIds={{ bill: crypto.randomUUID(), charge: crypto.randomUUID() }} balanceId={crypto.randomUUID()} inbox={workspace.inbox} notice={workspace.freshness?.stale} demo={workspace.demo} tryIt={workspace.tryIt}
+  const [workspace, suggestions] = await Promise.all([loadWorkspace(id, true), openSuggestions(db(), id)]);
+  return <WorkspaceFrame workspace={workspace} section="home"><HomeView suggestions={suggestions} state={workspace.state} people={workspace.people} entryIds={{ bill: crypto.randomUUID(), charge: crypto.randomUUID() }} balanceId={crypto.randomUUID()} inbox={workspace.inbox} notice={workspace.freshness?.stale} demo={workspace.demo} tryIt={workspace.tryIt}
     forwarding={missingForwardingSetting() === null} added={typeof added === "string" ? added : null} />
     {workspace.freshness?.asOf && <p className="ui-hint">PayPal balance as of {workspace.freshness.asOf.toLocaleString("en-US", { timeZone: workspace.timeZone })}.</p>}
     <ScrollToHash />

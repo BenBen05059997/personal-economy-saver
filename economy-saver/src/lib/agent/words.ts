@@ -18,6 +18,7 @@ export const TOOL_WORDS: Record<string, string> = {
   month_by_category: "Adding up the month",
   search_spending: "Searching your spending",
   bills_for_month: "Finding the bills for that month",
+  suggestions: "Checking what needs your attention",
   regular_costs: "Reading your regular costs",
   foreign_costs: "Checking what foreign money costs",
   draft_invoice: "Drafting the invoice",

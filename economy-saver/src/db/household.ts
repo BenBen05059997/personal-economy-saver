@@ -107,7 +107,7 @@ export async function loadSplitState(
 }
 
 /** Reads the household's rows and returns the MoneyState the engine consumes. `today` is the household's own date. */
-export async function loadMoneyState(db: Db, householdId: string, today: string, snapshot?: typeof s.households.$inferSelect): Promise<MoneyState> {
+export async function loadMoneyState(db: Db, householdId: string, today: string, snapshot?: typeof s.households.$inferSelect, chargesFrom = addDays(today, -CHARGE_LOOKBACK_DAYS)): Promise<MoneyState> {
   const hid = requireHousehold(householdId);
   if (snapshot && snapshot.id !== hid) throw new Error("Household snapshot does not match household id");
   const household = snapshot ?? (await db.select().from(s.households).where(eq(s.households.id, hid)))[0];
@@ -120,20 +120,14 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
   const inUsd = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, "USD", fxPerUsd), "USD");
   const toHome = (minor: number, currency: string) => convertMinor(minor, currency, home, fxPerUsd);
 
-  // D50: only while the standing rule is on. A nudge counts while its invoice is still sent, unreminded and linked to PayPal.
-  const nudged = household.nudgeAfterDays === null ? undefined : db.select({ id: s.invoices.id }).from(s.events)
-    .innerJoin(s.invoices, and(eq(s.invoices.householdId, hid), eq(s.invoices.id, s.events.refId)))
-    .where(and(eq(s.events.householdId, hid), eq(s.events.kind, "nudge_suggested"), eq(s.events.refType, "invoice"),
-      eq(s.invoices.status, "sent"), isNull(s.invoices.remindedAt), isNull(s.invoices.reminderAttemptedAt), isNotNull(s.invoices.paypalInvoiceId)))
-    .orderBy(s.events.occurredAt, s.events.id);
-  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows, balanceRows, potRows, split, nudgedRows] = await Promise.all([
+  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows, balanceRows, potRows, split] = await Promise.all([
     db.select().from(s.paypalConnections).where(eq(s.paypalConnections.householdId, hid)),
     db.select().from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(s.bills.due, s.bills.biller),
     db.select().from(s.cards).where(eq(s.cards.householdId, hid)).orderBy(s.cards.createdAt, s.cards.label),
     db
       .select()
       .from(s.charges)
-      .where(and(eq(s.charges.householdId, hid), gte(s.charges.date, addDays(today, -CHARGE_LOOKBACK_DAYS))))
+      .where(and(eq(s.charges.householdId, hid), gte(s.charges.date, chargesFrom)))
       .orderBy(s.charges.date, s.charges.merchant),
     db
       .select()
@@ -145,7 +139,6 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     db.select().from(s.balanceUpdates).where(and(eq(s.balanceUpdates.householdId, hid), eq(s.balanceUpdates.status, "pending"))).orderBy(s.balanceUpdates.createdAt, s.balanceUpdates.id),
     db.select().from(s.pots).where(eq(s.pots.householdId, hid)).orderBy(s.pots.createdAt, s.pots.name, s.pots.id),
     loadSplitState(db, hid, household.splitSince, today, toHome),
-    nudged ?? Promise.resolve(undefined),
   ]);
 
   const paypalMinor = paypalTotalMinor(connections, home, fxPerUsd);
@@ -266,7 +259,6 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     cancelNotices: cancelNotices(storedBills, today, home),
     storedBills,
     balanceUpdates: balanceRows.map((u) => ({ id: u.id, amount: inHome(u.amountMinor, u.currency), ...(u.madeBy !== "form" && { madeBy: u.madeBy }) })),
-    ...(nudgedRows && { nudgedInvoiceIds: nudgedRows.map(row => row.id) }),
     split,
   };
   // D41: monthly bills become their occurrences up to the last day the engine looks at. planWindow reads only cards,

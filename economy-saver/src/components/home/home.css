@@ -215,3 +215,9 @@
 
 /* The pin heading's "Open ›" link: a 44px tap target at phone width, same look. */
 @media (max-width: 899px) { .home-pin h2 a { display: inline-block; padding: 14px 3px; margin: -14px -3px; } }
+
+.home-suggestion { display: grid; justify-items: start; gap: 0.4rem; padding-block: 0.75rem; }
+.home-suggestion + .home-suggestion { border-top: 1px solid var(--rule); }
+.home-suggestion h3, .home-suggestion .home-note { margin: 0; }
+.home-suggestion-choice fieldset { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.home-suggestion-choice button { min-height: 44px; }

@@ -399,7 +399,7 @@ async function main() {
 
   await check("row level security is on for every table, with no policies", async () => {
     const tables = allTables().map((t) => getTableConfig(t).name);
-    assert.equal(tables.length, 28);
+    assert.equal(tables.length, 32);
     const on = (await pg.query<{ relname: string }>(`select relname from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace and relrowsecurity`)).rows.map((r) => r.relname);
     assert.deepStrictEqual(on.sort(), tables.sort());
     assert.equal((await pg.query(`select 1 from pg_policies`)).rows.length, 0);
@@ -416,7 +416,7 @@ async function main() {
       else assert.ok(col?.notNull, `${cfg.name}.household_id not null`);
       const fk = cfg.foreignKeys.find((f) => f.reference().columns.some((c) => c.name === "household_id") && f.reference().foreignTable === schema.households);
       assert.equal(fk?.onDelete, "cascade", `${cfg.name} cascade`);
-      assert.ok(cfg.primaryKeys.some(key => key.columns[0].name === "household_id") || cfg.indexes.some((i) => i.config.columns.some((c) => (c as { name?: string }).name === "household_id")), `${cfg.name} index`);
+      assert.ok(cfg.primaryKeys.some(key => key.columns[0].name === "household_id") || cfg.uniqueConstraints.some(key => key.columns[0].name === "household_id") || cfg.indexes.some((i) => i.config.columns.some((c) => (c as { name?: string }).name === "household_id")), `${cfg.name} index`);
     }
   });
 
@@ -498,7 +498,7 @@ async function main() {
     assert.deepEqual(normalise(await loadMoneyState(db, fresh, today)), normalise(benMoney));
   });
 
-  await check("published FX dates, scoped snapshots, and one daily statement and notification on retry", async () => {
+  await check("published FX dates, scoped snapshots, and one daily statement and no duplicate suggestions on retry", async () => {
     assert.deepEqual(parseReferenceRate("<Cube time='2026-11-13'><Cube currency='USD' rate='2'/><Cube currency='JPY' rate='320'/></Cube>"),
       { date: "2026-11-13", rateMicro: 160000000 });
     const demo = await seedBen(db, { isDemo: true });
@@ -510,7 +510,7 @@ async function main() {
     await runDaily(db, demo);
     await runDaily(db, demo);
     assert.deepEqual(series(await loadMoneyState(db, demo, today), "worst"), before);
-    assert.equal((await listEvents(db, demo)).filter(row => row.kind === "daily_reminder" && row.notify).length, 1);
+    assert.equal((await listEvents(db, demo)).filter(row => row.kind === "suggestion_made").length, 0);
     const statements = await db.select().from(schema.cardStatements).where(and(eq(schema.cardStatements.householdId, demo), eq(schema.cardStatements.cardId, card.id)));
     assert.equal(statements.length, 1);
     assert.equal(statements[0].amountMinor, 61000);

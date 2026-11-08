@@ -16,13 +16,14 @@ import { PanelHint } from "@/components/ui/PanelHint";
 import { BankBalance } from "./BankBalance";
 import { RunwayChart } from "./RunwayChart";
 import { homeSentence } from "@/lib/money/sentence";
-import { paceLine } from "@/lib/money/pace";
 import { Suspense } from "react";
 import { Pinned } from "./Pinned";
 import { Sentence } from "./Sentence";
 import { cardSummary } from "./card-summary";
 import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
+import { Suggestions } from "./Suggestions";
+import type { openSuggestions } from "@/db/suggestions";
 import "./home.css";
 
 type Props = { state: MoneyState };
@@ -42,17 +43,13 @@ function Actions({ state, forwarding }: Props & { forwarding: boolean }) {
   const unbilled = state.invoices.find((i) => i.status === "unbilled");
   const client = state.clients.find((c) => c.id === unbilled?.clientId);
   const invoiceFix = pick?.id === "invoice" && unbilled && client;
-  // D50: a late client the daily job suggested a nudge for comes first; the reminder still needs the tap on its review page.
-  const nudged = state.nudgedInvoiceIds?.map(id => state.invoices.find(i => i.id === id && i.status === "sent")).find(i => i !== undefined);
-  const nudgedClient = state.clients.find(c => c.id === nudged?.clientId);
   return <div id="actions">
     <div className="home-actions">
-      {nudged && nudgedClient ? <Link className="home-button home-primary" prefetch={false} href={`/invoices/${nudged.id}`}>Nudge {nudgedClient.name.split(" ")[0]} {usd(nudged.amountUsd)}</Link> : invoiceFix ? <Link className="home-button home-primary" prefetch={false} href={`/invoices/${unbilled.id}`}>Invoice {client.name.split(" ")[0]} {usd(unbilled.amountUsd)}</Link>
+      {invoiceFix ? <Link className="home-button home-primary" prefetch={false} href={`/invoices/${unbilled.id}`}>Invoice {client.name.split(" ")[0]} {usd(unbilled.amountUsd)}</Link>
         : pick && <Link className="home-button home-primary" prefetch={false} href={pick.id === "remind" ? "/clients" : "/options"}>{pick.title}</Link>}
       {forwarding && <Link className="home-button home-secondary" prefetch={false} href="/settings#forwarding">Forward a bill</Link>}
       <Link className="home-button home-secondary" prefetch={false} href="/upload">Upload a receipt</Link>
     </div>
-    {nudged && nudgedClient && paceLine(nudgedClient) && <p className="home-note">{`${nudgedClient.name.split(" ")[0]}’s time to pay: ${paceLine(nudgedClient)}`}</p>}
     {options.gap > 0 && <Link className="home-options" prefetch={false} href="/options">{pick ? "Other options" : "Compare options"} ›</Link>}
   </div>;
 }
@@ -277,7 +274,7 @@ function addedLine(state: MoneyState, id: string | null): string | null {
   return charge && card ? `Added ${charge.merchant} ${format(charge.amount)} on ${card.label}` : null;
 }
 
-export function HomeView({ state, inbox, notice, people, entryIds, balanceId, demo, tryIt, forwarding, added }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; people: People; entryIds: EntryIds; balanceId: string }) {
+export function HomeView({ state, inbox, notice, people, entryIds, balanceId, demo, tryIt, forwarding, added, suggestions }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; people: People; entryIds: EntryIds; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>> }) {
   const date = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(state.today)).replace(",", "");
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
@@ -289,7 +286,7 @@ export function HomeView({ state, inbox, notice, people, entryIds, balanceId, de
     <Suspense fallback={null}><Pinned state={state} /></Suspense>
     <div className="home-panels">
       <div className="home-column"><Next30Days state={state} balanceId={balanceId} /><Cards state={state} /><SharedCosts state={state} /></div>
-      <div className="home-column"><FirstSteps state={state} tryIt={tryIt} /><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><ComingUp state={state} people={people} entryIds={entryIds} added={addedLine(state, added)} addedId={added} /></div>
+      <div className="home-column"><FirstSteps state={state} tryIt={tryIt} /><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><ComingUp state={state} people={people} entryIds={entryIds} added={addedLine(state, added)} addedId={added} /></div>
     </div>
   </article>;
 }

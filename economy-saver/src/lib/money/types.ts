@@ -165,6 +165,5 @@ export type MoneyState = {
   cancelNotices: CancelNotice[]; // D48: dated "cancel by" rows for Coming up; information only
   balanceUpdates: { id: string; amount: number; madeBy?: MadeBy }[]; // new bank balances waiting in To check (D42), home currency
   storedBills: StoredBill[]; // the bills as stored (a repeating bill once): lets the checks see a series whose next date is past the plan window, and `stateThrough` expand a later day. Set by loadMoneyState
-  nudgedInvoiceIds?: string[]; // D50: sent invoices the daily job suggested a nudge for and that can still be reminded; present only while the rule is on. Home shows the first as its one action
   split: SplitState; // D45: members, shares and the shared items since the last settlement
 };

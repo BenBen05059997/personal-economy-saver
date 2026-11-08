@@ -1,8 +1,8 @@
 import { connection } from "next/server";
 
-import { z } from "zod";
 import { db } from "@/db/client";
-import { runDaily } from "@/db/daily";
+import { dueHouseholds, runDaily } from "@/db/daily";
+import { pruneIpBuckets } from "@/db/rate-limit";
 import { sweepDemoHouseholds } from "@/db/demo";
 
 function authorized(request: Request): boolean {
@@ -19,11 +19,19 @@ function authorized(request: Request): boolean {
 export async function GET(request: Request) {
   await connection();
   if (!authorized(request)) return Response.json({ ok: false }, { status: 401 });
-  const { swept, failed } = await sweepDemoHouseholds(db()); // D49: before the per-household work, so it runs even without CRON_HOUSEHOLD_IDS
-  const configured = process.env.CRON_HOUSEHOLD_IDS?.trim();
-  if (!configured) return Response.json({ error: "CRON_HOUSEHOLD_IDS is not set", swept, failed }, { status: 503 });
-  const ids = z.array(z.string().uuid()).safeParse(configured.split(",").map(id => id.trim()));
-  if (!ids.success) return Response.json({ error: "CRON_HOUSEHOLD_IDS must contain household UUIDs", swept, failed }, { status: 503 });
-  for (const id of new Set(ids.data)) await runDaily(db(), id);
-  return Response.json({ ok: true, swept, failed });
+  const store = db();
+  const now = new Date();
+  const { swept, failed } = await sweepDemoHouseholds(store, now);
+  await pruneIpBuckets(store);
+  const ids = await dueHouseholds(store, now);
+  const runs = { completed: 0, failed: 0 };
+  for (const id of ids) {
+    try {
+      await runDaily(store, id, now);
+      runs.completed++;
+    } catch {
+      runs.failed++;
+    }
+  }
+  return Response.json({ ok: runs.failed === 0, swept, failed, runs }, { status: runs.failed ? 503 : 200 });
 }

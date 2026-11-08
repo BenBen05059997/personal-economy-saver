@@ -30,6 +30,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { RULE_KINDS, SUGGESTION_KINDS, SUGGESTION_ACTIONS } from "../lib/money/suggestion-types";
 import { CATEGORY_KEYS } from "../lib/money/categories";
 
 const categoryList = sql.raw(CATEGORY_KEYS.map(key => `'${key}'`).join(", "));
@@ -66,7 +67,8 @@ export const households = pgTable("households", {
   fixedToday: date("fixed_today", { mode: "string" }), // D51: set only on Try it (the day Ben's numbers need); null = the real date in the time zone
   forwardingLocalpart: text("forwarding_localpart"),
   runwayShort: boolean("runway_short"),
-  nudgeAfterDays: integer("nudge_after_days"), // D50: null = off; the daily job suggests a nudge this many days past due
+  nudgeAfterDays: integer("nudge_after_days"), // Legacy column, retained for Workers using the previous schema.
+  dailyRanOn: date("daily_ran_on", { mode: "string" }),
   notificationDay: date("notification_day", { mode: "string" }),
   splitSince: date("split_since", { mode: "string" }), // D45: the day the household got its second member; null while it has one
   aiKeySecretId: uuid("ai_key_secret_id"), // the user's own key lives in Supabase Vault (D33); this is its id
@@ -451,18 +453,92 @@ export const readings = pgTable(
     foreignKey({ columns: [t.householdId, t.documentId], foreignColumns: [documents.householdId, documents.id], name: "readings_document_household_fk" }).onDelete("cascade")],
 ).enableRLS();
 
-// A correction keyed by biller, applied before the next reading is shown (D36).
-export const rules = pgTable(
-  "rules",
-  {
-    id: id(),
-    householdId: householdId(),
-    matchBiller: text("match_biller").notNull(),
-    patch: jsonb("patch").notNull(),
-    createdAt: createdAt(),
-  },
-  (t) => [index("rules_household_idx").on(t.householdId), unique("rules_household_biller_uq").on(t.householdId, t.matchBiller)],
-).enableRLS();
+// Reader corrections retain their original biller key and patch. Standing rules use the reserved standing: namespace.
+export const rules = pgTable("rules", {
+  id: id(),
+  householdId: householdId(),
+  matchBiller: text("match_biller").notNull(),
+  patch: jsonb("patch").notNull(),
+  createdAt: createdAt(),
+  kind: text("kind", { enum: RULE_KINDS }),
+  enabled: boolean("enabled"),
+  threshold: minor("threshold"),
+  currency: char("currency", { length: 3 }),
+}, (t) => [
+  index("rules_household_idx").on(t.householdId),
+  unique("rules_household_biller_uq").on(t.householdId, t.matchBiller),
+  unique("rules_household_id_uq").on(t.householdId, t.id),
+  unique("rules_household_kind_uq").on(t.householdId, t.kind),
+]).enableRLS();
+
+export const suggestions = pgTable("suggestions", {
+  id: id(),
+  householdId: householdId(),
+  kind: text("kind", { enum: SUGGESTION_KINDS }).notNull(),
+  key: text("key").notNull(),
+  title: text("title").notNull(),
+  reason: text("reason").notNull(),
+  action: text("action", { enum: SUGGESTION_ACTIONS }).notNull(),
+  refId: text("ref_id"),
+  urgency: integer("urgency").notNull(),
+  status: text("status", { enum: ["open", "approved", "dismissed", "not_now", "resolved"] }).notNull().default("open"),
+  createdOn: date("created_on", { mode: "string" }).notNull(),
+  createdAt: createdAt(),
+  snoozedOn: date("snoozed_on", { mode: "string" }),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+}, (t) => [
+  unique("suggestions_household_id_uq").on(t.householdId, t.id),
+  unique("suggestions_household_key_uq").on(t.householdId, t.key),
+  index("suggestions_household_status_idx").on(t.householdId, t.status),
+  check("suggestions_status_valid", sql`${t.status} in ('open', 'approved', 'dismissed', 'not_now', 'resolved')`),
+]).enableRLS();
+
+export const reminderSettings = pgTable("reminder_settings", {
+  id: id(),
+  householdId: householdId(),
+  memberId: uuid("member_id").notNull(),
+  hour: integer("hour").notNull().default(8),
+  quietDays: smallint("quiet_days").array().notNull().default(sql`'{}'::smallint[]`),
+  emailOn: boolean("email_on").notNull().default(false),
+}, (t) => [
+  unique("reminder_settings_household_id_uq").on(t.householdId, t.id),
+  unique("reminder_settings_household_member_uq").on(t.householdId, t.memberId),
+  foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "reminder_settings_member_household_fk" }).onDelete("cascade"),
+  check("reminder_settings_hour_valid", sql`${t.hour} between 0 and 23`),
+]).enableRLS();
+
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: id(),
+  householdId: householdId(),
+  memberId: uuid("member_id").notNull(),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  createdAt: createdAt(),
+  failures: integer("failures").notNull().default(0),
+}, (t) => [
+  unique("push_subscriptions_household_id_uq").on(t.householdId, t.id),
+  unique("push_subscriptions_household_endpoint_uq").on(t.householdId, t.endpoint),
+  index("push_subscriptions_household_member_idx").on(t.householdId, t.memberId),
+  foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "push_subscriptions_member_household_fk" }).onDelete("cascade"),
+]).enableRLS();
+
+export const reminders = pgTable("reminders", {
+  id: id(),
+  householdId: householdId(),
+  memberId: uuid("member_id").notNull(),
+  channel: text("channel", { enum: ["email", "push"] }).notNull(),
+  day: date("day", { mode: "string" }).notNull(),
+  suggestionIds: uuid("suggestion_ids").array().notNull(),
+  status: text("status", { enum: ["sent", "failed"] }).notNull(),
+  createdAt: createdAt(),
+}, (t) => [
+  unique("reminders_household_id_uq").on(t.householdId, t.id),
+  unique("reminders_household_member_channel_day_uq").on(t.householdId, t.memberId, t.channel, t.day),
+  foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "reminders_member_household_fk" }).onDelete("cascade"),
+  check("reminders_channel_valid", sql`${t.channel} in ('email', 'push')`),
+  check("reminders_status_valid", sql`${t.status} in ('sent', 'failed')`),
+]).enableRLS();
 
 // Everything that happened. This table is the Activity page and feeds the bell (D35).
 export const events = pgTable(

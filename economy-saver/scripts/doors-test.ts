@@ -21,6 +21,7 @@ import { parseAmountMinor, parseMinor } from "@/db/money";
 import { amountProblem } from "@/lib/money/amount";
 import { returnPath } from "@/lib/door";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
+import { rulesFor } from "@/db/rules";
 import { seedBen } from "@/db/seed";
 import { loadMoneyState } from "@/db/household";
 import { cancelNotices, expandBills, lastOneWords, lastPayment, nextOccurrenceAfter, occurrenceDates } from "@/lib/money/repeat";
@@ -142,11 +143,11 @@ async function main() {
       assert.notDeepEqual(homeSentence(await loadMoneyState(db, other, TODAY)).lead, empty.lead);
     });
 
-    await check("the two-field start makes a household with no card, the real date and the nudge rule at 3 days; Try it keeps Nov 14 with the nudge off (D51)", async () => {
+    await check("the two-field start makes a household with no card, the real date and the nudge rule at 3 days; Try it keeps Nov 14 with the same rule (D66)", async () => {
       const bare = setupForm.parse({ name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "250,000" });
       const id = await createHousehold(db, randomUUID(), bare, { isDemo: true });
       const [row] = await db.select().from(schema.households).where(eq(schema.households.id, id));
-      assert.equal(row.fixedToday, null); assert.equal(row.nudgeAfterDays, 3); assert.equal(row.bankBalanceMinor, 250_000);
+      assert.equal(row.fixedToday, null); assert.deepEqual((await rulesFor(db, id)).nudge_after, { enabled: true, threshold: 3, currency: null }); assert.equal(row.bankBalanceMinor, 250_000);
       assert.equal((await cardsOf(id)).length, 0, "no card block, no card");
       const real = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
       assert.equal(await householdDate(db, id), real, "a blank household lives on the real date in its zone");
@@ -158,7 +159,7 @@ async function main() {
       assert.equal(await tryItKind(db, id), "blank");
       const ben = await seedBen(db, { isDemo: true });
       const [tryIt] = await db.select().from(schema.households).where(eq(schema.households.id, ben));
-      assert.equal(tryIt.fixedToday, "2026-11-14"); assert.equal(tryIt.nudgeAfterDays, null);
+      assert.equal(tryIt.fixedToday, "2026-11-14"); assert.equal((await rulesFor(db, ben)).nudge_after.threshold, 3);
       assert.equal(await householdDate(db, ben), "2026-11-14");
       assert.equal(await tryItKind(db, ben), "try-it");
       assert.equal(await tryItKind(db, randomUUID()), null);
@@ -732,6 +733,8 @@ async function main() {
       for (const notEvent of ["bill", "charge", "balance", "pot", "email", "upload", "arrival", "statement", "reading"]) written.delete(notEvent);
       for (const kind of written) assert.ok(Object.hasOwn(EVENT_KIND_LABELS, kind), `no label for the event kind ${kind}`);
       for (const kind of Object.keys(EVENT_KIND_LABELS)) assert.ok(written.has(kind), `the label ${kind} is for a kind nothing writes`);
+      assert.equal(eventKindLabel("daily_reminder"), "Daily reminder", "historical Activity keeps its label");
+      assert.equal(eventKindLabel("nudge_suggested"), "Nudge suggested", "historical Activity keeps its label");
       assert.equal(eventKindLabel("invoice_paid_outside"), "Invoice paid outside PayPal");
       assert.equal(eventKindLabel("runway_clear"), "Clear for 30 days");
       assert.equal(eventKindLabel("runway_short"), "Short");
@@ -769,7 +772,7 @@ async function main() {
 
     await check("D50: the nudge setting round-trips: empty is off, 1 to 60 is a number, anything else is refused, and Activity says so", async () => {
       const read = async () => (await loadSettings(db, a)).household.nudgeAfterDays;
-      assert.equal(await read(), null, "off by default");
+      assert.equal(await read(), 3, "three days by default");
       await updateSettings(db, a, settingsInput.parse({ kind: "nudge", afterDays: "9" }));
       assert.equal(await read(), 9);
       assert.equal((await events(a, "settings_updated")).at(-1)?.title, "Nudge suggestions on, 9 days past due");
@@ -782,7 +785,7 @@ async function main() {
       for (const bad of ["0", "61", "2.5", "abc", "-3"]) assert.equal(settingsInput.safeParse({ kind: "nudge", afterDays: bad }).success, false, bad);
       await assert.rejects(pg.query("update households set nudge_after_days = 61 where id = $1", [a]), /households_nudge_after_days_valid/);
       assert.equal(await read(), null);
-      assert.equal((await loadSettings(db, b)).household.nudgeAfterDays, null, "another household is untouched");
+      assert.equal((await loadSettings(db, b)).household.nudgeAfterDays, 3, "another household is untouched");
     });
 
     await check("a last payment (D41): the expansion stops after it, the refusals use their words, edits say what changed, and the table refuses a one-off with one", async () => {

@@ -17,9 +17,6 @@ DATABASE_URL=
 # Bearer token the Cron Trigger sends to /api/cron. Generate with: openssl rand -base64 32
 CRON_SECRET=
 
-# Comma-separated household UUIDs included in the daily reminder job.
-CRON_HOUSEHOLD_IDS=
-
 # Same dedicated 32-byte base64url key as local config.
 MCP_TOKEN_KEY=
 

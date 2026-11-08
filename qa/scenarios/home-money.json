@@ -1262,13 +1262,13 @@
       "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
     ],
     "steps": [
-      "Run npm run db:cron-test"
+      "Run npm run db:suggest-test"
     ],
     "expected": [
-      "With the rule at 2 days an overdue sent invoice gets one 'Nudge Northwind: 2 days past due' row, never twice, never after a reminder, and nothing is sent to PayPal"
+      "A linked and overdue sandbox invoice gets one nudge suggestion. Only successful approval closes it as approved, using a simulated PayPal transport."
     ],
     "refs": [
-      "db:cron-test",
+      "db:suggest-test",
       "BROWSER-CHECKS Q3"
     ]
   },

@@ -10,6 +10,7 @@ import { db } from "@/db/client";
 import { latestConversation } from "@/db/conversation";
 import { readPlaces } from "@/db/place";
 import { loadSpending } from "@/db/spending";
+import { openSuggestions } from "@/db/suggestions";
 import { askUnavailable, missingAskSetting } from "@/lib/agent/availability";
 import { CanvasError, resolveRecipe, type CanvasContext } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
@@ -28,12 +29,13 @@ async function AskContent({ search }: { search: Search }) {
   const { pin: pinParam } = await search;
   const hid = await currentHouseholdId();
   if (!hid) redirect("/");
-  const workspace = await loadWorkspace(hid);
+  const [workspace, suggestions] = await Promise.all([loadWorkspace(hid), openSuggestions(db(), hid)]);
   const { state } = workspace;
   const current = state.today.slice(0, 7);
   const spending = await loadSpending(db(), hid, { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last });
   const context: CanvasContext = { state, spending };
-  const starters = starterRecipes(state).flatMap(starter => draw(starter.id, starter.recipe, context) ?? []);
+  const nudgeIds = suggestions.flatMap(row => row.action === "remind" && row.refId ? [row.refId] : []);
+  const starters = starterRecipes(state, nudgeIds).flatMap(starter => draw(starter.id, starter.recipe, context) ?? []);
   // D59: a kind kept on this device is not read here at all; the page reads it in the browser.
   const places = await readPlaces(db(), hid);
   const [conversation, pins, own, firstUse] = await Promise.all([

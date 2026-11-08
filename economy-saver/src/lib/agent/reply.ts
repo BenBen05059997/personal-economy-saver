@@ -19,6 +19,7 @@ export const firstUse = (host: string) => `A model words the answers; every numb
 /** The page each tool's answer came from. `make_canvas`, `what_if` and `household_snapshot` add none. */
 const TOOL_SOURCES: Record<string, Source> = {
   where_am_i: { label: "Your next 30 days", href: "/#next-30-days" },
+  suggestions: { label: "From your assistant", href: "/#assistant-suggestions" },
   whats_due: { label: "Coming up", href: "/#coming-up" },
   timeline: { label: "Coming up", href: "/#coming-up" },
   can_i_spend: { label: "Safe to spend", href: "/" },

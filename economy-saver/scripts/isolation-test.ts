@@ -28,6 +28,8 @@ import * as chargesMod from "@/db/charges";
 import * as clientsMod from "@/db/clients";
 import * as confirm from "@/db/confirm";
 import * as daily from "@/db/daily";
+import * as rulesMod from "@/db/rules";
+import * as suggestionsMod from "@/db/suggestions";
 import * as demo from "@/db/demo";
 import * as documentCardMod from "@/db/document-card"; // D61 Ask documents
 import * as documentCleanup from "@/db/document-cleanup";
@@ -83,6 +85,8 @@ const covered = [
   "setBankBalance", "confirmBalanceUpdate", "insertBill", "removeBill", "updateBill", "insertCharge", "removeCharge", "insertClient", "confirmPending",
   // daily.ts, demo.ts, document-cleanup.ts, event-feed.ts
   "runDaily", "findDemoHousehold", "tryItKind", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
+  // D64–D66 suggestions and standing rules
+  "seedRules", "rulesFor", "setStandingRule", "runPass", "openSuggestions", "dismiss", "notNow", "closeByRef",
   // household.ts
   "householdOwnerName", "usdRate", "usdRateMicro", "loadSplitState", "loadMoneyState", "recordEvent", "listEvents", "unreadCount", "markRead",
   "recordWebhookDelivery", "deleteHousehold",
@@ -153,6 +157,8 @@ const notApplicable: Record<string, string> = {
   parseReferenceRate: "pure parser of the ECB feed", fetchReferenceRate: "network fetch of the public ECB feed; no household id",
   sandboxRead: "PayPal sandbox HTTP reader; takes no household id",
   isMovable: "pure check that a value is one of the three movable kind names", contextText: "pure text from turns passed in; conversationContext, which reads them, is covered above",
+  dueHouseholds: "global Cron scheduler selector, restricted to non-demo households and tested in cron-test",
+  defaultRules: "pure default values for standing rules, no database",
   seedBen: "creates a new household with a fresh id; touches no existing household",
   sealAiKey: "pure: seals a key text for the household id it is given; the isolation check below proves a key sealed for one household does not open for another", unsealAiKey: "pure: opens a sealed key for the household id it is given; same check",
   isDataKind: "pure check that a value is one of the five kind names", readSnapshotFile: "pure parse of a file passed in; restoreHousehold, which calls it, is covered above",
@@ -165,7 +171,7 @@ type Ids = {
   owner: string; aki: string; card: string; client: string; billConfirmed: string; billPending: string; charge: string; chargePending: string;
   pot: string; potPending: string; balanceConfirmed: string; balancePending: string; invoiceDraft: string; invoiceSent: string; approveKey: string;
   paypalInvoice: string; document: string; documentFailed: string; documentRead: string; reading: string; settlement: string; token: string;
-  statement: string; webhookEvent: string; secret: string; user: string; familyLink: string; memory: string; canvas: string; turn: string;
+  suggestion: string; statement: string; webhookEvent: string; secret: string; user: string; familyLink: string; memory: string; canvas: string; turn: string;
 };
 type Tenant = {
   hid: string; tag: "A" | "B"; name: string; bankYen: number; rateMicro: number; key: string; tokenString: string; familyToken: string; ids: Ids; akiName: string;
@@ -202,6 +208,7 @@ async function main() {
     ...importChargesMod, // Stage 17 import
     ...spendingMod, // Stage 17 spending
     ...fxCostMod, // D62 foreign costs
+    ...rulesMod, ...suggestionsMod, // D64–D66
     ...memoryMod, // D58 memory
     ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
@@ -263,7 +270,7 @@ async function main() {
       // 27E: ip_buckets (hashed client address) and ai_global_usage (one row a day) exist before and outside any household, and hold no household data.
       assert.deepEqual(everyTable.filter(t => !scoped.includes(t)), ["ai_global_usage", "households", "ip_buckets"]);
       for (const table of ["bills", "charges", "pots", "members", "clients", "invoices", "documents", "readings", "cards", "card_statements", "settlements",
-        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules"]) {
+        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules", "suggestions", "reminder_settings", "push_subscriptions", "reminders"]) {
         assert.ok(scoped.includes(table), table);
       }
     });
@@ -333,11 +340,18 @@ async function main() {
       await F.consumeRequest(db, hid, "thumb", 5, "hour");
       assert.equal(await F.requestCount(db, hid, "thumb", "hour"), 1);
       await F.recordEvent(db, hid, { madeBy: "form", kind: `isolation_${l}_event`, title: `${T} event`, body: `${T} event body`, notify: true });
+      await F.setStandingRule(store, hid, "nudge_after", { enabled: true, threshold: tag === "A" ? 3 : 4, currency: null });
+      await F.runPass(store, hid);
+      const suggestion = one((await F.openSuggestions(store, hid)).filter(row => row.kind === "invoice_nudge" && row.refId === sent.id)).id;
+      const member = { householdId: hid, memberId: ownerRow.id };
+      await db.insert(schema.reminderSettings).values(member);
+      await db.insert(schema.pushSubscriptions).values({ ...member, endpoint: "https://push.example.test/" + tag, p256dh: "test-" + tag, auth: "test-" + tag });
+      await db.insert(schema.reminders).values({ ...member, channel: "push", day: DEMO_DATE, status: "sent", suggestionIds: [suggestion] });
       return {
         hid, tag, name: T, bankYen, rateMicro, key, tokenString: issued.token, familyToken: family.token, akiName,
         ids: { owner: ownerRow.id, aki, card: card.id, client, billConfirmed, billPending, charge, chargePending, pot, potPending, balanceConfirmed, balancePending,
           invoiceDraft, invoiceSent: sent.id, approveKey: sent.approveKey, paypalInvoice, document, documentFailed, documentRead, reading, settlement, token: issued.info.id,
-          statement, webhookEvent, secret, user, familyLink: family.info.id, memory, canvas, turn },
+          suggestion, statement, webhookEvent, secret, user, familyLink: family.info.id, memory, canvas, turn },
       };
     }
     const A = await populate("A", 5_550_001, 149_876_543);
@@ -351,7 +365,7 @@ async function main() {
           if (["rules", "fx_rates"].includes(table)) continue;
           assert.ok(fp[table].length > 0, `${t.name} has no ${table}`);
         }
-        assert.ok(fp.rules.length === 1 && fp.fx_rates.length === 1 && fp.vault.length === 1);
+        assert.ok(fp.rules.length === 7 && fp.fx_rates.length === 1 && fp.vault.length === 1);
       }
       const [a, b] = [await needlesOf(A), await needlesOf(B)];
       assert.ok(a.strings.length > 100 && b.strings.length > 100);
@@ -490,6 +504,15 @@ async function main() {
       seen("connectionView", view);
       assert.equal(view?.textModel, `iso-text-${viewer.tag.toLowerCase()}`);
       assert.deepEqual(memory.map(m => m.id), [viewer.ids.memory], "the viewer's memory is the viewer's alone");
+      assert.equal((await F.rulesFor(store, hid)).nudge_after.threshold, viewer.tag === "A" ? 3 : 4);
+      const suggestions = await F.openSuggestions(store, hid);
+      assert.ok(suggestions.some(row => row.id === viewer.ids.suggestion && row.refId === viewer.ids.invoiceSent));
+      seen("openSuggestions", suggestions);
+      const suggestionsTool = tools.find(tool => tool.name === "suggestions")!;
+      assert.equal(suggestionsTool.scope, "read");
+      const mcpSuggestions = JSON.parse(await suggestionsTool.run({ ...toolContext(viewer), madeBy: "mcp" }, {} as never));
+      assert.deepEqual(mcpSuggestions, suggestions, "MCP returns the same household's open suggestions");
+      seen("MCP suggestions", mcpSuggestions);
       // The agent's read tools, with this household's context.
       for (const tool of tools.filter(x => x.scope === "read" && x.name !== "make_canvas")) {
         const input = tool.name === "what_if" ? { case: "late", changes: [{ kind: "client_late", clientId: viewer.ids.client, days: 3 }] } : toolInputs[tool.name] ?? {};
@@ -543,6 +566,12 @@ async function main() {
       }
       const x = X.ids, y = Y.ids;
       const nothingCalled = () => { throw new Error("the PayPal tool must not be called"); };
+
+      await check(label("suggestion actions ignore the other household's suggestion and action reference"), async () => {
+        await refuse("dismiss", () => F.dismiss(store, X.hid, y.suggestion));
+        await refuse("notNow", () => F.notNow(store, X.hid, y.suggestion));
+        await refuse("closeByRef", () => db.transaction(tx => F.closeByRef(tx as unknown as Db, X.hid, y.invoiceSent, ["remind"])));
+      });
       const exactBill = (over: object) => billInput.parse({ id: randomUUID(), biller: "Isolation probe", amount: "100", due: "2026-11-20", category: "other", ...over });
 
       await check(`${X.name} -> ${Y.name}: remove by id (bills, charges, pots)`, async () => {
@@ -813,6 +842,17 @@ async function main() {
     }
     await attacks(A, B);
     await attacks(B, A);
+
+    await check("seeding standing rules writes only to the newly created household", async () => {
+      const beforeA = await fingerprint(A.hid), beforeB = await fingerprint(B.hid);
+      const hid = randomUUID();
+      await db.insert(schema.households).values({ id: hid, name: "Fictional rule fixture", homeCurrency: "USD" });
+      await F.seedRules(store, hid);
+      assert.equal((await db.select().from(schema.rules).where(eq(schema.rules.householdId, hid))).length, 6);
+      assert.equal((await fingerprint(A.hid)).text, beforeA.text);
+      assert.equal((await fingerprint(B.hid)).text, beforeB.text);
+      await F.deleteHousehold(store, hid);
+    });
 
     // ---------------------------------------------------------------- functions keyed by account or by the household itself
     const bBefore = await fingerprint(B.hid), aBefore = await fingerprint(A.hid);

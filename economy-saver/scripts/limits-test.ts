@@ -163,7 +163,7 @@ async function main() {
       assert.equal(await removeExpiredFiles(store, hidB, now, fake), 0);
     });
 
-    await check("the daily job removes expired files through Storage, prunes old windows, and keeps the reminders when nothing is due", async () => {
+    await check("the daily job removes expired files through Storage and cron housekeeping prunes old address windows", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const d = await addDoc(hid, 1000); await addReading(hid, d.id, "confirmed", new Date("2025-01-01T00:00:00Z"));
       await db.insert(schema.ipBuckets).values({ ipHash: "0".repeat(64), purpose: "magic-link", window: sql`now() - interval '2 days'` as unknown as Date, count: 1 });
@@ -171,6 +171,7 @@ async function main() {
       assert.deepEqual(await runDaily(store, hid, new Date()), { ok: true });
       assert.deepEqual(removedByStorage, [d.storagePath]);
       assert.ok((await db.select().from(schema.documents).where(eq(schema.documents.id, d.id)))[0].fileRemovedAt);
+      await pruneIpBuckets(store);
       assert.equal((await db.select().from(schema.ipBuckets).where(eq(schema.ipBuckets.ipHash, "0".repeat(64)))).length, 0);
     });
 

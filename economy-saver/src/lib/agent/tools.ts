@@ -11,6 +11,7 @@ import { billInput, insertBill } from "@/db/bills";
 import { readerInbox } from "@/db/reader-inbox";
 import { chargeInput, insertCharge } from "@/db/charges";
 import { foreignCosts } from "@/db/fx-cost";
+import { openSuggestions } from "@/db/suggestions";
 import { Currency } from "@/lib/catalogue/types";
 import { catalogueMove } from "@/lib/catalogue/engine";
 import { PAYPAL_RATES, foreignCostWords } from "@/lib/money/fx-cost";
@@ -364,6 +365,11 @@ export const tools: Tool[] = [
       if (input.month > latestDate(today).slice(0, 7)) throw new InputError(`month must be no later than ${latestDate(today).slice(0, 7)}, two years from today`);
       return JSON.stringify(billsForMonth(await loadPeriodBills(ctx.db, ctx.householdId, input.month), input.month, input.text));
     },
+  }),
+  defineTool({
+    name: "suggestions", scope: "read", input: none,
+    description: "Read the open findings shown on Home under From your assistant, most urgent first. Use it when the person asks what needs their attention or what the assistant noticed. Quote the title and reason as written. Information only.",
+    run: async ctx => JSON.stringify(await openSuggestions(ctx.db, ctx.householdId)),
   }),
   defineTool({
     name: "regular_costs", scope: "read",

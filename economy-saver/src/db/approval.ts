@@ -1,3 +1,4 @@
+import { closeByRef } from "./suggestions";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -137,6 +138,7 @@ async function remind(ctx: ApprovalContext) {
     await ctx.db.transaction(async tx => {
       await tx.update(invoices).set({ remindedAt: new Date() }).where(invoiceWhere(ctx, claim.id));
       await recordEvent(tx, ctx.householdId, { madeBy: "form", kind: "reminder_sent", title: "Invoice reminder sent", ref: { type: "invoice", id: claim.id } });
+      await closeByRef(tx, ctx.householdId, claim.id, ["remind", "invoice"]);
     });
   }
   return claim.id;

@@ -1,3 +1,4 @@
+import { closeByRef } from "./suggestions";
 import { observeRunway } from "./runway-events";
 import { and, eq } from "drizzle-orm";
 import { type Db, recordEvent, requireHousehold } from "./household";
@@ -35,6 +36,7 @@ export async function confirmPending(db: Db, householdId: string, kind: "bill" |
       ...(row.amount !== null && { amount: { value: fromMinor(row.amount, row.currency), currency: row.currency } }),
       ref: { type: kind, id },
     });
+    if (kind === "bill") await closeByRef(tx, hid, id, ["check_bill"]);
     await observeRunway(tx, hid);
     return true;
   });

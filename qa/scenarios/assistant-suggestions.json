@@ -1,0 +1,372 @@
+[
+  {
+    "id": "SUG-001",
+    "area": "Assistant suggestions",
+    "action": "Open fresh Try it and Reset",
+    "user_goal": "I want the demo numbers and the right suggestions",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths"
+    ],
+    "steps": [
+      "Open fresh Try it",
+      "Reset and reopen Home"
+    ],
+    "expected": [
+      "From your assistant is absent",
+      "The shortfall is still ¥18,780 on Nov 27"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG1",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-002",
+    "area": "Assistant suggestions",
+    "action": "Review and confirm a suggested bill",
+    "user_goal": "I want the assistant to take me to the exact pending bill",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy, Nov 14, with pending Kumo Water ¥2,500 due Nov 17 and a completed suggestion pass"
+    ],
+    "steps": [
+      "On Home select Review in To check on Kumo Water",
+      "Confirm the bill and return to Home",
+      "Open Activity"
+    ],
+    "expected": [
+      "Home says Kumo Water due Nov 17 and ¥2,500, covered even if clients pay late",
+      "The link opens the pending Kumo Water row",
+      "One bill is confirmed, the suggestion closes, and Activity has Suggestion approved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG2",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-003",
+    "area": "Assistant suggestions",
+    "action": "Defer a suggestion",
+    "user_goal": "I want to see this tomorrow",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy, Nov 14, with pending Kumo Water ¥2,500 due Nov 17 and a completed suggestion pass"
+    ],
+    "steps": [
+      "Tap Not now",
+      "Reload Home",
+      "Advance the fixture date to Nov 15 and run its suggestion pass"
+    ],
+    "expected": [
+      "Kumo Water stays hidden on Nov 14",
+      "The same Kumo Water finding returns on Nov 15"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG3",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-004",
+    "area": "Assistant suggestions",
+    "action": "Dismiss a suggestion",
+    "user_goal": "I want to clear a suggestion permanently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy, Nov 14, with pending Kumo Water ¥2,500 due Nov 17 and a completed suggestion pass"
+    ],
+    "steps": [
+      "Tap Dismiss",
+      "Reload Home",
+      "Advance the fixture date to Nov 15 and run its suggestion pass",
+      "Open Activity"
+    ],
+    "expected": [
+      "Kumo Water stays hidden on both dates",
+      "Activity has one Suggestion dismissed row for Kumo Water"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG4",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-005",
+    "area": "Assistant suggestions",
+    "action": "Ask what needs attention",
+    "user_goal": "I want the assistant to read the same findings it shows on Home",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy, Nov 14, with pending Kumo Water ¥2,500 due Nov 17 and a completed suggestion pass"
+    ],
+    "steps": [
+      "Ask What needs my attention?"
+    ],
+    "expected": [
+      "The suggestions read step names what needs attention",
+      "The answer includes Kumo Water due Nov 17 and ¥2,500",
+      "Based on links to From your assistant"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG5",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-006",
+    "area": "Assistant suggestions",
+    "action": "Submit a suggestion action without a valid session or origin",
+    "user_goal": "My findings should be visible and actionable only in my household",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Two disposable households with open suggestions",
+      "A session cookie for the first household"
+    ],
+    "steps": [
+      "POST /api/suggestions with kind dismiss and the second household’s suggestion id",
+      "Repeat with a foreign Origin",
+      "Repeat with no session"
+    ],
+    "expected": [
+      "404 for another household’s id, 403 for a foreign origin and 401 without a session",
+      "Neither household’s findings change"
+    ],
+    "refs": [
+      "db:isolation-test",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-007",
+    "area": "Assistant suggestions",
+    "action": "Review a sandbox nudge",
+    "user_goal": "I want to review the exact reminder before it can be sent",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "A fictional Northwind sandbox invoice four days overdue with a nudge rule at 4 days and a completed pass"
+    ],
+    "steps": [
+      "On Home select Review reminder"
+    ],
+    "expected": [
+      "The existing invoice review opens with Approve reminder",
+      "No reminder was sent and the finding remains open"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Q4",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-008",
+    "area": "Assistant suggestions",
+    "action": "Review statement",
+    "user_goal": "I want to review my upcoming card statement",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "Nov 23 Ben fixture with a completed pass"
+    ],
+    "steps": [
+      "Open Home and select Review statement on the finding"
+    ],
+    "expected": [
+      "The ¥58,000 Card A statement opens its card page"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG6",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-009",
+    "area": "Assistant suggestions",
+    "action": "Review invoice",
+    "user_goal": "I want to inspect the invoice past its usual payment day",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "Nov 23 Ben fixture with a completed pass"
+    ],
+    "steps": [
+      "Open Home and select Review invoice on the finding"
+    ],
+    "expected": [
+      "The Acme Corp finding gives Nov 22 as the usual date and opens invoice 1042"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG7",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-010",
+    "area": "Assistant suggestions",
+    "action": "Review bill",
+    "user_goal": "I want to find and update the exact bill from the suggestion",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "Nov 15 Ben fixture with a completed pass"
+    ],
+    "steps": [
+      "Open Home and select Review bill on the finding",
+      "Edit and save the selected item"
+    ],
+    "expected": [
+      "The CloudBox Plus finding shows ¥1,980 and opens its bill in Settings. Saving closes the finding and records Suggestion approved."
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG8",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-011",
+    "area": "Assistant suggestions",
+    "action": "Review regular costs",
+    "user_goal": "I want to see where the price increase came from",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "Nov 14 Ben fixture with the Kumo Water price rise and 24% cost rule described in AG9"
+    ],
+    "steps": [
+      "Open Home and select Review regular costs on the finding"
+    ],
+    "expected": [
+      "The finding says ¥500 more than last month and opens Regular costs in Plan"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG9",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-012",
+    "area": "Assistant suggestions",
+    "action": "Review pot",
+    "user_goal": "I want to adjust the exact goal behind its target",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "Nov 14 fixture with the Camera goal in AG10 and a completed pass"
+    ],
+    "steps": [
+      "Open Home and select Review pot on the finding",
+      "Edit and save the selected item"
+    ],
+    "expected": [
+      "The Camera form opens with ¥120,000 still to set aside and saving closes the finding"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG10",
+      "D64"
+    ]
+  },
+  {
+    "id": "SUG-013",
+    "area": "Assistant suggestions",
+    "action": "Review safe to spend",
+    "user_goal": "I want to review how much is safe to spend",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Migration 0028 applied in the separate browser-test setup",
+      "375px and 1440px widths",
+      "Nov 14 Ben fixture with a ¥50,000 minimum safe-to-spend rule and a completed pass"
+    ],
+    "steps": [
+      "Open Home and select Review safe to spend on the finding"
+    ],
+    "expected": [
+      "The reason compares ¥0 with ¥50,000 and opens Next 30 days on Home"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AG11",
+      "D64"
+    ]
+  }
+]
