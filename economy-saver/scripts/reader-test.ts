@@ -219,6 +219,34 @@ async function test() {
     stop = "tool_use";
     console.log("✓ A refusal or a cut-off answer fails with a clear message");
 
+    empty = false;
+    const fixture = { kind: "bill", name: "Kawa Gym", amountMinor: "6000", currency: "JPY", category: "gym", date: "2026-12-12", cardId: null };
+    const readFixture = () => extractDocument(file("Subject: bill\r\n\r\nMinato kiosk"), expectedMime,
+      { today: "2026-11-14", currency: "JPY", cards: [] }, async () => conn);
+    extracted = { ...fixture, vendorNote: "untrusted extra field", dateBasis: "untrusted estimate", repeat: "year", businessBp: 5000 };
+    const [cleaned] = await readFixture();
+    assert.deepEqual([cleaned.name, cleaned.amountMinor, cleaned.category, cleaned.date], ["Kawa Gym", 6000, null, "2026-12-12"]);
+    assert.deepEqual([cleaned.repeat, cleaned.businessBp], ["year", 5000]);
+    assert.equal("vendorNote" in cleaned || "dateBasis" in cleaned, false);
+    console.log("✓ Reader keeps a digit-string amount and drops invalid categories and fields outside the extraction schema");
+
+    for (const period of [{ periodStart: "2026-11-31", periodEnd: "2026-11-30" }, { periodStart: "2026-11-01", periodEnd: "11/30/2026" }]) {
+      extracted = { ...fixture, ...period, date: "2026-02-29" };
+      const [undated] = await readFixture();
+      assert.deepEqual([undated.date, undated.periodStart, undated.periodEnd], [null, null, null]);
+    }
+    console.log("✓ Reader clears invalid calendar dates and either invalid end of a bill period");
+
+    extracted = { ...fixture, amountMinor: "6,000", currency: "fictional-private-text", leakedField: "fictional-private-note" };
+    delete extracted.date;
+    await assert.rejects(readFixture(), {
+      status: 502,
+      message: "Reader returned an invalid set of bill or charge fields (items.0.date, items.0.amountMinor, items.0.currency).",
+    });
+    extracted = { ...fixture, amountMinor: "9007199254740993" };
+    await assert.rejects(readFixture(), { status: 502, message: "Reader returned an invalid set of bill or charge fields (items.0.amountMinor)." });
+    console.log("✓ A remaining error names only schema paths and refuses an unsafe digit-string amount");
+
     const openai = { protocol: "openai" as const, baseUrl: "https://llm.example/v1", key: "fictional-openai-value", textModel: "fixture-text", documentModel: "fixture-document", own: true };
     const context = { today: "2026-11-14", currency: "JPY", cards: [] as { id: string; label: string }[] };
     extracted = { ...extracted, kind: "bill", name: "Harbor Lights", cardId: null, currency: "JPY", amountMinor: 11_200, date: "2026-11-27", category: "other" };
@@ -253,7 +281,7 @@ async function test() {
       await readDocument(db, a, await storeDocument(db, a, "upload", "application/pdf", file(`%PDF-1.7 fictional ${label}`)));
       return (await readerInbox(db, a)).readings[0];
     };
-    const estimated = await readFresh(month, "11月分 with a usual day");
+    const estimated = await readFresh({ ...month, date: "November 2026" }, "11月分 with a usual day");
     assert.deepEqual([estimated.value.date, estimated.value.dateBasis, estimated.value.periodStart, estimated.value.periodEnd], ["2026-12-27", "Estimated from 11月分: usually paid on the 27th", "2026-11-01", "2026-11-30"], "the same day of the next month as the usual due day");
     const [storedReading] = await db.select({ data: schema.readings.extracted }).from(schema.readings).where(eq(schema.readings.id, estimated.id));
     assert.equal((storedReading.data as { original: { date: string | null } }).original.date, null, "the reading as read keeps no date: the estimate is the proposal only");

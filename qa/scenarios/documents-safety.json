@@ -468,6 +468,8 @@
     ],
     "refs": [
       "BROWSER-CHECKS AF2",
+      "BROWSER-CHECKS AF2a",
+      "db:reader-test (a malformed model date is cleared before the Dec 27 estimate)",
       "D63"
     ]
   },
@@ -789,6 +791,8 @@
     ],
     "refs": [
       "BROWSER-CHECKS AD4",
+      "BROWSER-CHECKS AD4a",
+      "db:reader-test (digit-string amount, invalid category, extra fields and safe error paths)",
       "D61",
       "D57"
     ]

@@ -30,7 +30,8 @@ export const extractSchema = z.object({
   dateBasis: z.string().max(200).nullable().optional(),
 }).strict();
 export type Extracted = z.infer<typeof extractSchema>;
-const recordsSchema = z.object({ items: z.array(extractSchema.omit({ dateBasis: true })).max(12) });
+const recordItemSchema = extractSchema.omit({ dateBasis: true });
+const recordsSchema = z.object({ items: z.array(recordItemSchema).max(12) });
 export const mediaTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
 export const uploadMime = z.enum(mediaTypes);
 
@@ -82,6 +83,25 @@ const outputSchema = {
   },
 };
 
+const modelDate = extractSchema.shape.date;
+const dateFields = ["date", "periodStart", "periodEnd"] as const;
+
+function cleanModelRecords(input: unknown): unknown {
+  if (!input || typeof input !== "object" || !("items" in input) || !Array.isArray(input.items)) return input;
+  return { items: input.items.map((item: unknown) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    const fields = Object.fromEntries(Object.entries(item).filter(([key]) => Object.hasOwn(recordItemSchema.shape, key)));
+    if ("category" in fields && !CategoryKeySchema.safeParse(fields.category).success) fields.category = null;
+    for (const key of dateFields) {
+      if (key in fields && !modelDate.safeParse(fields[key]).success) fields[key] = null;
+    }
+    if (typeof fields.amountMinor === "string" && /^[0-9]+$/.test(fields.amountMinor)) {
+      fields.amountMinor = Number(fields.amountMinor);
+    }
+    return fields;
+  }) };
+}
+
 const RECORD_ITEMS = "record_items";
 
 export async function extractDocument(bytes: ArrayBuffer, mime: string, context: { today: string; currency: string; cards: { id: string; label: string }[] },
@@ -114,8 +134,11 @@ export async function extractDocument(bytes: ArrayBuffer, mime: string, context:
   if (reply.stop === "refusal") throw new ReaderError("AI reader declined to read this document.");
   if (reply.stop === "length") throw new ReaderError("Document has too many records to read in one request.");
   const call = reply.calls.find(c => c.name === RECORD_ITEMS);
-  const parsed = recordsSchema.safeParse(call?.input);
-  if (!parsed.success) throw new ReaderError("Reader returned an invalid set of bill or charge fields.", 502);
+  const parsed = recordsSchema.safeParse(cleanModelRecords(call?.input));
+  if (!parsed.success) {
+    const paths = [...new Set(parsed.error.issues.map(issue => issue.path.join(".") || "output"))];
+    throw new ReaderError(`Reader returned an invalid set of bill or charge fields (${paths.join(", ")}).`, 502);
+  }
   const cards = new Set(context.cards.map(c => c.id));
   // A period the document model got wrong (one date only, or backwards) is not kept: the bill is read without one.
   return parsed.data.items.map((item): Extracted => ({
