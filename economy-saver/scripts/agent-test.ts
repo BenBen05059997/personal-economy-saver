@@ -1450,6 +1450,8 @@ async function main() {
       assert.equal(never.bodies.length, 0, "no model call");
       assert.equal(again.text, FIXED.alreadySaved);
       assert.deepEqual(again.links, [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }]);
+      assert.deepEqual(again.links, firstReply.links, "the retry carries the first reply's links");
+      assert.equal(again.pending, firstReply.pending, "and its To check flag");
       assert.equal(await count(), 1, "the bill exists once");
       // a question with no write leaves no receipt and runs again
       const readId = crypto.randomUUID();
@@ -1466,6 +1468,23 @@ async function main() {
       const otherReply = await answerQuestion(db, other, input, { fetch: o.fetch });
       assert.notEqual(otherReply.text, FIXED.alreadySaved);
       assert.ok(o.bodies.length > 0);
+    });
+
+    await check("a cloud-journal retry of a question that left a pending bill returns the same links and pending flag", async () => {
+      const h = await seedBen(db, { isDemo: true });
+      const hs = await stateOf(h);
+      const id = crypto.randomUUID(), conversationId = crypto.randomUUID();
+      const bill = { id: crypto.randomUUID(), biller: "Replay Gas", amount: "3800", due: hs.today, category: "utilities", memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, repeat_until: null };
+      const input = askInput.parse({ id, conversationId, text: "The gas bill is 3800", source: "manual", canvas: null });
+      const first = transport([() => reply("tool_use", [toolUse("b", "add_bill", bill)]), () => reply("end_turn", [text("It is waiting in To check.")])]);
+      const one = await answerQuestion(db, h, input, { fetch: first.fetch });
+      assert.equal(one.pending, true);
+      assert.deepEqual(one.links.map(l => l.label), ["Open To check"]);
+      const never = transport([]);
+      const two = await answerQuestion(db, h, input, { fetch: never.fetch });
+      assert.equal(never.bodies.length, 0);
+      assert.deepEqual([two.kind, two.text, two.links, two.pending, two.sources], [one.kind, one.text, one.links, one.pending, one.sources]);
+      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, h), eq(schema.bills.biller, "Replay Gas")))).length, 1);
     });
 
     await check("a question retried with the same id (cloud journal) makes no model call and returns the saved turn", async () => {

@@ -6,6 +6,7 @@ import type { Currency } from "@/lib/catalogue/types";
 import type { Check, CheckChoice, CheckKind } from "@/lib/money/checks";
 import { DOCUMENT_WORDS, needsForm as readingNeedsForm, type DocumentCard as Card, type DocumentCardItem } from "@/lib/reader/document-card";
 import { ApiForm } from "@/components/ui/ApiForm";
+import { SessionEnded } from "./SessionEnded";
 import type { Repeat } from "@/components/household/ScheduleFields";
 import { majorText, ReadingForm } from "@/components/reader/ReadingForm";
 
@@ -21,6 +22,7 @@ export function DocumentCard({ documentId, initial, form, onCard, onCanvas }: {
 }) {
   const [card, setCard] = useState<Card | null>(initial);
   const [gaveUp, setGaveUp] = useState(false);
+  const [ended, setEnded] = useState(false);
   const started = useRef<number | null>(null);
   const callbacks = useRef({ onCard, onCanvas });
   useEffect(() => { callbacks.current = { onCard, onCanvas }; });
@@ -28,6 +30,7 @@ export function DocumentCard({ documentId, initial, form, onCard, onCanvas }: {
   async function load(afterPost = false) {
     try {
       const response = await fetch(`/api/ask/document?id=${encodeURIComponent(documentId)}`, { cache: "no-store" });
+      if (response.status === 401) { setEnded(true); return; }
       if (!response.ok) return;
       const next = (await response.json() as { card: Card }).card;
       setCard(next);
@@ -55,7 +58,7 @@ export function DocumentCard({ documentId, initial, form, onCard, onCanvas }: {
     return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", visible); };
   }, [reading, gaveUp]);
 
-  if (card === null) return <p className="ui-hint ask-document" role="status">Opening…</p>;
+  if (card === null) return <p className="ui-hint ask-document" role="status">{ended ? <SessionEnded /> : "Opening…"}</p>;
   const words = reading && gaveUp ? DOCUMENT_WORDS.stillReading : card.words;
   return <div className="ask-document">
     <p className="ask-document-words" aria-live="polite">{words}</p>

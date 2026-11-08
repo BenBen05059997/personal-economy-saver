@@ -8,7 +8,7 @@ import { readPlaces } from "./place";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { RecipeSchema, type Recipe } from "@/lib/canvas/schema";
-import { askAlreadyWrote, noteAskWrote } from "./ask-receipts";
+import { askReceipt, noteAskReply, noteAskWrote } from "./ask-receipts";
 import { recentTurns, saveTurn, turnById } from "./conversation";
 import { documentCard } from "./document-card";
 import { conversationTurns, households } from "./schema";
@@ -104,17 +104,19 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   const kept = recent === undefined ? await turnById(db, householdId, id) : null;
   if (kept && kept.question !== text) throw new InputError("This question was already answered. Reload the page and ask again.");
   if (kept) {
+    const receipt = await askReceipt(db, householdId, id);
     const drawn = kept.recipe ? { recipe: kept.recipe, blocks: resolveRecipe(kept.recipe, await loadCanvasContext(db, householdId, kept.recipe)) } : null;
     return {
       id, kind: kept.kind === "document" ? ANSWER : kept.kind, text: kept.reply, choices: kept.choices, canvas: drawn,
-      sources: kept.sources, links: [], pending: false, firstUse: await firstUseLine(db, householdId), memoryChanges: [],
+      sources: kept.sources, links: receipt?.links ?? [], pending: receipt?.pending ?? false, firstUse: await firstUseLine(db, householdId), memoryChanges: [],
     };
   }
   // The conversations are on the device, so no turn is stored here to replay; the receipt says this id already wrote, and nothing runs or writes again.
-  if (recent !== undefined && await askAlreadyWrote(db, householdId, id)) {
+  const wrote = recent !== undefined ? await askReceipt(db, householdId, id) : null;
+  if (wrote) {
     return {
       id, kind: ANSWER, text: FIXED.alreadySaved, choices: null, canvas: null, sources: [],
-      links: [{ label: "Open To check", href: new URL("/to-check", appUrl()).href }], pending: false, firstUse: null, memoryChanges: [],
+      links: wrote.links.length ? wrote.links : [{ label: "Open To check", href: new URL("/to-check", appUrl()).href }], pending: wrote.pending, firstUse: null, memoryChanges: [],
     };
   }
   const context = recent !== undefined ? contextText(recent, canvas, await documentCards(db, householdId, recent)) : await conversationContext(db, householdId, { conversationId, canvas }, deps.at);
@@ -127,6 +129,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     if (!(error instanceof AgentError) || !error.saved) throw error;
     result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending };
   }
+  await noteAskReply(db, householdId, id, result);
   if (recent === undefined) {
     await saveTurn(db, householdId, {
       id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources,

@@ -555,6 +555,8 @@ export const requestBuckets = pgTable("request_buckets", {
 export const askReceipts = pgTable("ask_receipts", {
   householdId: householdId(),
   askId: uuid("ask_id").notNull(),
+  pending: boolean("pending").notNull().default(false), // the reply left something in To check
+  links: jsonb("links").notNull().default(sql`'[]'::jsonb`), // { label, href }[] the reply carried: fixed words and app paths, never the question or answer
   createdAt: createdAt(),
 }, t => [primaryKey({ columns: [t.householdId, t.askId] })]).enableRLS();
 
