@@ -199,7 +199,7 @@ async function main() {
       assert.equal(added.length, 1);
       assert.deepEqual([added[0].title, added[0].amountMinor, added[0].refType, added[0].notify], ["Car pot added", 200_000, "pot", false]);
       const state = await stateOf(a);
-      assert.deepEqual(state.pots, [{ id: car.id, name: "Car", saved: 200_000, target: 1_200_000, targetDate: "2027-03-31", fillPct: 12.5 }]);
+      assert.deepEqual(state.pots, [{ id: car.id, name: "Car", saved: 200_000, target: 1_200_000, targetDate: "2027-03-31", startedOn: TODAY, fillPct: 12.5 }]);
       assert.equal(availableCash(state), 128_000 - 200_000);
       await removePot(db, a, car.id);
     });

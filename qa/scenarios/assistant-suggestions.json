@@ -328,14 +328,15 @@
     "preconditions": [
       "Migration 0028 applied in the separate browser-test setup",
       "375px and 1440px widths",
-      "Nov 14 fixture with the Camera goal in AG10 and a completed pass"
+      "Nov 14 fixture with a Camera pot created Oct 15, ¥0 saved, a ¥120,000 target by Dec 14, 2026, and a completed pass"
     ],
     "steps": [
       "Open Home and select Review pot on the finding",
       "Edit and save the selected item"
     ],
     "expected": [
-      "The Camera form opens with ¥120,000 still to set aside and saving closes the finding"
+      "The finding says ¥60,000 behind pace and ¥120,000 still to set aside by Dec 14",
+      "The Camera form opens and saving closes the finding"
     ],
     "refs": [
       "BROWSER-CHECKS AG10",

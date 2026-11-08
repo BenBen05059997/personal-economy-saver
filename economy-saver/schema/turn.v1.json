@@ -2011,6 +2011,33 @@
                       "href"
                     ],
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "progress"
+                      },
+                      "query": {
+                        "type": "object",
+                        "properties": {
+                          "q": {
+                            "type": "string",
+                            "const": "goals"
+                          }
+                        },
+                        "required": [
+                          "q"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "query"
+                    ],
+                    "additionalProperties": false
                   }
                 ]
               },

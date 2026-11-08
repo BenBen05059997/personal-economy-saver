@@ -58,10 +58,11 @@ const SpendingSearchQuery = z.object({ q: z.literal("spending_search"), text: z.
 const RegularCostsQuery = z.object({ q: z.literal("regular_costs"), months: z.number().int().min(2).max(24).optional() }).strict();
 const BillsForMonthQuery = z.object({ q: z.literal("bills_for_month"), month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "A month is YYYY-MM").describe("The month the bills are FOR (their period), YYYY-MM; a bill for November is usually paid in December."), text: z.string().max(80).optional() }).strict();
 const ForeignCostsQuery = z.object({ q: z.literal("foreign_costs") }).strict();
+const GoalsQuery = z.object({ q: z.literal("goals") }).strict();
 
 export type Query = z.infer<
   | typeof SentenceQuery | typeof SafeToSpendQuery | typeof CashQuery | typeof LowPointQuery | typeof FlowQuery | typeof EventsQuery
-  | typeof MonthTotalQuery | typeof MonthByCategoryQuery | typeof CompareMonthsQuery | typeof SpendingSearchQuery | typeof RegularCostsQuery | typeof ForeignCostsQuery | typeof BillsForMonthQuery
+  | typeof MonthTotalQuery | typeof MonthByCategoryQuery | typeof CompareMonthsQuery | typeof SpendingSearchQuery | typeof RegularCostsQuery | typeof ForeignCostsQuery | typeof BillsForMonthQuery | typeof GoalsQuery
 >;
 
 // What each kind of block may ask. A block that shows one number asks for a number; a chart asks for a flow; and so on.
@@ -77,7 +78,7 @@ function isAppPath(href: string): boolean {
   return !/^\/api(\/|\?|#|$)/i.test(href);
 }
 
-export const BlockSchema = z.discriminatedUnion("type", [
+export const BlockSchema = z.union([
   z.object({ type: z.literal("sentence"), query: SentenceQuery }).strict(),
   z.object({ type: z.literal("number"), label: z.string().min(1).max(60), query: NumberQuery, note: z.string().max(200).optional() }).strict(),
   z.object({ type: z.literal("flow_chart"), query: FlowQuery, mark }).strict(),
@@ -89,6 +90,7 @@ export const BlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("letter"), text: z.string().min(1).max(4000) }).strict(),
   z.object({ type: z.literal("sliders"), controls: z.array(z.object({ clientId: id, maxDays: z.number().int().min(1).max(MAX_SLIDER_DAYS) }).strict()).min(1).max(4) }).strict(),
   z.object({ type: z.literal("action"), label: z.string().min(1).max(60), href: z.string().max(200).refine(isAppPath, "A link goes to a page inside the app, never an outside address or an /api/ path") }).strict(),
+  z.object({ type: z.literal("progress"), query: GoalsQuery }).strict(),
 ]);
 export type Block = z.infer<typeof BlockSchema>;
 
@@ -102,7 +104,15 @@ export type Recipe = z.infer<typeof RecipeSchema>;
 
 /** The words a person can read for the first problem in a failed parse: "blocks 3: Unrecognized key(s) in object: 'amount'". */
 export function problemWords(error: z.ZodError): string {
-  const issue = error.issues[0];
+  let issue = error.issues[0];
+  if (issue?.code === "invalid_union" && issue.path.at(-2) === "blocks") {
+    // Keep the original field-level error for the block variant that recognized the query.
+    const rejectedTag = (branch: z.ZodError, field: "type" | "q") => branch.issues.some(problem =>
+      (problem.code === "invalid_union_discriminator" || problem.code === "invalid_literal") && problem.path.at(-1) === field);
+    const matchingType = issue.unionErrors.filter(branch => !rejectedTag(branch, "type"));
+    const chosen = matchingType.find(branch => !rejectedTag(branch, "q")) ?? matchingType[0];
+    issue = chosen?.issues[0] ?? issue;
+  }
   if (!issue) return "This is not a canvas recipe.";
   const path = issue.path.map(part => (typeof part === "number" ? `#${part + 1}` : String(part))).join(" > ");
   return path ? `${path}: ${issue.message}` : issue.message;

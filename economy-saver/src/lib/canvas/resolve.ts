@@ -3,6 +3,7 @@
 // and is written with the app's own money and date helpers. The only arithmetic is what a query names (the difference in
 // compare_months). Throws `CanvasError` with words a person can read when the recipe cannot be drawn.
 import { dayLabel, minorMoney, minorPerUnit, money, ordinal, aboutMoney } from "@/lib/money/format";
+import { goalPaces } from "@/lib/money/goals";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "@/lib/money/gaps";
 import { CATEGORIES, categoryLabel } from "@/lib/money/categories";
 import { monthByCategory, type MonthView } from "@/lib/money/month";
@@ -48,6 +49,8 @@ export type TableData = { title: string | null; caption: string | null; head: st
 type CompareRow = { label: string; aLabel: string; bLabel: string; aMinor: number; bMinor: number; change: string };
 export type CompareData = { aName: string; bName: string; aTotal: string; bTotal: string; difference: string; rows: CompareRow[]; empty: string | null };
 export type ProgressData = { label: string; valueLabel: string; targetLabel: string; valueMinor: number; targetMinor: number };
+type GoalProgressRow = ProgressData & { id: string; targetDate: string; dateLabel: string; summary: string };
+export type GoalsProgressData = { rows: GoalProgressRow[]; empty: string | null };
 export type NoteData = { text: string; by: "you" | "assistant" };
 export type LetterData = { text: string };
 export type SlidersData = { controls: { clientId: string; name: string; maxDays: number; days: number; pace: string | null }[] };
@@ -57,7 +60,7 @@ type Common = { index: number; source: string; live: boolean };
 export type ResolvedBlock = Common & (
   | { type: "sentence"; data: SentenceData } | { type: "number"; data: NumberData } | { type: "flow_chart"; data: FlowData }
   | { type: "timeline"; data: TimelineData } | { type: "table"; data: TableData } | { type: "compare"; data: CompareData }
-  | { type: "progress"; data: ProgressData } | { type: "note"; data: NoteData } | { type: "letter"; data: LetterData }
+  | { type: "progress"; data: ProgressData | GoalsProgressData } | { type: "note"; data: NoteData } | { type: "letter"; data: LetterData }
   | { type: "sliders"; data: SlidersData } | { type: "action"; data: ActionData }
 );
 
@@ -324,6 +327,14 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
         return { ...common(worked(block.query)), type: "number", data: { label: block.label, value: m.value, sub: m.sub, note: block.note ?? m.note, tone: m.tone } };
       }
       case "progress": {
+        if (!("targetMinor" in block)) {
+          const rows = goalPaces(state).map(goal => ({
+            id: goal.id, label: goal.name, valueLabel: minor(goal.savedMinor), targetLabel: minor(goal.targetMinor),
+            valueMinor: goal.savedMinor, targetMinor: goal.targetMinor, targetDate: goal.targetDate,
+            dateLabel: dayLabel(goal.targetDate) + ", " + goal.targetDate.slice(0, 4), summary: goal.summary,
+          }));
+          return { ...common("worked"), type: "progress", data: { rows, empty: rows.length ? null : "No dated goals yet." } };
+        }
         const m = measure(block.query);
         return { ...common(worked(block.query)), type: "progress", data: { label: block.label, valueLabel: m.value, targetLabel: minor(block.targetMinor), valueMinor: m.valueMinor, targetMinor: block.targetMinor } };
       }

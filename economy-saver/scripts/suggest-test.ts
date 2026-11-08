@@ -102,7 +102,7 @@ async function main() {
     });
 
     await check("only dated incomplete goals can fall behind, and the low-spend rule uses matching currency and a strict minimum", () => {
-      const pot = { id: "camera", name: "Camera", saved: 100, target: 2_100, targetDate: "2026-12-14" };
+      const pot = { id: "camera", name: "Camera", saved: 100, target: 2_100, startedOn: "2026-10-15", targetDate: "2026-12-14" };
       assert.deepEqual(kinds({ ...quiet, pots: [pot] }), ["goal_behind"]);
       assert.deepEqual(kinds({ ...quiet, pots: [{ ...pot, targetDate: undefined }] }), []);
       assert.deepEqual(kinds({ ...quiet, pots: [{ ...pot, saved: pot.target }] }), []);

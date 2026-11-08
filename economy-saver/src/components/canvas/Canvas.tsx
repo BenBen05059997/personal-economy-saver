@@ -89,7 +89,7 @@ export function Canvas({ recipe, initial, children }: { recipe: Recipe; initial:
       <ol>{recipe.blocks.map((block, index) => <li key={index}>{blockWords(block)}</li>)}</ol>
     </div>}
     <div className="canvas-grid">
-      {blocks.map((block, index) => <section key={index} className={`canvas-block canvas-span-${SPAN[block.type]}`} aria-label={`${KIND_WORDS[block.type]}, block ${index + 1}`}>
+      {blocks.map((block, index) => <section key={index} className={`canvas-block canvas-span-${block.type === "progress" && "rows" in block.data ? 6 : SPAN[block.type]}`} aria-label={`${KIND_WORDS[block.type]}, block ${index + 1}`}>
         {showRecipe && <p className="canvas-kind">{index + 1}. {KIND_WORDS[block.type]}</p>}
         <Body block={block} values={values} onSlide={slide} />
         <p className="canvas-source">{block.source}</p>

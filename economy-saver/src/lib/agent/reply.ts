@@ -27,6 +27,7 @@ const TOOL_SOURCES: Record<string, Source> = {
   list_invoices: { label: "Clients", href: "/clients" },
   foreign_costs: { label: "Clients", href: "/clients" },
   list_clients_and_cards: { label: "Clients", href: "/clients" },
+  goals: { label: "Goals", href: "/memory?tab=goals" },
   plan_for: { label: "Plan", href: "/plan" },
   month_by_category: { label: "Plan", href: "/plan" },
   search_spending: { label: "Plan", href: "/plan" },
@@ -57,7 +58,8 @@ export function canvasWords(recipe: Recipe | null): string[] {
   for (const block of recipe.blocks) {
     switch (block.type) {
       case "number": words.push(block.label); if (block.note) words.push(block.note); break;
-      case "progress": case "action": words.push(block.label); break;
+      case "progress": if ("label" in block) words.push(block.label); break;
+      case "action": words.push(block.label); break;
       case "table": if (block.title) words.push(block.title); break;
       case "note": case "letter": words.push(block.text); break;
       default: break;

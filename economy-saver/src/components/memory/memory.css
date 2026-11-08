@@ -15,3 +15,9 @@
 .memory-edit textarea, .memory-add textarea { resize: vertical; font: inherit; }
 .memory-page .ui-button { margin-top: var(--space-2); }
 .memory-forget { padding-bottom: var(--space-4); }
+
+.memory-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-5); }
+.memory-tabs .ui-button { min-height: 44px; }
+.memory-tabs [aria-current="page"] { border-color: var(--accent); color: var(--accent); }
+.memory-goals { display: grid; gap: var(--space-4); }
+.memory-goal p { margin: var(--space-2) 0; }

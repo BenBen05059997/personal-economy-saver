@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { hrefFor } from "@/lib/links";
-import type { ActionData, CompareData, LetterData, NoteData, NumberData, ProgressData, SentenceData, TableData, TimelineData } from "@/lib/canvas/resolve";
+import type { ActionData, CompareData, GoalsProgressData, LetterData, NoteData, NumberData, ProgressData, SentenceData, TableData, TimelineData } from "@/lib/canvas/resolve";
 
 // One component per block type that shows resolved data. None does any arithmetic on money beyond drawing a bar's length.
 
@@ -24,12 +24,26 @@ export function NumberBlock({ data }: { data: NumberData }) {
   </>;
 }
 
-export function ProgressBlock({ data }: { data: ProgressData }) {
+function ProgressRow({ data }: { data: ProgressData }) {
   const percent = Math.min(100, Math.max(0, Math.round((data.valueMinor / data.targetMinor) * 100)));
   return <>
     <p className="canvas-label">{data.label}</p>
     <p className="canvas-number">{data.valueLabel} <small>of {data.targetLabel}</small></p>
     <div className="canvas-meter" role="progressbar" aria-label={data.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} aria-valuetext={`${percent}% of ${data.targetLabel}`}><i style={{ width: `${percent}%` }} /></div>
+  </>;
+}
+
+export function ProgressBlock({ data }: { data: ProgressData | GoalsProgressData }) {
+  if (!("rows" in data)) return <ProgressRow data={data} />;
+  return <>
+    <p className="canvas-label">Goals</p>
+    {data.empty ? <p className="canvas-note">{data.empty}</p> : <ul className="canvas-goals" role="list">
+      {data.rows.map(row => <li key={row.id}>
+        <ProgressRow data={row} />
+        <p className="canvas-note">Target date <time dateTime={row.targetDate}>{row.dateLabel}</time></p>
+        <p className="canvas-note">{row.summary}</p>
+      </li>)}
+    </ul>}
   </>;
 }
 

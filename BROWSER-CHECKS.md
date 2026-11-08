@@ -442,7 +442,7 @@ For AG2–AG4 use separate disposable copies of Ben’s Try it. Prepare a pendin
 - AG7. On that Nov 23 copy, Review invoice on "Acme Corp is past their usual payment day" opens invoice 1042. Its reason names Nov 22.
 - AG8. On Nov 15 with a completed pass, Review bill on "CloudBox Plus due Nov 18" opens CloudBox Plus in Settings. The reason includes ¥1,980. After editing and saving that bill, Activity records Suggestion approved.
 - AG9. On a Nov 14 fixture with Kumo Water at ¥2,000 in October and ¥2,500 in November and the cost rule at 24%, Review regular costs on "Kumo Water costs more this month" opens Regular costs in Plan. The reason reads "¥500 more than last month."
-- AG10. On a fixture with a Camera pot targeting ¥120,000 by Dec 14, saved ¥0, and no expected income, Review pot opens the Camera form in Plan. The reason gives ¥120,000 still to set aside. Saving the updated pot closes its finding.
+- AG10. On Nov 14 use a Camera pot created Oct 15 that targets ¥120,000 by Dec 14, 2026, with ¥0 saved. Run the fixture’s suggestion pass. The reason reads “¥60,000 behind pace. ¥120,000 still to set aside by Dec 14.” Review pot opens the Camera form in Plan. Saving the updated pot closes its finding.
 - AG11. On fresh Nov 14 Try it with a ¥50,000 minimum safe-to-spend rule and a completed pass, Review safe to spend opens Next 30 days on Home. The reason reads "¥0 safe to spend, below ¥50,000."
 
 ## AH. Keep this? in Ask (D67, 29E)
@@ -469,3 +469,16 @@ Use a separate test setup after migrations 0028 and 0029. Check at 375px and 144
 - AI8. Use a fixture with one reminder history row. In Your data check "Reminder history · 1 delivery". Remove all reminder history and confirm, then check "Reminder history · 0 deliveries". The same day’s scheduled claim stays spent.
 - AI9. Enroll one device in a fresh household. In Your data check "Push subscriptions · 1 device". Remove all push subscriptions and confirm. The count becomes "0 devices" and Reminders shows push off.
 - AI10. With RESEND_API_KEY and WEB_PUSH_PUBLIC_KEY unset in the isolated setup, Settings shows both channels off and names the missing variable for each. The health response lists separate email and push reasons. The rest of Settings still works.
+
+
+## AJ. Goal pace (D66, 29C)
+
+Check at 375px and 1440px in a separate setup with migrations 0028 and 0029. Use separate Try it copies for the empty, newly saved and existing goal checks. For AJ3–AJ6 use Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved, and a target of ¥120,000 by Dec 14, 2026. Ask requires a configured model.
+
+- AJ1. Open Memory and select Goals. The Memory, Goals and Rules links fit the screen, Goals is selected, and “No goals yet. Give a pot a target amount and date in Plan.” appears. Open Plan goes to `/plan`.
+- AJ2. On fresh Try it, add a Camera pot in Plan with ¥0 saved and a ¥120,000 target by Dec 14, 2026. Plan and Goals show “By today: ¥0. On pace. A date at this pace is not available yet.” Goals gives ¥120,000 a month. A pot without a target date stays on Plan.
+- AJ3. In the existing goal fixture, Goals shows “¥30,000 of ¥120,000 saved · by Dec 14, 2026”, “By today: ¥60,000. ¥30,000 behind pace. At this pace: Feb 12, 2027.” and “¥90,000 a month to reach ¥120,000 by Dec 14.” Edit in Plan opens the Camera form at `/plan#pot-<id>` with 30000 saved. Plan’s Camera row shows the same pace.
+- AJ4. Ask “How are my goals doing? Show them in a progress block.” The tool step says “Checking your goal progress” and Based on links to Goals. The answer and the Camera progress block use ¥30,000 saved, ¥60,000 expected, ¥30,000 behind and the Feb 12, 2027 projection.
+- AJ5. Show the recipe. The progress entry reads “Goals: how much you have saved towards each dated goal and how it is going”. Pin to Home and open Home. The Camera row shows ¥30,000 of ¥120,000 and a 25% bar.
+- AJ6. Edit the same Camera pot in Plan, change Saved so far to 60000 and save. Reopen Home. The same pin now shows ¥60,000 of ¥120,000 and a 50% bar. Goals says “By today: ¥60,000. On pace. At this pace: Dec 14, 2026.” and gives ¥60,000 a month.
+- AJ7. Select Rules from Memory. The tab shows “The late-client nudge rule is in Settings.” Open nudge setting goes to `/settings#nudge`.

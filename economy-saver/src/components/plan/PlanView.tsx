@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { MoneyState, Pot } from "@/lib/money/types";
 import { majorMoney } from "@/lib/money/format";
+import { goalPace } from "@/lib/money/goals";
 import { monthByCategory } from "@/lib/money/month";
 import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, SEARCH_QUERY_MAX, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { monthYear, moneyInPotsLine, potLine, roomLine, roomNote } from "@/lib/money/plan";
@@ -27,7 +28,8 @@ function Fields({ state, pot }: { state: MoneyState; pot?: Pot }) {
 function PotRow({ state, pot }: { state: MoneyState; pot: Pot }) {
   const money = (n: number) => majorMoney(n, state.homeCurrency);
   const line = potLine(pot, state);
-  return <section className="plan-pot" id={`pot-${pot.id}`} aria-label={pot.name}>
+  const goal = goalPace(pot, state);
+  return <section className="plan-pot" aria-label={pot.name}>
     <div className="ui-row">
       <div>
         <b>{pot.name}</b>
@@ -36,11 +38,12 @@ function PotRow({ state, pot }: { state: MoneyState; pot: Pot }) {
           {pot.fillPct !== undefined && ` · ${pot.fillPct}% of each client payment`}
         </p>
         {line && <p className="plan-line">{line}</p>}
+        {goal && goal.neededMinor > 0 && <p className="ui-hint">{goal.paceLine}</p>}
       </div>
       <div className="num">{money(pot.saved)}<small>saved</small></div>
     </div>
     <div className="plan-actions">
-      <details className="plan-edit">
+      <details className="plan-edit" id={"pot-" + pot.id}>
         <summary>Edit</summary>
         <ApiForm action="/api/pots">
           <input type="hidden" name="id" value={pot.id} />

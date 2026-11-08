@@ -27,6 +27,7 @@ function queryWords(query: Query): string {
     case "spending_search": return `spending that matches "${query.text.slice(0, SEARCH_QUERY_MAX)}" over the last ${query.months} months`;
     case "regular_costs": return `the bills and charges that come back every month, and what changed`;
     case "bills_for_month": return `the bills for ${monthWords(query.month)}${query.text?.trim() ? ` that match "${query.text.trim().slice(0, SEARCH_QUERY_MAX)}"` : ""}, by the month each is for`;
+    case "goals": return "how much you have saved towards each dated goal and how it is going";
     case "foreign_costs": return "what foreign money cost you in the last 12 months: PayPal payouts per client and card purchases in another currency";
   }
 }
@@ -40,7 +41,9 @@ export function blockWords(block: Block): string {
     case "timeline": return `Timeline: ${queryWords(block.query)}${block.mark ? ", one bill marked" : ""}`;
     case "table": return `Table${block.title ? ` "${block.title}"` : ""}: ${queryWords(block.query)}`;
     case "compare": return `Comparison: ${queryWords(block.query)}`;
-    case "progress": return `Progress "${block.label}": ${queryWords(block.query)}, against the target you set`;
+    case "progress": return "label" in block
+      ? `Progress "${block.label}": ${queryWords(block.query)}, against the target you set`
+      : `Goals: ${queryWords(block.query)}`;
     case "note": return `Note (${block.by === "you" ? "yours" : "written by the assistant"})`;
     case "letter": return "Letter written by the assistant";
     case "sliders": return `Sliders: ${block.controls.length} ${block.controls.length === 1 ? "client" : "clients"} that can pay late`;

@@ -37,6 +37,7 @@ import { REGULAR_MONTHS, regularCosts } from "@/lib/money/regular";
 import { fundingOptions } from "@/lib/money/options";
 import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { clientPace } from "@/lib/money/pace";
+import { goalPaces } from "@/lib/money/goals";
 import { planFor, planLine } from "@/lib/money/plan";
 import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
@@ -277,6 +278,15 @@ export const tools: Tool[] = [
     name: "household_snapshot", scope: "read", input: z.object({}).strict(),
     description: `The whole household as one JSON document (schema version 2; this tool gives the record only): household, members (with their shares of shared costs), cards, statements, charges, stored bills (a repeating bill appears once, with repeatUnit, repeatDay for a monthly one, and any nextAmountMinor from nextAmountFrom, cancelBy and repeatUntil, the last payment), clients, invoices, pots, settlements, bank balance updates and document references. Money is integer minor units next to a currency; dates are ISO strings. Use it as context for the household as a whole, to find ids and see what exists. It is not an answer: what the household can spend, what is due and how short it would be come from the engine tools (where_am_i, whats_due, can_i_spend, timeline). Rows with status pending are waiting in To check and count for nothing yet. Each of bills, charges, statements, invoices, balanceUpdates and documents holds at most its ${SNAPSHOT_TOOL_WINDOW} most recent rows, oldest first; truncated says which lists were cut. No audit-trail events and no secrets are included.`,
     run: async ctx => JSON.stringify(await loadHouseholdSnapshot(ctx.db, ctx.householdId, { events: false, recent: SNAPSHOT_TOOL_WINDOW })),
+  }),
+  defineTool({
+    name: "goals", scope: "read", input: none,
+    description: "Read the household’s dated savings goals and their progress, including what should be saved by now, the gap, what to save each month, and the date at the current pace if available. Amounts named Minor are home-currency minor units. Quote summary as written. To show the goals on a canvas use a progress block with query q goals.",
+    run: async ctx => {
+      const state = await ctx.state();
+      const goals = goalPaces(state);
+      return JSON.stringify({ currency: state.homeCurrency, goals, summary: goals.length ? null : "No dated savings goals yet." });
+    },
   }),
   defineTool({
     name: "plan_for", scope: "read",

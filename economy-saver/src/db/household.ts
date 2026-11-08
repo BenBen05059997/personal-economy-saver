@@ -13,7 +13,7 @@ import { convertMinor, fromMinor, fromRateMicro, toMinor, toRateMicro } from "./
 import * as s from "./schema";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
-import { householdMoment } from "./clock";
+import { clockForHousehold, householdMoment } from "./clock";
 
 // Both the postgres.js client and PGlite (tests) fit this.
 export type Db = PgDatabase<PgQueryResultHKT, typeof s>;
@@ -237,7 +237,9 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     name: p.name,
     saved: inHome(p.savedMinor, p.currency),
     ...(p.targetMinor !== null && { target: inHome(p.targetMinor, p.currency) }),
-    ...(p.targetDate !== null && { targetDate: p.targetDate }),
+    ...(p.targetDate !== null && {
+      targetDate: p.targetDate, startedOn: clockForHousehold({ ...household, fixedToday: null }, p.createdAt).today,
+    }),
     ...(p.fillBp !== null && { fillPct: p.fillBp / 100 }),
     ...(p.madeBy !== "form" && { madeBy: p.madeBy }),
   });

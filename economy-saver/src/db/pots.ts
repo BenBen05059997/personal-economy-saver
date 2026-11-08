@@ -6,6 +6,7 @@ import { z } from "zod";
 import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
 import { fromMinor, parseAmountMinor, parseMinor } from "./money";
+import { householdMoment } from "./clock";
 import { observeRunway } from "./runway-events";
 import { households, members, pots } from "./schema";
 import { Currency } from "@/lib/catalogue/types";
@@ -55,7 +56,8 @@ const same = (a: Fields, b: Fields) => a.name === b.name && a.targetMinor === b.
   && a.savedMinor === b.savedMinor && a.fillBp === b.fillBp && a.memberId === b.memberId;
 
 async function lockHousehold(tx: Db, hid: string) {
-  const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort })
+  const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort,
+    isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
     .from(households).where(eq(households.id, hid)).for("update");
   if (!household) throw new InputError("Household not found");
   return household;
@@ -116,7 +118,9 @@ export async function savePot(db: Db, householdId: string, input: PotInput, stat
       return data.id;
     }
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
-    await tx.insert(pots).values({ id: data.id, householdId: hid, currency: household.currency, status, madeBy: by.madeBy, askId: by.askId ?? null, ...fields });
+    await tx.insert(pots).values({ id: data.id, householdId: hid, currency: household.currency, status, madeBy: by.madeBy, askId: by.askId ?? null, ...fields,
+      ...(household.fixedToday && { createdAt: householdMoment(household) }),
+    });
     if (status === "pending") {
       await recordEvent(tx, hid, { ...by, kind: "to_check", title: `${fields.name} pot to check`, ref: { type: "pot", id: data.id }, notify: true });
     } else {

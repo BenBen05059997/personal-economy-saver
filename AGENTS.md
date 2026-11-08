@@ -40,6 +40,7 @@ economy-saver/                           the app
   src/lib/voice/, src/components/voice/   voice (D26, stage 28): `schema.ts` (`FieldSpec`, `VoiceFillRequest`, `VoiceFillResponse`), `check.ts` (`checkFill`), `fill.ts` (`fillByVoice`); `use-speech.ts` (`useSpeech`, the one listening hook), `VoiceFill.tsx` (`<VoiceFill />` inside any form); route `/api/voice-fill`, suite `scripts/voice-test.ts`
   src/lib/money/suggest.ts, src/db/suggestions.ts, src/db/rules.ts   D64 findings and D66 standing rules. The daily pass writes each key once, reopens deferred findings on a later household day, resolves stale findings and prunes closed rows. Home's Suggestions panel and /api/suggestions use the same household-scoped rows as Ask and MCP. dueHouseholds in src/db/daily.ts schedules the pass by the owner's local reminder hour. Try it and Reset pass on the fixed date.
   src/lib/notify/, src/db/reminders.ts, src/components/settings/Reminders.tsx   D65 optional reminder delivery. The hourly job processes each member’s local hour and quiet days, claims each channel once for the day and keeps 30 days of delivery history. Email uses the verified sign-in address. Push uses VAPID and WebCrypto; public/push-sw.js displays it and opens Home. /api/reminders and /api/health report missing channel settings. db:notify-test uses simulated transports.
+  src/lib/money/goals.ts, src/components/memory/GoalsView.tsx   D66 savings goals. `goalPace` and `goalPaces` calculate pace for confirmed pots with a target amount and date. Plan, Memory → Goals, the `goal_behind` finding, Ask and MCP’s `goals` tool, and the canvas progress query share this calculation. `db:goals-test` checks the pace and finding.
   src/lib/catalogue/, src/data/catalogue/  the wealth-move catalogue engine and its Japan and US data (secondary, D6)
   src/lib/paypal/                        sandbox REST client, toolkit wrapper (draft/send split, 20 s timeout), invoice listing, webhook signature check
   src/lib/events.ts                      applies a verified webhook delivery to the database
@@ -67,7 +68,7 @@ economy-saver/                           the app
 | Dev server | `npm run dev -- -p 3123` |
 | Type check | `npx tsc --noEmit -p .` |
 | Lint | `npm run lint` |
-| Database tests (no credentials; thirty-six suites, named in `economy-saver/README.md`, Checks) | `npm run db:test` |
+| Database tests (no credentials; thirty-seven suites, named in `economy-saver/README.md`, Checks) | `npm run db:test` |
 | Generate Web Push keys (owner only, writes both ignored local settings files) | `npm run push:keys` |
 | Regenerate the five files in `schema/` from the zod definitions (`db:snapshot-test` fails when one is stale) | `npm run schema` |
 | Model eval: Ben's fictional household, the real agent, one provider and model (key from `EVAL_API_KEY` in `.env.local`; prints a line per case and the `TESTED` line to add) | `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` |

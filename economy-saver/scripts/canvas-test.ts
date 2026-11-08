@@ -6,6 +6,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
+import { savePot } from "@/db/pots";
 import { seedBen } from "@/db/seed";
 import { loadCanvasContext, resolveCanvasRequest } from "@/lib/canvas/request";
 import { CanvasError, resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
@@ -340,8 +341,9 @@ async function main() {
       assert.equal((month as Extract<ResolvedBlock, { type: "table" }>).data.rows.length, november.categories.length);
       const found = (search as Extract<ResolvedBlock, { type: "table" }>).data;
       assert.ok(found.rows.length >= 1 && found.rows.every(r => /20\d\d$/.test(r.cells[0])));
-      assert.equal((progress as Extract<ResolvedBlock, { type: "progress" }>).data.valueLabel, format(availableCash(state)));
-      assert.equal((progress as Extract<ResolvedBlock, { type: "progress" }>).data.valueMinor, availableCash(state));
+      assert.ok(progress.type === "progress" && !("rows" in progress.data));
+      assert.equal(progress.data.valueLabel, format(availableCash(state)));
+      assert.equal(progress.data.valueMinor, availableCash(state));
       const ev = (events as Extract<ResolvedBlock, { type: "table" }>).data;
       assert.ok(ev.rows.some(r => r.cells[1] === "Fictional lamp" && r.cells[2] === "−¥10,000"));
       assert.match(events.source, /with your what-if changes$/);
@@ -457,6 +459,43 @@ async function main() {
       const [zero, none] = resolveRecipe(recipe, quiet);
       if (zero.type === "number") assert.equal(zero.data.value, jpy(0));
       if (none.type === "table") { assert.equal(none.data.rows.length, 0); assert.equal(none.data.foot, null); assert.equal(none.data.caption, null); assert.match(none.data.empty!, /No payouts or card purchases/); }
+    });
+
+    await check("goals progress asks for live dated pots without saving amounts in the recipe", async () => {
+      const goalsHome = await seedBen(db, { isDemo: true });
+      const recipe: Recipe = { version: 1, title: "Goals", blocks: [{ type: "progress", query: { q: "goals" } }] };
+      assert.deepEqual(RecipeSchema.parse(recipe), recipe);
+      for (const block of [
+        { type: "progress", query: { q: "goals" }, targetMinor: 50_000 },
+        { type: "progress", query: { q: "goals", savedMinor: 12_000 } },
+        { type: "number", label: "Goals", query: { q: "goals" } },
+      ]) assert.ok(!RecipeSchema.safeParse({ ...recipe, blocks: [block] }).success);
+      assert.match(blockWords(recipe.blocks[0]), /each dated goal/);
+      const draw = async (hid: string) => {
+        const [block] = await resolveCanvasRequest(db, hid, { recipe });
+        assert.ok(block.type === "progress" && "rows" in block.data);
+        return { ...block, data: block.data };
+      };
+      assert.deepEqual((await draw(goalsHome)).data, { rows: [], empty: "No dated goals yet." });
+
+      const camera = { id: crypto.randomUUID(), name: "Camera", target: "120000", targetDate: "2027-06-30",
+        saved: "20000", fillPct: null, memberId: null };
+      await savePot(db, goalsHome, camera, "confirmed", { madeBy: "form" });
+      await savePot(db, goalsHome, { ...camera, id: crypto.randomUUID(), name: "Trip", target: "50000", saved: "50000" }, "confirmed", { madeBy: "form" });
+      await savePot(db, goalsHome, { ...camera, id: crypto.randomUUID(), name: "No date", targetDate: null }, "confirmed", { madeBy: "form" });
+      await savePot(db, goalsHome, { ...camera, id: crypto.randomUUID(), name: "Pending" }, "pending", { madeBy: "form" });
+      const first = await draw(goalsHome);
+      assert.equal(first.data.empty, null);
+      assert.deepEqual(first.data.rows.map(row => row.label).sort(), ["Camera", "Trip"]);
+      const saved = first.data.rows.find(row => row.id === camera.id)!;
+      assert.deepEqual([saved.valueLabel, saved.targetLabel, saved.targetDate], ["¥20,000", "¥120,000", "2027-06-30"]);
+      assert.match(saved.summary, /a month to reach ¥120,000/);
+      assert.match(canvasSummary([first]), /¥20,000/);
+      assert.deepEqual((await draw(b)).data, { rows: [], empty: "No dated goals yet." });
+
+      await savePot(db, goalsHome, { ...camera, saved: "32000" }, "confirmed", { madeBy: "form" });
+      assert.equal((await draw(goalsHome)).data.rows.find(row => row.id === camera.id)?.valueLabel, "¥32,000");
+      assert.deepEqual(JSON.parse(JSON.stringify(recipe)).blocks[0], { type: "progress", query: { q: "goals" } });
     });
 
     await check("the summary make_canvas returns names each block and its values, never a note's or a letter's text", async () => {

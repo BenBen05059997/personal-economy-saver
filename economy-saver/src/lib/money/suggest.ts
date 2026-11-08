@@ -1,7 +1,7 @@
 import { AMOUNT_NOT_KNOWN } from "./gaps";
 import { dayLabel, majorMoney, minorMoney, minorPerUnit } from "./format";
 import { clientPace, expectedPayDate } from "./pace";
-import { planFor } from "./plan";
+import { goalPaces } from "./goals";
 import { cancelNotices, resolveBills } from "./repeat";
 import { REGULAR_MONTHS, regularCosts } from "./regular";
 import { addDays, daysBetween, dueItems, safeToSpend } from "./runway";
@@ -74,12 +74,11 @@ export function findSuggestions(state: MoneyState, rules: StandingRules, reminda
       action: "bill", refId: notice.billId, urgency: 1 });
   }
 
-  if (rules.goal_behind.enabled) for (const pot of state.pots) {
-    if (pot.target === undefined || !pot.targetDate || pot.saved >= pot.target) continue;
-    const plan = planFor({ target: pot.target, saved: pot.saved, targetDate: pot.targetDate }, state);
-    if (plan.fits && pot.targetDate >= today) continue;
-    findings.push({ kind: "goal_behind", key: "goal:" + pot.id + ":" + pot.targetDate, title: pot.name + " is behind its target",
-      reason: format(plan.needed) + " still to set aside by " + dayLabel(pot.targetDate) + ".", action: "pot", refId: pot.id, urgency: 4 });
+  if (rules.goal_behind.enabled) for (const goal of goalPaces(state)) {
+    if (goal.deltaMinor >= 0) continue;
+    findings.push({ kind: "goal_behind", key: "goal:" + goal.id + ":" + goal.targetDate, title: goal.name + " is behind its target",
+      reason: minorMoney(-goal.deltaMinor, homeCurrency) + " behind pace. " + minorMoney(goal.neededMinor, homeCurrency)
+        + " still to set aside by " + dayLabel(goal.targetDate) + ".", action: "pot", refId: goal.id, urgency: 4 });
   }
 
   const minimum = threshold(rules.safe_below);

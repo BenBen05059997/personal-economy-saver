@@ -24,6 +24,9 @@
 .canvas-sentence a { color: inherit; text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
 .canvas-meter { height: 10px; border-radius: 5px; background: var(--wash); overflow: hidden; }
 .canvas-meter i { display: block; height: 100%; border-radius: 5px; background: var(--accent); }
+.canvas-goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.canvas-goals li { display: grid; min-width: 0; align-content: start; gap: var(--space-2); overflow-wrap: anywhere; }
+.canvas-goals .canvas-number { white-space: normal; }
 /* flow chart */
 .canvas-chart { margin: 0; }
 .canvas-plot { position: relative; height: 180px; }

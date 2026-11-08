@@ -1,0 +1,315 @@
+[
+  {
+    "id": "GOAL-001",
+    "area": "Goals",
+    "action": "View the Goals tab with no goals",
+    "user_goal": "I want to know where to set a savings goal",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "Open Memory and select Goals"
+    ],
+    "expected": [
+      "Goals is selected",
+      "The empty state reads No goals yet. Give a pot a target amount and date in Plan."
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ1",
+      "D66"
+    ]
+  },
+  {
+    "id": "GOAL-002",
+    "area": "Goals",
+    "action": "Open Plan from the empty Goals tab",
+    "user_goal": "I want to create a pot from Goals",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "Open Memory → Goals and tap Open Plan"
+    ],
+    "expected": [
+      "Plan opens at /plan"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ1",
+      "D66"
+    ]
+  },
+  {
+    "id": "GOAL-003",
+    "area": "Goals",
+    "action": "Save a new dated pot",
+    "user_goal": "I want to see how a new savings goal starts",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "In Plan add Camera with ¥0 saved and a ¥120,000 target by Dec 14, 2026",
+      "Open Goals"
+    ],
+    "expected": [
+      "Plan and Goals say By today: ¥0. On pace. A date at this pace is not available yet.",
+      "Goals shows ¥120,000 a month"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ2",
+      "D66"
+    ]
+  },
+  {
+    "id": "GOAL-004",
+    "area": "Goals",
+    "action": "View a goal already underway",
+    "user_goal": "I want to know how far behind my target I am",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026"
+    ],
+    "steps": [
+      "Open Memory → Goals"
+    ],
+    "expected": [
+      "Camera shows ¥30,000 of ¥120,000 saved by Dec 14, 2026",
+      "By today is ¥60,000, behind pace is ¥30,000, and the projection is Feb 12, 2027",
+      "The monthly amount still needed is ¥90,000"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ3",
+      "D66"
+    ]
+  },
+  {
+    "id": "GOAL-005",
+    "area": "Goals",
+    "action": "Open a goal’s exact pot form",
+    "user_goal": "I want to edit the right pot from Goals",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026"
+    ],
+    "steps": [
+      "Tap Edit in Plan on Camera"
+    ],
+    "expected": [
+      "The URL targets Camera at /plan#pot-<id> and opens its form with 30000 saved",
+      "Plan shows the same pace as Goals"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ3",
+      "D66"
+    ]
+  },
+  {
+    "id": "GOAL-006",
+    "area": "Goals",
+    "action": "Ask about goals and draw a progress block",
+    "user_goal": "I want the assistant to show the pace from my records",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026"
+    ],
+    "steps": [
+      "Ask How are my goals doing? Show them in a progress block."
+    ],
+    "expected": [
+      "The step reads Checking your goal progress and Based on links to Goals",
+      "The Camera block gives the saved amount, expected amount, gap and projection in AJ4"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ4",
+      "D66"
+    ]
+  },
+  {
+    "id": "GOAL-007",
+    "area": "Goals",
+    "action": "Inspect the recipe for goal progress",
+    "user_goal": "I want to see which query feeds my goal block",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
+      "A goal canvas is visible from AJ4"
+    ],
+    "steps": [
+      "Open Show the recipe"
+    ],
+    "expected": [
+      "The progress entry reads Goals: how much you have saved towards each dated goal and how it is going"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ5",
+      "D66"
+    ]
+  },
+  {
+    "id": "GOAL-008",
+    "area": "Goals",
+    "action": "Pin goal progress to Home",
+    "user_goal": "I want to see my progress without asking again",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
+      "A goal canvas is visible from AJ4"
+    ],
+    "steps": [
+      "Tap Pin to Home and open Home"
+    ],
+    "expected": [
+      "The goal pin shows Camera at ¥30,000 of ¥120,000 and 25%"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ5",
+      "D66"
+    ]
+  },
+  {
+    "id": "GOAL-009",
+    "area": "Goals",
+    "action": "Update saving after pinning goal progress",
+    "user_goal": "I want a saved change to appear in the same Home pin",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
+      "Home already has the goal pin from AJ5"
+    ],
+    "steps": [
+      "In Plan edit Camera and save 60000 under Saved so far",
+      "Return to Home and then check Goals"
+    ],
+    "expected": [
+      "The same Home pin now shows ¥60,000 of ¥120,000 and 50%",
+      "Goals shows ¥60,000 expected, On pace, Dec 14, 2026 at the current pace and ¥60,000 a month"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ6",
+      "D66"
+    ]
+  },
+  {
+    "id": "GOAL-010",
+    "area": "Goals",
+    "action": "Open the nudge setting from Rules",
+    "user_goal": "I want to find the late-client rule from the assistant tabs",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "From Memory select Rules",
+      "Tap Open nudge setting"
+    ],
+    "expected": [
+      "Rules points to the existing nudge setting",
+      "Settings opens at /settings#nudge"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ7",
+      "D66"
+    ]
+  },
+  {
+    "id": "GOAL-011",
+    "area": "Goals",
+    "action": "Save a pot without a target date",
+    "user_goal": "I want to save for a purchase while leaving its date open",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Fresh Ben Try it on Nov 14"
+    ],
+    "steps": [
+      "In Plan add Furniture with ¥10,000 saved and a ¥50,000 target, leaving Target date blank",
+      "Open Goals"
+    ],
+    "expected": [
+      "Plan shows the Furniture pot and its amount",
+      "Furniture is absent from Goals"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AJ2",
+      "D66"
+    ]
+  }
+]

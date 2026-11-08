@@ -8,7 +8,11 @@ function describe(block: ResolvedBlock): Record<string, unknown> {
   switch (block.type) {
     case "sentence": return { text: block.data.text, ...(block.data.note && { note: block.data.note }) };
     case "number": return { label: block.data.label, value: block.data.value, ...(block.data.sub && { detail: block.data.sub }) };
-    case "progress": return { label: block.data.label, value: block.data.valueLabel, target: block.data.targetLabel };
+    case "progress": return "rows" in block.data ? {
+      label: "Goals",
+      rows: block.data.rows.slice(0, MAX_ROWS).map(row => ({ label: row.label, value: row.valueLabel, target: row.targetLabel, targetDate: row.targetDate, summary: row.summary })),
+      ...(block.data.empty && { empty: block.data.empty }),
+    } : { label: block.data.label, value: block.data.valueLabel, target: block.data.targetLabel };
     case "flow_chart": return { caption: block.data.caption, lowest: block.data.lowLabel, short: block.data.short };
     case "timeline": return { caption: block.data.caption, rows: block.data.rows.slice(0, MAX_ROWS).map(row => `${row.dateLabel} ${row.label} ${row.amountLabel}, balance ${row.balanceLabel}`), ...(block.data.empty && { empty: block.data.empty }) };
     case "table": return { ...(block.data.title && { title: block.data.title }), head: block.data.head, rows: block.data.rows.slice(0, MAX_ROWS).map(row => row.cells), ...(block.data.foot && { foot: block.data.foot }), ...(block.data.empty && { empty: block.data.empty }) };

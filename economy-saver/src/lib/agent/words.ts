@@ -13,6 +13,7 @@ export const TOOL_WORDS: Record<string, string> = {
   options_when_short: "Looking at your options",
   list_invoices: "Reading your invoices",
   household_snapshot: "Reading your household",
+  goals: "Checking your goal progress",
   plan_for: "Working out the plan",
   who_owes_whom: "Checking who owes whom",
   month_by_category: "Adding up the month",

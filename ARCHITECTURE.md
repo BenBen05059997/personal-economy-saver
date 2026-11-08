@@ -25,7 +25,7 @@ Cloudflare
 ├── Cron Trigger (`worker.ts` `scheduled`): every hour → GET /api/cron with `CRON_SECRET`
 └── Next.js 16 app on Workers (OpenNext adapter); `src/middleware.ts` refreshes the auth cookie on every path except the webhook, cron, MCP and inbound
     ├── Pages (server components): the sidebar is Home /, Ask /canvas, To check /to-check, Activity /activity, Cards /cards, Clients /clients, Plan /plan
-    │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory, /settings, /account (delete my data), /privacy
+    │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory (Memory, Goals and Rules), /settings, /account (delete my data), /privacy
     │   ├── /start (Start with my numbers), /login, /onboarding
     │   └── /family/[token]: no session; the token resolves to a household (D52); no-store, noindex, no referrer
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
@@ -68,7 +68,7 @@ Cloudflare
     │   └── /api/health            readiness: setting names and reasons, with separate optional email and push results
     └── Core (pure TypeScript, no I/O)
         ├── Engine `src/lib/money`: runway.ts (availableCash, series, low, safeToSpend, roomOnCard, ladder, timeline, statementItems), repeat, window (`stateThrough`, `dayView`), plan,
-        │   split, month, spending, period (the month a bill covers, D63), name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check, suggest (D64)
+        │   split, month, spending, period (the month a bill covers, D63), name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check, suggest (D64), goals (D66)
         ├── Sentence composer `src/lib/money/sentence.ts`: engine output → "You're fine if … If late, ¥18,780 short on the 27th."
         ├── Agent `src/lib/agent`: one tool catalogue (tools.ts, canvas-tools.ts, memory-tools.ts, check-tools.ts, offer-tools.ts), run.ts, words.ts (the step words), reply.ts, rules.ts, memory-prompt.ts, log.ts
         ├── Model call `src/lib/ai`: `callModel` (anthropic.ts, openai.ts), `checkBaseUrl`, `unconfirmedAmounts`, `checkConnection`, `PROVIDERS`, the tested list
@@ -266,7 +266,7 @@ assistant); `letter`; `sliders` (a client's late days on the recipe's scenario);
 /api/ path). `resolveRecipe` runs every query through the engine on the household's state. A `flow_chart` or `timeline` block may carry `mark`, a
 stored bill's id: the chart rings the first day that bill falls on in the window (label like "Rent ¥82,000 · Nov 27", added to the aria text as
 "Marked: …") and the timeline rows of that bill get `marked` and read "This bill"; a bill not in the window (repeating bills exist only inside the
-plan window, about 30 days) draws no mark. A `flow_chart` or `events` block expands the state through its `days`. A `foreign_costs` block (D62) shows the total cost ("about" when estimated) as a number, or a row per client and per card, then Total, as a table; `loadCanvasContext` (`request.ts`) loads the foreign-cost inputs only when `asksForeignCosts(recipe)`, and it has no starter. A `bills_for_month` table (D63) lists the bills whose period overlaps the month, a row per bill and per-currency totals, with the same note as the tool; `loadCanvasContext` loads `periodBills` only when `asksPeriodBills(recipe)`.
+plan window, about 30 days) draws no mark. A `flow_chart` or `events` block expands the state through its `days`. A `foreign_costs` block (D62) shows the total cost ("about" when estimated) as a number, or a row per client and per card, then Total, as a table; `loadCanvasContext` (`request.ts`) loads the foreign-cost inputs only when `asksForeignCosts(recipe)`, and it has no starter. A `bills_for_month` table (D63) lists the bills whose period overlaps the month, a row per bill and per-currency totals, with the same note as the tool; `loadCanvasContext` loads `periodBills` only when `asksPeriodBills(recipe)`. A `{ q: "goals" }` progress block (D66) reads confirmed dated pots from the current money state and shows each goal’s amounts, deadline and pace. The recipe holds only the query, so a Home pin reflects later pot edits.
 
 **Memory (D58).** `MemoryItem`s (kind fact, preference, goal, instruction or correction; 1 to 400 characters; 200 a household; a long digit run is
 refused with `SECRET_REFUSAL`) live in `memories` through `src/db/memory.ts`, one function per change, each change an event with titles only.
@@ -376,6 +376,8 @@ agrees. People and settlement (D45): `/api/people` adds, renames and sets shares
 card charge is removed through `/api/remove` (`removeBill`, `removeCharge`: deleted by id inside the household, a `bill_removed` or
 `charge_removed` event, and a confirmed charge is taken back out of the stored statement of its cycle). `confirmPending` (`src/db/confirm.ts`)
 confirms the agent's pending bill, charge, balance or pot from To check.
+
+**Goal pace (D66).** Plan and the Goals tab at `/memory?tab=goals` use `goalPace` over confirmed pots with a target amount and date. The pot’s creation date in the household time zone anchors the pace. Try it stamps new pots on its fixed day. The calculation uses whole minor units for the amount expected by today, the difference from actual saving and the monthly amount remaining. A date at the observed pace needs both elapsed days and some savings. The same calculation serves the `goal_behind` finding, the `goals` read tool in Ask and MCP and the canvas progress query. The Goals tab links each pot to `/plan#pot-<id>`. The Rules tab at `/memory?tab=rules` links to the nudge setting.
 
 **A statement CSV (D53).** The browser reads the file (`src/lib/import/csv.ts`, at most 1 MB: UTF-8 or Shift_JIS, the header found, the date, name
 and amount columns guessed from their words and changeable, each row a charge, a skipped credit or an unreadable row with the reason) and posts JSON

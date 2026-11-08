@@ -526,6 +526,8 @@ async function main() {
       seen("agent tool make_canvas", await runTool(viewer, "make_canvas", { recipe: JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }, { type: "sliders", controls: [{ clientId: viewer.ids.client, maxDays: 14 }] }] }) }));
       await assert.rejects(runTool(viewer, "what_if", { case: "late", changes: [{ kind: "client_late", clientId: other.ids.client, days: 3 }] }), /not in your records/);
       await assert.rejects(runTool(viewer, "make_canvas", { recipe: JSON.stringify({ version: 1, title: "x", blocks: [{ type: "sliders", controls: [{ clientId: other.ids.client, maxDays: 14 }] }] }) }), /client/);
+      const goals = JSON.parse(await runTool(viewer, "goals", {}));
+      assert.deepEqual(goals.goals.map((goal: { id: string }) => goal.id), [viewer.ids.pot]);
       seen("agent tool plan_for with its own pot", await runTool(viewer, "plan_for", { pot_id: viewer.ids.pot }));
       await assert.rejects(runTool(viewer, "plan_for", { pot_id: other.ids.pot }), /Unknown pot/);
       await assert.rejects(runTool(viewer, "can_i_spend", { amount_minor: 1_000, card_id: other.ids.card }), /Unknown card/);

@@ -117,6 +117,7 @@ export type Pot = {
   saved: number; // home currency
   target?: number; // home currency
   targetDate?: string; // YYYY-MM-DD
+  startedOn?: string; // D66: the calendar day the dated goal pot was created
   fillPct?: number; // 25 = a quarter of each client payment
   madeBy?: MadeBy;
 };
