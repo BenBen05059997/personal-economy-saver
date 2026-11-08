@@ -27,15 +27,34 @@ export async function seedRules(db: Db, id: string) {
   await db.insert(standingRules).values(RULE_KINDS.map(kind => ruleRow(hid, kind, defaults[kind])));
 }
 
+function readRules(db: Db, hid: string) {
+  return db.select({ kind: standingRules.kind, enabled: standingRules.enabled, threshold: standingRules.threshold, currency: standingRules.currency })
+    .from(standingRules).where(eq(standingRules.householdId, hid));
+}
+
+async function initializeRules(db: Db, hid: string) {
+  return db.transaction(async tx => {
+    const [household] = await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
+    if (!household) throw new InputError("Household not found");
+    const rows = await readRules(tx, hid);
+    if (rows.length) return rows;
+    await seedRules(tx, hid);
+    await recordEvent(tx, hid, { madeBy: "cron", kind: "rules_initialized", title: "Default standing rules added" });
+    return readRules(tx, hid);
+  });
+}
+
 export async function rulesFor(db: Db, id: string): Promise<StandingRules> {
   const hid = requireHousehold(id);
-  const rows = await db.select({ kind: standingRules.kind, enabled: standingRules.enabled, threshold: standingRules.threshold, currency: standingRules.currency })
-    .from(standingRules).where(eq(standingRules.householdId, hid));
-  const result = defaultRules();
-  for (const row of rows) {
-    result[row.kind] = { enabled: row.enabled, threshold: row.threshold, currency: row.currency === null ? null : Currency.parse(row.currency) };
-  }
-  return result;
+  let rows = await readRules(db, hid);
+  if (!rows.length) rows = await initializeRules(db, hid);
+  const byKind = new Map(rows.map(row => [row.kind, row]));
+  const entries = RULE_KINDS.map(kind => {
+    const row = byKind.get(kind);
+    if (!row) throw new Error(`Missing standing rule: ${kind}`);
+    return [kind, { enabled: row.enabled, threshold: row.threshold, currency: row.currency === null ? null : Currency.parse(row.currency) }] as const;
+  });
+  return Object.fromEntries(entries) as StandingRules;
 }
 
 export async function setStandingRule(db: Db, id: string, kind: RuleKind, rule: StandingRule) {

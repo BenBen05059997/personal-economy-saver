@@ -58,6 +58,22 @@ async function main() {
       assert.equal((await rulesFor(db, legacy)).nudge_after.threshold, 60, "the legacy column is no longer read");
     });
 
+    await check("a household made by older code initializes its rules once, and a partial set names the missing kind", async () => {
+      const [{ id: hid }] = await db.insert(schema.households).values({ name: "Fictional legacy writer", homeCurrency: "JPY" })
+        .returning({ id: schema.households.id });
+      const reads = await Promise.all([rulesFor(db, hid), rulesFor(db, hid)]);
+      assert.deepEqual(reads, [defaultRules(), defaultRules()]);
+      const audit = await db.select().from(schema.events)
+        .where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, "rules_initialized")));
+      assert.deepEqual(audit.map(row => row.title), ["Default standing rules added"]);
+      assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, 6);
+
+      await db.delete(schema.standingRules)
+        .where(and(eq(schema.standingRules.householdId, hid), eq(schema.standingRules.kind, "safe_below")));
+      await assert.rejects(rulesFor(db, hid), /Missing standing rule: safe_below/);
+      assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, 5);
+    });
+
     await check("new rule edits validate days, percent, currency and money limits in the same parser as Ask", () => {
       for (const kind of ["nudge_after", "bill_ahead", "statement_ahead"] as const) {
         for (const value of ["0", "31", "2.5", "1e1", "-1"]) assert.ok("problem" in readRule(kind, true, value, "JPY"), kind + " " + value);

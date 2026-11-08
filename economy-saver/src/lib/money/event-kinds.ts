@@ -44,6 +44,7 @@ export const EVENT_KIND_LABELS = {
   reading_rejected: "Reading dismissed",
   reminder_sent: "Invoice reminder sent",
   rule_changed: "Rule changed",
+  rules_initialized: "Default standing rules added",
   runway_clear: "Clear for 30 days",
   runway_short: "Short",
   settings_updated: "Settings changed",

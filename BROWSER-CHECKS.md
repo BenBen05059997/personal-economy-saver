@@ -496,6 +496,8 @@ Use a separate setup with migration 0028 at 375px and 1440px. Open Memory → Ru
 - AK7. In fresh Try it ask “Keep ¥50,000 safe to spend.” On the rule offer, tap No. The card disappears and Minimum safe to spend stays off. To test Keep, use AH5 in a fresh copy.
 - AK8. Use a fixture whose nudge setting before 0028 was 45 days and which had a saved reader correction. Confirm the correction still applies when rereading the same biller. Its Late-client nudge sentence still shows 45 days, with the Days editor blank and a hint naming the current limit. Clear On and save without entering a number. Reload shows the 45-day rule off. Re-enabling it with a blank field or with 45 is refused. Re-enable it with 30 and reload to confirm the new value.
 
+- AK9. Use a fixture created by the older app after migration 0028, with zero standing rule rows. Open Memory → Rules and reload. All six defaults appear and Activity has one “Default standing rules added” row.
+
 ## AL. Suggestions after a save (D64, D54, 29F)
 
 Check at 375px and 1440px in a separate setup with migration 0028. Use a fresh disposable fixture for each check. Open Home after the write to see the immediate finding. The scheduled job stays separate.

@@ -49,7 +49,7 @@ async function Memory({ search }: { search: Search }) {
   if (!hid) redirect("/");
   const active = tab === "goals" || tab === "rules" ? tab : "memory";
   const [workspace, content] = await db().transaction(tx => Promise.all([loadNavigationData(tx, hid), tabContent(tx, hid, active)]),
-    { isolationLevel: "repeatable read", accessMode: "read only" });
+    active === "rules" ? { isolationLevel: "read committed" } : { isolationLevel: "repeatable read", accessMode: "read only" });
   return <WorkspaceFrame workspace={workspace} section="memory">
     <MemoryTabs active={active} />
     {content}

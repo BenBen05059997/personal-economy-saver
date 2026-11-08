@@ -287,5 +287,34 @@
       "db:doors-test",
       "D66"
     ]
+  },
+  {
+    "id": "RULE-011",
+    "area": "Rules",
+    "action": "Initialize standing rules for a household created by older code",
+    "user_goal": "I want to see my standing rules after updating the app",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate test app with migration 0028",
+      "A household created by the older app after the migration, with zero standing rule rows",
+      "375px and 1440px widths"
+    ],
+    "steps": [
+      "Open Memory → Rules",
+      "Reload and check Activity"
+    ],
+    "expected": [
+      "All six defaults appear on both visits",
+      "Activity contains one Default standing rules added row"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AK9",
+      "D66"
+    ]
   }
 ]
