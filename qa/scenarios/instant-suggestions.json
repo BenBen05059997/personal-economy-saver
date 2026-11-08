@@ -1,0 +1,370 @@
+[
+  {
+    "id": "NOW-001",
+    "area": "Immediate suggestions",
+    "action": "Save an upcoming bill",
+    "user_goal": "I want a new bill to show up in suggestions right away",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy on Nov 14"
+    ],
+    "steps": [
+      "Add a confirmed Kumo Water bill for ¥2,500 due Nov 17 in Utilities",
+      "Open Home"
+    ],
+    "expected": [
+      "Home shows Kumo Water due Nov 17 and ¥2,500, covered even if clients pay late",
+      "Review bill opens the confirmed bill"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL1",
+      "D64"
+    ]
+  },
+  {
+    "id": "NOW-002",
+    "area": "Immediate suggestions",
+    "action": "Save an edited bill amount",
+    "user_goal": "I want a price increase flagged as soon as I save it",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy on Nov 14",
+      "Regular cost increase is on at 25%",
+      "Confirmed Kumo Water bills at ¥2,000 in October and November"
+    ],
+    "steps": [
+      "Edit the November amount to ¥2,600 and save",
+      "Open Home"
+    ],
+    "expected": [
+      "The water cost finding appears immediately and reads ¥600 more than last month"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL2",
+      "D64"
+    ]
+  },
+  {
+    "id": "NOW-003",
+    "area": "Immediate suggestions",
+    "action": "Save a card charge",
+    "user_goal": "I want regular cost changes reflected as soon as I add a charge",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy on Nov 14",
+      "Regular cost increase is on at 25%",
+      "A confirmed ¥2,000 Kumo Market food charge in October"
+    ],
+    "steps": [
+      "Add a confirmed Kumo Market food charge for ¥2,600 dated Nov 14",
+      "Open Home"
+    ],
+    "expected": [
+      "Home shows Kumo Market costs more this month and ¥600 more than last month so far"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL3",
+      "D64"
+    ]
+  },
+  {
+    "id": "NOW-004",
+    "area": "Immediate suggestions",
+    "action": "Confirm a drafted bill",
+    "user_goal": "I want a bill suggestion to point at the saved bill after review",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy on Nov 14",
+      "A pending ¥2,500 Kumo Water bill due Nov 17, with no pass run since it was drafted"
+    ],
+    "steps": [
+      "Confirm the bill in To check",
+      "Open Home"
+    ],
+    "expected": [
+      "The due-bill finding appears right away",
+      "Review bill opens the confirmed bill"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL4",
+      "D64"
+    ]
+  },
+  {
+    "id": "NOW-005",
+    "area": "Immediate suggestions",
+    "action": "Confirm a drafted charge",
+    "user_goal": "I want a confirmed charge to update my regular cost finding",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy on Nov 14",
+      "Regular cost increase is on at 25%",
+      "A confirmed ¥2,000 Kumo Market food charge in October",
+      "A pending ¥2,600 Kumo Market food charge dated Nov 14"
+    ],
+    "steps": [
+      "Confirm the charge in To check",
+      "Open Home and the card"
+    ],
+    "expected": [
+      "The ¥600 increase appears immediately",
+      "The confirmed charge appears on its card once"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL5",
+      "D64"
+    ]
+  },
+  {
+    "id": "NOW-006",
+    "area": "Immediate suggestions",
+    "action": "Save an edited pot",
+    "user_goal": "I want goal suggestions to track what I saved",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy on Nov 14",
+      "Bank balance ¥107,000 and Minimum safe to spend on at ¥15,000",
+      "Confirmed Camera pot with ¥10,000 saved and an open low safe-to-spend finding at ¥11,220"
+    ],
+    "steps": [
+      "Edit Saved so far to ¥0 and save in Plan",
+      "Open Home"
+    ],
+    "expected": [
+      "The low safe-to-spend finding disappears immediately",
+      "Home shows ¥21,220 safe to spend"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL6",
+      "D64"
+    ]
+  },
+  {
+    "id": "NOW-007",
+    "area": "Immediate suggestions",
+    "action": "Confirm a drafted pot",
+    "user_goal": "I want suggestions to use my goal after I approve it",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy on Nov 14",
+      "Bank balance ¥107,000 and Minimum safe to spend on at ¥15,000",
+      "Camera is a pending pot with ¥10,000 saved"
+    ],
+    "steps": [
+      "Confirm the pot in To check",
+      "Open Home and Plan"
+    ],
+    "expected": [
+      "Home immediately shows ¥11,220 safe to spend, below ¥15,000",
+      "The confirmed Camera pot appears in Plan"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL7",
+      "D64"
+    ]
+  },
+  {
+    "id": "NOW-008",
+    "area": "Immediate suggestions",
+    "action": "Confirm a bill reading with a price increase",
+    "user_goal": "I want the reader to show which regular cost changed",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy on Nov 14",
+      "Regular cost increase is on at 20%",
+      "Confirmed Kumo Water Utilities bills at ¥10,000 on Sep 16 and ¥11,000 on Oct 16"
+    ],
+    "steps": [
+      "Upload a Utilities bill named Kumo Water Co., Ltd. at ¥17,000 due Nov 16",
+      "Read the price-rise check and confirm the bill",
+      "Open Home"
+    ],
+    "expected": [
+      "The check says Kumo Water is usually ¥10,000–¥11,000 (your last 2 bills). This one is ¥17,000.",
+      "Home immediately shows the water cost increase of ¥6,000"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL8",
+      "D64"
+    ]
+  },
+  {
+    "id": "NOW-009",
+    "area": "Immediate suggestions",
+    "action": "Apply a verified invoice-paid delivery",
+    "user_goal": "I want a paid sandbox invoice to disappear from late suggestions",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Disposable sandbox fixture with an open late-client finding for Acme Corp invoice 1042",
+      "Simulated verified delivery input"
+    ],
+    "steps": [
+      "Apply the verified paid delivery in the isolated fixture",
+      "Read the invoice status and open findings",
+      "Replay the same delivery"
+    ],
+    "expected": [
+      "The invoice is Paid and the Acme finding resolves on the first delivery",
+      "The replay does not credit a second payment"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL9",
+      "D64",
+      "db:suggest-test"
+    ]
+  },
+  {
+    "id": "NOW-010",
+    "area": "Immediate suggestions",
+    "action": "Mark an invoice paid outside PayPal",
+    "user_goal": "I want Home to stop flagging an invoice I already received",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Ben Nov 23 fixture with the late-client finding for Acme Corp invoice 1042",
+      "The invoice has no linked PayPal ID"
+    ],
+    "steps": [
+      "Open the invoice and tap Mark paid outside PayPal",
+      "Open Home and Activity"
+    ],
+    "expected": [
+      "The late-client finding disappears immediately",
+      "Bank balance rises from ¥67,000 to ¥247,000",
+      "Activity records one payment"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL10",
+      "D64"
+    ]
+  },
+  {
+    "id": "NOW-011",
+    "area": "Immediate suggestions",
+    "action": "Fill a missing bill date",
+    "user_goal": "I want a bill to be flagged when I know when it is due",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy on Nov 14",
+      "A confirmed ¥2,500 Kumo Water bill with unknown due date"
+    ],
+    "steps": [
+      "In To check under Missing, enter Nov 17 and save",
+      "Open Home"
+    ],
+    "expected": [
+      "The missing-date row clears",
+      "Home immediately shows Kumo Water due Nov 17 with ¥2,500"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL11",
+      "D64"
+    ]
+  },
+  {
+    "id": "NOW-012",
+    "area": "Immediate suggestions",
+    "action": "Confirm a card receipt reading",
+    "user_goal": "I want a newly confirmed receipt reflected in regular costs",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Separate setup with migrations 0028 and 0029",
+      "375px and 1440px widths",
+      "Disposable Ben Try it copy on Nov 14",
+      "Regular cost increase is on at 25%",
+      "A confirmed ¥2,000 Kumo Market food charge in October"
+    ],
+    "steps": [
+      "Review a Kumo Market receipt for ¥2,600 on Nov 14 in Food",
+      "Confirm the reading",
+      "Open Home and the chosen card"
+    ],
+    "expected": [
+      "The ¥600 regular cost increase appears immediately",
+      "The card shows the charge once"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL12",
+      "D64"
+    ]
+  }
+]

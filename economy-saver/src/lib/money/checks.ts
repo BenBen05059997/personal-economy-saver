@@ -13,7 +13,7 @@ import { amountOn, datesIn, nextAmountOf } from "./repeat";
 import { regularCosts } from "./regular";
 import { addDays, daysBetween, pendingCharges } from "./runway";
 import { monthBounds, monthsBack, spendingItems } from "./spending";
-import type { MoneyState, RealBill, RepeatUnit } from "./types";
+import type { MoneyState, RepeatUnit } from "./types";
 
 /** A date within this many days of another is the same bill or charge arriving twice. */
 export const DUPLICATE_DAYS = 3;
@@ -176,14 +176,18 @@ function pastDue(p: Proposal, state: MoneyState): Check | null {
 function farFromUsual(p: Proposal, state: MoneyState): Check | null {
   if (p.kind !== "bill" || p.name === null || p.amountMinor === null || p.currency !== state.homeCurrency) return null;
   const key = nameKey(p.name), unit = minorPerUnit(state.homeCurrency), money = (minor: number) => minorMoney(minor, state.homeCurrency);
-  const history: RealBill[] = state.bills.flatMap(bill => bill.status === "confirmed" && bill.repeatUnit === undefined && bill.startsOn === undefined && !bill.amountUnknown && !bill.dueUnknown
-    && nameKey(bill.biller) === key && (p.date === null || bill.due < p.date) ? [{ due: bill.due, amountMinor: Math.round(bill.amount * unit) }] : []);
+  const history = state.bills.flatMap(bill => bill.status === "confirmed" && bill.repeatUnit === undefined && bill.startsOn === undefined && !bill.amountUnknown && !bill.dueUnknown
+    && nameKey(bill.biller) === key && (p.date === null || bill.due < p.date)
+    ? [{ due: bill.due, amountMinor: Math.round(bill.amount * unit), biller: bill.biller, seriesId: bill.seriesBillId }] : []);
   const estimate = gapEstimate(history, null);
   const amount = p.amountMinor, this_ = `This one is ${money(amount)}.`;
   if (estimate !== null) {
     if (!(amount * 100 > estimate.highMinor * (100 + FAR_PERCENT) || amount * 100 < estimate.lowMinor * (100 - FAR_PERCENT))) return null;
-    const usual = estimate.count === 1 ? `Your last ${p.name} bill was ${money(estimate.highMinor)}.`
-      : `${p.name} is usually ${money(estimate.lowMinor)}–${money(estimate.highMinor)} (your last ${estimate.count} bills).`;
+    const latest = history.reduce((newest, bill) => bill.due > newest.due || (bill.due === newest.due && bill.biller > newest.biller) ? bill : newest);
+    const matchedSeries = latest.seriesId === undefined ? undefined : seriesOf(state).find(series => series.id === latest.seriesId);
+    const name = matchedSeries?.biller ?? latest.biller;
+    const usual = estimate.count === 1 ? `Your last ${name} bill was ${money(estimate.highMinor)}.`
+      : `${name} is usually ${money(estimate.lowMinor)}–${money(estimate.highMinor)} (your last ${estimate.count} bills).`;
     return farCheck(`${usual} ${this_}`);
   }
   const date = p.date ?? state.today;
@@ -191,7 +195,7 @@ function farFromUsual(p: Proposal, state: MoneyState): Check | null {
   if (!series || series.amount === null) return null;
   const usual = Math.round(amountOn(series.amount, series.next, date) * unit);
   if (!(amount * 100 > usual * (100 + FAR_PERCENT) || amount * 100 < usual * (100 - FAR_PERCENT))) return null;
-  return farCheck(`${p.name} is ${money(usual)} ${series.unit === "month" ? "every month" : "every year"}. ${this_}`);
+  return farCheck(`${series.biller} is ${money(usual)} ${series.unit === "month" ? "every month" : "every year"}. ${this_}`);
 }
 
 const farCheck = (words: string): Check => ({

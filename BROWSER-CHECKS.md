@@ -440,9 +440,9 @@ For AG2–AG4 use separate disposable copies of Ben’s Try it. Prepare a pendin
 
 - AG6. On a disposable Nov 23 copy of Ben's household, run the pass. Card A statement due Nov 26 reads "¥58,000, covered even if clients pay late." Review statement opens Card A.
 - AG7. On that Nov 23 copy, Review invoice on "Acme Corp is past their usual payment day" opens invoice 1042. Its reason names Nov 22.
-- AG8. On Nov 15 with a completed pass, Review bill on "CloudBox Plus due Nov 18" opens CloudBox Plus in Settings. The reason includes ¥1,980. After editing and saving that bill, Activity records Suggestion approved.
+- AG8. On Nov 15 with a completed pass, Review bill on "CloudBox Plus due Nov 18" opens CloudBox Plus in Settings. The reason includes ¥1,980. After editing and saving that bill, Activity records Suggestion approved. The pass in the save transaction keeps it approved.
 - AG9. On a Nov 14 fixture with Kumo Water at ¥2,000 in October and ¥2,500 in November and the cost rule at 24%, Review regular costs on "Kumo Water costs more this month" opens Regular costs in Plan. The reason reads "¥500 more than last month."
-- AG10. On Nov 14 use a Camera pot created Oct 15 that targets ¥120,000 by Dec 14, 2026, with ¥0 saved. Run the fixture’s suggestion pass. The reason reads “¥60,000 behind pace. ¥120,000 still to set aside by Dec 14.” Review pot opens the Camera form in Plan. Saving the updated pot closes its finding.
+- AG10. On Nov 14 use a Camera pot created Oct 15 that targets ¥120,000 by Dec 14, 2026, with ¥0 saved. Run the fixture’s suggestion pass. The reason reads “¥60,000 behind pace. ¥120,000 still to set aside by Dec 14.” Review pot opens the Camera form in Plan. Saving the updated pot closes its finding as approved. The immediate pass preserves that status.
 - AG11. On fresh Nov 14 Try it with a ¥50,000 minimum safe-to-spend rule and a completed pass, Review safe to spend opens Next 30 days on Home. The reason reads "¥0 safe to spend, below ¥50,000."
 
 ## AH. Keep this? in Ask (D67, 29E)
@@ -495,3 +495,20 @@ Use a separate setup with migrations 0028 and 0029 at 375px and 1440px. Open Mem
 - AK6. Clear On for Goal behind pace, save and reload. It reads "Flag a goal that is behind pace (off)" and has no number field. Turn it back on and confirm Activity shows both changes.
 - AK7. In fresh Try it ask “Keep ¥50,000 safe to spend.” On the rule offer, tap No. The card disappears and Minimum safe to spend stays off. To test Keep, use AH5 in a fresh copy.
 - AK8. Use a fixture whose nudge setting before 0028 was 45 days. Its Late-client nudge sentence still shows 45 days, with the Days editor blank and a hint naming the current limit. Clear On and save without entering a number. Reload shows the 45-day rule off. Re-enabling it with a blank field or with 45 is refused. Re-enable it with 30 and reload to confirm the new value.
+
+## AL. Suggestions after a save (D64, D54, 29F)
+
+Check at 375px and 1440px in a separate setup with migrations 0028 and 0029. Use a fresh disposable fixture for each check. Open Home after the write to see the immediate finding. The scheduled job stays separate.
+
+- AL1. In Ben’s Nov 14 Try it, add a confirmed Kumo Water bill for ¥2,500 due Nov 17 in Utilities. Home immediately shows "Kumo Water due Nov 17" with "¥2,500, covered even if clients pay late." Review bill opens the saved bill.
+- AL2. In a Nov 14 fixture with confirmed Kumo Water bills for ¥2,000 in both October and November and the cost rule at 25%, edit November’s amount to ¥2,600. Saving puts the increase on Home with "¥600 more than last month."
+- AL3. In a Nov 14 fixture with a confirmed ¥2,000 Kumo Market food charge in October and the cost rule at 25%, add a ¥2,600 Kumo Market food charge dated Nov 14. Home shows "Kumo Market costs more this month" with "¥600 more than last month so far."
+- AL4. Prepare a ¥2,500 pending Kumo Water bill due Nov 17 in a Nov 14 fixture. Leave the fixture’s suggestion pass untouched after inserting the pending row. Confirm in To check. Home shows the new due-bill finding and links to Review bill. For a pending bill whose existing finding opens To check, AG2 checks that confirmation instead leaves it approved.
+- AL5. With the October charge and cost rule from AL3, prepare a pending ¥2,600 Kumo Market food charge dated Nov 14. Confirm in To check. Home shows the same ¥600 increase and the charge appears once on its card.
+- AL6. Use a Nov 14 Ben fixture with a ¥107,000 bank balance, Minimum safe to spend on at ¥15,000, and a Camera pot with ¥10,000 saved. The open finding reads "¥11,220 safe to spend, below ¥15,000." Set Saved so far to ¥0 in Plan and save. Home immediately removes that finding and shows ¥21,220 safe to spend.
+- AL7. In a separate copy with the same balance and rule, put the ¥10,000 Camera pot in To check as a draft. Confirm it. Home immediately shows "¥11,220 safe to spend, below ¥15,000." The confirmed pot appears in Plan.
+- AL8. In a Nov 14 fixture with confirmed Kumo Water at ¥10,000 on Sep 16 and ¥11,000 on Oct 16, set the cost rule to 20%. Upload a Utilities bill for "Kumo Water Co., Ltd." at ¥17,000 due Nov 16. The check reads "Kumo Water is usually ¥10,000–¥11,000 (your last 2 bills). This one is ¥17,000." Confirm it. Home immediately shows the water cost increase with "¥6,000 more than last month."
+- AL9. In an isolated sandbox fixture whose Acme Corp invoice 1042 has an open late-client finding, simulate a verified PayPal paid delivery. The invoice shows Paid and the Acme finding disappears from Home. A replay leaves one payment and the finding closed. The simulated delivery is covered by db:suggest-test.
+- AL10. In a Nov 23 fixture for Ben, with no PayPal ID on Acme Corp invoice 1042 and its late-client finding open, open that invoice and tap Mark paid outside PayPal. Home removes the finding and the bank balance rises from ¥67,000 to ¥247,000. Activity records the payment once.
+- AL11. Prepare a confirmed ¥2,500 Kumo Water bill with no known date. In To check → Missing, fill Nov 17 and save. The missing-date row clears and Home immediately shows "Kumo Water due Nov 17" with ¥2,500.
+- AL12. With the October charge and cost rule from AL3, confirm a Kumo Market receipt reading for ¥2,600 dated Nov 14 in Food. Home immediately shows the ¥600 increase and the charge appears once on the chosen card.

@@ -1,3 +1,4 @@
+import { closeByRef, runPass } from "./suggestions";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
@@ -188,6 +189,7 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
         ...(amountMinor !== null && { amount: { value: fromMinor(amountMinor, household.currency), currency: household.currency } }), ref: { type: "bill", id: data.id },
       });
       await observeRunway(tx, hid);
+      await runPass(tx, hid);
     }
     return data.id;
   });
@@ -378,7 +380,10 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
     if (periodStart !== bill.periodStart || periodEnd !== bill.periodEnd) {
       parts.push(periodStart === null || periodEnd === null ? "No period" : `Period ${periodLabel({ start: periodStart, end: periodEnd })}`);
     }
-    if (parts.length === 0) return true;
+    if (parts.length === 0) {
+      await closeByRef(tx, hid, data.id, ["bill", "check_bill"]);
+      return true;
+    }
     const schedule: BillSchedule = { repeat, nextAmountMinor: next?.amount ?? null, nextAmountFrom: next?.from ?? null, cancelBy, amountVaries: varies, repeatUntil };
     if (due !== null) checkSchedule(due, today, schedule);
     if (household.previous === null) await observeRunway(tx, hid);
@@ -396,7 +401,9 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
       kind: "bill_changed", ...by, title: `${data.biller} bill changed`, body: parts.join(" · "),
       ...(amountMinor !== null && { amount: { value: fromMinor(amountMinor, bill.currency), currency: bill.currency } }), ref: { type: "bill", id: data.id },
     });
+    await closeByRef(tx, hid, data.id, ["bill", "check_bill"]);
     await observeRunway(tx, hid);
+    await runPass(tx, hid);
     return true;
   });
 }
@@ -457,7 +464,11 @@ export async function fillGap(db: Db, householdId: string, billId: string, fill:
       kind: "bill_changed", ...by, title: `${bill.biller}: ${words.join(", ")}`, ...(linked && { body: linked }),
       ...(amountMinor !== null && { amount: { value: fromMinor(amountMinor, bill.currency), currency: bill.currency } }), ref: { type: "bill", id },
     });
-    if (bill.status === "confirmed") await observeRunway(tx, hid);
+    await closeByRef(tx, hid, billId, ["bill", "check_bill"]);
+    if (bill.status === "confirmed") {
+      await observeRunway(tx, hid);
+      await runPass(tx, hid);
+    }
     return true;
   });
 }

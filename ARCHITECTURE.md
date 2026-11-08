@@ -297,7 +297,7 @@ log line. There is no conversation, no canvas drawing and no reply chooser; send
 | 3. Read | `after()` → `readDocumentInBackground` → `readDocument` → `extractDocument` | the object; the household's cards and currency; `aiConnection(db, hid, need)` | `documents.status` reading → read or failed (with the reason, `document_failed` with the bell) | — |
 | 4. Propose | `proposeReadings` | `rules` by `kind:normalised name` | a `readings` row per item (`original`, `proposed`, `to_check`); a `to_check` event with the bell | the To check row and the review card |
 | 5. Checks | `checksFor` (D61) | the reading against the money state and the other waiting readings | nothing | the failed checks on the card, one question at a time |
-| 6. Confirm | `ReaderReview.tsx` / `DocumentCard.tsx` (shared `ReadingForm.tsx`) → POST /api/confirm `kind=reading` → `reviewReading` | the reading (locked), the document's kind | a `bills` or `charges` row; a `rules` upsert on a correction; a memory item with the tick; `readings.extracted.confirmed` and `targetId`; `<kind>_confirmed` | the engine recomputes; the sentence changes |
+| 6. Confirm | `ReaderReview.tsx` / `DocumentCard.tsx` (shared `ReadingForm.tsx`) → POST /api/confirm `kind=reading` → `reviewReading` | the reading (locked), the document's kind | a `bills` or `charges` row; a `rules` upsert on a correction; a memory item with the tick; `readings.extracted.confirmed` and `targetId`; `<kind>_confirmed` | the engine recomputes the sentence and suggestions |
 
 ```mermaid
 flowchart LR
@@ -309,7 +309,7 @@ flowchart LR
     P --> C[checksFor in code: missing, already_saved, past_due, far_from_usual, repeat_unknown]
     C --> V[To check row or the Ask card]
     V --> F[Confirm → reviewReading: bill or charge, rule, memory correction]
-    F --> E[Engine recomputes → the sentence changes]
+    F --> E[Engine recomputes the sentence and suggestions]
 ```
 
 **In, in detail.** `/api/upload` and `/api/ask/document` check the file with `readUpload` (`src/lib/reader/accept.ts`): one of `image/jpeg`,
@@ -332,11 +332,11 @@ keyed by kind and the normalised name, D36) patches name, kind, category, busine
 the Category select and the Business share control.
 
 **Checks and confirm, in detail.** The checks of D61 (`checksFor`, `src/lib/money/checks.ts`: missing, already_saved, past_due, far_from_usual,
-repeat_unknown) run on every reading and show on its card and in its To check row. `reviewReading` runs in one transaction under `lockRunway`: a
+repeat_unknown) run on every reading and show on its card and in its To check row. A price-rise check uses the name of the matched regular cost (D54). `reviewReading` runs in one transaction under `lockRunway`: a
 reject marks the reading `rejected` (`reading_rejected`); a confirm writes a `bills` row (or `charges` for a card email, through the statement-charge
 lock), with a null amount or date when the user says it is not known yet (D55), links a one-off to its amount-varies series (`linkToSeries`, D54),
 upserts the `rules` row when the name, category, work share or card was changed, and with the ticked box "Also tell the assistant: …" saves the
-correction as a memory item too; `readings.extracted` gets `confirmed` and the saved row's id as `targetId`. **A file attached in Ask (D61).**
+correction as a memory item too. `readings.extracted` gets `confirmed` and the saved row’s id as `targetId`. The transaction refreshes suggestions after the save. **A file attached in Ask (D61).**
 "Attach a bill" (one or several files, each posted on its own, one after another, each its own turn and card) posts the file to `/api/ask/document`, which stores it as a document of kind `upload` (the same file is one document), saves a
 `document` turn (question "Here's my bill" or what was typed, reply "Got your file. Nothing is added until you confirm.", `documentId`) and schedules
 the read after the response. The page draws `DocumentCard` under the turn and asks `GET /api/ask/document?id=` every 2 seconds while the tab is
@@ -405,6 +405,8 @@ household is refused; already-paid invoices credit no balance.
 | 7. Retention | pruneAskReceipts and removeExpiredFiles | The household’s receipts over a day old and raw documents whose readings were all confirmed or dismissed at least 30 days ago | Receipts removed. Raw files removed from Storage and marked on the document row |
 
 Try it and Reset also run the suggestion pass on Ben’s fixed date. The pass calls no model. Home shows findings by urgency and its review links open existing invoice, To check, bill, card and Plan screens. The approve, confirm, bill and pot write flows close the finding they complete in the same database transaction. Suggestion activity keeps a stable finding reference so pruning cannot produce a duplicate. Ask and MCP share the read tool suggestions. The daily digest uses fixed words and bounded engine amounts. Its sole link opens Home at APP_URL. Each member can request a fixed test message from Settings. The test reaches their verified sign-in email or their enrolled browser. In Try it, push can be enrolled and tested on the device; the demo date remains fixed.
+
+**Immediate suggestions (29F).** Saving a confirmed bill, charge or pot, filling a confirmed bill’s missing amount or date, confirming a draft or reading, applying a verified PayPal payment and marking a payment outside PayPal all call `runPass` after writing the record and any resulting pot credits. Each refresh runs within the same household transaction. A completed action closes its matching suggestion as approved before the refresh. The pass reads the new state to create or resolve findings and leaves the delivery schedule with the hourly job. The immediate path uses the money engine alone.
 
 observeRunway runs before and after, so a change from short to fine or back is recorded. A late charge confirmation and statement closing share the household lock, which keeps the charge counted once. Confirmed charges after a card’s latest stored statement are grouped by their closing cycle.
 

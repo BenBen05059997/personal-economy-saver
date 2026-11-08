@@ -13,6 +13,7 @@ import { nameKey } from "@/lib/money/name-key";
 import { correctionText } from "@/lib/reader/correction";
 import { addMemory } from "./memory";
 import { checksFor, readingProposal, type CheckKind } from "@/lib/money/checks";
+import { runPass } from "./suggestions";
 import { DOCUMENT_WORDS } from "@/lib/reader/document-card";
 import { estimatedDue, periodProblem } from "@/lib/money/period";
 
@@ -157,6 +158,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     await recordEvent(tx, hid, { madeBy: "reader", kind: value.kind + "_confirmed", title: name + " confirmed", ref: { type: value.kind, id: targetId }, ...(linked && { body: linked }),
       ...(amount !== null && { amount: { value: fromMinor(amount, row.currency), currency: row.currency } }) });
     await observeRunway(tx, hid);
+    await runPass(tx, hid);
     return true;
   });
 }

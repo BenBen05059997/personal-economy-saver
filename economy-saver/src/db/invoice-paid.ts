@@ -1,3 +1,4 @@
+import { runPass } from "./suggestions";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
@@ -45,6 +46,7 @@ export async function markPaidOutside(db: Db, householdId: string, invoiceId: st
     });
     await fillPots(tx, hid, credit, `${row.client}'s payment`);
     await observeRunway(tx, hid);
+    await runPass(tx, hid);
     return true;
   });
 }

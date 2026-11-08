@@ -1,4 +1,3 @@
-import { closeByRef } from "@/db/suggestions";
 import { db } from "@/db/client";
 import { billEditInput, billInput, fillGapFromText, insertBill, updateBill } from "@/db/bills";
 import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
@@ -24,11 +23,7 @@ export async function POST(request: Request) {
     if (typeof id !== "string") return badFields();
     try {
       const amount = form.get("amount"), due = form.get("due");
-      const saved = await db().transaction(async tx => {
-        const updated = await fillGapFromText(tx, hid, id, { ...(typeof amount === "string" && { amount }), ...(typeof due === "string" && { due }) }, { madeBy: "form" });
-        if (updated) await closeByRef(tx, hid, id, ["bill", "check_bill"]);
-        return updated;
-      });
+      const saved = await fillGapFromText(db(), hid, id, { ...(typeof amount === "string" && { amount }), ...(typeof due === "string" && { due }) }, { madeBy: "form" });
       if (!saved) return text("Choose a bill of this household", 400);
       return redirectTo(returnPath(form.get("returnTo")), request);
     } catch (error) {
@@ -53,11 +48,7 @@ export async function POST(request: Request) {
         periodEnd: form.has("periodEnd") ? form.get("periodEnd") || null : undefined,
       });
       if (!data.success) return badFields();
-      const saved = await db().transaction(async tx => {
-        const updated = await updateBill(tx, hid, data.data, { madeBy: "form" });
-        if (updated) await closeByRef(tx, hid, data.data.id, ["bill", "check_bill"]);
-        return updated;
-      });
+      const saved = await updateBill(db(), hid, data.data, { madeBy: "form" });
       if (!saved) return text("Choose a bill of this household", 400);
       return redirectTo(returnPath(form.get("returnTo")), request);
     }

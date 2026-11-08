@@ -8,6 +8,7 @@ import { addDays, daysBetween, dueItems, safeToSpend } from "./runway";
 import { monthBounds, monthsBack, spendingItems } from "./spending";
 import type { Finding, StandingRule, StandingRules } from "./suggestion-types";
 import type { MoneyState } from "./types";
+import { stateThrough } from "./window";
 
 const threshold = (rule: StandingRule) => rule.enabled ? rule.threshold : null;
 const daysWords = (n: number) => n === 1 ? "1 day" : n + " days";
@@ -35,7 +36,9 @@ export function findSuggestions(state: MoneyState, rules: StandingRules, reminda
 
   const billAhead = threshold(rules.bill_ahead);
   const statementAhead = threshold(rules.statement_ahead);
-  for (const item of dueItems(state, Math.max(billAhead ?? 0, statementAhead ?? 0) + 1)) {
+  const horizon = Math.max(billAhead ?? 0, statementAhead ?? 0);
+  const dueState = stateThrough(state, addDays(today, horizon));
+  for (const item of dueItems(dueState, horizon + 1)) {
     const days = item.kind === "bill" ? billAhead : statementAhead;
     if (days === null || item.dueUnknown || item.date > addDays(today, days)) continue;
     const due = "due " + dayLabel(item.date);
@@ -46,8 +49,9 @@ export function findSuggestions(state: MoneyState, rules: StandingRules, reminda
       findings.push({ kind: "statement_due", key: "statement:" + item.id, title: item.label + " " + due,
         reason: amount + ", " + covered + ".", action: "statement", refId: item.cardId!, urgency });
     } else {
-      findings.push({ kind: "bill_due", key: "bill:" + item.id + ":" + item.date, title: item.label + " " + due,
-        reason: amount + ", " + covered + ".", action: item.pending ? "check_bill" : "bill", refId: item.id.split("@")[0], urgency });
+      const refId = item.id.split("@")[0];
+      findings.push({ kind: "bill_due", key: "bill:" + refId + ":" + item.date, title: item.label + " " + due,
+        reason: amount + ", " + covered + ".", action: item.pending ? "check_bill" : "bill", refId, urgency });
     }
   }
 

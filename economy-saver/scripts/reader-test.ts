@@ -5,6 +5,9 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
+import { documentCard } from "@/db/document-card";
+import { changeStandingRule } from "@/db/rules";
+import { openSuggestions } from "@/db/suggestions";
 import { seedBen } from "@/db/seed";
 import { loadMoneyState } from "@/db/household";
 import { readDocument, storeDocument } from "@/db/reader-job";
@@ -277,6 +280,39 @@ async function test() {
     await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "Half Period", amountMinor: 100, currency: "JPY", due: "2026-12-01", category: "other", periodStart: "2026-11-01" }),
       (error: { cause?: { message?: string } }) => /bills_period_valid/.test(String(error.cause?.message)), "the table refuses a period with one end");
     console.log("✓ A bill that shows its month and no due date is proposed with an estimated date and its basis; a printed date is kept; the period is stored on confirm and a reversed one is refused");
+
+    // 29F: a normalized bill name names the stored cost before confirmation and changes Home in the same request.
+    const readerHome = await seedBen(db, { isDemo: true });
+    const otherSuggestions = await openSuggestions(db, b);
+    await db.insert(schema.bills).values([
+      { householdId: readerHome, biller: "Kumo Water", amountMinor: 10_000, currency: "JPY", due: "2026-09-16", category: "utilities" },
+      { householdId: readerHome, biller: "Kumo Water", amountMinor: 11_000, currency: "JPY", due: "2026-10-16", category: "utilities" },
+    ]);
+    const [riseDoc] = await db.insert(schema.documents).values({
+      householdId: readerHome, kind: "upload", storagePath: readerHome + "/fictional-rise.pdf", mime: "application/pdf", status: "read",
+    }).returning({ id: schema.documents.id });
+    const rise = extractSchema.parse({ kind: "bill", name: "Kumo Water Co., Ltd.", amountMinor: 17_000,
+      currency: "JPY", date: "2026-11-16", category: "utilities", cardId: null });
+    await proposeReadings(db, readerHome, riseDoc.id, [rise, { ...rise, date: "2026-11-17" }]);
+    const cardBefore = await documentCard(db, readerHome, riseDoc.id);
+    const [keptBill, rejectedBill] = cardBefore.items;
+    assert.equal(keptBill.checks.find(check => check.kind === "far_from_usual")?.words,
+      "Kumo Water is usually ¥10,000–¥11,000 (your last 2 bills). This one is ¥17,000.");
+    await changeStandingRule(db, readerHome, { ruleKind: "cost_up", enabled: true, value: "20" });
+    await changeStandingRule(db, readerHome, { ruleKind: "safe_below", enabled: true, value: "50000" });
+    const modelCallsBefore = calls;
+    assert.equal(await reviewReading(db, readerHome, rejectedBill.readingId, null), true);
+    assert.deepEqual(await openSuggestions(db, readerHome), [], "rejecting does not run even the already eligible safe-to-spend check");
+    assert.equal(await reviewReading(db, readerHome, keptBill.readingId, keptBill.value), true);
+    const afterConfirmation = await openSuggestions(db, readerHome);
+    assert.ok(afterConfirmation.some(row => row.kind === "safe_below"));
+    const increases = afterConfirmation.filter(row => row.kind === "cost_up" && row.title.includes("Kumo Water"));
+    assert.deepEqual(increases.map(row => row.reason), ["¥6,000 more than last month."]);
+    assert.equal(await reviewReading(db, readerHome, keptBill.readingId, keptBill.value), false);
+    assert.deepEqual(await openSuggestions(db, readerHome), afterConfirmation, "confirmation and its pass stay idempotent");
+    assert.deepEqual(await openSuggestions(db, b), otherSuggestions);
+    assert.equal(calls, modelCallsBefore, "the confirmation pass uses no model");
+    console.log("✓ The reader names a matched regular cost, then confirming it refreshes the household’s suggestions once. Rejecting leaves the pass untouched.");
 
     isPublic = true;
     await assert.rejects(storeDocument(db, b, "upload", "application/pdf", file("%PDF-B")), /private bucket/);

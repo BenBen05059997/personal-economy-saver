@@ -1,3 +1,4 @@
+import { runPass } from "./suggestions";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
@@ -91,6 +92,7 @@ export async function insertCharge(
         amount: { value: fromMinor(amountMinor, card.currency), currency: card.currency }, ref: { type: "card", id: data.cardId }, // Activity opens the card page; the charge itself has none
       });
       await observeRunway(tx, hid);
+      await runPass(tx, hid);
     }
     return data.id;
   });

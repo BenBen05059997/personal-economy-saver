@@ -1,4 +1,3 @@
-import { closeByRef } from "@/db/suggestions";
 import { db } from "@/db/client";
 import { potInput, savePot } from "@/db/pots";
 import { badFields, failure, redirectTo, returnPath, formOf } from "@/lib/door";
@@ -17,10 +16,7 @@ export async function POST(request: Request) {
   });
   if (!data.success) return badFields();
   try {
-    await db().transaction(async tx => {
-      const id = await savePot(tx, hid, data.data, "confirmed", { madeBy: "form" });
-      await closeByRef(tx, hid, id, ["pot"]);
-    });
+    await savePot(db(), hid, data.data, "confirmed", { madeBy: "form" });
     return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {
     return failure(error);

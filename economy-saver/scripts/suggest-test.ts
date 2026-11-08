@@ -4,12 +4,17 @@ import { and, eq } from "drizzle-orm";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import { drizzle } from "drizzle-orm/pglite";
 import { approveInvoice } from "@/db/approval";
+import { billEditInput, insertBill, updateBill } from "@/db/bills";
+import { chargeInput, insertCharge } from "@/db/charges";
 import { confirmPending } from "@/db/confirm";
 import { resetDemoHousehold } from "@/db/demo";
+import { markPaidOutside } from "@/db/invoice-paid";
+import { potInput, savePot } from "@/db/pots";
 import { changeStandingRule, defaultRules, rulesFor, setStandingRule } from "@/db/rules";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { dismiss, notNow, openSuggestions, runPass } from "@/db/suggestions";
+import { applyVerifiedDelivery } from "@/lib/events";
 import { readRule, ruleWords } from "@/lib/money/rules";
 import { findSuggestions } from "@/lib/money/suggest";
 import { benMoney } from "@/lib/sample/ben";
@@ -103,6 +108,17 @@ async function main() {
       rules.bill_ahead.threshold = 2;
       assert.deepEqual(kinds(state, rules), []);
       assert.deepEqual(kinds({ ...quiet, bills: [{ ...sampleBill, dueUnknown: true }] }), []);
+    });
+
+    await check("a 30-day rule includes a bill exactly 30 days ahead without extending the Home runway", () => {
+      const storedBill = { ...sampleBill, due: "2026-12-14", status: "confirmed" as const };
+      const state = { ...quiet, cards: [], storedBills: [storedBill] };
+      const rules = defaultRules();
+      rules.bill_ahead.threshold = 30;
+      assert.deepEqual(kinds(state, rules), ["bill_due"]);
+      rules.bill_ahead.threshold = 29;
+      assert.deepEqual(kinds(state, rules), []);
+      assert.deepEqual(state.bills, []);
     });
 
     await check("regular cost increases use last month and exceed the percent strictly", () => {
@@ -246,6 +262,124 @@ async function main() {
       assert.deepEqual(calls, ["get_invoice", "send_invoice_reminder"]);
       assert.equal((await history(hid))[0].status, "approved");
       assert.deepEqual(await openSuggestions(db, hid), []);
+    });
+    const form = { madeBy: "form" } as const;
+    const ask = () => ({ madeBy: "ask" as const, askId: crypto.randomUUID() });
+    const lateInvoice = async (hid: string, paypalInvoiceId: string | null = null) => {
+      const [row] = await db.update(schema.invoices).set({ sentOn: "2026-10-26", dueOn: "2026-11-10", paypalInvoiceId })
+        .where(and(eq(schema.invoices.householdId, hid), eq(schema.invoices.number, "1042"))).returning();
+      return row;
+    };
+
+    await check("a confirmed bill or edit is noticed in the same request, while an Ask bill waits for confirmation", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const draft = { id: crypto.randomUUID(), biller: "Kumo Water", due: "2026-11-17", amount: "2500", category: "utilities" } as const;
+      await insertBill(db, hid, draft, "pending", ask());
+      assert.deepEqual(await openSuggestions(db, hid), []);
+      assert.equal(await confirmPending(db, hid, "bill", draft.id), true);
+      const [noticed] = await openSuggestions(db, hid);
+      assert.deepEqual([noticed.refId, noticed.action, noticed.reason], [draft.id, "bill", "¥2,500, covered even if clients pay late."]);
+
+      const typed = { ...draft, id: crypto.randomUUID(), biller: "Fictional Landline", due: "2026-11-16" };
+      await insertBill(db, hid, typed, "confirmed", form);
+      assert.ok((await openSuggestions(db, hid)).some(row => row.refId === typed.id && row.title === "Fictional Landline due Nov 16"));
+
+      const moved = { ...draft, id: crypto.randomUUID(), biller: "Fictional Heating", due: "2026-12-15" };
+      await insertBill(db, hid, moved, "confirmed", form);
+      assert.ok(!(await openSuggestions(db, hid)).some(row => row.refId === moved.id));
+      assert.equal(await updateBill(db, hid, billEditInput.parse({ ...moved, due: "2026-11-15" }), form), true);
+      assert.ok((await openSuggestions(db, hid)).some(row => row.refId === moved.id && row.title === "Fictional Heating due Nov 15"));
+    });
+
+    await check("confirming a repeating bill approves its existing due occurrence without opening a duplicate", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const draft = { id: crypto.randomUUID(), biller: "Fictional Recurring Water", due: "2026-11-17", amount: "2500", category: "utilities", repeat: "month" } as const;
+      await insertBill(db, hid, draft, "pending", ask());
+      await run(hid); // A scheduled pass can already have flagged this pending occurrence.
+      const [suggested] = await openSuggestions(db, hid);
+      assert.deepEqual([suggested.refId, suggested.action], [draft.id, "check_bill"]);
+      assert.equal(await confirmPending(db, hid, "bill", draft.id), true);
+      assert.deepEqual(await openSuggestions(db, hid), []);
+      assert.deepEqual((await history(hid)).map(row => [row.id, row.key, row.status]), [[suggested.id, "bill:" + draft.id + ":2026-11-17", "approved"]]);
+      assert.equal((await events(hid, "suggestion_made")).length, 1);
+      assert.equal((await events(hid, "suggestion_approved")).length, 1);
+    });
+
+    await check("a typed charge and a separately confirmed draft both flag a regular cost increase immediately", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const [card] = await db.select({ id: schema.cards.id }).from(schema.cards)
+        .where(and(eq(schema.cards.householdId, hid), eq(schema.cards.label, "Card A")));
+      const names = ["Fictional Fabric", "Fictional Studio Supplies"];
+      await db.insert(schema.charges).values(names.map(merchant => ({
+        householdId: hid, cardId: card.id, merchant, date: "2026-10-07", amountMinor: 2_000, currency: "JPY",
+        category: "business_tools", source: "manual" as const,
+      })));
+      await setStandingRule(db, hid, "cost_up", { enabled: true, threshold: 24, currency: null });
+      const newCharge = (merchant: string) => chargeInput.parse({
+        id: crypto.randomUUID(), cardId: card.id, merchant, date: "2026-11-07", amount: "2500", category: "business_tools",
+      });
+      const draft = newCharge(names[1]);
+      await insertCharge(db, hid, draft, "pending", "manual", ask());
+      assert.deepEqual(await openSuggestions(db, hid), []);
+      await insertCharge(db, hid, newCharge(names[0]), "confirmed", "manual", form);
+      assert.deepEqual((await openSuggestions(db, hid)).map(row => [row.kind, row.title, row.reason]), [
+        ["cost_up", names[0] + " costs more this month", "¥500 more than last month so far."],
+      ]);
+      assert.equal(await confirmPending(db, hid, "charge", draft.id), true);
+      assert.deepEqual((await openSuggestions(db, hid)).map(row => row.title), names.map(name => name + " costs more this month"));
+    });
+
+    await check("confirming a pot flags low safe to spend and editing it resolves the finding immediately", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ bankBalanceMinor: 107_000 }).where(eq(schema.households.id, hid));
+      await setStandingRule(db, hid, "safe_below", { enabled: true, threshold: 15_000, currency: "JPY" });
+      const pot = potInput.parse({ id: crypto.randomUUID(), name: "Camera", saved: "10000" });
+      await savePot(db, hid, pot, "pending", ask());
+      assert.deepEqual(await openSuggestions(db, hid), []);
+      assert.equal(await confirmPending(db, hid, "pot", pot.id), true);
+      const [low] = await openSuggestions(db, hid);
+      assert.deepEqual([low.kind, low.reason], ["safe_below", "¥11,220 safe to spend, below ¥15,000."]);
+      await savePot(db, hid, { ...pot, saved: "0" }, "confirmed", form);
+      assert.deepEqual(await openSuggestions(db, hid), []);
+      assert.deepEqual((await history(hid)).map(row => [row.id, row.status]), [[low.id, "resolved"]]);
+    });
+
+    await check("a full verified PayPal payment resolves its late invoice immediately and a partial payment does not", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const remote = "INV2-FICTIONAL-NOTICING";
+      const invoice = await lateInvoice(hid, remote);
+      await run(hid);
+      const before = await openSuggestions(db, hid);
+      assert.deepEqual(before.map(row => [row.kind, row.refId]), [["invoice_nudge", invoice.id], ["late_client", invoice.id]]);
+      const payment = { id: "WH-FICTIONAL-NOTICING", event_type: "INVOICING.INVOICE.PAID",
+        create_time: "2026-11-14T03:00:00Z", resource: { id: remote, status: "PAID" } };
+      await applyVerifiedDelivery(db, { ...payment, id: payment.id + "-PARTIAL", resource: { id: remote, status: "PARTIALLY_PAID" } });
+      assert.deepEqual(await openSuggestions(db, hid), before);
+      await applyVerifiedDelivery(db, payment);
+      await applyVerifiedDelivery(db, payment);
+      assert.deepEqual(await openSuggestions(db, hid), []);
+      const rows = await history(hid);
+      assert.deepEqual(rows.map(row => row.id).sort(), before.map(row => row.id).sort());
+      assert.ok(rows.every(row => row.status === "resolved"));
+    });
+
+    await check("mark paid outside PayPal resolves its late-client finding and leaves the other household alone", async () => {
+      const hid = await seedBen(db, { isDemo: true }), neighbour = await seedBen(db, { isDemo: true });
+      const invoice = await lateInvoice(hid);
+      await lateInvoice(neighbour);
+      await run(hid);
+      await run(neighbour);
+      const [late] = await openSuggestions(db, hid);
+      const theirs = await openSuggestions(db, neighbour);
+      assert.deepEqual([late.kind, late.refId], ["late_client", invoice.id]);
+      assert.equal(theirs.length, 1);
+      assert.equal(await markPaidOutside(db, neighbour, invoice.id, today), false);
+      assert.deepEqual(await openSuggestions(db, hid), [late]);
+      assert.equal(await markPaidOutside(db, hid, invoice.id, today), true);
+      assert.equal(await markPaidOutside(db, hid, invoice.id, today), false);
+      assert.deepEqual(await openSuggestions(db, hid), []);
+      assert.deepEqual((await history(hid)).map(row => [row.id, row.status]), [[late.id, "resolved"]]);
+      assert.deepEqual(await openSuggestions(db, neighbour), theirs);
     });
   } finally {
     await pg.close();

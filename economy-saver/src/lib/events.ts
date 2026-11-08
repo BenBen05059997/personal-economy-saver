@@ -1,3 +1,4 @@
+import { runPass } from "@/db/suggestions";
 import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { type Db, recordEvent, recordWebhookDelivery, requireHousehold, usdRateMicro } from "@/db/household";
 import { beginMoneyChange, lockRunway, observeRunway } from "@/db/runway-events";
@@ -90,6 +91,7 @@ export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): 
         await fillPots(tx, owner.householdId, homeCredit, `${client.name}'s payment`);
       }
       await observeRunway(tx, owner.householdId);
+      await runPass(tx, owner.householdId);
     }
   });
 }
