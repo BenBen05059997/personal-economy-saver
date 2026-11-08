@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DRAFT_EVENT, DRAFT_KEY } from "@/components/ask/draft";
+import { DRAFT_EVENT, storeDraft } from "@/components/ask/draft";
+import { useSpeech } from "@/components/voice/use-speech";
 import "@/components/ask/ask-bar.css";
 import React, { type ReactNode } from "react";
 import { hrefForRef } from "@/lib/links";
@@ -73,10 +74,21 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
   function typedOnBar(event: React.KeyboardEvent<HTMLAnchorElement>) {
     if (event.key.length !== 1 || event.key === " " || event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    try { window.sessionStorage.setItem(DRAFT_KEY, event.key); } catch { /* storage can be blocked: the page opens with an empty box */ }
+    storeDraft({ text: event.key, source: "manual" });
     router.push("/canvas#ask");
     window.dispatchEvent(new Event(DRAFT_EVENT));
   }
+  // Spoken words travel the same way, marked as voice; Ask puts them in the box and does not send them.
+  const speech = useSpeech(words => {
+    storeDraft({ text: words, source: "voice" });
+    router.push("/canvas#ask");
+    window.dispatchEvent(new Event(DRAFT_EVENT));
+  });
+  const micLabel = speech.listening ? "Listening… tap to stop" : speech.problem;
+  const micProps = {
+    type: "button" as const, "aria-label": "Speak a question", "aria-pressed": speech.listening,
+    onClick: speech.listening ? speech.stop : speech.start,
+  };
   return <div className="money-shell" onClick={event => {
     if (event.target instanceof Element) {
       const link = event.target.closest("a");
@@ -89,9 +101,12 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
       <header className="shell-bar">
         <button className="shell-mobile-toggle" popoverTarget="shell-nav" aria-label="Open navigation"><Icon name="activity" /></button>
         <Link prefetch={false} className="shell-mobile-brand" href="/">Money</Link>
-        <Link prefetch={false} className="shell-ask" href="/canvas#ask" onKeyDown={typedOnBar}>
-          <Icon name="mic" /><span>Ask or say: {askPrompt}</span><b>Ask</b>
-        </Link>
+        <div className="shell-ask-row">
+          <button {...micProps} className={`shell-ask-mic${speech.listening ? " is-listening" : ""}`}><Icon name="mic" /></button>
+          <Link prefetch={false} className="shell-ask" href="/canvas#ask" onKeyDown={typedOnBar}>
+            <span role="status">{micLabel || `Ask or say: ${askPrompt}`}</span><b>Ask</b>
+          </Link>
+        </div>
         <button className="shell-bell" popoverTarget="shell-notifications" aria-label={`Notifications, ${unread} unread`}>
           <Icon name="bell" />{unread > 0 && <span className="shell-badge">{unread}</span>}
         </button>
@@ -100,9 +115,10 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
       <main id="shell-main" className="shell-main" tabIndex={-1}>
         <div className="shell-content">{children}</div>
       </main>
-      {section !== "canvas" && <Link prefetch={false} className="shell-phone-ask" href="/canvas#ask">
-        <span><Icon name="mic" /></span>Ask or tell me: “{askPrompt}”
-      </Link>}
+      {section !== "canvas" && <div className="shell-phone-ask">
+        <button {...micProps} className={`shell-phone-mic${speech.listening ? " is-listening" : ""}`}><Icon name="mic" /></button>
+        <Link prefetch={false} className="shell-phone-text" href="/canvas#ask"><span role="status">{micLabel || `Ask or tell me: “${askPrompt}”`}</span></Link>
+      </div>}
     </div>
     <aside id="shell-nav" popover="auto" className="shell-nav-popover">
       <button className="shell-nav-close" popoverTarget="shell-nav" popoverTargetAction="hide" aria-label="Close navigation"><Icon name="close" /></button>
