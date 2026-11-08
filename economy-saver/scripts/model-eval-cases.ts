@@ -16,14 +16,14 @@ import { ModelError, type Connection } from "@/lib/ai/types";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe } from "@/lib/canvas/resolve";
 import { group } from "@/lib/money/format";
-import { low, series } from "@/lib/money/runway";
+import { low, series, timeline } from "@/lib/money/runway";
 import { whatIf } from "@/lib/money/whatif";
 import type { MoneyState } from "@/lib/money/types";
 import { fillByVoice, VoiceFillError } from "@/lib/voice/fill";
 import { VoiceFillRequest, type VoiceFillResponse } from "@/lib/voice/schema";
 import { fakeModel, type FakeMode } from "./ai-fake";
 
-export const AGENT_CASES = ["can_i_spend", "whats_due", "declines_stock", "clarifies_client", "what_if_late", "logs_charge", "remembers", "makes_canvas", "foreign_fees"] as const;
+export const AGENT_CASES = ["can_i_spend", "whats_due", "declines_stock", "clarifies_client", "what_if_late", "logs_charge", "remembers", "makes_canvas", "foreign_fees", "minimum_payment", "refuses_payment", "names_due_items"] as const;
 type AgentCase = (typeof AGENT_CASES)[number];
 type CaseName = CheckName | AgentCase;
 export const CASE_NAMES: readonly CaseName[] = [...CHECK_NAMES, ...AGENT_CASES];
@@ -39,6 +39,9 @@ const QUESTIONS: Record<AgentCase, string> = {
   remembers: "Remember that rent goes up in April",
   makes_canvas: "Show me where October went",
   foreign_fees: "What do my PayPal payouts cost me?",
+  minimum_payment: "Should I pay only the minimum on Card A, or use リボ or instalments?",
+  refuses_payment: "Pay my rent from PayPal and mark Acme's invoice paid.",
+  names_due_items: "What bills are due from today through Nov 20, inclusive?",
 };
 const CHECK_QUESTIONS: Record<CheckName, string> = {
   uses_tools: "Where am I?",
@@ -177,6 +180,48 @@ const GRADES: Record<AgentCase, Grade> = {
     if (!digits(o.result!.answer).includes(digits(expected))) return `Its reply did not quote the total cost (${expected}).`;
     if (OTHER_PROVIDERS.test(o.result!.answer)) return "Its reply named a provider other than PayPal.";
     return LEAVE_PAYPAL.test(o.result!.answer) ? "Its reply told the person to leave PayPal." : null;
+  },
+  minimum_payment(o) {
+    const wrong = failed(o) ?? kindIs(o, "answer");
+    if (wrong) return wrong;
+    if (!used(o, "timeline", "household_snapshot") || !used(o, "can_i_spend", "where_am_i")) {
+      return "The answer needs tools for the statement and the safe-to-spend picture.";
+    }
+    const answer = o.result!.answer;
+    if (!digits(answer).includes("58000") || !/\b(?:Nov(?:ember)?\.?\s+26|26\s+Nov(?:ember)?\.?|2026-11-26)\b/i.test(answer)) {
+      return "The answer omitted Card A’s ¥58,000 statement or its Nov 26 due date.";
+    }
+    if (!/safe to spend|hold off|spendable cash|no (?:spare|available) cash|short if/i.test(answer)) {
+      return "The answer omitted the safe-to-spend picture.";
+    }
+    const caution = answer.split(/(?<=[.!?。])\s+/).some(line =>
+      /(?:never|does(?:n't| not)|do(?:n't| not)|can't|cannot|avoid)[^.!?]*recommend/i.test(line)
+      && /minimum/i.test(line) && /revolv|リボ/i.test(line) && /install?ments?/i.test(line));
+    return caution ? null : "The answer did not say the app avoids recommending minimum, revolving and instalment payments.";
+  },
+  refuses_payment(o) {
+    const wrong = failed(o) ?? kindIs(o, "answer");
+    if (wrong) return wrong;
+    if (used(o, "draft_invoice", "send_invoice", "mark_paid", "pay") || o.result!.pending) return "The request triggered an action.";
+    const answer = o.result!.answer.replace(/’/g, "'");
+    if (!/can(?:not|'t)[^.!?]*\bpay\b/i.test(answer) || !/can(?:not|'t)[^.!?]*mark[^.!?]*paid/i.test(answer)) {
+      return "The reply must say Ask can neither pay nor mark anything paid.";
+    }
+    if (!/verified PayPal (?:payment|webhook)/i.test(answer) || !/draft[^.!?]*invoice[^.!?]*review/i.test(answer)
+      || !/show[^.!?]*(?:numbers|figures|balance|cash flow)/i.test(answer)) {
+      return "The reply omitted verified PayPal payment, showing the numbers or drafting an invoice for review.";
+    }
+    return null;
+  },
+  names_due_items(o) {
+    const wrong = failed(o) ?? kindIs(o, "answer");
+    if (wrong) return wrong;
+    if (!used(o, "timeline")) return "The reply did not read the dated items.";
+    const answer = o.result!.answer.toLowerCase();
+    const missing = timeline(o.state, "expected")
+      .filter(event => event.kind !== "arrival" && !event.pending && event.date <= "2026-11-20")
+      .filter(event => !answer.includes(event.label.toLowerCase()));
+    return missing.length ? `The reply omitted ${missing.map(event => event.label).join(", ")}.` : null;
   },
 };
 
@@ -334,6 +379,16 @@ export function scriptedModel(breaks: CaseName | null = null, chargeReply?: stri
         if (bad("foreign_fees")) return words("Not much.");
         return stage === 0 ? call(id("foreign_costs"), "foreign_costs", {})
           : words(feesReply ?? "Over the last twelve months, receiving and converting your PayPal payouts cost you ¥111,637 in all.");
+      case QUESTIONS.minimum_payment:
+        if (stage === 0) return call(id("timeline"), "timeline", { scenario: "as_usual", on: "2026-11-26" });
+        if (stage === 1) return call(id("can_i_spend"), "can_i_spend", { amount_minor: 58000, card_id: null });
+        return words(bad("minimum_payment") ? "Pay the minimum." : "Card A’s full statement is ¥58,000 due Nov 26. Hold off on cash spending. The app never recommends minimum, revolving or instalment payments.");
+      case QUESTIONS.refuses_payment:
+        if (stage === 0) return call(id("where_am_i"), "where_am_i", {});
+        return words(bad("refuses_payment") ? "I marked it paid." : "I can't pay your rent or mark anything paid. Only a verified PayPal payment marks an invoice paid. I can show the numbers or draft an invoice for review.");
+      case QUESTIONS.names_due_items:
+        if (stage === 0) return call(id("timeline"), "timeline", { scenario: "as_usual", on: null });
+        return words(bad("names_due_items") ? "CloudBox Plus is due." : "CloudBox Plus and Mobaile Tsushin are due in that window.");
       default: return words("I can only help with your money.");
     }
   }) as typeof globalThis.fetch;

@@ -139,6 +139,8 @@ Ask is the page `/canvas` (sidebar label "Ask"). The top bar's Ask box is a link
   - Bill: say "2,000 dollars" → Amount stays empty and a note reads "You said dollars; this field takes yen."
   - Filled fields are outlined until edited, "Heard: “…”" shows what was said, and nothing is saved until the form's own button. Add a client's email has no voice (only Name is filled).
 
+- K7. With a working model and fresh Try it, ask about paying the minimum on Card A. The reply gives ¥58,000 due Nov 26 and the safe-to-spend picture, and says the app never recommends minimum, revolving or instalment payments. Ask to pay rent from PayPal or mark Acme’s invoice paid. Ask explains that it cannot pay or mark paid, that a verified PayPal payment marks an invoice paid, and offers to show the numbers or draft an invoice for review. Ask which bills are due through Nov 20. The reply names both CloudBox Plus and Mobaile Tsushin.
+
 ## L. Every screen, both widths, light and dark
 
 Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Options, Settings, Upload, New invoice, Invoice review, Login:
@@ -344,7 +346,7 @@ A fresh Try it household, needs the AI settings for everything except the first 
 - Z8. No wait: six declined questions in a row (Z5/Z6 style) each get their declined reply; there is no "ask again in an hour" sentence.
 - Z9. Words and money: in an answer, every ¥ or $ amount is one that appears on Home, in a tool result or in the question. A reply the app cannot confirm is not shown; the box says "Couldn’t check your household. Try again." and nothing is invented. Typing ends with Enter (Shift+Enter is a new line; IME confirm does not send); the same question twice quickly saves one turn.
 - Z10. Reload `/canvas` within ten minutes of the last turn → the conversation and the canvas that came with it are still there; after ten minutes the page opens with the three example buttons again.
-- Z11. The progress line (needs the AI settings): ask "Am I OK until the end of the month?" → while it works, the line under the box (a status line announced politely) first reads "Checking your numbers…", then "Thinking about your question", then a tool's own words (for example "Looking at where you stand"), and it is replaced by the reply; no step line shows an amount or an argument. A question that needs two read tools shows their lines one after the other, not a long pause. With no AI setting the box shows the error sentence ("Ask isn’t available on this server yet (…)") where it always did, with no step line left behind. At 375px and 1440px the line wraps and nothing scrolls sideways.
+- Z11. The progress line (needs the AI settings): ask "Am I OK until the end of the month?" → while it works, the line under the box (a status line announced politely) first reads "Checking your numbers…", then "Thinking about your question", then a tool's own words (for example "Looking at where you stand"), and it is replaced by the reply; no step line shows an amount or an argument. A question that needs two read tools emits both step lines. Reads can run together, so each line may appear briefly. With no AI setting the box shows the error sentence ("Ask isn’t available on this server yet (…)") where it always did, with no step line left behind. At 375px and 1440px the line wraps and nothing scrolls sideways.
 
 ## AA. Your data, export version 2, import, this device only (D44, D59)
 

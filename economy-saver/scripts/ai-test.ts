@@ -159,6 +159,12 @@ async function main() {
     assert.deepEqual(unconfirmedAmounts("1万円", ["10000"]), [], "1万円 stays 10,000");
   });
 
+  await check("the unsigned statement amount is backed by a signed timeline outflow", () => {
+    const sources = [JSON.stringify({ events: [{ amountMinor: -58000, date: "2026-11-26" }] })];
+    assert.deepEqual(unconfirmedAmounts("The full statement is ¥58,000 due Nov 26.", sources), []);
+    assert.deepEqual(unconfirmedAmounts("The statement is ¥58,001.", sources), ["¥58,001"]);
+  });
+
   await check("providers: the listed addresses pass the address rule, and the cap field follows the provider", () => {
     for (const provider of PROVIDERS) if (provider.baseUrl) assert.equal(checkBaseUrl(provider.baseUrl, { allowLocal: false }), provider.baseUrl, provider.id);
     assert.equal(PROVIDERS.find(p => p.id === "custom")?.baseUrl, null);
@@ -355,7 +361,7 @@ async function main() {
     try {
       const db = drizzle(pg, { schema });
       await migrate(db, { migrationsFolder: "./drizzle" });
-      assert.equal(CASE_NAMES.length, 12);
+      assert.equal(CASE_NAMES.length, 15);
       for (const connection of [anthropic, openai]) {
         const seen: string[] = [];
         const results = await runEval({ db, connection, fetch: scriptedModel().fetch, appUrl: APP, onResult: r => seen.push(r.name) });

@@ -44,7 +44,7 @@ function addPlainNumbers(text: string, set: Set<number>): void {
 
 /** A tool result: only amounts count. A number counts when its JSON key says money; text inside a string counts only next to a currency mark or word. */
 function addJsonAmounts(value: unknown, moneyKey: boolean, set: Set<number>): void {
-  if (typeof value === "number") { if (moneyKey && Number.isFinite(value)) set.add(Math.round(value * 100) / 100); return; }
+  if (typeof value === "number") { if (moneyKey && Number.isFinite(value)) set.add(Math.round(Math.abs(value) * 100) / 100); return; }
   if (typeof value === "string") {
     if (moneyKey && /^-?\d[\d,]*(?:\.\d+)?$/.test(value.trim())) set.add(scaled(value.trim().replace(/^-/, "")));
     for (const amount of amountsIn(value)) set.add(amount.value);

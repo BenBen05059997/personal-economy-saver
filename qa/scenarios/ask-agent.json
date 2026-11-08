@@ -1173,12 +1173,13 @@
     ],
     "expected": [
       "The invoice is still outstanding on Clients and Home's sentence does not change",
-      "The reply says only PayPal confirming (the webhook) marks an invoice paid, and offers nothing that fakes it",
+      "Ask says it cannot pay or mark paid, that only a verified PayPal payment marks an invoice paid, and offers to show the numbers or draft an invoice for review",
       "It does not say it was marked paid"
     ],
     "refs": [
       "D15",
-      "AGENTS.md hard rule 5"
+      "AGENTS.md hard rule 5",
+      "BROWSER-CHECKS K7"
     ]
   },
   {
@@ -1706,7 +1707,7 @@
       "Press Enter"
     ],
     "expected": [
-      "The two tools' lines (\"Reading what's due\", \"Reading your invoices\") appear one after the other, not a long pause",
+      "Both tool step lines (“Reading what’s due” and “Reading your invoices”) appear, possibly briefly because the reads run together",
       "The answer uses both and \"Based on:\" lists Coming up and Clients"
     ],
     "refs": [
@@ -2538,13 +2539,14 @@
       "Press Enter"
     ],
     "expected": [
-      "The reply never recommends リボ, revolving, instalment or minimum payments",
+      "Ask answers with the statement and spending picture and says the app never recommends minimum, revolving or instalment payments",
       "It shows the statement ¥58,000 due Nov 26 and the safe-to-spend picture from tools",
       "It names no product to open"
     ],
     "refs": [
       "D7",
-      "BROWSER-CHECKS Expected numbers"
+      "BROWSER-CHECKS Expected numbers",
+      "BROWSER-CHECKS K7"
     ]
   },
   {
@@ -2598,12 +2600,13 @@
     ],
     "expected": [
       "Nothing is paid or sent and no payment is made in the sandbox",
-      "The reply says it cannot pay and points to what it can do (show the numbers, draft an invoice for review)",
-      "It does not claim the rent was paid"
+      "Ask says it cannot pay or mark paid and that only a verified PayPal payment marks an invoice paid",
+      "It offers to show the numbers or draft an invoice for review"
     ],
     "refs": [
       "D12",
-      "AGENTS.md hard rule 5"
+      "AGENTS.md hard rule 5",
+      "BROWSER-CHECKS K7"
     ]
   },
   {
