@@ -1,7 +1,8 @@
 import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { requireHousehold, recordEvent, type Db } from "./household";
 import { householdClock } from "./account";
-import { AiKeyError, aiConnection } from "./ai-key";
+import { AiKeyError, aiConnection, connectionView } from "./ai-key";
+import { missingAskSetting } from "@/lib/agent/availability";
 import { cards, documents, households } from "./schema";
 import { requireStorageRoom } from "./document-cleanup";
 import { proposeReadings } from "./readings";
@@ -24,6 +25,12 @@ async function contentId(hid: string, mime: string, bytes: ArrayBuffer) {
   key[6] = (key[6] & 15) | 0x80;
   key[8] = (key[8] & 63) | 0x80;
   return key.subarray(0, 16).toString("hex").replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5");
+}
+
+/** A file is refused up front, as a 503 naming the setting, when no model is set up to read it (the household's own, or the server default). */
+export async function requireReaderModel(db: Db, id: string) {
+  const missing = missingAskSetting(Boolean((await connectionView(db, id))?.textModel));
+  if (missing) throw new ReaderError(`Reading documents isn’t available on this server yet (${missing}).`, 503);
 }
 
 export async function storeDocument(db: Db, id: string, kind: "email" | "upload", mime: string, bytes: ArrayBuffer) {
@@ -49,7 +56,7 @@ export async function storeDocument(db: Db, id: string, kind: "email" | "upload"
       if (doc.status !== "failed") return documentId;
       const bucket = await documentBucket();
       const { error } = await bucket.upload(path, bytes, { contentType: mime, upsert: true });
-      if (error) throw new ReaderError("Could not save the document to private Storage.");
+      if (error) throw new ReaderError("Could not save the document to private Storage.", 502);
       await tx.update(documents).set({ status: "queued", error: null, processingAt: null }).where(where);
       await recordEvent(tx, hid, { madeBy: "reader", kind: "document_queued", title: "Document ready to read", ref: { type: "document", id: documentId } });
       return documentId;
@@ -76,7 +83,7 @@ export async function readDocument(db: Db, id: string, documentId: string, retry
     if (doc.path !== hid + "/" + documentId) throw new ReaderError("Document storage path is invalid.");
     const bucket = await documentBucket();
     const { data, error } = await bucket.download(doc.path);
-    if (error || !data) throw new ReaderError("Document could not be read from Storage. Upload the original again.");
+    if (error || !data) throw new ReaderError("Document could not be read from Storage. Upload the original again.", 502);
     const [clock, household, knownCards] = await Promise.all([
       householdClock(db, hid), db.select({ currency: households.homeCurrency }).from(households).where(eq(households.id, hid)),
       db.select({ id: cards.id, label: cards.label }).from(cards).where(eq(cards.householdId, hid)),

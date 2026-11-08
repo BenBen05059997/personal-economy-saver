@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { attachDocument, documentCard } from "@/db/document-card";
+import { requireReaderModel } from "@/db/reader-job";
 import { consumeRequest } from "@/db/rate-limit";
 import { readDocumentInBackground } from "@/db/reader-background";
 import { BAD_FIELDS, NO_STORE } from "@/lib/door";
@@ -20,6 +21,7 @@ export async function POST(request: Request) {
   if (hid instanceof Response) return hid;
   try {
     if (!await consumeRequest(db(), hid, "upload", 6)) return new Response("Upload limit reached. Try again in a minute.", { status: 429 });
+    await requireReaderModel(db(), hid);
     const { mime, bytes, form } = await readUpload(request);
     const parsed = fields.safeParse({ id: form.get("id"), conversationId: form.get("conversationId"), text: form.get("text") ?? undefined });
     if (!parsed.success) return new Response(BAD_FIELDS, { status: 400 });
@@ -27,7 +29,7 @@ export async function POST(request: Request) {
     after(() => readDocumentInBackground(hid, documentId));
     return Response.json({ turn, card }, { headers: NO_STORE });
   } catch (error) {
-    return new Response(error instanceof ReaderError ? error.message : "Upload failed.", { status: 400 });
+    return new Response(error instanceof ReaderError ? error.message : "Upload failed.", { status: error instanceof ReaderError ? error.status : 500 });
   }
 }
 
