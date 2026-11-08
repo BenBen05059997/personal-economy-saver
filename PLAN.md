@@ -4,7 +4,7 @@
 
 ## What exists now
 
-- **Foundation (D31–D37).** The Supabase project in Tokyo has migrations 0000–0026 applied (28 tables, listed in [ARCHITECTURE.md](ARCHITECTURE.md)); one fictional Ben household seeded, Vault create/read/delete passing, the private Storage bucket `household-documents` verified (a test object was refused to the publishable key and its public URL), no readable rows in `households` for the publishable key. The app builds as a Cloudflare Worker through OpenNext (its size and the limits: box S below) with the daily Cron Trigger; the local Worker preview renders the Tokyo household.
+- **Foundation (D31–D37).** The Supabase project in Tokyo has migrations 0000–0027 applied (28 tables, listed in [ARCHITECTURE.md](ARCHITECTURE.md)); one fictional Ben household seeded, Vault create/read/delete passing, the private Storage bucket `household-documents` verified (a test object was refused to the publishable key and its public URL), no readable rows in `households` for the publishable key. The app builds as a Cloudflare Worker through OpenNext (its size and the limits: box S below) with the daily Cron Trigger; the local Worker preview renders the Tokyo household.
 - **Screens (D25).** Shell with sidebar, top bar (Ask with a microphone, bell, Add) and phone layout; Home (sentence, actions, pinned canvases, safe to spend, runway, To check, Cards, Coming up); Ask (`/canvas`); Memory; To check; Activity; Cards and Clients with a right-hand panel; Plan; invoice review; Upload; Options; Settings; Privacy. Checked at 375px and 1440px, light and dark.
 - **Sessions (D34).** Try it makes an anonymous fictional household with a protected cookie and a demo-only reset, anchored at Nov 14, 2026. Magic-link routes, session refresh, scoped membership and onboarding are implemented and tested on PGlite; a real magic link is not verified yet.
 - **PayPal (D12–D15, D37).** Sandbox guard, REST client, toolkit split (the agent drafts, the approve route sends), invoice review and approve/send/remind, verified webhook persisted in Postgres, scoped refresh with a five-minute cooldown, `npm run smoke`, read-only history import (`/api/paypal/import`, built and tested, not run live). A real sandbox send and paid webhook have not run on a deployed URL.
@@ -91,7 +91,7 @@ Every box below is ticked; the code is the truth (decision numbers say why). "St
 - [x] Stage 25 (D61, D41, D60, D57). Here's my bill: `repeat_until` and migration 0023, `checksFor` (`src/lib/money/checks.ts`) and the `to_check` tool, a conversation turn of kind `document`, and Ask's Attach a bill (`readUpload`, `document-card.ts`, `/api/ask/document`, `DocumentCard.tsx`, `ReadingForm.tsx`, the optional `mark` on a chart or timeline)
 - [x] Browser checks: full run on dev at 375px and 1440px, light and dark (A–L), and in the owner's Chrome with a page crawl at four settings (Nov 4)
 - [x] Foundation and hardening J: tenant-isolation test in `db:test`; demo sweeper in the daily job (D49, `sweepDemoHouseholds`, `db:sweep-test`); privacy page `/privacy` (D49; BROWSER-CHECKS P)
-- [x] Migrations 0000–0026 applied to the Tokyo dev database (0027 is the owner's item below)
+- [x] Migrations 0000–0027 applied to the Tokyo dev database
 
 ## Open work
 
@@ -197,7 +197,7 @@ Phase A, the OK before the first deploy and before the repo goes public, answers
 ### A. Setup
 - [ ] Join the hackathon on Devpost
 - [ ] `npx wrangler login` from `economy-saver`
-- [ ] Apply migration 0027 (`ask_receipts.pending` and `links`) to the owner's database with `npm run db:migrate` before this code runs against it (the running app writes the new columns)
+- [x] Migration 0027 (`ask_receipts.pending` and `links`) applied to the owner's database
 - [ ] The AI key in `economy-saver/.env.local`: `AI_API_KEY` is empty (the other AI settings are set: `AI_PROTOCOL=anthropic`, `AI_TEXT_MODEL` and `AI_DOCUMENT_MODEL` `claude-sonnet-5-5`); the owner pastes the key, then `cp .env.local .dev.vars` without printing. Until then Ask says "Ask isn’t available on this server yet (AI_API_KEY)." and a document read fails
 - [ ] A key for a second provider as `EVAL_API_KEY` in `.env.local`, for the eval (E)
 - [ ] Confirm the Worker starts within 1 s on the deploy (S)
