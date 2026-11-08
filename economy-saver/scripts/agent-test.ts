@@ -8,7 +8,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq, inArray } from "drizzle-orm";
 import * as schema from "@/db/schema";
-import { aiConnection, AiKeyError } from "@/db/ai-key";
+import { aiConnection } from "@/db/ai-key";
 import { householdDate } from "@/db/account";
 import { removeBill } from "@/db/bills";
 import { confirmPending } from "@/db/confirm";
@@ -30,7 +30,6 @@ import { dayView } from "@/lib/money/window";
 import { latestDate } from "@/lib/money/horizon";
 import { homeSentence } from "@/lib/money/sentence";
 import { minorPerUnit } from "@/lib/money/format";
-import { requestCount } from "@/db/rate-limit";
 import { canvasWords, FIXED } from "@/lib/agent/reply";
 import { savePot } from "@/db/pots";
 import { addMember } from "@/db/people";
@@ -99,7 +98,7 @@ function chatTransport(script: ((bodies: ChatBody[]) => Response)[] | ((bodies: 
 }
 const toolMessages = (body: ChatBody) => body.messages.filter(m => m.role === "tool") as { tool_call_id: string; content: string }[];
 
-const AI_NAMES = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_GLOBAL_DAILY_LIMIT", "AI_TEXT_MODEL"];
+const AI_NAMES = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL"];
 const KEY = "sk-ant-fictional-" + "a".repeat(40);
 const APP = new URL("http://127.0.0.1:3123");
 
@@ -114,29 +113,24 @@ async function main() {
     await migrate(db, { migrationsFolder: "./drizzle" });
     process.env.AI_PROTOCOL = "anthropic";
     process.env.AI_API_KEY = KEY;
-    process.env.AI_DAILY_LIMIT = "500";
-    process.env.AI_GLOBAL_DAILY_LIMIT = "500";
     process.env.AI_TEXT_MODEL = "fixture-text";
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     await db.update(schema.clients).set({ name: "ZZ Secret Client" }).where(eq(schema.clients.householdId, b));
     const stateOf = async (hid: string) => loadMoneyState(db, hid, await householdDate(db, hid));
     const aState = await stateOf(a), bState = await stateOf(b);
-    const reads = async (hid: string) => (await db.select().from(schema.households).where(eq(schema.households.id, hid)))[0].aiReadsToday;
     // The one log line per Ask (D50) is captured here instead of printed.
     const logged: Record<string, unknown>[] = [];
     console.info = (...args: unknown[]) => { const first = String(args[0]); if (first.startsWith('{"at":')) logged.push(JSON.parse(first)); else realInfo(...args); };
     const ask = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { now?: () => number; source?: "voice" | "manual"; askId?: string; onStep?: (step: string) => void } = {}) =>
       runAgent({ db, householdId: hid, question, askId: extra.askId ?? crypto.randomUUID(), appUrl: APP, connection: () => aiConnection(db, hid, "text"), fetch, ...extra });
 
-    await check("a question runs a tool, feeds the engine's own answer back and reserves one allowance unit per model call", async () => {
+    await check("a question runs a tool, feeds the engine's own answer back, one model call per turn", async () => {
       const { fetch, bodies } = transport([
         () => reply("tool_use", [text("Checking."), toolUse("toolu_1", "whats_due", {})]),
         () => reply("end_turn", [text("Rent is due soon and covered.")]),
       ]);
-      const before = await reads(a);
       const result = await ask(a, "What's due?", fetch);
       assert.deepEqual(result, { kind: "answer", answer: "Rent is due soon and covered.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false });
-      assert.equal(await reads(a), before + 2);
       assert.equal(bodies.length, 2);
       const [first, second] = bodies;
       assert.equal(first.model, "fixture-text");
@@ -292,22 +286,15 @@ async function main() {
       assert.ok(Number(timeouts[0]) > 0 && Number(timeouts[0]) <= 20);
     });
 
-    await check("provider errors become fixed, secret-free messages; a spent owner allowance is an AiKeyError", async () => {
+    await check("provider errors become fixed, secret-free messages", async () => {
       const unauthorised = transport(() => Response.json({ type: "error", error: { type: "authentication_error", message: KEY } }, { status: 401 }));
       await assert.rejects(ask(a, "x", unauthorised.fetch), (error: Error) => error instanceof AgentError && !error.message.includes("sk-ant") && /not accepted/.test(error.message));
       assert.equal(unauthorised.bodies.length, 1, "no retry");
-      process.env.AI_DAILY_LIMIT = "1";
-      const d = await seedBen(db, { isDemo: true });
-      const { fetch } = transport([() => reply("tool_use", [toolUse("q", "where_am_i", {})]), () => reply("end_turn", [text("never")])]);
-      await assert.rejects(ask(d, "x", fetch), AiKeyError);
-      process.env.AI_DAILY_LIMIT = "500";
     });
 
-    await check("a missing model setting stops before any allowance is reserved", async () => {
+    await check("a missing model setting stops before any model call", async () => {
       delete process.env.AI_TEXT_MODEL;
-      const before = await reads(a);
       await assert.rejects(ask(a, "x", transport(() => reply("end_turn", [text("no")])).fetch), /AI_TEXT_MODEL is not set/);
-      assert.equal(await reads(a), before);
       process.env.AI_TEXT_MODEL = "fixture-text";
     });
 
@@ -899,7 +886,7 @@ async function main() {
       try { await run(); } finally { process.env.AI_PROTOCOL = "anthropic"; process.env.AI_API_KEY = KEY; delete process.env.AI_BASE_URL; }
     };
 
-    await check("openai protocol: a read answer and a tool round; the request shape, the tool result and the allowance", async () => {
+    await check("openai protocol: a read answer and a tool round; the request shape and the tool result", async () => {
       await onOpenai(async () => {
         const read = chatTransport([() => chat("stop", "You are fine.")]);
         const plain = await ask(a, "Am I fine?", read.fetch);
@@ -916,13 +903,12 @@ async function main() {
         assert.ok(first.tools!.every(t => t.type === "function" && t.function.parameters.additionalProperties === false));
 
         const c = await seedBen(db, { isDemo: true }), cState = await stateOf(c);
-        const before = await reads(c);
         const { fetch, bodies } = chatTransport([
           () => chat("tool_calls", "Checking.", [chatCall("call_1", "whats_due", {})]),
           () => chat("stop", "Rent is due soon and covered."),
         ]);
         assert.deepEqual(await ask(c, "What's due?", fetch), { kind: "answer", answer: "Rent is due soon and covered.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false });
-        assert.equal(await reads(c), before + 2, "the server default connection reserves one unit per call");
+        assert.equal(bodies.length, 2);
         const second = bodies[1];
         assert.deepEqual(second.messages.map(m => m.role), ["system", "user", "assistant", "tool"]);
         assert.deepEqual(second.messages[2].tool_calls, [chatCall("call_1", "whats_due", {})]);
@@ -1012,7 +998,6 @@ async function main() {
     const conversation = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { conversationId?: string; canvas?: unknown; at?: Date } = {}) =>
       answerQuestion(db, hid, askInput.parse({ id: crypto.randomUUID(), conversationId: extra.conversationId ?? crypto.randomUUID(), text: question, source: "manual", canvas: extra.canvas ?? null }), { fetch, at: extra.at });
     const cashCanvas = (extra: unknown[] = []) => JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }, ...extra] });
-    const declinesOf = (hid: string) => requestCount(db, hid, "out-of-scope", "hour");
     const clarifyInput = { question: "Which Acme do you mean?", choices: ["Acme Studio", "Acme Labs"] };
 
     await check("each kind of reply on the anthropic protocol: answer with a canvas, clarify, both declines and a plain text with no tool", async () => {
@@ -1086,12 +1071,10 @@ async function main() {
     await check("clarify stops the other calls in its turn", async () => {
       const c = await seedBen(db, { isDemo: true });
       logged.length = 0;
-      const before = await reads(c);
       const t = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {}), toolUse("c", "clarify", clarifyInput), toolUse("d", "whats_due", {})])]);
       const result = await conversation(c, "What about Acme?", t.fetch);
       assert.equal(result.kind, "clarify");
       assert.equal(t.bodies.length, 1);
-      assert.equal(await reads(c), before + 1);
       assert.deepEqual((logged.at(-1)!.tools as { name: string }[]).map(x => x.name), ["clarify"], "only the clarify call ran");
       assert.deepEqual(result.sources, [], "a tool that did not run adds no source");
     });
@@ -1173,7 +1156,7 @@ async function main() {
       }
     });
 
-    await check("a question whose only tool call errored is not declined as off topic and spends no decline", async () => {
+    await check("a question whose only tool call errored is not declined as off topic", async () => {
       const c = await seedBen(db, { isDemo: true });
       const charge = { id: crypto.randomUUID(), cardId: crypto.randomUUID(), merchant: "Noodle place", amount: "3800", date: (await stateOf(c)).today };
       const t = transport([
@@ -1183,10 +1166,8 @@ async function main() {
       const result = await conversation(c, "I spent 3800 at the noodle place", t.fetch);
       assert.ok(toolResults(t.bodies[1])[0].is_error, "the call failed");
       assert.deepEqual([result.kind, result.text], ["answer", "Which card was it?"]);
-      assert.equal(await declinesOf(c), 0, "no decline was consumed");
       const none = transport([() => reply("end_turn", [text("Which card was it?")])]);
       assert.equal((await conversation(c, "I spent 3800 at the noodle place", none.fetch)).kind, "declined", "a reply with no tool call at all is still declined");
-      assert.equal(await declinesOf(c), 1);
     });
 
     await check("a clarifying question and its choices are amount-checked like an answer", async () => {
@@ -1251,45 +1232,20 @@ async function main() {
       } finally { target.run = original; }
     });
 
-    await check("after an AgentError the question stores no turn and consumes no decline", async () => {
+    await check("after an AgentError the question stores no turn", async () => {
       const c = await seedBen(db, { isDemo: true });
       const down = (async () => { throw new Error("offline"); }) as typeof globalThis.fetch;
       await assert.rejects(conversation(c, "What is due?", down), AgentError);
       const stored = await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, c));
       assert.equal(stored.length, 0);
-      assert.equal(await declinesOf(c), 0);
     });
 
-    await check("the fifth decline an hour is allowed, the sixth gets the wait sentence with no model call and no stored turn", async () => {
+    await check("declined questions are never capped: the sixth decline in an hour is declined like the first, and each is stored", async () => {
       const c = await seedBen(db, { isDemo: true });
       const decline = () => transport([() => reply("tool_use", [toolUse("o", "out_of_scope", { reason: "off_topic" })])]);
-      for (let i = 0; i < 5; i++) assert.equal((await conversation(c, `Off topic ${i}`, decline().fetch)).text, FIXED.off_topic);
-      const never = (async () => { throw new Error("no model call expected"); }) as typeof globalThis.fetch;
-      const before = await reads(c);
-      logged.length = 0;
-      const waited = await conversation(c, "Off topic again", never);
-      assert.deepEqual([waited.kind, waited.text, waited.canvas, waited.sources], ["declined", FIXED.wait, null, []]);
-      assert.equal(await reads(c), before);
-      assert.equal(logged.length, 0);
+      for (let i = 0; i < 6; i++) assert.equal((await conversation(c, `Off topic ${i}`, decline().fetch)).text, FIXED.off_topic);
       const stored = await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, c));
-      assert.equal(stored.length, 5, "the waiting sentence is not stored");
-      // an answer is not a decline: a household with five declines spent can still not ask, but one that answers never spends
-      const e = await seedBen(db, { isDemo: true });
-      for (let i = 0; i < 6; i++) {
-        const t = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Fine.")])]);
-        assert.equal((await conversation(e, `Question ${i}`, t.fetch)).kind, "answer");
-      }
-    });
-
-    await check("six declined questions started together: at most five declined replies, the rest the wait sentence, and the bucket counts exactly five", async () => {
-      const c = await seedBen(db, { isDemo: true });
-      const replies = await Promise.all(Array.from({ length: 6 }, (_, i) =>
-        conversation(c, `Off topic together ${i}`, transport([() => reply("tool_use", [toolUse("o", "out_of_scope", { reason: "off_topic" })])]).fetch)));
-      assert.equal(replies.filter(r => r.wait).length, 1);
-      assert.equal(replies.filter(r => !r.wait && r.text === FIXED.off_topic).length, 5);
-      assert.ok(replies.filter(r => r.wait).every(r => r.kind === "declined" && r.text === FIXED.wait && r.canvas === null && r.sources.length === 0));
-      assert.equal(await declinesOf(c), 5);
-      assert.equal((await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, c))).length, 5, "no declined turn for the wait reply");
+      assert.equal(stored.length, 6);
     });
 
     await check("a read tool still running when the budget ends stops the question and names the step; a write before it is kept, and a retry with the same id runs nothing again", async () => {
@@ -1531,7 +1487,7 @@ async function main() {
       assert.deepEqual(two.sources, one.sources);
       assert.deepEqual(two.canvas?.recipe, one.canvas?.recipe);
       assert.ok(two.canvas && two.canvas.blocks.length === one.canvas!.blocks.length);
-      assert.deepEqual([two.links, two.pending, two.memoryChanges, two.wait], [[], false, [], false]);
+      assert.deepEqual([two.links, two.pending, two.memoryChanges], [[], false, []]);
       // the same id with other words is refused, never answered with the old reply
       await assert.rejects(answerQuestion(db, h, { ...input, text: "Show my bills" }, { fetch: again.fetch }), (e: unknown) => e instanceof InputError && /already answered/.test(e.message));
       assert.equal(again.bodies.length, 0);

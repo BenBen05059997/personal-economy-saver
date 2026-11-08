@@ -241,7 +241,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
       } catch (error) { setProblem(wordsOf(error)); return; }
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, conversationId, text: trimmed, source: how, canvas: canvas?.recipe ?? null, ...(memory && { memory }), ...(recent && { recent }) }) });
-      // A 503 carries a fixed message written for this box, such as a missing key or a spent daily allowance.
+      // A 503 carries a fixed message written for this box, such as a missing key.
       if (!response.ok) { setProblem(response.status === 429 ? "Ask again in a minute." : response.status === 503 || response.status === 400 ? await response.text() : "Couldn’t check your household. Try again."); return; }
       const last = await readAskStream(response, setStep);
       if (!last) { setProblem("Couldn’t check your household. Try again."); return; }
@@ -252,7 +252,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
       setText(""); setSource("manual");
       setTurns(current => [...current.filter(turn => turn.id !== reply.id), { id: reply.id, question: trimmed, kind: reply.kind, text: reply.text, choices: reply.choices, sources: reply.sources, links: reply.links, thumb: null, documentId: null }]);
       setIntro(current => (onDevice.journal ? (reply.kind === "answer" ? null : current) : reply.firstUse));
-      if (onDevice.journal && !reply.wait) {
+      if (onDevice.journal) {
         try {
           await saveDeviceTurn(householdId, {
             version: 1, id: reply.id, conversationId, question: trimmed, kind: reply.kind, reply: reply.text, choices: reply.choices,

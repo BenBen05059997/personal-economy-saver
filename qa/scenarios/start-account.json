@@ -162,8 +162,8 @@
   {
     "id": "START-007",
     "area": "Try it",
-    "action": "Hit the per-address demo limit",
-    "user_goal": "Someone is flooding the demo",
+    "action": "Start many demos from one address",
+    "user_goal": "Trying the app again and again is never refused",
     "type": "security",
     "priority": "P2",
     "needs": [
@@ -174,42 +174,12 @@
       "Dev server; each call sends a different x-forwarded-for only in the last step"
     ],
     "steps": [
-      "curl /api/try 30 times with no cookie and header x-forwarded-for: 203.0.113.7",
-      "Make a 31st call",
-      "Make a call with x-forwarded-for: 203.0.113.8",
-      "Open Start with my numbers (POST /api/try/blank) from the first address"
+      "GET /api/try 35 times with no cookie from one address (same-origin headers as frontend-check.mjs; clear the cookie between calls)",
+      "POST Start with my numbers (/api/try/blank) from the same address"
     ],
     "expected": [
-      "The 31st call answers 429 \"Too many new demos from this connection. Try again in an hour.\" with Retry-After",
-      "A different address is not affected",
-      "Start with my numbers from the first address is also refused: it counts in the same 30"
-    ],
-    "refs": [
-      "BROWSER-CHECKS A6",
-      "db:limits-test",
-      "D31"
-    ]
-  },
-  {
-    "id": "START-008",
-    "area": "Try it",
-    "action": "Call /api/try with no x-forwarded-for on dev",
-    "user_goal": "I want a clear error when the address cannot be counted",
-    "type": "negative",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Dev server"
-    ],
-    "steps": [
-      "GET /api/try with no cookie and no x-forwarded-for header"
-    ],
-    "expected": [
-      "The answer says \"This request has no x-forwarded-for header, so it can't be counted. Check CLIENT_IP_HEADER.\"",
-      "No household is created"
+      "Every call answers a redirect and makes a new demo household; none answers 429",
+      "Start with my numbers is also accepted"
     ],
     "refs": [
       "BROWSER-CHECKS A6"
@@ -1846,7 +1816,7 @@
       "Open Settings → Your AI model"
     ],
     "expected": [
-      "It reads \"Ask isn't available on this server yet (AI_TEXT_MODEL).\", \"Using the app's default model, with a daily household allowance.\" and \"No default calls recorded. The allowance resets at midnight in Asia/Tokyo.\"",
+      "It reads \"Ask isn't available on this server yet (AI_TEXT_MODEL).\" and \"Using the app's default model.\"; there is no allowance or \"default calls recorded\" line",
       "There is no \"go to\" host line and no \"Use this app's default\" button",
       "With a server model the first line is \"Your questions and documents go to {host}.\""
     ],

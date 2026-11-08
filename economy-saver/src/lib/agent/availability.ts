@@ -3,7 +3,7 @@ export const askUnavailable = (name: string) => `Ask isn’t available on this s
 
 /**
  * The first AI_ setting Ask needs that this server lacks, or null. A household with its own connection and a model for
- * questions needs none (db/ai-key.ts); otherwise the server default's model, connection and daily allowance. Names only,
+ * questions needs none (db/ai-key.ts); otherwise the server default's model and connection. Names only,
  * never values.
  */
 export function missingAskSetting(hasOwnConnection: boolean): string | null {
@@ -13,8 +13,6 @@ export function missingAskSetting(hasOwnConnection: boolean): string | null {
   if (!protocol) return "AI_PROTOCOL";
   if (protocol === "openai" && !process.env.AI_BASE_URL?.trim()) return "AI_BASE_URL";
   if (!process.env.AI_API_KEY?.trim()) return "AI_API_KEY";
-  if (!process.env.AI_DAILY_LIMIT?.trim()) return "AI_DAILY_LIMIT";
-  if (!process.env.AI_GLOBAL_DAILY_LIMIT?.trim()) return "AI_GLOBAL_DAILY_LIMIT";
   return null;
 }
 

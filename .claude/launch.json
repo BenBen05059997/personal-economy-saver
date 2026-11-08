@@ -27,6 +27,17 @@
       "port": 3130
     },
     {
+      "name": "worker-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "economy-saver",
+        "run",
+        "cf:preview"
+      ],
+      "port": 8787
+    },
+    {
       "name": "design-mockup",
       "runtimeExecutable": "node",
       "runtimeArgs": [

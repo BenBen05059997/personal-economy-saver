@@ -11,14 +11,10 @@ export const FIXED = {
   not_offered: "I can't advise on investments, tax filing or legal questions; a licensed professional can. I can show your own numbers: try “How much is in my tax pot?” or “What did I spend on work this month?”",
   savedThenStopped: "I saved what you told me, but couldn't finish the answer. ",
   alreadySaved: "This question already saved what you told me. Open To check to see it.",
-  wait: "That's several questions I can't help with. Ask me about your money again in an hour.",
 } as const;
 
 /** The line above the question box until the household has an answer. */
 export const firstUse = (host: string) => `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to ${host}.`;
-
-/** Declined questions allowed an hour before the wait sentence (`out-of-scope` purpose). */
-export const DECLINES_PER_HOUR = 5;
 
 /** The page each tool's answer came from. `make_canvas`, `what_if` and `household_snapshot` add none. */
 const TOOL_SOURCES: Record<string, Source> = {

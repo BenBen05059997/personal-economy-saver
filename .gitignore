@@ -24,3 +24,7 @@ prof*/
 .DS_Store
 *.log
 *.pem
+
+# QA evidence: screenshots and screen recordings
+qa/evidence/
+.claude/worktrees/

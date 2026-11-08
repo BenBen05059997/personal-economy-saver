@@ -125,7 +125,7 @@ async function main() {
     // the limit: 30 a minute, the 31st is 429 with Retry-After, and it is per household
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
     let calls = 0;
-    asking = async () => { calls++; return { id: "x", kind: "answer", text: "fine", choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], wait: false }; };
+    asking = async () => { calls++; return { id: "x", kind: "answer", text: "fine", choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [] }; };
     for (let i = 0; i < 30; i++) { const answer = await ask(json("/api/ask", question())); assert.equal(answer.status, 200, `ask ${i + 1}`); }
     const limited = await ask(json("/api/ask", question()));
     assert.deepEqual([limited.status, await limited.text(), limited.headers.get("retry-after"), limited.headers.get("cache-control")], [429, "Ask again in a minute.", "60", "private, no-store"]);
@@ -160,7 +160,7 @@ async function main() {
     await mapped(new AgentError("The assistant took too long."), [200, "The assistant took too long."]);
     await mapped(new AiKeyError("That key was not accepted."), [200, "That key was not accepted."]);
     await mapped(new MissingAuthSetting("SUPABASE_URL is not set"), [200, "SUPABASE_URL is not set"]);
-    for (const name of ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_GLOBAL_DAILY_LIMIT"]) {
+    for (const name of ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY"]) {
       for (const Kind of [AgentError, AiKeyError, MissingAuthSetting]) await mapped(new Kind(`${name} is not set`), [200, askUnavailable(name)]);
     }
     // an unknown-named or longer message is not rewritten; only exactly `AI_X is not set` is
@@ -189,7 +189,7 @@ async function main() {
     // the stream: steps in order, then the reply; a failure after steps is an error line; an InputError after a step is an error line, before one a plain 400
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
     cookie = a;
-    const replyObject = { id: "x", kind: "answer", text: "fine", choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], wait: false };
+    const replyObject = { id: "x", kind: "answer", text: "fine", choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [] };
     type Deps = { onStep?: (step: string) => void };
     asking = async (...args: unknown[]) => { const deps = args[3] as Deps; deps.onStep!("Thinking about your question"); await new Promise(resolve => setTimeout(resolve, 5)); deps.onStep!("Reading what's due"); return replyObject; };
     const ok1 = await streamed(await ask(json("/api/ask", question())));
@@ -386,9 +386,9 @@ async function main() {
     ok("extractDocument email limits: more than 8 supported attachments, or more than 100,000 characters of subject, date and body, is refused before any model is chosen; unsupported types are not counted; nothing to read is refused");
 
     // ------------------------------------------------------------ missingAskSetting and askUnavailable
-    const names = ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_GLOBAL_DAILY_LIMIT"];
+    const names = ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY"];
     const set = (values: Record<string, string | undefined>) => { for (const n of names) delete process.env[n]; for (const [k, v] of Object.entries(values)) if (v !== undefined) process.env[k] = v; };
-    const full = { AI_TEXT_MODEL: "m", AI_PROTOCOL: "openai", AI_BASE_URL: "https://models.example/v1", AI_API_KEY: "k", AI_DAILY_LIMIT: "50", AI_GLOBAL_DAILY_LIMIT: "1000" };
+    const full = { AI_TEXT_MODEL: "m", AI_PROTOCOL: "openai", AI_BASE_URL: "https://models.example/v1", AI_API_KEY: "k" };
     set({});
     assert.equal(missingAskSetting(true), null, "a household's own connection needs none of them");
     assert.equal(missingAskSetting(false), "AI_TEXT_MODEL", "nothing set: the model first");
@@ -401,12 +401,8 @@ async function main() {
     set({ ...full, AI_PROTOCOL: "anthropic", AI_BASE_URL: undefined }); assert.equal(missingAskSetting(false), null, "anthropic needs no address");
     set({ ...full, AI_API_KEY: undefined }); assert.equal(missingAskSetting(false), "AI_API_KEY");
     set({ ...full, AI_API_KEY: "" }); assert.equal(missingAskSetting(false), "AI_API_KEY");
-    set({ ...full, AI_DAILY_LIMIT: undefined }); assert.equal(missingAskSetting(false), "AI_DAILY_LIMIT");
-    set({ ...full, AI_DAILY_LIMIT: " " }); assert.equal(missingAskSetting(false), "AI_DAILY_LIMIT");
-    set({ ...full, AI_GLOBAL_DAILY_LIMIT: undefined }); assert.equal(missingAskSetting(false), "AI_GLOBAL_DAILY_LIMIT");
-    set({ ...full, AI_DAILY_LIMIT: undefined, AI_GLOBAL_DAILY_LIMIT: undefined }); assert.equal(missingAskSetting(false), "AI_DAILY_LIMIT", "the per-household allowance is checked first");
     set({ ...full, AI_TEXT_MODEL: undefined, AI_PROTOCOL: undefined, AI_API_KEY: undefined }); assert.equal(missingAskSetting(false), "AI_TEXT_MODEL", "the first missing one in order");
-    set({ ...full, AI_PROTOCOL: undefined, AI_BASE_URL: undefined, AI_DAILY_LIMIT: undefined }); assert.equal(missingAskSetting(false), "AI_PROTOCOL");
+    set({ ...full, AI_PROTOCOL: undefined, AI_BASE_URL: undefined }); assert.equal(missingAskSetting(false), "AI_PROTOCOL");
     set(full); assert.equal(missingAskSetting(false), null, "everything set");
     set({ ...full, AI_PROTOCOL: "anthropic" }); assert.equal(missingAskSetting(false), null);
     set({ ...full, AI_PROTOCOL: " openai ", AI_BASE_URL: undefined }); assert.equal(missingAskSetting(false), "AI_BASE_URL", "the protocol is trimmed");

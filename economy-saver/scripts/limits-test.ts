@@ -9,12 +9,12 @@ import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
-import { AiKeyError, aiConnection } from "@/db/ai-key";
+import { aiConnection } from "@/db/ai-key";
 import { runDaily } from "@/db/daily";
 import { deleteDocument } from "@/db/data-kinds";
 import { DEMO_STORAGE_CAP_BYTES, RAW_FILE_RETENTION_DAYS, STORAGE_CAP_BYTES, removeExpiredFiles, requireStorageRoom, storedBytes } from "@/db/document-cleanup";
 import type { Db } from "@/db/household";
-import { ClientIpError, TRY_PER_HOUR, clientIp, consumeIpRequest, hashIp, pruneIpBuckets } from "@/db/rate-limit";
+import { ClientIpError, clientIp, consumeIpRequest, hashIp, pruneIpBuckets } from "@/db/rate-limit";
 import { storeDocument } from "@/db/reader-job";
 import { seedBen } from "@/db/seed";
 import { applyVerifiedDelivery, storedPayload } from "@/lib/events";
@@ -44,64 +44,37 @@ async function main() {
       assert.equal(clientIp(new Request("http://x.test/", { headers: { "x-forwarded-for": "203.0.113.9, 10.0.0.1" } })), "203.0.113.9");
     });
 
-    await check("both doors (Try it and Start with my numbers) share the purpose \"try\" and TRY_PER_HOUR (30): the thirty-first from one address is refused", async () => {
-      assert.equal(TRY_PER_HOUR, 30);
-      for (let i = 0; i < TRY_PER_HOUR; i++) assert.equal(await consumeIpRequest(store, "203.0.113.50", "try", TRY_PER_HOUR), true);
-      assert.equal(await consumeIpRequest(store, "203.0.113.50", "try", TRY_PER_HOUR), false);
-    });
-
-    await check("consumeIpRequest: the limit holds per address and purpose, the address is stored only as a SHA-256 hash, a new window starts again", async () => {
-      for (let i = 0; i < 10; i++) assert.equal(await consumeIpRequest(store, "203.0.113.20", "try", 10), true, `request ${i + 1}`);
-      assert.equal(await consumeIpRequest(store, "203.0.113.20", "try", 10), false, "the eleventh is refused");
-      assert.equal(await consumeIpRequest(store, "203.0.113.20", "try", 10), false, "and stays refused");
-      assert.equal(await consumeIpRequest(store, "203.0.113.21", "try", 10), true, "another address is separate");
-      assert.equal(await consumeIpRequest(store, "203.0.113.20", "magic-link", 5), true, "another purpose is separate");
-      for (let i = 0; i < 4; i++) await consumeIpRequest(store, "203.0.113.20", "magic-link", 5);
-      assert.equal(await consumeIpRequest(store, "203.0.113.20", "magic-link", 5), false, "five links an hour");
+    await check("consumeIpRequest (the sign-in link, five an hour): the limit holds per address, the address is stored only as a SHA-256 hash, a new window starts again", async () => {
+      for (let i = 0; i < 5; i++) assert.equal(await consumeIpRequest(store, "203.0.113.20", "magic-link", 5), true, `request ${i + 1}`);
+      assert.equal(await consumeIpRequest(store, "203.0.113.20", "magic-link", 5), false, "the sixth is refused");
+      assert.equal(await consumeIpRequest(store, "203.0.113.20", "magic-link", 5), false, "and stays refused");
+      assert.equal(await consumeIpRequest(store, "203.0.113.21", "magic-link", 5), true, "another address is separate");
       const rows = await db.select().from(schema.ipBuckets);
-      assert.ok(rows.length >= 3 && rows.every(r => /^[0-9a-f]{64}$/.test(r.ipHash)));
+      assert.ok(rows.length >= 2 && rows.every(r => /^[0-9a-f]{64}$/.test(r.ipHash)));
       assert.ok(!JSON.stringify(rows).includes("203.0.113"), "no raw address is stored");
       const h20 = await hashIp("203.0.113.20");
-      assert.equal(rows.find(r => r.purpose === "try" && r.ipHash === h20)?.count, 10);
-      await db.update(schema.ipBuckets).set({ window: sql`now() - interval '2 hours'` });
-      assert.equal(await consumeIpRequest(store, "203.0.113.20", "try", 10), true, "the next window counts from one again");
+      assert.equal(rows.find(r => r.ipHash === h20)?.count, 5);
+      await db.update(schema.ipBuckets).set({ window: sql`now() - interval '2 hours'` }).where(eq(schema.ipBuckets.ipHash, h20));
+      assert.equal(await consumeIpRequest(store, "203.0.113.20", "magic-link", 5), true, "the next window counts from one again");
     });
 
     await check("pruneIpBuckets removes windows more than a day old and keeps recent ones", async () => {
-      await db.update(schema.ipBuckets).set({ window: sql`now() - interval '3 days'` }).where(eq(schema.ipBuckets.purpose, "magic-link"));
+      const h21 = await hashIp("203.0.113.21");
+      await db.update(schema.ipBuckets).set({ window: sql`now() - interval '3 days'` }).where(eq(schema.ipBuckets.ipHash, h21));
       const before = (await db.select().from(schema.ipBuckets)).length;
       const gone = await pruneIpBuckets(store);
       const after = await db.select().from(schema.ipBuckets);
-      assert.ok(gone >= 1 && after.length === before - gone && after.every(r => r.purpose === "try"));
+      assert.ok(gone >= 1 && after.length === before - gone && after.every(r => r.ipHash !== h21));
     });
 
-    // ---------------------------------------------------------------- 2. the app-wide AI budget
-    await check("AI_GLOBAL_DAILY_LIMIT: required, counts server-key calls across households, refuses past the limit with a sentence, and leaves the household's own count alone", async () => {
-      Object.assign(process.env, { AI_PROTOCOL: "anthropic", AI_API_KEY: "fictional-key", AI_TEXT_MODEL: "fictional-model", AI_DAILY_LIMIT: "100" });
-      delete process.env.AI_GLOBAL_DAILY_LIMIT;
+    // ---------------------------------------------------------------- 2. no AI cap
+    await check("the server's model is never capped: no allowance setting is needed and many calls across households all get a connection", async () => {
+      Object.assign(process.env, { AI_PROTOCOL: "anthropic", AI_API_KEY: "fictional-key", AI_TEXT_MODEL: "fictional-model" });
       const a = await seedBen(db), b = await seedBen(db);
-      await assert.rejects(aiConnection(store, a, "text"), (e: unknown) => e instanceof AiKeyError && e.message === "AI_GLOBAL_DAILY_LIMIT is not set");
-      assert.equal(missingAskSetting(false), "AI_GLOBAL_DAILY_LIMIT");
-      process.env.AI_GLOBAL_DAILY_LIMIT = "zero";
-      await assert.rejects(aiConnection(store, a, "text"), /AI_GLOBAL_DAILY_LIMIT must be a positive integer/);
-      process.env.AI_GLOBAL_DAILY_LIMIT = "3";
       assert.equal(missingAskSetting(false), null);
-      await aiConnection(store, a, "text"); await aiConnection(store, b, "text"); await aiConnection(store, a, "text");
-      await assert.rejects(aiConnection(store, b, "text"), (e: unknown) => e instanceof AiKeyError && /all of today's AI allowance/.test(e.message));
-      const [rowB] = await db.select({ n: schema.households.aiReadsToday }).from(schema.households).where(eq(schema.households.id, b));
-      assert.equal(rowB.n, 1, "the refused call did not spend B's own allowance");
-      const [usage] = await db.select().from(schema.aiGlobalUsage);
-      assert.equal(usage.count, 3);
-      // a household's own model is not counted and is not stopped
+      for (let i = 0; i < 12; i++) assert.equal((await aiConnection(store, i % 2 ? a : b, "text")).own, false);
       await db.update(schema.households).set({ aiProtocol: "openai", aiBaseUrl: "https://models.example/v1", aiProvider: "custom", aiTextModel: "own", aiDocumentModel: "own" }).where(eq(schema.households.id, b));
-      const own = await aiConnection(store, b, "text");
-      assert.equal(own.own, true);
-      assert.equal((await db.select().from(schema.aiGlobalUsage))[0].count, 3);
-      // a new day starts at zero
-      await db.update(schema.aiGlobalUsage).set({ day: sql`(now() at time zone 'utc')::date - 1` });
-      await db.update(schema.households).set({ aiProtocol: null, aiBaseUrl: null, aiProvider: null, aiTextModel: null, aiDocumentModel: null }).where(eq(schema.households.id, b));
-      await aiConnection(store, b, "text");
-      assert.equal((await db.select().from(schema.aiGlobalUsage)).length, 2);
+      assert.equal((await aiConnection(store, b, "text")).own, true);
     });
 
     // ---------------------------------------------------------------- 3. Storage bytes and the cap
@@ -184,14 +157,12 @@ async function main() {
     await check("the daily job removes expired files through Storage, prunes old windows, and keeps the reminders when nothing is due", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const d = await addDoc(hid, 1000); await addReading(hid, d.id, "confirmed", new Date("2025-01-01T00:00:00Z"));
-      await db.insert(schema.ipBuckets).values({ ipHash: "0".repeat(64), purpose: "try", window: sql`now() - interval '2 days'` as unknown as Date, count: 1 });
-      await db.insert(schema.aiGlobalUsage).values({ day: "2020-01-01", count: 4 });
+      await db.insert(schema.ipBuckets).values({ ipHash: "0".repeat(64), purpose: "magic-link", window: sql`now() - interval '2 days'` as unknown as Date, count: 1 });
       removedByStorage.length = 0;
       assert.deepEqual(await runDaily(store, hid, new Date()), { ok: true });
       assert.deepEqual(removedByStorage, [d.storagePath]);
       assert.ok((await db.select().from(schema.documents).where(eq(schema.documents.id, d.id)))[0].fileRemovedAt);
       assert.equal((await db.select().from(schema.ipBuckets).where(eq(schema.ipBuckets.ipHash, "0".repeat(64)))).length, 0);
-      assert.equal((await db.select().from(schema.aiGlobalUsage).where(eq(schema.aiGlobalUsage.day, "2020-01-01"))).length, 0);
     });
 
     await check("per-document delete exists (deleteDocument): removes the file, keeps a bill's row and drops its link", async () => {

@@ -1596,8 +1596,8 @@
   {
     "id": "ASK-068",
     "area": "Ask",
-    "action": "Ask six declined questions in an hour (wait sentence)",
-    "user_goal": "After many off-topic tries the app should stop calling the model",
+    "action": "Ask six declined questions in a row",
+    "user_goal": "Off-topic questions are never locked out",
     "type": "negative",
     "priority": "P2",
     "needs": [
@@ -1615,9 +1615,9 @@
       "Then ask \"What's due this week?\""
     ],
     "expected": [
-      "The sixth reply is exactly: That's several questions I can't help with. Ask me about your money again in an hour.",
-      "It appears at once with no model call and no \"Checking your numbers…\" delay, and is not kept as a turn after reload",
-      "The money question afterwards is still answered after the first five declines' window, and asking a money question is not what triggered the wait"
+      "The sixth gets its own declined reply like the first five; there is no \"Ask me about your money again in an hour\" sentence",
+      "All six are kept as turns after reload",
+      "The money question afterwards is answered"
     ],
     "refs": [
       "BROWSER-CHECKS Z8",
@@ -1628,8 +1628,8 @@
   {
     "id": "ASK-069",
     "area": "Ask",
-    "action": "Send six declined questions at once",
-    "user_goal": "Quick double sends must not slip past the decline limit",
+    "action": "Send six declined questions",
+    "user_goal": "Declines are never capped",
     "type": "edge",
     "priority": "P3",
     "needs": [
@@ -1641,10 +1641,10 @@
     ],
     "steps": [
       "Run npm run db:agent-test",
-      "Read the suite's check on out-of-scope counting at the limit"
+      "Read the check \"declined questions are never capped\""
     ],
     "expected": [
-      "Questions sent at the same time cannot all pass the limit; the one refused gets the wait sentence and no stored turn"
+      "Six declined questions in an hour each get the off-topic reply and all six are stored"
     ],
     "refs": [
       "db:agent-test",

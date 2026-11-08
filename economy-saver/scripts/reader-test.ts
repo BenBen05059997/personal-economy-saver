@@ -25,8 +25,6 @@ async function test() {
   process.env.SUPABASE_DOCUMENT_BUCKET = "fictional-documents";
   process.env.AI_PROTOCOL = "anthropic";
   process.env.AI_API_KEY = "fictional-test-value";
-  process.env.AI_DAILY_LIMIT = "8";
-  process.env.AI_GLOBAL_DAILY_LIMIT = "1000";
   process.env.AI_DOCUMENT_MODEL = "fixture-document";
   process.env.AI_TEXT_MODEL = "fixture-text";
   process.env.FORWARDING_DOMAIN = "inbox.example";

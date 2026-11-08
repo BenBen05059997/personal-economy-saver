@@ -88,7 +88,7 @@ Supabase
 └── Storage: the private bucket named by `SUPABASE_DOCUMENT_BUCKET` (`household-documents` in the owner's project): receipt photos, PDFs and raw forwarded emails
 
 Outside
-├── Model providers: the server's `AI_` connection (capped per household by `AI_DAILY_LIMIT` and app-wide by `AI_GLOBAL_DAILY_LIMIT`), or a household's own model (a listed provider or an OpenAI-compatible address, key in Vault)
+├── Model providers: the server's `AI_` connection (not capped), or a household's own model (a listed provider or an OpenAI-compatible address, key in Vault)
 ├── PayPal sandbox API (`api-m.sandbox.paypal.com`): send invoice, send reminder, read invoices and the balance; webhooks come back in
 └── The ECB daily reference rate (`eurofxref-daily.xml`): the daily job's USD/JPY for real JPY households
 ```
@@ -180,16 +180,16 @@ Nov 12; Web Push after.
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
 | 1. Question | `AskPage.tsx` (/canvas; the top bar links /canvas#ask and hands a typed character over in `sessionStorage` `pes-ask-draft`) → POST /api/ask | the canvas on screen; on a device, its memory (≤ 200) and the last 3 turns ride in the body | nothing | the question in the conversation |
-| 2. Gate | `answerQuestion` (`src/db/ask.ts`) | `readPlaces`; `turnById` for a retried id (cloud journal); `askAlreadyWrote` (device journal); `requestCount` out-of-scope this hour | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal); the sixth decline gets the fixed wait sentence |
+| 2. Gate | `answerQuestion` (`src/db/ask.ts`) | `readPlaces`; `turnById` for a retried id (cloud journal); `askAlreadyWrote` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
 | 3. Context | `conversationContext` | the last 3 turns of the conversation when its latest is under 10 minutes old (24 hours while an attached document is queued, reading or in To check); a document turn's card as text (`cardContext`) | nothing | — |
-| 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | `MODEL_RULES` + `ASK_RULES` + `memoryContext` (≤ 6,000 characters); `aiConnection(db, hid, "text")` per call | the owner-key allowance (`ai_reads_today`) when the household has no model of its own | — |
+| 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | `MODEL_RULES` + `ASK_RULES` + `memoryContext` (≤ 6,000 characters); `aiConnection(db, hid, "text")` per call | nothing | — |
 | 5. Tools | the catalogue over the engine; the read tools of one model turn run together (`callAll`), draft tools alone in the order asked, results in the order asked | the money state, loaded once per tool turn | draft tools: pending rows in To check, an invoice draft, a memory item (`made_by = ask`, `ask_id`) | the latest step in fixed words (`TOOL_WORDS`) in the line under the box |
 | 6. Reply kind | `chooseReply` (`reply.ts`) + `unconfirmedAmounts` | the question, this question's tool results, the memory block | nothing | — |
 | 7. Save | after a declined reply `consumeRequest` decides the limit atomically; `saveTurn` (200 a household); `resolveRecipe` draws the canvas | `loadCanvasContext` | `conversation_turns`; the out-of-scope bucket on a decline | the reply, the canvas, "Based on", Pin to Home, thumbs |
 
 ```mermaid
 flowchart LR
-    Q[Question + canvas on screen] --> G{Retried id? Five declines?}
+    Q[Question + canvas on screen] --> G{Retried id?}
     G -- saved turn --> R[Reply from the stored turn]
     G -- go --> C[Context: last 3 turns, memory, canvas as data]
     C --> M[callModel: rules + tools, 4 tool turns, 20 s]
@@ -209,8 +209,7 @@ flowchart LR
 by line; the page shows the latest step in a `role="status"` line under the box and the error where it always showed it.
 
 **Budgets and limits.** `MAX_TOOL_TURNS` 4, `BUDGET_MS` 20 s shared by every model call of the question, `MAX_TOKENS` 16,000, no retries (every
-attempt reserves its own allowance); the ask limit is 30 a minute; `DECLINES_PER_HOUR` is 5 (the sixth gets `FIXED.wait`, no model call, no stored
-turn, `wait: true` in the reply; the count is read before the model runs and `consumeRequest` decides again after a declined reply, atomically, so questions sent at once cannot pass it); the read tools of a model turn are raced against the time left of the 20 s (`beforeDeadline` in `run.ts`): past it the question stops with "That took too long while <the step's words>. Try a simpler question." (outcome `budget`), while a write, `clarify` and `out_of_scope` are waited for and a write already done is kept (`savedThenStopped`); a question is 1 to 320 characters; one question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`;
+attempt asks for its own connection); the ask limit is 30 a minute; declined questions are not capped; the read tools of a model turn are raced against the time left of the 20 s (`beforeDeadline` in `run.ts`): past it the question stops with "That took too long while <the step's words>. Try a simpler question." (outcome `budget`), while a write, `clarify` and `out_of_scope` are waited for and a write already done is kept (`savedThenStopped`); a question is 1 to 320 characters; one question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`;
 `remember` and `forget` refuse the 21st in words). With no setting for a model, the Ask page names the missing `AI_` setting.
 
 **The tools (one catalogue, `src/lib/agent/tools.ts`).** Twenty read tools return the engine's numbers, which the model quotes verbatim in one or
@@ -316,8 +315,7 @@ four entry points share the uploads limit (6 a minute). The document id is a con
 redelivered email or a double upload is one document; a `failed` placeholder row is reserved before Storage is touched, so even an interrupted
 upload is removable with the household.
 
-**Read, in detail.** `readDocument` claims the row (`reading`, `processing_at`, a 90 s lease so a stale claim can be retaken), spends one of the
-document-read limit (6 a minute), downloads the object and calls `extractDocument` (`src/lib/reader/extract.ts`). A file goes to the model as
+**Read, in detail.** `readDocument` claims the row (`reading`, `processing_at`, a 90 s lease so a stale claim can be retaken), downloads the object and calls `extractDocument` (`src/lib/reader/extract.ts`). A file goes to the model as
 uploaded (no server-side image or PDF processing, D32). An email is parsed with `postal-mime`: subject, date and body (text or HTML, at most 100,000
 characters) plus up to 8 supported attachments; a body alone needs the text model, anything with a file the document model. The reply is parsed
 against `extractSchema`, at most 12 items, each `{kind, name, date, amountMinor, currency, category, businessBp, cardId}` plus the repeat fields the
@@ -396,7 +394,7 @@ household is refused; already-paid invoices credit no balance.
 | 5. Statements | `closingOnOrAfter`, `cycle` | each card closing today with an open total | a `card_statements` row (unique per card and closing day) |
 | 6. Reminders | `dueItems`, `medianLow` | bills due in 3 days; sent invoices past the client's usual days to pay | one `daily_reminder` event a day ("Money reminders · <date>", with the bell) |
 | 7. Nudges | `suggestNudges` (D50) when `nudge_after_days` is set | sent, unreminded invoices that many days past their due date (the expected date when they have none) | one `nudge_suggested` per invoice, `made_by = cron`, with the bell, never twice |
-| 8. Housekeeping | `pruneIpBuckets`, the old `ai_global_usage` days, `pruneAskReceipts` (this household's receipts over a day old), then last `removeExpiredFiles` | `ip_buckets` windows over a day old, usage days over 7 days old, `ask_receipts` over a day old; documents whose readings are all confirmed or dismissed, the last 30 days ago or more (`RAW_FILE_RETENTION_DAYS`) | the rows deleted; the raw file removed from Storage and `documents.file_removed_at` set (the row, readings and bills stay) |
+| 8. Housekeeping | `pruneIpBuckets`, `pruneAskReceipts` (this household's receipts over a day old), then last `removeExpiredFiles` | `ip_buckets` windows over a day old, `ask_receipts` over a day old; documents whose readings are all confirmed or dismissed, the last 30 days ago or more (`RAW_FILE_RETENTION_DAYS`) | the rows deleted; the raw file removed from Storage and `documents.file_removed_at` set (the row, readings and bills stay) |
 
 The job never calls PayPal: Home shows the nudge as its one action until the user taps through the approve route. `observeRunway` runs before and
 after, so a change from short to fine (or back) is recorded. A late charge confirmation and statement closing share the household lock so neither
@@ -470,8 +468,7 @@ provider, protocol, address and model names are columns on `households` (`ai_pro
 model call; a key saved before sealing is refused until it is saved again; `ai_key_hint` holds an ellipsis and the last four characters only. The address passes `checkBaseUrl` when it is saved and again on every
 call. Vault keeps the key out of plain dumps; anyone holding `DATABASE_URL` can read `vault.decrypted_secrets` but gets only the sealed text, which opens only with the Worker's `AI_KEY_SEAL_KEY`. A saved key that cannot be read is
 never replaced by another key. A question or document travels to the host Settings shows; with no model of its own, to the host of `AI_BASE_URL`
-under the owner's key, and every default-key attempt reserves one unit of the household's daily allowance first (`AI_DAILY_LIMIT`, reset at local
-midnight, D33) and one unit of the app-wide day's budget (`AI_GLOBAL_DAILY_LIMIT`, `ai_global_usage`). Saving a model runs `checkConnection` (uses_tools, ignores_injection, stays_on_money) and stores the result in `ai_check`. MCP
+under the owner's key; no call is capped (D33). Saving a model runs `checkConnection` (uses_tools, ignores_injection, stays_on_money) and stores the result in `ai_check`. MCP
 tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
 
 ### What is held, and for how long
@@ -524,10 +521,10 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
 - Every model call goes through `src/lib/ai` (D56): lint fails a model SDK import anywhere else, and in `src/app/api/approve/route.ts`.
 - Every PayPal call stops with a clear error unless `PAYPAL_ENVIRONMENT` is `SANDBOX` (`env()` in `src/lib/env.ts`, read on first use);
   `paypal_connections.environment` is checked to be `SANDBOX` in the schema.
-- Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10, uploads and retries 6, document reads 6,
+- Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10, uploads and retries 6,
   PayPal import 2, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
-  AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10; declined questions 5 an hour
-  (the sixth gets a fixed sentence with no model call). Try it is capped across the app at 60 new demo households an hour. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): Try it and Start with my numbers share 30 an hour (`TRY_PER_HOUR`), sign-in links 5 an hour. The server's own AI key is capped per household by `AI_DAILY_LIMIT` and app-wide by `AI_GLOBAL_DAILY_LIMIT` a day (`ai_global_usage`).
+  AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10. Declined questions, Try it,
+  Start with my numbers, document reads and model calls (the server's key or a household's own) have no cap. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): sign-in links 5 an hour. `households.ai_reads_today`, `ai_reads_day` and the table `ai_global_usage` are no longer written; a later migration drops them (PLAN.md).
 - The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB, `/api/ask` at
   128 KiB, `/api/canvas/resolve` at 100,000 bytes, `/api/data/move` at 2 MB and `/api/restore` at 1 MB; sign-in links return to the required
   `APP_URL`, never to the request's Origin header.

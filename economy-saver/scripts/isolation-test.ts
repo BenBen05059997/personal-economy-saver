@@ -146,7 +146,6 @@ const notApplicable: Record<string, string> = {
   clientIp: "pure reader of a request header; no database", hashIp: "pure SHA-256 of an address; no database",
   consumeIpRequest: "counts per hashed client address before any household exists; no household id, no household rows (limits-test)",
   pruneIpBuckets: "deletes old per-address windows app-wide; touches no household's rows (limits-test)",
-  demoCreationAllowed: "global count of recent demo households; returns a boolean, no rows",
   readDocumentInBackground: "opens its own connection and calls readDocument, which is tested here",
   staleBefore: "pure clock helper",
   storeDocument: "creates a document keyed by a digest that includes the household id; needs Supabase Storage",
@@ -330,8 +329,8 @@ async function main() {
       await F.saveTurn(db, hid, { id: turn, conversationId: crypto.randomUUID(), question: `${T} asks`, kind: "declined", reply: `${T} reply`, choices: null, recipe: null, sources: [] });
       await F.setThumb(db, hid, turn, 1);
       await F.noteAskWrote(db, hid, crypto.randomUUID());
-      await F.consumeRequest(db, hid, "out-of-scope", 5, "hour");
-      assert.equal(await F.requestCount(db, hid, "out-of-scope", "hour"), 1);
+      await F.consumeRequest(db, hid, "thumb", 5, "hour");
+      assert.equal(await F.requestCount(db, hid, "thumb", "hour"), 1);
       await F.recordEvent(db, hid, { madeBy: "form", kind: `isolation_${l}_event`, title: `${T} event`, body: `${T} event body`, notify: true });
       return {
         hid, tag, name: T, bankYen, rateMicro, key, tokenString: issued.token, familyToken: family.token, akiName,

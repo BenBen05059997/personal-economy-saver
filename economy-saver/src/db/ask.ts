@@ -8,14 +8,13 @@ import { readPlaces } from "./place";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { RecipeSchema, type Recipe } from "@/lib/canvas/schema";
-import { consumeRequest, requestCount } from "./rate-limit";
 import { askAlreadyWrote, noteAskWrote } from "./ask-receipts";
 import { recentTurns, saveTurn, turnById } from "./conversation";
 import { documentCard } from "./document-card";
 import { conversationTurns, households } from "./schema";
 import { AgentError, runAgent, type AskResult } from "@/lib/agent/run";
 import { serverDefaultHost } from "@/lib/agent/availability";
-import { DECLINES_PER_HOUR, FIXED, firstUse, type ReplyKind, type Source } from "@/lib/agent/reply";
+import { FIXED, firstUse, type ReplyKind, type Source } from "@/lib/agent/reply";
 import { cardContext, type DocumentCard } from "@/lib/reader/document-card";
 import { MemoryItem } from "@/lib/schema/memory";
 import { CONTEXT_TURNS, ConversationTurn } from "@/lib/schema/turn";
@@ -34,7 +33,6 @@ export const askInput = z.object({
 });
 
 // A constant, not a literal after the word kind and a colon: the Activity label scan reads those in src/db as event kinds.
-const DECLINED: ReplyKind = "declined";
 const ANSWER: ReplyKind = "answer";
 
 /** What the page and the route show for one question: the reply, the canvas the engine drew from the recipe, the pages it used. */
@@ -44,8 +42,6 @@ export type AskReply = {
   sources: Source[]; links: { label: string; href: string }[]; pending: boolean; firstUse: string | null;
   /** D59: what `remember` and `forget` did to the memory the question carried; the browser applies it to its own copy. Empty when memory is in the cloud. */
   memoryChanges: MemoryChange[];
-  /** True for the fixed "ask again in an hour" sentence, which is shown and never kept as a turn. */
-  wait: boolean;
 };
 
 /** The earlier turns and the canvas on screen, as quoted data after the question (never an amount source). */
@@ -111,19 +107,15 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     const drawn = kept.recipe ? { recipe: kept.recipe, blocks: resolveRecipe(kept.recipe, await loadCanvasContext(db, householdId, kept.recipe)) } : null;
     return {
       id, kind: kept.kind === "document" ? ANSWER : kept.kind, text: kept.reply, choices: kept.choices, canvas: drawn,
-      sources: kept.sources, links: [], pending: false, firstUse: await firstUseLine(db, householdId), memoryChanges: [], wait: false,
+      sources: kept.sources, links: [], pending: false, firstUse: await firstUseLine(db, householdId), memoryChanges: [],
     };
   }
   // The conversations are on the device, so no turn is stored here to replay; the receipt says this id already wrote, and nothing runs or writes again.
   if (recent !== undefined && await askAlreadyWrote(db, householdId, id)) {
     return {
       id, kind: ANSWER, text: FIXED.alreadySaved, choices: null, canvas: null, sources: [],
-      links: [{ label: "Open To check", href: new URL("/to-check", appUrl()).href }], pending: false, firstUse: null, memoryChanges: [], wait: false,
+      links: [{ label: "Open To check", href: new URL("/to-check", appUrl()).href }], pending: false, firstUse: null, memoryChanges: [],
     };
-  }
-  // Five declined questions an hour: the sixth gets a fixed sentence with no model call and no stored turn.
-  if (await requestCount(db, householdId, "out-of-scope", "hour") >= DECLINES_PER_HOUR) {
-    return { id, kind: DECLINED, text: FIXED.wait, choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], wait: true };
   }
   const context = recent !== undefined ? contextText(recent, canvas, await documentCards(db, householdId, recent)) : await conversationContext(db, householdId, { conversationId, canvas }, deps.at);
   const deviceMemory: DeviceMemory | undefined = memory === undefined ? undefined : { items: [...memory], changes: [], moment: await clockMoment(db, householdId, deps.at) };
@@ -135,10 +127,6 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     if (!(error instanceof AgentError) || !error.saved) throw error;
     result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending };
   }
-  // The bucket has the last word: questions running at the same time all passed the check above, and it refuses past the limit atomically.
-  if (result.kind === "declined" && !await consumeRequest(db, householdId, "out-of-scope", DECLINES_PER_HOUR, "hour")) {
-    return { id, kind: DECLINED, text: FIXED.wait, choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], wait: true };
-  }
   if (recent === undefined) {
     await saveTurn(db, householdId, {
       id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources,
@@ -147,6 +135,6 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   const drawn = result.recipe ? { recipe: result.recipe, blocks: resolveRecipe(result.recipe, await loadCanvasContext(db, householdId, result.recipe)) } : null;
   return {
     id, kind: result.kind, text: result.answer, choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending,
-    firstUse: recent === undefined ? await firstUseLine(db, householdId) : null, memoryChanges: deviceMemory?.changes ?? [], wait: false,
+    firstUse: recent === undefined ? await firstUseLine(db, householdId) : null, memoryChanges: deviceMemory?.changes ?? [],
   };
 }

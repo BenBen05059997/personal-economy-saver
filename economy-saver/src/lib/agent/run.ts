@@ -146,7 +146,6 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     for (let toolTurns = 0; ;) {
       const remaining = deadline - now();
       if (remaining <= 0) throw failure("budget");
-      // Reserves one unit of the owner-key allowance per model call; the household's own key is unlimited.
       opts.onStep?.(THINKING_WORDS);
       const connection = await opts.connection();
       trace.protocol = connection.protocol; trace.own = connection.own;

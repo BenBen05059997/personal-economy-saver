@@ -272,8 +272,8 @@ async function main() {
     });
 
     await check("through the fake transport the block is in the system text and an amount from memory passes the amount check", async () => {
-      const saved = Object.fromEntries(["AI_PROTOCOL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_GLOBAL_DAILY_LIMIT", "AI_TEXT_MODEL"].map(n => [n, process.env[n]]));
-      process.env.AI_PROTOCOL = "anthropic"; process.env.AI_API_KEY = "sk-ant-fictional-" + "a".repeat(40); process.env.AI_DAILY_LIMIT = "500"; process.env.AI_GLOBAL_DAILY_LIMIT = "1000"; process.env.AI_TEXT_MODEL = "fixture-text";
+      const saved = Object.fromEntries(["AI_PROTOCOL", "AI_API_KEY", "AI_TEXT_MODEL"].map(n => [n, process.env[n]]));
+      process.env.AI_PROTOCOL = "anthropic"; process.env.AI_API_KEY = "sk-ant-fictional-" + "a".repeat(40); process.env.AI_TEXT_MODEL = "fixture-text";
       try {
         const h = await seedBen(db, { isDemo: true });
         await addMemory(db, h, { kind: "goal", text: "¥300,000 for a trip in March" }, form);

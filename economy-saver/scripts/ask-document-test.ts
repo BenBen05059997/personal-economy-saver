@@ -44,8 +44,6 @@ async function main() {
   process.env.SUPABASE_DOCUMENT_BUCKET = "fictional-documents";
   process.env.AI_PROTOCOL = "anthropic";
   process.env.AI_API_KEY = "fictional-test-value";
-  process.env.AI_DAILY_LIMIT = "100";
-  process.env.AI_GLOBAL_DAILY_LIMIT = "1000";
   process.env.AI_DOCUMENT_MODEL = "fixture-document";
   process.env.AI_TEXT_MODEL = "fixture-text";
   const pg = new PGlite();
@@ -176,8 +174,8 @@ async function main() {
     assert.equal(buildCard({ documentId: "d", doc: null, readings: [] }, null).words, DOCUMENT_WORDS.deleted);
     assert.equal(buildCard({ documentId: "d", doc: null, readings: [] }, null).status, "gone");
     for (const status of ["queued", "reading"] as const) { const card = buildCard(input(status), null); assert.deepEqual([card.status, card.words, card.items.length], ["reading", "Reading your bill…", 0]); }
-    const failed = buildCard(input("failed", [], "Read limit reached. Try again in a minute."), null);
-    assert.deepEqual([failed.status, failed.words, failed.error], ["failed", "This file could not be read: Read limit reached. Try again in a minute.", "Read limit reached. Try again in a minute."]);
+    const failed = buildCard(input("failed", [], "Document could not be read from Storage. Upload the original again."), null);
+    assert.deepEqual([failed.status, failed.words, failed.error], ["failed", "This file could not be read: Document could not be read from Storage. Upload the original again.", "Document could not be read from Storage. Upload the original again."]);
     assert.equal(buildCard(input("failed"), null).words, "This file could not be read: Try again.");
     const empty = buildCard(input("read"), ctx);
     assert.deepEqual([empty.status, empty.words, empty.items.length, empty.canvas], ["read", "Nothing to add was found in this file.", 0, null]);

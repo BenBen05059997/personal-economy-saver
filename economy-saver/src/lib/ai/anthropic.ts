@@ -1,8 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ModelError, type ModelRequest, type Part, type Reply, type Turn } from "./types";
 
-// The only file that imports the Anthropic SDK. Host from the connection, no retries (each attempt reserves its own
-// allowance), no SDK logging.
+// The only file that imports the Anthropic SDK. Host from the connection, no retries (each attempt asks for its own
+// connection), no SDK logging.
 const block = (part: Part): Anthropic.ContentBlockParam =>
   part.type === "text" ? { type: "text", text: part.text }
   : part.type === "image" ? { type: "image", source: { type: "base64", media_type: part.mime as "image/png", data: part.base64 } }

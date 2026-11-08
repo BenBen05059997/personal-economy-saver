@@ -1,4 +1,4 @@
-// Checks qa/scenarios/*.json and summarises qa/results.json (see qa/README.md).
+// Checks qa/scenarios/*.json and summarises qa/results-*.json (see qa/README.md).
 //   node scripts/qa-report.mjs             check, then counts and failures
 //   node scripts/qa-report.mjs --check     check the scenario files only
 //   node scripts/qa-report.mjs --failures  failing and blocked entries as JSON
@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url";
 
 const qaDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "qa");
 const scenarioDir = join(qaDir, "scenarios");
-const resultsPath = join(qaDir, "results.json");
 
 const TYPES = ["happy", "negative", "edge", "security", "agent"];
 const PRIORITIES = ["P1", "P2", "P3"];
@@ -73,18 +72,21 @@ for (const file of files) {
 
 let results = [];
 if (!args.has("--check")) {
-  const data = existsSync(resultsPath) ? readJson(resultsPath) : null;
-  if (data && !Array.isArray(data.results)) problems.push("results.json: results must be a list");
-  results = Array.isArray(data?.results) ? data.results : [];
-  const seen = new Set();
-  results.forEach((r, index) => {
-    const where = `results.json[${index}]${r?.id ? ` ${r.id}` : ""}`;
+  const seen = new Map();
+  const resultFiles = readdirSync(qaDir).filter((name) => /^results-[a-z]+\.json$/.test(name)).sort();
+  for (const name of resultFiles) {
+    const data = readJson(join(qaDir, name));
+    if (data && !Array.isArray(data.results)) problems.push(`${name}: results must be a list`);
+    for (const [index, r] of (Array.isArray(data?.results) ? data.results : []).entries()) results.push({ r, where: `${name}[${index}]${r?.id ? ` ${r.id}` : ""}`, name });
+  }
+  results = results.map(({ r, where, name }) => {
     if (!scenarios.has(r?.id)) problems.push(`${where}: no scenario with this id`);
-    if (seen.has(r?.id)) problems.push(`${where}: recorded twice`);
-    seen.add(r?.id);
+    if (seen.has(r?.id)) problems.push(`${where}: also recorded in ${seen.get(r.id)}`);
+    seen.set(r?.id, name);
     if (!STATUSES.includes(r?.status)) problems.push(`${where}: status must be one of ${STATUSES.join(", ")}`);
     if (r?.width !== undefined && !WIDTHS.includes(String(r.width))) problems.push(`${where}: width must be one of ${WIDTHS.join(", ")}`);
     if (r?.status !== "pass" && !(typeof r?.actual === "string" && r.actual.trim())) problems.push(`${where}: a ${r?.status} entry says what happened in actual`);
+    return { ...r, file: name };
   });
 }
 
@@ -106,7 +108,7 @@ if (args.has("--failures")) {
     .filter((r) => r.status === "fail" || r.status === "blocked")
     .map((r) => {
       const s = scenarios.get(r.id);
-      return { ...r, area: s.area, action: s.action, priority: s.priority, needs: s.needs, how: s.how, steps: s.steps, expected: s.expected, refs: s.refs ?? [], file: s.file };
+      return { ...r, results_file: r.file, area: s.area, action: s.action, priority: s.priority, needs: s.needs, how: s.how, steps: s.steps, expected: s.expected, refs: s.refs ?? [], file: s.file };
     })
     .sort((a, b) => a.priority.localeCompare(b.priority) || a.id.localeCompare(b.id));
   console.log(JSON.stringify(out, null, 2));

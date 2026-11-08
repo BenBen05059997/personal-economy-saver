@@ -2030,34 +2030,10 @@
     ]
   },
   {
-    "id": "LIM-006",
-    "area": "Limits",
-    "action": "The reader is limited to 6 reads a minute",
-    "user_goal": "the model budget is protected",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:ask-document-test"
-    ],
-    "expected": [
-      "The 7th read in a minute fails the document with \"Read limit reached. Try again in a minute.\" and Retry works later"
-    ],
-    "refs": [
-      "db:ask-document-test"
-    ]
-  },
-  {
     "id": "LIM-007",
     "area": "Limits",
-    "action": "The AI daily budget",
-    "user_goal": "one household cannot spend without end",
+    "action": "Use the server's model as much as you like",
+    "user_goal": "No daily AI cap stops me",
     "type": "edge",
     "priority": "P1",
     "needs": [
@@ -2068,15 +2044,16 @@
       "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
     ],
     "steps": [
-      "Run npm run db:limits-test"
+      "Run npm run db:limits-test",
+      "Read the check \"the server's model is never capped\""
     ],
     "expected": [
-      "After AI_DAILY_LIMIT questions Ask answers with a fixed words message and makes no model call",
-      "A household with its own model is not counted against the server's budget"
+      "No AI_DAILY_LIMIT or AI_GLOBAL_DAILY_LIMIT setting is needed and many calls across households all get a connection",
+      "A household with its own model gets its own connection"
     ],
     "refs": [
       "db:limits-test",
-      "D56"
+      "D33"
     ]
   },
   {

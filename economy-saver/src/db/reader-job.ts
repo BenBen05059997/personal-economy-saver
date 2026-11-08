@@ -2,7 +2,6 @@ import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { requireHousehold, recordEvent, type Db } from "./household";
 import { householdClock } from "./account";
 import { AiKeyError, aiConnection } from "./ai-key";
-import { consumeRequest } from "./rate-limit";
 import { cards, documents, households } from "./schema";
 import { requireStorageRoom } from "./document-cleanup";
 import { proposeReadings } from "./readings";
@@ -74,7 +73,6 @@ export async function readDocument(db: Db, id: string, documentId: string, retry
   if (!doc) return;
   const claim = and(where, eq(documents.status, "reading"), eq(documents.processingAt, started));
   try {
-    if (!await consumeRequest(db, hid, "reader", 6)) throw new ReaderError("Read limit reached. Try again in a minute.");
     if (doc.path !== hid + "/" + documentId) throw new ReaderError("Document storage path is invalid.");
     const bucket = await documentBucket();
     const { data, error } = await bucket.download(doc.path);

@@ -36,7 +36,7 @@ export async function loadSettings(db: Db, householdId: string) {
   const hid = requireHousehold(householdId);
   const [household] = await db.select({ name: households.name, currency: households.homeCurrency,
     bank: households.bankBalanceMinor, timeZone: households.timeZone, demo: households.isDemo,
-    aiKeyHint: households.aiKeyHint, aiReadsDay: households.aiReadsDay, aiReadsToday: households.aiReadsToday, nudgeAfterDays: households.nudgeAfterDays, fixedToday: households.fixedToday })
+    aiKeyHint: households.aiKeyHint, nudgeAfterDays: households.nudgeAfterDays, fixedToday: households.fixedToday })
     .from(households).where(eq(households.id, hid));
   if (!household) throw new SettingsError("Household no longer exists");
   const { fixedToday, ...shown } = household;

@@ -31,7 +31,7 @@ const setWhose = async (db: Parameters<typeof updateBill>[0], hid: string, billI
   return updateBill(db, hid, billEditInput.parse({ id: billId, biller: bill.biller, amount: String(bill.amountMinor), due: bill.due, category: bill.category, businessBp: bill.businessBp, memberId, paidByMemberId }), { madeBy: "form" });
 }; // Settings → Bills → Edit with only whose changed
 
-const AI_SETTINGS = ["APP_URL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_DAILY_LIMIT", "AI_GLOBAL_DAILY_LIMIT", "AI_TEXT_MODEL", "AI_DOCUMENT_MODEL", "AI_KEY_SEAL_KEY"];
+const AI_SETTINGS = ["APP_URL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL", "AI_DOCUMENT_MODEL", "AI_KEY_SEAL_KEY"];
 
 async function main() {
   const pg = new PGlite();
@@ -67,12 +67,10 @@ async function main() {
     const another = "sk-ant-fictional-" + "b".repeat(40);
     process.env.AI_PROTOCOL = "anthropic";
     process.env.AI_API_KEY = fictional;
-    process.env.AI_DAILY_LIMIT = "2";
-    process.env.AI_GLOBAL_DAILY_LIMIT = "1000";
     process.env.AI_KEY_SEAL_KEY = Buffer.alloc(32, 7).toString("base64url"); // fictional test seal key
     process.env.AI_TEXT_MODEL = "fixture-text";
     process.env.AI_DOCUMENT_MODEL = "fixture-document";
-    const aiKey = async (...args: [Parameters<typeof aiConnection>[0], string, Date?]) => (await aiConnection(args[0], args[1], "text", args[2])).key;
+    const aiKey = async (...args: [Parameters<typeof aiConnection>[0], string]) => (await aiConnection(args[0], args[1], "text")).key;
     const APP = new URL("https://app.example");
     const own = (hid: string, over: Partial<Parameters<typeof saveHouseholdConnection>[2]> = {}, mode: FakeMode = "good", signedIn = true) => {
       const model = fakeModel(mode);
@@ -107,17 +105,12 @@ async function main() {
       const settings = await loadSettings(db, a);
       assert.ok(settings.bills.every(bill => "periodStart" in bill && "periodEnd" in bill));
     });
-    await check("default calls reserve quota atomically and reset at the household local midnight", async () => {
-      const before = new Date("2026-11-02T14:59:59Z"), after = new Date("2026-11-02T15:00:00Z");
-      const calls = await Promise.allSettled([aiKey(db, a, before), aiKey(db, a, before), aiKey(db, a, before)]);
-      assert.equal(calls.filter(call => call.status === "fulfilled").length, 2);
-      assert.equal(calls.filter(call => call.status === "rejected").length, 1);
-      await aiKey(db, a, after);
-      const settings = await loadSettings(db, a);
-      assert.equal(settings.household.aiReadsDay, "2026-11-03"); assert.equal(settings.household.aiReadsToday, 1);
-      await aiKey(db, b, before);
+    await check("default calls are never capped: many at once all get the server key, and a missing key is named", async () => {
+      const calls = await Promise.all(Array.from({ length: 5 }, () => aiKey(db, a)));
+      assert.ok(calls.every(key => key === fictional));
+      await aiKey(db, b);
       delete process.env.AI_API_KEY;
-      await assert.rejects(aiKey(db, a, after), /AI_API_KEY is not set/);
+      await assert.rejects(aiKey(db, a), /AI_API_KEY is not set/);
       process.env.AI_API_KEY = fictional;
     });
     await check("a saved AI key is sealed before Vault: round trip, wrong key, another household, an unsealed old value, a missing setting", async () => {
@@ -145,7 +138,6 @@ async function main() {
       await db.delete(schema.events).where(eq(schema.events.kind, "ai_model_changed")); // keep the later event counts as they were
     });
     await check("a listed provider is saved with its own address, checked, and its result stored; the key is only ever a hint", async () => {
-      const reads = (await loadSettings(db, a)).household.aiReadsToday;
       const { model, done } = own(a);
       await done;
       assert.ok(model.seen.length >= 4 && model.seen.every(s => new URL(s.url).host === "api.openai.com" && s.model === "fixture-own"));
@@ -158,7 +150,6 @@ async function main() {
       assert.ok(!JSON.stringify(view).includes(fictional));
       const c = await aiConnection(db, a, "document");
       assert.deepEqual(c, { protocol: "openai", baseUrl: "https://api.openai.com/v1", key: fictional, textModel: "fixture-own", documentModel: "fixture-own", own: true });
-      assert.equal((await loadSettings(db, a)).household.aiReadsToday, reads, "an own connection uses no allowance");
       const titles = await aiEvents(a);
       assert.deepEqual(titles, ["AI model changed to OpenAI, fixture-own"]);
       assert.ok(titles.every(t => !t.includes(fictional)));
@@ -226,7 +217,7 @@ async function main() {
       assert.equal(view?.tested, false);
       assert.equal((await aiEvents(a)).length, events + 1);
     });
-    await check("Use this app's default clears the columns and the Vault key, writes one event, and the default allowance applies again", async () => {
+    await check("Use this app's default clears the columns and the Vault key, writes one event, and the default model applies again", async () => {
       await deleteHouseholdConnection(db, a);
       const cleared = await row(a);
       assert.deepEqual([cleared.aiProvider, cleared.aiProtocol, cleared.aiBaseUrl, cleared.aiTextModel, cleared.aiDocumentModel, cleared.aiCheck, cleared.aiKeySecretId, cleared.aiKeyHint], Array(8).fill(null));
@@ -236,14 +227,14 @@ async function main() {
       assert.equal(events.filter(t => t === "AI model changed to this app's default").length, 1);
       await deleteHouseholdConnection(db, a);
       assert.equal((await aiEvents(a)).length, events.length, "nothing to clear, nothing recorded");
-      const c = await aiConnection(db, a, "text", new Date("2026-11-20T00:00:00Z"));
+      const c = await aiConnection(db, a, "text");
       assert.deepEqual([c.own, c.textModel], [false, "fixture-text"]);
       await own(a).done;
       await db.transaction(tx => deleteHouseholdKey(tx, a));
       assert.equal((await row(a)).aiProtocol, null, "Reset, upgrade, the sweeper and deletion clear the whole connection");
       assert.equal(await vaultCount(), 0);
     });
-    await check("an own connection needs no server setting and no allowance; a missing model for the need is a clear error", async () => {
+    await check("an own connection needs no server setting; a missing model for the need is a clear error", async () => {
       await own(a).done;
       const saved = { ...Object.fromEntries(AI_SETTINGS.map(name => [name, process.env[name]])) };
       for (const name of AI_SETTINGS) delete process.env[name];
@@ -263,31 +254,23 @@ async function main() {
       }
       await db.transaction(tx => deleteHouseholdKey(tx, a));
     });
-    await check("the connection says whose it is, which protocol and which models, and a missing model stops before any allowance is used", async () => {
-      const day = new Date("2026-11-02T14:59:59Z"); // the same household day as the quota check above
-      process.env.AI_DAILY_LIMIT = "10";
-      process.env.AI_GLOBAL_DAILY_LIMIT = "1000";
-      const used = async () => (await loadSettings(db, b)).household.aiReadsToday;
-      const before = await used();
-      const server = await aiConnection(db, b, "document", day);
+    await check("the connection says whose it is, which protocol and which models, and a missing model is named", async () => {
+      const server = await aiConnection(db, b, "document");
       assert.deepEqual(server, { protocol: "anthropic", baseUrl: "https://api.anthropic.com", key: fictional, textModel: "fixture-text", documentModel: "fixture-document", own: false });
-      assert.equal(await used(), before + 1);
       process.env.AI_PROTOCOL = "openai";
-      await assert.rejects(aiConnection(db, b, "text", day), /AI_BASE_URL is not set/);
+      await assert.rejects(aiConnection(db, b, "text"), /AI_BASE_URL is not set/);
       process.env.AI_BASE_URL = "https://models.example/v1";
-      const other = await aiConnection(db, b, "text", day);
+      const other = await aiConnection(db, b, "text");
       assert.deepEqual([other.protocol, other.baseUrl, other.own], ["openai", "https://models.example/v1", false]);
       process.env.AI_PROTOCOL = "anthropic"; delete process.env.AI_BASE_URL;
-      const reserved = await used();
       delete process.env.AI_DOCUMENT_MODEL;
-      await assert.rejects(aiConnection(db, b, "document", day), /AI_DOCUMENT_MODEL is not set/);
-      assert.equal(await used(), reserved);
+      await assert.rejects(aiConnection(db, b, "document"), /AI_DOCUMENT_MODEL is not set/);
       process.env.AI_DOCUMENT_MODEL = "fixture-document";
       assert.equal(missingAskSetting(false), null);
-      delete process.env.AI_DAILY_LIMIT;
-      assert.equal(missingAskSetting(false), "AI_DAILY_LIMIT");
+      delete process.env.AI_TEXT_MODEL;
+      assert.equal(missingAskSetting(false), "AI_TEXT_MODEL");
       assert.equal(missingAskSetting(true), null);
-      process.env.AI_DAILY_LIMIT = "2";
+      process.env.AI_TEXT_MODEL = "fixture-text";
     });
     await check("a corrupted pointer cannot read, replace or delete another household’s key", async () => {
       await own(a).done; await own(b).done;

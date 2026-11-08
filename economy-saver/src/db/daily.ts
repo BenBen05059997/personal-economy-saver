@@ -1,5 +1,5 @@
 import { observeRunway } from "./runway-events";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { MoneyState } from "@/lib/money/types";
 import { addDays, closingOnOrAfter, cycle, daysBetween, dueItems, medianLow } from "@/lib/money/runway";
 import { dayLabel, money } from "@/lib/money/format";
@@ -12,7 +12,6 @@ import { toMinor } from "./money";
 import { removeExpiredFiles } from "./document-cleanup";
 import { pruneIpBuckets } from "./rate-limit";
 import { pruneAskReceipts } from "./ask-receipts";
-import { aiGlobalUsage } from "./schema";
 import { fetchReferenceRate, storeReferenceRate } from "./reference-rate";
 
 /**
@@ -48,9 +47,8 @@ export async function runDaily(db: Db, id: string, now = new Date()) {
   if (!household) throw new Error("Scheduled household not found");
   const { today } = await householdClock(db, hid, now);
   const rate = !household.demo && household.currency === "JPY" ? await fetchReferenceRate() : null;
-  // 27E: housekeeping that needs no household lock. Old per-address windows and AI usage days go; 
+  // 27E: housekeeping that needs no household lock. Old per-address windows go; 
   await pruneIpBuckets(db);
-  await db.delete(aiGlobalUsage).where(sql`${aiGlobalUsage.day} < (now() at time zone 'utc')::date - 7`);
   await pruneAskReceipts(db, hid);
   const result = await db.transaction(async tx => {
     // Serialize overlapping Cron Trigger deliveries for this household.

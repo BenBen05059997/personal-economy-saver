@@ -3,7 +3,7 @@ import { checkBaseUrl, localAllowed } from "./endpoint";
 import { callOpenAI } from "./openai";
 import type { ModelRequest, Reply } from "./types";
 
-/** The ONE way the app calls a model. No retries: every attempt must reserve its own allowance. */
+/** The ONE way the app calls a model. No retries: every attempt asks for its own connection. */
 export async function callModel(request: ModelRequest): Promise<Reply> {
   // Defence in depth: the address was checked when it was saved, and is checked again on every call.
   const raw = process.env.APP_URL?.trim();

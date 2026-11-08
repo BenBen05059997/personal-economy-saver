@@ -7,7 +7,7 @@ import { providerById } from "@/lib/ai/providers";
 import { isTested } from "@/lib/ai/tested";
 import type { Connection } from "@/lib/ai/types";
 import { recordEvent, requireHousehold, type Db } from "./household";
-import { aiGlobalUsage, households } from "./schema";
+import { households } from "./schema";
 
 /** Messages contain configuration names and fixed text only; safe for a response. */
 export class AiKeyError extends Error {}
@@ -71,18 +71,18 @@ async function vaultKey(tx: Db, hid: string): Promise<string | null> {
   return secret?.key ? unsealAiKey(hid, secret.key) : null;
 }
 
-/** Which model the caller will use; the setting is checked before any allowance is reserved. */
+/** Which model the caller will use. */
 type ModelNeed = "text" | "document";
 
 const NO_MODEL = (need: ModelNeed) => new AiKeyError(`Your AI model has no model for ${need === "text" ? "questions" : "documents"}. Choose one in Settings.`);
 
 /**
  * The connection for ONE model call (D56). Call immediately before EACH call, including retries. A household with its own
- * model (ai_protocol set) gets it: its saved address (checked again here), its Vault key or none, the model for the need,
- * no allowance. Any other household gets the server default from the AI_ settings, which reserves one unit of the
- * household's daily allowance. Never log the return value.
+ * model (ai_protocol set) gets it: its saved address (checked again here), its Vault key or none, the model for the need.
+ * Any other household gets the server default from the AI_ settings. No call is capped (no daily allowance or app-wide
+ * budget). Never log the return value.
  */
-export async function aiConnection(db: Db, householdId: string, need: ModelNeed, now = new Date()): Promise<Connection> {
+export async function aiConnection(db: Db, householdId: string, need: ModelNeed): Promise<Connection> {
   const hid = requireHousehold(householdId);
   try {
     return await db.transaction(async tx => {
@@ -108,22 +108,6 @@ export async function aiConnection(db: Db, householdId: string, need: ModelNeed,
       if (protocol !== "anthropic" && protocol !== "openai") throw new AiKeyError("AI_PROTOCOL must be anthropic or openai");
       const baseUrl = protocol === "anthropic" ? anthropicHost : settingOf("AI_BASE_URL");
       const key = settingOf("AI_API_KEY");
-      const rawLimit = settingOf("AI_DAILY_LIMIT");
-      const limit = Number(rawLimit);
-      if (!Number.isSafeInteger(limit) || limit < 1) throw new AiKeyError("AI_DAILY_LIMIT must be a positive integer");
-      // Actual local date, including for the date-anchored demo. Quota resets at local midnight.
-      const day = new Intl.DateTimeFormat("en-CA", { timeZone: household.timeZone,
-        year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-      const used = household.aiReadsDay === day ? household.aiReadsToday : 0;
-      if (used >= limit) throw new AiKeyError("Daily AI allowance reached. Choose your own model in Settings or try after local midnight.");
-      await tx.update(households).set({ aiReadsDay: day, aiReadsToday: used + 1 }).where(eq(households.id, hid));
-      // 27E: the app-wide budget for the server's own key. Refusing here rolls back the household's reservation above.
-      const globalLimit = Number(settingOf("AI_GLOBAL_DAILY_LIMIT"));
-      if (!Number.isSafeInteger(globalLimit) || globalLimit < 1) throw new AiKeyError("AI_GLOBAL_DAILY_LIMIT must be a positive integer");
-      const spent = await tx.insert(aiGlobalUsage).values({ day: sql`(now() at time zone 'utc')::date` as unknown as string, count: 1 })
-        .onConflictDoUpdate({ target: aiGlobalUsage.day, set: { count: sql`${aiGlobalUsage.count} + 1` }, setWhere: sql`${aiGlobalUsage.count} < ${globalLimit}` })
-        .returning({ count: aiGlobalUsage.count });
-      if (!spent.length) throw new AiKeyError("This app has used all of today's AI allowance. Choose your own model in Settings or try again tomorrow.");
       return { protocol, baseUrl, key, ...models, own: false } satisfies Connection;
     });
   } catch (error) {

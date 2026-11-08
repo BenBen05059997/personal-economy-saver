@@ -168,7 +168,7 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks }: { d
       <form method="post" action="/api/paypal/import"><button className="ui-button">Import clients and invoices from PayPal</button></form>
     </section>}
     <Suspense fallback={<section className="ui-panel" id="ai-model"><h2>Your AI model</h2><p className="ui-hint">Loading…</p></section>}>
-      <AiModelPanel demo={household.demo} timeZone={household.timeZone} readsDay={household.aiReadsDay} readsToday={household.aiReadsToday} /></Suspense>
+      <AiModelPanel demo={household.demo} /></Suspense>
     <Suspense fallback={<section className="ui-panel" id="your-data"><h2>Your data</h2><p className="ui-hint">Loading…</p></section>}><YourData /></Suspense>
     <section className="ui-panel"><h2>Account</h2><p className="ui-hint">{household.demo ? "This is a fictional Try it household. Sign in to start with your own balances." : "Manage sign-in and delete your household data."}</p><Link className="ui-button" prefetch={false} href="/account">Open account</Link> <Link className="account-link" href="/privacy">Privacy ›</Link>
       {household.demo && <ResetDemo />}</section>
