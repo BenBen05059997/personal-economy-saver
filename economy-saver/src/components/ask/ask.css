@@ -64,3 +64,14 @@
 .ask-space-pins li { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .ask-space-pins h2 { margin: 0 0 var(--space-2); font: 500 18px/1.4 var(--sans); }
 .ask-spaces .ui-button, .ask-space-pins .ui-button { min-height: 44px; white-space: normal; }
+
+.ask-brief { display: grid; gap: var(--space-2); overflow-wrap: anywhere; min-width: 0; }
+.ask-brief :is(h2, h3, p, ul) { margin: 0; }
+.ask-brief h2 { font: 600 16px/1.4 var(--sans); }
+.ask-brief h3 { font: 600 14px/1.4 var(--sans); }
+.ask-brief p { white-space: pre-line; }
+.ask-brief ul { padding-inline-start: var(--space-4); }
+.ask-brief > button { justify-self: start; }
+.ask-brief .ui-button { min-height: 44px; }
+.ask-brief textarea { width: 100%; min-width: 0; box-sizing: border-box; resize: vertical; }
+.ask-brief summary { min-height: 44px; padding-block: 12px; cursor: pointer; color: var(--accent); }

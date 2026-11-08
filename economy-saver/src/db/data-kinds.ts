@@ -1,7 +1,7 @@
 // D59: the kinds of stored data and the one set of operations on them: count a kind, delete a kind, delete one item.
 // Memory, canvases, the journal and documents are real deletes; the record is refused here ("Delete everything" is the household delete).
 // Every query is scoped by household_id.
-import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 import { documentBucket } from "@/lib/reader/storage";
 import { ReaderError } from "@/lib/reader/settings";
@@ -32,7 +32,7 @@ export async function countKind(db: Db, householdId: string, kind: DataKind): Pr
     case "canvases": return count(db, s.canvases, hid);
     case "journal": {
       const [turns, [{ n }]] = await Promise.all([count(db, s.conversationTurns, hid),
-        db.select({ n: sql<number>`count(*)::int` }).from(s.spaces).where(and(eq(s.spaces.householdId, hid), eq(s.spaces.isGeneral, false)))]);
+        db.select({ n: sql<number>`count(*)::int` }).from(s.spaces).where(and(eq(s.spaces.householdId, hid), or(eq(s.spaces.isGeneral, false), isNotNull(s.spaces.briefUpdatedAt))))]);
       return turns + n;
     }
     case "documents": return count(db, s.documents, hid);
@@ -173,8 +173,9 @@ export async function deleteKind(db: Db, householdId: string, kind: DataKind, by
         await tx.update(s.reminders).set({ spaceId: null })
           .where(and(eq(s.reminders.householdId, hid), isNotNull(s.reminders.spaceId)));
         await tx.delete(s.spaces).where(and(scope, eq(s.spaces.isGeneral, false)));
-        await tx.update(s.spaces).set({ brief: {}, briefUpdatedAt: null, briefUpdatedBy: null }).where(and(scope, eq(s.spaces.isGeneral, true)));
-        return turns.length + named.length;
+        const general = await tx.update(s.spaces).set({ brief: {}, briefUpdatedAt: null, briefUpdatedBy: null })
+          .where(and(scope, eq(s.spaces.isGeneral, true), isNotNull(s.spaces.briefUpdatedAt))).returning({ id: s.spaces.id });
+        return turns.length + named.length + general.length;
       });
     case "reminders":
     case "push_subscriptions":

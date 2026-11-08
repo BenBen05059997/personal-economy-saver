@@ -3,7 +3,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireHousehold, withHousehold, type Db } from "./household";
-import { documents, readings } from "./schema";
+import { documents, households, readings, spaces } from "./schema";
 import { readPlaces } from "./place";
 import { readerInbox } from "./reader-inbox";
 import { storeDocument } from "./reader-job";
@@ -56,17 +56,24 @@ export async function attachDocument(
   db: Db, householdId: string, input: { id: string; conversationId: string; spaceId?: string; text: string | null; mime: string; bytes: ArrayBuffer }, at: Date = new Date(),
 ): Promise<{ turn: ConversationTurn; card: DocumentCard; documentId: string }> {
   const hid = requireHousehold(householdId);
-  if (input.spaceId !== undefined) {
-    if (input.conversationId !== input.spaceId) throw new InputError("Use the thread of the selected space.");
-    await requireSpace(db, hid, input.spaceId);
-  }
+  const spaceId = await withHousehold(db, hid, async tx => {
+    const [matching] = input.spaceId ? [] : await tx.select({ id: spaces.id }).from(spaces)
+      .where(and(eq(spaces.householdId, hid), eq(spaces.id, input.conversationId)));
+    const chosen = input.spaceId ?? matching?.id;
+    if (chosen !== undefined) {
+      if (input.conversationId !== chosen) throw new InputError("Use the thread of the selected space.");
+      await requireSpace(tx, hid, chosen);
+    }
+    return chosen;
+  });
   const documentId = await storeDocument(db, hid, "upload", input.mime, input.bytes);
   const turn: ConversationTurn = {
     version: TURN_VERSION, id: input.id, conversationId: input.conversationId, question: input.text ?? DOCUMENT_WORDS.question, kind: DOCUMENT,
     reply: DOCUMENT_WORDS.sent, choices: null, recipe: null, sources: [], documentId, thumb: null, createdAt: at.toISOString(),
   };
   return withHousehold(db, hid, async tx => {
-    if (input.spaceId !== undefined) await requireSpace(tx, hid, input.spaceId, true);
+    await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
+    if (spaceId !== undefined) await requireSpace(tx, hid, spaceId, true);
     if ((await readPlaces(tx, hid)).journal === "cloud") {
       await saveTurn(tx, hid, { id: turn.id, conversationId: turn.conversationId, question: turn.question, kind: DOCUMENT, reply: turn.reply, choices: null, recipe: null, sources: [], documentId }, at);
     }

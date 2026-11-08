@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { z } from "zod";
 import { MemoryItem } from "@/lib/schema/memory";
 import { ConversationTurn } from "@/lib/schema/turn";
-import { listDevice, type DeviceKind } from "@/lib/store/device";
+import { listDevice, readDeviceJournal, type DeviceKind } from "@/lib/store/device";
 
 const Parts = z.object({ memory: z.array(MemoryItem), journal: z.array(ConversationTurn) });
 
@@ -25,15 +25,27 @@ export function ExportData({ householdId, device }: { householdId: string; devic
       const response = await fetch("/api/export", { method: "POST" });
       if (!response.ok) throw new Error(await response.text());
       const file = await response.json() as Record<string, unknown> & { household: { today: string } };
-      const spaceIds = new Set((Array.isArray(file.spaces) ? file.spaces : []).map(space => space.id));
+      const spaces = Array.isArray(file.spaces) ? file.spaces as { id: string }[] : [];
+      const spaceIds = new Set(spaces.map(space => space.id));
       const inKnownSpace = (item: { spaceId?: string | null }) => !item.spaceId || spaceIds.has(item.spaceId);
       if (device.includes("memory") || device.includes("journal")) {
+        const [memory, journal] = await Promise.all([
+          device.includes("memory") ? listDevice(householdId, "memory") : file.memory ?? [],
+          device.includes("journal") ? readDeviceJournal(householdId) : null,
+        ]);
         const parts = Parts.parse({
-          memory: device.includes("memory") ? await listDevice(householdId, "memory") : file.memory ?? [],
-          journal: device.includes("journal") ? await listDevice(householdId, "journal") : file.journal ?? [],
+          memory,
+          journal: journal?.turns ?? file.journal ?? [],
         });
         if (device.includes("memory")) file.memory = parts.memory.filter(inKnownSpace);
-        if (device.includes("journal")) file.journal = parts.journal.filter(inKnownSpace).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+        if (journal) {
+          file.journal = parts.journal.filter(inKnownSpace).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+          const briefs = new Map(journal.briefs.map(item => [item.id, item]));
+          file.spaces = spaces.map(space => {
+            const item = briefs.get(space.id);
+            return item ? { ...space, brief: item.brief, briefUpdatedAt: item.updatedAt, briefUpdatedBy: item.updatedBy } : space;
+          });
+        }
       }
       if (device.includes("canvases")) {
         file.canvases = (await listDevice(householdId, "canvases")).filter(inKnownSpace).map(({ id, title, position, recipe, createdAt, spaceId }) => ({ id, title, position, recipe, createdAt, ...(spaceId && { spaceId }) }));

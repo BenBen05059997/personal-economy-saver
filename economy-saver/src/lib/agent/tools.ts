@@ -43,6 +43,8 @@ import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
 import { memoryTools } from "./memory-tools";
+import { briefTools } from "./brief-tools";
+import type { Brief } from "./brief";
 import { offerTools } from "./offer-tools";
 import type { KeepOffer } from "./keep-offer";
 import { checkTools } from "./check-tools";
@@ -73,6 +75,7 @@ export type ToolContext = {
   deviceMemory?: DeviceMemory;
   /** Ask only (D67): collect offers for the reply without writing any records. */
   onOffer?: (offer: KeepOffer) => void;
+  onBrief?: (brief: Brief) => void;
 };
 
 const by = (ctx: ToolContext): Maker => ({ madeBy: ctx.madeBy, ...(ctx.askId && { askId: ctx.askId }) });
@@ -504,6 +507,7 @@ export const tools: Tool[] = [
   ...checkTools,
   ...memoryTools,
   ...offerTools,
+  ...briefTools,
 ];
 
 /**

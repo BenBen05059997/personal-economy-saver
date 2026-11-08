@@ -126,9 +126,9 @@ const covered = [
   "listMemory", "addMemory", "editMemory", "deleteMemory", "forgetEverything",
   // D57 pins: canvases.ts; D60 conversation: conversation.ts and ask.ts; rate-limit.ts
   "listCanvases", "pinCanvas", "updateCanvas", "moveCanvas", "unpinCanvas",
-  "saveTurn", "turnById", "recentTurns", "latestConversation", "allTurns", "setThumb", "conversationContext", "firstUseLine", "requestCount",
+  "saveTurn", "turnById", "allTurns", "setThumb", "assembleContext", "firstUseLine", "requestCount",
   // D69 spaces.ts and conversation.ts
-  "listSpaces", "generalSpace", "seedGeneralSpace", "requireSpace", "createSpace", "renameSpace", "archiveSpace", "deleteSpace", "spaceThread", "legacyThreads",
+  "listSpaces", "generalSpace", "seedGeneralSpace", "requireSpace", "createSpace", "renameSpace", "archiveSpace", "deleteSpace", "spaceThread", "legacyThreads", "saveBrief",
   // D59 ask-receipts.ts
   "noteAskWrote", "noteAskReply", "askReceipt", "pruneAskReceipts",
   // D61 document-card.ts
@@ -167,7 +167,7 @@ const notApplicable: Record<string, string> = {
   storeDocument: "creates a document keyed by a digest that includes the household id; needs Supabase Storage",
   parseReferenceRate: "pure parser of the ECB feed", fetchReferenceRate: "network fetch of the public ECB feed; no household id",
   sandboxRead: "PayPal sandbox HTTP reader; takes no household id",
-  isMovable: "pure check that a value is one of the three movable kind names", contextText: "pure text from turns passed in; conversationContext, which reads them, is covered above",
+  isMovable: "pure check that a value is one of the three movable kind names", contextText: "pure text from turns passed in; assembleContext, which reads them, is covered above",
   dueHouseholds: "global Cron scheduler selector, restricted to non-demo households and tested in cron-test",
   logDailyError: "formats an operator log line from its arguments and uses no database",
   remindersDue: "reminder eligibility predicate for the global Cron selector, tested in notify-test",
@@ -475,6 +475,7 @@ async function main() {
       await assert.rejects(F.renameSpace(store, A.hid, foreign.id, "Blocked rename"), InputError);
       await assert.rejects(F.archiveSpace(store, A.hid, foreign.id), InputError);
       await assert.rejects(F.deleteSpace(store, A.hid, foreign.id), InputError);
+      await assert.rejects(F.saveBrief(store, A.hid, foreign.id, { about: "Blocked brief" }, "form"), InputError);
       const foreignLegacy = (await F.legacyThreads(store, B.hid))[0].id;
       assert.ok(!(await F.legacyThreads(store, A.hid)).some(thread => thread.id === foreignLegacy));
       assert.deepEqual(await F.spaceThread(store, A.hid, foreignLegacy), []);
@@ -592,9 +593,8 @@ async function main() {
       const turns = await F.allTurns(store, hid);
       seen("allTurns", turns);
       assert.deepEqual(turns.map(t => t.id), [viewer.ids.turn], "the viewer's turns are the viewer's alone");
-      const mine = await F.latestConversation(store, hid);
-      seen("latestConversation", mine);
-      assert.deepEqual(mine?.turns.map(t => t.id), [viewer.ids.turn]);
+      const mine = turns[0];
+      assert.deepEqual((await F.spaceThread(store, hid, mine.conversationId)).map(t => t.id), [viewer.ids.turn]);
       assert.equal((await F.turnById(store, hid, viewer.ids.turn))?.id, viewer.ids.turn);
       seen("turnById", await F.turnById(store, hid, viewer.ids.turn));
       const receiptId = randomUUID();
@@ -612,9 +612,10 @@ async function main() {
       assert.equal((await db.select().from(schema.askReceipts).where(eq(schema.askReceipts.householdId, other.hid))).length, otherBefore, "pruning one household leaves the other's");
       assert.equal(await F.askReceipt(store, hid, receiptId) !== null, false);
       assert.equal(await F.turnById(store, hid, other.ids.turn), null, "another household's turn id reads nothing");
-      assert.deepEqual(await F.recentTurns(store, hid, other.ids.turn), [], "another household's conversation id reads nothing");
-      assert.deepEqual(await F.conversationContext(store, hid, { conversationId: mine!.conversationId, canvas: null }), `Earlier in this conversation, for context only; read every number again from the tools:\nQuestion: ${JSON.stringify(turns[0].question)}\nReply: ${JSON.stringify(turns[0].reply)}`);
-      seen("conversationContext", turns);
+      assert.deepEqual(await F.spaceThread(store, hid, other.ids.turn), [], "another household's conversation id reads nothing");
+      const assembled = await F.assembleContext(store, hid, { conversationId: mine.conversationId, canvas: null });
+      assert.ok(assembled.context.includes(turns[0].question));
+      seen("assembleContext", turns);
       seen("firstUseLine", await F.firstUseLine(store, hid));
       const view = await F.connectionView(store, hid);
       seen("connectionView", view);

@@ -15,6 +15,7 @@ import { recordEvent, requireHousehold, type Db } from "./household";
 import { MEMORY_LIMIT, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
 import { generalSpace, SPACE_LIMIT } from "./spaces";
 import { z } from "zod";
+import { BriefSchema } from "@/lib/agent/brief";
 import * as s from "./schema";
 
 export const NOT_EMPTY = "Import works on an empty household. Start with my numbers first.";
@@ -103,14 +104,25 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       };
       for (const list of [spaces, file.members, file.cards, file.clients, file.bills, file.statements, file.charges, file.invoices, file.pots, file.settlements, file.balanceUpdates, memory, pins, journal]) for (const row of list) next(row.id);
       for (const t of journal) next(t.conversationId);
+      const briefFor = (raw: unknown) => {
+        if (!raw || typeof raw !== "object" || Object.keys(raw).length === 0) return {};
+        const brief = BriefSchema.parse(raw);
+        const known = (ids: string[], rows: { id: string }[]) => ids.filter(id => rows.some(row => row.id === id)).map(ref);
+        return {
+          ...brief,
+          state: brief.state.map(line => ({ ...line, source: fresh.get(line.source) ?? line.source })),
+          refs: { bills: known(brief.refs.bills, file.bills), clients: known(brief.refs.clients, file.clients),
+            pots: known(brief.refs.pots, file.pots), documents: [] },
+        };
+      };
       const importedSpaces = spaces.map(space => ({
-        ...space, id: ref(space.id), householdId: hid, createdAt: new Date(space.createdAt),
+        ...space, brief: briefFor(space.brief), id: ref(space.id), householdId: hid, createdAt: new Date(space.createdAt),
         briefUpdatedAt: space.briefUpdatedAt ? new Date(space.briefUpdatedAt) : null,
       }));
       await insertChunks(tx, s.spaces, importedSpaces.filter(space => !space.isGeneral));
       if (sourceGeneral) {
         await tx.update(s.spaces).set({
-          brief: sourceGeneral.brief, briefUpdatedBy: sourceGeneral.briefUpdatedBy,
+          brief: briefFor(sourceGeneral.brief), briefUpdatedBy: sourceGeneral.briefUpdatedBy,
           briefUpdatedAt: sourceGeneral.briefUpdatedAt ? new Date(sourceGeneral.briefUpdatedAt) : null,
         }).where(and(eq(s.spaces.householdId, hid), eq(s.spaces.id, general.id)));
       }

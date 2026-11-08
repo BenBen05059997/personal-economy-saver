@@ -2383,10 +2383,10 @@
       "Press Delete again and Delete"
     ],
     "expected": [
-      "The question reads \"Delete all the assistant remembers? This can't be undone.\"; Keep closes it and changes nothing",
+      "The question reads \"Delete all the assistant remembers? This can’t be undone.\" Keep closes it and changes nothing",
       "Delete returns to Settings with the row at \"0 things\" and no Delete",
       "Activity records \"The assistant forgot everything\" and never names the text",
-      "The pinned canvases, conversations and documents ask \"Delete all pinned canvases?\", \"Delete all conversations?\", \"Delete all uploaded documents?\""
+      "The pinned canvases, cloud Ask journal and documents ask \"Delete all pinned canvases?\", \"Delete all conversations and named spaces?\", and \"Delete all uploaded documents?\""
     ],
     "refs": [
       "BROWSER-CHECKS AA2"
@@ -2773,7 +2773,7 @@
     ],
     "steps": [
       "Move the canvases row to this device",
-      "Move the Ask conversations row to this device (0 questions)",
+      "Move the Ask conversations row to this device (0 items)",
       "Open Home"
     ],
     "expected": [

@@ -1,6 +1,8 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { requireHousehold, withHousehold, type Db } from "./household";
+import { BriefSchema, type BriefRecord } from "@/lib/agent/brief";
+import { requireCloud } from "./place";
+import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { InputError } from "./input-error";
 import { conversationTurns, households, reminders, spaces, standingRules } from "./schema";
 
@@ -96,5 +98,22 @@ export async function deleteSpace(db: Db, householdId: string, id: string): Prom
     await tx.update(reminders).set({ spaceId: null }).where(and(eq(reminders.householdId, hid), eq(reminders.spaceId, id)));
     // Notes and pins cascade. Attached documents are independent of their turns.
     await tx.delete(spaces).where(and(eq(spaces.householdId, hid), eq(spaces.id, id)));
+  });
+}
+
+/** Cloud briefs belong to the journal. The household lock also serializes a move to this device. */
+export async function saveBrief(db: Db, householdId: string, id: string, input: unknown, by: "ask" | "form", askId?: string): Promise<BriefRecord> {
+  const hid = requireHousehold(householdId);
+  const parsed = BriefSchema.safeParse(input);
+  if (!parsed.success) throw new InputError(parsed.error.issues[0].message);
+  return withHousehold(db, hid, async tx => {
+    await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
+    await requireCloud(tx, hid, "journal");
+    await requireSpace(tx, hid, id, true);
+    const at = new Date();
+    await tx.update(spaces).set({ brief: parsed.data, briefUpdatedAt: at, briefUpdatedBy: by })
+      .where(and(eq(spaces.householdId, hid), eq(spaces.id, id)));
+    await recordEvent(tx, hid, { kind: "brief_updated", madeBy: by, askId, title: by === "ask" ? "Agent updated a space brief" : "You edited a space brief" });
+    return { brief: parsed.data, updatedAt: at.toISOString(), updatedBy: by };
   });
 }

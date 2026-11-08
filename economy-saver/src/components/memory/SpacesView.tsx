@@ -1,7 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ApiForm } from "@/components/ui/ApiForm";
 import type { Places } from "@/db/place";
 import type { Space } from "@/db/spaces";
+import { readDeviceBriefs } from "@/lib/store/device";
 import { DeleteSpace } from "./DeleteSpace";
 import "./memory.css";
 
@@ -9,16 +13,28 @@ function SpaceName({ value }: { value?: string }) {
   return <label className="ui-field">Space name<input name="name" defaultValue={value} maxLength={60} required /></label>;
 }
 
-function firstLine(brief: unknown): string | null {
-  if (typeof brief !== "object" || brief === null || !("about" in brief) || typeof brief.about !== "string") return null;
-  return brief.about.split(/\r?\n/, 1)[0] || null;
-}
+export type SpaceOverview = Pick<Space, "id" | "name" | "status" | "isGeneral"> & { about: string | null };
 
-export function SpacesView({ spaces, householdId, places }: { spaces: Space[]; householdId: string; places: Places }) {
+export function SpacesView({ spaces, householdId, places }: { spaces: SpaceOverview[]; householdId: string; places: Places }) {
+  const [localAbout, setLocalAbout] = useState<Record<string, string>>({});
+  const [problem, setProblem] = useState("");
+  const deviceJournal = places.journal === "device";
+  useEffect(() => {
+    if (!deviceJournal) return;
+    let cancelled = false;
+    readDeviceBriefs(householdId).then(briefs => {
+      if (cancelled) return;
+      setLocalAbout(Object.fromEntries(briefs.map(item => [item.id, item.brief.about])));
+      setProblem("");
+    }, error => {
+      if (!cancelled) setProblem(error instanceof Error ? error.message : "Couldn’t read this device’s briefs.");
+    });
+    return () => { cancelled = true; };
+  }, [deviceJournal, householdId]);
   const open = spaces.filter(space => space.status === "open");
   const archived = spaces.filter(space => space.status === "archived");
-  function row(space: Space) {
-    const about = places.journal === "cloud" ? firstLine(space.brief) : null;
+  function row(space: SpaceOverview) {
+    const about = (deviceJournal ? localAbout[space.id] : space.about)?.split(/\r?\n/, 1)[0];
     return <li key={space.id} className="memory-item">
       <Link href={`/canvas?space=${space.id}`} prefetch={false} className="ui-button">{space.name}</Link>
       {about && <p className="ui-hint">{about}</p>}
@@ -51,6 +67,7 @@ export function SpacesView({ spaces, householdId, places }: { spaces: Space[]; h
         <button className="ui-button primary">Create space</button>
       </ApiForm>
     </details>
+    {deviceJournal && problem && <p role="alert" className="ui-problem">{problem}</p>}
     <ul>{open.map(row)}</ul>
     {archived.length > 0 && <details className="memory-edit">
       <summary>Archived spaces</summary>

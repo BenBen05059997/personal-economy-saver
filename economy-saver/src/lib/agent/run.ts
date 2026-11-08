@@ -15,6 +15,8 @@ import type { MoneyState } from "@/lib/money/types";
 import { logCall, type ToolLog } from "./log";
 import type { Recipe } from "@/lib/canvas/schema";
 import { chooseReply, type ReplyKind, type Source } from "./reply";
+import { briefWords, type Brief } from "./brief";
+import type { MemoryItem } from "@/lib/schema/memory";
 import { memoryBlock } from "./memory-prompt";
 import type { KeepOffer } from "./keep-offer";
 import { MAX_KEEP_OFFERS, offerValue } from "./offer-tools";
@@ -32,7 +34,7 @@ export class AgentError extends Error {
 }
 
 /** Tools whose result repeats text the model wrote. */
-const NOT_SOURCES = new Set(["remember", "forget", "make_canvas", "offer_keep"]);
+const NOT_SOURCES = new Set(["remember", "forget", "make_canvas", "offer_keep", "update_brief"]);
 
 const MAX_TOOL_TURNS = 4;
 const BUDGET_MS = 20_000;
@@ -79,6 +81,8 @@ type AskOptions = {
   connection: () => Promise<Connection>; fetch?: typeof globalThis.fetch; now?: () => number;
   /** Quoted data that goes into the user turn after the question (earlier turns, the canvas on screen). Never an amount source. */
   context?: string;
+  assembled?: { systemData: string; memoryForAmounts: string[]; memory: MemoryItem[] };
+  spaceId?: string;
   /** D59: when the household keeps its memory on one device, the list the question carried. It is used for this question only; `remember` and `forget` change it in place and record `changes` for the reply. Without it, memory is read from the cloud. */
   deviceMemory?: DeviceMemory;
   /** Progress for the person waiting: fixed words when a model call starts and when a tool turn starts (words.ts). Never an amount, an argument or a result. */
@@ -88,7 +92,7 @@ type AskOptions = {
 };
 export type AskResult = {
   kind: ReplyKind; answer: string; choices: string[] | null; recipe: Recipe | null; sources: Source[];
-  links: { label: string; href: string }[]; pending: boolean; offers: KeepOffer[];
+  links: { label: string; href: string }[]; pending: boolean; offers: KeepOffer[]; brief?: Brief;
 };
 
 export async function runAgent(opts: AskOptions): Promise<AskResult> {
@@ -124,6 +128,8 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const links: { label: string; href: string }[] = [];
   const offers = new Map<string, { offer: KeepOffer; value: number | null }>();
   let pending = false;
+  let brief: Brief | undefined;
+  const toolAmounts: string[] = [];
   let recipe: Recipe | null = null;
   let clarify: { question: string; choices: string[] } | null = null;
   let outOfScope: "off_topic" | "not_offered" | null = null;
@@ -135,7 +141,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const state = (tx: Db) => (loaded ??= householdDate(tx, hid).then(today => loadMoneyState(tx, hid, today)));
   const [initialState, initialMemory] = await withHousehold(opts.db, hid, async tx => Promise.all([
     state(tx),
-    opts.deviceMemory?.items ?? listMemory(tx, hid),
+    opts.assembled?.memory ?? opts.deviceMemory?.items ?? listMemory(tx, hid),
   ]));
   const { today, homeCurrency } = initialState;
   const ctx: ScopedToolContext = {
@@ -152,14 +158,16 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       offers.set(key, { offer, value });
     },
     deviceMemory: opts.deviceMemory,
+    onBrief: opts.spaceId ? next => { brief = next; } : undefined,
     onPending: () => { pending = true; ctx.addLink?.({ label: "Open To check", href: new URL("/to-check", opts.appUrl).href }); },
   };
-  const memory = memoryBlock(initialMemory);
-  const system = systemPrompt(today, homeCurrency, memory);
+  const memory = memoryBlock(initialMemory.filter(item => !item.spaceId));
+  const system = systemPrompt(today, homeCurrency, opts.assembled?.systemData ?? memory);
+  const availableTools = opts.spaceId ? definitions : definitions.filter(tool => tool.name !== "update_brief");
   const turns: Turn[] = [{ role: "user", parts: [{ type: "text", text: opts.context ? `${opts.question}\n\n${opts.context}` : opts.question }] }];
   // Every amount in the answer must come from the question or a tool result (D56).
   const sources = [opts.question];
-  if (memory) sources.push(memory);
+  sources.push(...(opts.assembled?.memoryForAmounts ?? (memory ? [memory] : [])));
 
   try {
     for (let toolTurns = 0; ;) {
@@ -172,7 +180,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       let reply;
       try {
         reply = await callModel({
-          connection, model: connection.textModel, system, turns, tools: definitions, maxTokens: MAX_TOKENS,
+          connection, model: connection.textModel, system, turns, tools: availableTools, maxTokens: MAX_TOKENS,
           timeoutMs: remaining, fetch: opts.fetch, appUrl: opts.appUrl,
         });
       } catch (error) { trace.stop = "api_error"; throw apiFailure(error); }
@@ -224,9 +232,10 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
     if (!NOT_SOURCES.has(result.name)) sources.push(result.content);
     const tool = tools.find(candidate => candidate.name === result.name);
-    if (tool && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
+    if (tool && result.name !== "update_brief" && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
     if (result.isError) return;
     used.push(result.name);
+    if (tool?.scope === "read" && !NOT_SOURCES.has(result.name)) toolAmounts.push(result.content);
     if (tool?.scope !== "draft") return;
     const memoryTool = result.name === "remember" || result.name === "forget";
     const onDevice = opts.deviceMemory !== undefined && memoryTool;
@@ -261,7 +270,14 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       if (current?.enabled === offer.enabled && (current.threshold === value || !offer.enabled && value === null)) return false;
       return offer.ruleKind !== "safe_below" || value === null || unconfirmedAmounts(minorMoney(value, homeCurrency), sources).length === 0;
     }).map(({ offer }) => offer);
-    return { kind: chosen.kind, answer: chosen.text, choices: chosen.choices, recipe: chosen.recipe, sources: chosen.sources, links, pending, offers: available };
+    const validSources = new Set([
+      ...tools.map(tool => tool.name),
+      ...initialMemory.filter(item => !item.spaceId || item.spaceId === opts.spaceId).map(item => item.id),
+    ]);
+    const checkedBrief = chosen.kind === "answer" && brief && brief.state.every(line => validSources.has(line.source))
+      && unconfirmedAmounts(briefWords(brief).join("\n"), toolAmounts).length === 0
+      ? brief : undefined;
+    return { ...(checkedBrief && { brief: checkedBrief }), kind: chosen.kind, answer: chosen.text, choices: chosen.choices, recipe: chosen.recipe, sources: chosen.sources, links, pending, offers: available };
   }
 }
 
@@ -329,7 +345,7 @@ async function callTool(ctx: ScopedToolContext, call: Call, now: () => number): 
 async function executeTool(ctx: ScopedToolContext, call: Call): Promise<ToolResult> {
   const error = (message: string): ToolResult => ({ id: call.id, name: call.name, content: message, isError: true });
   const tool = tools.find(candidate => candidate.name === call.name);
-  if (!tool) return error("Unknown tool.");
+  if (!tool || (tool.name === "update_brief" && !ctx.onBrief)) return error("Unknown tool.");
   const input = tool.input.safeParse(call.input);
   if (!input.success) {
     // Paths only: a zod message can echo the value the model sent.

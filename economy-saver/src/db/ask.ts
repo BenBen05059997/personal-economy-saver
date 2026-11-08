@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { aiConnection, connectionView } from "./ai-key";
 import { requireHousehold, withHousehold, type Db } from "./household";
@@ -9,17 +9,20 @@ import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { RecipeSchema, type Recipe } from "@/lib/canvas/schema";
 import { askReceipt, noteAskReply, noteAskWrote } from "./ask-receipts";
-import { requireSpace } from "./spaces";
-import { recentTurns, saveTurn, turnById } from "./conversation";
+import { requireSpace, saveBrief } from "./spaces";
+import { saveTurn, turnById } from "./conversation";
 import { documentCard } from "./document-card";
-import { conversationTurns, households } from "./schema";
+import { conversationTurns, households, spaces } from "./schema";
 import { AgentError, runAgent, type AskResult } from "@/lib/agent/run";
 import type { KeepOffer } from "@/lib/agent/keep-offer";
 import { serverDefaultHost } from "@/lib/agent/availability";
 import { FIXED, firstUse, type ReplyKind, type Source } from "@/lib/agent/reply";
 import { cardContext, type DocumentCard } from "@/lib/reader/document-card";
+import { listMemory } from "./memory";
+import { memoryBlock } from "@/lib/agent/memory-prompt";
+import { BriefSchema, briefContext, type BriefRecord } from "@/lib/agent/brief";
+import { ContextTurn, contextTail, THREAD_CONTEXT_MAX, turnWords } from "@/lib/agent/context";
 import { MemoryItem } from "@/lib/schema/memory";
-import { CONTEXT_TURNS, ConversationTurn } from "@/lib/schema/turn";
 import type { DeviceMemory, MemoryChange } from "@/lib/store/memory-ops";
 import { appUrl } from "@/lib/supabase-auth";
 
@@ -31,8 +34,10 @@ export const askInput = z.object({
   canvas: RecipeSchema.nullable(),
   /** D59: sent only when the household keeps its memory on one device (the whole list, at most 200). Used for this question and never stored. */
   memory: z.array(MemoryItem).max(200).optional(),
-  /** D59: sent only when the household keeps its conversations on one device (the conversation's last three turns, when it is under ten minutes old). Used for this question and never stored. */
-  recent: z.array(ConversationTurn).max(3).optional(),
+  /** D59: the browser’s thread tail and brief, used for this question only. */
+  recent: z.array(ContextTurn).optional(),
+  earlierCount: z.number().int().nonnegative().safe().optional(),
+  deviceBrief: BriefSchema.optional(),
 });
 
 // A constant, not a literal after the word kind and a colon: the Activity label scan reads those in src/db as event kinds.
@@ -47,9 +52,9 @@ export type AskReply = {
   memoryChanges: MemoryChange[];
   /** Offers live with this reply until the person chooses. They are not journal entries. */
   offers: KeepOffer[];
+  brief?: BriefRecord;
 };
 
-/** The earlier turns and the canvas on screen, as quoted data after the question (never an amount source). */
 /** The household's current moment (a Try it household's fixed date at the real time of day). */
 async function clockMoment(db: Db, hid: string, at?: Date): Promise<Date> {
   const [household] = await db.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone }).from(households).where(eq(households.id, hid));
@@ -57,28 +62,57 @@ async function clockMoment(db: Db, hid: string, at?: Date): Promise<Date> {
   return householdMoment(household, at);
 }
 
-export async function conversationContext(db: Db, hid: string, input: Pick<z.infer<typeof askInput>, "conversationId" | "canvas">, now = new Date()): Promise<string> {
+type ContextInput = Pick<z.infer<typeof askInput>, "conversationId" | "canvas" | "spaceId" | "memory" | "recent" | "earlierCount" | "deviceBrief">;
+
+/** Postgres counts a lower bound on serialized characters. JS checks the exact budget of the retained tail. */
+async function storedContextTurns(tx: Db, hid: string, conversationId: string) {
+  const t = conversationTurns;
+  const newest = sql`order by ${t.createdAt} desc, ${t.id} desc`;
+  const overhead = JSON.stringify({ question: "", reply: "" }).length;
+  const measured = tx.select({
+    id: t.id, conversationId: t.conversationId, question: t.question, reply: t.reply, kind: t.kind,
+    documentId: t.documentId, createdAt: t.createdAt,
+    total: sql<number>`count(*) over ()::int`.as("total"),
+    size: sql<number>`sum(char_length(${t.question}) + char_length(${t.reply}) + ${overhead}) over (${newest} rows unbounded preceding)`.as("size"),
+    rank: sql<number>`row_number() over (${newest})`.as("rank"),
+  }).from(t).where(and(eq(t.householdId, hid), eq(t.conversationId, conversationId))).as("measured");
+  const rows = await tx.select().from(measured).where(or(lte(measured.size, THREAD_CONTEXT_MAX), eq(measured.rank, 1)))
+    .orderBy(desc(measured.createdAt), desc(measured.id));
+  return {
+    omitted: (rows[0]?.total ?? 0) - rows.length,
+    turns: rows.reverse().map(row => ContextTurn.parse({ ...row, createdAt: row.createdAt.toISOString() })),
+  };
+}
+
+/** One budget for the quoted data going to the model, from either journal placement (D71). */
+export async function assembleContext(db: Db, hid: string, input: ContextInput) {
   return withHousehold(db, hid, async tx => {
-    const turns = await recentTurns(tx, hid, input.conversationId, now);
-    return contextText(turns, input.canvas, await documentCards(tx, hid, turns));
+    const [memory, raw, space] = await Promise.all([
+      input.memory ?? listMemory(tx, hid),
+      input.recent ? { turns: input.recent, omitted: input.earlierCount ?? 0 } : storedContextTurns(tx, hid, input.conversationId),
+      input.spaceId ? requireSpace(tx, hid, input.spaceId) : null,
+    ]);
+    const profile = memoryBlock(memory.filter(item => !item.spaceId));
+    const notes = memoryBlock(memory.filter(item => item.spaceId && item.spaceId === space?.id), "notes");
+    const brief = BriefSchema.parse(input.deviceBrief ?? space?.brief ?? {});
+    const systemData = [profile, briefContext(brief), notes].filter(Boolean).join("\n\n");
+    const { turns, omitted } = contextTail(raw.turns);
+    const ids = [...new Set(turns.flatMap(turn => turn.kind === "document" && turn.documentId ? [turn.documentId] : []))];
+    const cards = new Map(await Promise.all(ids.map(async id => [id, await documentCard(tx, hid, id, { draw: false })] as const)));
+    return {
+      systemData, memoryForAmounts: [profile, notes].filter(Boolean), memory,
+      context: contextText(turns, input.canvas, cards, omitted + raw.omitted),
+    };
   });
 }
 
-/** The cards of the document turns among these turns (D61), without the money state: their words and read lines only. */
-async function documentCards(db: Db, hid: string, turns: ConversationTurn[]): Promise<Map<string, DocumentCard>> {
-  const ids = [...new Set(turns.slice(-CONTEXT_TURNS).flatMap(turn => (turn.kind === "document" && turn.documentId ? [turn.documentId] : [])))];
-  return new Map(await Promise.all(ids.map(async id => [id, await documentCard(db, hid, id, { draw: false })] as const)));
-}
-
-/** The same text from turns already in hand (the ones a question carried from the device). */
-export function contextText(turns: ConversationTurn[], canvas: Recipe | null, cards: ReadonlyMap<string, DocumentCard> = new Map()): string {
+/** The raw thread and the cards are separate. A card for a retained turn is always included. */
+export function contextText(turns: readonly ContextTurn[], canvas: Recipe | null, cards: ReadonlyMap<string, DocumentCard> = new Map(), omitted = 0): string {
   const parts: string[] = [];
-  if (turns.length) {
-    parts.push(`Earlier in this conversation, for context only; read every number again from the tools:\n${turns.slice(-CONTEXT_TURNS).map(turn => {
-      const card = turn.kind === "document" && turn.documentId ? cards.get(turn.documentId) : undefined;
-      return `Question: ${JSON.stringify(turn.question)}\nReply: ${JSON.stringify(card ? cardContext(card) : turn.reply)}`;
-    }).join("\n")}`);
-  }
+  if (omitted) parts.push(`${omitted} earlier ${omitted === 1 ? "turn remains" : "turns remain"} in this thread.`);
+  if (turns.length) parts.push("Earlier in this conversation, for context only; read every number again from the tools:\n" + turns.map(turnWords).join("\n"));
+  if (cards.size) parts.push("Cards for the attached documents in the thread above, as data:\n" +
+    [...cards].map(([id, card]) => JSON.stringify({ id, card: cardContext(card) })).join("\n"));
   if (canvas) parts.push(`The canvas on screen now, as data:\n${JSON.stringify(canvas)}`);
   return parts.join("\n\n");
 }
@@ -99,13 +133,17 @@ export async function firstUseLine(db: Db, householdId: string, options: { skipA
 
 /** Free-form questions go to the agent (D40). `pending` is true when a tool left a bill or charge in To check (D39). */
 export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date; onStep?: (step: string) => void } = {}): Promise<AskReply> {
-  const { id, conversationId, spaceId, text, source, canvas, memory, recent } = askInput.parse(input);
+  const { id, conversationId, spaceId, text, source, canvas, memory, recent, earlierCount, deviceBrief } = askInput.parse(input);
   const householdId = requireHousehold(hid);
-  const prepared = await withHousehold<{ reply: AskReply } | { context: string; deviceMemory?: DeviceMemory }>(db, householdId, async tx => {
+  const prepared = await withHousehold<{ reply: AskReply } | { assembled: Awaited<ReturnType<typeof assembleContext>>; effectiveSpaceId?: string; deviceMemory?: DeviceMemory }>(db, householdId, async tx => {
     // A kind kept on the device comes with the question and is never stored here; a kind kept in the cloud is read here and the question must not carry it.
-    if (spaceId !== undefined) {
-      await requireSpace(tx, householdId, spaceId);
-      if (conversationId !== spaceId || recent?.some(turn => turn.conversationId !== spaceId))
+    // The older request shape still reaches legacy conversations, but cannot bypass an existing space’s archive guard.
+    const [matching] = spaceId ? [] : await tx.select({ id: spaces.id }).from(spaces)
+      .where(and(eq(spaces.householdId, householdId), eq(spaces.id, conversationId)));
+    const effectiveSpaceId = spaceId ?? matching?.id;
+    if (effectiveSpaceId !== undefined) {
+      await requireSpace(tx, householdId, effectiveSpaceId);
+      if (conversationId !== effectiveSpaceId || recent?.some(turn => turn.conversationId !== effectiveSpaceId))
         throw new InputError("Use the thread of the selected space.");
     }
     const places = await readPlaces(tx, householdId);
@@ -115,6 +153,8 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     if ((places.journal === "device") !== (recent !== undefined)) throw new InputError(places.journal === "device"
       ? "This household keeps its conversations on this device, so the question has to bring the last ones. Reload the page and ask again."
       : "This household keeps its conversations in our cloud. Reload the page and ask again.");
+    if (places.journal === "cloud" && (deviceBrief !== undefined || earlierCount !== undefined))
+      throw new InputError("This household keeps its conversations in our cloud. Reload the page and ask again.");
     // A question retried after its reply was lost has the same id: the saved turn is the reply, and nothing runs or writes again.
     const kept = recent === undefined ? await turnById(tx, householdId, id) : null;
     if (kept && (kept.question !== text || kept.conversationId !== conversationId)) throw new InputError("This question was already answered. Reload the page and ask again.");
@@ -134,16 +174,18 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
         links: wrote.links.length ? wrote.links : [{ label: "Open To check", href: new URL("/to-check", appUrl()).href }], pending: wrote.pending, firstUse: null, memoryChanges: [], offers: [],
       } };
     }
-    const context = recent !== undefined ? contextText(recent, canvas, await documentCards(tx, householdId, recent)) : await conversationContext(tx, householdId, { conversationId, canvas }, deps.at);
+    const assembled = await assembleContext(tx, householdId, {
+      conversationId, canvas, spaceId: effectiveSpaceId, memory, recent, earlierCount, deviceBrief,
+    });
     const deviceMemory = memory === undefined ? undefined : { items: [...memory], changes: [], moment: await clockMoment(tx, householdId, deps.at) };
-    return { context, deviceMemory };
+    return { assembled, effectiveSpaceId, deviceMemory };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
   if ("reply" in prepared) return prepared.reply;
-  const { context, deviceMemory } = prepared;
+  const { assembled, effectiveSpaceId, deviceMemory } = prepared;
   let result: AskResult;
   try {
     result = await runAgent({
-      db, householdId, question: text, askId: id, source, appUrl: appUrl(), context, fetch: deps.fetch, deviceMemory, onStep: deps.onStep,
+      db, householdId, question: text, askId: id, source, appUrl: appUrl(), context: assembled.context, assembled, spaceId: effectiveSpaceId, fetch: deps.fetch, deviceMemory, onStep: deps.onStep,
       onWrote: recent === undefined ? undefined : () => withHousehold(db, householdId, tx => noteAskWrote(tx, householdId, id)),
       connection: () => aiConnection(db, householdId, "text"),
     });
@@ -152,14 +194,22 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     if (!(error instanceof AgentError) || !error.saved) throw error;
     result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending, offers: [] };
   }
-  await withHousehold(db, householdId, async tx => {
-    if (spaceId !== undefined) await requireSpace(tx, householdId, spaceId, true);
-    await noteAskReply(tx, householdId, id, result);
+  const brief = await withHousehold(db, householdId, async tx => {
+    await tx.select({ id: households.id }).from(households).where(eq(households.id, householdId)).for("update");
+    if (effectiveSpaceId !== undefined) await requireSpace(tx, householdId, effectiveSpaceId, true);
+    const places = await readPlaces(tx, householdId);
+    if ((places.journal === "device") !== (recent !== undefined))
+      throw new InputError("Your journal moved while Ask was answering. Reload the page and ask again.");
     if (recent === undefined) {
-      await saveTurn(tx, householdId, {
+      const saved = await saveTurn(tx, householdId, {
         id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources,
       }, deps.at);
+      if (!saved) return undefined;
     }
+    await noteAskReply(tx, householdId, id, result);
+    if (!effectiveSpaceId || !result.brief) return undefined;
+    if (places.journal === "cloud") return saveBrief(tx, householdId, effectiveSpaceId, result.brief, "ask", id);
+    return { brief: result.brief, updatedAt: new Date().toISOString(), updatedBy: "ask" as const };
   });
   const { drawn, firstUse } = await withHousehold(db, householdId, async tx => ({
     drawn: result.recipe ? { recipe: result.recipe, blocks: resolveRecipe(result.recipe, await loadCanvasContext(tx, householdId, result.recipe)) } : null,
@@ -167,6 +217,6 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   }), { isolationLevel: "repeatable read", accessMode: "read only" });
   return {
     id, kind: result.kind, text: result.answer, choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending,
-    firstUse, memoryChanges: deviceMemory?.changes ?? [], offers: result.offers,
+    firstUse, memoryChanges: deviceMemory?.changes ?? [], offers: result.offers, ...(brief && { brief }),
   };
 }

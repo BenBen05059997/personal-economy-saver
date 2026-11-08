@@ -7,6 +7,7 @@ export const EVENT_KIND_LABELS = {
   bill_added: "Bill added",
   bill_changed: "Bill changed",
   bill_confirmed: "Bill confirmed",
+  brief_updated: "Space brief updated",
   bill_removed: "Bill removed",
   canvas_changed: "Pinned canvas changed",
   canvas_pinned: "Pinned to Home",

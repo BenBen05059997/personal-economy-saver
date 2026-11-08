@@ -17,7 +17,7 @@ const ROWS: { kind: DataKind; name: string; unit: [string, string]; what: string
   { kind: "record", name: "Your numbers", unit: ["item", "items"], what: "Bills, charges, statements, clients, invoices, pots and settlements. The forecast is built from them." },
   { kind: "memory", name: "What the assistant remembers", unit: ["thing", "things"], what: "Facts, preferences, goals and corrections you gave it.", all: "all the assistant remembers", href: { to: "/memory", label: "See what it remembers" } },
   { kind: "canvases", name: "Canvases pinned to Home", unit: ["canvas", "canvases"], what: "Layouts only; they hold no numbers, so they always show today’s.", all: "all pinned canvases" },
-  { kind: "journal", name: "Ask conversations", unit: ["item", "items"], what: "Your conversation turns and named spaces.", all: "all conversations and named spaces" },
+  { kind: "journal", name: "Ask conversations", unit: ["item", "items"], what: "Your conversation turns, briefs and named spaces.", all: "all conversations, briefs and named spaces" },
   { kind: "reminders", name: "Reminder history", unit: ["delivery", "deliveries"], what: "Sent and failed reminders from the last 30 days.", all: "all reminder history" },
   { kind: "push_subscriptions", name: "Push subscriptions", unit: ["device", "devices"], what: "The push connection for each device that turned it on.", all: "all push subscriptions" },
   { kind: "documents", name: "Uploaded documents", unit: ["document", "documents"], what: "Files you uploaded or forwarded, and the readings waiting in To check. Bills and charges you confirmed stay.", all: "all uploaded documents" },
@@ -43,7 +43,7 @@ export async function YourData({ canDeleteHousehold = true }: { canDeleteHouseho
     <p className="ui-hint">What the app keeps about you, where it is kept, and how to delete it. A question you ask goes to the household’s AI model.</p>
     {ROWS.map(row => {
       const n = counts?.[row.kind] ?? 0;
-      const note = row.kind === "journal" ? "This also removes the named spaces’ notes and pins. General and documents stay." : "This can’t be undone.";
+      const note = row.kind === "journal" ? "This also removes the named spaces’ notes and pins. The General space and documents stay." : "This can’t be undone.";
       const remove = row.all && n > 0 ? <ConfirmRemove kind="data" id={row.kind} label={row.all} note={note} returnTo="/settings" /> : null;
       if (hid && places && row.all && isMovable(row.kind)) {
         return <DataPlace key={row.kind} householdId={hid} kind={row.kind} place={places[row.kind]} cloudCount={n} name={row.name} unit={row.unit} what={row.what} all={row.all} journalSpaceCount={row.kind === "journal" ? spaces.filter(space => !space.isGeneral).length : undefined} href={row.href}>{remove}</DataPlace>;

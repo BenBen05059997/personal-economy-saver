@@ -10,6 +10,7 @@ import { z } from "zod";
 import { CategoryKeySchema } from "@/lib/money/categories";
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { MemoryItem } from "@/lib/schema/memory";
+import { BriefSchema } from "@/lib/agent/brief";
 import { ConversationTurn } from "@/lib/schema/turn";
 
 /** Version 3 adds the spaces of the Ask journal (D69), in the export only. */
@@ -197,9 +198,14 @@ const PinnedCanvasExport = z.object({
 
 const SpaceExport = z.object({
   id, name: z.string().trim().min(1).max(60), isGeneral: z.boolean(),
-  status: z.enum(["open", "archived"]), brief: z.record(z.unknown()),
+  status: z.enum(["open", "archived"]), brief: z.union([z.object({}).strict(), BriefSchema]),
   briefUpdatedAt: moment.nullable(), briefUpdatedBy: z.enum(["ask", "form"]).nullable(), createdAt: moment,
-}).strict();
+}).strict().superRefine((space, ctx) => {
+  const missing = (space.briefUpdatedAt === null) || (space.briefUpdatedBy === null);
+  if (missing && (Object.keys(space.brief).length !== 0 || space.briefUpdatedAt !== space.briefUpdatedBy)) {
+    ctx.addIssue({ code: "custom", path: ["brief"], message: "A saved brief needs its date and author." });
+  }
+});
 
 const Truncated = z.object({
   bills: z.boolean(),

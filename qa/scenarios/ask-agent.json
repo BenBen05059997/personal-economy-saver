@@ -4160,7 +4160,7 @@
   {
     "id": "CONV-001",
     "area": "Conversation",
-    "action": "Ask a follow-up inside ten minutes",
+    "action": "Ask a follow-up in the same space",
     "user_goal": "I want to say \"and the week after?\"",
     "type": "happy",
     "priority": "P1",
@@ -4190,8 +4190,8 @@
   {
     "id": "CONV-002",
     "area": "Conversation",
-    "action": "Ask a follow-up after ten minutes",
-    "user_goal": "An old chat should not leak into a new question",
+    "action": "Keep an earlier follow-up in the context budget",
+    "user_goal": "I want to return to a task later and still follow up",
     "type": "edge",
     "priority": "P2",
     "needs": [
@@ -4205,14 +4205,15 @@
       "Run npm run db:conversation-test and npm run db:agent-test"
     ],
     "expected": [
-      "The last three turns travel with the question as quoted text only while the last turn is under ten minutes old (24 hours while an attached document is being read or waiting)",
-      "After that the follow-up gets a clarifying question or a decline"
+      "Earlier turns can reach the model after ten minutes if they fit the character budget",
+      "The latest contiguous turns fit within 12,000 characters, with the oldest omitted first",
+      "An omitted-turn notice tells the model how many earlier turns are still in the thread"
     ],
     "refs": [
       "db:conversation-test",
       "db:agent-test",
-      "BROWSER-CHECKS Z7",
-      "D60"
+      "BROWSER-CHECKS AP17",
+      "D71"
     ]
   },
   {
@@ -4381,8 +4382,8 @@
     ],
     "expected": [
       "The turn comes back from the browser and the server stores no turn",
-      "The question carries the last three turns and the thumb updates only on this device",
-      "Delete on this device removes the turn"
+      "The question carries the device’s budgeted recent turns and space brief. The thumb updates only on this device",
+      "Deleting the device journal removes its turns and briefs while leaving the space names"
     ],
     "refs": [
       "D59",
@@ -4466,14 +4467,14 @@
       "Run npm run db:ask-document-test and npm run db:conversation-test"
     ],
     "expected": [
-      "A document turn is a fixed reply from code with the document's id and takes no thumb",
-      "The conversation stays one for up to 24 hours while the reading is pending or waiting in To check"
+      "A document turn is a fixed reply from code with the document’s id and takes no thumb",
+      "A live document card travels in context whenever its turn is in the recent suffix, regardless of time elapsed"
     ],
     "refs": [
       "db:ask-document-test",
       "db:conversation-test",
-      "D60",
-      "D61"
+      "D61",
+      "D71"
     ]
   },
   {

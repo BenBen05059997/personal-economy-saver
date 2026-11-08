@@ -15,6 +15,8 @@ import { addMemory, listMemory } from "@/db/memory";
 import { removeBill } from "@/db/bills";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
+import { generalSpace, saveBrief } from "@/db/spaces";
+import { BriefSchema } from "@/lib/agent/brief";
 import { seedBen } from "@/db/seed";
 import { AgentError, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
@@ -141,7 +143,7 @@ async function main() {
       assert.deepEqual(first.output_config, { effort: "low" });
       assert.ok(!("thinking" in first) && !("temperature" in first));
       assert.ok(first.system.includes(aState.today) && first.system.includes("JPY"));
-      assert.deepEqual(first.tools.map(t => t.name).sort(), tools.map(t => t.name).sort());
+      assert.deepEqual(first.tools.map(t => t.name).sort(), tools.filter(t => t.name !== "update_brief").map(t => t.name).sort());
       assert.ok(first.tools.every(t => t.strict === true));
       assert.deepEqual(first.messages, [{ role: "user", content: "What's due?" }]);
       assert.equal(second.messages.length, 3);
@@ -907,7 +909,7 @@ async function main() {
         assert.deepEqual(first.messages.map(m => m.role), ["system", "user"]);
         assert.ok(String(first.messages[0].content).includes(aState.today));
         assert.equal(first.messages[1].content, "Am I fine?");
-        assert.deepEqual(first.tools!.map(t => t.function.name).sort(), tools.map(t => t.name).sort());
+        assert.deepEqual(first.tools!.map(t => t.function.name).sort(), tools.filter(t => t.name !== "update_brief").map(t => t.name).sort());
         assert.ok(first.tools!.every(t => t.type === "function" && t.function.parameters.additionalProperties === false));
 
         const c = await seedBen(db, { isDemo: true }), cState = await stateOf(c);
@@ -1104,7 +1106,7 @@ async function main() {
       assert.equal((await conversation(c, "Write a letter to Acme", good.fetch)).kind, "answer");
     });
 
-    await check("three earlier turns go in only within ten minutes, with the canvas on screen; an amount from an earlier reply confirms nothing", async () => {
+    await check("older turns within the character budget and the canvas reach the model; an amount from an earlier reply confirms nothing", async () => {
       const c = await seedBen(db, { isDemo: true });
       const conversationId = crypto.randomUUID();
       const t0 = new Date("2026-11-06T09:00:00Z");
@@ -1121,10 +1123,10 @@ async function main() {
       const fifth = await round("fifth question", minutes(5), JSON.parse(cashCanvas()));
       assert.ok(fifth.includes("Earlier in this conversation, for context only; read every number again from the tools:"));
       for (const q of ["second question", "third question", "fourth question"]) assert.ok(fifth.includes(q), q);
-      assert.ok(!fifth.includes("first question"), "only the last three turns");
+      assert.ok(fifth.includes("first question"), "the tail has no turn count cap");
       assert.ok(fifth.includes("The canvas on screen now, as data:") && fifth.includes("Cash today"));
       const late = await round("late question", minutes(5 + 11));
-      assert.ok(!late.includes("Earlier in this conversation"), "ten minutes after the last turn the conversation starts over");
+      assert.ok(late.includes("Earlier in this conversation"), "older context stays after ten minutes");
 
       // an amount only an earlier reply held is not confirmed
       const d = await seedBen(db, { isDemo: true });
@@ -1134,6 +1136,38 @@ async function main() {
       const second = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Yes, the ¥7,777 bill is covered.")])]);
       await assert.rejects(conversation(d, "Yes", second.fetch, { conversationId: thread, at: minutes(1) }), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
       assert.ok(JSON.stringify(second.bodies[0].messages[0]).includes("7,777"), "the earlier reply was shown to the model as context");
+    });
+
+    await check("the checked space brief is saved after the answer and appears on the next question", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const general = await generalSpace(db, hid);
+      await saveBrief(db, hid, general.id, { about: "Original brief" }, "form");
+      const askInSpace = (fetch: typeof globalThis.fetch, text: string) => answerQuestion(db, hid, askInput.parse({
+        id: crypto.randomUUID(), conversationId: general.id, spaceId: general.id, text, source: "manual", canvas: null,
+      }), { fetch });
+      const propose = (value: unknown) => transport([
+        () => reply("tool_use", [toolUse("w", "where_am_i", {}), toolUse("b", "update_brief", value)]),
+        () => reply("end_turn", [text("I checked the forecast.")]),
+      ]);
+
+      const unconfirmed = propose({ about: "Invented ¥7,777", state: [{ text: "Pending", source: "where_am_i" }] });
+      const refused = await askInSpace(unconfirmed.fetch, "Check the forecast for ¥7,777.");
+      assert.equal(refused.brief, undefined, "an amount in the question alone does not confirm a brief");
+      assert.equal((await generalSpace(db, hid)).brief.about, "Original brief");
+      assert.equal(BriefSchema.safeParse({ about: "1234 5678 9012" }).success, false);
+      assert.equal(BriefSchema.safeParse({ about: "x".repeat(2000) }).success, false);
+
+      const checked = propose({ about: "Checked cash", state: [{ text: "Late payments leave a ¥18,780 shortfall.", source: "where_am_i" }] });
+      const kept = await askInSpace(checked.fetch, "Check today's cash.");
+      assert.equal(kept.brief?.updatedBy, "ask");
+      assert.equal((await generalSpace(db, hid)).brief.about, "Checked cash");
+      const audit = await db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, "brief_updated")));
+      assert.equal(audit.length, 2);
+      assert.ok(audit.every(event => event.body === null && !event.title.includes("Checked cash")));
+
+      const followup = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Here is the latest.")])]);
+      await askInSpace(followup.fetch, "What about today?");
+      assert.match(JSON.stringify(followup.bodies[0].system), /Space brief.*Checked cash/);
     });
 
     await check("an ending tool that fails its schema is an ordinary tool error: the loop goes on and the answer is returned", async () => {
@@ -1470,7 +1504,7 @@ async function main() {
       assert.equal(noModel.bodies.length, 0, "no model call for a refused question");
       // the size limits are the schema's
       assert.ok(!askInput.safeParse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "x", source: "manual", canvas: null, memory: Array(201).fill(held[0]) }).success);
-      assert.ok(!askInput.safeParse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "x", source: "manual", canvas: null, recent: Array(4).fill(recent[0]) }).success);
+      assert.ok(askInput.safeParse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "x", source: "manual", canvas: null, recent: Array(4).fill(recent[0]) }).success, "a device tail has a character budget instead of a turn limit");
       assert.ok(!askInput.safeParse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "x", source: "manual", canvas: null, memory: [{ ...held[0], extra: 1 }] }).success);
 
       // the cloud household is unchanged: its Ask still stores its turn and carries no changes

@@ -366,5 +366,258 @@
       "db:spaces-test",
       "D69"
     ]
+  },
+  {
+    "id": "SPACE-014",
+    "area": "Ask spaces",
+    "action": "Write the space brief by hand",
+    "user_goal": "I want to keep the task goal where I can see it",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "An empty space called March paperwork"
+    ],
+    "steps": [
+      "Open the space, choose Edit under Space brief",
+      "Enter About \"Check the March paperwork\" and Goal \"Find the statement\", then choose Save brief",
+      "Reload the space and check Memory → Spaces"
+    ],
+    "expected": [
+      "The empty brief initially says \"No brief yet.\"",
+      "The space shows \"Brief saved.\" and \"You updated it\" with a time",
+      "The fields persist after reload and the Spaces tab shows the first line of About",
+      "The editor fits at 375px and 1440px"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP12",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-015",
+    "area": "Ask spaces",
+    "action": "Let Ask update the brief",
+    "user_goal": "I want the facts we found to be visible next time",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "An empty space called Card A review",
+      "A working model"
+    ],
+    "steps": [
+      "Ask \"What is Card A’s next statement amount and due date? Update this space’s brief with what you find.\"",
+      "Open Space brief, reload, and check Activity"
+    ],
+    "expected": [
+      "The answer reports ¥58,000 due Nov 26",
+      "The brief updates and shows \"Agent updated it\" with a time",
+      "Any amount in the brief comes from this question’s tool results",
+      "Activity shows the update without the brief text"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP13",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-016",
+    "area": "Ask spaces",
+    "action": "Follow up from the saved brief",
+    "user_goal": "I want Ask to continue the same work after a break",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Card A review with its saved brief and a working model"
+    ],
+    "steps": [
+      "Close Ask and return to the same space after ten minutes",
+      "Ask \"What should I check next for this statement?\""
+    ],
+    "expected": [
+      "The space brief is still visible",
+      "Ask continues the same task and reads current tool results before quoting money"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP14",
+      "D71"
+    ]
+  },
+  {
+    "id": "SPACE-017",
+    "area": "Ask spaces",
+    "action": "Reject an unsupported amount in a proposed brief",
+    "user_goal": "I want the space summary to keep verified amounts",
+    "type": "negative",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "PGlite household with a saved brief and simulated model replies"
+    ],
+    "steps": [
+      "Run npm run db:agent-test"
+    ],
+    "expected": [
+      "An amount absent from this question’s tool results refuses the proposed update",
+      "The existing brief stays in place"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP17",
+      "db:agent-test",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-018",
+    "area": "Ask spaces",
+    "action": "Fit a long thread and its document cards into the context",
+    "user_goal": "I want a long-running task to keep the right context",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "PGlite fixture with older turns and a document turn in the recent suffix"
+    ],
+    "steps": [
+      "Run npm run db:conversation-test and npm run db:agent-test"
+    ],
+    "expected": [
+      "The recent turns fit the 12,000-character budget with oldest turns omitted first",
+      "The document card for an included turn travels with the question and the earlier turns stay in the thread"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP17",
+      "db:conversation-test",
+      "db:agent-test",
+      "D71"
+    ]
+  },
+  {
+    "id": "SPACE-019",
+    "area": "Ask spaces",
+    "action": "Move the space brief to this device",
+    "user_goal": "I want the saved brief to follow the journal",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A saved space brief in the cloud with at least one turn"
+    ],
+    "steps": [
+      "In Your data, move Ask conversations to this device",
+      "Reopen the space, edit its brief and reload",
+      "Open Memory → Spaces"
+    ],
+    "expected": [
+      "The turn, brief and update time are still visible after the move",
+      "The device edit survives reload and the Spaces list shows its updated About line"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP15",
+      "D59"
+    ]
+  },
+  {
+    "id": "SPACE-020",
+    "area": "Ask spaces",
+    "action": "Export a device-only brief",
+    "user_goal": "I want my export to include the brief on this browser",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Ask conversations is kept on this device",
+      "A space with a local saved brief"
+    ],
+    "steps": [
+      "Choose Export from this device and open the file"
+    ],
+    "expected": [
+      "The local brief and its update metadata appear on the matching space in the version 3 export"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP15",
+      "D44",
+      "D59"
+    ]
+  },
+  {
+    "id": "SPACE-021",
+    "area": "Ask spaces",
+    "action": "Move a device brief back to the cloud",
+    "user_goal": "I want other devices to see my task brief again",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A device journal with a saved space brief"
+    ],
+    "steps": [
+      "Move Ask conversations back to our cloud",
+      "Reload the space"
+    ],
+    "expected": [
+      "The brief and its update time still appear after reload",
+      "The device’s journal and brief copies have been cleared"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP16",
+      "D59"
+    ]
+  },
+  {
+    "id": "SPACE-022",
+    "area": "Ask spaces",
+    "action": "Delete a brief from a device journal",
+    "user_goal": "I want to clear the work saved on this browser",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A device journal with a saved space brief and turn"
+    ],
+    "steps": [
+      "Delete the device’s Ask conversations under Your data",
+      "Return to the named space"
+    ],
+    "expected": [
+      "The space name remains and the thread is empty",
+      "Space brief says \"No brief yet.\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP16",
+      "D59"
+    ]
   }
 ]

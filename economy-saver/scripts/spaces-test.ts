@@ -17,7 +17,7 @@ import { restoreHousehold } from "@/db/restore";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
-import { archiveSpace, createSpace, deleteSpace, generalSpace, listSpaces, renameSpace } from "@/db/spaces";
+import { archiveSpace, createSpace, deleteSpace, generalSpace, listSpaces, renameSpace, saveBrief } from "@/db/spaces";
 
 const settings = { name: "Fictional owner", timeZone: "Asia/Tokyo", currency: "USD" as const, bank: "1000", limit: "" };
 const recipe = { version: 1, title: "Cash now", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] };
@@ -121,8 +121,7 @@ async function main() {
 
     async function populate(hid: string) {
       const space = await createSpace(store, hid, "Fictional late payments");
-      const brief = { about: "Follow up on an unpaid invoice." };
-      await db.update(schema.spaces).set({ brief }).where(and(eq(schema.spaces.householdId, hid), eq(schema.spaces.id, space.id)));
+      const { brief } = await saveBrief(store, hid, space.id, { about: "Follow up on an unpaid invoice." }, "form");
       const [note] = await db.insert(schema.memories).values({ householdId: hid, spaceId: space.id, kind: "fact", text: "Fictional Acme uses net 14." }).returning({ id: schema.memories.id });
       const [pin] = await db.insert(schema.canvases).values({ householdId: hid, spaceId: space.id, title: recipe.title, recipe, position: 0 }).returning({ id: schema.canvases.id });
       const [doc] = await db.insert(schema.documents).values({ householdId: hid, kind: "upload", mime: "application/pdf", storagePath: `${hid}/${randomUUID()}.pdf` }).returning({ id: schema.documents.id });
@@ -185,8 +184,7 @@ async function main() {
 
     await check("deleting the cloud journal clears General's brief and every work space while retaining documents", async () => {
       const general = await generalSpace(store, blank);
-      await db.update(schema.spaces).set({ brief: { about: "General has work." } })
-        .where(and(eq(schema.spaces.householdId, blank), eq(schema.spaces.id, general.id)));
+      await saveBrief(store, blank, general.id, { about: "General has work." }, "form");
       const other = await populate(blank);
       await deleteKind(store, blank, "journal", { madeBy: "form" });
       assert.deepEqual((await listSpaces(store, blank)).map(s => [s.id, s.brief]), [[general.id, {}]]);

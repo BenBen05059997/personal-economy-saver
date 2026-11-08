@@ -1,14 +1,11 @@
 // D59, D60: the operations on the conversation turns and the pinned canvases, as pure functions over a list, for the device store.
-// The same rules as src/db/conversation.ts (all turns stay; the last three live turns are the context)
+// The same rules as src/db/conversation.ts (all turns stay; context is assembled with a character budget)
 // and src/db/canvases.ts (at most 8, position 0 first).
-import { CONTEXT_TURNS, live, type ConversationTurn } from "@/lib/schema/turn";
+import type { ConversationTurn } from "@/lib/schema/turn";
 import { MAX_PINS, recipeOf, titleOf, type Recipe } from "@/lib/canvas/schema";
 import { InputError } from "@/db/input-error";
 
 const byTime = (a: ConversationTurn, b: ConversationTurn) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
-
-/** True when a turn of the conversation named a document the page knows is still waiting (being read, or a reading in To check). */
-const holdsWaiting = (turns: ConversationTurn[], waiting: ReadonlySet<string>): boolean => turns.some(turn => !!turn.documentId && waiting.has(turn.documentId));
 
 /** Adds one turn (a retried question has the same id, so it is one turn), oldest first. */
 export function appendTurn(turns: ConversationTurn[], turn: ConversationTurn): ConversationTurn[] {
@@ -26,23 +23,6 @@ export function legacyOf(turns: ConversationTurn[], spaceIds: ReadonlySet<string
     }
   }
   return [...groups.values()].reverse();
-}
-
-/** The conversation's last three turns, oldest first, when its latest turn is under ten minutes old (24 hours while a document attached in it is waiting); otherwise none. */
-export function recentOf(turns: ConversationTurn[], conversationId: string, now: Date, waiting: ReadonlySet<string> = new Set()): ConversationTurn[] {
-  const own = threadOf(turns, conversationId);
-  if (own.length === 0 || !live(own[own.length - 1].createdAt, now, holdsWaiting(own, waiting))) return [];
-  return own.slice(-CONTEXT_TURNS);
-}
-
-/** The newest conversation with all its turns, when its last turn is under ten minutes old; otherwise null. */
-export function latestOf(turns: ConversationTurn[], now: Date, waiting: ReadonlySet<string> = new Set()): { conversationId: string; turns: ConversationTurn[] } | null {
-  const sorted = [...turns].sort(byTime);
-  const last = sorted[sorted.length - 1];
-  if (!last) return null;
-  const own = sorted.filter(turn => turn.conversationId === last.conversationId);
-  if (!live(last.createdAt, now, holdsWaiting(own, waiting))) return null;
-  return { conversationId: last.conversationId, turns: own };
 }
 
 /** A canvas pinned on this device: the saved layout and nothing else. */

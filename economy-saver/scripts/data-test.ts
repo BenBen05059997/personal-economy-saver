@@ -19,7 +19,7 @@ import { addMemory, listMemory } from "@/db/memory";
 import { DEVICE_MEMORY_WORDS, itemsToMove, moveToCloud, moveToDevice, readPlaces, requireCloud } from "@/db/place";
 import { addMemoryItem, applyMemoryChanges, editMemoryItem, forgetMemoryItem } from "@/lib/store/memory-ops";
 import { MAX_PINS } from "@/lib/canvas/schema";
-import { appendTurn, latestOf, movePin, pinItem, recentOf, unpinItem, updatePin, type DevicePin } from "@/lib/store/journal-ops";
+import { appendTurn, movePin, pinItem, threadOf, unpinItem, updatePin, type DevicePin } from "@/lib/store/journal-ops";
 import type { ConversationTurn } from "@/lib/schema/turn";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { NOT_EMPTY, OLD_VERSION, restoreHousehold } from "@/db/restore";
@@ -29,6 +29,9 @@ import { availableCash, low, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { DEMO_DATE } from "@/db/clock";
+import { createSpace, generalSpace, saveBrief } from "@/db/spaces";
+import { contextTail } from "@/lib/agent/context";
+import { briefFromForm } from "@/lib/agent/brief-form";
 import type { Db } from "@/db/household";
 
 const form = { madeBy: "form" } as const;
@@ -456,6 +459,63 @@ async function main() {
       assert.equal((await events()).length, 6);
     });
 
+    await check("briefs move with the journal, remain private, and a changed cloud brief refuses a stale transfer", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const task = await createSpace(db, hid, "Fictional month close");
+      const general = await generalSpace(db, hid);
+      const foreign = await generalSpace(db, b);
+      const askId = randomUUID();
+      const before = await saveBrief(db, hid, task.id, { about: "Check the first fictional invoice." }, "form");
+      const first = await itemsToMove(db, hid, "journal", true);
+      assert.ok(first && !Array.isArray(first));
+      assert.deepEqual(first.briefs, [{ id: task.id, ...before }]);
+      assert.match(first.briefRevision!, /^[a-f0-9]{64}$/);
+      assert.ok(!JSON.stringify(first).includes(foreign.id));
+
+      const newer = await saveBrief(db, hid, task.id, { about: "Check the second fictional invoice." }, "ask", askId);
+      const edit = new FormData();
+      edit.set("about", "Check recurring fictional costs.");
+      edit.set("state", "timeline | Review the next bill.");
+      edit.set("decisions", "Use the forecast.\nCheck the statement.");
+      const generalBrief = await saveBrief(db, hid, general.id, briefFromForm(edit), "form");
+      assert.deepEqual(generalBrief.brief.state, [{ source: "timeline", text: "Review the next bill." }]);
+      assert.deepEqual(generalBrief.brief.decisions, ["Use the forecast.", "Check the statement."]);
+      edit.set("state", "Missing source separator");
+      assert.throws(() => briefFromForm(edit), /source \| detail/);
+      assert.equal(await countKind(db, hid, "journal"), 2, "a filled General brief and one named space");
+      await assert.rejects(moveToDevice(db, hid, "journal", [], form, first.briefRevision), /Nothing was moved/);
+      assert.equal((await readPlaces(db, hid)).journal, "cloud");
+      const current = await itemsToMove(db, hid, "journal", true);
+      assert.ok(current && !Array.isArray(current));
+      assert.notEqual(current.briefRevision, first.briefRevision);
+      assert.deepEqual(current.briefs.find(item => item.id === task.id), { id: task.id, ...newer });
+      assert.deepEqual(current.briefs.find(item => item.id === general.id), { id: general.id, ...generalBrief });
+
+      await assert.rejects(moveToDevice(db, hid, "journal", [], form), /Nothing was moved/, "old confirmation cannot erase untransferred briefs");
+      assert.equal(await moveToDevice(db, hid, "journal", [], form, current.briefRevision), 2);
+      assert.equal((await readPlaces(db, hid)).journal, "device");
+      await assert.rejects(saveBrief(db, hid, task.id, { about: "Do not store this." }, "form"), /on this device only/);
+      const onDevice = await loadHouseholdSnapshot(db, hid, { events: true, stored: true });
+      assert.ok(onDevice.spaces?.every(space => Object.keys(space.brief).length === 0 && !space.briefUpdatedBy && !space.briefUpdatedAt));
+      const events = onDevice.events?.filter(event => event.kind === "brief_updated");
+      assert.equal(events?.length, 3);
+      assert.ok(events?.some(event => event.madeBy === "ask"));
+      assert.ok(!JSON.stringify(events).includes("fictional invoice"));
+
+      const local = { ...newer, id: task.id, brief: { ...newer.brief, about: "The fictional device edit." }, updatedBy: "form" as const };
+      await assert.rejects(moveToCloud(db, hid, "journal", [], form, [{ ...local, brief: { about: "Account 123456789012" } }]), InputError);
+      assert.equal((await readPlaces(db, hid)).journal, "device", "a refused update leaves the chosen place alone");
+      assert.equal(await moveToCloud(db, hid, "journal", [], form, [local, { ...generalBrief, id: general.id }, { ...local, id: foreign.id }]), 2);
+      const restored = await loadHouseholdSnapshot(db, hid, { events: false, stored: true });
+      const taskBrief = restored.spaces?.find(space => space.id === task.id);
+      assert.deepEqual([taskBrief?.brief, taskBrief?.briefUpdatedAt, taskBrief?.briefUpdatedBy], [local.brief, local.updatedAt, "form"]);
+      assert.deepEqual((await generalSpace(db, b)).brief, {}, "a foreign id changed nothing");
+      assert.equal((await readPlaces(db, hid)).journal, "cloud");
+      assert.equal(await deleteKind(db, hid, "journal", form), 2, "deleting the journal includes the General brief");
+      assert.equal(await countKind(db, hid, "journal"), 0);
+      assert.deepEqual((await generalSpace(db, hid)).brief, {});
+    });
+
     await check("a cloud write for a kind kept on the device is refused, so a kind is never in both places", async () => {
       const c = await seedBen(db, { isDemo: true });
       await addMemory(db, c, { kind: "fact", text: "Something" }, form);
@@ -500,14 +560,13 @@ async function main() {
       assert.equal(turns.length, 205);
       assert.equal(turns[0].question, "Q0", "the oldest turn stays");
       assert.equal(appendTurn(turns, turns[3]).length, 205, "a retried question is one turn");
-      const near = new Date(Date.UTC(2026, 10, 6, 1, 5)), far = new Date(Date.UTC(2026, 10, 6, 1, 30));
-      assert.deepEqual(recentOf(turns, conv, near).map(x => x.question), ["Q202", "Q203", "Q204"]);
-      assert.deepEqual(recentOf(turns, conv, far), [], "older than ten minutes");
-      assert.deepEqual(recentOf(turns, randomUUID(), near), []);
-      assert.equal(latestOf(turns, near)?.turns.length, 205);
-      assert.equal(latestOf(turns, far), null);
       const other = turn(300, randomUUID());
-      assert.equal(latestOf([...turns, other], new Date(Date.UTC(2026, 10, 6, 1, 6)))?.conversationId, other.conversationId);
+      const own = threadOf([...turns, other], conv);
+      assert.equal(own.length, 205);
+      assert.equal(own[0].question, "Q0");
+      const tail = contextTail(own.map(t => ({ ...t, reply: "r".repeat(100) })));
+      assert.ok(tail.omitted > 0 && tail.omitted + tail.turns.length === 205);
+      assert.equal(tail.turns.at(-1)?.question, "Q204");
 
       const r = recipe("Cash"), at = new Date("2026-11-06T01:00:00Z");
       let pins: DevicePin[] = [];

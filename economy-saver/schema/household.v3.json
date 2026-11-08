@@ -5633,8 +5633,119 @@
             ]
           },
           "brief": {
-            "type": "object",
-            "additionalProperties": {}
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "about": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "default": ""
+                  },
+                  "goal": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "default": ""
+                  },
+                  "state": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2000
+                        },
+                        "source": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 80
+                        }
+                      },
+                      "required": [
+                        "text",
+                        "source"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "default": []
+                  },
+                  "decisions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "default": []
+                  },
+                  "open_questions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "default": []
+                  },
+                  "check_next": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "default": []
+                  },
+                  "refs": {
+                    "type": "object",
+                    "properties": {
+                      "bills": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "default": []
+                      },
+                      "clients": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "default": []
+                      },
+                      "pots": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "default": []
+                      },
+                      "documents": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "default": []
+                      }
+                    },
+                    "additionalProperties": false,
+                    "default": {}
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
           },
           "briefUpdatedAt": {
             "anyOf": [

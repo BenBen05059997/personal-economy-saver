@@ -28,7 +28,10 @@ type Search = Promise<{ tab?: string | string[] }>;
 async function tabContent(tx: Db, hid: string, tab: MemoryTab) {
   if (tab === "spaces") {
     const [spaces, places] = await Promise.all([listSpaces(tx, hid), readPlaces(tx, hid)]);
-    return <SpacesView spaces={spaces} householdId={hid} places={places} />;
+    const summaries = spaces.map(({ id, name, status, isGeneral, brief }) => ({
+      id, name, status, isGeneral, about: places.journal === "cloud" && typeof brief.about === "string" ? brief.about : null,
+    }));
+    return <SpacesView spaces={summaries} householdId={hid} places={places} />;
   }
   if (tab === "goals") {
     const state = await loadMoneyState(tx, hid, await householdDate(tx, hid));

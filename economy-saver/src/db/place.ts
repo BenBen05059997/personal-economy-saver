@@ -2,15 +2,16 @@
 // A kind is read from one place only. Moving is two steps in the browser (fetch, store, confirm); the server deletes its copies and sets the
 // place in one transaction, or (back to the cloud) inserts what the browser posts, checked against the schemas, and sets the place.
 // Every query is scoped by household_id.
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
+import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import { canvases, conversationTurns, households, memories, spaces } from "./schema";
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { MEMORY_LIMIT, MemoryItem, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
 import { ConversationTurn, TURN_VERSION } from "@/lib/schema/turn";
 import { MAX_PINS } from "@/lib/canvas/schema";
+import { DeviceBriefSchema, type DeviceBrief } from "@/lib/schema/device-brief";
 
 export const MOVABLE = ["memory", "canvases", "journal"] as const;
 export type Movable = (typeof MOVABLE)[number];
@@ -56,29 +57,48 @@ const lock = async (tx: Db, hid: string) => {
   return row;
 };
 
+async function briefRows(db: Db, hid: string): Promise<DeviceBrief[]> {
+  const rows = await db.select({
+    id: spaces.id, brief: spaces.brief, updatedAt: spaces.briefUpdatedAt, updatedBy: spaces.briefUpdatedBy,
+  }).from(spaces).where(and(eq(spaces.householdId, hid), isNotNull(spaces.briefUpdatedAt))).orderBy(asc(spaces.id));
+  return rows.map(row => DeviceBriefSchema.parse({ ...row, updatedAt: row.updatedAt?.toISOString() }));
+}
+
+async function briefRevision(briefs: DeviceBrief[]): Promise<string | undefined> {
+  if (!briefs.length) return undefined;
+  const bytes = new TextEncoder().encode(JSON.stringify(briefs));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
 /** The items the browser takes to keep on this device: everything of the kind, in the shape the device store holds. */
-export async function itemsToMove(db: Db, householdId: string, what: Movable): Promise<unknown[]> {
+export async function itemsToMove(db: Db, householdId: string, what: Movable, includeBriefs = false) {
   const hid = requireHousehold(householdId);
-  if ((await readPlaces(db, hid))[what] === "device") throw new InputError(`${NAMES[what][0].toUpperCase()}${NAMES[what].slice(1)} are already kept on this device.`);
-  switch (what) {
-    case "memory": {
-      const rows = await db.select().from(memories).where(eq(memories.householdId, hid)).orderBy(asc(memories.createdAt), asc(memories.id));
-      return rows.map(r => ({ id: r.id, kind: r.kind, text: r.text, madeBy: r.madeBy, askId: r.askId, ...(r.spaceId && { spaceId: r.spaceId }), createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString() }));
+  return withHousehold(db, hid, async tx => {
+    if ((await readPlaces(tx, hid))[what] === "device") throw new InputError(`${NAMES[what][0].toUpperCase()}${NAMES[what].slice(1)} are already kept on this device.`);
+    switch (what) {
+      case "memory": {
+        const rows = await tx.select().from(memories).where(eq(memories.householdId, hid)).orderBy(asc(memories.createdAt), asc(memories.id));
+        return rows.map(r => ({ id: r.id, kind: r.kind, text: r.text, madeBy: r.madeBy, askId: r.askId, ...(r.spaceId && { spaceId: r.spaceId }), createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString() }));
+      }
+      case "canvases": {
+        const rows = await tx.select().from(canvases).where(eq(canvases.householdId, hid)).orderBy(asc(canvases.position), asc(canvases.createdAt));
+        return rows.map(r => ({ id: r.id, title: r.title, recipe: r.recipe, ...(r.spaceId && { spaceId: r.spaceId }), position: r.position, createdAt: r.createdAt.toISOString() }));
+      }
+      case "journal": {
+        const rows = await tx.select().from(conversationTurns).where(eq(conversationTurns.householdId, hid)).orderBy(asc(conversationTurns.createdAt), asc(conversationTurns.id));
+        const named = await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.householdId, hid));
+        const spaceIds = new Set(named.map(space => space.id));
+        const items = rows.map(r => ({
+          version: TURN_VERSION, ...(spaceIds.has(r.conversationId) && { spaceId: r.conversationId }), id: r.id, conversationId: r.conversationId, question: r.question, kind: r.kind, reply: r.reply, choices: r.choices ?? null,
+          recipe: r.recipe ?? null, ...(r.documentId && { documentId: r.documentId }), sources: r.sources, thumb: r.thumb === 1 ? 1 : r.thumb === -1 ? -1 : null, createdAt: r.createdAt.toISOString(),
+        }));
+        if (!includeBriefs) return items;
+        const briefs = await briefRows(tx, hid);
+        return { items, briefs, briefRevision: await briefRevision(briefs) };
+      }
     }
-    case "canvases": {
-      const rows = await db.select().from(canvases).where(eq(canvases.householdId, hid)).orderBy(asc(canvases.position), asc(canvases.createdAt));
-      return rows.map(r => ({ id: r.id, title: r.title, recipe: r.recipe, ...(r.spaceId && { spaceId: r.spaceId }), position: r.position, createdAt: r.createdAt.toISOString() }));
-    }
-    case "journal": {
-      const rows = await db.select().from(conversationTurns).where(eq(conversationTurns.householdId, hid)).orderBy(asc(conversationTurns.createdAt), asc(conversationTurns.id));
-      const named = await db.select({ id: spaces.id }).from(spaces).where(eq(spaces.householdId, hid));
-      const spaceIds = new Set(named.map(space => space.id));
-      return rows.map(r => ({
-        version: TURN_VERSION, ...(spaceIds.has(r.conversationId) && { spaceId: r.conversationId }), id: r.id, conversationId: r.conversationId, question: r.question, kind: r.kind, reply: r.reply, choices: r.choices ?? null,
-        recipe: r.recipe ?? null, ...(r.documentId && { documentId: r.documentId }), sources: r.sources, thumb: r.thumb === 1 ? 1 : r.thumb === -1 ? -1 : null, createdAt: r.createdAt.toISOString(),
-      }));
-    }
-  }
+  }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
 const sameIds = (a: string[], b: string[]) => {
@@ -86,29 +106,42 @@ const sameIds = (a: string[], b: string[]) => {
   return a.length === b.length && bIds.size === b.length && a.every(id => bIds.has(id));
 };
 const CHANGED = "Something changed while it was being moved. Nothing was moved; try again.";
+/** The journal copy is stale. The cloud still has its own copy. */
+export class JournalMoveChanged extends InputError {}
 
 /** After the browser has stored the items it fetched: deletes this household's copies and sets the place, in one transaction. `ids` are the ids the browser stored; if the cloud now holds others, nothing moves. */
-export async function moveToDevice(db: Db, householdId: string, what: Movable, ids: string[], by: Maker): Promise<number> {
+export async function moveToDevice(db: Db, householdId: string, what: Movable, ids: string[], by: Maker, expectedBriefRevision?: string): Promise<number> {
   const hid = requireHousehold(householdId);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const row = await lock(tx, hid);
     if (row[COLUMN[what]] === "device") throw new InputError("That is already kept on this device.");
     const table = what === "memory" ? memories : what === "canvases" ? canvases : conversationTurns;
     const held = (await tx.select({ id: table.id }).from(table).where(eq(table.householdId, hid))).map(r => r.id);
-    if (!sameIds(held, ids)) throw new InputError(CHANGED);
+    if (!sameIds(held, ids)) {
+      if (what === "journal") throw new JournalMoveChanged(CHANGED);
+      throw new InputError(CHANGED);
+    }
+    const briefs = what === "journal" ? await briefRows(tx, hid) : [];
+    if (await briefRevision(briefs) !== expectedBriefRevision) throw new JournalMoveChanged(CHANGED);
     await tx.delete(table).where(eq(table.householdId, hid));
+    if (briefs.length > 0) await tx.update(spaces).set({ brief: {}, briefUpdatedAt: null, briefUpdatedBy: null })
+      .where(eq(spaces.householdId, hid));
     await tx.update(households).set({ [COLUMN[what]]: "device" }).where(eq(households.id, hid));
     await recordEvent(tx, hid, { ...by, kind: "data_moved", title: `Moved ${NAMES[what]} to this device` }); // never an item
-    return held.length;
+    return held.length + briefs.length;
   });
 }
 
 /** Back to the cloud: the browser posts the items; each is checked against its schema, inserted with its id, and the place is set, in one transaction. */
-export async function moveToCloud(db: Db, householdId: string, what: Movable, items: unknown, by: Maker): Promise<number> {
+export async function moveToCloud(db: Db, householdId: string, what: Movable, items: unknown, by: Maker, briefItems: unknown = []): Promise<number> {
   const hid = requireHousehold(householdId);
   const parsed = ItemsFor[what].safeParse(items);
-  if (!parsed.success) throw new InputError("The items on this device are not in a shape the cloud can keep, so nothing was moved.");
-  return db.transaction(async tx => {
+  const briefs = z.array(DeviceBriefSchema).safeParse(briefItems);
+  if (!parsed.success || !briefs.success || (what !== "journal" && briefs.data.length > 0)
+    || new Set(briefs.data.map(brief => brief.id)).size !== briefs.data.length) {
+    throw new InputError("The items on this device are not in a shape the cloud can keep, so nothing was moved.");
+  }
+  return withHousehold(db, hid, async tx => {
     const row = await lock(tx, hid);
     if (row[COLUMN[what]] !== "device") throw new InputError("That is already kept in our cloud.");
     const own = await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.householdId, hid));
@@ -142,6 +175,12 @@ export async function moveToCloud(db: Db, householdId: string, what: Movable, it
         }).onConflictDoNothing();
         count++;
       }
+    }
+    for (const item of briefs.data) {
+      if (!spaceIds.has(item.id)) continue;
+      await tx.update(spaces).set({ brief: item.brief, briefUpdatedAt: new Date(item.updatedAt), briefUpdatedBy: item.updatedBy })
+        .where(and(eq(spaces.householdId, hid), eq(spaces.id, item.id)));
+      count++;
     }
     await tx.update(households).set({ [COLUMN[what]]: "cloud" }).where(eq(households.id, hid));
     await recordEvent(tx, hid, { ...by, kind: "data_moved", title: `Moved ${NAMES[what]} to our cloud` });

@@ -14,6 +14,7 @@ import { readPlaces } from "@/db/place";
 import { listSpaces } from "@/db/spaces";
 import { loadSpending } from "@/db/spending";
 import { openSuggestions } from "@/db/suggestions";
+import { BriefSchema, type BriefRecord } from "@/lib/agent/brief";
 import { askUnavailable, missingAskSetting } from "@/lib/agent/availability";
 import { CanvasError, resolveRecipe, type CanvasContext } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
@@ -67,6 +68,8 @@ async function AskContent({ search }: { search: Search }) {
     id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, sources: turn.sources, links: [], thumb: turn.thumb, documentId: turn.documentId ?? null,
   }));
   const missing = missingAskSetting(own !== null);
+  const brief: BriefRecord | null = places.journal === "cloud" && !legacyId.data && space.briefUpdatedAt && (space.briefUpdatedBy === "ask" || space.briefUpdatedBy === "form")
+    ? { brief: BriefSchema.parse(space.brief), updatedAt: space.briefUpdatedAt.toISOString(), updatedBy: space.briefUpdatedBy } : null;
 
   return <WorkspaceFrame workspace={workspace} section="canvas">
     <AskPage key={`${space.id}:${legacyId.data ?? ""}:${typeof pinParam === "string" ? pinParam : ""}`} householdId={hid} places={places}
@@ -74,7 +77,7 @@ async function AskContent({ search }: { search: Search }) {
       space={{ id: space.id, name: space.name, isGeneral: space.isGeneral, status: space.status }}
       spaces={spaces.map(item => ({ id: item.id, name: item.name, status: item.status }))} earlier={earlier} legacyId={legacyId.data ?? null}
       pinId={typeof pinParam === "string" ? pinParam : null} pins={pins.map(({ id, title }) => ({ id, title }))}
-      turns={turns} starters={starters} shown={shown}
+      turns={turns} starters={starters} shown={shown} cloudBrief={brief}
       form={{ today: state.today, homeCurrency: state.homeCurrency, cards: state.cards.map(c => ({ id: c.id, label: c.label })) }}
       pin={pinned && shown ? { id: pinned.id, title: pinned.title } : null} firstUse={firstUse} unavailable={missing ? askUnavailable(missing) : null} />
   </WorkspaceFrame>;

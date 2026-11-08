@@ -9,6 +9,9 @@ import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { DocumentCard, type CardForm } from "./DocumentCard";
 import { readAskStream } from "./read-stream";
 import { KeepOfferCard } from "./KeepOffer";
+import { SpaceBrief } from "./SpaceBrief";
+import { contextTail } from "@/lib/agent/context";
+import type { Brief, BriefRecord } from "@/lib/agent/brief";
 import type { KeepOffer } from "@/lib/agent/keep-offer";
 import type { ClockHousehold } from "@/db/clock";
 import { SESSION_ENDED, SessionEnded } from "./SessionEnded";
@@ -16,10 +19,9 @@ import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
 import type { Place } from "@/db/place";
-import type { MemoryItem } from "@/lib/schema/memory";
 import type { ConversationTurn, TurnKind } from "@/lib/schema/turn";
 import {
-  applyDeviceMemoryChanges, deleteDeviceConversation, deviceMemory, deviceRecent, devicePins, listDevice, pinOnDevice, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin,
+  applyDeviceMemoryChanges, deleteDeviceConversation, deviceMemory, devicePins, listDevice, pinOnDevice, readDeviceBrief, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin, writeDeviceBrief,
 } from "@/lib/store/device";
 import { legacyOf, threadOf } from "@/lib/store/journal-ops";
 import { DRAFT_EVENT, takeStoredDraft } from "./draft";
@@ -50,8 +52,6 @@ async function drawOnServer(recipe: Recipe): Promise<ResolvedBlock[] | string> {
 
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
 const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-/** A card is waiting while its file is being read or one of its readings still needs the person's OK. */
-const isWaiting = (card: Card) => card.status === "reading" || card.items.some(item => item.status === "to_check");
 
 const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays two weeks late?", "Where did last month go?"];
 
@@ -59,11 +59,11 @@ const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays 
  * Ask (D60): the conversation beside the canvas. The question box, the microphone and Enter-to-ask are here; the top bar only links to this
  * page. A reply is chosen by the server (answer, a clarifying question with buttons, or a fixed decline); a canvas comes with it when it helps.
  */
-export function AskPage({ householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin, firstUse, unavailable, form }: {
+export function AskPage({ householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin, firstUse, unavailable, form, cloudBrief }: {
   householdId: string; form: CardForm; places: Places; clock: ClockHousehold;
   space: SpaceChoice & { isGeneral: boolean }; spaces: SpaceChoice[]; earlier: Earlier[]; legacyId: string | null;
   pinId: string | null; pins: Pin[]; turns: TurnView[]; starters: Drawn[]; shown: Drawn | null; pin: Pin | null;
-  firstUse: string | null; unavailable: string | null;
+  firstUse: string | null; unavailable: string | null; cloudBrief: BriefRecord | null;
 }) {
   // D59: a kind kept on this device is read from and written to this browser; the question carries what the server needs for it and the server keeps none of it.
   const onDevice = { memory: places.memory === "device", journal: places.journal === "device", canvases: places.canvases === "device" };
@@ -79,6 +79,9 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
   const pinsReturnTo = space.isGeneral ? "/" : spaceHref;
   const [deviceReady, setDeviceReady] = useState(!onDevice.journal);
   const [deviceEarlier, setDeviceEarlier] = useState<Earlier[]>([]);
+  const [latestBrief, setLatestBrief] = useState<BriefRecord | null>(null);
+  const replyIsNewer = latestBrief !== null && (cloudBrief === null || latestBrief.updatedAt > cloudBrief.updatedAt);
+  const brief = onDevice.journal || replyIsNewer ? latestBrief : cloudBrief;
   const [localPins, setLocalPins] = useState<Pin[]>([]);
   const earlierThreads = onDevice.journal ? deviceEarlier : earlier;
   const spacePins = onDevice.canvases ? localPins : pins;
@@ -99,7 +102,6 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
   const attached = useRef<{ key: string; id: string } | null>(null);
   const docCanvases = useRef(0);
   const canvasChosen = useRef(false);
-  const waiting = new Set(Object.values(cards).filter(isWaiting).map(card => card.documentId));
 
   // This page is keyed by space, thread and pin. Device history loads only this thread; older threads are listed under General.
   useEffect(() => {
@@ -107,16 +109,20 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
     let cancelled = false;
     (async () => {
       try {
-        const allPins = onDevice.canvases ? await devicePins(householdId) : [];
+        const [allPins, all, storedBrief] = await Promise.all([
+          onDevice.canvases ? devicePins(householdId) : [],
+          onDevice.journal ? listDevice(householdId, "journal") : [],
+          onDevice.journal && !legacyId ? readDeviceBrief(householdId, space.id) : null,
+        ]);
         const currentPins = allPins.filter(item => item.spaceId === space.id || (space.isGeneral && item.spaceId == null));
         const pinned = pinId ? currentPins.find(item => item.id === pinId) : undefined;
-        const all = onDevice.journal ? await listDevice(householdId, "journal") : [];
         const history = space.isGeneral ? legacyOf(all, new Set(spaces.map(item => item.id))) : [];
         const thread = legacyId && !history.some(item => item.id === legacyId) ? [] : threadOf(all, conversationId);
         if (cancelled) return;
         if (onDevice.journal) {
           setTurns(thread.map(viewOf));
           setDeviceEarlier(history);
+          setLatestBrief(storedBrief);
           setDeviceReady(true);
           if (all.some(turn => turn.kind === "answer")) setIntro(null);
           if (legacyId && thread.length === 0) setProblem("That conversation is not on this device.");
@@ -226,14 +232,21 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
     requestId.current ||= crypto.randomUUID();
     const id = requestId.current;
     try {
-      // The memory and the last turns kept on this device travel with the question and nowhere else.
-      let memory: MemoryItem[] | undefined, recent: ConversationTurn[] | undefined;
-      try {
-        if (onDevice.memory) memory = await deviceMemory(householdId);
-        if (onDevice.journal) recent = await deviceRecent(householdId, conversationId, new Date(), waiting);
-      } catch (error) { setProblem(wordsOf(error)); return; }
+      // Device context travels only with this question, in the same character budget as cloud context.
+      const local = await Promise.all([
+        onDevice.memory ? deviceMemory(householdId) : undefined,
+        onDevice.journal ? listDevice(householdId, "journal") : undefined,
+        onDevice.journal ? readDeviceBrief(householdId, space.id) : undefined,
+      ]).catch(error => { setProblem(wordsOf(error)); return null; });
+      if (!local) return;
+      const [memory, journal, storedBrief] = local;
+      const tail = journal ? contextTail(threadOf(journal, conversationId)) : null;
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, conversationId, spaceId: space.id, text: trimmed, source: how, canvas: canvas?.recipe ?? null, ...(memory && { memory }), ...(recent && { recent }) }) });
+        body: JSON.stringify({
+          id, conversationId, spaceId: space.id, text: trimmed, source: how, canvas: canvas?.recipe ?? null,
+          ...(memory && { memory }),
+          ...(tail && { recent: tail.turns, earlierCount: tail.omitted, deviceBrief: storedBrief?.brief ?? {} }),
+        }) });
       // A 503 carries a fixed message written for this box, such as a missing key.
       if (!response.ok) { setProblem(response.status === 401 ? SESSION_ENDED : response.status === 429 ? "Ask again in a minute." : response.status === 503 || response.status === 400 ? await response.text() : "Couldn’t check your household. Try again."); return; }
       const last = await readAskStream(response, setStep);
@@ -250,9 +263,10 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
           await saveDeviceTurn(householdId, {
             version: 1, id: reply.id, conversationId, spaceId: space.id, question: trimmed, kind: reply.kind, reply: reply.text, choices: reply.choices,
             recipe: reply.canvas?.recipe ?? null, sources: reply.sources, thumb: null, createdAt: new Date().toISOString(),
-          });
+          }, reply.brief ? { id: space.id, ...reply.brief } : undefined);
+          if (reply.brief) setLatestBrief(reply.brief);
         } catch (error) { setProblem(wordsOf(error)); }
-      }
+      } else if (reply.brief) setLatestBrief(reply.brief);
       if (onDevice.memory && reply.memoryChanges.length > 0) {
         try { await applyDeviceMemoryChanges(householdId, reply.memoryChanges); } catch (error) { setProblem(wordsOf(error)); }
       }
@@ -264,6 +278,12 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       if (reply.pending) router.refresh();
     } catch { setProblem("Couldn’t reach your household. Try again."); }
     finally { setBusy(false); setStep(""); }
+  }
+
+  async function saveLocalBrief(edited: Brief) {
+    const record = { brief: edited, updatedAt: new Date().toISOString(), updatedBy: "form" } as const;
+    await writeDeviceBrief(householdId, { id: space.id, ...record });
+    setLatestBrief(record);
   }
 
   async function thumb(turn: TurnView, which: 1 | -1) {
@@ -330,6 +350,8 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       </details>
       {space.status === "archived" && <p className="ui-hint">Archived space</p>}
       {legacyId && <Link href={spaceHref} prefetch={false} className="ui-button">Back to General</Link>}
+      {!legacyId && <SpaceBrief id={space.id} record={brief} timeZone={clock.timeZone} ready={deviceReady}
+        readOnly={readOnly} busy={busy} saveOnDevice={onDevice.journal ? saveLocalBrief : undefined} />}
       {earlierThreads.length > 0 && <details className="ask-spaces">
         <summary>Earlier conversations</summary>
         <ul>{earlierThreads.map(item => <li key={item.id}><Link className="ui-button" prefetch={false}
@@ -337,7 +359,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       </details>}
       {!readOnly && space.isGeneral && turns.length > 0 && onDevice.journal && <details className="ui-remove" open={confirmDelete} onToggle={event => setConfirmDelete(event.currentTarget.open)}>
         <summary aria-label="Delete this conversation">Delete</summary>
-        <p>Delete this conversation? Its questions and answers are removed from this device for good. What the assistant remembers and your pinned canvases stay.</p>
+        <p>Delete this conversation? Its questions and answers are removed from this device for good. What the assistant remembers, the brief and your pinned canvases stay.</p>
         <div className="ui-remove-buttons">
           <button type="button" className="ui-button" onClick={() => setConfirmDelete(false)}>Keep</button>
           <button type="button" className="ui-button" onClick={() => void (async () => {
@@ -345,7 +367,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
           })()}>Delete</button>
         </div>
       </details>}
-      {!readOnly && space.isGeneral && turns.length > 0 && !onDevice.journal && <ConfirmRemove kind="conversation" id={conversationId} label="this conversation" note="Its questions and answers are removed for good. What the assistant remembers and your pinned canvases stay." returnTo={spaceHref} onDone={clearThread} />}
+      {!readOnly && space.isGeneral && turns.length > 0 && !onDevice.journal && <ConfirmRemove kind="conversation" id={conversationId} label="this conversation" note="Its questions and answers are removed for good. What the assistant remembers, the brief and your pinned canvases stay." returnTo={spaceHref} onDone={clearThread} />}
       {!readOnly && !deviceReady && !problem && <p className="ui-hint" role="status">Opening this space on this device…</p>}
       {!readOnly && deviceReady && turns.length === 0 && <div className="ask-empty">
         <p className="ui-hint">Ask in your own words about your money. Every number comes from your records.</p>

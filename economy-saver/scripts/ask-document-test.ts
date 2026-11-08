@@ -10,7 +10,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
-import { contextText, conversationContext } from "@/db/ask";
+import { contextText, assembleContext } from "@/db/ask";
 import { allTurns } from "@/db/conversation";
 import { deleteDocument } from "@/db/data-kinds";
 import { attachDocument, documentCard } from "@/db/document-card";
@@ -383,12 +383,12 @@ async function main() {
     assert.equal(cardNow.canvas, null);
     const quoted = contextText(contextTurns, null, new Map([[first.documentId, cardNow]]));
     assert.ok(quoted.includes(JSON.stringify(cardContext(cardNow))));
-    assert.ok(!quoted.includes(DOCUMENT_WORDS.sent), "the stored reply is replaced by the card");
+    assert.ok(quoted.includes(DOCUMENT_WORDS.sent), "the turn is preserved alongside its separate card");
     assert.ok(quoted.includes("read every number again from the tools"));
     assert.ok(contextText(contextTurns, null).includes(DOCUMENT_WORDS.sent), "without a card the stored reply stands");
-    const viaDb = await conversationContext(db, a, { conversationId, canvas: null });
+    const { context: viaDb } = await assembleContext(db, a, { conversationId, canvas: null });
     assert.ok(viaDb.includes("Kawa Gym · ¥6,000 · due Nov 27 · every month (added)"), "the stored turn reaches the context as its card");
-    ok("contextText quotes the card, not the stored reply, and conversationContext loads it");
+    ok("assembleContext keeps the attached document card with its turn");
 
     // 10. the journal on the device
     await moveToDevice(db, a, "journal", (await allTurns(db, a)).map(t => t.id), form);

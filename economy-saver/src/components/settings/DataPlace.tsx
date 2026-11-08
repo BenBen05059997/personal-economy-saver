@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Movable, Place } from "@/db/place";
-import { clearDevice, countDevice, listDevice, replaceDevice } from "@/lib/store/device";
+import { clearDevice, clearMovedDeviceJournal, countDevice, listDevice, readDeviceJournal, replaceDevice, replaceDeviceJournal, type DeviceJournal } from "@/lib/store/device";
 
 type Props = {
   householdId: string; kind: Movable; place: Place; cloudCount: number; name: string; unit: [string, string]; what: string; all: string;
@@ -14,10 +14,13 @@ type Props = {
   children?: ReactNode;
 };
 
+class MoveResponseError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
 const wordsOf = (error: unknown) => (error instanceof Error ? error.message : "Something went wrong. Nothing was changed.");
 async function post(body: unknown): Promise<unknown> {
   const response = await fetch("/api/data/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) throw new MoveResponseError(await response.text(), response.status);
   return response.json();
 }
 
@@ -44,7 +47,30 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
   async function move() {
     setBusy(true); setMessage("");
     try {
-      if (!onDevice) {
+      if (kind === "journal") {
+        if (!onDevice) {
+          const { items, briefs, briefRevision } = await post({ step: "read", what: "journal" }) as
+            { items: DeviceJournal["turns"]; briefs: DeviceJournal["briefs"]; briefRevision?: string };
+          await replaceDeviceJournal(householdId, { turns: items, briefs });
+          const stored = await readDeviceJournal(householdId);
+          if (stored.turns.length !== items.length || stored.briefs.length !== briefs.length) {
+            throw new Error("This browser did not keep the whole journal, so nothing was moved.");
+          }
+          try { await post({ step: "to_device", what: "journal", ids: items.map(turn => turn.id), briefRevision }); }
+          catch (error) {
+            // A lost response or another tab's confirmation may have followed a commit. Discard only a proven stale copy.
+            if (error instanceof MoveResponseError && error.status === 409) await clearMovedDeviceJournal(householdId, stored).catch(() => false);
+            else router.refresh();
+            throw error;
+          }
+        } else {
+          const stored = await readDeviceJournal(householdId);
+          await post({ step: "to_cloud", what: "journal", items: stored.turns, briefs: stored.briefs });
+          try {
+            if (!await clearMovedDeviceJournal(householdId, stored)) setMessage("Moved the journal to our cloud. This browser kept a copy because it changed during the move.");
+          } catch { setMessage("Moved to our cloud, but this browser could not clear its own copy."); }
+        }
+      } else if (!onDevice) {
         const { items } = await post({ step: "read", what: kind }) as { items: { id: string }[] };
         await replaceDevice(householdId, kind, items as never);
         if ((await listDevice(householdId, kind)).length !== items.length) throw new Error("This browser did not keep everything, so nothing was moved.");
@@ -68,7 +94,7 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
   }
 
   const n = onDevice ? deviceCount : cloudCount;
-  const deleteLabel = onDevice && kind === "journal" ? "all conversations" : all;
+  const deleteLabel = onDevice && kind === "journal" ? "all conversations and briefs" : all;
   return <div className="settings-bill" data-kind={kind} data-place={place}>
     <p>{name} · {n === null ? "…" : `${n} ${unit[n === 1 ? 0 : 1]}`}</p>
     <p className="ui-hint">{onDevice ? "On this device only." : "In our cloud, Tokyo."} {what}</p>

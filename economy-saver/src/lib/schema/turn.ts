@@ -3,15 +3,6 @@ import { z } from "zod";
 import { RecipeSchema } from "@/lib/canvas/schema";
 
 export const TURN_VERSION = 1;
-/** A conversation carries on while its last turn is younger than this; the last three turns then go to the model as context. */
-const CONVERSATION_MINUTES = 10;
-export const CONTEXT_TURNS = 3;
-/** A conversation with a file still being read, or a reading waiting in To check, carries on this long (D60). */
-const WAITING_HOURS = 24;
-/** True while a conversation's last turn (an ISO string or a Date) is under ten minutes old at `now`, or under 24 hours old when `waiting` (a document attached in it is still being read or has a reading in To check). */
-export const live = (last: string | Date, now: Date, waiting = false): boolean =>
-  now.getTime() - new Date(last).getTime() < (waiting ? WAITING_HOURS * 60 : CONVERSATION_MINUTES) * 60_000;
-
 export const TurnSource = z.object({ label: z.string().min(1).max(60), href: z.string().min(1).max(200) }).strict();
 export type TurnSource = z.infer<typeof TurnSource>;
 export const TurnKind = z.enum(["answer", "clarify", "declined", "document"]);

@@ -1,4 +1,4 @@
-// The Ask conversation and the pins on Home (D60, D57): all turns kept, the ten-minute context window, thumbs, the pins' order and cap,
+// The Ask conversation and the pins on Home (D60, D57): all turns kept, the context budget, thumbs, the pins' order and cap,
 // scope across households, and removal with the household or by Reset. Fictional data only; PGlite, no credentials.
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
@@ -8,14 +8,15 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { listCanvases, MAX_PINS, moveCanvas, pinCanvas, unpinCanvas, updateCanvas } from "@/db/canvases";
-import { allTurns, latestConversation, recentTurns, saveTurn, setThumb, type NewTurn } from "@/db/conversation";
+import { allTurns, saveTurn, setThumb, spaceThread, type NewTurn } from "@/db/conversation";
 import { resetDemoHousehold } from "@/db/demo";
 import { InputError } from "@/db/input-error";
 import { deleteHousehold, listEvents, type Db } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { RECIPE_VERSION, type Recipe } from "@/lib/canvas/schema";
 import { ConversationTurn } from "@/lib/schema/turn";
-import { appendTurn, latestOf, recentOf } from "@/lib/store/journal-ops";
+import { assembleContext } from "@/db/ask";
+import { contextTail, THREAD_CONTEXT_MAX, turnWords } from "@/lib/agent/context";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { restoreHousehold } from "@/db/restore";
 import { HouseholdSnapshot } from "@/lib/schema/household";
@@ -57,23 +58,14 @@ async function main() {
       assert.equal((await allTurns(db, a)).filter(t => t.id === again.id).length, 1);
     });
 
-    await check("recent turns are the last three, only while the latest turn is under ten minutes old", async () => {
-      assert.deepEqual((await recentTurns(db, a, conv, at(3))).map(t => t.question), ["What is due?", "Invoice Acme", "Retried"]);
+    await check("the context has no clock cutoff or fixed turn count, and another thread stays out", async () => {
       await saveTurn(db, a, turn(conv, "Fourth"), at(4));
-      assert.deepEqual((await recentTurns(db, a, conv, at(5))).map(t => t.question), ["Invoice Acme", "Retried", "Fourth"]);
-      assert.equal((await recentTurns(db, a, conv, at(13))).length, 3, "nine minutes after the last turn");
-      assert.equal((await recentTurns(db, a, conv, at(14))).length, 0, "ten minutes after the last turn");
-      assert.deepEqual(await recentTurns(db, a, crypto.randomUUID(), at(5)), []);
-    });
-
-    await check("the latest conversation is the newest one while it is under ten minutes old, with all its turns", async () => {
-      const other = crypto.randomUUID();
-      await saveTurn(db, a, turn(other, "Newer conversation"), at(6));
-      const latest = await latestConversation(db, a, at(8));
-      assert.equal(latest?.conversationId, other);
-      assert.deepEqual(latest?.turns.map(t => t.question), ["Newer conversation"]);
-      assert.equal(await latestConversation(db, a, at(16)), null);
-      assert.equal(await latestConversation(db, b, at(8)), null, "another household has none");
+      const c = crypto.randomUUID();
+      await saveTurn(db, a, turn(c, "Newer unrelated conversation"), at(6));
+      const context = await assembleContext(db, a, { conversationId: conv, canvas: null });
+      for (const text of ["What is due?", "Invoice Acme", "Retried", "Fourth"]) assert.ok(context.context.includes(text));
+      assert.ok(!context.context.includes("Newer unrelated conversation"));
+      assert.equal((await assembleContext(db, b, { conversationId: conv, canvas: null })).context, "");
     });
 
     await check("thumbs: set, change, clear; another household's turn is refused", async () => {
@@ -132,51 +124,21 @@ async function main() {
       await assert.rejects(saveTurn(db, b, turn(c, "no", { kind: "other" as never }), at(1)));
     });
 
-    await check("a conversation stays live up to 24 hours while its document is queued, reading or has a reading in To check", async () => {
-      const cases: [string, "queued" | "reading" | "read" | "failed", ("to_check" | "confirmed" | "rejected")?][] = [
-        ["queued", "queued"], ["reading", "reading"], ["read with a reading to check", "read", "to_check"],
-      ];
-      let base = 2000;
-      for (const [name, status, reading] of cases) {
-        const c = crypto.randomUUID(), doc = await waitingSet(a, status, reading);
-        await saveTurn(db, a, documentTurn(c, doc), at(base));
-        assert.equal((await recentTurns(db, a, c, at(base + 11))).length, 1, `${name}: 11 minutes`);
-        assert.equal((await recentTurns(db, a, c, at(base + 24 * 60 - 1))).length, 1, `${name}: just under 24 hours`);
-        assert.equal((await recentTurns(db, a, c, at(base + 25 * 60))).length, 0, `${name}: 25 hours`);
-        assert.equal((await latestConversation(db, a, at(base + 11)))?.conversationId, c, `${name}: latest`);
-        base += 3000;
-      }
-      for (const [name, status, reading] of [["confirmed", "read", "confirmed"], ["rejected", "read", "rejected"], ["failed", "failed", undefined]] as const) {
-        const c = crypto.randomUUID(), doc = await waitingSet(a, status, reading);
-        await saveTurn(db, a, documentTurn(c, doc), at(base));
-        assert.equal((await recentTurns(db, a, c, at(base + 11))).length, 0, `${name}: not live`);
-        assert.equal(await latestConversation(db, a, at(base + 11)), null, `${name}: no latest`);
-        base += 3000;
-      }
-    });
-
-    await check("another household's waiting document never keeps a conversation live; the ten-minute rule holds without one", async () => {
-      const c = crypto.randomUUID(), theirs = await waitingSet(b, "queued");
-      await saveTurn(db, a, documentTurn(c, theirs), at(20_000));
-      assert.equal((await recentTurns(db, a, c, at(20_011))).length, 0);
-      assert.equal(await latestConversation(db, a, at(20_011)), null);
-      const plain = crypto.randomUUID();
-      await saveTurn(db, a, turn(plain, "Plain question"), at(21_000));
-      assert.equal((await recentTurns(db, a, plain, at(21_009))).length, 1);
-      assert.equal((await recentTurns(db, a, plain, at(21_011))).length, 0);
-    });
-
-    await check("the device journal: recentOf and latestOf honour the waiting set", () => {
-      const doc = crypto.randomUUID(), c = crypto.randomUUID();
-      const base = ConversationTurn.parse({ version: 1, id: crypto.randomUUID(), conversationId: c, question: "Here's my bill", kind: "document", reply: "Reading your bill…", choices: null, recipe: null, sources: [], thumb: null, documentId: doc, createdAt: at(0).toISOString() });
-      const turns = appendTurn([], base);
-      assert.equal(recentOf(turns, c, at(11)).length, 0);
-      assert.equal(recentOf(turns, c, at(11), new Set([doc])).length, 1);
-      assert.equal(recentOf(turns, c, at(11), new Set([crypto.randomUUID()])).length, 0);
-      assert.equal(recentOf(turns, c, at(25 * 60), new Set([doc])).length, 0);
-      assert.equal(latestOf(turns, at(11)), null);
-      assert.equal(latestOf(turns, at(11), new Set([doc]))?.conversationId, c);
-      assert.equal(latestOf(turns, at(9))?.turns.length, 1);
+    await check("the budget drops oldest turns and always carries the retained document cards", async () => {
+      const c = crypto.randomUUID(), doc = await waitingSet(a, "queued");
+      await saveTurn(db, a, turn(c, "Omitted old", { reply: "a".repeat(6000) }), at(2000));
+      await saveTurn(db, a, turn(c, "Retained newer", { reply: "b".repeat(6000) }), at(2001));
+      await saveTurn(db, a, documentTurn(c, doc), at(2002));
+      const raw = await spaceThread(db, a, c);
+      const tail = contextTail(raw);
+      assert.equal(tail.omitted, 1);
+      assert.ok(tail.turns.map(turnWords).join("\n").length <= THREAD_CONTEXT_MAX);
+      const context = await assembleContext(db, a, { conversationId: c, canvas: null });
+      assert.ok(context.context.includes("1 earlier turn remains"));
+      assert.ok(!context.context.includes("Omitted old"));
+      assert.ok(context.context.includes("Retained newer"));
+      assert.ok(context.context.includes(doc));
+      assert.match(context.context, /Cards for the attached documents[\s\S]*Reading your bill/);
     });
 
     await check("a household file with a document turn parses, and Import keeps the kind but not the document", async () => {

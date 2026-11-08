@@ -2,7 +2,8 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
-import { archiveSpace, createSpace, deleteSpace, renameSpace } from "@/db/spaces";
+import { archiveSpace, createSpace, deleteSpace, renameSpace, saveBrief } from "@/db/spaces";
+import { briefFromForm } from "@/lib/agent/brief-form";
 import { badFields, failure, formOf, redirectTo, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
@@ -13,6 +14,7 @@ const fields = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("rename"), id, name }),
   z.object({ kind: z.literal("archive"), id }),
   z.object({ kind: z.literal("delete"), id }),
+  z.object({ kind: z.literal("brief"), id }),
 ]);
 
 export async function POST(request: Request) {
@@ -35,6 +37,9 @@ export async function POST(request: Request) {
           const space = await createSpace(tx, hid, action.name);
           return `/canvas?space=${space.id}`;
         }
+        case "brief":
+          await saveBrief(tx, hid, action.id, briefFromForm(form), "form");
+          return `/canvas?space=${action.id}`;
         case "rename":
           await renameSpace(tx, hid, action.id, action.name);
           break;

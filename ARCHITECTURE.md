@@ -37,7 +37,7 @@ Cloudflare
     │   ├── /api/canvases          pins on Home and in spaces (D57, D69): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
     │   ├── /api/canvas/resolve    a recipe → each block's query through the engine → the resolved blocks; body at most 100,000 bytes; nothing is stored
     │   ├── /api/memory            add, edit, delete or forget all of what the assistant remembers; the page /memory
-    │   ├── /api/spaces            POST `kind` create, rename, archive or delete. Same-origin household guard and 20 requests per minute
+    │   ├── /api/spaces            POST `kind` create, rename, archive, delete or brief. Same-origin household guard and 20 requests per minute
     │   ├── /api/clients, /api/bills, /api/charges   typed-in client, bill (`kind` add, edit or fill) and card charge ("Paid in another currency", D62)
     │   ├── /api/remove            remove a bill (a repeating bill as a whole series) or a card charge; `kind` and `id`
     │   ├── /api/voice-fill        Fill by voice (D26): `{ text, fields }` → one forced-tool model call on the household's text model → `{ values, heard, notes }` checked by `checkFill`; writes nothing, no rate limit, 16 KiB cap, 503 names the missing AI setting
@@ -188,27 +188,28 @@ Nov 12; Web Push after.
 
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
-| 1. Question | `AskPage.tsx` (`/canvas?space=<id>`, General by default; the top and phone Ask links open /canvas#ask on Enter or Space, and hand a typed character over in `sessionStorage` `pes-ask-draft`; browser shortcuts keep their usual behavior) → POST /api/ask | the canvas on screen; on a device, its memory (≤ 200) and the last 3 turns ride in the body | nothing | the question in the conversation |
+| 1. Question | `AskPage.tsx` (`/canvas?space=<id>`, General by default; the top and phone Ask links open /canvas#ask on Enter or Space, and hand a typed character over in `sessionStorage` `pes-ask-draft`; browser shortcuts keep their usual behavior) → POST /api/ask | the canvas on screen. Device memory and the selected space’s journal context ride in the body when stored locally | nothing | the question in the conversation |
 | 2. Gate | `answerQuestion` (`src/db/ask.ts`) | the selected household space; `readPlaces`; `turnById` and `askReceipt` for a retried id (cloud journal); `askReceipt` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
-| 3. Context | `conversationContext` | the last 3 turns of the conversation when its latest is under 10 minutes old (24 hours while an attached document is queued, reading or in To check); a document turn's card as text (`cardContext`) | nothing | — |
-| 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | `MODEL_RULES` + `ASK_RULES` + `memoryContext` (≤ 6,000 characters); `aiConnection(db, hid, "text")` per call | nothing | — |
+| 3. Context | `assembleContext` (`src/db/ask.ts`) | rules, profile (6,000 characters), brief (2,000), space notes (3,000), recent turns (12,000), their live document cards, then canvas | nothing | — |
+| 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | the assembled context and tool catalogue. `aiConnection(db, hid, "text")` supplies the connection per call | nothing | — |
 | 5. Tools | the catalogue over the engine; the read tools of one model turn run together (`callAll`), draft tools alone in the order asked, results in the order asked | the money state, loaded once per tool turn | draft tools: pending rows in To check, an invoice draft, a memory item (`made_by = ask`, `ask_id`) | the latest step in fixed words (`TOOL_WORDS`) in the line under the box |
-| 6. Reply kind | `chooseReply` (`reply.ts`) + `unconfirmedAmounts` | the question, this question's tool results, the memory block | nothing | — |
-| 7. Save | after a declined reply `consumeRequest` decides the limit atomically; `saveTurn`; `resolveRecipe` draws the canvas | `loadCanvasContext` | `conversation_turns`; the out-of-scope bucket on a decline | the reply, the canvas, "Based on", Pin to Home, thumbs |
+| 6. Reply kind and brief | `chooseReply` (`reply.ts`) + `unconfirmedAmounts` | the question, its tool results and memory for the answer. A brief update can cite amounts only from this question’s tool results | nothing | — |
+| 7. Save | after a declined reply `consumeRequest` decides the limit atomically; `saveTurn`; `resolveRecipe` draws the canvas | `loadCanvasContext` | the turn, then the accepted brief. Cloud saves record a content-free `brief_updated` event | the reply, the canvas, "Based on", pins, thumbs and the updated brief |
 
 ```mermaid
 flowchart LR
     Q[Question + canvas on screen] --> G{Retried id?}
     G -- saved turn --> R[Reply from the stored turn]
-    G -- go --> C[Context: last 3 turns, memory, canvas as data]
+    G -- go --> C[Context: profile, brief, notes, recent turns, cards and canvas]
     C --> M[callModel: rules + tools, 4 tool turns, 20 s]
     M --> T[Tools over the engine: read, draft, canvas, memory]
     T --> M
     M --> K[chooseReply in code: clarify, declined or answer]
     K --> N[unconfirmedAmounts over text and canvas words]
     N -- unconfirmed --> E[Fixed error, nothing shown]
-    N -- confirmed --> S[saveTurn, resolveRecipe draws the canvas]
-    S --> R
+    N -- confirmed --> S[Save the turn and resolve the canvas]
+    S --> B[Save any validated brief update]
+    B --> R
 ```
 
 On phones, Ask’s Based on links extend their tap area with a CSS pseudo-element.
@@ -222,6 +223,13 @@ by line; the page shows the latest step in a `role="status"` line under the box 
 **Budgets and limits.** `MAX_TOOL_TURNS` 4, `BUDGET_MS` 20 s shared by every model call of the question, `MAX_TOKENS` 16,000, no retries (every
 attempt asks for its own connection); the ask limit is 30 a minute; declined questions are not capped; the read tools of a model turn are raced against the time left of the 20 s (`beforeDeadline` in `run.ts`): past it the question stops with "That took too long while <the step's words>. Try a simpler question." (outcome `budget`), while a write, `clarify` and `out_of_scope` are waited for and a write already done is kept (`savedThenStopped`); a question is 1 to 320 characters; one question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`;
 `remember` and `forget` refuse the 21st in words). With no setting for a model, the Ask page names the missing `AI_` setting.
+
+**Context budget (D71).** `assembleContext` assembles Ask context from fixed rules, then profile items up to
+6,000 characters, the space brief up to 2,000, and up to 3,000 characters of the newest space notes. The recent
+thread is a contiguous suffix up to 12,000 characters. The context states how many earlier turns remain in the
+thread. It includes the live `cardContext` for each document in that suffix, then the canvas on screen. The model
+gets its tool catalogue with that context. The same thread can continue after any interval. Amounts from earlier
+turns, the brief and document card text are read again from current tools before being used in an answer.
 
 **The tools (one catalogue, `src/lib/agent/tools.ts`).** Twenty read tools return the engine's numbers, which the model quotes verbatim in one or
 two sentences: `where_am_i`, `whats_due`, `open_gaps`, `can_i_spend`, `list_clients_and_cards`, `timeline`, `options_when_short`, `list_invoices`,
@@ -269,6 +277,16 @@ Archived spaces in Memory. Each space row can show the first line of its brief. 
 Attached documents stay in the household, and rules and reminder history lose their space link. Cloud pins are scoped to their space.
 Home draws General and legacy pins. A task space lists its own pins under "Pinned in this space".
 
+**The brief (D69).** `BriefSchema` in `src/lib/agent/brief.ts` describes About, Goal, State with a tool name or note id per line,
+Decisions, Open questions, Check next, and lists of bill, client, pot and document ids. It allows up to 2,000
+characters of serialized JSON and refuses a run of 12 or more digits in brief text. `briefContext` quotes the saved brief for the next question.
+The Ask-only `update_brief` tool proposes a replacement when an answer changes what the space knows. It writes
+nothing during tool execution. Code checks the proposed amounts against this question’s tool results. The brief
+is applied after the answer’s turn. Cloud saves put both in one transaction and record `brief_updated` in
+Activity without the brief text. Device saves carry the accepted brief back to the browser. A rejected proposal
+leaves the previous brief in place. Ask shows the Space brief with "Agent updated it" or "You updated it" and the time. Edit opens the structured
+fields, with each State line entered as `source | detail`. A cloud save posts `kind=brief` to `/api/spaces`.
+
 **The turn and the page.** The turn (question, kind, reply, choices, recipe, sources) is stored in `conversation_turns`
 (`src/db/conversation.ts`) and a thread keeps its turns until deletion; the reply carries kind, text, choices, the canvas the engine drew, "Based on" links to the pages the tools read,
 links, `pending`, the first-use line (`firstUse(host)`, shown until the household's first answer, D60), `memoryChanges` and `wait`. The page shows
@@ -293,15 +311,14 @@ refused with `SECRET_REFUSAL`) live in `memories` through `src/db/memory.ts`, on
 as a memory item in the same transaction as the confirm (`correctionText`, `src/lib/reader/correction.ts`).
 
 **When memory or the journal is kept on this device (D59).** The question carries what the server must not keep: `memory` (at most 200 items) and
-`recent` (at most 3 turns) ride in the body; a question missing a list the household keeps on the device, or carrying one it keeps in the cloud, is
-refused in words. The server uses them for that question's system text, user turn and amount-check sources and writes nothing: no turn row, no memory
-row. `remember` and `forget` change the list in hand and come back in the reply as `memoryChanges`, which the browser applies to its own store; the
+the selected space’s budgeted recent turns and brief ride in the body. The request validates which data belongs
+to the device. The server uses local context for the question and saves no copies of the device’s turn, memory or brief. `remember` and `forget` change the list in hand and come back in the reply as `memoryChanges`, which the browser applies to its own store; the
 browser saves the turn itself. A thumb is kept on the device and still writes the content-free log line. MCP `recall`, `remember` and `forget` answer
 "This household keeps its memory on one device. Ask in the app on that device." and touch nothing.
 
 **How MCP differs.** An MCP client presents a bearer token → `authenticateMcpToken` (`api_tokens`, hashed) → household; the same-origin check applies
 when an Origin header is present; the limit is 30 a minute. `mcpRequest` (`src/lib/mcp/server.ts`) builds a stateless SDK server per request with
-`MODEL_RULES` as its `instructions` and registers the catalogue minus the two Ask-only tools, and minus the draft tools unless the token holds the
+`MODEL_RULES` as its `instructions` and registers tools eligible for MCP. Draft tools require the
 `draft` scope: where am I, what's due, draft an invoice, `what_if`, `make_canvas` (its summary text; nothing is stored or pinned from MCP), `recall`,
 `foreign_costs`, and `remember`/`forget` for a draft token. Rows it writes carry `made_by = mcp`. Each tool call writes the same kind of content-free
 log line. There is no conversation, no canvas drawing and no reply chooser; sending still needs the tap in the app.
@@ -442,7 +459,7 @@ Under Uploaded documents, `listDocuments` returns each household document's date
 | Documents: the files and their readings | the object at `<household id>/<document id>` in the private bucket; `documents`, `readings`, `rules` | `household_id` and the path prefix (checked on every removal) | members and Try it; the model provider receives the bytes to read them | Your data (the object, the readings, the row; bills and charges keep their rows and lose the link); with the household; never in the export |
 | Memory: what the assistant remembers | `memories` (200 items, 400 characters), or the `memory` store of IndexedDB `pes-device-<household id>` | `household_id`, or the device | members and Try it; the agent's system text; MCP `recall` (and `remember`/`forget` with the draft scope) in the cloud only | export (from a device only when exported on that device); Import; Your data delete; Forget everything; `/api/data/move`; with the household |
 | Canvases: General pins on Home and task pins in Ask | `canvases` (at most 8), or the `canvases` store on the device | `household_id`, or the device | members and Try it on Home; never MCP | export; Import; unpin; Your data; `/api/data/move`; with the household |
-| The journal: Ask spaces and their conversations | `spaces` and `conversation_turns`; turns can be kept in the `journal` store on the device | `household_id`, or the device | members and Try it; the agent's context (the last 3 turns, with the attached documents' cards) | export; Import; space deletion; Your data; `/api/data/move`; with the household |
+| The journal: Ask spaces and their conversations | `spaces` and `conversation_turns`. The journal can keep turns and briefs on the device | `household_id`, or the device | members and Try it; the agent’s budgeted context, with live cards for recent documents | export; Import; space deletion; Your data; `/api/data/move`; with the household |
 | Reminder settings and last channel claims | `reminder_settings` (hour, quiet days, email on, opted-in verified address, claimed dates) | `household_id` and member | the member’s settings and the hourly job | settings change or household deletion. Claim dates survive history deletion |
 | Push devices and reminder history | `push_subscriptions` (endpoint and encryption keys) and `reminders` (channel, day, suggestion IDs, sent or failed) | `household_id` and member | the reminder job, and counts in Your data. Settings compares a device’s endpoint hash | unsubscribe, expired endpoints and Your data. History expires after 30 days. Household deletion clears both. The export excludes both |
 | Events: the audit trail and the bell | `events` | `household_id` | members and Try it (Activity, the bell, `/api/events`); the export | with the household; the export; never imported (the trail starts again) |
@@ -457,12 +474,12 @@ Under Uploaded documents, `listDocuments` returns each household document's date
 
 Your data counts named spaces with the cloud journal and shows the space count separately when turns are kept on this device. General does not contribute a space to the count.
 Deleting the cloud journal removes the named spaces with their threads, notes, pins and briefs and clears the General thread and brief. General and all documents stay.
-Deleting the device journal removes local turns. Named spaces are still managed in Memory.
+Deleting the device journal clears its local turns and briefs. Named spaces are still managed in Memory.
 
 **Export and Import (D44, D59).** `loadHouseholdSnapshot` (`src/db/snapshot.ts`) is the only builder: one read transaction, `requireHousehold`,
 named columns (it never selects a secret or pointer column), and it parses its own result. `/api/export` (a POST form, so nothing is in a URL)
 downloads the version 3 snapshot with `events`, `memory`, `canvases`, `spaces` and `journal`. `ExportData.tsx` adds this device's items to the file in the
-browser before it is saved when a kind is kept on the device. `/api/restore` accepts version 2 and version 3 files (at most 1 MB) into an empty household
+browser before it is saved when a kind is kept on the device. Local brief and update metadata go into their matching space entries. `/api/restore` accepts version 2 and version 3 files (at most 1 MB) into an empty household
 (`restoreHousehold`). It maps imported spaces to destination ids and reconnects their turns, notes and pins. The owner becomes the household's own
 owner, imported records carry `made_by = import`, and one `household_imported` event is recorded. Import refuses truncated files, version 1 files,
 another currency, memory or pins beyond the app limits, a memory item with a long number, and any household that keeps a kind on the device. Not restored, on purpose: events, documents, the PayPal
@@ -475,6 +492,7 @@ one database per household, one object store per kind, every call in try/catch),
 and sets the place in one transaction (nothing moves if the cloud now holds other ids). Back to the cloud, `to_cloud` posts the items; each is checked
 against its schema, inserted with its id, and the place is set. `requireCloud` refuses a cloud write for a kind kept on the device, so a kind is never
 in both places. On the device the server holds none of it and cannot see it, other devices and MCP see none of it, and clearing the browser deletes it.
+The journal move includes each space’s brief and update metadata. A cloud-to-device move checks the journal revision before clearing the cloud turns and brief fields. The browser stores turns and briefs together. Space names and ids remain in the cloud.
 Events record that data was deleted (`data_deleted`), moved (`data_moved`) or imported (`household_imported`), never its content.
 
 ### The tenant wall
