@@ -4,13 +4,20 @@
 import { householdDate } from "@/db/account";
 import { loadMoneyState, requireHousehold, type Db } from "@/db/household";
 import { InputError } from "@/db/input-error";
+import { listMemory } from "@/db/memory";
+import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { rulesFor } from "@/db/rules";
+import { minorMoney } from "@/lib/money/format";
+import { normalise } from "@/lib/money/name-key";
 import { callModel } from "@/lib/ai/call";
 import { ModelError, type Connection, type ToolResult, type ToolSpec, type Turn } from "@/lib/ai/types";
 import type { MoneyState } from "@/lib/money/types";
 import { logCall, type ToolLog } from "./log";
 import type { Recipe } from "@/lib/canvas/schema";
 import { chooseReply, type ReplyKind, type Source } from "./reply";
-import { memoryBlock, memoryContext } from "./memory-prompt";
+import { memoryBlock } from "./memory-prompt";
+import type { KeepOffer } from "./keep-offer";
+import { MAX_KEEP_OFFERS, offerValue } from "./offer-tools";
 import type { DeviceMemory } from "@/lib/store/memory-ops";
 import { ASK_RULES, MODEL_RULES } from "./rules";
 import { tools, toolInputSchema, type ToolContext } from "./tools";
@@ -25,7 +32,7 @@ export class AgentError extends Error {
 }
 
 /** Tools whose result repeats text the model wrote. */
-const NOT_SOURCES = new Set(["remember", "forget", "make_canvas"]);
+const NOT_SOURCES = new Set(["remember", "forget", "make_canvas", "offer_keep"]);
 
 const MAX_TOOL_TURNS = 4;
 const BUDGET_MS = 20_000;
@@ -81,7 +88,7 @@ type AskOptions = {
 };
 export type AskResult = {
   kind: ReplyKind; answer: string; choices: string[] | null; recipe: Recipe | null; sources: Source[];
-  links: { label: string; href: string }[]; pending: boolean;
+  links: { label: string; href: string }[]; pending: boolean; offers: KeepOffer[];
 };
 
 export async function runAgent(opts: AskOptions): Promise<AskResult> {
@@ -115,6 +122,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const hid = requireHousehold(opts.householdId);
 
   const links: { label: string; href: string }[] = [];
+  const offers = new Map<string, { offer: KeepOffer; value: number | null }>();
   let pending = false;
   let recipe: Recipe | null = null;
   let clarify: { question: string; choices: string[] } | null = null;
@@ -125,17 +133,26 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   // The household's state is read once per tool turn, so tools in one turn agree with each other.
   let loaded: Promise<MoneyState> | undefined;
   const state = () => (loaded ??= householdDate(opts.db, hid).then(today => loadMoneyState(opts.db, hid, today)));
+  const initialState = await state();
+  const { today, homeCurrency } = initialState;
   const ctx: ToolContext = {
     madeBy: "ask", db: opts.db, householdId: hid, state, appUrl: opts.appUrl, askId: opts.askId, source: opts.source,
     addLink: link => { if (!links.some(known => known.href === link.href)) links.push(link); },
     onCanvas: next => { recipe = next; },
     onClarify: next => { clarify = next; },
     onOutOfScope: next => { outOfScope = next; },
+    onOffer: offer => {
+      const value = offerValue(offer, homeCurrency);
+      const key = offerKey(offer);
+      if (offers.has(key)) return;
+      if (offers.size >= MAX_KEEP_OFFERS) throw new InputError(`Offer at most ${MAX_KEEP_OFFERS} different things to keep.`);
+      offers.set(key, { offer, value });
+    },
     deviceMemory: opts.deviceMemory,
     onPending: () => { pending = true; ctx.addLink?.({ label: "Open To check", href: new URL("/to-check", opts.appUrl).href }); },
   };
-  const { today, homeCurrency } = await state();
-  const memory = opts.deviceMemory ? memoryBlock(opts.deviceMemory.items) : await memoryContext(opts.db, hid);
+  const initialMemory = opts.deviceMemory?.items ?? await listMemory(opts.db, hid);
+  const memory = memoryBlock(initialMemory);
   const system = systemPrompt(today, homeCurrency, memory);
   const turns: Turn[] = [{ role: "user", parts: [{ type: "text", text: opts.context ? `${opts.question}\n\n${opts.context}` : opts.question }] }];
   // Every amount in the answer must come from the question or a tool result (D56).
@@ -165,7 +182,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       if (reply.stop === "end") {
         const answer = reply.text.trim();
         if (!answer) throw failure("empty");
-        return finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe, sources }));
+        return await finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe, sources }));
       }
       if (reply.stop === "refusal") throw failure("refusal");
       if (reply.stop === "length") throw failure("cutOff");
@@ -185,7 +202,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       if (ending) {
         const { result, log } = await callTool(ctx, ending, now);
         trace.tools.push(log);
-        if (clarify !== null || outOfScope !== null) return finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe, sources }));
+        if (clarify !== null || outOfScope !== null) return await finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe, sources }));
         results.push(result);
       }
       results.push(...await callAll(ctx, reply.calls.filter(call => call !== ending), trace, now, deadline));
@@ -213,9 +230,36 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     throw error;
   }
 
-  function finish(chosen: ReturnType<typeof chooseReply>): AskResult {
+  async function finish(chosen: ReturnType<typeof chooseReply>): Promise<AskResult> {
     if (!chosen) throw new AgentError("The model gave an amount the app could not confirm from your numbers, so the answer is not shown. Ask again, or choose another model in Settings.", "unconfirmed_amount");
-    return { kind: chosen.kind, answer: chosen.text, choices: chosen.choices, recipe: chosen.recipe, sources: chosen.sources, links, pending };
+    const candidates = chosen.kind === "answer" ? [...offers.values()] : [];
+    const [memoryNow, standingRules] = await Promise.all([
+      opts.deviceMemory?.items ?? (wroteMemory && candidates.some(({ offer }) => offer.kind === "memory")
+        ? listMemory(opts.db, hid) : initialMemory),
+      candidates.some(({ offer }) => offer.kind === "rule") ? rulesFor(opts.db, hid) : null,
+    ]);
+    const available = candidates.filter(({ offer, value }) => {
+      if (offer.kind === "memory") {
+        return !memoryNow.some(item => item.kind === offer.memoryKind && normalise(item.text) === normalise(offer.text))
+          && unconfirmedAmounts(offer.text, sources).length === 0;
+      }
+      if (offer.kind === "goal") {
+        return value !== null && !initialState.pots.some(pot => normalise(pot.name) === normalise(offer.name))
+          && unconfirmedAmounts(`${offer.name} ${minorMoney(value, homeCurrency)}`, sources).length === 0;
+      }
+      const current = standingRules?.[offer.ruleKind];
+      if (current?.enabled === offer.enabled && (current.threshold === value || !offer.enabled && value === null)) return false;
+      return offer.ruleKind !== "safe_below" || value === null || unconfirmedAmounts(minorMoney(value, homeCurrency), sources).length === 0;
+    }).map(({ offer }) => offer);
+    return { kind: chosen.kind, answer: chosen.text, choices: chosen.choices, recipe: chosen.recipe, sources: chosen.sources, links, pending, offers: available };
+  }
+}
+
+function offerKey(offer: KeepOffer): string {
+  switch (offer.kind) {
+    case "memory": return `memory:${offer.memoryKind}:${normalise(offer.text)}`;
+    case "goal": return `goal:${normalise(offer.name)}`;
+    case "rule": return `rule:${offer.ruleKind}`;
   }
 }
 

@@ -125,7 +125,7 @@ async function main() {
     // the limit: 30 a minute, the 31st is 429 with Retry-After, and it is per household
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
     let calls = 0;
-    asking = async () => { calls++; return { id: "x", kind: "answer", text: "fine", choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [] }; };
+    asking = async () => { calls++; return { id: "x", kind: "answer", text: "fine", choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], offers: [] }; };
     for (let i = 0; i < 30; i++) { const answer = await ask(json("/api/ask", question())); assert.equal(answer.status, 200, `ask ${i + 1}`); }
     const limited = await ask(json("/api/ask", question()));
     assert.deepEqual([limited.status, await limited.text(), limited.headers.get("retry-after"), limited.headers.get("cache-control")], [429, "Ask again in a minute.", "60", "private, no-store"]);
@@ -189,7 +189,7 @@ async function main() {
     // the stream: steps in order, then the reply; a failure after steps is an error line; an InputError after a step is an error line, before one a plain 400
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
     cookie = a;
-    const replyObject = { id: "x", kind: "answer", text: "fine", choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [] };
+    const replyObject = { id: "x", kind: "answer", text: "fine", choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], offers: [] };
     type Deps = { onStep?: (step: string) => void };
     asking = async (...args: unknown[]) => { const deps = args[3] as Deps; deps.onStep!("Thinking about your question"); await new Promise(resolve => setTimeout(resolve, 5)); deps.onStep!("Reading what's due"); return replyObject; };
     const ok1 = await streamed(await ask(json("/api/ask", question())));

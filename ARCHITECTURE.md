@@ -6,7 +6,7 @@ A Next.js 16 app on Cloudflare Workers (OpenNext) over household-scoped Postgres
 Try it and magic-link sessions, Home and invoice review, typed-in data (clients, bills, card charges, pots, people, invoices marked paid),
 statement and PayPal history import, the reader (upload, forwarded email, a file attached in Ask), the in-app agent with its canvas and memory,
 MCP, the family view, Your data (export, import, delete, this device only), what foreign money costs (D62), PayPal approval and verified-webhook
-handling are implemented, along with daily suggestions from the money engine (D64). The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local
+handling are implemented, along with daily suggestions from the money engine (D64) and Keep this? offers in Ask (D67). The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local
 Worker read a fictional household from the Tokyo project; Vault and the private Storage bucket are verified there. Not yet verified live:
 magic-link delivery, a live model call, the deployed Worker, Email Routing, and a real PayPal send-to-webhook round trip. The repository and
 the app are private. Decisions: D18, D31–D62 in [DECISIONS.md](DECISIONS.md).
@@ -29,7 +29,7 @@ Cloudflare
     │   ├── /start (Start with my numbers), /login, /onboarding
     │   └── /family/[token]: no session; the token resolves to a household (D52); no-store, noindex, no referrer
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
-    │   ├── /api/ask               one question of the Ask conversation `{ id, conversationId, text, source, canvas }`; body at most 128 KiB; the checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply or an error line)
+    │   ├── /api/ask               one question of the Ask conversation `{ id, conversationId, text, source, canvas }`; body at most 128 KiB; the checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers, or an error line)
     │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 503 a setting missing and named, 502 a service failed, 500 anything else)
     │   ├── /api/ask/thumb         `{ id, thumb }` on one reply; one content-free log line
     │   ├── /api/canvases          pins on Home (D57): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
@@ -69,7 +69,7 @@ Cloudflare
         ├── Engine `src/lib/money`: runway.ts (availableCash, series, low, safeToSpend, roomOnCard, ladder, timeline, statementItems), repeat, window (`stateThrough`, `dayView`), plan,
         │   split, month, spending, period (the month a bill covers, D63), name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check, suggest (D64)
         ├── Sentence composer `src/lib/money/sentence.ts`: engine output → "You're fine if … If late, ¥18,780 short on the 27th."
-        ├── Agent `src/lib/agent`: one tool catalogue (tools.ts, canvas-tools.ts, memory-tools.ts, check-tools.ts), run.ts, words.ts (the step words), reply.ts, rules.ts, memory-prompt.ts, log.ts
+        ├── Agent `src/lib/agent`: one tool catalogue (tools.ts, canvas-tools.ts, memory-tools.ts, check-tools.ts, offer-tools.ts), run.ts, words.ts (the step words), reply.ts, rules.ts, memory-prompt.ts, log.ts
         ├── Model call `src/lib/ai`: `callModel` (anthropic.ts, openai.ts), `checkBaseUrl`, `unconfirmedAmounts`, `checkConnection`, `PROVIDERS`, the tested list
         ├── Canvas `src/lib/canvas`: the recipe schema, `resolveRecipe`, starters, words, the request helper (D57)
         ├── Memory `src/lib/schema/memory.ts`: the item schema (D58); the household-scoped functions are `src/db/memory.ts`
@@ -399,6 +399,8 @@ household is refused; already-paid invoices credit no balance.
 Try it and Reset also run the suggestion pass on Ben’s fixed date. The pass calls no model. Home shows findings by urgency and its review links open existing invoice, To check, bill, card and Plan screens. The approve, confirm, bill and pot write flows close the finding they complete in the same database transaction. Suggestion activity keeps a stable finding reference so pruning cannot produce a duplicate. Ask and MCP share the read tool suggestions. The nudge setting in Settings edits the standing nudge_after row. The reminders tables are reserved for the outbound channels in 29B.
 
 observeRunway runs before and after, so a change from short to fine or back is recorded. A late charge confirmation and statement closing share the household lock, which keeps the charge counted once. Confirmed charges after a card’s latest stored statement are grouped by their closing cycle.
+
+**Keep this? (D67).** The Ask-only offer_keep tool collects up to three distinct proposals for a memory, a dated goal pot or a fixed rule. Code checks the proposed text and amounts and excludes items the household already keeps. The streamed answer carries the offers. They are transient in the current conversation view. Keep uses /api/memory or /api/pots, or the existing IndexedDB operation when Memory is on this device. No dismisses the card in the view. The rule cards stay hidden until the Rules route is available.
 
 ## Data: where it lives and how it is shared
 

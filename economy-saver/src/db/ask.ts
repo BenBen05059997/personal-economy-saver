@@ -13,6 +13,7 @@ import { recentTurns, saveTurn, turnById } from "./conversation";
 import { documentCard } from "./document-card";
 import { conversationTurns, households } from "./schema";
 import { AgentError, runAgent, type AskResult } from "@/lib/agent/run";
+import type { KeepOffer } from "@/lib/agent/keep-offer";
 import { serverDefaultHost } from "@/lib/agent/availability";
 import { FIXED, firstUse, type ReplyKind, type Source } from "@/lib/agent/reply";
 import { cardContext, type DocumentCard } from "@/lib/reader/document-card";
@@ -42,6 +43,8 @@ export type AskReply = {
   sources: Source[]; links: { label: string; href: string }[]; pending: boolean; firstUse: string | null;
   /** D59: what `remember` and `forget` did to the memory the question carried; the browser applies it to its own copy. Empty when memory is in the cloud. */
   memoryChanges: MemoryChange[];
+  /** Offers live with this reply until the person chooses. They are not journal entries. */
+  offers: KeepOffer[];
 };
 
 /** The earlier turns and the canvas on screen, as quoted data after the question (never an amount source). */
@@ -108,7 +111,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     const drawn = kept.recipe ? { recipe: kept.recipe, blocks: resolveRecipe(kept.recipe, await loadCanvasContext(db, householdId, kept.recipe)) } : null;
     return {
       id, kind: kept.kind === "document" ? ANSWER : kept.kind, text: kept.reply, choices: kept.choices, canvas: drawn,
-      sources: kept.sources, links: receipt?.links ?? [], pending: receipt?.pending ?? false, firstUse: await firstUseLine(db, householdId), memoryChanges: [],
+      sources: kept.sources, links: receipt?.links ?? [], pending: receipt?.pending ?? false, firstUse: await firstUseLine(db, householdId), memoryChanges: [], offers: [],
     };
   }
   // The conversations are on the device, so no turn is stored here to replay; the receipt says this id already wrote, and nothing runs or writes again.
@@ -116,7 +119,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   if (wrote) {
     return {
       id, kind: ANSWER, text: FIXED.alreadySaved, choices: null, canvas: null, sources: [],
-      links: wrote.links.length ? wrote.links : [{ label: "Open To check", href: new URL("/to-check", appUrl()).href }], pending: wrote.pending, firstUse: null, memoryChanges: [],
+      links: wrote.links.length ? wrote.links : [{ label: "Open To check", href: new URL("/to-check", appUrl()).href }], pending: wrote.pending, firstUse: null, memoryChanges: [], offers: [],
     };
   }
   const context = recent !== undefined ? contextText(recent, canvas, await documentCards(db, householdId, recent)) : await conversationContext(db, householdId, { conversationId, canvas }, deps.at);
@@ -127,7 +130,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   } catch (error) {
     // A write tool already succeeded: what it kept is shown, with the reason the answer stopped, instead of an error that hides it (a retry would write it twice).
     if (!(error instanceof AgentError) || !error.saved) throw error;
-    result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending };
+    result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending, offers: [] };
   }
   await noteAskReply(db, householdId, id, result);
   if (recent === undefined) {
@@ -138,6 +141,6 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   const drawn = result.recipe ? { recipe: result.recipe, blocks: resolveRecipe(result.recipe, await loadCanvasContext(db, householdId, result.recipe)) } : null;
   return {
     id, kind: result.kind, text: result.answer, choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending,
-    firstUse: recent === undefined ? await firstUseLine(db, householdId) : null, memoryChanges: deviceMemory?.changes ?? [],
+    firstUse: recent === undefined ? await firstUseLine(db, householdId) : null, memoryChanges: deviceMemory?.changes ?? [], offers: result.offers,
   };
 }

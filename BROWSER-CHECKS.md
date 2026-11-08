@@ -437,9 +437,20 @@ For AG2–AG4 use separate disposable copies of Ben’s Try it. Prepare a pendin
 - AG3. Tap Not now. The finding disappears through a reload on Nov 14. In the fixture advance the household date to Nov 15 and run its suggestion pass. The Kumo Water finding is back. CloudBox Plus enters the three-day window on Nov 15 as a separate finding.
 - AG4. Tap Dismiss. The finding disappears through a reload and stays gone after the Nov 15 pass. Activity has one "Suggestion dismissed" row titled "Kumo Water due Nov 17".
 - AG5. Ask "What needs my attention?" with the Kumo Water fixture and a configured model. Expect the tool step "Checking what needs your attention" and the title and ¥2,500 reason from the open finding. "Based on" links to "From your assistant". On fresh Try it the suggestions tool returns an empty list.
+
 - AG6. On a disposable Nov 23 copy of Ben's household, run the pass. Card A statement due Nov 26 reads "¥58,000, covered even if clients pay late." Review statement opens Card A.
 - AG7. On that Nov 23 copy, Review invoice on "Acme Corp is past their usual payment day" opens invoice 1042. Its reason names Nov 22.
 - AG8. On Nov 15 with a completed pass, Review bill on "CloudBox Plus due Nov 18" opens CloudBox Plus in Settings. The reason includes ¥1,980. After editing and saving that bill, Activity records Suggestion approved.
 - AG9. On a Nov 14 fixture with Kumo Water at ¥2,000 in October and ¥2,500 in November and the cost rule at 24%, Review regular costs on "Kumo Water costs more this month" opens Regular costs in Plan. The reason reads "¥500 more than last month."
 - AG10. On a fixture with a Camera pot targeting ¥120,000 by Dec 14, saved ¥0, and no expected income, Review pot opens the Camera form in Plan. The reason gives ¥120,000 still to set aside. Saving the updated pot closes its finding.
 - AG11. On fresh Nov 14 Try it with a ¥50,000 minimum safe-to-spend rule and a completed pass, Review safe to spend opens Next 30 days on Home. The reason reads "¥0 safe to spend, below ¥50,000."
+
+## AH. Keep this? in Ask (D67, 29E)
+
+Use a fresh Nov 14 Try it household with a configured model. Run at 375px and 1440px. Offers sit under the answer, with Keep and No at least 44px tall. The offer's words may vary with the model.
+
+- AH1. Ask "I like short answers about my money. What's due this week?" The reply offers "Keep this? Preference · …". Before the tap, check in a second tab that Memory has no such item. Keep shows "Kept." and Memory has one preference with the offered words. Ask again with the same preference. The same offer stays absent.
+- AH2. In a fresh copy ask "I like answers in Japanese. What's due this week?" Tap No on the preference offer. The card disappears and Memory has no such item.
+- AH3. Ask "I'm saving ¥120,000 for a camera by June 30, 2027. What should I plan for?" The offer shows "Goal · Camera · ¥120,000 by 2027-06-30", or the model’s equivalent pot name. In a second tab, Plan has no Camera pot before the tap. Keep creates one pot with target ¥120,000, date June 30, 2027 and saved ¥0.
+- AH4. Move Memory to This device only, then use a fresh preference in Ask. Keep shows "Kept." and this browser's Memory lists the preference. Another browser has none of that device's memory.
+- AH5. Ask "Keep ¥50,000 safe to spend." The rule offer stays hidden until the Rules route is available. The stored rules stay as they were.

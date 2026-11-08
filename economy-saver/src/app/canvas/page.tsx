@@ -54,7 +54,7 @@ async function AskContent({ search }: { search: Search }) {
   const missing = missingAskSetting(own !== null);
 
   return <WorkspaceFrame workspace={workspace} section="canvas">
-    <AskPage householdId={hid} places={places} pinId={typeof pinParam === "string" ? pinParam : null} conversationId={conversation?.conversationId ?? crypto.randomUUID()} turns={turns} starters={starters} shown={shown}
+    <AskPage householdId={hid} places={places} clock={{ isDemo: workspace.demo, fixedToday: workspace.tryIt ? state.today : null, timeZone: workspace.timeZone }} pinId={typeof pinParam === "string" ? pinParam : null} conversationId={conversation?.conversationId ?? crypto.randomUUID()} turns={turns} starters={starters} shown={shown}
       form={{ today: state.today, homeCurrency: state.homeCurrency, cards: state.cards.map(c => ({ id: c.id, label: c.label })) }}
       pin={pinned && shown ? { id: pinned.id, title: pinned.title } : null} firstUse={firstUse} unavailable={missing ? askUnavailable(missing) : null} />
   </WorkspaceFrame>;

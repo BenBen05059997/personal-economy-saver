@@ -1,0 +1,169 @@
+[
+  {
+    "id": "KEEP-001",
+    "area": "Keep this?",
+    "action": "Keep an offered preference",
+    "user_goal": "I want to choose what the assistant remembers",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it with a configured model after migration 0028",
+      "375px and 1440px widths"
+    ],
+    "steps": [
+      "Ask I like short answers about my money. What's due this week?",
+      "In a second tab, check Memory for the offered preference before choosing",
+      "Tap Keep and check Memory again"
+    ],
+    "expected": [
+      "The offer appears under the answer and Memory is empty before the tap",
+      "Kept. shows and Memory has one item with the offered preference"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AH1",
+      "D67"
+    ]
+  },
+  {
+    "id": "KEEP-002",
+    "area": "Keep this?",
+    "action": "Decline an offered preference",
+    "user_goal": "I want to leave this out of Memory",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it with a configured model after migration 0028",
+      "375px and 1440px widths"
+    ],
+    "steps": [
+      "Ask I like answers in Japanese. What's due this week?",
+      "Tap No on the preference offer"
+    ],
+    "expected": [
+      "The card disappears and Memory has no new preference"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AH2",
+      "D67"
+    ]
+  },
+  {
+    "id": "KEEP-003",
+    "area": "Keep this?",
+    "action": "Keep an offered goal",
+    "user_goal": "I want to turn my savings target into a pot",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it with a configured model after migration 0028",
+      "375px and 1440px widths"
+    ],
+    "steps": [
+      "Ask I'm saving ¥120,000 for a camera by June 30, 2027. What should I plan for?",
+      "In a second tab, check Plan before and after tapping Keep"
+    ],
+    "expected": [
+      "The offer gives a ¥120,000 target and the date 2027-06-30",
+      "Plan has one new camera pot after the tap with saved ¥0"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AH3",
+      "D67"
+    ]
+  },
+  {
+    "id": "KEEP-004",
+    "area": "Keep this?",
+    "action": "Keep a preference on this device",
+    "user_goal": "I want to remember it only in this browser",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it with a configured model after migration 0028",
+      "375px and 1440px widths",
+      "Memory is set to This device only"
+    ],
+    "steps": [
+      "Ask I like short answers about my money. What's due this week?",
+      "Tap Keep",
+      "Open Memory here and in another browser"
+    ],
+    "expected": [
+      "Kept. shows and Memory on this device lists the preference",
+      "The other browser cannot see the preference"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AH4",
+      "D67"
+    ]
+  },
+  {
+    "id": "KEEP-005",
+    "area": "Keep this?",
+    "action": "Ask about a rule before rule editing is available",
+    "user_goal": "I want my standing rules changed only by my choice",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it with a configured model after migration 0028",
+      "375px and 1440px widths"
+    ],
+    "steps": [
+      "Ask Keep ¥50,000 safe to spend"
+    ],
+    "expected": [
+      "The rule offer is hidden and the stored rule stays unchanged"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AH5",
+      "D67"
+    ]
+  },
+  {
+    "id": "KEEP-006",
+    "area": "Keep this?",
+    "action": "Check offer validation and write boundaries",
+    "user_goal": "I want the assistant to suggest only valid and new items",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Run on PGlite with the fake model"
+    ],
+    "steps": [
+      "Run npm run db:agent-test"
+    ],
+    "expected": [
+      "The Ask-only tool offers at most three distinct items and writes none of them",
+      "Previously kept items and invalid offers stay out of the reply",
+      "The journal stores no offers"
+    ],
+    "refs": [
+      "db:agent-test",
+      "D67"
+    ]
+  }
+]

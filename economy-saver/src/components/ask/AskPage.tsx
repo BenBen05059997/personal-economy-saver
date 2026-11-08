@@ -7,6 +7,9 @@ import { ApiForm } from "@/components/ui/ApiForm";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { DocumentCard, type CardForm } from "./DocumentCard";
 import { readAskStream } from "./read-stream";
+import { KeepOfferCard } from "./KeepOffer";
+import type { KeepOffer } from "@/lib/agent/keep-offer";
+import type { ClockHousehold } from "@/db/clock";
 import { SESSION_ENDED, SessionEnded } from "./SessionEnded";
 import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document-card";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
@@ -23,7 +26,7 @@ import "./ask.css";
 
 export type TurnView = {
   id: string; question: string; kind: TurnKind; text: string; choices: string[] | null;
-  sources: { label: string; href: string }[]; links: { label: string; href: string }[]; thumb: 1 | -1 | null; documentId: string | null;
+  sources: { label: string; href: string }[]; links: { label: string; href: string }[]; thumb: 1 | -1 | null; documentId: string | null; offers?: KeepOffer[];
 };
 export type Drawn = { key: string; title: string; recipe: Recipe; blocks: ResolvedBlock[] };
 type Pin = { id: string; title: string };
@@ -53,8 +56,8 @@ const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays 
  * Ask (D60): the conversation beside the canvas. The question box, the microphone and Enter-to-ask are here; the top bar only links to this
  * page. A reply is chosen by the server (answer, a clarifying question with buttons, or a fixed decline); a canvas comes with it when it helps.
  */
-export function AskPage({ householdId, places, pinId, conversationId: initialConversation, turns: initialTurns, starters, shown, pin, firstUse, unavailable, form }: {
-  householdId: string; form: CardForm; places: Places; pinId: string | null;
+export function AskPage({ householdId, places, clock, pinId, conversationId: initialConversation, turns: initialTurns, starters, shown, pin, firstUse, unavailable, form }: {
+  householdId: string; form: CardForm; places: Places; clock: ClockHousehold; pinId: string | null;
   conversationId: string; turns: TurnView[]; starters: Drawn[]; shown: Drawn | null; pin: Pin | null; firstUse: string | null; unavailable: string | null;
 }) {
   // D59: a kind kept on this device is read from and written to this browser; the question carries what the server needs for it and the server keeps none of it.
@@ -234,7 +237,7 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
       const reply = last.reply;
       requestId.current = "";
       setText(""); setSource("manual");
-      setTurns(current => [...current.filter(turn => turn.id !== reply.id), { id: reply.id, question: trimmed, kind: reply.kind, text: reply.text, choices: reply.choices, sources: reply.sources, links: reply.links, thumb: null, documentId: null }]);
+      setTurns(current => [...current.filter(turn => turn.id !== reply.id), { id: reply.id, question: trimmed, kind: reply.kind, text: reply.text, choices: reply.choices, sources: reply.sources, links: reply.links, thumb: null, documentId: null, offers: reply.offers }]);
       setIntro(current => (onDevice.journal ? (reply.kind === "answer" ? null : current) : reply.firstUse));
       if (onDevice.journal) {
         try {
@@ -323,6 +326,8 @@ export function AskPage({ householdId, places, pinId, conversationId: initialCon
         {turns.map(turn => <li key={turn.id} className="ask-turn">
           <p className="ask-question">{turn.question}</p>
           <p className={`ask-reply is-${turn.kind}`}>{turn.text}</p>
+          {turn.offers?.map(offer => offer.kind === "rule" ? null : <KeepOfferCard key={JSON.stringify(offer)}
+            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} />)}
           {turn.kind === "document" && (turn.documentId
             ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} onCard={takeCard}
               onCanvas={drawn => showDocumentCanvas(turn.documentId as string, drawn, true)} />

@@ -386,7 +386,7 @@ async function main() {
       const state = await loadMoneyState(db, householdId, await householdDate(db, householdId));
       const northwind = state.clients.find(c => c.name === "Northwind")!;
       const nwCall = { name: "what_if", input: { case: "late", changes: [{ kind: "client_late", clientId: northwind.id, days: 14 }] } };
-      const answer = (text: string): Outcome["result"] => ({ kind: "answer", answer: text, choices: null, recipe: null, sources: [], links: [], pending: false });
+      const answer = (text: string): Outcome["result"] => ({ kind: "answer", answer: text, choices: null, recipe: null, sources: [], links: [], pending: false, offers: [] });
       const outcome = (extra: Partial<Outcome>): Outcome => ({ db, householdId, state, result: null, error: null, calls: [], ...extra });
       // the right call and the engine's own low point (Ben's worst case: 18,780 short)
       assert.equal(await gradeOutcome("what_if_late", outcome({ calls: [nwCall], result: answer("You would be ¥18,780 short.") })), null);
@@ -431,7 +431,7 @@ async function main() {
       const state = await loadMoneyState(db, householdId, await householdDate(db, householdId));
       const total = group((await foreignCosts(db, householdId)).payoutTotals.costMinor);
       assert.equal(total, "111,637", "Ben's seeded payouts cost ¥111,637");
-      const answer = (text: string): Outcome["result"] => ({ kind: "answer", answer: text, choices: null, recipe: null, sources: [], links: [], pending: false });
+      const answer = (text: string): Outcome["result"] => ({ kind: "answer", answer: text, choices: null, recipe: null, sources: [], links: [], pending: false, offers: [] });
       const outcome = (extra: Partial<Outcome>): Outcome => ({ db, householdId, state, result: null, error: null, calls: [{ name: "foreign_costs", input: {} }], ...extra });
       assert.equal(await gradeOutcome("foreign_fees", outcome({ result: answer(`Your payouts cost ¥${total} over twelve months.`) })), null);
       assert.equal(await gradeOutcome("foreign_fees", outcome({ result: answer("They cost 111637 yen in all.") })), null);

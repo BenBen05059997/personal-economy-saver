@@ -10,6 +10,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { aiConnection } from "@/db/ai-key";
 import { householdDate } from "@/db/account";
+import { addMemory, listMemory } from "@/db/memory";
 import { removeBill } from "@/db/bills";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
@@ -130,7 +131,7 @@ async function main() {
         () => reply("end_turn", [text("Rent is due soon and covered.")]),
       ]);
       const result = await ask(a, "What's due?", fetch);
-      assert.deepEqual(result, { kind: "answer", answer: "Rent is due soon and covered.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false });
+      assert.deepEqual(result, { kind: "answer", answer: "Rent is due soon and covered.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false, offers: [] });
       assert.equal(bodies.length, 2);
       const [first, second] = bodies;
       assert.equal(first.model, "fixture-text");
@@ -559,7 +560,7 @@ async function main() {
         () => reply("end_turn", [text("It takes about ¥300,000 a month.")]),
       ]);
       const asked = await ask(a, "Can I save ¥1,200,000 for a car by March 2027?", plan.fetch);
-      assert.deepEqual(asked, { kind: "answer", answer: "It takes about ¥300,000 a month.", choices: null, recipe: null, sources: [{ label: "Plan", href: "/plan" }], links: [], pending: false });
+      assert.deepEqual(asked, { kind: "answer", answer: "It takes about ¥300,000 a month.", choices: null, recipe: null, sources: [{ label: "Plan", href: "/plan" }], links: [], pending: false, offers: [] });
       const [out] = toolResults(plan.bodies[1]);
       assert.ok(!out.is_error);
       const result = JSON.parse(out.content);
@@ -907,7 +908,7 @@ async function main() {
           () => chat("tool_calls", "Checking.", [chatCall("call_1", "whats_due", {})]),
           () => chat("stop", "Rent is due soon and covered."),
         ]);
-        assert.deepEqual(await ask(c, "What's due?", fetch), { kind: "answer", answer: "Rent is due soon and covered.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false });
+        assert.deepEqual(await ask(c, "What's due?", fetch), { kind: "answer", answer: "Rent is due soon and covered.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false, offers: [] });
         assert.equal(bodies.length, 2);
         const second = bodies[1];
         assert.deepEqual(second.messages.map(m => m.role), ["system", "user", "assistant", "tool"]);
@@ -1176,6 +1177,93 @@ async function main() {
       await assert.rejects(conversation(c, "Which bill is due?", t.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
       const asked = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Did you mean ¥7,777?", choices: ["Yes", "No"] })])]);
       assert.equal((await conversation(c, "Is ¥7,777 due?", asked.fetch)).kind, "clarify", "an amount the person wrote passes");
+    });
+
+    await check("Keep this returns at most three distinct offers across the Ask, with no memory, goal, event or receipt write", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const memory = { kind: "memory", memoryKind: "preference", text: "Use short answers" };
+      const goal = { kind: "goal", name: "Camera", target: "120000", targetDate: "2027-06-30" };
+      const rule = { kind: "rule", ruleKind: "nudge_after", enabled: true, value: "5" };
+      const t = transport([
+        () => reply("tool_use", [toolUse("m", "offer_keep", { offer: memory }), toolUse("g", "offer_keep", { offer: goal })]),
+        () => reply("tool_use", [toolUse("duplicate", "offer_keep", { offer: memory }), toolUse("rule", "offer_keep", { offer: rule }),
+          toolUse("extra", "offer_keep", { offer: { kind: "memory", memoryKind: "fact", text: "Camera for work" } })]),
+        () => reply("end_turn", [text("You can keep these for next time.")]),
+      ]);
+      const beforePots = await db.select().from(schema.pots).where(eq(schema.pots.householdId, c));
+      const beforeEvents = await db.select().from(schema.events).where(eq(schema.events.householdId, c));
+      const question = "I like short answers, want ¥120,000 for a camera by June 30 2027 and nudge at 5 days. Can you help?";
+      const input = askInput.parse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: question, source: "manual", canvas: null });
+      const result = await answerQuestion(db, c, input, { fetch: t.fetch });
+      assert.deepEqual(result.offers, [memory, goal, rule]);
+      assert.deepEqual(result.memoryChanges, []);
+      assert.deepEqual(await listMemory(db, c), []);
+      assert.deepEqual(await db.select().from(schema.pots).where(eq(schema.pots.householdId, c)), beforePots);
+      assert.deepEqual(await db.select().from(schema.events).where(eq(schema.events.householdId, c)), beforeEvents);
+      assert.deepEqual(await db.select().from(schema.askReceipts).where(eq(schema.askReceipts.householdId, c)), []);
+      assert.ok(t.bodies[0].system.includes("call remember only on an explicit request"));
+      assert.equal(tools.find(tool => tool.name === "offer_keep")?.scope, "ask");
+      assert.equal(toolResults(t.bodies[2]).find(result => result.tool_use_id === "extra")?.is_error, true);
+      assert.deepEqual((await answerQuestion(db, c, input, { fetch: t.fetch })).offers, [], "offers are not kept in the journal");
+    });
+
+    await check("Keep this suppresses existing memory and goals and rejects long numbers, excessive text and invalid targets", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      await addMemory(db, c, { kind: "preference", text: "Use short answers" }, { madeBy: "form" });
+      await savePot(db, c, { id: crypto.randomUUID(), name: "Camera", target: "120000", targetDate: "2027-06-30", saved: "0", fillPct: null, memberId: null }, "confirmed", { madeBy: "form" });
+      const t = transport([
+        () => reply("tool_use", [
+          toolUse("long-number", "offer_keep", { offer: { kind: "memory", memoryKind: "fact", text: "A number １２３４ ５６７８ ９０１２" } }),
+          toolUse("long-text", "offer_keep", { offer: { kind: "memory", memoryKind: "fact", text: "a".repeat(401) } }),
+          toolUse("invalid-target", "offer_keep", { offer: { kind: "goal", name: "Bicycle", target: "-100", targetDate: "2027-06-30" } }),
+          toolUse("duplicate-memory", "offer_keep", { offer: { kind: "memory", memoryKind: "preference", text: "USE short answers" } }),
+          toolUse("duplicate-pot", "offer_keep", { offer: { kind: "goal", name: "camera", target: "120000", targetDate: "2027-06-30" } }),
+          toolUse("invented", "offer_keep", { offer: { kind: "goal", name: "Bicycle", target: "987654", targetDate: "2027-06-30" } }),
+        ]),
+        () => reply("end_turn", [text("The camera is already a goal.")]),
+      ]);
+      assert.deepEqual((await ask(c, "I like short answers. Is my ¥120,000 camera saved as a goal?", t.fetch)).offers, []);
+      assert.deepEqual(toolResults(t.bodies[1]).filter(result => result.is_error).map(result => result.tool_use_id),
+        ["long-number", "long-text", "invalid-target"]);
+      assert.equal((await listMemory(db, c)).length, 1);
+    });
+
+    await check("Keep this checks the device's memory and current standing rules before returning offers", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ memoryPlace: "device", journalPlace: "device" }).where(eq(schema.households.id, c));
+      const stamp = "2026-11-14T00:00:00.000Z";
+      const memory: MemoryItem[] = [{
+        id: crypto.randomUUID(), kind: "preference", text: "Use short answers", madeBy: "form", askId: null, createdAt: stamp, updatedAt: stamp,
+      }];
+      const newMemory = { kind: "memory", memoryKind: "preference", text: "Answer in Japanese" };
+      const t = transport([
+        () => reply("tool_use", [
+          toolUse("existing-memory", "offer_keep", { offer: { kind: "memory", memoryKind: "preference", text: "Use short answers" } }),
+          toolUse("current-rule", "offer_keep", { offer: { kind: "rule", ruleKind: "nudge_after", enabled: true, value: "3" } }),
+          toolUse("new-memory", "offer_keep", { offer: newMemory }),
+        ]),
+        () => reply("end_turn", [text("I can help with that.")]),
+      ]);
+      const input = askInput.parse({
+        id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "I like short answers in Japanese. Can you nudge after three days?", source: "manual", canvas: null, memory, recent: [],
+      });
+      const result = await answerQuestion(db, c, input, { fetch: t.fetch });
+      assert.deepEqual(result.offers, [newMemory]);
+      assert.deepEqual(result.memoryChanges, [], "the device writes only after the person taps Keep");
+      assert.deepEqual(await listMemory(db, c), []);
+    });
+
+    await check("Keep offers disappear from clarifications and cannot confirm an amount in the answer", async () => {
+      const offer = toolUse("m", "offer_keep", { offer: { kind: "memory", memoryKind: "fact", text: "Payday is ¥987,654" } });
+      const t = transport([() => reply("tool_use", [offer]), () => reply("end_turn", [text("Your payday is ¥987,654.")])]);
+      await assert.rejects(ask(a, "What is my payday?", t.fetch), (error: unknown) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      const clarify = transport([
+        () => reply("tool_use", [offer]),
+        () => reply("tool_use", [toolUse("q", "clarify", { question: "Which payday?", choices: ["This month", "Next month"] })]),
+      ]);
+      const result = await ask(a, "What is my payday?", clarify.fetch);
+      assert.equal(result.kind, "clarify");
+      assert.deepEqual(result.offers, []);
     });
 
     await check("text a tool echoes from the model is not a source: remember and make_canvas cannot confirm an invented amount", async () => {

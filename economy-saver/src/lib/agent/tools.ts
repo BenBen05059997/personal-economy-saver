@@ -42,6 +42,8 @@ import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
 import { memoryTools } from "./memory-tools";
+import { offerTools } from "./offer-tools";
+import type { KeepOffer } from "./keep-offer";
 import { checkTools } from "./check-tools";
 import { splitBalance, splitSummary } from "@/lib/money/split";
 import type { Recipe } from "@/lib/canvas/schema";
@@ -68,6 +70,8 @@ export type ToolContext = {
   onOutOfScope?: (reason: "off_topic" | "not_offered") => void;
   /** Ask only (D59): when the household keeps its memory on one device, the list the question carried and the changes `remember` and `forget` made to it (sent back in the reply, never stored). */
   deviceMemory?: DeviceMemory;
+  /** Ask only (D67): collect offers for the reply without writing any records. */
+  onOffer?: (offer: KeepOffer) => void;
 };
 
 const by = (ctx: ToolContext): Maker => ({ madeBy: ctx.madeBy, ...(ctx.askId && { askId: ctx.askId }) });
@@ -489,6 +493,7 @@ export const tools: Tool[] = [
   ...canvasTools,
   ...checkTools,
   ...memoryTools,
+  ...offerTools,
 ];
 
 /**

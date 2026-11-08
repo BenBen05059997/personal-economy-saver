@@ -35,6 +35,7 @@ export const TOOL_WORDS: Record<string, string> = {
   remember: "Noting that down",
   forget: "Forgetting that",
   recall: "Looking at what I remember",
+  offer_keep: "Thinking about what to keep",
   to_check: "Reading what needs checking",
 };
 
