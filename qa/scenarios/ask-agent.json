@@ -59,7 +59,7 @@
   {
     "id": "ASK-003",
     "area": "Ask",
-    "action": "Press Space, Enter or Ctrl/Cmd+K on the top bar's Ask link",
+    "action": "Press Space, Enter or a browser shortcut on the Ask link",
     "user_goal": "I just want the page, not a letter",
     "type": "edge",
     "priority": "P3",
@@ -74,11 +74,12 @@
     "steps": [
       "Press Space",
       "Go back, focus the link again, press Enter",
-      "Go back, focus the link, press Ctrl+A"
+      "Go back, focus the link, press Ctrl+A or Cmd+A",
+      "Repeat with the Ask row at phone width"
     ],
     "expected": [
-      "Each opens Ask with the question box empty",
-      "No stray character (space, Enter or a shortcut letter) is typed in the box"
+      "Space and Enter open Ask and focus an empty question box",
+      "Ctrl+A and Cmd+A keep their browser behavior and leave the app on Home"
     ],
     "refs": [
       "BROWSER-CHECKS K0"

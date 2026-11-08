@@ -72,8 +72,12 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
   const router = useRouter();
   // A character typed while the Ask bar has focus starts the question on the Ask page: it travels in sessionStorage (read once there), never in the address.
   function typedOnBar(event: React.KeyboardEvent<HTMLAnchorElement>) {
-    if (event.key.length !== 1 || event.key === " " || event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
+    if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
+    if (event.key === " ") {
+      router.push("/canvas#ask");
+      return;
+    }
     storeDraft({ text: event.key, source: "manual" });
     router.push("/canvas#ask");
     window.dispatchEvent(new Event(DRAFT_EVENT));
@@ -117,7 +121,7 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
       </main>
       {section !== "canvas" && <div className="shell-phone-ask">
         <button {...micProps} className={`shell-phone-mic${speech.listening ? " is-listening" : ""}`}><Icon name="mic" /></button>
-        <Link prefetch={false} className="shell-phone-text" href="/canvas#ask"><span role="status">{micLabel || `Ask or tell me: “${askPrompt}”`}</span></Link>
+        <Link prefetch={false} className="shell-phone-text" href="/canvas#ask" onKeyDown={typedOnBar}><span role="status">{micLabel || `Ask or tell me: “${askPrompt}”`}</span></Link>
       </div>}
     </div>
     <aside id="shell-nav" popover="auto" className="shell-nav-popover">

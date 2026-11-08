@@ -119,7 +119,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 
 Ask is the page `/canvas` (sidebar label "Ask"). The top bar's Ask box is a link to `/canvas#ask`; there is no popover.
 
-- K0. The top bar's Ask box (a link, "Ask or say: …" and an "Ask" label on desktop) opens the Ask page with the cursor in the question box. Tab to the bar and type a letter (say "w"): the page opens with that letter already typed and the cursor after it (the letter travels in the browser's session storage, never in the address). Space, Enter and Ctrl/Cmd shortcuts just open the page. On a phone the Ask row under the top bar does the same. Opening `/canvas#ask` puts the cursor in the box.
+- K0. The top bar's Ask box (a link, "Ask or say: …" and an "Ask" label on desktop) opens the Ask page with the cursor in the question box. Tab to the bar and type a letter (say "w"): the page opens with that letter already typed and the cursor after it (the letter travels in the browser's session storage, never in the address). Space and Enter open Ask with the question box empty. Ctrl/Cmd shortcuts keep their browser behavior. On a phone the Ask row under the top bar does the same. Opening `/canvas#ask` puts the cursor in the box.
 - K1. Without the AI settings, Ask shows "Ask isn’t available on this server yet (AI_TEXT_MODEL)." and nothing breaks.
 - K2. Enter sends; Shift+Enter adds a line; Japanese input (IME) does not send mid-word.
 - K3. Needs the AI settings: "can I afford ¥4,000 tonight", "what's due", "where am I", "who owes whom" and one free-form question each get one or two sentences in ≤ 8 s, with numbers equal to Home's, and "Based on:" links to the pages they came from.

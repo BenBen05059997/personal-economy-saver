@@ -187,7 +187,7 @@ Nov 12; Web Push after.
 
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
-| 1. Question | `AskPage.tsx` (/canvas; the top bar links /canvas#ask and hands a typed character over in `sessionStorage` `pes-ask-draft`) → POST /api/ask | the canvas on screen; on a device, its memory (≤ 200) and the last 3 turns ride in the body | nothing | the question in the conversation |
+| 1. Question | `AskPage.tsx` (/canvas; the top and phone Ask links open /canvas#ask on Enter or Space, and hand a typed character over in `sessionStorage` `pes-ask-draft`; browser shortcuts keep their usual behavior) → POST /api/ask | the canvas on screen; on a device, its memory (≤ 200) and the last 3 turns ride in the body | nothing | the question in the conversation |
 | 2. Gate | `answerQuestion` (`src/db/ask.ts`) | `readPlaces`; `turnById` and `askReceipt` for a retried id (cloud journal); `askReceipt` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
 | 3. Context | `conversationContext` | the last 3 turns of the conversation when its latest is under 10 minutes old (24 hours while an attached document is queued, reading or in To check); a document turn's card as text (`cardContext`) | nothing | — |
 | 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | `MODEL_RULES` + `ASK_RULES` + `memoryContext` (≤ 6,000 characters); `aiConnection(db, hid, "text")` per call | nothing | — |
