@@ -4,7 +4,7 @@
 
 ## What exists now
 
-- **Foundation (D31–D37).** The Supabase project in Tokyo has migrations 0000–0029 applied (34 tables, listed in [ARCHITECTURE.md](ARCHITECTURE.md)); one fictional Ben household seeded, Vault create/read/delete passing, the private Storage bucket `household-documents` verified (a test object was refused to the publishable key and its public URL), no readable rows in `households` for the publishable key. The app builds as a Cloudflare Worker through OpenNext (its size and the limits: box S below) with the hourly Cron Trigger; the local Worker preview renders the Tokyo household.
+- **Foundation (D31–D37).** The Supabase project in Tokyo has migrations 0000–0030 applied (34 tables, listed in [ARCHITECTURE.md](ARCHITECTURE.md)); one fictional Ben household seeded, Vault create/read/delete passing, the private Storage bucket `household-documents` verified (a test object was refused to the publishable key and its public URL), no readable rows in `households` for the publishable key. The app builds as a Cloudflare Worker through OpenNext (its size and the limits: box S below) with the hourly Cron Trigger; the local Worker preview renders the Tokyo household.
 - **Screens (D25).** Shell with sidebar, top bar (Ask with a microphone, bell, Add) and phone layout; Home (sentence, actions, pinned canvases, safe to spend, runway, To check, Cards, Coming up); Ask (`/canvas`); Memory; To check; Activity; Cards and Clients with a right-hand panel; Plan; invoice review; Upload; Options; Settings; Privacy. Checked at 375px and 1440px, light and dark.
 - **Sessions (D34).** Try it makes an anonymous fictional household with a protected cookie and a demo-only reset, anchored at Nov 14, 2026. Magic-link routes, session refresh, scoped membership and onboarding are implemented and tested on PGlite; a real magic link is not verified yet.
 - **PayPal (D12–D15, D37).** Sandbox guard, REST client, toolkit split (the agent drafts, the approve route sends), invoice review and approve/send/remind, verified webhook persisted in Postgres, scoped refresh with a five-minute cooldown, `npm run smoke`, read-only history import (`/api/paypal/import`, built and tested, not run live). A real sandbox send and paid webhook have not run on a deployed URL.
@@ -91,7 +91,7 @@ Every box below is ticked; the code is the truth (decision numbers say why). "St
 - [x] Stage 25 (D61, D41, D60, D57). Here's my bill: `repeat_until` and migration 0023, `checksFor` (`src/lib/money/checks.ts`) and the `to_check` tool, a conversation turn of kind `document`, and Ask's Attach a bill (`readUpload`, `document-card.ts`, `/api/ask/document`, `DocumentCard.tsx`, `ReadingForm.tsx`, the optional `mark` on a chart or timeline)
 - [x] Browser checks: full run on dev at 375px and 1440px, light and dark (A–L), and in the owner's Chrome with a page crawl at four settings (Nov 4)
 - [x] Foundation and hardening J: tenant-isolation test in `db:test`; demo sweeper in the daily job (D49, `sweepDemoHouseholds`, `db:sweep-test`); privacy page `/privacy` (D49; BROWSER-CHECKS P)
-- [x] Migrations 0000–0029 applied to the Tokyo dev database
+- [x] Migrations 0000–0030 applied to the Tokyo dev database
 
 ## Open work
 
@@ -221,7 +221,7 @@ Phase A, the OK before the first deploy and before the repo goes public, answers
 - [x] Migration 0028 (Stages 29 and 30) applied to the owner's database
 - [x] Migration 0029 (`0029_tenant_wall.sql`, the `pes_app` role and its policies) applied to the owner's database
 - [ ] Apply migration 0030 (`0030_ask_spaces.sql`, spaces, General backfill and history indexes) to the owner's database
-- [ ] Apply the Stage 32 migration (spaces, `pg_trgm` and its indexes) with `npm run db:migrate` when Codex reports 32A, before that code runs against the database
+- [x] Migration 0030 (`0030_ask_spaces.sql`: spaces, `pg_trgm` and its indexes) applied to the owner's database
 
 ### B. First deploy and the live PayPal loop (owner runs the deploy)
 - [ ] Secrets and settings set with `wrangler secret put` (including `CLIENT_IP_HEADER=cf-connecting-ip`, `MCP_TOKEN_KEY`, and `AI_KEY_SEAL_KEY`: a new random value for production, kept as it is afterwards because a household's saved key can be opened only with the value that sealed it); the owner runs `npm run cf:deploy` (owner's OK, D22); the deployed URL is set as `APP_URL` and added to the Tokyo project's Authentication redirect URLs
