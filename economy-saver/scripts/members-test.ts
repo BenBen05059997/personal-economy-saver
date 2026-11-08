@@ -35,6 +35,7 @@ async function main() {
   let modelCalls = 0;
   const settings = {
     APP_URL: ORIGIN, SUPABASE_URL: "https://auth.example.test", SUPABASE_ANON_KEY: "fictional-test-key",
+    MCP_TOKEN_KEY: Buffer.alloc(32, 23).toString("base64url"),
   };
   const saved = Object.fromEntries(Object.keys(settings).map(key => [key, process.env[key]]));
   Object.assign(process.env, settings);
@@ -166,6 +167,16 @@ async function main() {
     const editPeople = (await import("@/app/api/people/route")).POST;
     const deleteHousehold = (await import("@/app/api/household/route")).POST;
     const invitations = (await import("@/app/api/invites/route")).POST;
+    const mcpTokens = (await import("@/app/api/mcp/tokens/route")).POST;
+    const familyLinks = (await import("@/app/api/family-links/route")).POST;
+    const readEvents = (await import("@/app/api/events/route")).GET;
+    const { currentHouseholdId } = await import("@/lib/session");
+    const changeToken = (body: Record<string, unknown>) => mcpTokens(new Request(ORIGIN + "/api/mcp/tokens", {
+      method: "POST", body: JSON.stringify(body), headers: { origin: ORIGIN, "content-type": "application/json" },
+    }));
+    const changeFamily = (body: Record<string, string>) => familyLinks(form("/api/family-links", body));
+    const issue = { name: "Fictional key", scopes: ["read"] };
+    const share = { kind: "create" };
 
     await check("the member session can write to People while owner actions refuse it before any external calls", async () => {
       signedIn = guest;
@@ -191,6 +202,37 @@ async function main() {
       signedIn = null;
       demoCookie = await seedBen(db, { isDemo: true });
       assert.equal((await approve(form("/api/approve", {}))).status, 400, "Try it keeps its own sandbox approval flow");
+      demoCookie = null;
+    });
+
+    await check("only the owner can manage MCP keys and family links, while Try it keeps its controls", async () => {
+      signedIn = a.owner;
+      const key = await changeToken(issue);
+      assert.equal(key.status, 201);
+      const { info: { id: keyId } } = await key.json() as { info: { id: string } };
+      const link = await changeFamily(share);
+      assert.equal(link.status, 200);
+      const { id: linkId } = await link.json() as { id: string };
+      const keys = () => db.select().from(schema.apiTokens).where(eq(schema.apiTokens.householdId, hid));
+      const links = () => db.select().from(schema.familyLinks).where(eq(schema.familyLinks.householdId, hid));
+      const [beforeKeys, beforeLinks] = await Promise.all([keys(), links()]);
+
+      signedIn = guest;
+      assert.equal((await changeToken(issue)).status, 403);
+      assert.equal((await changeToken({ revoke: keyId })).status, 403);
+      assert.equal((await changeFamily(share)).status, 403);
+      assert.equal((await changeFamily({ kind: "stop", id: linkId })).status, 403);
+      assert.deepEqual(await keys(), beforeKeys);
+      assert.deepEqual(await links(), beforeLinks);
+
+      signedIn = a.owner;
+      assert.equal((await changeToken({ revoke: keyId })).status, 204);
+      assert.equal((await changeFamily({ kind: "stop", id: linkId })).status, 200);
+
+      signedIn = null;
+      demoCookie = await seedBen(db, { isDemo: true });
+      assert.equal((await changeToken(issue)).status, 201);
+      assert.equal((await changeFamily(share)).status, 200);
       demoCookie = null;
     });
 
@@ -236,6 +278,9 @@ async function main() {
       signedIn = a.owner;
       assert.ok((await editPeople(form("/api/people", { kind: "remove", id: membership.memberId }))).status < 400);
       assert.equal(await accountMembership(db, recipient.uid), null, "owner removal revokes the member’s access");
+      signedIn = recipient;
+      assert.equal(await currentHouseholdId(), null);
+      assert.equal((await readEvents(new Request(ORIGIN + "/api/events"))).status, 401);
     });
 
     await check("leaving unlinks login and delivery preferences while preserving the member, share and bill", async () => {
@@ -262,8 +307,12 @@ async function main() {
       const endpoints = await db.select().from(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.householdId, hid));
       assert.deepEqual(prefs.map(row => row.memberId), [a.memberId]);
       assert.deepEqual(endpoints.map(row => row.memberId), [a.memberId]);
-      signedIn = guest;
+      assert.equal(await currentHouseholdId(), null);
+      assert.equal((await readEvents(new Request(ORIGIN + "/api/events"))).status, 401);
       assert.equal((await editPeople(form("/api/people", { kind: "add", name: "Fictional After Leave" }))).status, 401);
+      assert.equal((await changeToken(issue)).status, 401);
+      assert.equal((await changeFamily(share)).status, 401);
+      signedIn = null;
     });
 
     await check("an invitation cannot reference either a member or a creator from another household", async () => {

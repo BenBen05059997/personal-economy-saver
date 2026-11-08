@@ -41,7 +41,7 @@ Cloudflare
     │   ├── /api/bank-balance      the one-line bank balance update on Home (D42)
     │   ├── /api/pots, /api/pots/remove   add or edit a pot; remove a pot (the Plan page, D43)
     │   ├── /api/people, /api/settle      Settings → People (add, rename, shares); Mark settled on Home (D45)
-    │   ├── /api/family-links      create a family view link (the full link and the LINE message, once) or stop one (D52)
+    │   ├── /api/family-links      owner creates a family view link (the full link and the LINE message, once) or stops one (D52)
     │   ├── /api/import            Settings → Import a statement (D53): up to 500 CSV rows the browser parsed, for one card
     │   ├── /api/invoices/draft, /api/invoices/paid   an invoice draft; mark an invoice paid outside PayPal
     │   ├── /api/upload            photo or PDF (`readUpload`) → Storage → documents → reader; answers 400 a problem with the person's file, 503 a server setting missing (named in the sentence: the AI model settings, or a Storage setting), 502 Storage failed, 500 anything else
@@ -51,7 +51,7 @@ Cloudflare
     │   ├── /api/approve           the user's tap → PayPal sandbox send or reminder → events (the only place that sends, D12)
     │   ├── /api/paypal/webhook    verify the signature → webhook_deliveries → events → invoice paid; GET: the caller's recent deliveries, no payload
     │   ├── /api/paypal/import     read the sandbox merchant's invoices → clients and invoices (the one household in `PAYPAL_BALANCE_HOUSEHOLD_ID`)
-    │   ├── /api/mcp, /api/mcp/tokens   the MCP server (token → household); issue and revoke tokens
+    │   ├── /api/mcp, /api/mcp/tokens   the MCP server (token → household). The owner issues and revokes keys
     │   ├── /api/suggestions       POST `kind` dismiss or not_now for one open finding (D64)
     │   ├── /api/rules            POST `kind` set for one household standing rule (D66)
     │   ├── /api/reminders        POST per-member settings, subscribe, unsubscribe or test (D65)
@@ -474,11 +474,11 @@ The daily job deletes those quiet for seven days (D49).
 
 ### Members and access (D68)
 
-accountMembership resolves the verified Supabase user id through users and its household-scoped member row. The account can belong to one household. Anonymous Try it keeps its demo cookie and sandbox approval path. Signed-in owners manage invitations, remove people, change the household model, approve sandbox invoice sends or reminders, and delete the household. A member may use the household's money screens, add records and settle. Authorization runs in the write routes.
+accountMembership resolves the verified Supabase user id through users and its household-scoped member row. The account can belong to one household. Anonymous Try it uses its demo cookie for sandbox approval and its own MCP and family-link controls. Signed-in owners manage invitations, MCP keys and family links, remove people, change the household model, approve sandbox invoice sends or reminders, and delete the household. A member may use the household’s money screens, add records and settle. The access-management routes check ownerRequest before reading the posted fields. Members’ Settings skips both access lists and hides their controls.
 
 The owner creates a link in Settings → People for a person who has no login, or adds a person with the invite. The link lasts seven days and is displayed when created. The database keeps the token hash, invited email, member, creator, expiry and acceptance time. The join screen keeps the address private. The existing PKCE magic link returns to its standard callback, which uses a short-lived HttpOnly invite cookie and compares the verified email to the stored address. Acceptance atomically links that login and consumes the invite. A verified person with no membership can also accept on the join screen. Join responses use no-store and no-referrer. The app log masks the token path.
 
-Cancelling an invite invalidates the link. A member can leave in Account, which removes their login and reminder settings and subscriptions, and keeps the person, records and shares. Owners can remove a member once the usual settlement checks allow it. Who has access lists household people, current family links and active MCP tokens.
+Cancelling an invite invalidates the link. A member can leave in Account, which removes their login and reminder settings and subscriptions, and keeps the person, records and shares. Owners can remove a member once the usual settlement checks allow it. A former member’s verified login no longer resolves to this household for reads or writes. The owner’s Who has access view lists household people, current family links and active MCP tokens.
 
 ### Credentials, three classes
 

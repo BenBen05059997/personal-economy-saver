@@ -2,10 +2,10 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { issueMcpToken, revokeMcpToken, tokenInput } from "@/db/mcp-tokens";
 import { NO_STORE } from "@/lib/door";
-import { householdRequest } from "@/lib/session";
+import { ownerRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
+  const hid = await ownerRequest(request);
   if (hid instanceof Response) return hid;
   const body = await request.json().catch(() => null);
   const revoke = z.object({ revoke: z.string().uuid() }).safeParse(body);

@@ -159,7 +159,7 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks, remin
       {canManage && people.length > 1 && <div className="settings-remove-people"><p className="ui-hint">A person can be removed once they owe nobody and nobody owes them.</p>
         {people.filter(person => person.role !== "owner").map(person => <RemovePerson key={person.id} person={person} people={people} cards={cards} />)}</div>}
       {access && <InvitePeople people={people.filter(person => person.role === "member" && !person.signedIn && !access.invited.includes(person.id))} invites={access.invites} />}
-      <FamilyShare links={familyLinks} />
+      {canManage && <FamilyShare links={familyLinks} />}
     </section>
     {access && <HouseholdAccess people={people} familyLinks={familyLinks} tokens={access.tokens} />}
     <section className="ui-panel" id="cards"><h2>Cards</h2><p className="ui-hint">31 means month end. The payment day is in the following month.</p>

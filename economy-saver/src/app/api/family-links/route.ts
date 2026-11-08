@@ -4,7 +4,7 @@ import { consumeRequest } from "@/db/rate-limit";
 import { badFields, failure, formOf, NO_STORE, text, tooMany } from "@/lib/door";
 import { homeSentence } from "@/lib/money/sentence";
 import { appUrl, MissingAuthSetting } from "@/lib/supabase-auth";
-import { householdRequest } from "@/lib/session";
+import { ownerRequest } from "@/lib/session";
 import { z } from "zod";
 
 /**
@@ -12,7 +12,7 @@ import { z } from "zod";
  * hash is stored), and the message for LINE (the sentence, then the link and its last day). `kind=stop` (with `id`) stops one.
  */
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
+  const hid = await ownerRequest(request);
   if (hid instanceof Response) return hid;
   const form = await formOf(request);
   if (form instanceof Response) return form;

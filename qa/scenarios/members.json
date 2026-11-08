@@ -283,10 +283,11 @@
     ],
     "steps": [
       "As a member, open Account and confirm leaving",
+      "In the same signed-in browser reopen Home and a saved household page",
       "Reopen People in the owner profile"
     ],
     "expected": [
-      "The former member can no longer open the household",
+      "The former member’s signed-in browser can no longer open household pages",
       "Their person record and shares stay with the household"
     ],
     "refs": [
@@ -340,10 +341,127 @@
       "Open Try it and review the existing sandbox invoice action"
     ],
     "expected": [
-      "The demo works without a login and provides no invite controls"
+      "The demo works without a login and provides no invite controls",
+      "The demo keeps MCP-key and family-link controls for its own household"
     ],
     "refs": [
       "BROWSER-CHECKS AM8",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-014",
+    "area": "Household members",
+    "action": "Try to manage MCP keys as a member",
+    "user_goal": "I want only the owner to grant MCP access",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Isolated test setup with migration 0028 and fictional household records",
+      "Verified test identities or a fake Auth transport"
+    ],
+    "steps": [
+      "As a member, POST to /api/mcp/tokens to issue a key",
+      "POST the id of an owner-created key to revoke it"
+    ],
+    "expected": [
+      "Both requests return 403",
+      "The owner’s key list remains intact"
+    ],
+    "refs": [
+      "db:members-test",
+      "BROWSER-CHECKS AM5",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-015",
+    "area": "Household members",
+    "action": "Try to manage family links as a member",
+    "user_goal": "I want only the owner to grant family-link access",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Isolated test setup with migration 0028 and fictional household records",
+      "Verified test identities or a fake Auth transport"
+    ],
+    "steps": [
+      "As a member, POST kind create to /api/family-links",
+      "POST kind stop with the id of an owner-created family link"
+    ],
+    "expected": [
+      "Both requests return 403",
+      "The owner’s link list remains intact"
+    ],
+    "refs": [
+      "db:members-test",
+      "BROWSER-CHECKS AM5",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-016",
+    "area": "Household members",
+    "action": "Look for sharing controls as a member",
+    "user_goal": "I want Settings to show only the controls I can use",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated test setup with migration 0028 and fictional household records",
+      "Verified test identities or a fake Auth transport",
+      "375px and 1440px for browser checks"
+    ],
+    "steps": [
+      "Open Settings as a signed-in member"
+    ],
+    "expected": [
+      "Share a family view and Connect another AI assistant are absent",
+      "Ordinary household controls remain available"
+    ],
+    "refs": [
+      "db:members-test",
+      "BROWSER-CHECKS AM5",
+      "D68"
+    ]
+  },
+  {
+    "id": "MEMBER-017",
+    "area": "Household members",
+    "action": "Use the same session after leaving",
+    "user_goal": "I want leaving to revoke access even while my Auth login is still verified",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Isolated test setup with migration 0028 and fictional household records",
+      "Verified test identities or a fake Auth transport"
+    ],
+    "steps": [
+      "Leave the household",
+      "With the same verified login, request Events and post to People, MCP key management and family link management"
+    ],
+    "expected": [
+      "Events and all three mutations return 401",
+      "The former member has no household session"
+    ],
+    "refs": [
+      "db:members-test",
+      "BROWSER-CHECKS AM7",
       "D68"
     ]
   }
