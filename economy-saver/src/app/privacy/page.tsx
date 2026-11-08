@@ -18,7 +18,7 @@ const mb = (bytes: number) => Math.round(bytes / (1024 * 1024));
 
 export default function PrivacyPage() {
   return <AccountFrame title="Privacy">
-    <p className="ui-hint">Last updated Nov 6, 2026.</p>
+    <p className="ui-hint">Last updated Nov 8, 2026.</p>
     <h2>What is stored</h2>
     <p>A household holds its name, time zone, home currency and bank balance; cards; bills and card charges with their category and business share; your clients’ names and email addresses and their invoices; pots and the household split; documents you upload or forward, and what the reader extracted from them; activity events; and settings. The assistant also remembers what you tell it (the Memory page lists it, and you can remove any item there), and keeps your last 200 questions with its replies. The AI key you add for your own model is sealed twice (with a secret only the app holds, then again by Supabase’s vault), and the keys you create for other AI assistants are stored hashed. PayPal’s payment notices keep only what they are about and when they arrived.</p>
     <h2>Where your data lives</h2>
@@ -28,6 +28,7 @@ export default function PrivacyPage() {
       <li><strong>Supabase</strong> stores the database and files, and sends the sign-in link for your email address.</li>
       <li><strong>Cloudflare</strong> hosts the app and receives bills you forward by email.</li>
       <li><strong>The AI model provider.</strong> <Suspense fallback="Reading this server’s AI settings…"><DefaultHost /></Suspense> The host gets your question and the household figures the assistant looks up when you use Ask, and the document or email the reader reads, only when you use those features. If you choose your own model in Settings, they go to the host Settings shows there instead, on your account with that provider.</li>
+      <li><strong>Your browser’s speech service.</strong> When you tap a microphone, your browser turns what you say into text. Chrome sends the audio to Google to do this; Safari can do it on your device. The app never receives audio, only the words, handled like typed text: a question goes to Ask; words for a form go to the AI model provider above, with that form’s field names and choices (such as your card and client names), to fill its fields. Nothing is saved until you tap the form’s button.</li>
       <li><strong>PayPal</strong> (sandbox) gets the invoices and reminders you approve, and is asked for invoice status and balance.</li>
     </ul>
     <h2>Clients’ details</h2>

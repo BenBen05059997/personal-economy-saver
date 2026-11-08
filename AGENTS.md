@@ -36,6 +36,7 @@ economy-saver/                           the app
   src/lib/canvas/, src/components/canvas/  the canvas (D57): the recipe schema, the resolver that runs a block's query through the engine, starters, words, the request helper; the optional `mark` (a bill's id) on a chart or timeline block; blocks, `Pinned.tsx` (cloud pins) and `DevicePins.tsx` (pins on this device) on Home, sharing `PinCard.tsx`; what-if maths in `src/lib/money/whatif.ts`
   src/lib/schema/memory.ts, src/db/memory.ts, src/components/memory/  what the assistant remembers (D58): the item schema, the household-scoped functions, the `/memory` page; `src/lib/reader/correction.ts` and `CorrectionOffer.tsx` (the To check card's "Also tell the assistant" box)
   src/app/canvas/, src/components/ask/   Ask (D60): `read-stream.ts` reads the `/api/ask` stream (step lines, then the reply or an error); the page `/canvas` (sidebar "Ask"; `AskPage.tsx`: the conversation, the canvas, thumbs, "Pin to Home"); the top bar links to `/canvas#ask` and hands a typed character over in `sessionStorage` `pes-ask-draft` (`draft.ts`). Conversation turns: `src/lib/schema/turn.ts`, `src/db/conversation.ts` (200 a household); pins: `src/db/canvases.ts` (at most 8); the question's flow: `src/db/ask.ts`. "Attach a bill" (D61): `/api/ask/document`, `src/db/document-card.ts` (`documentCard`, `attachDocument`), the card `DocumentCard.tsx`, whose form `src/components/reader/ReadingForm.tsx` is shared with To check's `ReaderReview.tsx`
+  src/lib/voice/, src/components/voice/   voice (D26, stage 28): `schema.ts` (`FieldSpec`, `VoiceFillRequest`, `VoiceFillResponse`), `check.ts` (`checkFill`), `fill.ts` (`fillByVoice`); `use-speech.ts` (`useSpeech`, the one listening hook), `VoiceFill.tsx` (`<VoiceFill />` inside any form); route `/api/voice-fill`, suite `scripts/voice-test.ts`
   src/lib/catalogue/, src/data/catalogue/  the wealth-move catalogue engine and its Japan and US data (secondary, D6)
   src/lib/paypal/                        sandbox REST client, toolkit wrapper (draft/send split, 20 s timeout), invoice listing, webhook signature check
   src/lib/events.ts                      applies a verified webhook delivery to the database
@@ -63,7 +64,7 @@ economy-saver/                           the app
 | Dev server | `npm run dev -- -p 3123` |
 | Type check | `npx tsc --noEmit -p .` |
 | Lint | `npm run lint` |
-| Database tests (no credentials; thirty-three suites, named in `economy-saver/README.md`, Checks) | `npm run db:test` |
+| Database tests (no credentials; thirty-four suites, named in `economy-saver/README.md`, Checks) | `npm run db:test` |
 | Regenerate the five files in `schema/` from the zod definitions (`db:snapshot-test` fails when one is stale) | `npm run schema` |
 | Model eval: Ben's fictional household, the real agent, one provider and model (key from `EVAL_API_KEY` in `.env.local`; prints a line per case and the `TESTED` line to add) | `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` |
 | Regenerate migration after schema edits | `npm run db:generate` (then commit the SQL with the schema) |

@@ -15,7 +15,7 @@ the app are private. Decisions: D18, D31–D62 in [DECISIONS.md](DECISIONS.md).
 
 ```
 Clients
-├── Browser (phone and desktop): the Next.js UI; a Try it household or a magic-link session; voice through browser speech
+├── Browser (phone and desktop): the Next.js UI; a Try it household or a magic-link session; voice through browser speech (`useSpeech`: Ask, the top and phone bars, Fill by voice)
 ├── MCP client (Claude Code, ChatGPT…): a bearer token → the same tool catalogue as the agent, read and draft only
 ├── Email: the person forwards a bill to their address on the owner's domain (`FORWARDING_DOMAIN`)
 └── PayPal sandbox: webhooks after an invoice is paid
@@ -37,6 +37,7 @@ Cloudflare
     │   ├── /api/memory            add, edit, delete or forget all of what the assistant remembers; the page /memory
     │   ├── /api/clients, /api/bills, /api/charges   typed-in client, bill (`kind` add, edit or fill) and card charge ("Paid in another currency", D62)
     │   ├── /api/remove            remove a bill (a repeating bill as a whole series) or a card charge; `kind` and `id`
+    │   ├── /api/voice-fill        Fill by voice (D26): `{ text, fields }` → one forced-tool model call on the household's text model → `{ values, heard, notes }` checked by `checkFill`; writes nothing, no rate limit, 16 KiB cap, 503 names the missing AI setting
     │   ├── /api/bank-balance      the one-line bank balance update on Home (D42)
     │   ├── /api/pots, /api/pots/remove   add or edit a pot; remove a pot (the Plan page, D43)
     │   ├── /api/people, /api/settle      Settings → People (add, rename, shares); Mark settled on Home (D45)

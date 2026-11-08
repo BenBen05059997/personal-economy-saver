@@ -2958,5 +2958,35 @@
     "refs": [
       "BROWSER-CHECKS L1"
     ]
+  },
+  {
+    "id": "UI-014",
+    "area": "Layout",
+    "action": "Type in the bill form's Name and switch More options",
+    "user_goal": "the form must not jump while I type",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Home → Add a bill or charge → Bill, More open"
+    ],
+    "steps": [
+      "At 375px and 1440px, type \"Netflix\" in Name, clear it, then type \"Hikari Denki\", \"Net\" and \"Rent\" in turn",
+      "Fill and then clear Changes to and Last day to cancel"
+    ],
+    "expected": [
+      "The form's height and the Add bill button's top never change",
+      "\"Amount not known yet\", \"Date not known yet\", the amount-varies box and Last payment stay on screen and only switch between enabled and disabled",
+      "The guess line stays one line with Change › visible",
+      "A disabled control is not posted"
+    ],
+    "refs": [
+      "BROWSER-CHECKS V-D",
+      "D55"
+    ]
   }
 ]

@@ -87,13 +87,13 @@ This is a private hackathon project in development. Next.js dev and the local Wo
 These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
 
 ```bash
-npm run db:test      # all thirty-three suites (listed below)
+npm run db:test      # all thirty-four suites (listed below)
 npm run schema       # rewrites the five files in schema/ from the zod definitions (db:test fails when one is stale)
 npx tsc --noEmit -p .
 npm run lint
 ```
 
-Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:fx-cost-test`, `db:checks-test`, `db:canvas-test`, `db:conversation-test`, `db:ask-document-test`, `db:ask-routes-test`, `db:charge-routes-test`, `db:memory-test`, `db:data-test`, `db:cron-test`, `db:sweep-test`, `db:isolation-test`, `db:limits-test` (per-address limits, the AI budget, the storage cap, file retention), `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
+Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test`, `db:agent-test`, `db:ai-test`, `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:fx-cost-test`, `db:checks-test`, `db:canvas-test`, `db:conversation-test`, `db:ask-document-test`, `db:ask-routes-test`, `db:charge-routes-test`, `db:memory-test`, `db:data-test`, `db:cron-test`, `db:sweep-test`, `db:isolation-test`, `db:voice-test` (voice fill: the schema, the checks and the route on a fake model), `db:limits-test` (per-address limits, the AI budget, the storage cap, file retention), `db:family-test`. The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md).
 
 The model eval calls a real provider, so it is not part of `db:test`: `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` runs the real agent on Ben's fictional household in a throwaway database, reads the key from `EVAL_API_KEY` in `.env.local`, and prints one line per case and the `TESTED` line to add to `src/lib/ai/tested.ts`. Its graders are tested on the fake transport in `db:ai-test`.
 
@@ -107,7 +107,7 @@ Use only an owner-configured PayPal Developer Sandbox app and sandbox recipients
 
 ## Ask, voice and MCP
 
-The Ask page accepts typed text and, where the browser supports it, speech. A character typed in the top bar's Ask box carries over to the page. The agent answers from the runway engine and can only read or draft: a spoken or typed bill, card charge, bank balance update, pot or invoice waits for confirmation (in To check, or on the invoice review page). Without a model (the server's AI settings, or the household's own) the Ask page names the missing setting.
+The Ask page accepts typed text and, where the browser supports it, speech (`useSpeech`); the top bar and phone bar have a microphone beside the Ask link, and Fill by voice on the bill, charge, invoice, client and bank balance forms fills a form's fields from what you say (nothing is saved until the form's own button). A character typed in the top bar's Ask box carries over to the page. The agent answers from the runway engine and can only read or draft: a spoken or typed bill, card charge, bank balance update, pot or invoice waits for confirmation (in To check, or on the invoice review page). Without a model (the server's AI settings, or the household's own) the Ask page names the missing setting.
 
 To issue household-scoped MCP tokens, set `MCP_TOKEN_KEY`, then use Settings. Connect a Streamable HTTP MCP client to `/api/mcp` with the token as a Bearer credential. The token supports household reads and drafts (the same tools as the agent); approval and sending stay in the app. `npm run mcp:demo` runs a finite protocol demonstration on loopback with an isolated PGlite household and an in-memory key.
 
