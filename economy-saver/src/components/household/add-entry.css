@@ -13,8 +13,12 @@ details.add-entry-more[open] > summary { margin-bottom: var(--space-3); }
 .share-choice legend { padding: 0; font: 400 14px var(--sans); }
 .share-choice [role="radiogroup"] { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin-top: var(--space-1); }
 .share-choice label:not(.ui-field) { display: inline-flex; align-items: center; gap: var(--space-2); font: 400 14px var(--sans); }
-.add-entry-guess { margin: 0 0 var(--space-3); }
-.add-entry-change { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+.add-entry-guess { display: flex; margin: 0 0 var(--space-3); white-space: pre; } /* one line at any width: the words give way (ellipsis), "Change ›" stays, so typing never changes the height */
+.add-entry-guess-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.add-entry-repeat-hint { min-height: 2lh; } /* the hint under Repeats changes with the guess; two lines are always reserved */
+.add-entry-repeat:has(input:disabled) { color: var(--muted); cursor: not-allowed; }
+.add-entry-repeat input:disabled { cursor: not-allowed; }
+.add-entry-change { flex: none; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
 @media (max-width: 760px) {
   .share-choice label:not(.ui-field) { min-height: 44px; }
   .add-entry-change { position: relative; }
@@ -23,3 +27,5 @@ details.add-entry-more[open] > summary { margin-bottom: var(--space-3); }
 .amount-field { position: relative; display: block; }
 .amount-field .amount-sign { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--muted, inherit); pointer-events: none; }
 .amount-field input { width: 100%; padding-left: calc(var(--space-3) + 1.4em); }
+.ui-field:has(> input:disabled) { color: var(--muted); } /* "Last payment" while the bill does not repeat: in place, greyed, posts nothing */
+.ui-field > input:disabled { cursor: not-allowed; }

@@ -102,7 +102,7 @@ function Guess({ words, focus }: { words: string[]; focus: string }) {
     more.open = true;
     more.querySelector<HTMLElement>(focus)?.focus();
   }
-  return <p className="ui-hint add-entry-guess">{words.join(" · ")} · <button type="button" className="add-entry-change" onClick={change}>Change ›</button></p>;
+  return <p className="ui-hint add-entry-guess"><span className="add-entry-guess-words">{words.join(" · ")}</span><span aria-hidden> · </span><button type="button" className="add-entry-change" onClick={change}>Change ›</button></p>;
 }
 
 type FormProps = { id: string; returnTo: "/" | "/to-check"; today: string; currency: string; people: { id: string; name: string }[] };

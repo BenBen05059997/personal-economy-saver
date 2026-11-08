@@ -6,10 +6,13 @@ import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { AmountField } from "./AmountField";
 import { LABELS } from "./labels";
 
+/** The tooltip of a "not known yet" box that does not apply right now. The box stays in place, disabled, so typing never moves the form. */
+const NOT_HERE = "Not available for this bill as it is set up";
+
 /**
  * D55: an amount that can be left "not known yet". Ticking the box (posts `amountUnknown=on`) clears and disables the field and drops
  * its `required`. `currency` puts the sign inside the field; without it the field is a plain text input (the reader's review card
- * chooses the currency next to it). `offered` false hides the box (the database refuses an unknown amount there). `onUnknown` tells
+ * chooses the currency next to it). `offered` false keeps the box in place, disabled and unticked, so nothing posts (the database refuses an unknown amount there). `onUnknown` tells
  * the parent whether the amount is now not known.
  */
 export function AmountWithUnknown({ currency, label = LABELS.amount, defaultValue = "", defaultUnknown = false, offered = true, onUnknown }: {
@@ -22,8 +25,8 @@ export function AmountWithUnknown({ currency, label = LABELS.amount, defaultValu
     <label className="ui-field">{label}
       {currency ? <AmountField name="amount" currency={currency} required={!unknown} disabled={unknown} value={unknown ? "" : text} onChange={event => setText(event.target.value)} />
         : <input name="amount" inputMode="decimal" maxLength={17} required={!unknown} disabled={unknown} value={unknown ? "" : text} onChange={event => setText(event.target.value)} />}</label>
-    {offered && <label className="add-entry-repeat"><input name="amountUnknown" type="checkbox" checked={box}
-      onChange={event => { setBox(event.target.checked); if (event.target.checked) setText(""); onUnknown?.(event.target.checked); }} /> {LABELS.amountUnknown}</label>}
+    <label className="add-entry-repeat" title={offered ? undefined : NOT_HERE}><input name="amountUnknown" type="checkbox" checked={box && offered} disabled={!offered}
+      onChange={event => { setBox(event.target.checked); if (event.target.checked) setText(""); onUnknown?.(event.target.checked); }} /> {LABELS.amountUnknown}</label>
   </>;
 }
 
@@ -41,7 +44,7 @@ export function DueWithUnknown({ today, label = LABELS.dueDate, name = "due", va
   return <>
     <label className="ui-field">{label}<CheckedInput name={name} type="date" value={unknown ? "" : text} onChange={event => set(event.target.value)}
       max={latestDate(today)} message={HORIZON_MESSAGE} required={!unknown} disabled={unknown} /></label>
-    {offered && <label className="add-entry-repeat"><input name="dueUnknown" type="checkbox" checked={box}
-      onChange={event => { setBox(event.target.checked); if (event.target.checked) set(""); }} /> {LABELS.dueUnknown}</label>}
+    <label className="add-entry-repeat" title={offered ? undefined : NOT_HERE}><input name="dueUnknown" type="checkbox" checked={box && offered} disabled={!offered}
+      onChange={event => { setBox(event.target.checked); if (event.target.checked) set(""); }} /> {LABELS.dueUnknown}</label>
   </>;
 }
