@@ -11,6 +11,7 @@ const fields = z.object({
   kind: z.literal("set"), ruleKind: z.enum(RULE_KINDS),
   enabled: z.literal("on").optional().transform(value => value === "on"),
   value: z.string().max(30).optional().transform(value => value ?? null),
+  spaceId: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request) {

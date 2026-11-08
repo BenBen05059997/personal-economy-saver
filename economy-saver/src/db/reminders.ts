@@ -7,7 +7,8 @@ import { appUrl } from "@/lib/supabase-auth";
 import { clockForHousehold } from "./clock";
 import { requireHousehold, withHousehold, type Db } from "./household";
 import { InputError } from "./input-error";
-import { households, members, pushSubscriptions, reminderSettings, reminders, suggestions, users } from "./schema";
+import { openSuggestions } from "./suggestions";
+import { households, members, pushSubscriptions, reminderSettings, reminders, spaces, suggestions, users } from "./schema";
 
 type Identity = { uid: string; email: string | null } | null;
 type Channel = typeof reminders.$inferInsert.channel;
@@ -124,7 +125,7 @@ export async function sendTestReminder(db: Db, id: string, identity: Identity, c
 const beforeDay = (column: typeof reminderSettings.emailRanOn | typeof reminderSettings.pushRanOn, today: string) =>
   sql`(${column} is null or ${column} < ${today})`;
 
-async function claimReminder(db: Db, hid: string, recipient: Recipient, channel: Channel, today: string, ids: string[]) {
+async function claimReminder(db: Db, hid: string, recipient: Recipient, channel: Channel, today: string, ids: string[], spaceId: string | null) {
   const lastDay = channel === "email" ? reminderSettings.emailRanOn : reminderSettings.pushRanOn;
   return withHousehold(db, hid, async tx => {
     const [claimed] = await tx.update(reminderSettings)
@@ -133,7 +134,10 @@ async function claimReminder(db: Db, hid: string, recipient: Recipient, channel:
         channel === "email" && recipient.email ? and(eq(reminderSettings.emailOn, true), eq(reminderSettings.email, recipient.email)) : undefined))
       .returning({ memberId: reminderSettings.memberId });
     if (!claimed) return null;
-    const [row] = await tx.insert(reminders).values({ householdId: hid, memberId: recipient.memberId, channel, day: today, suggestionIds: ids, status: "failed" })
+    const [space] = spaceId ? await tx.select({ id: spaces.id }).from(spaces)
+      .where(and(eq(spaces.householdId, hid), eq(spaces.id, spaceId))).for("key share") : [];
+    const [row] = await tx.insert(reminders).values({ householdId: hid, memberId: recipient.memberId, channel, day: today,
+      spaceId: space?.id ?? null, suggestionIds: ids, status: "failed" })
       .onConflictDoNothing().returning({ id: reminders.id });
     return row?.id ?? null;
   });
@@ -152,9 +156,7 @@ export async function runReminders(db: Db, id: string, now = new Date(), fetcher
     await tx.delete(reminders).where(and(eq(reminders.householdId, hid), lt(reminders.createdAt, new Date(now.getTime() - 30 * 86_400_000))));
     const { today } = clockForHousehold(household, now);
     const [findings, recipients, subscriptions] = await Promise.all([
-      tx.select({ id: suggestions.id, kind: suggestions.kind, reason: suggestions.reason }).from(suggestions)
-        .where(and(eq(suggestions.householdId, hid), eq(suggestions.createdOn, today), eq(suggestions.status, "open"), inArray(suggestions.kind, DIGEST_KINDS)))
-        .orderBy(suggestions.urgency, suggestions.id),
+      openSuggestions(tx, hid, { day: today, kinds: DIGEST_KINDS }),
       tx.select().from(reminderSettings).where(eq(reminderSettings.householdId, hid)),
       tx.select().from(pushSubscriptions).where(eq(pushSubscriptions.householdId, hid)),
     ]);
@@ -167,6 +169,8 @@ export async function runReminders(db: Db, id: string, now = new Date(), fetcher
   const weekday = new Date(today + "T00:00:00Z").getUTCDay();
   const config = deliverySettings();
   const ids = findings.map(finding => finding.id);
+  const firstSpace = findings[0].spaceId;
+  const spaceId = findings.every(finding => finding.spaceId === firstSpace) ? firstSpace : null;
   for (const member of recipients) {
     if (member.hour > hour || member.quietDays.includes(weekday)) continue;
     const deviceRows = subscriptions.filter(row => row.memberId === member.memberId);
@@ -174,7 +178,7 @@ export async function runReminders(db: Db, id: string, now = new Date(), fetcher
     if (!household.isDemo && member.emailOn && member.email && (!member.emailRanOn || member.emailRanOn < today)) channels.push("email");
     if (deviceRows.length && (!member.pushRanOn || member.pushRanOn < today)) channels.push("push");
     for (const channel of channels) {
-      const receipt = await claimReminder(db, hid, member, channel, today, ids);
+      const receipt = await claimReminder(db, hid, member, channel, today, ids, spaceId);
       if (!receipt) continue;
       const problem = config[channel].problem;
       if (problem) {

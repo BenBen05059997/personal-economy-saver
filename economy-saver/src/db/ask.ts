@@ -8,7 +8,7 @@ import { readPlaces } from "./place";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { RecipeSchema, type Recipe } from "@/lib/canvas/schema";
-import { askReceipt, noteAskReply, noteAskWrote } from "./ask-receipts";
+import { askReceipt, claimAskReceipt, noteAskReply, noteAskWrote } from "./ask-receipts";
 import { requireSpace, saveBrief } from "./spaces";
 import { saveTurn, turnById } from "./conversation";
 import { documentCard } from "./document-card";
@@ -38,6 +38,7 @@ export const askInput = z.object({
   /** D59: the browser’s thread tail and brief, used for this question only. */
   recent: z.array(ContextTurn).optional(),
   history: z.array(ContextTurn).optional(),
+  incognito: z.boolean().optional(),
   earlierCount: z.number().int().nonnegative().safe().optional(),
   deviceBrief: BriefSchema.optional(),
 });
@@ -56,6 +57,8 @@ export type AskReply = {
   offers: KeepOffer[];
   brief?: BriefRecord;
   memoryChanged?: boolean;
+  incognito?: boolean;
+  openSpace?: { name: string };
 };
 
 /** The household's current moment (a Try it household's fixed date at the real time of day). */
@@ -134,9 +137,14 @@ export async function firstUseLine(db: Db, householdId: string, options: { skipA
   });
 }
 
+function incognitoRetry(id: string): AskReply {
+  return { id, kind: ANSWER, text: FIXED.incognitoRetried, choices: null, canvas: null, sources: [], links: [], pending: false,
+    firstUse: null, memoryChanges: [], offers: [], incognito: true };
+}
+
 /** Free-form questions go to the agent (D40). `pending` is true when a tool left a bill or charge in To check (D39). */
 export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date; onStep?: (step: string) => void } = {}): Promise<AskReply> {
-  const { id, conversationId, spaceId, text, source, canvas, memory, recent, earlierCount, deviceBrief, history } = askInput.parse(input);
+  const { id, conversationId, spaceId, text, source, canvas, memory, recent, earlierCount, deviceBrief, history, incognito } = askInput.parse(input);
   const householdId = requireHousehold(hid);
   const prepared = await withHousehold<{ reply: AskReply } | { assembled: Awaited<ReturnType<typeof assembleContext>>; effectiveSpaceId?: string; deviceMemory?: DeviceMemory }>(db, householdId, async tx => {
     // A kind kept on the device comes with the question and is never stored here; a kind kept in the cloud is read here and the question must not carry it.
@@ -160,6 +168,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
       throw new InputError("This household keeps its conversations in our cloud. Reload the page and ask again.");
     // A question retried after its reply was lost has the same id: the saved turn is the reply, and nothing runs or writes again.
     const kept = recent === undefined ? await turnById(tx, householdId, id) : null;
+    if (incognito && kept) throw new InputError("Start a new question for Incognito.");
     if (kept && (kept.question !== text || kept.conversationId !== conversationId)) throw new InputError("This question was already answered. Reload the page and ask again.");
     if (kept) {
       const receipt = await askReceipt(tx, householdId, id);
@@ -170,7 +179,9 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
       } };
     }
     // The conversations are on the device, so no turn is stored here to replay; the receipt says this id already wrote, and nothing runs or writes again.
-    const wrote = recent !== undefined ? await askReceipt(tx, householdId, id) : null;
+    const wrote = await askReceipt(tx, householdId, id);
+    if (incognito && wrote) return { reply: incognitoRetry(id) };
+    if (wrote && recent === undefined) throw new InputError("This question already ran. Start a new question.");
     if (wrote) {
       return { reply: {
         id, kind: ANSWER, text: FIXED.alreadySaved, choices: null, canvas: null, sources: [],
@@ -184,12 +195,20 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     return { assembled, effectiveSpaceId, deviceMemory };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
   if ("reply" in prepared) return prepared.reply;
+  if (incognito) {
+    const first = await withHousehold(db, householdId, async tx => {
+      await tx.select({ id: households.id }).from(households).where(eq(households.id, householdId)).for("update");
+      if (await turnById(tx, householdId, id)) throw new InputError("Start a new question for Incognito.");
+      return claimAskReceipt(tx, householdId, id);
+    });
+    if (!first) return incognitoRetry(id);
+  }
   const { assembled, effectiveSpaceId, deviceMemory } = prepared;
   let result: AskResult;
   try {
     result = await runAgent({
-      db, householdId, question: text, askId: id, source, appUrl: appUrl(), context: assembled.context, assembled, spaceId: effectiveSpaceId, fetch: deps.fetch, deviceMemory, deviceHistory: history ?? recent, onStep: deps.onStep,
-      onWrote: recent === undefined ? undefined : () => withHousehold(db, householdId, tx => noteAskWrote(tx, householdId, id)),
+      db, householdId, question: text, askId: id, source, appUrl: appUrl(), context: assembled.context, assembled, spaceId: effectiveSpaceId, fetch: deps.fetch, deviceMemory, deviceHistory: history ?? recent, incognito, onStep: deps.onStep,
+      onWrote: incognito || recent === undefined ? undefined : () => withHousehold(db, householdId, tx => noteAskWrote(tx, householdId, id)),
       connection: () => aiConnection(db, householdId, "text"),
     });
   } catch (error) {
@@ -197,13 +216,15 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     if (!(error instanceof AgentError) || !error.saved) throw error;
     result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending, offers: [] };
   }
-  const brief = await withHousehold(db, householdId, async tx => {
+  const brief = incognito ? undefined : await withHousehold(db, householdId, async tx => {
     await tx.select({ id: households.id }).from(households).where(eq(households.id, householdId)).for("update");
     if (effectiveSpaceId !== undefined) await requireSpace(tx, householdId, effectiveSpaceId, true);
     const places = await readPlaces(tx, householdId);
     if ((places.journal === "device") !== (recent !== undefined))
       throw new InputError("Your journal moved while Ask was answering. Reload the page and ask again.");
     if (recent === undefined) {
+      if (await askReceipt(tx, householdId, id) && !await turnById(tx, householdId, id))
+        throw new InputError("This question already ran. Start a new question.");
       const saved = await saveTurn(tx, householdId, {
         id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources.map(source => places.memory === "device" && "id" in source
           ? { ...source, label: DEVICE_MEMORY_SOURCE_LABEL } : source),
@@ -222,5 +243,6 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   return {
     id, kind: result.kind, text: result.answer, choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending,
     firstUse, memoryChanges: deviceMemory?.changes ?? [], offers: result.offers, ...(brief && { brief }), ...(result.memoryChanged && { memoryChanged: true }),
+    ...(incognito && { incognito: true }), ...(result.openSpace && { openSpace: result.openSpace }),
   };
 }

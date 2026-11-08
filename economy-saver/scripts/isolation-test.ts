@@ -133,7 +133,7 @@ const covered = [
   // D70 history.ts
   "searchHistory", "resolveMemorySpace",
   // D59 ask-receipts.ts
-  "noteAskWrote", "noteAskReply", "askReceipt", "pruneAskReceipts",
+  "noteAskWrote", "claimAskReceipt", "noteAskReply", "askReceipt", "pruneAskReceipts",
   // D61 document-card.ts
   "documentCard", "attachDocument",
   // 27E document-cleanup.ts: Storage bytes and the removal of old raw files
@@ -606,7 +606,8 @@ async function main() {
       assert.equal((await F.turnById(store, hid, viewer.ids.turn))?.id, viewer.ids.turn);
       seen("turnById", await F.turnById(store, hid, viewer.ids.turn));
       const receiptId = randomUUID();
-      await F.noteAskWrote(store, hid, receiptId);
+      assert.equal(await F.claimAskReceipt(store, hid, receiptId), true);
+      assert.equal(await F.claimAskReceipt(store, hid, receiptId), false);
       await F.noteAskWrote(store, hid, receiptId);
       assert.equal(await F.askReceipt(store, hid, receiptId) !== null, true);
       await F.noteAskReply(store, hid, receiptId, { pending: true, links: [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }] });

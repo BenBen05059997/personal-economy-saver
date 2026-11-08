@@ -6,6 +6,9 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { countKind, deleteKind } from "@/db/data-kinds";
 import { dueHouseholds } from "@/db/daily";
+import { changeStandingRule } from "@/db/rules";
+import { createSpace } from "@/db/spaces";
+import { reminderDigest } from "@/lib/notify/digest";
 import { reminderView, runReminders, saveReminderSettings, sendTestReminder, subscribeReminder } from "@/db/reminders";
 import * as s from "@/db/schema";
 import { runNotifyTransportChecks } from "./notify-transport-test";
@@ -129,6 +132,51 @@ async function main() {
       await runReminders(db, hid, new Date("2026-12-01T00:00:00Z"), transport);
       assert.deepEqual(await history(), []);
       assert.equal(sends.length, before);
+    });
+    await check("one linked space is named in the digest and receipt, while a mixed digest names both with one daily send", async () => {
+      const utilities = await createSpace(db, hid, "Fictional utilities review");
+      const cards = await createSpace(db, hid, "Fictional cards review");
+      await changeStandingRule(db, hid, { ruleKind: "bill_ahead", enabled: true, value: "3", spaceId: utilities.id });
+      await changeStandingRule(db, hid, { ruleKind: "statement_ahead", enabled: true, value: "3", spaceId: cards.id });
+      await saveReminderSettings(db, hid, identity, { hour: 9, quietDays: [], emailOn: true });
+
+      const singleDay = "2026-12-02";
+      const bill = await finding(singleDay, "bill_due");
+      const before = sends.length;
+      await runReminders(db, hid, new Date(singleDay + "T00:00:00Z"), transport);
+      assert.equal(sends.length - before, 1);
+      const single = (await history()).find(row => row.day === singleDay);
+      assert.deepEqual([single?.spaceId, single?.suggestionIds], [utilities.id, [bill.id]]);
+      const email = JSON.parse(String(sends.at(-1)!.body));
+      assert.match(email.text, /A bill is due soon \(¥2,500\)\. Space: Fictional utilities review\./);
+
+      const mixedDay = "2026-12-03", now = new Date(mixedDay + "T00:00:00Z");
+      const mixed = await Promise.all([finding(mixedDay, "bill_due"), finding(mixedDay, "statement_due")]);
+      await Promise.all([runReminders(db, hid, now, transport), runReminders(db, hid, now, transport)]);
+      assert.equal(sends.length - before, 2);
+      const receipt = (await history()).find(row => row.day === mixedDay);
+      assert.equal(receipt?.spaceId, null);
+      assert.deepEqual(receipt?.suggestionIds.sort(), mixed.map(row => row.id).sort());
+      const digest = JSON.parse(String(sends.at(-1)!.body));
+      assert.match(digest.text, /Space: Fictional utilities review\./);
+      assert.match(digest.text, /Space: Fictional cards review\./);
+      assert.deepEqual(digest.text.match(/https?:\/\/\S+/g), ["https://example.test/"]);
+    });
+
+    await check("reminder labels neutralize links and controls and name scopes beyond the six-line cap", () => {
+      const shown = { kind: "bill_due", reason: "¥200, covered.", spaceName: "Fictional utilities review" };
+      const digest = reminderDigest([
+        ...Array.from({ length: 6 }, () => shown),
+        { ...shown, spaceName: "Fictional cards review" },
+        { ...shown, spaceName: "Fictional \n https://evil.example/ someone@evil.example" },
+        shown,
+      ], "https://example.test/home")!;
+      assert.equal(digest.url, "https://example.test/");
+      assert.doesNotMatch(digest.body, /https?:\/\/|evil\.example|someone@/);
+      assert.match(digest.body, /Space: Fictional utilities review\./);
+      assert.match(digest.body, /3 more findings on Home\./);
+      assert.match(digest.body, /More findings in these spaces: Fictional cards review, Fictional https \/\/evil dot example\/ someone at evil dot example\./);
+      assert.equal(digest.body.split("\n").length, 8, "the space label cannot add a line");
     });
   } finally {
     for (const [name, value] of Object.entries(previous)) {

@@ -218,6 +218,7 @@
 
 .home-suggestion { display: grid; justify-items: start; gap: 0.4rem; padding-block: 0.75rem; }
 .home-suggestion + .home-suggestion { border-top: 1px solid var(--rule); }
-.home-suggestion h3, .home-suggestion .home-note { margin: 0; }
+.home-suggestion-group + .home-suggestion-group { border-top: 1px solid var(--rule); padding-block-start: 0.75rem; }
+.home-suggestion-group > h3, .home-suggestion h3, .home-suggestion h4, .home-suggestion .home-note { margin: 0; }
 .home-suggestion-choice fieldset { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .home-suggestion-choice button { min-height: 44px; }

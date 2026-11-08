@@ -4,8 +4,14 @@ import { askReceipts } from "./schema";
 
 /** D59: notes, with no content, that the question with this id wrote something for this household. Noting it twice is the same as once. */
 export async function noteAskWrote(db: Db, householdId: string, askId: string): Promise<void> {
+  await claimAskReceipt(db, householdId, askId);
+}
+
+/** Atomically claim a content-free retry key. A previously claimed key returns false. */
+export async function claimAskReceipt(db: Db, householdId: string, askId: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
-  await db.insert(askReceipts).values({ householdId: hid, askId }).onConflictDoNothing();
+  const rows = await db.insert(askReceipts).values({ householdId: hid, askId }).onConflictDoNothing().returning({ id: askReceipts.askId });
+  return rows.length === 1;
 }
 
 export type AskLink = { label: string; href: string };

@@ -35,6 +35,8 @@ export const TOOL_WORDS: Record<string, string> = {
   out_of_scope: "Checking if I can help with that",
   remember: "Noting that down",
   forget: "Forgetting that",
+  list_spaces: "Looking at your spaces",
+  open_space: "Thinking about a new space",
   search_history: "Searching your Ask history",
   recall: "Looking at what I remember",
   update_brief: "Updating the space brief",

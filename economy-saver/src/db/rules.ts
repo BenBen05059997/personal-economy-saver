@@ -2,9 +2,10 @@ import { eq } from "drizzle-orm";
 import { Currency } from "@/lib/catalogue/types";
 import { RULE_KINDS, type RuleKind, type StandingRule, type StandingRules } from "@/lib/money/suggestion-types";
 import { readRule, ruleWords } from "@/lib/money/rules";
-import { recordEvent, requireHousehold, type Db } from "./household";
+import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { households, standingRules } from "./schema";
 import { InputError } from "./input-error";
+import { requireSpace } from "./spaces";
 
 export function defaultRules(): StandingRules {
   return {
@@ -28,7 +29,7 @@ export async function seedRules(db: Db, id: string) {
 }
 
 function readRules(db: Db, hid: string) {
-  return db.select({ kind: standingRules.kind, enabled: standingRules.enabled, threshold: standingRules.threshold, currency: standingRules.currency })
+  return db.select({ kind: standingRules.kind, enabled: standingRules.enabled, threshold: standingRules.threshold, currency: standingRules.currency, spaceId: standingRules.spaceId })
     .from(standingRules).where(eq(standingRules.householdId, hid));
 }
 
@@ -46,35 +47,41 @@ async function initializeRules(db: Db, hid: string) {
 
 export async function rulesFor(db: Db, id: string): Promise<StandingRules> {
   const hid = requireHousehold(id);
-  let rows = await readRules(db, hid);
-  if (!rows.length) rows = await initializeRules(db, hid);
-  const byKind = new Map(rows.map(row => [row.kind, row]));
-  const entries = RULE_KINDS.map(kind => {
-    const row = byKind.get(kind);
-    if (!row) throw new Error(`Missing standing rule: ${kind}`);
-    return [kind, { enabled: row.enabled, threshold: row.threshold, currency: row.currency === null ? null : Currency.parse(row.currency) }] as const;
+  return withHousehold(db, hid, async tx => {
+    let rows = await readRules(tx, hid);
+    if (!rows.length) rows = await initializeRules(tx, hid);
+    const byKind = new Map(rows.map(row => [row.kind, row]));
+    const entries = RULE_KINDS.map(kind => {
+      const row = byKind.get(kind);
+      if (!row) throw new Error(`Missing standing rule: ${kind}`);
+      return [kind, { enabled: row.enabled, threshold: row.threshold, currency: row.currency === null ? null : Currency.parse(row.currency),
+        ...(row.spaceId && { spaceId: row.spaceId }) }] as const;
+    });
+    return Object.fromEntries(entries) as StandingRules;
   });
-  return Object.fromEntries(entries) as StandingRules;
 }
 
 export async function setStandingRule(db: Db, id: string, kind: RuleKind, rule: StandingRule) {
   const hid = requireHousehold(id);
-  await db.insert(standingRules).values(ruleRow(hid, kind, rule))
-    .onConflictDoUpdate({ target: [standingRules.householdId, standingRules.kind], set: { ...rule, updatedAt: new Date() } });
+  await withHousehold(db, hid, async tx => {
+    await tx.insert(standingRules).values(ruleRow(hid, kind, rule))
+      .onConflictDoUpdate({ target: [standingRules.householdId, standingRules.kind], set: { ...rule, updatedAt: new Date() } });
+  });
 }
 
-export async function changeStandingRule(db: Db, id: string, input: { ruleKind: RuleKind; enabled: boolean; value: string | null }) {
+export async function changeStandingRule(db: Db, id: string, input: { ruleKind: RuleKind; enabled: boolean; value: string | null; spaceId?: string }) {
   const hid = requireHousehold(id);
-  return db.transaction(async tx => {
+  return withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ currency: households.homeCurrency }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
     const current = (await rulesFor(tx, hid))[input.ruleKind];
+    const spaceId = input.spaceId ? (await requireSpace(tx, hid, input.spaceId, true)).id : current.spaceId;
     const value = input.value?.trim() || null;
     const keepValue = !input.enabled && (value === null || (input.ruleKind === "nudge_after" && value === String(current.threshold)));
     const next = keepValue ? { ...current, enabled: false } : readRule(input.ruleKind, input.enabled, value, Currency.parse(household.currency));
     if ("problem" in next) throw new InputError(next.problem);
-    if (next.enabled === current.enabled && next.threshold === current.threshold && next.currency === current.currency) return false;
-    await setStandingRule(tx, hid, input.ruleKind, next);
+    if (next.enabled === current.enabled && next.threshold === current.threshold && next.currency === current.currency && spaceId === current.spaceId) return false;
+    await setStandingRule(tx, hid, input.ruleKind, { ...next, spaceId });
     await recordEvent(tx, hid, { madeBy: "form", kind: "rule_changed", title: "Rule changed: " + ruleWords(input.ruleKind, next) });
     return true;
   });

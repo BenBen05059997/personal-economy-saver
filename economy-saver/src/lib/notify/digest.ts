@@ -20,17 +20,33 @@ function home(appUrl: string): string {
   return url.href;
 }
 
-/** The only dynamic words sent out are money tokens from the engine's reason. Titles and names stay in the app. */
-export function reminderDigest(findings: readonly { kind: string; reason: string }[], appUrl: string): ReminderDigest | null {
+/** Keep the space name in plain words. Only the app supplies a link in a reminder. */
+function spaceWords(name: string | null | undefined): string {
+  if (!name) return "";
+  const words = name.replace(/[\p{Cc}\p{Cf}]+/gu, " ").replace(/\s+/gu, " ").trim();
+  return Array.from(words).slice(0, 60).join("")
+    .replace(/(?<=[\p{L}\p{N}])[:：](?=\S)/gu, " ")
+    .replace(/(?<=\S)[@＠](?=\S)/gu, " at ")
+    .replace(/(?<=[\p{L}\p{N}])[.。．｡](?=[\p{L}\p{N}])/gu, " dot ");
+}
+
+export function reminderDigest(findings: readonly { kind: string; reason: string; spaceName?: string | null }[], appUrl: string): ReminderDigest | null {
   const eligible = findings.filter(row => Object.hasOwn(LINES, row.kind));
   if (!eligible.length) return null;
-  const lines = eligible.slice(0, MAX_LINES).map(row => {
+  const names = eligible.map(row => spaceWords(row.spaceName));
+  const lines = eligible.slice(0, MAX_LINES).map((row, index) => {
     const label = LINES[row.kind as keyof typeof LINES];
     const amounts = (row.reason.slice(0, 500).match(AMOUNT) ?? []).filter(value => value.length <= 20).slice(0, 2);
-    return amounts.length ? label + " (" + amounts.join(", ") + ")." : label + ".";
+    const words = amounts.length ? label + " (" + amounts.join(", ") + ")." : label + ".";
+    return names[index] ? words + " Space: " + names[index] + "." : words;
   });
   const more = eligible.length - lines.length;
-  if (more) lines.push(more === 1 ? "1 more finding on Home." : more + " more findings on Home.");
+  if (more) {
+    lines.push(more === 1 ? "1 more finding on Home." : more + " more findings on Home.");
+    const shown = new Set(names.slice(0, MAX_LINES));
+    const others = [...new Set(names.slice(MAX_LINES).filter(name => name && !shown.has(name)))];
+    if (others.length) lines.push("More findings in these spaces: " + others.join(", ") + ".");
+  }
   return { title: TITLE, body: lines.join("\n"), url: home(appUrl) };
 }
 

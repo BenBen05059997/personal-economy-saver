@@ -14,10 +14,12 @@ import { potInput, savePot } from "@/db/pots";
 import { changeStandingRule, defaultRules, rulesFor, setStandingRule } from "@/db/rules";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
+import { createSpace, deleteSpace, generalSpace, renameSpace } from "@/db/spaces";
 import { dismiss, notNow, openSuggestions, runPass } from "@/db/suggestions";
 import { applyVerifiedDelivery } from "@/lib/events";
 import { readRule, ruleWords } from "@/lib/money/rules";
 import { findSuggestions } from "@/lib/money/suggest";
+import { findingsBySpace } from "@/lib/money/suggestion-types";
 import { benMoney } from "@/lib/sample/ben";
 import type { Bill, MoneyState } from "@/lib/money/types";
 
@@ -219,6 +221,43 @@ async function main() {
       assert.deepEqual(await openSuggestions(db, other), []);
       assert.equal(await dismiss(db, other, row.id), false);
       assert.equal(await notNow(db, other, row.id), false);
+    });
+
+    await check("a canonical rule can move into a space without duplicating a finding, and Home groups by its current scope", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const utilities = await createSpace(db, hid, "Fictional utilities review");
+      const cash = await createSpace(db, hid, "Fictional runway review");
+      const foreign = await createSpace(db, other, "Fictional foreign space");
+      const general = await generalSpace(db, hid);
+      await pending(hid);
+      await run(hid);
+      const [original] = await openSuggestions(db, hid);
+      assert.equal(original.spaceId, null);
+
+      const change = { ruleKind: "bill_ahead", enabled: true, value: "3" } as const;
+      await assert.rejects(changeStandingRule(db, hid, { ...change, spaceId: foreign.id }), /Choose an open space/);
+      assert.equal(await changeStandingRule(db, hid, { ...change, spaceId: utilities.id }), true, "same settings, newly linked");
+      assert.equal(await changeStandingRule(db, hid, { ...change, spaceId: utilities.id }), false, "same link is a no-op");
+      assert.equal(await changeStandingRule(db, hid, { ...change, enabled: false, value: null }), true);
+      assert.deepEqual((await rulesFor(db, hid)).bill_ahead, { enabled: false, threshold: 3, currency: null, spaceId: utilities.id });
+      assert.equal(await changeStandingRule(db, hid, change), true);
+      assert.deepEqual((await rulesFor(db, hid)).bill_ahead, { enabled: true, threshold: 3, currency: null, spaceId: utilities.id });
+      const [linked] = await openSuggestions(db, hid);
+      assert.deepEqual([linked.id, linked.reason, linked.spaceName], [original.id, original.reason, utilities.name]);
+      await changeStandingRule(db, hid, { ruleKind: "safe_below", enabled: true, value: "20000", spaceId: cash.id });
+      await run(hid);
+      const grouped = findingsBySpace(await openSuggestions(db, hid));
+      assert.deepEqual(grouped.map(group => [group.name, group.rows.map(row => row.kind)]), [
+        [cash.name, ["safe_below"]], [utilities.name, ["bill_due"]],
+      ]);
+      assert.deepEqual(findingsBySpace([original, { ...linked, spaceId: general.id, spaceName: general.name }]).map(group => group.name), ["General"]);
+
+      await renameSpace(db, hid, utilities.id, "Fictional water review");
+      assert.equal((await openSuggestions(db, hid)).find(row => row.id === original.id)?.spaceName, "Fictional water review");
+      await deleteSpace(db, hid, utilities.id);
+      assert.equal((await openSuggestions(db, hid)).find(row => row.id === original.id)?.spaceName, null);
+      assert.equal((await rulesFor(db, hid)).bill_ahead.spaceId, undefined);
+      assert.equal((await history(hid)).filter(row => row.kind === "bill_due").length, 1);
     });
 
     await check("Not now hides the suggestion through the same day and brings back the same row the next day", async () => {

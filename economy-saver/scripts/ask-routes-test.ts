@@ -13,7 +13,9 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
-import { saveTurn } from "@/db/conversation";
+import { createSpace, generalSpace, listSpaces, saveBrief } from "@/db/spaces";
+import { addMemory, listMemory } from "@/db/memory";
+import { saveTurn, allTurns } from "@/db/conversation";
 import { moveToDevice } from "@/db/place";
 import { proposeReadings } from "@/db/readings";
 import { requestCount } from "@/db/rate-limit";
@@ -36,6 +38,7 @@ async function main() {
 
   // ---- the two stand-ins, installed before any route is imported
   let cookie: string | null = null;
+  let realAnswerQuestion: typeof import("@/db/ask").answerQuestion;
   let asking: ((...args: unknown[]) => Promise<unknown>) | null = null;
   const loader = Module as unknown as { _load: (request: string, parent: unknown, isMain: boolean) => unknown; _resolveFilename: (request: string, parent: unknown, isMain: boolean) => string };
   const realLoad = loader._load;
@@ -44,7 +47,10 @@ async function main() {
     const resolved = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
     if (resolved.endsWith("/src/db/client.ts")) return { db: () => db, MissingDatabaseUrl: class extends Error {} };
     const real = realLoad.call(this, request, parent, isMain);
-    if (resolved.endsWith("/src/db/ask.ts")) return { ...(real as object), answerQuestion: (...args: unknown[]) => (asking ? asking(...args) : (real as { answerQuestion: (...a: unknown[]) => Promise<unknown> }).answerQuestion(...args)) };
+    if (resolved.endsWith("/src/db/ask.ts")) {
+      realAnswerQuestion = (real as typeof import("@/db/ask")).answerQuestion;
+      return { ...(real as object), answerQuestion: (...args: Parameters<typeof realAnswerQuestion>) => asking ? asking(...args) : realAnswerQuestion(...args) };
+    }
     return real;
   };
   const infoLines: string[] = [];
@@ -70,7 +76,7 @@ async function main() {
       assert.equal(response.status, 200);
       assert.equal(response.headers.get("content-type"), "application/x-ndjson");
       assert.equal(response.headers.get("cache-control"), "private, no-store");
-      const lines = (await response.text()).split("\n").filter(Boolean).map(line => JSON.parse(line) as { step?: string; reply?: { text: string }; error?: string });
+      const lines = (await response.text()).split("\n").filter(Boolean).map(line => JSON.parse(line) as { step?: string; reply?: import("@/db/ask").AskReply; error?: string });
       const last = lines.at(-1)!;
       assert.ok(lines.slice(0, -1).every(line => typeof line.step === "string" && Object.keys(line).length === 1), "every line but the last is a step");
       assert.ok(("reply" in last) !== ("error" in last) && !("step" in last), "the last line is a reply or an error");
@@ -193,6 +199,114 @@ async function main() {
     assert.deepEqual([unset.status, unset.text], [200, askUnavailable("AI_TEXT_MODEL")], "the real path names the first missing setting");
     Object.assign(process.env, savedEnv);
     ok("/api/ask, real answerQuestion: a memory/place mismatch is 400 with its sentence; no AI settings is an error line with words");
+
+    // Stage 32D. Real route and runner, simulated Anthropic responses only.
+    const privateHid = await seedBen(db, { isDemo: true });
+    cookie = privateHid;
+    const general = await generalSpace(db, privateHid);
+    await saveBrief(db, privateHid, general.id, { about: "Fictional existing brief" }, "form");
+    await addMemory(db, privateHid, { kind: "fact", text: "Fictional existing profile" }, { madeBy: "form" });
+    await saveTurn(db, privateHid, { id: crypto.randomUUID(), conversationId: general.id, question: "Older fictional question", kind: "answer",
+      reply: "Older fictional answer", choices: null, recipe: null, sources: [] });
+    Object.assign(process.env, { AI_PROTOCOL: "anthropic", AI_API_KEY: "fictional-test-key", AI_TEXT_MODEL: "fixture" });
+    delete process.env.AI_BASE_URL;
+    const modelReply = (reason: string, content: unknown[]) => Response.json({ id: "fixture", type: "message", role: "assistant",
+      model: "fixture", stop_reason: reason, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 }, content });
+    const call = (name: string, input: unknown) => ({ type: "tool_use", id: `tool_${name}`, name, input });
+    const scripted = (make: (index: number, body: { system: string; tools: { name: string }[]; messages: unknown[] }) => Response) => {
+      let count = 0;
+      const fetch: typeof globalThis.fetch = async (input, init) => make(count++, await new Request(input, init).json());
+      asking = (...args) => {
+        const [dbArg, hid, data, deps] = args as Parameters<typeof realAnswerQuestion>;
+        return realAnswerQuestion(dbArg, hid, data, { ...deps, fetch });
+      };
+      return () => count;
+    };
+    const privateCalls = scripted((index, body) => {
+      if (index === 0) {
+        const names = body.tools.map(tool => tool.name);
+        assert.ok(names.includes("where_am_i") && names.includes("search_history"));
+        for (const forbidden of ["update_brief", "remember", "forget", "log_charge", "draft_invoice", "open_space", "offer_keep"]) assert.ok(!names.includes(forbidden));
+        assert.ok(body.system.includes("Fictional existing brief") && body.system.includes("Fictional existing profile"));
+        assert.ok(JSON.stringify(body.messages).includes("Older fictional question"));
+        return modelReply("tool_use", [
+          call("where_am_i", {}), call("remember", { kind: "fact", text: "Incognito note" }),
+          call("update_brief", { about: "Incognito brief" }), call("open_space", { name: "Incognito space" }), call("log_charge", {}),
+        ]);
+      }
+      const messages = JSON.stringify(body.messages);
+      assert.equal((messages.match(/This tool is unavailable in Incognito/g) ?? []).length, 4);
+      return modelReply("end_turn", [{ type: "text", text: "I checked the forecast." }]);
+    });
+    const privateQuestion = question({ conversationId: general.id, spaceId: general.id, text: "Remember that after checking.", incognito: true });
+    const privateReply = (await streamed(await ask(json("/api/ask", privateQuestion)))).last.reply!;
+    assert.equal(privateReply.incognito, true);
+    assert.equal(privateReply.text, "I checked the forecast.");
+    assert.deepEqual(privateReply.memoryChanges, []);
+    assert.deepEqual(privateReply.offers, []);
+    assert.equal(privateReply.brief, undefined);
+    assert.equal(privateReply.openSpace, undefined);
+    assert.equal((await allTurns(db, privateHid)).length, 1);
+    assert.equal((await listMemory(db, privateHid)).length, 1);
+    assert.equal((await listSpaces(db, privateHid)).length, 1);
+    assert.equal((await generalSpace(db, privateHid)).brief.about, "Fictional existing brief");
+    const [privateKey] = await db.select().from(schema.askReceipts)
+      .where(and(eq(schema.askReceipts.householdId, privateHid), eq(schema.askReceipts.askId, privateQuestion.id)));
+    assert.deepEqual({ askId: privateKey.askId, pending: privateKey.pending, links: privateKey.links }, { askId: privateQuestion.id, pending: false, links: [] });
+    const retried = await streamed(await ask(json("/api/ask", privateQuestion)));
+    assert.equal(retried.text, "This Incognito question already ran. Its reply was not saved.");
+    assert.equal(privateCalls(), 2, "retry made no further model call");
+    assert.equal((await ask(json("/api/ask", { ...privateQuestion, incognito: false }))).status, 400);
+    ok("Incognito reads the existing context, refuses even forced writes, and stores only the retry key");
+
+    const localHid = await seedBen(db, { isDemo: true });
+    const localGeneral = await generalSpace(db, localHid);
+    await db.update(schema.households).set({ memoryPlace: "device", journalPlace: "device" }).where(eq(schema.households.id, localHid));
+    cookie = localHid;
+    scripted((index, body) => {
+      if (index === 0) {
+        assert.ok(body.system.includes("Fictional local brief"));
+        return modelReply("tool_use", [call("where_am_i", {})]);
+      }
+      return modelReply("end_turn", [{ type: "text", text: "Your forecast is here." }]);
+    });
+    const localInput = question({ conversationId: localGeneral.id, spaceId: localGeneral.id,
+      incognito: true, recent: [], memory: [], deviceBrief: { about: "Fictional local brief" } });
+    const localPrivate = (await streamed(await ask(json("/api/ask", localInput)))).last.reply!;
+    assert.equal(localPrivate.incognito, true);
+    assert.equal(localPrivate.brief, undefined);
+    assert.deepEqual(await allTurns(db, localHid), []);
+    assert.deepEqual((await generalSpace(db, localHid)).brief, {});
+    ok("Incognito can read a device brief without returning a change or saving a cloud turn");
+
+    cookie = privateHid;
+    const proposalCalls = scripted((index, body) => {
+      if (index === 0) return modelReply("tool_use", [call("list_spaces", {}), call("open_space", { name: "Fictional November work" })]);
+      assert.ok(JSON.stringify(body.messages).includes("General"));
+      return modelReply("end_turn", [{ type: "text", text: "This can have its own space." }]);
+    });
+    const proposeInput = question({ conversationId: general.id, spaceId: general.id, text: "Help me plan the November work." });
+    const proposal = (await streamed(await ask(json("/api/ask", proposeInput)))).last.reply!;
+    assert.deepEqual(proposal.openSpace, { name: "Fictional November work" });
+    assert.equal((await listSpaces(db, privateHid)).length, 1, "the proposal did not create the space");
+    assert.equal((await streamed(await ask(json("/api/ask", proposeInput)))).last.reply?.openSpace, undefined, "the proposal is transient");
+    assert.equal(proposalCalls(), 2);
+    const spacesRoute = (await import("@/app/api/spaces/route")).POST;
+    const create = new FormData();
+    create.set("kind", "create");
+    create.set("name", proposal.openSpace!.name);
+    const opened = await spacesRoute(post("/api/spaces", create));
+    assert.equal(opened.status, 303);
+    assert.equal((await listSpaces(db, privateHid)).length, 2);
+    assert.ok(opened.headers.get("location")?.includes("/canvas?space="));
+    const other = await createSpace(db, b, "Fictional foreign space");
+    assert.equal((await ask(json("/api/ask", question({ spaceId: other.id, conversationId: other.id })))).status, 400);
+    ok("Ask proposes a space without creating it; only the guarded Open space form creates it");
+    asking = null;
+    for (const key of ["AI_PROTOCOL", "AI_API_KEY", "AI_TEXT_MODEL", "AI_BASE_URL"]) {
+      if (savedEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = savedEnv[key];
+    }
 
     // the stream: steps in order, then the reply; a failure after steps is an error line; an InputError after a step is an error line, before one a plain 400
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));

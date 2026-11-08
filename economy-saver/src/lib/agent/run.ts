@@ -36,7 +36,7 @@ export class AgentError extends Error {
 }
 
 /** Tools whose result repeats text the model wrote. */
-const NOT_SOURCES = new Set(["remember", "forget", "make_canvas", "offer_keep", "update_brief", "search_history"]);
+const NOT_SOURCES = new Set(["remember", "forget", "make_canvas", "offer_keep", "update_brief", "search_history", "open_space"]);
 
 const MAX_TOOL_TURNS = 4;
 const BUDGET_MS = 20_000;
@@ -86,6 +86,7 @@ type AskOptions = {
   assembled?: { systemData: string; memoryForAmounts: string[]; memory: MemoryItem[] };
   spaceId?: string;
   deviceHistory?: ContextTurn[];
+  incognito?: boolean;
   /** D59: when the household keeps its memory on one device, the list the question carried. It is used for this question only; `remember` and `forget` change it in place and record `changes` for the reply. Without it, memory is read from the cloud. */
   deviceMemory?: DeviceMemory;
   /** Progress for the person waiting: fixed words when a model call starts and when a tool turn starts (words.ts). Never an amount, an argument or a result. */
@@ -95,7 +96,7 @@ type AskOptions = {
 };
 export type AskResult = {
   kind: ReplyKind; answer: string; choices: string[] | null; recipe: Recipe | null; sources: Source[];
-  links: { label: string; href: string }[]; pending: boolean; offers: KeepOffer[]; brief?: Brief; memoryChanged?: boolean;
+  links: { label: string; href: string }[]; pending: boolean; offers: KeepOffer[]; brief?: Brief; memoryChanged?: boolean; openSpace?: { name: string };
 };
 
 export async function runAgent(opts: AskOptions): Promise<AskResult> {
@@ -132,6 +133,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const offers = new Map<string, { offer: KeepOffer; value: number | null }>();
   let pending = false;
   let brief: Brief | undefined;
+  let openSpace: { name: string } | undefined;
   const toolAmounts: string[] = [];
   const citedIds = new Set<string>();
   const readIds = new Set<string>();
@@ -169,12 +171,17 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     },
     deviceMemory: opts.deviceMemory, deviceHistory: opts.deviceHistory, spaceId: opts.spaceId, memorySpaceId, canRemember: wantsMemory,
     onMemoryRead: id => { readIds.add(id); },
+    incognito: opts.incognito,
+    onOpenSpace: next => { openSpace ??= next; },
     onBrief: opts.spaceId ? next => { brief = next; } : undefined,
     onPending: () => { pending = true; ctx.addLink?.({ label: "Open To check", href: new URL("/to-check", opts.appUrl).href }); },
   };
   const memory = memoryBlock(initialMemory.filter(item => !item.spaceId));
-  const system = systemPrompt(today, homeCurrency, opts.assembled?.systemData ?? memory);
-  const availableTools = opts.spaceId ? definitions : definitions.filter(tool => tool.name !== "update_brief");
+  const incognitoRule = opts.incognito
+    ? "This question is Incognito. You can read. If asked to make a change, say the person can switch off Incognito to do that."
+    : "";
+  const system = systemPrompt(today, homeCurrency, [incognitoRule, opts.assembled?.systemData ?? memory].filter(Boolean).join("\n\n"));
+  const availableTools = definitions.filter((_, index) => toolAvailable(ctx, tools[index]));
   const turns: Turn[] = [{ role: "user", parts: [{ type: "text", text: opts.context ? `${opts.question}\n\n${opts.context}` : opts.question }] }];
   // Every amount in the answer must come from the question or a tool result (D56).
   const sources = [opts.question];
@@ -246,7 +253,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
     if (!result.isError && !NOT_SOURCES.has(result.name)) sources.push(result.content);
     const tool = tools.find(candidate => candidate.name === result.name);
-    if (tool && result.name !== "update_brief" && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
+    if (tool && toolAvailable(ctx, tool) && result.name !== "update_brief" && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
     if (result.isError) return;
     used.push(result.name);
     if (tool?.scope === "read" && result.name !== "recall" && !NOT_SOURCES.has(result.name)) toolAmounts.push(result.content);
@@ -281,9 +288,13 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
           && unconfirmedAmounts(`${offer.name} ${minorMoney(value, homeCurrency)}`, sources).length === 0;
       }
       const current = standingRules?.[offer.ruleKind];
-      if (current?.enabled === offer.enabled && (current.threshold === value || !offer.enabled && value === null)) return false;
+      if (current?.enabled === offer.enabled && (current.threshold === value || !offer.enabled && value === null)
+        && (!opts.spaceId || current.spaceId === opts.spaceId)) return false;
       return offer.ruleKind !== "safe_below" || value === null || unconfirmedAmounts(minorMoney(value, homeCurrency), sources).length === 0;
-    }).map(({ offer }) => offer.kind === "memory" && memorySpaceId ? { ...offer, spaceId: memorySpaceId } : offer);
+    }).map(({ offer }) => {
+      const spaceId = offer.kind === "memory" ? memorySpaceId : offer.kind === "rule" ? opts.spaceId : undefined;
+      return spaceId ? { ...offer, spaceId } : offer;
+    });
     const validSources = new Set([
       ...tools.map(tool => tool.name),
       ...initialMemory.filter(item => !item.spaceId || item.spaceId === opts.spaceId).map(item => item.id),
@@ -301,7 +312,8 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       }
     }
     return { ...(checkedBrief && { brief: checkedBrief }), ...(wroteMemory && { memoryChanged: true }), kind: chosen.kind, answer: chosen.text,
-      choices: chosen.choices, recipe: chosen.recipe, sources: [...chosen.sources, ...memorySources], links, pending, offers: available };
+      choices: chosen.choices, recipe: chosen.recipe, sources: [...chosen.sources, ...memorySources], links, pending, offers: available,
+      ...(chosen.kind === "answer" && openSpace && unconfirmedAmounts(openSpace.name, sources).length === 0 && { openSpace }) };
   }
 }
 
@@ -366,10 +378,16 @@ async function callTool(ctx: ScopedToolContext, call: Call, now: () => number): 
   return { result, log: { name: tools.some(t => t.name === call.name) ? call.name : "unknown", ok: !result.isError, ms: now() - started } };
 }
 
+function toolAvailable(ctx: ScopedToolContext, tool: (typeof tools)[number]): boolean {
+  if (ctx.incognito && tool.scope !== "read" && tool.name !== "clarify" && tool.name !== "out_of_scope") return false;
+  return tool.name !== "update_brief" || ctx.onBrief !== undefined;
+}
+
 async function executeTool(ctx: ScopedToolContext, call: Call): Promise<ToolResult> {
   const error = (message: string): ToolResult => ({ id: call.id, name: call.name, content: message, isError: true });
   const tool = tools.find(candidate => candidate.name === call.name);
-  if (!tool || (tool.name === "update_brief" && !ctx.onBrief)) return error("Unknown tool.");
+  if (!tool) return error("Unknown tool.");
+  if (!toolAvailable(ctx, tool)) return error(ctx.incognito ? "This tool is unavailable in Incognito." : "Unknown tool.");
   const input = tool.input.safeParse(call.input);
   if (!input.success) {
     // Paths only: a zod message can echo the value the model sent.

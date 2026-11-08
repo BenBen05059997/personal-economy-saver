@@ -22,7 +22,7 @@ function RuleThreshold({ kind, rule, currency }: { kind: RuleKind; rule: Standin
   </>;
 }
 
-export function RulesView({ rules, currency }: { rules: StandingRules; currency: Currency }) {
+export function RulesView({ rules, currency, spaceNames }: { rules: StandingRules; currency: Currency; spaceNames: ReadonlyMap<string, string> }) {
   return <article className="memory-page">
     <header>
       <h1 className="ui-title">Rules</h1>
@@ -31,9 +31,11 @@ export function RulesView({ rules, currency }: { rules: StandingRules; currency:
     <ApiFormGroup>
       {RULE_KINDS.map(kind => {
         const rule = rules[kind];
+        const space = rule.spaceId ? spaceNames.get(rule.spaceId) : null;
         return <section key={kind} className="ui-panel memory-rule" aria-labelledby={"rule-" + kind}>
           <h2 id={"rule-" + kind}>{RULE_NAMES[kind]}</h2>
           <p className="ui-hint">{ruleWords(kind, rule)}</p>
+          {space && <p className="ui-hint">Space: {space}</p>}
           <ApiForm action="/api/rules">
             <input type="hidden" name="kind" value="set" />
             <input type="hidden" name="ruleKind" value={kind} />

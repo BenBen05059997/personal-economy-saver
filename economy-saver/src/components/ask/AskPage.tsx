@@ -11,6 +11,7 @@ import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { DocumentCard, type CardForm } from "./DocumentCard";
 import { readAskStream } from "./read-stream";
 import { KeepOfferCard } from "./KeepOffer";
+import { OpenSpaceProposal } from "./OpenSpaceProposal";
 import { SpaceBrief } from "./SpaceBrief";
 import { contextTail, historyTail } from "@/lib/agent/context";
 import type { Brief, BriefRecord } from "@/lib/agent/brief";
@@ -34,6 +35,7 @@ import "./ask.css";
 export type TurnView = {
   id: string; question: string; kind: TurnKind; text: string; choices: string[] | null;
   sources: TurnSource[]; links: { label: string; href: string }[]; thumb: 1 | -1 | null; documentId: string | null; offers?: KeepOffer[];
+  incognito?: boolean; openSpace?: { name: string };
 };
 export type Drawn = { key: string; title: string; recipe: Recipe; blocks: ResolvedBlock[] };
 type Pin = { id: string; title: string };
@@ -101,6 +103,9 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
   const spacePins = onDevice.canvases ? localPins : pins;
   const [turns, setTurns] = useState(initialTurns);
   const [canvas, setCanvas] = useState<Drawn | null>(shown);
+  const [incognito, setIncognito] = useState(false);
+  const [privateCanvas, setPrivateCanvas] = useState<Drawn | null>(null);
+  const canWrite = !readOnly && !incognito;
   const [starter, setStarter] = useState(0);
   const [text, setText] = useState("");
   const [source, setSource] = useState<"manual" | "voice">("manual");
@@ -220,7 +225,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
 
   /** Several files go one after another, each its own turn and card; the typed note goes with the first, and a refused file does not stop the others. */
   async function attach(files: File[]) {
-    if (files.length === 0 || busy || readOnly || !deviceReady) return;
+    if (files.length === 0 || busy || !canWrite || !deviceReady) return;
     setBusy(true);
     setProblem("");
     const problems: string[] = [];
@@ -260,7 +265,8 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       const visibleMemory = memory?.filter(item => !item.spaceId || spaceIds.has(item.spaceId));
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id, conversationId, spaceId: space.id, text: trimmed, source: how, canvas: canvas?.recipe ?? null,
+          id, conversationId, spaceId: space.id, text: trimmed, source: how, canvas: currentCanvas?.recipe ?? null,
+          ...(incognito && { incognito: true }),
           ...(visibleMemory && { memory: visibleMemory }),
           ...(tail && { recent: tail.turns, earlierCount: tail.omitted, deviceBrief: storedBrief?.brief ?? {}, history }),
         }) });
@@ -273,7 +279,20 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       const reply = last.reply;
       requestId.current = "";
       setText(""); setSource("manual");
-      setTurns(current => [...current.filter(turn => turn.id !== reply.id), { id: reply.id, question: trimmed, kind: reply.kind, text: reply.text, choices: reply.choices, sources: reply.sources, links: reply.links, thumb: null, documentId: null, offers: reply.offers }]);
+      const privateReply = incognito || reply.incognito === true;
+      setTurns(current => [...current.filter(turn => turn.id !== reply.id), {
+        id: reply.id, question: trimmed, kind: reply.kind, text: reply.text, choices: reply.choices, sources: reply.sources,
+        links: privateReply ? [] : reply.links, thumb: null, documentId: null,
+        ...(privateReply ? { incognito: true } : { offers: reply.offers, openSpace: reply.openSpace }),
+      }]);
+      const drawn = reply.canvas
+        ? { key: reply.id, title: reply.canvas.recipe.title, recipe: reply.canvas.recipe, blocks: reply.canvas.blocks } : null;
+      // A private reply lives only in this view. Its canvas is never sent with a later question or put on a pin.
+      if (privateReply) {
+        setPrivateCanvas(drawn);
+        if (drawn) scrollToCanvas();
+        return;
+      }
       setIntro(current => (onDevice.journal ? (reply.kind === "answer" ? null : current) : reply.firstUse));
       if (onDevice.journal) {
         try {
@@ -288,9 +307,9 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
         try { await applyDeviceMemoryChanges(householdId, reply.memoryChanges); notesChanged(); }
         catch (error) { setProblem(wordsOf(error)); }
       }
-      if (reply.canvas) {
+      if (drawn) {
         canvasChosen.current = true;
-        setCanvas({ key: reply.id, title: reply.canvas.recipe.title, recipe: reply.canvas.recipe, blocks: reply.canvas.blocks });
+        setCanvas(drawn);
         scrollToCanvas();
       }
       if (reply.pending || (!onDevice.memory && reply.memoryChanged)) router.refresh();
@@ -305,6 +324,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
   }
 
   async function thumb(turn: TurnView, which: 1 | -1) {
+    if (!canWrite || turn.incognito) return;
     const next = turn.thumb === which ? null : which;
     // On this device the thumb is kept here; the server only writes its content-free log line.
     if (onDevice.journal) {
@@ -317,7 +337,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
 
   function clearThread() {
     speech.stop();
-    setTurns([]); setCards({}); setCanvas(null); canvasChosen.current = false; attached.current = null; setText(""); setProblem(unavailable ?? ""); requestId.current = "";
+    setTurns([]); setCards({}); setCanvas(null); setPrivateCanvas(null); canvasChosen.current = false; attached.current = null; setText(""); setProblem(unavailable ?? ""); requestId.current = "";
     field.current?.focus();
   }
 
@@ -329,10 +349,17 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
     if (text.trim() && !busy && !listening) event.currentTarget.form?.requestSubmit();
   }
 
-  const showing = canvas ?? starters[starter] ?? null;
-  const onStarters = canvas === null;
+  function switchIncognito(enabled: boolean) {
+    setIncognito(enabled);
+    requestId.current = "";
+    if (!enabled) setPrivateCanvas(null);
+  }
+
+  const currentCanvas = incognito ? privateCanvas ?? canvas : canvas;
+  const showing = currentCanvas ?? starters[starter] ?? null;
+  const onStarters = currentCanvas === null;
   async function pinHere(update: boolean) {
-    if (!showing) return;
+    if (!canWrite || !showing) return;
     try {
       if (update && devicePin) { if (!await updateDevicePin(householdId, devicePin.id, showing.recipe)) { setProblem("That canvas is no longer pinned on this device."); return; } }
       else await pinOnDevice(householdId, { title: showing.recipe.title, recipe: showing.recipe, spaceId: space.id });
@@ -381,7 +408,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       {legacyId && <Link href={spaceHref} prefetch={false} className="ui-button">Back to General</Link>}
       {!legacyId && <>
         <SpaceBrief id={space.id} record={brief} timeZone={clock.timeZone} ready={deviceReady}
-          readOnly={readOnly} busy={busy} saveOnDevice={onDevice.journal ? saveLocalBrief : undefined} />
+          readOnly={!canWrite} busy={busy} saveOnDevice={onDevice.journal ? saveLocalBrief : undefined} />
         <a href="#space-notes" className="ask-notes-link">Space notes ↓</a>
       </>}
       {earlierThreads.length > 0 && <details className="ask-spaces">
@@ -389,7 +416,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
         <ul>{earlierThreads.map(item => <li key={item.id}><Link className="ui-button" prefetch={false}
           href={`${spaceHref}&thread=${item.id}`} aria-current={legacyId === item.id ? "page" : undefined}>{item.question}</Link></li>)}</ul>
       </details>}
-      {!readOnly && space.isGeneral && turns.length > 0 && onDevice.journal && <details className="ui-remove" open={confirmDelete} onToggle={event => setConfirmDelete(event.currentTarget.open)}>
+      {canWrite && space.isGeneral && turns.some(turn => !turn.incognito) && onDevice.journal && <details className="ui-remove" open={confirmDelete} onToggle={event => setConfirmDelete(event.currentTarget.open)}>
         <summary aria-label="Delete this conversation">Delete</summary>
         <p>Delete this conversation? Its questions and answers are removed from this device for good. What the assistant remembers, the brief and your pinned canvases stay.</p>
         <div className="ui-remove-buttons">
@@ -399,7 +426,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
           })()}>Delete</button>
         </div>
       </details>}
-      {!readOnly && space.isGeneral && turns.length > 0 && !onDevice.journal && <ConfirmRemove kind="conversation" id={conversationId} label="this conversation" note="Its questions and answers are removed for good. What the assistant remembers, the brief and your pinned canvases stay." returnTo={spaceHref} onDone={clearThread} />}
+      {canWrite && space.isGeneral && turns.some(turn => !turn.incognito) && !onDevice.journal && <ConfirmRemove kind="conversation" id={conversationId} label="this conversation" note="Its questions and answers are removed for good. What the assistant remembers, the brief and your pinned canvases stay." returnTo={spaceHref} onDone={clearThread} />}
       {!readOnly && !deviceReady && !problem && <p className="ui-hint" role="status">Opening this space on this device…</p>}
       {!readOnly && deviceReady && turns.length === 0 && <div className="ask-empty">
         <p className="ui-hint">Ask in your own words about your money. Every number comes from your records.</p>
@@ -409,13 +436,15 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
         {turns.map(turn => <li key={turn.id} className="ask-turn">
           <p className="ask-question">{turn.question}</p>
           <p className={`ask-reply is-${turn.kind}`}>{turn.text}</p>
+          {turn.incognito && <p className="ui-hint">Not saved</p>}
+          {!readOnly && turn.openSpace && <OpenSpaceProposal name={turn.openSpace.name} hidden={incognito} />}
           {!readOnly && turn.offers?.map(offer => <KeepOfferCard key={JSON.stringify(offer)}
-            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} returnTo={spaceHref} onDeviceMemoryKept={notesChanged} />)}
+            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} returnTo={spaceHref} onDeviceMemoryKept={notesChanged} hidden={incognito} />)}
           {turn.kind === "document" && (turn.documentId
-            ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} readOnly={readOnly} returnTo={spaceHref} onCard={takeCard}
+            ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} readOnly={!canWrite} returnTo={spaceHref} onCard={takeCard}
               onCanvas={drawn => showDocumentCanvas(turn.documentId as string, drawn, true)} />
             : <p className="ui-hint">{DOCUMENT_WORDS.notKept}</p>)}
-          {!readOnly && turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
+          {!readOnly && (!turn.incognito || incognito) && turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
             <button key={choice} type="button" className="ui-button" disabled={busy} onClick={() => void ask(choice, "manual")}>{choice}</button>)}</div>}
           {turn.links.length > 0 && <div className="ask-links">{turn.links.map(link => <a key={link.href} className="ui-button primary" href={link.href}>{link.label}</a>)}</div>}
           {turn.sources.length > 0 && <p className="ask-sources ui-hint">Based on: {turn.sources.map((item, index) => {
@@ -424,7 +453,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
               {index > 0 && ", "}{href ? <a href={href}>{label}</a> : label}
             </span>;
           })}</p>}
-          {!readOnly && turn.kind === "answer" && <div className="ask-thumbs">
+          {canWrite && !turn.incognito && turn.kind === "answer" && <div className="ask-thumbs">
             <button type="button" className="ui-button" aria-pressed={turn.thumb === 1} onClick={() => void thumb(turn, 1)}>Helpful</button>
             <button type="button" className="ui-button" aria-pressed={turn.thumb === -1} onClick={() => void thumb(turn, -1)}>Not helpful</button>
           </div>}
@@ -439,12 +468,17 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
             onKeyDown={enterAsks}
             onChange={event => { setText(event.target.value); setSource("manual"); requestId.current = ""; }} />
         </label>
+        <label className="ask-incognito">
+          <input type="checkbox" role="switch" checked={incognito} disabled={busy} onChange={event => switchIncognito(event.target.checked)} />
+          Incognito
+        </label>
+        {incognito && <p className="ui-hint ask-intro">This question and reply won’t be saved.</p>}
         <div className="ask-buttons">
           <button type="button" className="ui-button" disabled={busy || !deviceReady} onClick={listening ? speech.stop : speak}>{listening ? "Stop listening" : "Use microphone"}</button>
-          <label className={`ui-button ask-attach${busy ? " is-disabled" : ""}`}>Attach a bill
+          {!incognito && <label className={`ui-button ask-attach${busy ? " is-disabled" : ""}`}>Attach a bill
             <input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={busy || !deviceReady}
               onChange={event => { const input = event.currentTarget; void attach(Array.from(input.files ?? [])).finally(() => { input.value = ""; }); }} />
-          </label>
+          </label>}
           <button className="ui-button primary" disabled={busy || !deviceReady || listening || unavailable !== null}>{busy ? "Checking…" : "Ask"}</button>
         </div>
       </form>}
@@ -454,7 +488,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
         <h2>Pinned in this space</h2>
         <ul>{spacePins.map(item => <li key={item.id}>
           <Link className="ui-button" href={`${spaceHref}&pin=${item.id}`} prefetch={false}>{item.title}</Link>
-          {!readOnly && (onDevice.canvases
+          {canWrite && (onDevice.canvases
             ? <button type="button" className="ui-button" onClick={() => void unpinHere(item.id)}>Unpin</button>
             : <ApiForm action="/api/canvases" className="ask-pin-form">
               <input type="hidden" name="kind" value="unpin" /><input type="hidden" name="id" value={item.id} />
@@ -467,7 +501,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
         {starters.map((item, index) => <button key={item.key} type="button" aria-pressed={index === starter} onClick={() => setStarter(index)}>{item.title}</button>)}
       </nav>}
       {showing && <Canvas key={showing.key} recipe={showing.recipe} initial={showing.blocks}>
-        {!readOnly && (onDevice.canvases ? <div className="ask-pin">
+        {canWrite && (onDevice.canvases ? <div className="ask-pin">
           {devicePin && canvas && <button type="button" className="ui-button primary" onClick={() => void pinHere(true)}>Save to this pin</button>}
           <button type="button" className="ui-button" onClick={() => void pinHere(false)}>{space.isGeneral ? "Pin to Home" : "Pin to this space"}</button>
           <p className="ui-hint">Pinned on this device only.</p>
@@ -484,8 +518,8 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       </Canvas>}
       {!legacyId && (onDevice.memory
         ? <DeviceMemoryView householdId={householdId} spaceId={space.id} timeZone={clock.timeZone} momentNow={memoryMoment}
-          readOnly={readOnly} refreshKey={notesVersion} onItems={noteLinks} />
-        : <MemoryView items={cloudMemory.notes} timeZone={clock.timeZone} spaceId={space.id} readOnly={readOnly}
+          readOnly={!canWrite} refreshKey={notesVersion} onItems={noteLinks} />
+        : <MemoryView items={cloudMemory.notes} timeZone={clock.timeZone} spaceId={space.id} readOnly={!canWrite}
           totalCount={cloudMemory.totalCount} />)}
     </section>
   </div>;

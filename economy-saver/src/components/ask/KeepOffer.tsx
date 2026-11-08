@@ -11,16 +11,16 @@ import { MEMORY_KINDS } from "@/lib/schema/memory";
 import { addDeviceMemory } from "@/lib/store/device";
 import { ApiForm } from "@/components/ui/ApiForm";
 
-export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemory, returnTo, onDeviceMemoryKept }: {
+export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemory, returnTo, onDeviceMemoryKept, hidden }: {
   offer: KeepOffer; householdId: string; clock: ClockHousehold; currency: Currency; deviceMemory: boolean; returnTo: string;
-  onDeviceMemoryKept?: () => void;
+  onDeviceMemoryKept?: () => void; hidden: boolean;
 }) {
   const [status, setStatus] = useState<"ready" | "saving" | "kept" | "dismissed">("ready");
   const [problem, setProblem] = useState("");
   const [potId] = useState(() => offer.kind === "goal" ? crypto.randomUUID() : "");
   const description = useId();
 
-  if (status === "dismissed") return null;
+  if (status === "dismissed" || hidden) return null;
 
   let action: string;
   let words: string;
@@ -54,6 +54,7 @@ export function KeepOfferCard({ offer, householdId, clock, currency, deviceMemor
     fields = <>
       <input type="hidden" name="kind" value="set" />
       <input type="hidden" name="ruleKind" value={offer.ruleKind} />
+      {offer.spaceId && <input type="hidden" name="spaceId" value={offer.spaceId} />}
       {offer.enabled && <input type="hidden" name="enabled" value="on" />}
       <input type="hidden" name="value" value={value} />
     </>;

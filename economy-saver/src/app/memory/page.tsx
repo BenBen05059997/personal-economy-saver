@@ -39,8 +39,8 @@ async function tabContent(tx: Db, hid: string, tab: MemoryTab) {
   }
   if (tab === "rules") {
     const { currency } = await householdClock(tx, hid);
-    const rules = await rulesFor(tx, hid);
-    return <RulesView rules={rules} currency={Currency.parse(currency)} />;
+    const [rules, spaces] = await Promise.all([rulesFor(tx, hid), listSpaces(tx, hid)]);
+    return <RulesView rules={rules} currency={Currency.parse(currency)} spaceNames={new Map(spaces.map(space => [space.id, space.name]))} />;
   }
 
   const [places, [household]] = await Promise.all([

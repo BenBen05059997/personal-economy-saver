@@ -35,6 +35,7 @@ import { latestDate } from "@/lib/money/horizon";
 import { homeSentence } from "@/lib/money/sentence";
 import { minorPerUnit } from "@/lib/money/format";
 import { canvasWords, FIXED } from "@/lib/agent/reply";
+import { changeStandingRule } from "@/db/rules";
 import { savePot } from "@/db/pots";
 import { addMember } from "@/db/people";
 import { planFor, planLine } from "@/lib/money/plan";
@@ -1235,6 +1236,24 @@ async function main() {
       ]);
       assert.deepEqual((await askHere("Use plain labels for this task.", offer().fetch)).offers, [{ kind: "memory", memoryKind: "preference", text: "Use plain labels.", spaceId: here.id }]);
       assert.deepEqual((await askHere("From now on, use plain labels.", offer().fetch)).offers, [{ kind: "memory", memoryKind: "preference", text: "Use plain labels." }]);
+    });
+
+    await check("Keep offers can assign an unchanged standing rule to the current space", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const space = await createSpace(db, hid, "Fictional rule space");
+      const value = { kind: "rule", ruleKind: "bill_ahead", enabled: true, value: "3" } as const;
+      const askForRule = () => {
+        const model = transport([
+          () => reply("tool_use", [toolUse("o", "offer_keep", { offer: value })]),
+          () => reply("end_turn", [text("I can keep that rule here.")]),
+        ]);
+        return answerQuestion(db, hid, askInput.parse({
+          id: crypto.randomUUID(), conversationId: space.id, spaceId: space.id, text: "Remind me three days before a bill here.", source: "manual", canvas: null,
+        }), { fetch: model.fetch });
+      };
+      assert.deepEqual((await askForRule()).offers, [{ ...value, spaceId: space.id }]);
+      await changeStandingRule(db, hid, { ...value, spaceId: space.id });
+      assert.deepEqual((await askForRule()).offers, [], "the same rule assigned here needs no second offer");
     });
 
     await check("an amount found in history still needs a current tool result", async () => {

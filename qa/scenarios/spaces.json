@@ -944,5 +944,364 @@
       "BROWSER-CHECKS AP25",
       "D70"
     ]
+  },
+  {
+    "id": "SPACE-034",
+    "area": "Ask spaces",
+    "action": "Accept an Ask proposal for a space",
+    "user_goal": "I want to open a task after seeing what Ask suggests",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A working model"
+    ],
+    "steps": [
+      "In General ask \"I’m starting a new task for my March invoice paperwork. Offer me a space named March paperwork.\"",
+      "Check the Spaces tab before choosing",
+      "Choose Open space"
+    ],
+    "expected": [
+      "The card reads \"Open space 'March paperwork'?\" and offers Open space and Not now",
+      "The space is absent before the tap",
+      "Open space opens the new thread and adds it to the Spaces list"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP26",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-035",
+    "area": "Ask spaces",
+    "action": "Dismiss a space proposal",
+    "user_goal": "I want to leave the task in the current space for now",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A working model"
+    ],
+    "steps": [
+      "Ask for a proposal named April statements",
+      "Choose Not now and open Memory → Spaces"
+    ],
+    "expected": [
+      "The card disappears",
+      "April statements was not created"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP27",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-036",
+    "area": "Ask spaces",
+    "action": "List open spaces from Ask",
+    "user_goal": "I want to find tasks I already have open",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A working model",
+      "One named open space and a separate archived space"
+    ],
+    "steps": [
+      "Ask \"Which spaces are open?\""
+    ],
+    "expected": [
+      "Ask lists General and the open named space",
+      "The archived space is absent"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP26",
+      "D69"
+    ]
+  },
+  {
+    "id": "SPACE-037",
+    "area": "Ask spaces",
+    "action": "Ask Incognito",
+    "user_goal": "I want to check the numbers without keeping a turn",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A working model",
+      "An open space with a saved brief and regular canvas"
+    ],
+    "steps": [
+      "Turn on Incognito",
+      "Ask \"Can I afford ¥4,000 tonight?\"",
+      "Turn Incognito off, then reload the space"
+    ],
+    "expected": [
+      "The box says \"This question and reply won’t be saved.\"",
+      "Ask says ¥4,000 does not fit and displays Not saved",
+      "The regular canvas returns and the private reply is absent after reload",
+      "The saved brief is unchanged"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP28",
+      "D71"
+    ]
+  },
+  {
+    "id": "SPACE-038",
+    "area": "Ask spaces",
+    "action": "Keep an Incognito reply out of the device journal",
+    "user_goal": "I want the private question to stay out of local history too",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A working model",
+      "Ask conversations kept on this device"
+    ],
+    "steps": [
+      "Turn on Incognito and ask a question",
+      "Reload the space in the same browser",
+      "Choose Export from this device"
+    ],
+    "expected": [
+      "The live reply says Not saved",
+      "The question and reply are absent from the reloaded thread and the export"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP28",
+      "D59",
+      "D71"
+    ]
+  },
+  {
+    "id": "SPACE-039",
+    "area": "Ask spaces",
+    "action": "Try to write through Incognito",
+    "user_goal": "I want the Incognito switch to protect my saved record",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A working model",
+      "A space with a saved brief and note"
+    ],
+    "steps": [
+      "Turn on Incognito",
+      "Ask \"Remember that I’ll check the March invoices on Friday and draft a new invoice.\"",
+      "Check the brief, Space notes and To check"
+    ],
+    "expected": [
+      "The reply creates no note or draft",
+      "The saved brief, notes and To check remain as they were"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP29",
+      "D71",
+      "db:ask-routes-test"
+    ]
+  },
+  {
+    "id": "SPACE-040",
+    "area": "Ask spaces",
+    "action": "Group Home findings by their rule spaces",
+    "user_goal": "I want to see which task each suggestion belongs to",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it after migration 0030",
+      "A working model",
+      "Open spaces Cash buffer and Bill watch"
+    ],
+    "steps": [
+      "In Cash buffer keep a ¥50,000 minimum safe-to-spend rule from Ask",
+      "In Bill watch keep a three-day bill rule from Ask",
+      "Save Kumo Water for ¥2,500 due Nov 17, then open Home"
+    ],
+    "expected": [
+      "The findings are grouped under Cash buffer and Bill watch and identify their spaces",
+      "Safe to spend is ¥0 against the ¥50,000 rule and the Kumo Water reason still names ¥2,500 and its coverage",
+      "The original review links and the six canonical rules stay available"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP30",
+      "D64",
+      "D66",
+      "db:suggest-test"
+    ]
+  },
+  {
+    "id": "SPACE-041",
+    "area": "Ask spaces",
+    "action": "Receive one space-labelled email digest",
+    "user_goal": "I want the email to say which tasks need me",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner",
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Isolated signed-in household with reminder email on",
+      "Two eligible new findings assigned to different spaces"
+    ],
+    "steps": [
+      "Let the ordinary reminder schedule reach the member’s hour",
+      "Open the received reminder and check the day’s delivery count"
+    ],
+    "expected": [
+      "The email includes the assigned space labels and one Home link",
+      "The member receives at most one email digest for that day"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP31",
+      "D65",
+      "db:notify-test"
+    ]
+  },
+  {
+    "id": "SPACE-042",
+    "area": "Ask spaces",
+    "action": "Receive one space-labelled push digest",
+    "user_goal": "I want a single useful notification from my tasks",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Owner’s test household with browser push on",
+      "Two eligible new findings assigned to different spaces"
+    ],
+    "steps": [
+      "Let the ordinary reminder schedule reach the member’s hour",
+      "Read the delivered notification and open its link"
+    ],
+    "expected": [
+      "The notification uses the assigned space labels",
+      "The only app link opens Home",
+      "At most one scheduled push digest is claimed for the member that day"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP31",
+      "D65",
+      "db:notify-test"
+    ]
+  },
+  {
+    "id": "SPACE-043",
+    "area": "Ask spaces",
+    "action": "Retry an Incognito request id",
+    "user_goal": "I want a private retry to stay private",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "PGlite household and simulated model replies"
+    ],
+    "steps": [
+      "Run npm run db:ask-routes-test"
+    ],
+    "expected": [
+      "The request leaves only the retry key and no saved private turn",
+      "A repeat id does not call the model again or write to the brief, memory or money record"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP32",
+      "db:ask-routes-test",
+      "D71"
+    ]
+  },
+  {
+    "id": "SPACE-044",
+    "area": "Ask spaces",
+    "action": "Deliver a simulated digest across spaces",
+    "user_goal": "I want each finding labelled without duplicate deliveries",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "PGlite household with scoped findings and simulated delivery"
+    ],
+    "steps": [
+      "Run npm run db:suggest-test and npm run db:notify-test"
+    ],
+    "expected": [
+      "The group and delivery labels match the assigned spaces",
+      "Delivery is still deduplicated by member, local day and channel"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP32",
+      "db:suggest-test",
+      "db:notify-test",
+      "D64",
+      "D65"
+    ]
+  },
+  {
+    "id": "SPACE-045",
+    "area": "Ask spaces",
+    "action": "Read how the app handles space data",
+    "user_goal": "I want to know what Incognito keeps and where the reminder goes",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "The app’s Privacy page"
+    ],
+    "steps": [
+      "Open Privacy",
+      "Read What is stored, the Incognito paragraph, and Reminders"
+    ],
+    "expected": [
+      "Privacy describes space briefs, conversation threads and the device journal choice",
+      "It says the chosen model still gets Incognito questions and context while the saved journal omits them",
+      "Reminders describes relevant space labels and the Home link"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AP33",
+      "D59",
+      "D65",
+      "D71"
+    ]
   }
 ]

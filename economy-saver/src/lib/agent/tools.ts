@@ -44,6 +44,7 @@ import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
 import { memoryTools } from "./memory-tools";
 import type { ContextTurn } from "./context";
+import { spaceTools } from "./space-tools";
 import { historyTools } from "./history-tools";
 import { briefTools } from "./brief-tools";
 import type { Brief } from "./brief";
@@ -82,6 +83,8 @@ export type ToolContext = {
   canRemember?: boolean;
   deviceHistory?: ContextTurn[];
   onMemoryRead?: (id: string) => void;
+  incognito?: boolean;
+  onOpenSpace?: (proposal: { name: string }) => void;
   onBrief?: (brief: Brief) => void;
 };
 
@@ -392,7 +395,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "suggestions", scope: "read", input: none,
-    description: "Read the open findings shown on Home under From your assistant, most urgent first. Use it when the person asks what needs their attention or what the assistant noticed. Quote the title and reason as written. Information only.",
+    description: "Read the open findings shown on Home under From your assistant, most urgent first. Use it when the person asks what needs their attention or what the assistant noticed. Quote the title and reason as written, and name the space when spaceName is present. Information only.",
     run: async ctx => JSON.stringify(await openSuggestions(ctx.db, ctx.householdId)),
   }),
   defineTool({
@@ -516,6 +519,7 @@ export const tools: Tool[] = [
   ...offerTools,
   ...briefTools,
   ...historyTools,
+  ...spaceTools,
 ];
 
 /**

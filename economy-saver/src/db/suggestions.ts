@@ -1,14 +1,14 @@
-import { and, asc, eq, inArray, isNotNull, isNull, lt, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, lt, notInArray, sql } from "drizzle-orm";
 import { jobError } from "@/lib/job-error";
 import { addDays } from "@/lib/money/runway";
 import { findSuggestions } from "@/lib/money/suggest";
-import type { Finding } from "@/lib/money/suggestion-types";
+import { FINDING_RULE, type Finding } from "@/lib/money/suggestion-types";
 import { monthsBack } from "@/lib/money/spending";
 import { REGULAR_MONTHS } from "@/lib/money/regular";
 import { clockForHousehold } from "./clock";
 import { CHARGE_LOOKBACK_DAYS, loadMoneyState, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { rulesFor } from "./rules";
-import { events, households, invoices, suggestions } from "./schema";
+import { events, households, invoices, spaces, standingRules, suggestions } from "./schema";
 
 const active = () => inArray(suggestions.status, ["open", "not_now"]);
 const RETENTION_MS = 90 * 86_400_000;
@@ -78,12 +78,20 @@ export async function refreshSuggestions(db: Db, householdId: string, callSite: 
   }
 }
 
-export async function openSuggestions(db: Db, id: string) {
+const ruleKindFor = sql`case ${suggestions.kind} ${sql.join(
+  Object.entries(FINDING_RULE).map(([finding, rule]) => sql`when ${finding} then ${rule}`), sql` `,
+)} end`;
+
+export async function openSuggestions(db: Db, id: string, digest?: { day: string; kinds: readonly Finding["kind"][] }) {
   const hid = requireHousehold(id);
-  return db.select({ id: suggestions.id, kind: suggestions.kind, title: suggestions.title,
-    reason: suggestions.reason, action: suggestions.action, refId: suggestions.refId })
-    .from(suggestions).where(and(eq(suggestions.householdId, hid), eq(suggestions.status, "open")))
-    .orderBy(asc(suggestions.urgency), asc(suggestions.createdOn), asc(suggestions.title), asc(suggestions.id));
+  return withHousehold(db, hid, tx => tx.select({ id: suggestions.id, kind: suggestions.kind, title: suggestions.title,
+    reason: suggestions.reason, action: suggestions.action, refId: suggestions.refId, spaceId: spaces.id, spaceName: spaces.name })
+    .from(suggestions)
+    .leftJoin(standingRules, and(eq(standingRules.householdId, suggestions.householdId), eq(standingRules.kind, ruleKindFor)))
+    .leftJoin(spaces, and(eq(spaces.householdId, suggestions.householdId), eq(spaces.id, standingRules.spaceId)))
+    .where(and(eq(suggestions.householdId, hid), eq(suggestions.status, "open"),
+      digest ? and(eq(suggestions.createdOn, digest.day), inArray(suggestions.kind, digest.kinds)) : undefined))
+    .orderBy(asc(suggestions.urgency), ...(digest ? [asc(suggestions.id)] : [asc(suggestions.createdOn), asc(suggestions.title), asc(suggestions.id)])));
 }
 
 export async function dismiss(db: Db, id: string, suggestionId: string, now = new Date()) {
