@@ -1,4 +1,4 @@
-import { runPass } from "@/db/suggestions";
+import { refreshSuggestions } from "@/db/suggestions";
 import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { type Db, recordEvent, recordWebhookDelivery, requireHousehold, usdRateMicro } from "@/db/household";
 import { beginMoneyChange, lockRunway, observeRunway } from "@/db/runway-events";
@@ -12,7 +12,7 @@ export const storedPayload = (event: PayPalWebhookEvent, invoiceId: string | und
 
 /** The signature has already been verified. Receipt, invoice transition and notification commit together. */
 export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): Promise<void> {
-  await db.transaction(async (tx) => {
+  const hid = await db.transaction(async (tx) => {
     const resource = event.resource;
     const invoiceId = event.event_type.startsWith("INVOICING.INVOICE.") ? resource?.id : undefined;
     // PayPal sends its globally unique invoice id, not our household id. Resolve only its owning household.
@@ -91,9 +91,10 @@ export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): 
         await fillPots(tx, owner.householdId, homeCredit, `${client.name}'s payment`);
       }
       await observeRunway(tx, owner.householdId);
-      await runPass(tx, owner.householdId);
+      return owner.householdId;
     }
   });
+  if (hid) await refreshSuggestions(db, hid, "applyVerifiedDelivery");
 }
 
 export function recentDeliveries(db: Db, householdId: string) {

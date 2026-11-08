@@ -1,4 +1,4 @@
-import { closeByRef, runPass } from "./suggestions";
+import { closeByRef, refreshSuggestions } from "./suggestions";
 // Pots (D43): money set aside with a reason. One function per job, called by the Plan form (confirmed rows) and by the
 // agent's add_pot tool (pending rows, confirmed in To check). Money in a confirmed pot is not spendable: the engine
 // starts the runway from cash less the pots (availableCash), so every write here ends with the runway observed.
@@ -99,7 +99,7 @@ function addedEvent(tx: Db, hid: string, id: string, f: Fields, currency: string
 export async function savePot(db: Db, householdId: string, input: PotInput, status: "confirmed" | "pending", by: Maker): Promise<string> {
   const hid = requireHousehold(householdId);
   const data = potInput.parse(input);
-  return db.transaction(async tx => {
+  const refresh = await db.transaction(async tx => {
     const household = await lockHousehold(tx, hid);
     const currency = Currency.parse(household.currency);
     const fields = fieldsOf(data, household.currency);
@@ -112,7 +112,7 @@ export async function savePot(db: Db, householdId: string, input: PotInput, stat
       const before: Fields = { name: existing.name, targetMinor: existing.targetMinor, targetDate: existing.targetDate, savedMinor: existing.savedMinor, fillBp: existing.fillBp, memberId: existing.memberId };
       if (same(before, fields)) {
         if (status === "confirmed" && existing.status === "confirmed") await closeByRef(tx, hid, data.id, ["pot"]);
-        return data.id;
+        return false;
       }
       if (status !== "confirmed" || existing.status !== "confirmed") throw new InputError("This pot identifier is already in use");
       if (household.previous === null) await observeRunway(tx, hid);
@@ -120,8 +120,7 @@ export async function savePot(db: Db, householdId: string, input: PotInput, stat
       await recordEvent(tx, hid, { ...by, kind: "pot_updated", title: `${fields.name} pot updated`, body: changes(before, fields, currency), ref: { type: "pot", id: data.id } });
       await closeByRef(tx, hid, data.id, ["pot"]);
       await observeRunway(tx, hid);
-      await runPass(tx, hid);
-      return data.id;
+      return true;
     }
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     await tx.insert(pots).values({ id: data.id, householdId: hid, currency: household.currency, status, madeBy: by.madeBy, askId: by.askId ?? null, ...fields,
@@ -132,10 +131,11 @@ export async function savePot(db: Db, householdId: string, input: PotInput, stat
     } else {
       await addedEvent(tx, hid, data.id, fields, household.currency, by);
       await observeRunway(tx, hid);
-      await runPass(tx, hid);
     }
-    return data.id;
+    return status === "confirmed";
   });
+  if (refresh) await refreshSuggestions(db, hid, "savePot");
+  return data.id;
 }
 
 /** `confirmPending` for a pending pot: it counts from now on. False when nothing pending matches. The caller holds the household lock. */
@@ -153,7 +153,6 @@ export async function confirmPot(tx: Db, householdId: string, id: string): Promi
   if (!row) return false;
   await addedEvent(tx, hid, id, row, row.currency, { madeBy: "form" });
   await observeRunway(tx, hid);
-  await runPass(tx, hid);
   return true;
 }
 

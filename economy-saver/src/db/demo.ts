@@ -2,7 +2,8 @@ import { and, asc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { type Db, requireHousehold } from "./household";
 import { events, households } from "./schema";
-import { seedBen } from "./seed";
+import { seedBenRows } from "./seed";
+import { refreshSuggestions } from "./suggestions";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
 
@@ -37,10 +38,12 @@ export async function deleteDemoHousehold(tx: Db, id: string): Promise<boolean> 
 }
 
 export async function resetDemoHousehold(db: Db, id: string): Promise<string | null> {
-  return db.transaction(async tx => {
+  const hid = await db.transaction(async tx => {
     if (!(await deleteDemoHousehold(tx, id))) return null;
-    return seedBen(tx, { isDemo: true });
+    return seedBenRows(tx, { isDemo: true });
   });
+  if (hid) await refreshSuggestions(db, hid, "resetDemoHousehold");
+  return hid;
 }
 
 // D49: a demo household lives seven days after its last change.

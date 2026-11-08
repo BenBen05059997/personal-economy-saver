@@ -1,4 +1,4 @@
-import { closeByRef, runPass } from "./suggestions";
+import { closeByRef, refreshSuggestions } from "./suggestions";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
@@ -140,7 +140,7 @@ async function checkWhose(tx: Db, hid: string, memberId: string | null, paidByMe
 export async function insertBill(db: Db, householdId: string, input: z.input<typeof billInput>, status: "confirmed" | "pending", by: Maker): Promise<string> {
   const hid = requireHousehold(householdId);
   const data = billInput.parse(input);
-  return db.transaction(async tx => {
+  const refresh = await db.transaction(async tx => {
     const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
@@ -164,7 +164,7 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
         || existing.periodStart !== data.periodStart || existing.periodEnd !== data.periodEnd) {
         throw new InputError("This bill identifier is already in use");
       }
-      return data.id;
+      return false;
     }
     const { today } = clockForHousehold(household);
     if (due !== null) {
@@ -189,10 +189,11 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
         ...(amountMinor !== null && { amount: { value: fromMinor(amountMinor, household.currency), currency: household.currency } }), ref: { type: "bill", id: data.id },
       });
       await observeRunway(tx, hid);
-      await runPass(tx, hid);
     }
-    return data.id;
+    return status === "confirmed";
   });
+  if (refresh) await refreshSuggestions(db, hid, "insertBill");
+  return data.id;
 }
 
 /** "November", or "November 2027" when the month is in another year than today. */
@@ -310,12 +311,12 @@ const bpWords = (bp: number) => (bp === 0 ? "personal" : bp === 10_000 ? "work" 
 export async function updateBill(db: Db, householdId: string, input: z.infer<typeof billEditInput>, by: Maker): Promise<boolean> {
   const hid = requireHousehold(householdId);
   const data = billEditInput.parse(input);
-  return db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
     const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
     const [bill] = await tx.select().from(bills).where(and(eq(bills.householdId, hid), eq(bills.id, data.id))).for("update");
-    if (!bill) return false;
+    if (!bill) return "missing";
     if (bill.status !== "confirmed") throw new InputError("This bill is waiting in To check; correct it there");
     const currency = Currency.parse(bill.currency);
     const money = (minor: number) => minorMoney(minor, currency);
@@ -382,7 +383,7 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
     }
     if (parts.length === 0) {
       await closeByRef(tx, hid, data.id, ["bill", "check_bill"]);
-      return true;
+      return "unchanged";
     }
     const schedule: BillSchedule = { repeat, nextAmountMinor: next?.amount ?? null, nextAmountFrom: next?.from ?? null, cancelBy, amountVaries: varies, repeatUntil };
     if (due !== null) checkSchedule(due, today, schedule);
@@ -403,9 +404,10 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
     });
     await closeByRef(tx, hid, data.id, ["bill", "check_bill"]);
     await observeRunway(tx, hid);
-    await runPass(tx, hid);
-    return true;
+    return "changed";
   });
+  if (result === "changed") await refreshSuggestions(db, hid, "updateBill");
+  return result !== "missing";
 }
 
 /**
@@ -437,12 +439,12 @@ export async function fillGap(db: Db, householdId: string, billId: string, fill:
   const hid = requireHousehold(householdId);
   const id = z.string().uuid().parse(billId);
   const due = fill.due === undefined ? undefined : z.string().date().parse(fill.due);
-  return db.transaction(async tx => {
+  const result = await db.transaction(async tx => {
     const [household] = await tx.select({ id: households.id, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
     const [bill] = await tx.select().from(bills).where(and(eq(bills.householdId, hid), eq(bills.id, id))).for("update");
-    if (!bill) return false;
+    if (!bill) return null;
     const currency = Currency.parse(bill.currency);
     const money = (minor: number) => minorMoney(minor, currency);
     if (bill.amountMinor !== null && bill.due !== null) throw new InputError("This bill has its amount and its date already");
@@ -465,12 +467,11 @@ export async function fillGap(db: Db, householdId: string, billId: string, fill:
       ...(amountMinor !== null && { amount: { value: fromMinor(amountMinor, bill.currency), currency: bill.currency } }), ref: { type: "bill", id },
     });
     await closeByRef(tx, hid, billId, ["bill", "check_bill"]);
-    if (bill.status === "confirmed") {
-      await observeRunway(tx, hid);
-      await runPass(tx, hid);
-    }
-    return true;
+    if (bill.status === "confirmed") await observeRunway(tx, hid);
+    return bill.status;
   });
+  if (result === "confirmed") await refreshSuggestions(db, hid, "fillGap");
+  return result !== null;
 }
 
 /** `fillGap` for what a person typed: the amount as text (read in the household's currency like any typed amount), the date as YYYY-MM-DD; empty text is not given. */

@@ -1,4 +1,4 @@
-import { runPass } from "./suggestions";
+import { refreshSuggestions } from "./suggestions";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
@@ -20,7 +20,7 @@ export async function markPaidOutside(db: Db, householdId: string, invoiceId: st
   const hid = requireHousehold(householdId);
   const day = z.string().date().parse(today);
   const id = z.string().uuid().parse(invoiceId);
-  return db.transaction(async tx => {
+  const saved = await db.transaction(async tx => {
     const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, bank: households.bankBalanceMinor, previous: households.runwayShort })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) return false;
@@ -46,7 +46,8 @@ export async function markPaidOutside(db: Db, householdId: string, invoiceId: st
     });
     await fillPots(tx, hid, credit, `${row.client}'s payment`);
     await observeRunway(tx, hid);
-    await runPass(tx, hid);
     return true;
   });
+  if (saved) await refreshSuggestions(db, hid, "markPaidOutside");
+  return saved;
 }

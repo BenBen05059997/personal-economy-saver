@@ -366,5 +366,37 @@
       "BROWSER-CHECKS AL12",
       "D64"
     ]
+  },
+  {
+    "id": "NOW-013",
+    "area": "Immediate suggestions",
+    "action": "Keep writes when the immediate suggestion pass fails",
+    "user_goal": "I want my payment and changes saved even if suggestions are temporarily unavailable",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Disposable test setup with migration 0028 and a pass-only failure fixture",
+      "Simulated verified PayPal delivery"
+    ],
+    "steps": [
+      "Open Try it and Reset it",
+      "Confirm a draft pot in To check",
+      "Simulate a verified payment and replay it",
+      "Restore the pass and rerun it"
+    ],
+    "expected": [
+      "Try it and Reset both open Ben’s Home",
+      "Plan shows the confirmed pot and the invoice is Paid once",
+      "Each failed pass writes one operator log line and a later pass resolves the stale finding"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AL13",
+      "db:suggest-test",
+      "D64"
+    ]
   }
 ]

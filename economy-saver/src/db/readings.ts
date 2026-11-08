@@ -13,7 +13,7 @@ import { nameKey } from "@/lib/money/name-key";
 import { correctionText } from "@/lib/reader/correction";
 import { addMemory } from "./memory";
 import { checksFor, readingProposal, type CheckKind } from "@/lib/money/checks";
-import { runPass } from "./suggestions";
+import { refreshSuggestions } from "./suggestions";
 import { DOCUMENT_WORDS } from "@/lib/reader/document-card";
 import { estimatedDue, periodProblem } from "@/lib/money/period";
 
@@ -62,7 +62,7 @@ export async function proposeReadings(db: Db, id: string, documentId: string, it
  */
 export async function reviewReading(db: Db, id: string, readingId: string, fields: Extracted | null, unknown: { amount?: boolean; date?: boolean } = {}, remember = false, answered?: readonly CheckKind[]) {
   const hid = requireHousehold(id);
-  return db.transaction(async tx => {
+  const saved = await db.transaction(async tx => {
     const previous = await lockRunway(tx, hid);
     const [row] = await tx.select({
       data: readings.extracted, documentId: readings.documentId, source: documents.kind, currency: households.homeCurrency, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone,
@@ -158,7 +158,8 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     await recordEvent(tx, hid, { madeBy: "reader", kind: value.kind + "_confirmed", title: name + " confirmed", ref: { type: value.kind, id: targetId }, ...(linked && { body: linked }),
       ...(amount !== null && { amount: { value: fromMinor(amount, row.currency), currency: row.currency } }) });
     await observeRunway(tx, hid);
-    await runPass(tx, hid);
     return true;
   });
+  if (saved && fields) await refreshSuggestions(db, hid, "reviewReading");
+  return saved;
 }

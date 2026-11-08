@@ -384,6 +384,59 @@ async function main() {
       assert.ok(rows.every(row => row.status === "resolved"));
     });
 
+    await check("a failed suggestion pass preserves Try it, Reset, a confirmation and a verified payment", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const resetFrom = await seedBen(db, { isDemo: true });
+      const remote = "INV2-FICTIONAL-PASS-FAILURE";
+      const invoice = await lateInvoice(hid, remote);
+      await run(hid);
+      assert.ok((await openSuggestions(db, hid)).some(row => row.refId === invoice.id));
+      const potId = await savePot(db, hid, potInput.parse({ id: crypto.randomUUID(), name: "Fictional camera", saved: "0", memberId: null }), "pending", ask());
+      const payment = { id: "WH-FICTIONAL-PASS-FAILURE", event_type: "INVOICING.INVOICE.PAID",
+        create_time: "2026-11-14T03:00:00Z", resource: { id: remote, status: "PAID" } };
+      await pg.exec(`
+        create function fail_pass() returns trigger language plpgsql as $$
+        begin raise exception 'Forced suggestion pass failure'; end $$;
+        create trigger fail_pass before update on suggestions for each statement execute function fail_pass();
+      `);
+      const logs: string[] = [];
+      const original = console.error;
+      let demoId: string, resetId: string | null;
+      try {
+        console.error = (message: string) => logs.push(message);
+        demoId = await seedBen(db, { isDemo: true });
+        resetId = await resetDemoHousehold(db, resetFrom);
+        assert.equal(await confirmPending(db, hid, "pot", potId), true);
+        await applyVerifiedDelivery(db, payment);
+        await applyVerifiedDelivery(db, payment);
+      } finally {
+        console.error = original;
+        await pg.exec("drop trigger fail_pass on suggestions; drop function fail_pass()");
+      }
+      assert.ok(resetId);
+      assert.deepEqual(logs.map(line => JSON.parse(line)), [
+        [demoId, "seedBen"], [resetId, "resetDemoHousehold"], [hid, "confirmPending"], [hid, "applyVerifiedDelivery"],
+      ].map(([householdId, callSite]) => ({ at: "suggestion_pass", householdId, callSite, name: "Error", message: "Database query failed" })));
+      for (const id of [demoId, resetId]) {
+        const [household] = await db.select().from(schema.households).where(eq(schema.households.id, id));
+        assert.equal(household.fixedToday, today);
+        assert.deepEqual(await rulesFor(db, id), defaultRules());
+        assert.ok((await db.select().from(schema.bills).where(eq(schema.bills.householdId, id))).length);
+      }
+      assert.deepEqual(await db.select().from(schema.households).where(eq(schema.households.id, resetFrom)), []);
+      const [pot] = await db.select().from(schema.pots).where(and(eq(schema.pots.householdId, hid), eq(schema.pots.id, potId)));
+      assert.equal(pot.status, "confirmed");
+      const [paid] = await db.select().from(schema.invoices).where(and(eq(schema.invoices.householdId, hid), eq(schema.invoices.id, invoice.id)));
+      assert.equal(paid.status, "paid");
+      assert.equal((await events(hid, "invoice_paid")).length, 1);
+      const [delivery] = await db.select().from(schema.webhookDeliveries)
+        .where(and(eq(schema.webhookDeliveries.householdId, hid), eq(schema.webhookDeliveries.paypalEventId, payment.id)));
+      assert.equal(delivery.verified, true);
+      assert.ok((await openSuggestions(db, hid)).some(row => row.refId === invoice.id));
+      await run(hid);
+      assert.ok(!(await openSuggestions(db, hid)).some(row => row.refId === invoice.id));
+    });
+
     await check("mark paid outside PayPal resolves its late-client finding and leaves the other household alone", async () => {
       const hid = await seedBen(db, { isDemo: true }), neighbour = await seedBen(db, { isDemo: true });
       const invoice = await lateInvoice(hid);

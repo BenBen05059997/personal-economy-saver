@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, isNotNull, isNull, lt, notInArray } from "drizzle-orm";
+import { jobError } from "@/lib/job-error";
 import { addDays } from "@/lib/money/runway";
 import { findSuggestions } from "@/lib/money/suggest";
 import type { Finding } from "@/lib/money/suggestion-types";
@@ -66,6 +67,15 @@ export async function runPass(db: Db, id: string, now = new Date()) {
     }
     return state;
   });
+}
+
+/** Run after the triggering write commits. A later pass can catch up on failure. */
+export async function refreshSuggestions(db: Db, householdId: string, callSite: string) {
+  try {
+    await runPass(db, householdId);
+  } catch (error) {
+    console.error(JSON.stringify({ at: "suggestion_pass", householdId, callSite, ...jobError(error) }));
+  }
 }
 
 export async function openSuggestions(db: Db, id: string) {

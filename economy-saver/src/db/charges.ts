@@ -1,4 +1,4 @@
-import { runPass } from "./suggestions";
+import { refreshSuggestions } from "./suggestions";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
@@ -45,7 +45,7 @@ export async function insertCharge(
 ): Promise<string> {
   const hid = requireHousehold(householdId);
   const data = chargeInput.parse(input);
-  return db.transaction(async tx => {
+  const refresh = await db.transaction(async tx => {
     const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
       .from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
@@ -74,7 +74,7 @@ export async function insertCharge(
         || existing.originalAmountMinor !== (original?.originalAmountMinor ?? null) || existing.originalCurrency !== (original?.originalCurrency ?? null)) {
         throw new InputError("This charge identifier is already in use");
       }
-      return data.id;
+      return false;
     }
     if (data.date > latestDate(clockForHousehold(household).today)) throw new InputError(HORIZON_MESSAGE);
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
@@ -92,10 +92,11 @@ export async function insertCharge(
         amount: { value: fromMinor(amountMinor, card.currency), currency: card.currency }, ref: { type: "card", id: data.cardId }, // Activity opens the card page; the charge itself has none
       });
       await observeRunway(tx, hid);
-      await runPass(tx, hid);
     }
-    return data.id;
+    return status === "confirmed";
   });
+  if (refresh) await refreshSuggestions(db, hid, "insertCharge");
+  return data.id;
 }
 
 /**

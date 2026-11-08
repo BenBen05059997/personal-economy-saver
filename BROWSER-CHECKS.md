@@ -515,6 +515,8 @@ Check at 375px and 1440px in a separate setup with migration 0028. Use a fresh d
 - AL11. Prepare a confirmed ¥2,500 Kumo Water bill with no known date. In To check → Missing, fill Nov 17 and save. The missing-date row clears and Home immediately shows "Kumo Water due Nov 17" with ¥2,500.
 - AL12. With the October charge and cost rule from AL3, confirm a Kumo Market receipt reading for ¥2,600 dated Nov 14 in Food. Home immediately shows the ¥600 increase and the charge appears once on the chosen card.
 
+- AL13. In a disposable migration 0028 fixture, force only the suggestion pass to fail. Try it and Reset still open Ben’s Home, a confirmed draft pot appears in Plan, and a simulated verified PayPal delivery marks its invoice Paid once. Each failed pass records one operator log line. Restore the pass and rerun it to resolve the stale finding. The forced failure is covered by db:suggest-test.
+
 ## AM. Members and invitations (D68, 30A)
 
 Use the isolated browser test setup after migration 0028. Test the owner and invitee in separate browser profiles at 375px and 1440px. Use fictional household data and owner-controlled test inboxes for the verified magic-link cases.

@@ -167,6 +167,8 @@ const notApplicable: Record<string, string> = {
   dueReminderHouseholds: "global Cron selector for already-scanned non-demo households, tested in notify-test",
   defaultRules: "pure default values for standing rules, no database",
   seedBen: "creates a new household with a fresh id; touches no existing household",
+  seedBenRows: "writes a new household with a generated id; used by seedBen and the tested Reset flow",
+  refreshSuggestions: "delegates the supplied household id to runPass, which is covered here; failure is covered in suggest-test",
   sealAiKey: "pure: seals a key text for the household id it is given; the isolation check below proves a key sealed for one household does not open for another", unsealAiKey: "pure: opens a sealed key for the household id it is given; same check",
   isDataKind: "pure check that a value is one of the five kind names", readSnapshotFile: "pure parse of a file passed in; restoreHousehold, which calls it, is covered above",
 };

@@ -1,4 +1,4 @@
-import { closeByRef, runPass } from "./suggestions";
+import { closeByRef, refreshSuggestions } from "./suggestions";
 import { observeRunway } from "./runway-events";
 import { and, eq } from "drizzle-orm";
 import { type Db, recordEvent, requireHousehold } from "./household";
@@ -11,7 +11,7 @@ import { linkToSeries } from "./bills";
 
 export async function confirmPending(db: Db, householdId: string, kind: "bill" | "charge" | "balance" | "pot", id: string) {
   const hid = requireHousehold(householdId);
-  return db.transaction(async tx => {
+  const saved = await db.transaction(async tx => {
     const [household] = await tx.select({ id: households.id, previous: households.runwayShort }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) return false;
     if (kind === "balance") return confirmBalanceUpdate(tx, hid, id);
@@ -38,7 +38,8 @@ export async function confirmPending(db: Db, householdId: string, kind: "bill" |
     });
     if (kind === "bill") await closeByRef(tx, hid, id, ["check_bill"]);
     await observeRunway(tx, hid);
-    await runPass(tx, hid);
     return true;
   });
+  if (saved) await refreshSuggestions(db, hid, "confirmPending");
+  return saved;
 }
