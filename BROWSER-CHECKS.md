@@ -143,7 +143,7 @@ Ask is the page `/canvas` (sidebar label "Ask"). The top bar's Ask box is a link
 
 Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Options, Settings, Upload, New invoice, Invoice review, Login:
 
-- L1. Nothing scrolls sideways; no text is cut off or overlaps; long names wrap.
+- L1. Nothing scrolls sideways. At 375px use a fictional 60-character unbroken biller name, a long Japanese biller name, and an unbroken client name. Leave one bill’s amount or date unknown so Home shows its name in the sentence note. Check Home, To check, Plan, Settings and Activity for wrapped names, visible amounts, and no clipping or overlap.
 - L2. On a phone, every link, button, input and summary row is about 44px tall to tap (measure the box, or its `::after` hit area), and the Ask row never covers the last row. This includes the client links in Home's sentence and in Coming up, the "Later in the month" summary, and Settings' "Allow invoice drafts" checkbox.
 - L3. Dark mode: all text is readable, the red shortfall and green Covered stay clear, and form fields and buttons are visible.
 - L4. Desktop: the sidebar, top bar (Ask, bell, Add) and panels line up; Settings uses two columns.

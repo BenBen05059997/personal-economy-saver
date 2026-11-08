@@ -1,4 +1,4 @@
-.money-home { min-width: 0; }
+.money-home { min-width: 0; overflow-wrap: anywhere; }
 .money-home .home-date, .money-home .home-label, .money-home .home-note {
   margin: 0;
   font: 400 13px/1.45 var(--sans);
@@ -199,7 +199,7 @@
 .home-row:target { animation: home-row-target 2s ease-out; scroll-margin-top: 96px; }
 @keyframes home-row-target { from { background: var(--accent-wash); } to { background: transparent; } }
 /* D55: the sentence's note, a missing value's link, and a pending bill's gap words wrapping under the name instead of widening the amount column. */
-.money-home .home-sentence-note { max-width: 36em; margin: 8px 0 0; color: var(--muted); font: 400 13px/1.45 var(--sans); }
+.home-sentence-note { max-width: 36em; margin: 8px 0 0; overflow-wrap: anywhere; color: var(--muted); font: 400 13px/1.45 var(--sans); }
 .home-row a.home-enter { color: var(--muted); font-size: 12.5px; text-decoration: none; white-space: nowrap; }
 .home-check-row .home-number { max-width: 11em; white-space: normal; overflow-wrap: anywhere; }
 

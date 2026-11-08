@@ -11,6 +11,8 @@ Worker read a fictional household from the Tokyo project; Vault and the private 
 magic-link delivery, a live model call, the deployed Worker, Email Routing, and a real PayPal send-to-webhook round trip. The repository and
 the app are private. Decisions: D18, D31–D67 in [DECISIONS.md](DECISIONS.md).
 
+Long biller and client names wrap within their rows on narrow screens, including Home's forecast notes and the To check cards.
+
 ## The stack tree
 
 ```

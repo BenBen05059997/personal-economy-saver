@@ -2756,7 +2756,7 @@
     ],
     "expected": [
       "scrollWidth equals clientWidth on every screen",
-      "No text is cut off or overlaps; long names wrap"
+      "No text is cut off or overlaps. Long names, including Home’s sentence note, wrap in the UI-006 fixture"
     ],
     "refs": [
       "BROWSER-CHECKS L1"
@@ -2879,13 +2879,15 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14)",
-      "A bill named with a 60-character unbroken word and a long Japanese name (fictional)"
+      "Fictional bills with a 60-character unbroken name and a long Japanese name, plus a client with a 60-character unbroken name",
+      "One of the bills has an unknown amount or date and appears in Home’s sentence note"
     ],
     "steps": [
       "Open Home, To check, Plan, Settings, Activity at 375px"
     ],
     "expected": [
-      "The name wraps or breaks inside its box on every list; the right column and amounts stay on screen"
+      "Names wrap in Home’s sentence, note and lists, in To check, in Plan’s spending list, and in Settings and Activity",
+      "The right column and amounts stay on screen and the document has no sideways scroll"
     ],
     "refs": [
       "BROWSER-CHECKS L1",
