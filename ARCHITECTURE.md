@@ -87,10 +87,10 @@ Cloudflare
         └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0029), 34 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0030), 35 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
 │   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns,
-│   ip_buckets, ai_global_usage, ask_receipts, standing_rules, suggestions, reminder_settings, push_subscriptions, reminders, invites
+│   ip_buckets, ai_global_usage, ask_receipts, standing_rules, suggestions, reminder_settings, push_subscriptions, reminders, invites, spaces
 ├── Auth: magic-link login (PKCE), with invited member acceptance bound to the verified email
 ├── Vault: households' own model keys, each sealed in the Worker first (`AI_KEY_SEAL_KEY`)
 └── Storage: the private bucket named by `SUPABASE_DOCUMENT_BUCKET` (`household-documents` in the owner's project): receipt photos, PDFs and raw forwarded emails
