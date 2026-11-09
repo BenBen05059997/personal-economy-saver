@@ -239,7 +239,9 @@ is no view request from a fresh closed panel. React `Activity` hides a mounted p
 while preserving its question and in-flight reply across workspace navigation. Panel preferences in per-tab
 `sessionStorage` keep only the open flag and selected space for each household.
 Esc and Close hide the panel and restore focus. Panel mutations refresh the screen
-behind it, including form saves, drafts and attachments.
+behind it, including form saves, drafts and attachments. AQ in BROWSER-CHECKS and
+qa/scenarios/ask-view.json cover the desktop panel. `db:test` validates the scenario
+manifest through `qa:check`.
 
 `src/lib/agent/screen.ts` maps the first path segment to an allowed screen key. Account
 uses Settings and the full Ask page uses Ask. The request sends only this key in

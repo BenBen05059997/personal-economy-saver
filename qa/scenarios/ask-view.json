@@ -327,5 +327,301 @@
     "refs": [
       "BROWSER-CHECKS AQ10"
     ]
+  },
+  {
+    "id": "ASKVIEW-013",
+    "area": "Ask view",
+    "action": "Submit a money question from Home",
+    "user_goal": "I want to ask without leaving Home",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household on Home at 1440px",
+      "Ask panel open on Home"
+    ],
+    "steps": [
+      "Ask Can I afford ¥4,000 tonight?"
+    ],
+    "expected": [
+      "The panel shows progress while it works",
+      "The answer says ¥4,000 does not fit, quotes ¥0 safe to spend and links to its basis",
+      "Home stays at / with the unchanged ¥0 safe to spend and ¥18,780 late-case shortfall on Nov 27"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ11"
+    ]
+  },
+  {
+    "id": "ASKVIEW-014",
+    "area": "Ask view",
+    "action": "Navigate to Plan while an Ask reply is in flight",
+    "user_goal": "I want to look at Plan while my answer comes in",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household on Home at 1440px",
+      "Ask panel open on Home",
+      "Network log open"
+    ],
+    "steps": [
+      "Send Can I afford ¥4,000 tonight? once",
+      "While Ask is still working, go to Plan and back to Home",
+      "Once the reply arrives, go to Plan and back again"
+    ],
+    "expected": [
+      "The same space stays open and shows one copy of the question and reply",
+      "The Network log has one POST /api/ask for the turn"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ12"
+    ]
+  },
+  {
+    "id": "ASKVIEW-015",
+    "area": "Ask view",
+    "action": "Draw a model canvas in the panel",
+    "user_goal": "I want a what-if canvas to fit next to my current screen",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household on Home at 1440px",
+      "Ask panel open in the named space March paperwork"
+    ],
+    "steps": [
+      "Ask What if Northwind pays two weeks late? Show me a what-if canvas."
+    ],
+    "expected": [
+      "The compact canvas uses the same amounts as W5 with Northwind delayed 14 days",
+      "The canvas fits without sideways scrolling and offers Open full"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ13"
+    ]
+  },
+  {
+    "id": "ASKVIEW-016",
+    "area": "Ask view",
+    "action": "Open a model canvas in full Ask",
+    "user_goal": "I want to see my answer and its canvas with more room",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "1440px with the cloud journal and the model canvas from ASKVIEW-015"
+    ],
+    "steps": [
+      "Choose Open full"
+    ],
+    "expected": [
+      "The full page opens at /canvas?space=<id> with March paperwork selected",
+      "The saved question and its model canvas are present and the separate panel is hidden"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ14"
+    ]
+  },
+  {
+    "id": "ASKVIEW-017",
+    "area": "Ask view",
+    "action": "Attach a fictional bill from the Home panel",
+    "user_goal": "I want to read a bill while keeping Home open",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household on Home at 1440px",
+      "Ask panel open on Home",
+      "An image of a fictional Kawa Gym bill for ¥6,000 due Dec 12"
+    ],
+    "steps": [
+      "Choose Attach a bill and select the image",
+      "Wait for the reading card"
+    ],
+    "expected": [
+      "Home stays open while the panel says Reading your bill… and then Read from your bill:",
+      "The card shows Kawa Gym, ¥6,000 and Dec 12",
+      "Home’s Coming up omits the unconfirmed bill"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ15"
+    ]
+  },
+  {
+    "id": "ASKVIEW-018",
+    "area": "Ask view",
+    "action": "Confirm an attached bill from the panel",
+    "user_goal": "I want Home to update as soon as I confirm the bill",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "1440px with the Kawa Gym reading from ASKVIEW-017 open in the Home panel"
+    ],
+    "steps": [
+      "Answer each reading question and choose Every month if asked whether it repeats",
+      "Choose Confirm",
+      "Expand Later in the month under Home’s Coming up"
+    ],
+    "expected": [
+      "The panel says Confirmed. Here is your month with it. and marks Kawa Gym in its canvas timeline",
+      "Home stays open and Coming up shows Kawa Gym for ¥6,000 on Dec 12 without manually reloading"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ16"
+    ]
+  },
+  {
+    "id": "ASKVIEW-019",
+    "area": "Ask view",
+    "action": "Request a Keep this? offer from the panel",
+    "user_goal": "I want to see the preference before it is saved",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household on Home at 1440px",
+      "Ask panel open on Home",
+      "Cloud memory has no matching preference"
+    ],
+    "steps": [
+      "Ask From now on I prefer short answers about my money. What’s due this week?",
+      "Check Memory → Profile in a second tab"
+    ],
+    "expected": [
+      "The answer offers Keep this? for a Preference with Keep and No",
+      "The preference is still absent from Profile before Keep"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ17"
+    ]
+  },
+  {
+    "id": "ASKVIEW-020",
+    "area": "Ask view",
+    "action": "Keep an offered preference from the panel",
+    "user_goal": "I want to save the preference and stay on Home",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "1440px with the preference offer from ASKVIEW-019 visible"
+    ],
+    "steps": [
+      "Choose Keep",
+      "Refresh Memory → Profile in the second tab"
+    ],
+    "expected": [
+      "The panel says Kept. and stays open on Home",
+      "Profile shows one preference with the offered words"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ18"
+    ]
+  },
+  {
+    "id": "ASKVIEW-021",
+    "area": "Ask view",
+    "action": "Hide the panel on the full Ask page",
+    "user_goal": "I want one Ask composer when I open the full page",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household on Home at 1440px",
+      "Ask panel open on Home"
+    ],
+    "steps": [
+      "Choose Ask from the sidebar",
+      "Return to Home from the sidebar"
+    ],
+    "expected": [
+      "Full Ask has one question box and no separate Ask panel",
+      "On returning to Home the panel is open"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ19"
+    ]
+  },
+  {
+    "id": "ASKVIEW-022",
+    "area": "Ask view",
+    "action": "Open sign-in with an Ask panel preference",
+    "user_goal": "I want the public sign-in page to have its own layout",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household on Home at 1440px",
+      "Ask panel open on Home"
+    ],
+    "steps": [
+      "Open /login in the same tab"
+    ],
+    "expected": [
+      "Sign-in appears without an Ask panel or workspace top bar"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ20"
+    ]
+  },
+  {
+    "id": "ASKVIEW-023",
+    "area": "Ask view",
+    "action": "View the open panel in light and dark",
+    "user_goal": "I want to read the page and the panel in either appearance",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household on Home at 1440px",
+      "Ask panel open on Home"
+    ],
+    "steps": [
+      "Switch between light and dark system appearance",
+      "Repeat AQ8 on Clients at 1280px in both appearances"
+    ],
+    "expected": [
+      "Panel controls, canvas and page text remain readable",
+      "Nothing overlaps or scrolls sideways"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ21"
+    ]
   }
 ]
