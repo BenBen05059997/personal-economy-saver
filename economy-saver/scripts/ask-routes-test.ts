@@ -84,6 +84,15 @@ async function main() {
       return { steps: lines.slice(0, -1).map(line => line.step!), last, status: response.status, text: last.error ?? last.reply!.text, headers: response.headers };
     };
 
+    const resetDemo = (await import("@/app/api/try/reset/route")).POST as Handler;
+    cookie = await seedBen(db, { isDemo: true });
+    const resetResult = await resetDemo(post("/api/try/reset", null, { "x-form-fetch": "1" }));
+    assert.equal(resetResult.status, 204);
+    assert.equal(resetResult.headers.get("x-form-redirect"), "/");
+    assert.equal(resetResult.headers.get("location"), null);
+    assert.match(resetResult.headers.get("set-cookie") ?? "", /household=[0-9a-f-]{36}/);
+    ok("Try it Reset uses the fetch form redirect header and sets a fresh demo cookie");
+
     // ------------------------------------------------------------ the guard (all three routes)
     for (const [name, handler, path] of [["ask", ask, "/api/ask"], ["thumb", thumb, "/api/ask/thumb"], ["confirm", confirm, "/api/confirm"]] as const) {
       cookie = a;

@@ -12,5 +12,5 @@ export async function POST(request: Request) {
   try { fresh = await resetDemoHousehold(db(), id); }
   catch (error) { return new Response(error instanceof AiKeyError || error instanceof ReaderError ? error.message : "Could not finish the reset. Your household is retained; try again.", { status: 503 }); }
   if (!fresh) return new Response("Demo session has expired", { status: 409 });
-  return demoResponse(fresh);
+  return demoResponse(fresh, request);
 }
