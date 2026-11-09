@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     await saveHouseholdConnection(db(), hid, {
       provider: formText(form, "provider"), baseUrl: formText(form, "baseUrl"), textModel: formText(form, "textModel"),
       documentModel: formText(form, "documentModel"), sameForDocuments: form.get("sameForDocuments") === "on", key: formText(form, "key"),
-    }, { signedIn: !household?.demo, check: connection => checkConnection(connection) });
+    }, { signedIn: !household?.demo, check: checkConnection });
     return text("Saved. Your questions and documents now go to your model.", 200, NO_STORE);
   } catch (error) {
     return text(error instanceof AiKeyError ? error.message : "Your AI model could not be saved", 400);

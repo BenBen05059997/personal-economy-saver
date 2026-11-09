@@ -650,7 +650,7 @@ provider, protocol, address and model names are columns on `households` (`ai_pro
 model call; a key saved before sealing is refused until it is saved again; `ai_key_hint` holds an ellipsis and the last four characters only. The address passes `checkBaseUrl` when it is saved and again on every
 call. Vault keeps the key out of plain dumps; anyone holding `DATABASE_URL` can read `vault.decrypted_secrets` but gets only the sealed text, which opens only with the Worker's `AI_KEY_SEAL_KEY`. A saved key that cannot be read is
 never replaced by another key. A question or document travels to the host Settings shows; with no model of its own, to the host of `AI_BASE_URL`
-under the owner's key; no call is capped (D33). Saving a model runs `checkConnection` (uses_tools, ignores_injection, stays_on_money) and stores the result in `ai_check`. MCP
+under the owner's key; no call is capped (D33). Saving a model runs `checkConnection` and stores the result in `ai_check`. MCP
 tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
 
 In Settings, `AiModelForm` calls `providerFromKey` in the browser when the owner pastes a key with Provider still on the app’s default.
@@ -670,7 +670,15 @@ inputs settle. The provider must be selected and a typed or matching saved key a
 Changing an already-selected provider or an existing custom URL clears the typed key before the form can send it to the new address.
 The question and document fields use editable datalists. A model stays in each list unless its reported tools or images flag explicitly
 rules it out for that job. With one model for both jobs, the question list checks both capabilities. Tested entries use the label
-“ID · Tested”. A loading or failure line leaves manual entry available.
+“ID · Tested”. A loading or failure line leaves manual entry available. The listed providers show Get a key and say the provider bills
+the user’s own account. The form says document models must read images and PDFs.
+
+Save and check validates tool use, handling of injected instructions, and staying on money for the question model. A question model
+marked Tested already satisfies those three checks. The document model still receives the 400 × 184, 727-byte fictional Kawa Gym
+PNG in `connection-bill.ts`. The check compares the returned total to ¥6,173. A failed tool or image check refuses the save before
+the database or Vault changes. The saved panel shows Reads images: passed. for a successful new check. Historical results keep
+their recorded check count. Listing and saving map provider failures to fixed messages for refused keys, missing models, credit or
+connection problems. The catalogue has no selected model to name in an error.
 
 Optional reminder email needs `RESEND_API_KEY` and `REMINDER_FROM`. Browser push needs `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` and `WEB_PUSH_SUBJECT`. The owner generates the VAPID pair with `npm run push:keys`, which writes the two ignored local settings files without printing the keys. Only the public key goes to the browser. `/api/health` reports each channel’s setting names or readiness separately.
 

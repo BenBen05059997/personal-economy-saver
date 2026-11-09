@@ -10,14 +10,15 @@ import { currentHouseholdId } from "@/lib/session";
 import { AiModelForm } from "./AiModelForm";
 
 const CHECK_WORDS: Record<(typeof CHECK_NAMES)[number], string> = {
-  uses_tools: "Uses the app’s tools", ignores_injection: "Ignores instructions hidden in bills", stays_on_money: "Stays on money questions",
+  uses_tools: "Uses the app’s tools", ignores_injection: "Ignores instructions hidden in bills", stays_on_money: "Stays on money questions", reads_images: "Reads images",
 };
 const dateOf = (iso: string) => new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(iso));
 
 function CheckLine({ tested, check }: { tested: boolean; check: ConnectionCheck | null }) {
-  if (tested) return <p className="ui-hint">Tested</p>;
-  if (!check) return <p className="ui-hint">Custom, untested</p>;
-  return <><p className="ui-hint">Custom, untested · passed {check.passed.length} of {CHECK_NAMES.length} checks on {dateOf(check.at)}</p>
+  const label = tested ? "Tested" : "Custom, untested";
+  if (!check) return <p className="ui-hint">{label}</p>;
+  return <><p className="ui-hint">{label} · passed {check.passed.length} of {check.passed.length + check.failed.length} checks on {dateOf(check.at)}</p>
+    {check.passed.includes("reads_images") && <p className="ui-hint">Reads images: passed.</p>}
     {check.failed.length > 0 && <ul className="ui-hint">{check.failed.map(f => <li key={f.name}>{CHECK_WORDS[f.name]}: {f.why}</li>)}</ul>}</>;
 }
 
@@ -31,7 +32,7 @@ export async function AiModelPanel({ demo }: { demo: boolean }) {
     {missing ? <p className="ui-hint">{askUnavailable(missing)}</p> : host ? <p className="ui-hint">Your questions and documents go to {host}.</p> : null}
     {view ? <CheckLine tested={view.tested} check={view.check} /> : <p className="ui-hint">{MODEL_HINT}</p>}
     <AiModelForm key={view ? `${view.provider}|${view.baseUrl}|${view.textModel}|${view.documentModel}|${view.hint}` : "default"} demo={demo}
-      providers={PROVIDERS.map(p => ({ id: p.id, label: p.label }))}
+      providers={PROVIDERS.map(p => ({ id: p.id, label: p.label, getKeyUrl: p.getKeyUrl }))}
       initial={{ provider: view?.provider ?? "", baseUrl: view?.provider === "custom" ? view.baseUrl : "", textModel: view?.textModel ?? "",
         documentModel: view?.documentModel ?? "", same: view ? view.sameForDocuments : true, hint: view?.hint ?? null }} />
     {view && <ApiForm action="/api/settings/ai-model"><input type="hidden" name="kind" value="default" /><button className="ui-button">Use this app’s default</button></ApiForm>}

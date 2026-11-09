@@ -79,7 +79,7 @@ async function main() {
     const own = (hid: string, over: Partial<Parameters<typeof saveHouseholdConnection>[2]> = {}, mode: FakeMode = "good", signedIn = true) => {
       const model = fakeModel(mode);
       return { model, done: saveHouseholdConnection(db, hid, { provider: "openai", baseUrl: "", textModel: "fixture-own", documentModel: "", sameForDocuments: true, key: fictional, ...over },
-        { signedIn, check: connection => checkConnection(connection, { fetch: model.fetch, appUrl: process.env.APP_URL ? new URL(process.env.APP_URL) : APP }) }) };
+        { signedIn, check: (connection, { testedText }) => checkConnection(connection, { fetch: model.fetch, appUrl: process.env.APP_URL ? new URL(process.env.APP_URL) : APP, testedText }) }) };
     };
     const row = async (hid: string) => (await db.select().from(schema.households).where(eq(schema.households.id, hid)))[0];
     const aiEvents = async (hid: string) => (await db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, "ai_model_changed")))).map(e => e.title);
@@ -148,16 +148,66 @@ async function main() {
       const saved = await row(a);
       assert.deepEqual([saved.aiProvider, saved.aiProtocol, saved.aiBaseUrl, saved.aiTextModel, saved.aiDocumentModel], ["openai", "openai", "https://api.openai.com/v1", "fixture-own", "fixture-own"]);
       assert.equal(saved.aiKeyHint, "…aaaa");
-      assert.equal((saved.aiCheck as { passed: string[] }).passed.length, 3);
+      assert.deepEqual((saved.aiCheck as { passed: string[] }).passed, ["uses_tools", "ignores_injection", "stays_on_money", "reads_images"]);
       const view = await connectionView(db, a);
       assert.deepEqual([view?.provider, view?.label, view?.host, view?.textModel, view?.sameForDocuments, view?.hint, view?.tested, view?.check?.failed.length], ["openai", "OpenAI", "api.openai.com", "fixture-own", true, "…aaaa", false, 0]);
       assert.ok(!JSON.stringify(view).includes(fictional));
+      assert.ok(view?.check?.passed.includes("reads_images"));
       const c = await aiConnection(db, a, "document");
       assert.deepEqual(c, { protocol: "openai", baseUrl: "https://api.openai.com/v1", key: fictional, textModel: "fixture-own", documentModel: "fixture-own", own: true });
       const titles = await aiEvents(a);
       assert.deepEqual(titles, ["AI model changed to OpenAI, fixture-own"]);
       assert.ok(titles.every(t => !t.includes(fictional)));
       assert.equal(await vaultCount(), 1);
+    });
+    await check("a document model that cannot read the bill image leaves the previous models and key intact", async () => {
+      const before = await row(a);
+      const events = await aiEvents(a);
+      const secrets = await vaultCount();
+      for (const mode of ["noimages", "wrongimage"] as const) {
+        const { model, done } = own(a, { key: another, textModel: "new-questions", documentModel: "new-documents", sameForDocuments: false }, mode);
+        await assert.rejects(done, {
+          message: "This document model can't be used: It did not read the total from the bill image. Choose a model that reads images.",
+        });
+        assert.deepEqual(model.seen.filter(request => request.image).map(request => request.model), ["new-documents"]);
+      }
+      assert.deepEqual(await row(a), before);
+      assert.deepEqual(await aiEvents(a), events);
+      assert.equal(await vaultCount(), secrets);
+      assert.equal(await aiKey(db, a), fictional);
+    });
+    await check("provider failures on save give fixed words and name the rejected document model", async () => {
+      const before = await row(a);
+      const events = await aiEvents(a);
+      const failures: [FakeMode, string][] = [
+        ["down", "The key was refused by Mistral."],
+        ["missingmodel", "Mistral has no model called fictional-documents."],
+        ["credit", "Mistral says the key is over its limit or out of credit."],
+        ["unreachable", "Couldn’t reach Mistral."],
+      ];
+      for (const [mode, message] of failures) {
+        await assert.rejects(own(a, { provider: "mistral", key: another, textModel: "fictional-questions", documentModel: "fictional-documents", sameForDocuments: false }, mode).done, { message });
+      }
+      assert.deepEqual(await row(a), before);
+      assert.deepEqual(await aiEvents(a), events);
+      assert.equal(await aiKey(db, a), fictional);
+    });
+    await check("a save cannot reuse a key replaced by another save during its check", async () => {
+      const before = await row(a);
+      const events = (await aiEvents(a)).length;
+      const model = fakeModel("good");
+      await assert.rejects(saveHouseholdConnection(db, a, {
+        provider: "openai", baseUrl: "", textModel: "losing-edit", documentModel: "", sameForDocuments: true, key: "",
+      }, { signedIn: true, check: async (connection, { testedText }) => {
+        assert.equal(connection.key, fictional);
+        const check = await checkConnection(connection, { fetch: model.fetch, appUrl: APP, testedText });
+        await own(a, { textModel: "winning-edit", key: another }).done;
+        return check;
+      } }), { message: "The saved key changed during the check. Reload Settings and try again." });
+      const saved = await row(a);
+      assert.equal(saved.aiKeySecretId, before.aiKeySecretId, "the competing save replaced the key in the same Vault entry");
+      assert.deepEqual([saved.aiTextModel, saved.aiDocumentModel, await aiKey(db, a)], ["winning-edit", "winning-edit", another]);
+      assert.equal((await aiEvents(a)).length, events + 1);
     });
     await check("a new key replaces the Vault secret under the same name; an empty key keeps it for the same provider only", async () => {
       await own(a, { key: another, textModel: "second", sameForDocuments: false, documentModel: "docs" }).done;
@@ -211,13 +261,13 @@ async function main() {
     await check("a model that does not call tools is refused in words and nothing is stored; the other failures are stored and shown", async () => {
       const before = JSON.stringify(await row(a)), events = (await aiEvents(a)).length, secrets = await vaultCount();
       await assert.rejects(own(a, { provider: "mistral", textModel: "no-tools" }, "notools").done, (error: unknown) => error instanceof AiKeyError && /did not call the app's tools/.test(error.message) && !error.message.includes(fictional));
-      await assert.rejects(own(a, { provider: "mistral", textModel: "down" }, "down").done, /refused the request.*401/);
+      await assert.rejects(own(a, { provider: "mistral", textModel: "down" }, "down").done, { message: "The key was refused by Mistral." });
       assert.equal(JSON.stringify(await row(a)), before);
       assert.equal((await aiEvents(a)).length, events);
       assert.equal(await vaultCount(), secrets);
       await own(a, { provider: "mistral", textModel: "careless" }, "injected").done;
       const view = await connectionView(db, a);
-      assert.deepEqual([view?.check?.passed.length, view?.check?.failed.map(f => f.name)], [2, ["ignores_injection"]]);
+      assert.deepEqual([view?.check?.passed.length, view?.check?.failed.map(f => f.name)], [3, ["ignores_injection"]]);
       assert.equal(view?.tested, false);
       assert.equal((await aiEvents(a)).length, events + 1);
     });

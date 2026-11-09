@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { listModels, markListedModels } from "@/lib/ai/list-models";
-import { providerFailureWords } from "@/lib/ai/provider-failure";
+import { providerFailureOf, providerFailureWords } from "@/lib/ai/provider-failure";
 import { providerById } from "@/lib/ai/providers";
 import { boundedForm, formText, NO_STORE, text, tooMany } from "@/lib/door";
 import { ownerRequest } from "@/lib/session";
@@ -26,6 +26,6 @@ export async function POST(request: Request) {
     return Response.json({ models: markListedModels(provider, await listModels(selected)) }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof AiKeyError) return text(error.message, 400);
-    return text(providerFailureWords(error, provider === "custom" ? "your provider" : providerById(provider)?.label ?? "your provider"), 502);
+    return text(providerFailureWords(providerFailureOf(error), provider === "custom" ? "your provider" : providerById(provider)?.label ?? "your provider"), 502);
   }
 }

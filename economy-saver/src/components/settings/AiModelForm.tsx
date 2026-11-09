@@ -6,7 +6,7 @@ import { providerFromKey } from "@/lib/ai/providers";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { modelsFor, scheduleModelChoices } from "./model-choices";
 
-type ProviderChoice = { id: string; label: string };
+type ProviderChoice = { id: string; label: string; getKeyUrl: string | null };
 
 function ModelField({ purpose, models, initial }: { purpose: "questions" | "documents"; models: ModelChoice[]; initial: string }) {
   const id = useId();
@@ -30,6 +30,7 @@ export function AiModelForm({ providers, initial, demo }: {
   const key = useRef<HTMLInputElement>(null);
   const pickedProvider = useRef(false);
   const isDefault = provider === "";
+  const selected = providers.find(choice => choice.id === provider);
   const baseUrl = provider === "custom" ? address.trim().replace(/\/+$/, "") : "";
   const savedKey = initial.hint && provider === initial.provider && baseUrl === initial.baseUrl;
   const canList = !isDefault && (typedKey || savedKey) && (provider !== "custom" || URL.canParse(baseUrl));
@@ -69,6 +70,10 @@ export function AiModelForm({ providers, initial, demo }: {
         <option value="" disabled={initial.provider !== ""}>This app’s default</option>
         {providers.map(p => <option key={p.id} value={p.id} disabled={demo && p.id === "custom"}>{p.label}</option>)}
       </select></label>
+    {selected?.getKeyUrl && <>
+      <p className="ui-hint"><a href={selected.getKeyUrl} target="_blank" rel="noreferrer">Get a key</a></p>
+      <p className="ui-hint">Your use is billed to your own {selected.label} account.</p>
+    </>}
     {demo && <p className="ui-hint">A custom address needs an account. Sign in from Settings → Account.</p>}
     {provider === "custom" && <label className="ui-field">Address<input name="baseUrl" type="url" value={address} placeholder="https://models.example/v1" spellCheck={false}
       maxLength={300} required onChange={event => {
@@ -94,6 +99,7 @@ export function AiModelForm({ providers, initial, demo }: {
       <ModelField purpose="questions" models={modelsFor(models, "questions", same)} initial={initial.textModel} />
       <label className="settings-check"><input name="sameForDocuments" type="checkbox" checked={same} onChange={event => setSame(event.target.checked)} />Use the same model for documents</label>
       {!same && <ModelField purpose="documents" models={modelsFor(models, "documents", same)} initial={initial.documentModel} />}
+      <p className="ui-hint">Must read images and PDFs.</p>
       <p className="ui-hint">Only the last four characters are shown again.</p>
       <button className="ui-button primary">Save and check</button></>}
     {isDefault && <><button type="submit" hidden disabled /><p className="ui-hint">Paste a key or choose a provider to use your own model.</p></>}

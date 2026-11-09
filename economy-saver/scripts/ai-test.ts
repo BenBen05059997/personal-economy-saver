@@ -17,7 +17,8 @@ import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { AGENT_CASES, CASE_NAMES, gradeOutcome, runEval, scriptedModel, type Outcome } from "./model-eval-cases";
 import { callModel } from "@/lib/ai/call";
 import { listModels, markListedModels } from "@/lib/ai/list-models";
-import { checkConnection } from "@/lib/ai/check";
+import { CHECK_NAMES, checkConnection } from "@/lib/ai/check";
+import { CONNECTION_BILL } from "@/lib/ai/connection-bill";
 import { isTested, TESTED } from "@/lib/ai/tested";
 import { fakeModel, type FakeMode } from "./ai-fake";
 import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
@@ -464,44 +465,80 @@ async function main() {
     assert.equal(t.seen[0].url.href, "http://localhost:11434/v1/chat/completions");
   });
 
-  await check("checkConnection: a good model passes the three cases on both protocols, with no key leaving the connection's own host", async () => {
+  await check("checkConnection: text and image pass on both protocols, with the bill image sent only to the document model", async () => {
     for (const connection of [anthropic, openai]) {
       const t = fakeModel("good");
       const result = await checkConnection(connection, { fetch: t.fetch, appUrl: APP });
-      assert.deepEqual(result.passed, ["uses_tools", "ignores_injection", "stays_on_money"], connection.protocol);
+      assert.deepEqual(result.passed, CHECK_NAMES, connection.protocol);
       assert.deepEqual(result.failed, []);
       assert.ok(!Number.isNaN(Date.parse(result.at)));
-      assert.ok(t.seen.length >= 4 && t.seen.every(s => s.model === "m-text" && s.url.startsWith(connection.baseUrl)));
+      assert.equal(t.seen.length, 5);
+      assert.ok(t.seen.every(request => new URL(request.url).origin === new URL(connection.baseUrl).origin));
+      const images = t.seen.filter(request => request.image);
+      assert.equal(images.length, 1);
+      assert.ok(t.seen.filter(request => !request.image).every(request => request.model === "m-text" && request.tools > 0));
+      const [image] = images;
+      assert.equal(image.model, "m-doc");
+      assert.equal(image.tools, 0);
+      assert.match(image.question, /Read the total in yen from this bill image/);
+      assert.doesNotMatch(image.question, /6,?173/);
+      assert.deepEqual(image.image, connection.protocol === "anthropic"
+        ? { type: "image", source: { type: "base64", media_type: CONNECTION_BILL.mime, data: CONNECTION_BILL.base64 } }
+        : { type: "image_url", image_url: { url: `data:${CONNECTION_BILL.mime};base64,${CONNECTION_BILL.base64}` } });
       assert.ok(!JSON.stringify(result).includes(SECRET));
     }
   });
 
-  await check("checkConnection: each bad behaviour fails its own case and no other", async () => {
+  await check("checkConnection: each bad behaviour fails only the relevant text or image checks", async () => {
     const expect: [FakeMode, string[]][] = [
-      ["notools", ["uses_tools", "ignores_injection", "stays_on_money"].filter(n => n !== "stays_on_money")],
+      ["notools", ["uses_tools", "ignores_injection"]],
       ["injected", ["ignores_injection"]],
       ["chatty", ["stays_on_money"]],
+      ["noimages", ["reads_images"]],
+      ["wrongimage", ["reads_images"]],
     ];
     for (const connection of [anthropic, openai]) for (const [mode, failed] of expect) {
       const result = await checkConnection(connection, { fetch: fakeModel(mode).fetch, appUrl: APP });
       assert.deepEqual(result.failed.map(f => f.name), failed, `${connection.protocol} ${mode}`);
-      assert.equal(result.passed.length + result.failed.length, 3);
+      assert.equal(result.passed.length + result.failed.length, 4);
       assert.ok(result.failed.every(f => f.why.length > 10));
+      if (mode === "noimages" || mode === "wrongimage") {
+        assert.deepEqual(result.failed, [{ name: "reads_images", why: "It did not read the total from the bill image." }]);
+      }
     }
   });
 
-  await check("checkConnection: a provider error fails the cases in words with the status, and never throws or shows the key", async () => {
+  await check("checkConnection: tested question models skip only the text checks", async () => {
+    for (const connection of [anthropic, openai]) {
+      const model = fakeModel("noimages");
+      const result = await checkConnection(connection, { fetch: model.fetch, appUrl: APP, testedText: true });
+      assert.deepEqual(result.passed, ["uses_tools", "ignores_injection", "stays_on_money"]);
+      assert.deepEqual(result.failed.map(failure => failure.name), ["reads_images"]);
+      assert.equal(model.seen.length, 1);
+      assert.equal(model.seen[0].model, connection.documentModel);
+      assert.ok(model.seen[0].image);
+    }
+  });
+
+  await check("checkConnection: provider errors keep only known failure metadata without provider text or a key", async () => {
     for (const connection of [anthropic, openai]) {
       const result = await checkConnection(connection, { fetch: fakeModel("down").fetch, appUrl: APP });
       assert.equal(result.passed.length, 0);
-      assert.equal(result.failed.length, 3);
-      assert.ok(result.failed.every(f => /refused the request.*401/.test(f.why)), result.failed[0].why);
+      assert.equal(result.failed.length, 4);
+      assert.ok(result.failed.every(f => f.providerFailure === "key" && /refused the request.*401/.test(f.why)), result.failed[0].why);
       assert.ok(!JSON.stringify(result).includes(SECRET));
+      const credit = await checkConnection(connection, { fetch: fakeModel("credit").fetch, appUrl: APP });
+      assert.equal(credit.failed.length, 4);
+      assert.ok(credit.failed.every(f => f.providerFailure === "credit" && !f.why.includes("fictional-billing")));
+      const missing = await checkConnection(connection, { fetch: fakeModel("missingmodel").fetch, appUrl: APP });
+      assert.deepEqual(missing.failed.map(({ name, providerFailure }) => [name, providerFailure]), [["reads_images", "model"]]);
     }
     const none = await checkConnection({ ...openai, textModel: null }, { fetch: fakeModel("good").fetch, appUrl: APP });
-    assert.equal(none.passed.length, 0);
-    const bad = await checkConnection({ ...openai, baseUrl: "https://10.0.0.5/v1" }, { fetch: fakeModel("good").fetch, appUrl: APP });
-    assert.equal(bad.failed.length, 3, "the address rule runs before any request");
+    assert.deepEqual(none.passed, ["reads_images"]);
+    const transport = fakeModel("good");
+    const bad = await checkConnection({ ...openai, baseUrl: "https://10.0.0.5/v1" }, { fetch: transport.fetch, appUrl: APP });
+    assert.equal(bad.failed.length, 4);
+    assert.equal(transport.seen.length, 0, "the address rule runs before any request");
   });
 
   await check("the evaluation's graders: a scripted good model passes every case on both protocols, and the key never reaches a result", async () => {

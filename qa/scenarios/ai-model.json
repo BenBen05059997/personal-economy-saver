@@ -527,5 +527,163 @@
       "BROWSER-CHECKS Y20",
       "db:settings-test"
     ]
+  },
+  {
+    "id": "AIMODEL-020",
+    "area": "Your AI model",
+    "action": "Read the provider’s key and billing help",
+    "user_goal": "I want to know where to get a key and who bills me",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household"
+    ],
+    "steps": [
+      "Choose Anthropic",
+      "Untick Use the same model for documents"
+    ],
+    "expected": [
+      "Get a key links to the provider’s key page",
+      "The panel says Your use is billed to your own Anthropic account.",
+      "Must read images and PDFs. stays below the document model controls"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y21"
+    ]
+  },
+  {
+    "id": "AIMODEL-021",
+    "area": "Your AI model",
+    "action": "Refuse a key on save",
+    "user_goal": "I want to know when the provider refuses my key",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "The fictional Mistral transport refuses the key"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Attempt to save the refused connection"
+    ],
+    "expected": [
+      "The key was refused by Mistral."
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y23",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-022",
+    "area": "Your AI model",
+    "action": "Refuse a missing model on save",
+    "user_goal": "I want to know which model name was refused",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "The fictional Mistral transport reports the model is missing"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Attempt to save the missing model"
+    ],
+    "expected": [
+      "Mistral has no model called <name>. names the selected model"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y23",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-023",
+    "area": "Your AI model",
+    "action": "Explain a provider limit on save",
+    "user_goal": "I want to know when my provider has run out of credit or reached its limit",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "The fictional Mistral transport reports a provider limit"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Attempt to save the limited connection"
+    ],
+    "expected": [
+      "Mistral says the key is over its limit or out of credit."
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y23",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-024",
+    "area": "Your AI model",
+    "action": "Explain a connection failure on save",
+    "user_goal": "I want to know when the app cannot reach my provider",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "The fictional Mistral transport fails to connect"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Attempt to save the unreachable connection"
+    ],
+    "expected": [
+      "Couldn’t reach Mistral."
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y23",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-025",
+    "area": "Your AI model",
+    "action": "Refuse a document model that cannot read the test image",
+    "user_goal": "I want my saved connection to stay usable if a replacement cannot read bills",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A working fictional saved connection and a replacement whose document model does not read ¥6,173 from the Kawa Gym image"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Attempt to save the replacement"
+    ],
+    "expected": [
+      "This document model can't be used: It did not read the total from the bill image. Choose a model that reads images.",
+      "The previous models and key remain saved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24",
+      "db:settings-test"
+    ]
   }
 ]
