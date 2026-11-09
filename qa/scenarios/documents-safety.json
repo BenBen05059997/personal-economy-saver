@@ -233,15 +233,16 @@
       "Fresh Try it household (Ben, today Nov 14)"
     ],
     "steps": [
-      "POST an empty form to /api/upload",
-      "POST JSON to /api/upload"
+      "POST an empty multipart form to /api/upload",
+      "POST a JSON body to /api/upload"
     ],
     "expected": [
-      "Empty form: 400 \"Select a file to upload.\"",
-      "JSON body: 400 \"Select a file to upload.\" (not multipart)"
+      "Empty multipart form: HTTP 400 \"Select a PDF, JPEG, PNG or WebP file.\"",
+      "JSON or other non-multipart body: HTTP 400 \"Select a file to upload.\""
     ],
     "refs": [
-      "frontend-check --extra"
+      "frontend-check --extra (authenticated-empty-multipart-upload)",
+      "frontend-check --extra (authenticated-invalid-upload)"
     ]
   },
   {

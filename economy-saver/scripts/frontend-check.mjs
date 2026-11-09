@@ -32,7 +32,7 @@ async function request(path, { method = "GET", form, json, session = cookie, ext
   if (json) headers["Content-Type"] = "application/json";
   const response = await fetch(new URL(path, base), {
     method, headers, redirect: "manual", signal: AbortSignal.timeout(30_000),
-    body: form ? new URLSearchParams(form) : json ? JSON.stringify(json) : undefined,
+    body: form instanceof FormData ? form : form ? new URLSearchParams(form) : json ? JSON.stringify(json) : undefined,
   });
   const body = await response.text();
   return { response, body };
@@ -233,8 +233,12 @@ if (args[0] === "--extra") {
   });
   await step("page", "authenticated-upload", () => page("/upload", /Upload a bill or receipt/));
   await step("guard", "authenticated-invalid-upload", async () => {
-    const result = await request("/api/upload", { method: "POST", form: {} });
+    const result = await request("/api/upload", { method: "POST", json: {} });
     expect(result.response.status === 400 && result.body === "Select a file to upload.", "invalid-upload-result");
+  });
+  await step("guard", "authenticated-empty-multipart-upload", async () => {
+    const result = await request("/api/upload", { method: "POST", form: new FormData() });
+    expect(result.response.status === 400 && result.body === "Select a PDF, JPEG, PNG or WebP file.", "empty-multipart-upload-result");
   });
   await step("guard", "authenticated-invalid-ask-document", async () => {
     const result = await request("/api/ask/document", { method: "POST", form: {} });
