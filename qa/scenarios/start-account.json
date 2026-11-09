@@ -2387,7 +2387,7 @@
       "The question reads \"Delete all the assistant remembers? This can’t be undone.\" Keep closes it and changes nothing",
       "Delete returns to Settings with the row at \"0 things\" and no Delete",
       "Activity records \"The assistant forgot everything\" and never names the text",
-      "The pinned canvases, cloud Ask journal and documents ask \"Delete all pinned canvases?\", \"Delete all conversations and named spaces?\", and \"Delete all uploaded documents?\""
+      "The pinned canvases, cloud Ask journal and documents ask \"Delete all pinned canvases?\", \"Delete all conversations, briefs and named spaces?\", and \"Delete all uploaded documents?\""
     ],
     "refs": [
       "BROWSER-CHECKS AA2"

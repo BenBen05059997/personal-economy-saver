@@ -610,11 +610,13 @@
     ],
     "steps": [
       "Delete the device’s Ask conversations under Your data",
-      "Return to the named space"
+      "Return to the named space",
+      "Open Memory → Spaces and delete that space individually"
     ],
     "expected": [
-      "The space name remains and the thread is empty",
-      "Space brief says \"No brief yet.\""
+      "Your data explains that spaces are deleted one at a time in Memory → Spaces",
+      "Clearing the device journal leaves the space name and empties the thread and brief",
+      "Deleting the space individually removes its name"
     ],
     "refs": [
       "BROWSER-CHECKS AP16",
@@ -789,12 +791,12 @@
     "steps": [
       "Ask to use both items when reviewing the next bill",
       "Follow each memory citation in Based on",
-      "Reopen the saved reply"
+      "Reopen the saved reply, delete its cited space note and reopen the reply again"
     ],
     "expected": [
       "Based on names the items beside the tool sources",
       "Each source opens its visible item in Space notes or Profile",
-      "The saved reply keeps the citations"
+      "The saved reply keeps its citation label after the note is deleted, with the first 59 characters and an ellipsis for a note longer than 60 characters"
     ],
     "refs": [
       "BROWSER-CHECKS AP21",

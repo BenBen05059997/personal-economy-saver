@@ -95,10 +95,12 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
 
   const n = onDevice ? deviceCount : cloudCount;
   const deleteLabel = onDevice && kind === "journal" ? "all conversations and briefs" : all;
+  const description = onDevice && kind === "journal" ? "Your conversation turns and briefs." : what;
   return <div className="settings-bill" data-kind={kind} data-place={place}>
     <p>{name} · {n === null ? "…" : `${n} ${unit[n === 1 ? 0 : 1]}`}</p>
-    <p className="ui-hint">{onDevice ? "On this device only." : "In our cloud, Tokyo."} {what}</p>
-    {onDevice && journalSpaceCount !== undefined && <p className="ui-hint">{journalSpaceCount} named {journalSpaceCount === 1 ? "space" : "spaces"} in our cloud. Manage these in <Link href="/memory?tab=spaces">Memory → Spaces</Link>.</p>}
+    <p className="ui-hint">{onDevice ? "On this device only." : "In our cloud, Tokyo."} {description}</p>
+    {kind === "journal" && !onDevice && <p className="ui-hint">Deleting Ask conversations removes each named space with its notes and pins kept in our cloud.</p>}
+    {onDevice && journalSpaceCount !== undefined && <p className="ui-hint">{journalSpaceCount} named {journalSpaceCount === 1 ? "space" : "spaces"} in our cloud. Delete spaces one at a time in <Link href="/memory?tab=spaces">Memory → Spaces</Link>.</p>}
     {onDevice
       ? <p className="ui-hint">Other devices and connected assistants (MCP) see none of it. Clearing this browser’s data deletes it. The export file holds only what our cloud has, so Export from this device adds this to the file.</p>
       : <p className="ui-hint">You can keep this on this device only instead.</p>}

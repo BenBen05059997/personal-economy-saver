@@ -12,7 +12,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { aiConnection } from "@/db/ai-key";
 import { householdDate } from "@/db/account";
-import { addMemory, listMemory } from "@/db/memory";
+import { addMemory, deleteMemory, listMemory } from "@/db/memory";
 import { removeBill } from "@/db/bills";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
@@ -1253,7 +1253,7 @@ async function main() {
       const hid = await seedBen(db, { isDemo: true });
       const here = await createSpace(db, hid, "Fictional tax desk"), elsewhere = await createSpace(db, hid, "Fictional repair desk");
       await addMemory(db, hid, { kind: "fact", text: "Profile says to use Japanese." }, { madeBy: "form" });
-      const note = await addMemory(db, hid, { kind: "fact", text: "Keep the tax receipt in the March folder.", spaceId: here.id }, { madeBy: "form" });
+      const note = await addMemory(db, hid, { kind: "fact", text: "Keep the tax receipt in the March folder and group the other receipts by client.", spaceId: here.id }, { madeBy: "form" });
       const other = await addMemory(db, hid, { kind: "fact", text: "An unrelated repair note.", spaceId: elsewhere.id }, { madeBy: "form" });
       const model = transport([
         () => reply("tool_use", [toolUse("w", "where_am_i", {})]),
@@ -1265,10 +1265,15 @@ async function main() {
       assert.ok(prompt.indexOf("Profile says") < prompt.indexOf("Keep the tax receipt") && prompt.includes("Profile says"));
       assert.ok(!prompt.includes("unrelated repair"));
       assert.equal(answer.text, "Keep the receipt in March.");
-      const sources = [{ kind: "memory", id: note.id, label: note.text }];
+      const sources = [{ kind: "memory", id: note.id, label: note.text.slice(0, 59) + "…" }];
+      assert.ok(note.text.length > 60);
       assert.deepEqual(answer.sources.filter(source => "id" in source), sources);
       const replay = await answerQuestion(db, hid, input, { fetch: transport([]).fetch });
       assert.deepEqual(replay.sources.filter(source => "id" in source), sources);
+      assert.equal(await deleteMemory(db, hid, note.id, { madeBy: "form" }), true);
+      const afterDelete = await answerQuestion(db, hid, input, { fetch: transport([]).fetch });
+      assert.equal(afterDelete.text, answer.text);
+      assert.deepEqual(afterDelete.sources.filter(source => "id" in source), sources);
     });
 
     await check("a cloud journal never stores the citation text of device-only memory", async () => {

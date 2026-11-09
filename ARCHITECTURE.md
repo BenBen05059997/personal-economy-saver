@@ -333,7 +333,7 @@ substring, including English and Japanese. The trigram indexes from 0030 support
 ten newest matches with their dates, space names and matching lines. Results are context for choosing current read tools.
 The model cites an individual note or profile item with `[[memory:<id>]]`. `run.ts` checks the id against the memory the
 model saw in context or through a memory read, removes the marker from the display text, and stores a
-`{ kind: "memory", id, label }` turn source for Based on. A visible item links to its note or profile entry. A cloud journal stores a neutral label for a device-memory citation. The browser that holds the item can display its text.
+`{ kind: "memory", id, label }` turn source for Based on. Labels longer than 60 characters keep the first 59 and an ellipsis. Deleting the note leaves past replies and their saved labels intact. A visible item links to its note or profile entry. A cloud journal stores a neutral label for a device-memory citation. The browser that holds the item can display its text.
 
 **When memory or the journal is kept on this device (D59).** The browser sends the profile and scoped notes when memory
 is local. For a local journal it sends the selected space’s brief and recent turns and a newest-first search window with
@@ -499,8 +499,8 @@ Under Uploaded documents, `listDocuments` returns each household document's date
 | Sessions | browser cookies: Supabase `pes-auth` (30 days), `household` (a demo UUID, 30 days), `upgrade-demo` (1 hour) | the browser | — | logout; deletion clears them |
 
 Your data counts named spaces with the cloud journal and shows the space count separately when turns are kept on this device. General does not contribute a space to the count.
-Deleting the cloud journal removes the named spaces with their threads, notes, pins and briefs and clears the General thread and brief. General and all documents stay.
-Deleting the device journal clears its local turns and briefs. Named spaces are still managed in Memory.
+Deleting Ask conversations in Your data removes named spaces with their cloud threads, notes, pins and briefs. It clears General’s thread and brief. General and all documents stay.
+Deleting the device journal clears its local turns and briefs. Delete spaces one at a time in Memory → Spaces.
 
 **Export and Import (D44, D59).** `loadHouseholdSnapshot` (`src/db/snapshot.ts`) is the only builder: one read transaction, `requireHousehold`,
 named columns (it never selects a secret or pointer column), and it parses its own result. `/api/export` (a POST form, so nothing is in a URL)
