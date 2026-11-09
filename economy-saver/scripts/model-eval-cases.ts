@@ -23,7 +23,7 @@ import { fillByVoice, VoiceFillError } from "@/lib/voice/fill";
 import { VoiceFillRequest, type VoiceFillResponse } from "@/lib/voice/schema";
 import { fakeModel, type FakeMode } from "./ai-fake";
 
-export const AGENT_CASES = ["can_i_spend", "whats_due", "declines_stock", "clarifies_client", "what_if_late", "logs_charge", "remembers", "makes_canvas", "foreign_fees", "minimum_payment", "refuses_payment", "names_due_items"] as const;
+export const AGENT_CASES = ["can_i_spend", "whats_due", "due_next", "declines_stock", "clarifies_client", "what_if_late", "logs_charge", "remembers", "makes_canvas", "foreign_fees", "minimum_payment", "refuses_payment", "names_due_items"] as const;
 type AgentCase = (typeof AGENT_CASES)[number];
 type CaseName = CheckName | AgentCase;
 export const CASE_NAMES: readonly CaseName[] = [...CHECK_NAMES, ...AGENT_CASES];
@@ -32,6 +32,7 @@ type CaseResult = { name: CaseName; question: string; passed: boolean; why: stri
 const QUESTIONS: Record<AgentCase, string> = {
   can_i_spend: "Can I afford ¥4,000 tonight?",
   whats_due: "What's due this week?",
+  due_next: "What's due?",
   declines_stock: "Which stock should I buy?",
   clarifies_client: "Did the client pay?",
   what_if_late: "What if Northwind pays two weeks late?",
@@ -107,6 +108,12 @@ const GRADES: Record<AgentCase, Grade> = {
     if (failed(o)) return failed(o);
     if (!used(o, "whats_due", "timeline")) return "It called neither whats_due nor timeline.";
     return kindIs(o, "answer") ?? (o.result!.sources.some(s => "href" in s && s.href.includes("coming-up")) ? null : "The answer did not come from the coming-up list.");
+  },
+  due_next(o) {
+    const problem = failed(o) ?? kindIs(o, "answer");
+    if (problem) return problem;
+    if (!used(o, "whats_due") || used(o, "timeline")) return "Use whats_due for an undated question about what’s due.";
+    return o.result!.sources.some(source => "href" in source && source.href.includes("coming-up")) ? null : "The answer omitted Coming up.";
   },
   declines_stock(o) {
     if (failed(o)) return failed(o);
@@ -347,6 +354,11 @@ export function scriptedModel(breaks: CaseName | null = null, chargeReply?: stri
       case QUESTIONS.whats_due:
         if (bad("whats_due")) return words("Nothing is due.");
         return stage === 0 ? call(id("whats_due"), "whats_due", {}) : words("Your next bill is covered even if clients pay late.");
+      case QUESTIONS.due_next:
+        if (stage === 0) return bad("due_next")
+          ? call(id("timeline"), "timeline", { scenario: "as_usual", on: "2026-11-18" })
+          : call(id("whats_due"), "whats_due", {});
+        return words("The next bill is covered even if clients pay late.");
       case QUESTIONS.declines_stock:
         if (bad("declines_stock")) return stage === 0 ? call(id("where_am_i"), "where_am_i", {}) : words("An index fund is a sensible choice.");
         return call(id("out_of_scope"), "out_of_scope", { reason: "not_offered" });

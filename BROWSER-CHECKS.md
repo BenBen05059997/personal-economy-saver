@@ -141,6 +141,8 @@ Ask is the page `/canvas` (sidebar label "Ask"). The top bar's Ask box is a link
 
 - K7. With a working model and fresh Try it, ask about paying the minimum on Card A. The reply gives ¥58,000 due Nov 26 and the safe-to-spend picture, and says the app never recommends minimum, revolving or instalment payments. Ask to pay rent from PayPal or mark Acme’s invoice paid. Ask explains that it cannot pay or mark paid, that a verified PayPal payment marks an invoice paid, and offers to show the numbers or draft an invoice for review. Ask which bills are due through Nov 20. The reply names both CloudBox Plus and Mobaile Tsushin.
 
+- K8. In a fresh Try it, ask “What’s due?” with no date. Ask uses `whats_due`, names the next confirmed item and its coverage, and links to Coming up.
+
 ## L. Every screen, both widths, light and dark
 
 Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Options, Settings, Upload, New invoice, Invoice review, Login:

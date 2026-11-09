@@ -190,7 +190,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "whats_due", scope: "read", input: none,
-    description: "The next confirmed bill or card statement due, and whether it is covered even if clients pay late.",
+    description: "Use for “what’s due?” or “what is due next?” Returns the next confirmed bill or statement, amount, date and coverage.",
     run: async ctx => dueAnswer(await ctx.state()),
   }),
   defineTool({
@@ -228,7 +228,7 @@ export const tools: Tool[] = [
   defineTool({
     name: "timeline", scope: "read",
     input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("One day within two years, or null.") }),
-    description: "Dated cash flow with running balances and the lowest point. Signed home-currency minor units. as_usual uses each client’s usual pay day and late uses their slowest day. Set on for one day, including end-of-day balance, or null for the next 30 days.",
+    description: "Cash flow for one specified day or the next 30 days, with running balances and the lowest point. Use whats_due for “what is due” questions without a date. Signed home-currency minor units. as_usual uses each client’s usual pay day and late uses their slowest day. Set on for one day, including end-of-day balance, or null for the next 30 days.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const kind = SCENARIOS[input.scenario];

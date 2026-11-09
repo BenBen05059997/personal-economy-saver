@@ -4894,5 +4894,31 @@
       "db:voice-test",
       "D56"
     ]
+  },
+  {
+    "id": "ASK-114",
+    "area": "Ask",
+    "action": "Ask what is due without specifying a date",
+    "user_goal": "I want to know the next confirmed thing due",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it and a working model"
+    ],
+    "steps": [
+      "Ask What's due? without a date"
+    ],
+    "expected": [
+      "The tool step says Reading what's due",
+      "The answer names the next confirmed item and its coverage, and Based on links to Coming up"
+    ],
+    "refs": [
+      "BROWSER-CHECKS K8",
+      "db:ai-test"
+    ]
   }
 ]
