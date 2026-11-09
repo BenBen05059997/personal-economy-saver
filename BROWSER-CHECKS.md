@@ -461,7 +461,7 @@ Use a fresh Nov 14 Try it household with a configured model. Run at 375px and 14
 - AH2. In a fresh copy ask "I like answers in Japanese. What's due this week?" Tap No on the preference offer. The card disappears and Memory has no such item.
 - AH3. Ask "I'm saving ¥120,000 for a camera by June 30, 2027. What should I plan for?" The offer shows "Goal · Camera · ¥120,000 by 2027-06-30", or the model’s equivalent pot name. In a second tab, Plan has no Camera pot before the tap. Keep creates one pot with target ¥120,000, date June 30, 2027 and saved ¥0.
 - AH4. Move Memory to This device only, then use a fresh standing preference in Ask with "from now on". Keep shows "Kept." and this browser's Memory lists the preference. Another browser has none of that device's memory.
-- AH5. Ask "Keep ¥50,000 safe to spend." The offer says "Keep this? Rule · Flag safe to spend below ¥50,000" with Keep and No. Check in a second tab that Minimum safe to spend is still off. Tap Keep and look for "Kept." Reload Rules. It reads "Flag safe to spend below ¥50,000" with On checked, and Activity shows "Rule changed: Flag safe to spend below ¥50,000".
+- AH5. Ask "Keep ¥50,000 safe to spend." The offer says "Keep this? Rule · Flag safe to spend below ¥50,000" with Keep and No. Check in a second tab that Minimum safe to spend is still off. Tap Keep and look for "Kept." Reload Rules. It reads "Flag safe to spend below ¥50,000" with On checked, and Activity shows "Rule changed: Flag safe to spend below ¥50,000". A supported reminder or savings wish also gets a Keep this? offer, with a clarifying question if details are missing.
 
 ## AI. Reminders (D65, 29B)
 
