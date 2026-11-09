@@ -92,7 +92,7 @@ const covered = [
   // bank-balance.ts, bills.ts, charges.ts, clients.ts, confirm.ts
   "setBankBalance", "confirmBalanceUpdate", "insertBill", "removeBill", "updateBill", "insertCharge", "removeCharge", "insertClient", "confirmPending",
   // daily.ts, demo.ts, document-cleanup.ts, event-feed.ts
-  "runDaily", "findDemoHousehold", "tryItKind", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
+  "runDaily", "findDemoHousehold", "tryItKind", "advanceTryItDate", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
   // D64–D66 suggestions and standing rules
   "seedRules", "rulesFor", "setStandingRule", "changeStandingRule", "runPass", "openSuggestions", "dismiss", "notNow", "closeByRef",
   // D65 reminders.ts
@@ -1092,6 +1092,17 @@ async function main() {
       assert.equal((await fingerprint(uid)).text, accountBefore);
       await bothUntouched("replacing the visitor's own demo");
       await F.deleteHousehold(store, named);
+    });
+    await check("advanceTryItDate: a fixture advances under its tenant role, while other households keep their date and findings", async () => {
+      const tryIt = await seedBen(db, { isDemo: true });
+      const real = await seedBen(db);
+      assert.equal(await F.advanceTryItDate(store, tryIt, "2026-11-15"), "2026-11-15");
+      assert.equal(await F.householdDate(store, tryIt), "2026-11-15");
+      assert.equal(await F.advanceTryItDate(store, real, "2026-11-15"), null);
+      await assert.rejects(F.withHousehold(store, tryIt, tx => F.advanceTryItDate(tx, B.hid, "2026-11-15")), /Cannot change households/);
+      await bothUntouched("advanceTryItDate");
+      await F.deleteHousehold(store, tryIt);
+      await F.deleteHousehold(store, real);
     });
     await check("demo functions: find, reset, delete and cleanup name one household and leave A and B as they were", async () => {
       const [c1, c2, c3, c4] = [await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true })];

@@ -210,6 +210,54 @@ async function main() {
     Object.assign(process.env, savedEnv);
     ok("/api/ask, real answerQuestion: a memory/place mismatch is 400 with its sentence; no AI settings is an error line with words");
 
+    // The guarded QA clock calls the real in-app suggestion pass in PGlite.
+    {
+      const advance = (await import("@/app/api/try/date/route")).POST as Handler;
+      const path = "/api/try/date";
+      const dateForm = (date: string) => new URLSearchParams({ date });
+      const beforeFlag = process.env.NEXT_PUBLIC_QA_TOOLS;
+      const fixture = await seedBen(db, { isDemo: true });
+      const blank = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ fixedToday: null }).where(eq(schema.households.id, blank));
+      try {
+        cookie = fixture;
+        delete process.env.NEXT_PUBLIC_QA_TOOLS;
+        assert.equal((await advance(post(path, dateForm("2026-11-15")))).status, 404);
+        process.env.NEXT_PUBLIC_QA_TOOLS = "1";
+        assert.equal((await advance(post(path, dateForm("2026-11-15"), { origin: "http://evil.example" }))).status, 403);
+        cookie = null;
+        assert.equal((await advance(post(path, dateForm("2026-11-15")))).status, 401);
+        cookie = blank;
+        assert.equal((await advance(post(path, dateForm("2026-11-15")))).status, 403);
+        cookie = fixture;
+        assert.equal((await advance(post(path, dateForm("2026-02-30")))).status, 400);
+        const moved = await advance(post(path, dateForm("2026-11-15")));
+        assert.equal(moved.status, 200);
+        assert.equal(moved.headers.get("cache-control"), "private, no-store");
+        assert.deepEqual(await moved.json(), { today: "2026-11-15" });
+        const [household] = await db.select({ today: schema.households.fixedToday }).from(schema.households)
+          .where(eq(schema.households.id, fixture));
+        assert.equal(household.today, "2026-11-15");
+        const findings = await db.select().from(schema.suggestions).where(eq(schema.suggestions.householdId, fixture));
+        assert.ok(findings.some(row => row.title === "CloudBox Plus due Nov 18" && row.createdOn === "2026-11-15"
+          && row.reason.startsWith("¥1,980,")), "a new finding uses the advanced date");
+        assert.equal((await advance(post(path, dateForm("2026-11-15")))).status, 400);
+        assert.equal((await advance(post(path, dateForm("2026-11-14")))).status, 400);
+        await db.delete(schema.standingRules).where(and(eq(schema.standingRules.householdId, fixture),
+          eq(schema.standingRules.kind, "bill_ahead")));
+        const multipart = new FormData();
+        multipart.set("date", "2026-11-16");
+        assert.equal((await advance(post(path, multipart))).status, 503, "a failed pass refuses the date change");
+        const [after] = await db.select({ today: schema.households.fixedToday }).from(schema.households)
+          .where(eq(schema.households.id, fixture));
+        assert.equal(after.today, "2026-11-15", "the failed pass and rejected dates leave the clock unchanged");
+      } finally {
+        if (beforeFlag === undefined) delete process.env.NEXT_PUBLIC_QA_TOOLS;
+        else process.env.NEXT_PUBLIC_QA_TOOLS = beforeFlag;
+      }
+    }
+    ok("the guarded QA date route advances only Try it, runs suggestions on the new date and rolls back a failed pass");
+
     // Stage 32D. Real route and runner, simulated Anthropic responses only.
     const privateHid = await seedBen(db, { isDemo: true });
     cookie = privateHid;
