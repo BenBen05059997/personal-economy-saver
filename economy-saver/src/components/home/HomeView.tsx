@@ -16,8 +16,7 @@ import { PanelHint } from "@/components/ui/PanelHint";
 import { BankBalance } from "./BankBalance";
 import { RunwayChart } from "./RunwayChart";
 import { homeSentence } from "@/lib/money/sentence";
-import { Suspense } from "react";
-import { Pinned } from "./Pinned";
+import { Suspense, type ReactNode } from "react";
 import { Sentence } from "./Sentence";
 import { cardSummary } from "./card-summary";
 import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
@@ -274,7 +273,7 @@ function addedLine(state: MoneyState, id: string | null): string | null {
   return charge && card ? `Added ${charge.merchant} ${format(charge.amount)} on ${card.label}` : null;
 }
 
-export function HomeView({ state, inbox, notice, people, entryIds, balanceId, demo, tryIt, forwarding, added, suggestions }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; people: People; entryIds: EntryIds; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>> }) {
+export function HomeView({ state, inbox, notice, people, entryIds, balanceId, demo, tryIt, forwarding, added, suggestions, pins }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; people: People; entryIds: EntryIds; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode }) {
   const date = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(state.today)).replace(",", "");
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
@@ -283,7 +282,7 @@ export function HomeView({ state, inbox, notice, people, entryIds, balanceId, de
     {demo && tryIt && <p className="home-demo">A fictional household that lives in this browser for seven days after your last change. <Link prefetch={false} href="/start">Start with my numbers ›</Link></p>}
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} forwarding={forwarding} />
-    <Suspense fallback={null}><Pinned state={state} /></Suspense>
+    <Suspense fallback={null}>{pins}</Suspense>
     <div className="home-panels">
       <div className="home-column"><Next30Days state={state} balanceId={balanceId} /><Cards state={state} /><SharedCosts state={state} /></div>
       <div className="home-column"><FirstSteps state={state} tryIt={tryIt} /><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><ComingUp state={state} people={people} entryIds={entryIds} added={addedLine(state, added)} addedId={added} /></div>

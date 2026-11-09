@@ -1,6 +1,7 @@
 import { ApiForm } from "@/components/ui/ApiForm";
 import { listCanvases, type PinnedCanvas } from "@/db/canvases";
 import { db } from "@/db/client";
+import { householdDate } from "@/db/account";
 import { withHousehold } from "@/db/household";
 import { generalSpace } from "@/db/spaces";
 import { readPlaces } from "@/db/place";
@@ -10,7 +11,6 @@ import { loadSpending } from "@/db/spending";
 import { CanvasError, resolveRecipe, type CanvasContext, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { HISTORY_MONTHS, monthBounds, monthsBack } from "@/lib/money/spending";
 import type { MoneyState } from "@/lib/money/types";
-import { currentHouseholdId } from "@/lib/session";
 
 function PinForm({ pin, kind, direction, label, disabled }: { pin: PinnedCanvas; kind: "move" | "unpin"; direction?: "up" | "down"; label: string; disabled?: boolean }) {
   return <ApiForm action="/api/canvases" className="home-pin-form">
@@ -21,24 +21,27 @@ function PinForm({ pin, kind, direction, label, disabled }: { pin: PinnedCanvas;
   </ApiForm>;
 }
 
-/**
- * The canvases pinned to Home (D57), in order, drawn here by the engine from the saved recipe: no model call. A pin that cannot be drawn
- * (a client or bill it names is gone, so the whole recipe is refused) says why and offers Unpin. With no pins this renders nothing.
- */
-export async function Pinned({ state }: { state: MoneyState }) {
-  const hid = await currentHouseholdId();
-  if (!hid) return null;
-  // Pins kept on this device only (D59) are read in the browser and drawn through the resolve route; the server holds none of them.
-  const current = state.today.slice(0, 7);
-  const saved = await withHousehold(db(), hid, async tx => {
+/** Start with Home’s validated household id, while the rest of Home is loading. */
+export function loadHomePins(hid: string) {
+  return withHousehold(db(), hid, async tx => {
     if ((await readPlaces(tx, hid)).canvases === "device") return { place: "device" as const, generalId: (await generalSpace(tx, hid)).id };
     const pins = await listCanvases(tx, hid);
     if (!pins.length) return null;
+    const current = (await householdDate(tx, hid)).slice(0, 7);
     const spending = await loadSpending(tx, hid, { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last });
     return { place: "cloud" as const, pins, spending };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
+/** Draw the saved recipes with Home’s state. Device pins are resolved by the browser. */
+export async function Pinned({ householdId, state, pins: pending }: {
+  householdId: string;
+  state: MoneyState;
+  pins: ReturnType<typeof loadHomePins>;
+}) {
+  const saved = await pending;
   if (!saved) return null;
-  if (saved.place === "device") return <DevicePins householdId={hid} generalId={saved.generalId} />;
+  if (saved.place === "device") return <DevicePins householdId={householdId} generalId={saved.generalId} />;
   const { pins, spending } = saved;
   const context: CanvasContext = { state, spending };
   return <section id="pins" className="home-pins" aria-label="Pinned canvases">

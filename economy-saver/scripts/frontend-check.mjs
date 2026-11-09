@@ -695,7 +695,15 @@ await step("action", "pin-a-canvas-home-draws-it-and-unpin-removes-it", async ()
   const recipe = JSON.stringify({ version: 1, title: "Fictional pin check", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] });
   const pinned = await request("/api/canvases", { method: "POST", form: { kind: "pin", title: "Fictional pin check", recipe, returnTo: "/" } });
   expect(pinned.response.status === 303 && pinned.response.headers.get("location") === "/", "pin-status");
+  const task = await request("/api/spaces", { method: "POST", form: { kind: "create", name: "Fictional pin task" } });
+  const spacePath = task.response.headers.get("location") ?? "";
+  const spaceId = /^\/canvas\?space=([0-9a-f-]{36})$/.exec(spacePath)?.[1];
+  expect(task.response.status === 303 && spaceId, "pin-task-created");
+  const taskPin = await request("/api/canvases", { method: "POST", form: { kind: "pin", title: "Fictional task-only pin", recipe, spaceId, returnTo: spacePath } });
+  expect(taskPin.response.status === 303 && taskPin.response.headers.get("location") === spacePath, "pin-task-status");
+  await page(spacePath, /Fictional task-only pin/);
   const home = await page("/", /Fictional pin check/);
+  expect(!/Fictional task-only pin/.test(pageContent(home)), "task-pin-stays-off-home");
   expect(/Cash today/.test(pageContent(home)) && /Move up/.test(pageContent(home)) && /Unpin/.test(pageContent(home)), "pin-drawn-on-home");
   const id = /\/canvas\?pin=([0-9a-f-]{36})/.exec(home)?.[1];
   expect(id, "pin-id");
@@ -705,6 +713,8 @@ await step("action", "pin-a-canvas-home-draws-it-and-unpin-removes-it", async ()
   expect(gone.response.status === 303, "unpin-status");
   const after = await request("/");
   expect(!/Fictional pin check/.test(pageContent(after.body)), "pin-removed");
+  const removedTask = await request("/api/spaces", { method: "POST", form: { kind: "delete", id: spaceId } });
+  expect(removedTask.response.status === 303, "pin-task-removed");
   const kinds = (await events()).events.map(event => event.kind);
   expect(kinds.includes("canvas_pinned") && kinds.includes("canvas_unpinned"), "pin-events");
 });

@@ -218,10 +218,10 @@
     "steps": [
       "Choose Pin to this space on an Ask canvas in Tax for March",
       "Open General and choose Pin to Home on a different canvas",
-      "Open Home and then return to Tax for March"
+      "Open Home, reload it, and then return to Tax for March"
     ],
     "expected": [
-      "Home draws the General pin",
+      "Home draws the same General pin and numbers after reload",
       "The task pin opens from Pinned in this space in Tax for March and is absent from Home"
     ],
     "refs": [
