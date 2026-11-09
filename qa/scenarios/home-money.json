@@ -2292,7 +2292,7 @@
       "Open + Add on Home and again from Plan"
     ],
     "expected": [
-      "Order is Add a bill, Add a card charge, Forward a bill, Upload a receipt, New invoice",
+      "Order is Add a bill, Add a card charge, Forward a bill when forwarding is set up, Upload a receipt, New invoice",
       "From Plan the items go to Home with the form open on the right tab and scrolled into view"
     ],
     "refs": [

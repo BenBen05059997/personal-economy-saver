@@ -300,8 +300,8 @@
   {
     "id": "REM-011",
     "area": "Reminders",
-    "action": "Open Reminders in an unsupported browser",
-    "user_goal": "I want a clear explanation when this browser cannot receive push",
+    "action": "Open Push settings without a server key",
+    "user_goal": "I want to know why push is off when its setup is incomplete",
     "type": "edge",
     "priority": "P2",
     "needs": [
@@ -309,20 +309,19 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with WEB_PUSH_PUBLIC_KEY unset",
       "375px and 1440px widths",
-      "Fresh Ben Try it on Nov 14",
-      "A browser without Push API support"
+      "Fresh Ben Try it on Nov 14"
     ],
     "steps": [
       "Open Settings and find Push on this device"
     ],
     "expected": [
-      "The panel explains the browser and address requirements",
-      "The turn-on button is disabled"
+      "Push on this device says \"Off. WEB_PUSH_PUBLIC_KEY is not set.\"",
+      "Turn on push is disabled"
     ],
     "refs": [
-      "BROWSER-CHECKS AI7",
+      "BROWSER-CHECKS AI10",
       "D65"
     ]
   },
