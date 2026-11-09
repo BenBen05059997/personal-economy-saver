@@ -510,7 +510,7 @@ Use a separate setup with migration 0028 at 375px and 1440px. Open Memory → Ru
 
 Check at 375px and 1440px in a separate setup with migration 0028. Use a fresh disposable fixture for each check. Open Home after the write to see the immediate finding. The scheduled job stays separate.
 
-- AL1. In Ben’s Nov 14 Try it, add a confirmed Kumo Water bill for ¥2,500 due Nov 17 in Utilities. Home immediately shows "Kumo Water due Nov 17" with "¥2,500, covered even if clients pay late." Review bill opens the saved bill.
+- AL1. In a fresh Ben Nov 14 Try it, type "Kumo Water" into the visible Name field of a fresh Add bill form. Before choosing a category, expect "One-off · Utilities · Change ›". Open More and verify Utilities is already selected. Enter ¥2,500 and Nov 17, then add the bill. Home immediately shows "Kumo Water due Nov 17" with "¥2,500, covered even if clients pay late." Review bill opens the saved bill.
 - AL2. In a Nov 14 fixture with confirmed Kumo Water bills for ¥2,000 in both October and November and the cost rule at 25%, edit November’s amount to ¥2,600. Saving puts the increase on Home with "¥600 more than last month."
 - AL3. In a Nov 14 fixture with a confirmed ¥2,000 Kumo Market food charge in October and the cost rule at 25%, add a ¥2,600 Kumo Market food charge dated Nov 14. Home shows "Kumo Market costs more this month" with "¥600 more than last month so far."
 - AL4. Prepare a ¥2,500 pending Kumo Water bill due Nov 17 in a Nov 14 fixture. Leave the fixture’s suggestion pass untouched after inserting the pending row. Confirm in To check. Home shows the new due-bill finding and links to Review bill. For a pending bill whose existing finding opens To check, AG2 checks that confirmation instead leaves it approved.
