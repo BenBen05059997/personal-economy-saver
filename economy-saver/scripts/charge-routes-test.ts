@@ -1,5 +1,6 @@
 // D62 inputs: /api/charges with the original amount and currency (both or neither, a blank dropped, the card's own currency refused)
 // and the card's foreign transaction fee through /api/settings (2.2 -> 220 basis points, empty clears, over 10 refused, absent leaves it).
+// SEC-002 checks writes and removals against a second household's ids.
 // Route handlers are called directly with a hand-built form Request over PGlite (same stand-ins as ask-routes-test.ts). Fictional data only.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/charge-routes-test.ts
 import assert from "node:assert/strict";
@@ -11,6 +12,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
+import { createFamilyLink } from "@/db/family-links";
 
 type Handler = (request: Request) => Promise<Response>;
 const ORIGIN = "http://127.0.0.1:3123";
@@ -36,6 +38,10 @@ async function main() {
     process.env.APP_URL = ORIGIN;
     const charges = (await import("@/app/api/charges/route")).POST as Handler;
     const settings = (await import("@/app/api/settings/route")).POST as Handler;
+    const bills = (await import("@/app/api/bills/route")).POST as Handler;
+    const clients = (await import("@/app/api/clients/route")).POST as Handler;
+    const remove = (await import("@/app/api/remove/route")).POST as Handler;
+    const familyLinks = (await import("@/app/api/family-links/route")).POST as Handler;
     const form = (path: string, fields: Record<string, string>) => new Request(`${ORIGIN}${path}`, { method: "POST", body: new URLSearchParams(fields), headers: { origin: ORIGIN, host: "127.0.0.1:3123" } });
     const [card] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)).orderBy(schema.cards.createdAt);
     const today = "2026-11-14";
@@ -76,6 +82,46 @@ async function main() {
     assert.equal((await fee("0")).status, 200); assert.equal(await bp(), 0);
     assert.equal((await fee("")).status, 200); assert.equal(await bp(), null, "empty clears");
     ok("/api/settings card: 2.2 is 220 basis points, 0 to 10 accepted, over 10 or more than two decimals refused, empty clears, absent leaves it");
+
+    const other = await seedBen(db, { isDemo: true, name: "Fictional second household" });
+    const [{ id: otherBill }] = await db.select({ id: schema.bills.id }).from(schema.bills).where(eq(schema.bills.householdId, other)).limit(1);
+    const [{ id: otherCard }] = await db.select({ id: schema.cards.id }).from(schema.cards).where(eq(schema.cards.householdId, other)).limit(1);
+    const [{ id: otherCharge }] = await db.select({ id: schema.charges.id }).from(schema.charges).where(eq(schema.charges.householdId, other)).limit(1);
+    const [{ id: otherClient }] = await db.select({ id: schema.clients.id }).from(schema.clients).where(eq(schema.clients.householdId, other)).limit(1);
+    const { info: otherLink } = await createFamilyLink(db, other);
+    const records = () => Promise.all([
+      db.select().from(schema.bills).orderBy(schema.bills.id),
+      db.select().from(schema.cards).orderBy(schema.cards.id),
+      db.select().from(schema.charges).orderBy(schema.charges.id),
+      db.select().from(schema.clients).orderBy(schema.clients.id),
+      db.select().from(schema.familyLinks).orderBy(schema.familyLinks.id),
+      db.select().from(schema.events).orderBy(schema.events.id),
+    ]);
+    const before = await records();
+    async function responseMatches(response: Response, status: number, message: string) {
+      assert.equal(response.status, status, message);
+      assert.equal(await response.text(), message);
+    }
+
+    await responseMatches(await charges(form("/api/charges", charge({ id: otherCharge }))), 400, "Choose a charge of this household");
+    await responseMatches(await clients(form("/api/clients", { id: otherClient, name: "Fictional client", email: "client@example.test", termsDays: "14" })), 400, "Choose a client of this household");
+    await responseMatches(await remove(form("/api/remove", { kind: "bill", id: otherBill })), 400, "Choose a bill of this household");
+    await responseMatches(await remove(form("/api/remove", { kind: "charge", id: otherCharge })), 400, "Choose a charge of this household");
+    await responseMatches(await bills(form("/api/bills", {
+      kind: "edit", id: otherBill, biller: "Fictional bill", amount: "100", due: today, category: "other", businessShare: "personal",
+    })), 400, "Choose a bill of this household");
+    await responseMatches(await settings(form("/api/settings", {
+      kind: "card", id: otherCard, label: "Fictional card", memberId: "", closingDay: "15", dueDay: "5", limit: "",
+    })), 400, "Card no longer exists");
+    await responseMatches(await familyLinks(form("/api/family-links", { kind: "stop", id: otherLink.id })), 200, "That link has already ended.");
+    assert.deepEqual(await records(), before, "foreign ids leave both households’ records and Activity alone");
+    ok("SEC-002: foreign charge and client ids, bill and card edits, and removal or stop requests return the expected response without changing either household's records");
+
+    const removeOwnCharge = () => remove(form("/api/remove", { kind: "charge", id: plain.id }));
+    assert.equal((await removeOwnCharge()).status, 303);
+    await responseMatches(await removeOwnCharge(), 400, "Choose a charge of this household");
+    assert.equal((await db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, "charge_removed"), eq(schema.events.refId, plain.id)))).length, 1);
+    ok("/api/remove charge: the first request redirects and records one event, the second is refused");
   } finally {
     loader._load = realLoad;
     await pg.close();

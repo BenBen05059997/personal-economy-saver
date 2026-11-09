@@ -2351,7 +2351,7 @@
   {
     "id": "SEC-002",
     "area": "Security",
-    "action": "Edit another household's bill, card, charge or client by id",
+    "action": "Use another household's ids in write requests",
     "user_goal": "a stolen id must not work",
     "type": "security",
     "priority": "P1",
@@ -2364,16 +2364,24 @@
       "Ids copied from a second household"
     ],
     "steps": [
-      "POST /api/bills (edit), /api/charges, /api/clients and /api/remove with the other household's id",
-      "POST /api/settings kind=card with the other household's card id",
-      "POST /api/family-links kind=stop with the other household's link id"
+      "With household A's session, POST /api/bills (kind=edit), /api/charges, and /api/clients with household B's bill, charge, and client ids. Use A's own card in the charge form.",
+      "POST /api/remove kind=bill and kind=charge with B's bill and charge ids",
+      "POST /api/settings kind=card with B's card id",
+      "POST /api/family-links kind=stop with B's live link id"
     ],
     "expected": [
-      "Each is refused (\"Choose a bill of this household\", \"Card no longer exists\", invalid, or the link is not found) and neither household changes"
+      "/api/bills returns 400 \"Choose a bill of this household\"",
+      "/api/charges returns 400 \"Choose a charge of this household\"",
+      "/api/clients returns 400 \"Choose a client of this household\"",
+      "/api/remove kind=bill returns 400 \"Choose a bill of this household\"",
+      "/api/remove kind=charge returns 400 \"Choose a charge of this household\"",
+      "/api/settings returns 400 \"Card no longer exists\"",
+      "/api/family-links returns 200 \"That link has already ended.\" and B’s link stays live",
+      "Neither household's records or Activity change"
     ],
     "refs": [
+      "db:charge-routes-test",
       "db:isolation-test",
-      "frontend-check --run",
       "AGENTS.md rule 6"
     ]
   },

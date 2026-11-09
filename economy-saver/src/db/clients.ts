@@ -25,7 +25,9 @@ export async function insertClient(db: Db, householdId: string, input: z.infer<t
       }
       return data.id;
     }
-    await tx.insert(clients).values({ id: data.id, householdId: hid, name: data.name, email: data.email, termsDays: data.termsDays });
+    const [inserted] = await tx.insert(clients).values({ id: data.id, householdId: hid, name: data.name, email: data.email, termsDays: data.termsDays })
+      .onConflictDoNothing({ target: clients.id }).returning({ id: clients.id });
+    if (!inserted) throw new InputError("Choose a client of this household");
     await recordEvent(tx, hid, { madeBy: "form", kind: "client_added", title: `${data.name} added as a client`, ref: { type: "client", id: data.id } });
     return data.id;
   });

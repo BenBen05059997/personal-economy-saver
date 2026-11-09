@@ -675,13 +675,13 @@ await step("action", "bill-with-thousands-separator-saved-and-removed", async ()
   const removed = await request("/api/remove", { method: "POST", form: { kind: "bill", id, returnTo: "/settings" }, extraHeaders: { "x-form-fetch": "1" } });
   expect(removed.response.status === 204 && removed.response.headers.get("x-form-redirect") === "/settings", "remove-form-result");
   const gone = await request("/api/remove", { method: "POST", form: { kind: "bill", id } });
-  expect(gone.response.status === 303 && gone.response.headers.get("location") === "/", "remove-twice-native-result");
+  expect(gone.response.status === 400 && gone.body === "Choose a bill of this household", "remove-twice-native-result");
   const data = await events();
   expect(data.events.filter(event => event.kind === "bill_removed" && event.refId === id).length === 1, "remove-single-event");
 });
 await step("guard", "remove-with-bad-fields-refused", async () => {
-  const result = await request("/api/remove", { method: "POST", form: { kind: "pot", id: "nope" } });
-  expect(result.response.status === 400, "remove-bad-fields-status");
+  const result = await request("/api/remove", { method: "POST", form: { kind: "bill", id: "x" } });
+  expect(result.response.status === 400 && result.body === "Check the required fields and try again.", "remove-bad-fields-result");
 });
 await step("read", "confirm-single-event", async () => {
   expect(bill, "seed-bill");

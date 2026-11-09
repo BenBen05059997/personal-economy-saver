@@ -1879,7 +1879,7 @@
     "id": "CHG-011",
     "area": "Charges",
     "action": "Remove the same charge twice",
-    "user_goal": "A second tap is not an error",
+    "user_goal": "A retry must not record a second removal",
     "type": "edge",
     "priority": "P3",
     "needs": [
@@ -1893,9 +1893,10 @@
       "POST /api/remove kind charge twice with the same id"
     ],
     "expected": [
-      "Both redirect; nothing breaks and only one removed event exists"
+      "The first request redirects and the second returns 400 \"Choose a charge of this household\". Only one removed event exists."
     ],
     "refs": [
+      "db:charge-routes-test",
       "db:doors-test"
     ]
   },
@@ -1917,9 +1918,10 @@
       "As household A, POST /api/remove with B's charge id"
     ],
     "expected": [
-      "B's charge is untouched"
+      "/api/remove returns 400 \"Choose a charge of this household\" and B’s charge is untouched"
     ],
     "refs": [
+      "db:charge-routes-test",
       "db:isolation-test"
     ]
   },
@@ -2345,10 +2347,11 @@
       "POST with id 'x'"
     ],
     "expected": [
-      "The first twice redirects with no error",
-      "The bad id answers 400 'Check the required fields and try again.'"
+      "The first request redirects and the second returns 400 \"Choose a bill of this household\"",
+      "The bad id answers 400 \"Check the required fields and try again.\""
     ],
     "refs": [
+      "frontend-check --run",
       "db:doors-test"
     ]
   },

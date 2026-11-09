@@ -263,8 +263,13 @@ export async function removeBill(db: Db, householdId: string, id: string): Promi
   return withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ id: households.id, previous: households.runwayShort }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new InputError("Household not found");
-    if (household.previous === null) await observeRunway(tx, hid);
-    const [row] = await tx.delete(bills).where(and(eq(bills.householdId, hid), eq(bills.id, billId))).returning();
+    const target = and(eq(bills.householdId, hid), eq(bills.id, billId));
+    if (household.previous === null) {
+      const [exists] = await tx.select({ id: bills.id }).from(bills).where(target);
+      if (!exists) return false;
+      await observeRunway(tx, hid);
+    }
+    const [row] = await tx.delete(bills).where(target).returning();
     if (!row) return false;
     await recordEvent(tx, hid, { madeBy: "form",
       kind: "bill_removed", title: `Removed bill ${row.biller}${row.amountMinor === null ? "" : ` ${minorMoney(row.amountMinor, Currency.parse(row.currency))}`}`,

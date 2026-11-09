@@ -1661,7 +1661,7 @@
     "id": "SET-025",
     "area": "Settings",
     "action": "Remove a bill twice or another household's bill",
-    "user_goal": "The second tap or a forged id",
+    "user_goal": "A retry or forged id must leave other records alone",
     "type": "security",
     "priority": "P2",
     "needs": [
@@ -1677,11 +1677,13 @@
       "POST with a non-UUID id"
     ],
     "expected": [
-      "The second removal finds nothing and is not an error",
-      "The other household's bill is untouched",
+      "The first removal redirects and the second returns 400 \"Choose a bill of this household\"",
+      "The other household’s id returns 400 \"Choose a bill of this household\" and its bill stays",
       "A bad id answers 400 \"Check the required fields and try again.\""
     ],
     "refs": [
+      "frontend-check --run",
+      "db:charge-routes-test",
       "db:isolation-test"
     ]
   },

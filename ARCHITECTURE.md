@@ -475,7 +475,7 @@ the link.
 ### 4. Typed in, or imported
 
 **The forms.** A client, a bill and a card charge post to `/api/clients`, `/api/bills` and `/api/charges`; each writes a confirmed row and an event,
-and the engine recomputes. A bill is one row with a Repeat choice (D41): `repeat_unit` `month` (the due date's day in `repeat_day`) or `year` (the
+and the engine recomputes. A charge or client id that belongs to another household is refused with HTTP 400 and the same words as any id unavailable to the household for that write. A bill is one row with a Repeat choice (D41): `repeat_unit` `month` (the due date's day in `repeat_day`) or `year` (the
 due date's month and day, 29 Feb on the 28th in a common year) or null for a one-off, an optional `next_amount_minor` from `next_amount_from`, an
 optional `cancel_by` that is information only, and `repeat_until` for the last payment; `checkSchedule` in `src/db/bills.ts` refuses a schedule that
 does not hang together, and the reader's review card and `add_bill` take the same fields. Every bill and charge carries a `category` key and a
@@ -498,7 +498,7 @@ and new values) and `/api/pots/remove` (`removePot`); the agent's `add_pot` make
 Mar 2027" and `confirmPending` confirms; the engine starts the runway from `availableCash` (bank + PayPal less confirmed pots) so every number
 agrees. People and settlement (D45): `/api/people` adds, renames and sets shares; `/api/settle` records a transfer in `settlements`. A bill or a
 card charge is removed through `/api/remove` (`removeBill`, `removeCharge`: deleted by id inside the household, a `bill_removed` or
-`charge_removed` event, and a confirmed charge is taken back out of the stored statement of its cycle). `confirmPending` (`src/db/confirm.ts`)
+`charge_removed` event, and a confirmed charge is taken back out of the stored statement of its cycle). A valid id with no matching row in the household, including one already removed or from another household, returns 400 with “Choose a bill of this household” or “Choose a charge of this household”. `confirmPending` (`src/db/confirm.ts`)
 confirms the agent's pending bill, charge, balance or pot from To check.
 
 **Goal pace (D66).** Plan and the Goals tab at `/memory?tab=goals` use `goalPace` over confirmed pots with a target amount and date. The pot’s creation date in the household time zone anchors the pace. Try it stamps new pots on its fixed day. The calculation uses whole minor units for the amount expected by today, the difference from actual saving and the monthly amount remaining. A date at the observed pace needs both elapsed days and some savings. The same calculation serves the `goal_behind` finding, the `goals` read tool in Ask and MCP and the canvas progress query. The Goals tab links each pot to `/plan#pot-<id>`.
