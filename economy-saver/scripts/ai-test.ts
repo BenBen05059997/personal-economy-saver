@@ -16,12 +16,14 @@ import { firstUse, MODEL_HINT } from "@/lib/agent/reply";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { AGENT_CASES, CASE_NAMES, gradeOutcome, runEval, scriptedModel, type Outcome } from "./model-eval-cases";
 import { callModel } from "@/lib/ai/call";
-import { checkConnection } from "@/lib/ai/check";
+import { listModels, markListedModels } from "@/lib/ai/list-models";
+import { CHECK_NAMES, checkConnection } from "@/lib/ai/check";
+import { CONNECTION_BILL } from "@/lib/ai/connection-bill";
 import { isTested, TESTED } from "@/lib/ai/tested";
 import { fakeModel, type FakeMode } from "./ai-fake";
 import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
 import { unconfirmedAmounts } from "@/lib/ai/number-check";
-import { PROVIDERS, tokenParamFor } from "@/lib/ai/providers";
+import { PROVIDERS, providerFromKey, tokenParamFor } from "@/lib/ai/providers";
 import { ModelError, type Connection, type ModelRequest } from "@/lib/ai/types";
 
 let passed = 0;
@@ -189,6 +191,137 @@ async function main() {
     assert.equal(tokenParamFor("https://llm.example/v1"), "max_tokens");
   });
 
+  await check("provider inference recognizes only distinctive prefixes while the app default is selected", () => {
+    const examples = [
+      ["sk-ant-fictional-example", "anthropic"],
+      ["sk-or-fictional-example", "openrouter"],
+      ["gsk_fictional_example", "groq"],
+      ["AIza-fictional-example", "gemini"],
+    ] as const;
+    for (const [key, provider] of examples) {
+      assert.equal(providerFromKey(key, ""), provider);
+      assert.equal(providerFromKey(` \t${key}\n `, ""), provider);
+    }
+    for (const key of ["sk-fictional-example", "FictionalMistralKeyExample", "unknown-fictional-key", "example-sk-ant-fictional", "  "]) {
+      assert.equal(providerFromKey(key, ""), undefined);
+    }
+    for (const { id } of PROVIDERS) {
+      assert.equal(providerFromKey("sk-ant-fictional-example", id), undefined, id);
+    }
+  });
+
+  await check("each listed provider has a public HTTPS key page and custom has no link", () => {
+    for (const { id, getKeyUrl } of PROVIDERS) {
+      if (id === "custom") {
+        assert.equal(getKeyUrl, null);
+      } else {
+        assert.ok(getKeyUrl, id);
+        assert.doesNotThrow(() => checkBaseUrl(getKeyUrl, { allowLocal: false }), id);
+      }
+    }
+  });
+
+  await check("Anthropic model listing uses the fixed GET address and API headers, paginates, and shares a ten-second deadline", async () => {
+    const seen: { request: Request; signal?: AbortSignal | null }[] = [];
+    const controller = new AbortController();
+    const deadlines: number[] = [];
+    const realTimeout = AbortSignal.timeout;
+    try {
+      AbortSignal.timeout = ms => { deadlines.push(ms); return controller.signal; };
+      const models = await listModels({ provider: "anthropic", baseUrl: "https://ignored.example/v1", key: SECRET }, { appUrl: APP,
+        fetch: async (input, init) => {
+          seen.push({ request: new Request(input, init), signal: init?.signal });
+          return seen.length === 1
+            ? Response.json({ data: [{ id: "fictional-claude-vision" }], has_more: true, last_id: "fictional cursor" })
+            : Response.json({ data: [{ id: "fictional-claude-next" }], has_more: false });
+        },
+      });
+      assert.deepEqual(models, [{ id: "fictional-claude-vision" }, { id: "fictional-claude-next" }]);
+    } finally { AbortSignal.timeout = realTimeout; }
+    assert.deepEqual(deadlines, [10_000]);
+    assert.equal(seen.length, 2);
+    for (const { request, signal } of seen) {
+      const url = new URL(request.url);
+      assert.equal(url.origin + url.pathname, "https://api.anthropic.com/v1/models");
+      assert.equal(url.searchParams.get("limit"), "1000");
+      assert.equal(request.method, "GET");
+      assert.equal(request.redirect, "error");
+      assert.equal(request.headers.get("x-api-key"), SECRET);
+      assert.equal(request.headers.get("anthropic-version"), "2023-06-01");
+      assert.equal(request.headers.get("authorization"), null);
+      assert.equal(signal, controller.signal);
+    }
+    assert.equal(new URL(seen[0].request.url).searchParams.get("after_id"), null);
+    assert.equal(new URL(seen[1].request.url).searchParams.get("after_id"), "fictional cursor");
+  });
+
+  await check("model listings use the provider's fixed endpoint and only reported tool and image capabilities", async () => {
+    const unknown = { id: "fictional-vision-tools-model" };
+    const endpoints = [
+      ["openai", "https://api.openai.com/v1/models"],
+      ["gemini", "https://generativelanguage.googleapis.com/v1beta/openai/models"],
+      ["groq", "https://api.groq.com/openai/v1/models"],
+      ["mistral", "https://api.mistral.ai/v1/models"],
+      ["openrouter", "https://openrouter.ai/api/v1/models"],
+      ["custom", "https://custom.example/v1/models"],
+    ];
+    for (const [provider, url] of endpoints) {
+      const requests: Request[] = [];
+      const baseUrl = provider === "custom" ? "https://custom.example/v1/" : "https://ignored.example/v1";
+      const key = provider === "custom" ? null : SECRET;
+      const models = await listModels({ provider, baseUrl, key }, { appUrl: APP, fetch: async (input, init) => {
+        requests.push(new Request(input, init));
+        if (provider === "mistral") {
+          return Response.json([unknown, { id: "fictional-small", capabilities: { function_calling: false, vision: true } }]);
+        }
+        if (provider === "openrouter") {
+          return Response.json({ data: [unknown, { id: "fictional/vendor-text", supported_parameters: ["temperature", "tools"],
+            architecture: { input_modalities: ["text"] } }] });
+        }
+        return Response.json({ data: [unknown] });
+      } });
+      assert.equal(requests.length, 1);
+      const [request] = requests;
+      assert.deepEqual([request.url, request.method, request.redirect, request.cache], [url, "GET", "error", "no-store"]);
+      assert.equal(request.headers.get("authorization"), key ? `Bearer ${key}` : null);
+      assert.equal(request.headers.get("x-api-key"), null);
+      const expected = [unknown];
+      if (provider === "mistral") assert.deepEqual(models, [...expected, { id: "fictional-small", tools: false, images: true }]);
+      else if (provider === "openrouter") assert.deepEqual(models, [...expected, { id: "fictional/vendor-text", tools: true, images: false }]);
+      else assert.deepEqual(models, expected);
+    }
+  });
+
+  await check("tested model labels match provider and id without hiding untested or unknown models", () => {
+    const models = [{ id: "shared" }, { id: "local", tools: true }, { id: "unseen", images: false }];
+    const checkedOn = "2026-11-01";
+    assert.deepEqual(markListedModels("mistral", models, [
+      { provider: "openai", model: "shared", checkedOn }, { provider: "mistral", model: "local", checkedOn },
+    ]), [{ ...models[1], tested: true }, { ...models[0], tested: false }, { ...models[2], tested: false }]);
+  });
+
+  await check("model listing refuses redirects, provider errors, malformed or key-echoing lists, and unreachable services", async () => {
+    const connection = { provider: "openai", baseUrl: "", key: SECRET };
+    const expect = async (response: () => Response, words: RegExp) =>
+      assert.rejects(listModels(connection, { appUrl: APP, fetch: async () => response() }), words);
+    await expect(() => Response.json({ error: { message: SECRET } }, { status: 401 }), /refused the request/);
+    await expect(() => Response.json({ models: [{ id: "wrong shape" }] }), /could not read/);
+    await expect(() => Response.json({ data: [{ id: `echo-${SECRET}` }] }), /could not read/);
+    let requests = 0;
+    await assert.rejects(listModels(connection, { appUrl: APP, fetch: async (input, init) => {
+      requests++;
+      const request = new Request(input, init);
+      if (request.redirect === "error") throw new TypeError("Redirect refused by fetch");
+      return Response.redirect("https://redirect.example/models");
+    } }), /Couldn't reach the AI service/);
+    assert.equal(requests, 1);
+    await assert.rejects(listModels(connection, { appUrl: APP, fetch: async () => { throw new Error(SECRET); } }),
+      { message: "Couldn't reach the AI service." });
+    await assert.rejects(listModels({ provider: "custom", baseUrl: "https://10.0.0.1/v1", key: SECRET }, {
+      appUrl: APP, fetch: async () => { assert.fail("blocked address must not be fetched"); },
+    }), /private network/);
+  });
+
   await check("anthropic: the request carries the system text, turns, tools and a forced tool; the reply maps to the neutral shape", async () => {
     const t = fake(() => message("tool_use", [{ type: "text", text: "Checking." }, { type: "tool_use", id: "tu_1", name: "look", input: { what: "rent" } }]));
     const reply = await callModel({ ...REQUEST, connection: anthropic, fetch: t.fetch, tools: TOOLS, turns: [
@@ -332,44 +465,80 @@ async function main() {
     assert.equal(t.seen[0].url.href, "http://localhost:11434/v1/chat/completions");
   });
 
-  await check("checkConnection: a good model passes the three cases on both protocols, with no key leaving the connection's own host", async () => {
+  await check("checkConnection: text and image pass on both protocols, with the bill image sent only to the document model", async () => {
     for (const connection of [anthropic, openai]) {
       const t = fakeModel("good");
       const result = await checkConnection(connection, { fetch: t.fetch, appUrl: APP });
-      assert.deepEqual(result.passed, ["uses_tools", "ignores_injection", "stays_on_money"], connection.protocol);
+      assert.deepEqual(result.passed, CHECK_NAMES, connection.protocol);
       assert.deepEqual(result.failed, []);
       assert.ok(!Number.isNaN(Date.parse(result.at)));
-      assert.ok(t.seen.length >= 4 && t.seen.every(s => s.model === "m-text" && s.url.startsWith(connection.baseUrl)));
+      assert.equal(t.seen.length, 5);
+      assert.ok(t.seen.every(request => new URL(request.url).origin === new URL(connection.baseUrl).origin));
+      const images = t.seen.filter(request => request.image);
+      assert.equal(images.length, 1);
+      assert.ok(t.seen.filter(request => !request.image).every(request => request.model === "m-text" && request.tools > 0));
+      const [image] = images;
+      assert.equal(image.model, "m-doc");
+      assert.equal(image.tools, 0);
+      assert.match(image.question, /Read the total in yen from this bill image/);
+      assert.doesNotMatch(image.question, /6,?173/);
+      assert.deepEqual(image.image, connection.protocol === "anthropic"
+        ? { type: "image", source: { type: "base64", media_type: CONNECTION_BILL.mime, data: CONNECTION_BILL.base64 } }
+        : { type: "image_url", image_url: { url: `data:${CONNECTION_BILL.mime};base64,${CONNECTION_BILL.base64}` } });
       assert.ok(!JSON.stringify(result).includes(SECRET));
     }
   });
 
-  await check("checkConnection: each bad behaviour fails its own case and no other", async () => {
+  await check("checkConnection: each bad behaviour fails only the relevant text or image checks", async () => {
     const expect: [FakeMode, string[]][] = [
-      ["notools", ["uses_tools", "ignores_injection", "stays_on_money"].filter(n => n !== "stays_on_money")],
+      ["notools", ["uses_tools", "ignores_injection"]],
       ["injected", ["ignores_injection"]],
       ["chatty", ["stays_on_money"]],
+      ["noimages", ["reads_images"]],
+      ["wrongimage", ["reads_images"]],
     ];
     for (const connection of [anthropic, openai]) for (const [mode, failed] of expect) {
       const result = await checkConnection(connection, { fetch: fakeModel(mode).fetch, appUrl: APP });
       assert.deepEqual(result.failed.map(f => f.name), failed, `${connection.protocol} ${mode}`);
-      assert.equal(result.passed.length + result.failed.length, 3);
+      assert.equal(result.passed.length + result.failed.length, 4);
       assert.ok(result.failed.every(f => f.why.length > 10));
+      if (mode === "noimages" || mode === "wrongimage") {
+        assert.deepEqual(result.failed, [{ name: "reads_images", why: "It did not read the total from the bill image." }]);
+      }
     }
   });
 
-  await check("checkConnection: a provider error fails the cases in words with the status, and never throws or shows the key", async () => {
+  await check("checkConnection: tested question models skip only the text checks", async () => {
+    for (const connection of [anthropic, openai]) {
+      const model = fakeModel("noimages");
+      const result = await checkConnection(connection, { fetch: model.fetch, appUrl: APP, testedText: true });
+      assert.deepEqual(result.passed, ["uses_tools", "ignores_injection", "stays_on_money"]);
+      assert.deepEqual(result.failed.map(failure => failure.name), ["reads_images"]);
+      assert.equal(model.seen.length, 1);
+      assert.equal(model.seen[0].model, connection.documentModel);
+      assert.ok(model.seen[0].image);
+    }
+  });
+
+  await check("checkConnection: provider errors keep only known failure metadata without provider text or a key", async () => {
     for (const connection of [anthropic, openai]) {
       const result = await checkConnection(connection, { fetch: fakeModel("down").fetch, appUrl: APP });
       assert.equal(result.passed.length, 0);
-      assert.equal(result.failed.length, 3);
-      assert.ok(result.failed.every(f => /refused the request.*401/.test(f.why)), result.failed[0].why);
+      assert.equal(result.failed.length, 4);
+      assert.ok(result.failed.every(f => f.providerFailure === "key" && /refused the request.*401/.test(f.why)), result.failed[0].why);
       assert.ok(!JSON.stringify(result).includes(SECRET));
+      const credit = await checkConnection(connection, { fetch: fakeModel("credit").fetch, appUrl: APP });
+      assert.equal(credit.failed.length, 4);
+      assert.ok(credit.failed.every(f => f.providerFailure === "credit" && !f.why.includes("fictional-billing")));
+      const missing = await checkConnection(connection, { fetch: fakeModel("missingmodel").fetch, appUrl: APP });
+      assert.deepEqual(missing.failed.map(({ name, providerFailure }) => [name, providerFailure]), [["reads_images", "model"]]);
     }
     const none = await checkConnection({ ...openai, textModel: null }, { fetch: fakeModel("good").fetch, appUrl: APP });
-    assert.equal(none.passed.length, 0);
-    const bad = await checkConnection({ ...openai, baseUrl: "https://10.0.0.5/v1" }, { fetch: fakeModel("good").fetch, appUrl: APP });
-    assert.equal(bad.failed.length, 3, "the address rule runs before any request");
+    assert.deepEqual(none.passed, ["reads_images"]);
+    const transport = fakeModel("good");
+    const bad = await checkConnection({ ...openai, baseUrl: "https://10.0.0.5/v1" }, { fetch: transport.fetch, appUrl: APP });
+    assert.equal(bad.failed.length, 4);
+    assert.equal(transport.seen.length, 0, "the address rule runs before any request");
   });
 
   await check("the evaluation's graders: a scripted good model passes every case on both protocols, and the key never reaches a result", async () => {

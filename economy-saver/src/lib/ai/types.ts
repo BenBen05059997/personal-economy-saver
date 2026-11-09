@@ -1,3 +1,5 @@
+import type { ProviderFailureKind } from "./provider-failure";
+
 // The provider-neutral shapes every model call uses (D56). Ask and the reader are written against these only.
 export type Protocol = "anthropic" | "openai"; // "openai" = OpenAI-compatible Chat Completions: POST {baseUrl}/chat/completions
 
@@ -27,5 +29,5 @@ export type Reply = {
 
 /** Messages are fixed and free of secrets, URLs and model output; `status` is the HTTP status when the provider answered. */
 export class ModelError extends Error {
-  constructor(message: string, readonly status?: number, readonly timeout = false) { super(message); }
+  constructor(message: string, readonly status?: number, readonly timeout = false, readonly providerFailure?: ProviderFailureKind) { super(message); }
 }

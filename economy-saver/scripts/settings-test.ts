@@ -1,6 +1,8 @@
 // Isolated SQL contract tests. The test-only Vault double does not claim encryption verification.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import Module from "node:module";
+import { setImmediate as nextTask } from "node:timers/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
@@ -9,7 +11,10 @@ import { and, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { missingAskSetting } from "@/lib/agent/availability";
 import { AiKeyError, deleteHouseholdConnection, deleteHouseholdKey, aiConnection, connectionView, saveHouseholdConnection, unsealAiKey } from "@/db/ai-key";
-import { checkConnection } from "@/lib/ai/check";
+import { CHECK_NAMES, checkConnection } from "@/lib/ai/check";
+import { listModels } from "@/lib/ai/list-models";
+import { providerFailureOf, type ProviderFailureKind } from "@/lib/ai/provider-failure";
+import { modelsFor, scheduleModelChoices } from "@/components/settings/model-choices";
 import { fakeModel, type FakeMode } from "./ai-fake";
 import { seedBen } from "@/db/seed";
 import { parseMinor } from "@/db/money";
@@ -76,7 +81,7 @@ async function main() {
     const own = (hid: string, over: Partial<Parameters<typeof saveHouseholdConnection>[2]> = {}, mode: FakeMode = "good", signedIn = true) => {
       const model = fakeModel(mode);
       return { model, done: saveHouseholdConnection(db, hid, { provider: "openai", baseUrl: "", textModel: "fixture-own", documentModel: "", sameForDocuments: true, key: fictional, ...over },
-        { signedIn, check: connection => checkConnection(connection, { fetch: model.fetch, appUrl: process.env.APP_URL ? new URL(process.env.APP_URL) : APP }) }) };
+        { signedIn, check: (connection, { testedText }) => checkConnection(connection, { fetch: model.fetch, appUrl: process.env.APP_URL ? new URL(process.env.APP_URL) : APP, testedText }) }) };
     };
     const row = async (hid: string) => (await db.select().from(schema.households).where(eq(schema.households.id, hid)))[0];
     const aiEvents = async (hid: string) => (await db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, "ai_model_changed")))).map(e => e.title);
@@ -145,16 +150,66 @@ async function main() {
       const saved = await row(a);
       assert.deepEqual([saved.aiProvider, saved.aiProtocol, saved.aiBaseUrl, saved.aiTextModel, saved.aiDocumentModel], ["openai", "openai", "https://api.openai.com/v1", "fixture-own", "fixture-own"]);
       assert.equal(saved.aiKeyHint, "…aaaa");
-      assert.equal((saved.aiCheck as { passed: string[] }).passed.length, 3);
+      assert.deepEqual((saved.aiCheck as { passed: string[] }).passed, ["uses_tools", "ignores_injection", "stays_on_money", "reads_images"]);
       const view = await connectionView(db, a);
       assert.deepEqual([view?.provider, view?.label, view?.host, view?.textModel, view?.sameForDocuments, view?.hint, view?.tested, view?.check?.failed.length], ["openai", "OpenAI", "api.openai.com", "fixture-own", true, "…aaaa", false, 0]);
       assert.ok(!JSON.stringify(view).includes(fictional));
+      assert.ok(view?.check?.passed.includes("reads_images"));
       const c = await aiConnection(db, a, "document");
       assert.deepEqual(c, { protocol: "openai", baseUrl: "https://api.openai.com/v1", key: fictional, textModel: "fixture-own", documentModel: "fixture-own", own: true });
       const titles = await aiEvents(a);
       assert.deepEqual(titles, ["AI model changed to OpenAI, fixture-own"]);
       assert.ok(titles.every(t => !t.includes(fictional)));
       assert.equal(await vaultCount(), 1);
+    });
+    await check("a document model that cannot read the bill image leaves the previous models and key intact", async () => {
+      const before = await row(a);
+      const events = await aiEvents(a);
+      const secrets = await vaultCount();
+      for (const mode of ["noimages", "wrongimage"] as const) {
+        const { model, done } = own(a, { key: another, textModel: "new-questions", documentModel: "new-documents", sameForDocuments: false }, mode);
+        await assert.rejects(done, {
+          message: "This document model can't be used: It did not read the total from the bill image. Choose a model that reads images.",
+        });
+        assert.deepEqual(model.seen.filter(request => request.image).map(request => request.model), ["new-documents"]);
+      }
+      assert.deepEqual(await row(a), before);
+      assert.deepEqual(await aiEvents(a), events);
+      assert.equal(await vaultCount(), secrets);
+      assert.equal(await aiKey(db, a), fictional);
+    });
+    await check("provider failures on save give fixed words and name the rejected document model", async () => {
+      const before = await row(a);
+      const events = await aiEvents(a);
+      const failures: [FakeMode, string][] = [
+        ["down", "The key was refused by Mistral."],
+        ["missingmodel", "Mistral has no model called fictional-documents."],
+        ["credit", "Mistral says the key is over its limit or out of credit."],
+        ["unreachable", "Couldn’t reach Mistral."],
+      ];
+      for (const [mode, message] of failures) {
+        await assert.rejects(own(a, { provider: "mistral", key: another, textModel: "fictional-questions", documentModel: "fictional-documents", sameForDocuments: false }, mode).done, { message });
+      }
+      assert.deepEqual(await row(a), before);
+      assert.deepEqual(await aiEvents(a), events);
+      assert.equal(await aiKey(db, a), fictional);
+    });
+    await check("a save cannot reuse a key replaced by another save during its check", async () => {
+      const before = await row(a);
+      const events = (await aiEvents(a)).length;
+      const model = fakeModel("good");
+      await assert.rejects(saveHouseholdConnection(db, a, {
+        provider: "openai", baseUrl: "", textModel: "losing-edit", documentModel: "", sameForDocuments: true, key: "",
+      }, { signedIn: true, check: async (connection, { testedText }) => {
+        assert.equal(connection.key, fictional);
+        const check = await checkConnection(connection, { fetch: model.fetch, appUrl: APP, testedText });
+        await own(a, { textModel: "winning-edit", key: another }).done;
+        return check;
+      } }), { message: "The saved key changed during the check. Reload Settings and try again." });
+      const saved = await row(a);
+      assert.equal(saved.aiKeySecretId, before.aiKeySecretId, "the competing save replaced the key in the same Vault entry");
+      assert.deepEqual([saved.aiTextModel, saved.aiDocumentModel, await aiKey(db, a)], ["winning-edit", "winning-edit", another]);
+      assert.equal((await aiEvents(a)).length, events + 1);
     });
     await check("a new key replaces the Vault secret under the same name; an empty key keeps it for the same provider only", async () => {
       await own(a, { key: another, textModel: "second", sameForDocuments: false, documentModel: "docs" }).done;
@@ -208,13 +263,13 @@ async function main() {
     await check("a model that does not call tools is refused in words and nothing is stored; the other failures are stored and shown", async () => {
       const before = JSON.stringify(await row(a)), events = (await aiEvents(a)).length, secrets = await vaultCount();
       await assert.rejects(own(a, { provider: "mistral", textModel: "no-tools" }, "notools").done, (error: unknown) => error instanceof AiKeyError && /did not call the app's tools/.test(error.message) && !error.message.includes(fictional));
-      await assert.rejects(own(a, { provider: "mistral", textModel: "down" }, "down").done, /refused the request.*401/);
+      await assert.rejects(own(a, { provider: "mistral", textModel: "down" }, "down").done, { message: "The key was refused by Mistral." });
       assert.equal(JSON.stringify(await row(a)), before);
       assert.equal((await aiEvents(a)).length, events);
       assert.equal(await vaultCount(), secrets);
       await own(a, { provider: "mistral", textModel: "careless" }, "injected").done;
       const view = await connectionView(db, a);
-      assert.deepEqual([view?.check?.passed.length, view?.check?.failed.map(f => f.name)], [2, ["ignores_injection"]]);
+      assert.deepEqual([view?.check?.passed.length, view?.check?.failed.map(f => f.name)], [3, ["ignores_injection"]]);
       assert.equal(view?.tested, false);
       assert.equal((await aiEvents(a)).length, events + 1);
     });
@@ -413,6 +468,204 @@ async function main() {
       }
       const count = await pg.query<{ n: number }>("select count(*)::integer as n from vault.secrets");
       assert.equal(count.rows[0].n, 0);
+    });
+    await check("the model list POST uses typed keys once, reuses a saved key only at its endpoint, and caps its own requests", async () => {
+      process.env.APP_URL = APP.href;
+      const hid = await finishSetup(db, randomUUID(), setupForm.parse({
+        name: "Fictional Catalogue Owner", currency: "USD", timeZone: "Asia/Tokyo", bank: "12.37",
+      }), null);
+      const baseUrl = "https://catalogue.example/v1";
+      await own(hid, { provider: "custom", baseUrl }).done;
+      const before = await row(hid);
+      const events = await aiEvents(hid);
+      const secrets = await vaultCount();
+      const loader = Module as unknown as {
+        _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+        _resolveFilename: (request: string, parent: unknown, isMain: boolean) => string;
+      };
+      const realLoad = loader._load;
+      const realFetch = globalThis.fetch;
+      const requests: Request[] = [];
+      let failKey = false;
+      loader._load = function (request, parent, isMain) {
+        const path = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
+        if (path.endsWith("/src/db/client.ts")) return { db: () => db };
+        if (path.endsWith("/src/lib/session.ts")) return { ownerRequest: async () => hid };
+        return realLoad.call(this, request, parent, isMain);
+      };
+      globalThis.fetch = async (input, init) => {
+        requests.push(new Request(input, init));
+        return failKey
+          ? Response.json({ error: { message: another } }, { status: 401 })
+          : Response.json({ data: [{ id: "fictional-catalogue-model" }] });
+      };
+      try {
+        const { POST } = await import("@/app/api/settings/ai-model/models/route");
+        const form = (over: Record<string, string> = {}) => POST(new Request(new URL("/api/settings/ai-model/models", APP), {
+          method: "POST", body: new URLSearchParams({ provider: "custom", baseUrl, key: "", ...over }),
+        }));
+        const ok = async (over: Record<string, string> = {}) => {
+          const response = await form(over);
+          assert.deepEqual([response.status, response.headers.get("cache-control")], [200, "private, no-store"]);
+          assert.deepEqual(await response.json(), { models: [{ id: "fictional-catalogue-model", tested: false }] });
+        };
+        await ok({ key: another });
+        await ok();
+        await ok({ baseUrl: "https://other-catalogue.example/v1" });
+        assert.deepEqual(requests.map(request => [request.url, request.headers.get("authorization")]), [
+          [baseUrl + "/models", `Bearer ${another}`],
+          [baseUrl + "/models", `Bearer ${fictional}`],
+          ["https://other-catalogue.example/v1/models", null],
+        ]);
+        const missing = await form({ provider: "groq" });
+        assert.equal(missing.status, 400);
+        assert.equal(await missing.text(), "Enter the key for this provider.");
+        assert.equal(requests.length, 3, "another listed provider cannot use the saved key or the app default");
+        failKey = true;
+        const refused = await form({ key: another });
+        assert.deepEqual([refused.status, refused.headers.get("cache-control"), await refused.text()],
+          [502, "private, no-store", "The key was refused by your provider."]);
+        failKey = false;
+        assert.equal((await form({ padding: "x".repeat(4096) })).status, 413);
+        assert.equal(requests.length, 4, "oversize forms do not reach the provider");
+
+        await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, hid));
+        for (let i = 0; i < 20; i++) await ok();
+        const limited = await form();
+        assert.deepEqual([limited.status, limited.headers.get("retry-after"), limited.headers.get("cache-control")], [429, "60", "private, no-store"]);
+        assert.equal(requests.length, 24);
+        const buckets = await db.select().from(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, hid));
+        assert.deepEqual(buckets.map(bucket => [bucket.purpose, bucket.count]), [["ai-model-list", 20]]);
+        assert.deepEqual(await row(hid), before);
+        assert.deepEqual(await aiEvents(hid), events);
+        assert.equal(await vaultCount(), secrets);
+        assert.equal(await aiKey(db, hid), fictional);
+      } finally {
+        loader._load = realLoad;
+        globalThis.fetch = realFetch;
+      }
+    });
+    await check("model choosers exclude only explicit capability mismatches for their intended use", async () => {
+      const models = [
+        { id: "unknown", tested: false },
+        { id: "both", tools: true, images: true, tested: true },
+        { id: "questions-only", tools: true, images: false, tested: false },
+        { id: "documents-only", tools: false, images: true, tested: false },
+        { id: "neither", tools: false, images: false, tested: false },
+        { id: "tools-unknown", images: true, tested: false },
+        { id: "images-unknown", tools: true, tested: false },
+      ];
+      const ids = (items: readonly { id: string }[]) => items.map(model => model.id);
+      assert.deepEqual(ids(modelsFor(models, "questions", false)), ["unknown", "both", "questions-only", "tools-unknown", "images-unknown"]);
+      assert.deepEqual(ids(modelsFor(models, "documents", false)), ["unknown", "both", "documents-only", "tools-unknown", "images-unknown"]);
+      assert.deepEqual(ids(modelsFor(models, "questions", true)), ["unknown", "both", "tools-unknown", "images-unknown"]);
+    });
+
+    await check("model chooser requests coalesce and cannot apply a late result after cancellation", async () => {
+      const seen: Request[] = [];
+      const staleResponse = Promise.withResolvers<Response>();
+      const staleStarted = Promise.withResolvers<void>();
+      const models = [{ id: "current-model", tested: true }];
+      const fakeFetch: typeof globalThis.fetch = async (input, init) => {
+        assert.equal(typeof input, "string");
+        const request = new Request(new URL(String(input), APP), init);
+        seen.push(request);
+        if (seen.length === 1) {
+          staleStarted.resolve();
+          return staleResponse.promise;
+        }
+        return Response.json({ models });
+      };
+      const form = (key: string) => () => new URLSearchParams({ provider: "openrouter", baseUrl: "", key });
+      const opts = { fetch: fakeFetch, delayMs: 0 };
+      const unexpected = () => assert.fail("a cancelled schedule must not deliver a result");
+      scheduleModelChoices(form("fictional-first-keystroke"), unexpected, opts)();
+      scheduleModelChoices(form("fictional-second-keystroke"), unexpected, opts)();
+      let staleCalls = 0;
+      const cancelStale = scheduleModelChoices(form(fictional), () => { staleCalls++; }, opts);
+      await staleStarted.promise;
+      assert.equal(seen.length, 1);
+      cancelStale();
+      const latest = new Promise(resolve => { scheduleModelChoices(form(""), resolve, opts); });
+      assert.deepEqual(await latest, { models, problem: "" });
+      staleResponse.resolve(Response.json({ models: [{ id: "stale-model", tested: false }] }));
+      await nextTask();
+      assert.equal(staleCalls, 0);
+      assert.equal(seen.length, 2);
+      assert.equal(seen[0].signal.aborted, true);
+      for (const [request, key] of [[seen[0], fictional], [seen[1], ""]] as const) {
+        assert.deepEqual([request.method, request.cache, new URL(request.url).pathname], ["POST", "no-store", "/api/settings/ai-model/models"]);
+        assert.deepEqual(Object.fromEntries(await request.formData()), { provider: "openrouter", baseUrl: "", key });
+      }
+    });
+
+    await check("model chooser problems use the route's fixed words or a safe message that leaves typing available", async () => {
+      const read = (fetch: typeof globalThis.fetch) => new Promise(resolve => {
+        scheduleModelChoices(() => new URLSearchParams({ provider: "openrouter", key: fictional }), resolve, { fetch, delayMs: 0 });
+      });
+      const refused = "The key was refused by OpenRouter.";
+      assert.deepEqual(await read(async () => new Response(refused, { status: 502 })), { models: [], problem: refused });
+      const problem = "Couldn’t load models. You can type a model ID.";
+      assert.deepEqual(await read(async () => new Response(null, { status: 503 })), { models: [], problem });
+      assert.deepEqual(await read(async () => { throw new Error(fictional); }), { models: [], problem });
+    });
+    await check("the Stage 34 QA preload is opt-in and keeps its marked fictional keys on the fixture host", async () => {
+      const priorOptIn = process.env.PES_MODEL_SETTINGS_QA;
+      const originalFetch = globalThis.fetch;
+      delete process.env.PES_MODEL_SETTINGS_QA;
+      let fixture: typeof import("./model-settings-qa");
+      try {
+        fixture = await import("./model-settings-qa");
+        assert.equal(globalThis.fetch, originalFetch);
+      } finally {
+        globalThis.fetch = originalFetch;
+        if (priorOptIn !== undefined) process.env.PES_MODEL_SETTINGS_QA = priorOptIn;
+      }
+      const passthrough: string[] = [];
+      const fetch = fixture.withModelSettingsFixture(async input => {
+        passthrough.push(input instanceof Request ? input.url : String(input));
+        return new Response("Fictional unrelated transport");
+      });
+      const key = "sk-ant-fictional-stage34-good";
+      const wrongHost = "https://unrelated.example.test/v1/models";
+      await assert.rejects(fetch(wrongHost, { headers: { "x-api-key": key } }), { message: "Unexpected fictional model settings request." });
+      await assert.rejects(fetch(new Request(wrongHost, { headers: { authorization: `Bearer ${key}` } })), { message: "Unexpected fictional model settings request." });
+      await assert.rejects(fetch(wrongHost, { headers: { "x-api-key": "ordinary-fictional-key", authorization: `Bearer ${key}` } }),
+        { message: "Unexpected fictional model settings request." });
+      await assert.rejects(fetch("https://api.anthropic.com/unexpected", { headers: { "x-api-key": key } }), { message: "Unexpected fictional model settings request." });
+      assert.deepEqual(passthrough, []);
+      assert.equal(await (await fetch(wrongHost)).text(), "Fictional unrelated transport");
+      assert.deepEqual(passthrough, [wrongHost]);
+    });
+
+    await check("the Stage 34 QA transport drives the real catalogue and save checks without network", async () => {
+      const { withModelSettingsFixture } = await import("./model-settings-qa");
+      const fetch = withModelSettingsFixture(async () => {
+        assert.fail("marked fictional keys must never reach the fallback transport");
+      });
+      const provider = "anthropic";
+      const baseUrl = "https://api.anthropic.com";
+      const models = { protocol: provider, baseUrl, textModel: "fictional-questions", documentModel: "fictional-documents", own: true } as const;
+      const keyFor = (mode: string) => `sk-ant-fictional-stage34-${mode}`;
+      const opts = { fetch, appUrl: APP };
+      const key = keyFor("good");
+      assert.deepEqual(await listModels({ provider, baseUrl, key }, opts), [{ id: models.textModel }, { id: models.documentModel }]);
+      const result = await checkConnection({ ...models, key }, opts);
+      assert.deepEqual(result.passed, CHECK_NAMES);
+      assert.deepEqual(result.failed, []);
+      const failures: [string, ProviderFailureKind][] = [["refused", "key"], ["credit", "credit"], ["unreachable", "reach"]];
+      for (const [mode, expected] of failures) {
+        const failingKey = keyFor(mode);
+        await assert.rejects(listModels({ provider, baseUrl, key: failingKey }, opts), (error: unknown) =>
+          error instanceof Error && providerFailureOf(error) === expected && !error.message.includes(failingKey));
+        const check = await checkConnection({ ...models, key: failingKey }, opts);
+        assert.deepEqual(check.failed.map(failure => failure.name), CHECK_NAMES);
+        assert.ok(check.failed.every(failure => failure.providerFailure === expected && !failure.why.includes(failingKey)));
+      }
+      const image = await checkConnection({ ...models, key: keyFor("noimages") }, opts);
+      assert.deepEqual(image.failed, [{ name: "reads_images", why: "It did not read the total from the bill image." }]);
+      const missing = await checkConnection({ ...models, key: keyFor("missing") }, opts);
+      assert.deepEqual(missing.failed.map(({ name, providerFailure }) => [name, providerFailure]), [["reads_images", "model"]]);
     });
     console.log(`${passed}/${passed} settings and AI-key contract checks passed.`);
   } finally {

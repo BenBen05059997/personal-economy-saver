@@ -1845,7 +1845,7 @@
     ],
     "expected": [
       "The order is This app's default, Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Mistral, Other (OpenAI-compatible address)",
-      "On the default only \"Choose a provider to use your own model.\" shows"
+      "On the default there is a Key password field with \"Paste a key or choose a provider to use your own model.\" and no Save and check button"
     ],
     "refs": [
       "BROWSER-CHECKS Y2"
@@ -1970,28 +1970,24 @@
     "type": "happy",
     "priority": "P1",
     "needs": [
-      "model",
-      "owner"
+      "none"
     ],
-    "how": "browser",
+    "how": "suite",
     "preconditions": [
-      "The owner's own key (never typed in a shared run)",
-      "Try it household",
-      "A working model (the server's or the Codex bridge)"
+      "A fictional provider transport and document model that reads the Kawa Gym total"
     ],
     "steps": [
-      "Choose a listed provider, a tested model and the key",
-      "Press Save and check",
-      "Reload"
+      "Run npm run db:settings-test",
+      "Save a provider, question model, document model and fictional key"
     ],
     "expected": [
-      "The panel says \"Tested\" for a model on the tested list",
-      "A model off the list says \"Custom, untested · passed {n} of 3 checks on {date}\" with each failed check in words (\"Uses the app's tools\", \"Ignores instructions hidden in bills\", \"Stays on money questions\") and why",
-      "The host line reads \"Your questions and documents go to {host of that provider}.\""
+      "The saved check records all four results, including reads_images",
+      "The connection view reports the listed provider’s host and only a key hint"
     ],
     "refs": [
       "BROWSER-CHECKS Y5",
-      "BROWSER-CHECKS Y6"
+      "BROWSER-CHECKS Y6",
+      "db:settings-test"
     ]
   },
   {
@@ -2002,24 +1998,23 @@
     "type": "negative",
     "priority": "P2",
     "needs": [
-      "model",
-      "owner"
+      "none"
     ],
-    "how": "browser",
+    "how": "suite",
     "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A model that does not call tools and a key",
-      "A working model (the server's or the Codex bridge)"
+      "A simulated question model that does not call tools"
     ],
     "steps": [
-      "Save it with Save and check"
+      "Run npm run db:settings-test",
+      "Attempt to save the simulated model"
     ],
     "expected": [
-      "It is refused with \"This model can't be used: it did not call the app's tools, so it can't answer from your numbers.\"",
-      "Nothing is saved"
+      "The refusal says the model did not call the app’s tools",
+      "The existing connection is unchanged"
     ],
     "refs": [
-      "BROWSER-CHECKS Y5"
+      "BROWSER-CHECKS Y5",
+      "db:settings-test"
     ]
   },
   {
@@ -2030,28 +2025,25 @@
     "type": "security",
     "priority": "P1",
     "needs": [
-      "model",
-      "owner"
+      "none"
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A saved own model",
-      "A working model (the server's or the Codex bridge)"
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
-      "Open Settings and read the Key box",
-      "View the page source and the network log",
+      "Read the empty Key box",
       "Save again with the key empty",
       "Export my data"
     ],
     "expected": [
-      "The Key box shows \"Saved: …{last four}. Leave empty to keep it.\" and the key itself never appears in the page source, responses, Ask or the export",
-      "Saving with the key empty keeps it",
-      "The export file has no AI key"
+      "The box shows Saved: …good. Leave empty to keep it.",
+      "Listing and saving with the empty field still work",
+      "The full fictional key is absent from page source, responses and the export"
     ],
     "refs": [
-      "BROWSER-CHECKS Y5",
       "BROWSER-CHECKS Y6",
       "BROWSER-CHECKS AF9",
       "BROWSER-CHECKS I3",
@@ -2066,22 +2058,20 @@
     "type": "happy",
     "priority": "P2",
     "needs": [
-      "model",
-      "owner"
+      "none"
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A saved own model",
-      "A working model (the server's or the Codex bridge)"
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
-      "Press \"Use this app's default\"",
-      "Open Ask"
+      "Choose Use this app’s default"
     ],
     "expected": [
-      "The model and key are cleared, the panel returns to the default lines and the host line shows the server's host again",
-      "Ask answers through the server's connection"
+      "The saved model IDs, key hint and check result disappear",
+      "Provider is This app’s default and the host or missing-setting line shows the server’s configuration"
     ],
     "refs": [
       "BROWSER-CHECKS Y7"

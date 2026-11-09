@@ -86,6 +86,7 @@ Cloudflare
     │   ├── /api/auth/link, /callback, /logout   magic-link request, callback and logout
     │   ├── /api/onboarding        first-run setup for a signed-in person through `createHousehold`; upgrades a Try it or blank demo household
     │   ├── /api/settings, /api/settings/ai-model, /api/forwarding   name and balance, a card (with its foreign fee, D62); Your AI model; forwarding address
+    │   ├── /api/settings/ai-model/models   POST `provider`, `baseUrl`, `key` (URL-encoded form, 4 KiB). Same-origin owner guard, 20/min, private no-store. Returns model ids with reported tools/images flags and a tested flag, or a fixed failure message
     │   ├── /api/invites            owner creates or cancels a link. A verified invitee can accept and a member can leave (D68)
     │   ├── /api/household         delete my data (the signed-in owner, `confirmation=delete`)
     │   ├── /api/export            Export my data: the version 3 snapshot with events, memory, canvases, spaces and journal, as a JSON download (D44)
@@ -99,7 +100,7 @@ Cloudflare
         │   split, month, spending, period (the month a bill covers, D63), name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check, suggest (D64), goals (D66)
         ├── Sentence composer `src/lib/money/sentence.ts`: engine output → "You're fine if … If late, ¥18,780 short on the 27th."
         ├── Agent `src/lib/agent`: one tool catalogue (tools.ts, canvas-tools.ts, memory-tools.ts, check-tools.ts, offer-tools.ts), run.ts, words.ts (the step words), reply.ts, rules.ts, memory-prompt.ts, log.ts
-        ├── Model call `src/lib/ai`: `callModel` (Vercel AI SDK core, Anthropic Messages and OpenAI-compatible Chat Completions), `checkBaseUrl`, `unconfirmedAmounts`, `checkConnection`, `PROVIDERS`, the tested list
+        ├── Model call `src/lib/ai`: `callModel` (Vercel AI SDK core, Anthropic Messages and OpenAI-compatible Chat Completions), `checkBaseUrl`, `unconfirmedAmounts`, `checkConnection`, `listModels`, `PROVIDERS`, the tested list
         ├── Canvas `src/lib/canvas`: the recipe schema, `resolveRecipe`, starters, words, the request helper (D57)
         ├── Memory `src/lib/schema/memory.ts`: the item schema (D58); the household-scoped functions are `src/db/memory.ts`
         ├── Reader `src/lib/reader`: accept, extract, forwarding, storage, settings, correction, document-card, form
@@ -557,7 +558,7 @@ Under Uploaded documents, `listDocuments` returns each household document's date
 | MCP tokens | `api_tokens`: the hash, the last four characters, name, scopes (`read`, `draft`), revoked and last-used times | the token's hash | whoever holds the token acts as its household; Settings lists name, scopes and last four | revoke; with the household; never in the export |
 | Family links | `family_links`: the SHA-256 of the token, who made it, expiry (seven days of real time), stopped time | the token's hash | anyone with the link, read-only, until it expires or is stopped ("This link has ended") | stop; expiry; with the household; never in the export |
 | Reference rates | `fx_rates` (household, date, base, quote, `rate_micro`) | `household_id` | the engine; the export's household block carries the USD rate and its day | with the household |
-| The household's own model key | Supabase Vault, as a sealed text (`pes-ai1.` + AES-GCM under `AI_KEY_SEAL_KEY`, the household id as associated data; `households.ai_key_secret_id` points at it); `ai_key_hint` is an ellipsis and the last four characters | the household | read inside a transaction immediately before each model call; never shown again | Settings → Your AI model → default (`deleteHouseholdKey`); Reset; deletion; never in the export or the snapshot tool |
+| The household's own model key | Supabase Vault, as a sealed text (`pes-ai1.` + AES-GCM under `AI_KEY_SEAL_KEY`, the household id as associated data; `households.ai_key_secret_id` points at it); `ai_key_hint` is an ellipsis and the last four characters | the household | read for a model call or a model-list request using the same provider and address; never shown again | Settings → Your AI model → default (`deleteHouseholdKey`); Reset; deletion; never in the export or the snapshot tool |
 | Identities | `users` (auth user id → member), `members` | `household_id`, `auth_user_id` unique | the export carries members' names, roles and shares, never auth ids | with the household |
 | Sessions | browser cookies: Supabase `pes-auth` (30 days), `household` (a demo UUID, 30 days), `upgrade-demo` (1 hour) | the browser | — | logout; deletion clears them |
 
@@ -649,8 +650,39 @@ provider, protocol, address and model names are columns on `households` (`ai_pro
 model call; a key saved before sealing is refused until it is saved again; `ai_key_hint` holds an ellipsis and the last four characters only. The address passes `checkBaseUrl` when it is saved and again on every
 call. Vault keeps the key out of plain dumps; anyone holding `DATABASE_URL` can read `vault.decrypted_secrets` but gets only the sealed text, which opens only with the Worker's `AI_KEY_SEAL_KEY`. A saved key that cannot be read is
 never replaced by another key. A question or document travels to the host Settings shows; with no model of its own, to the host of `AI_BASE_URL`
-under the owner's key; no call is capped (D33). Saving a model runs `checkConnection` (uses_tools, ignores_injection, stays_on_money) and stores the result in `ai_check`. MCP
+under the owner's key; no call is capped (D33). Saving a model runs `checkConnection` and stores the result in `ai_check`. MCP
 tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
+
+In Settings, `AiModelForm` calls `providerFromKey` in the browser when the owner pastes a key with Provider still on the app’s default.
+`PROVIDERS` stores the provider key-page metadata and the distinctive prefixes `sk-ant-` (Anthropic), `sk-or-` (OpenRouter),
+`gsk_` (Groq) and `AIza` (Google Gemini). A plain `sk-` key leaves the default selected. An explicit provider choice is preserved.
+Provider inference uses the prefix locally. The model-list request runs separately after the input settles.
+
+The model-list route prepares a one-use connection in `modelListConnection`. A typed key takes precedence. An empty field uses the saved
+Vault key only when the provider and normalised address match. The list request leaves the saved key untouched and keeps the typed key
+out of storage, logs and responses. `listModels` sends a GET to the provider’s fixed models endpoint or the validated custom address.
+The request refuses redirects and shares a 10-second timeout across provider pages. Reported tool and image capability is included when
+available. Missing flags stay unknown and model names carry no inferred capability. Entries marked in `TESTED` sort first. Provider
+failures use fixed app wording for the key, credit or connection problem.
+
+`AiModelForm` uses `scheduleModelChoices` from `model-choices.ts` for a list request 350 ms after the provider, address and key
+inputs settle. The provider must be selected and a typed or matching saved key available. Superseded lookups are cancelled.
+Changing an already-selected provider or an existing custom URL clears the typed key before the form can send it to the new address.
+The question and document fields use editable datalists. A model stays in each list unless its reported tools or images flag explicitly
+rules it out for that job. With one model for both jobs, the question list checks both capabilities. Tested entries use the label
+“ID · Tested”. A loading or failure line leaves manual entry available. The listed providers show Get a key and say the provider bills
+the user’s own account. The form says document models must read images and PDFs.
+
+Save and check validates tool use, handling of injected instructions, and staying on money for the question model. A question model
+marked Tested already satisfies those three checks. The document model still receives the 400 × 184, 727-byte fictional Kawa Gym
+PNG in `connection-bill.ts`. The check compares the returned total to ¥6,173. A failed tool or image check refuses the save before
+the database or Vault changes. The saved panel shows Reads images: passed. for a successful new check. Historical results keep
+their recorded check count. Listing and saving map provider failures to fixed messages for refused keys, missing models, credit or
+connection problems. The catalogue has no selected model to name in an error.
+
+The owner’s isolated Settings browser check uses `scripts/model-settings-qa.ts` as an opt-in Next dev preload. It recognises
+the fictional Stage 34 keys and simulates Anthropic’s model list and Messages API. The preload is outside the application import graph.
+`db:settings-test` checks its fetch wrapper. BROWSER-CHECKS Y has the launch command and fixtures.
 
 Optional reminder email needs `RESEND_API_KEY` and `REMINDER_FROM`. Browser push needs `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` and `WEB_PUSH_SUBJECT`. The owner generates the VAPID pair with `npm run push:keys`, which writes the two ignored local settings files without printing the keys. Only the public key goes to the browser. `/api/health` reports each channel’s setting names or readiness separately.
 
@@ -710,9 +742,9 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
   `paypal_connections.environment` is checked to be `SANDBOX` in the schema.
 - Rate limits (`request_buckets`, per household per minute): ask 30, MCP 30, drafts 20, approvals 10,
   PayPal import 2, suggestions 30, rules 20, spaces 20, reminders 10, data export 6, Your data changes 10, moves to or from the device 10, import 2, canvas requests 120, pins 20, thumbs 30,
-  AI model changes 6, people changes 20, settlements 10, removals 20, family links 20, statement imports 10. Declined questions, uploads, Ask's attach, retries and forwarded email, Try it,
+  AI model changes 6, AI model lists 20 (`ai-model-list`), people changes 20, settlements 10, removals 20, family links 20, statement imports 10. Declined questions, uploads, Ask's attach, retries and forwarded email, Try it,
   Start with my numbers, document reads and model calls (the server's key or a household's own) have no cap. Per client address (`ip_buckets`, hashed, the header named by `CLIENT_IP_HEADER`): sign-in links 5 an hour. `households.ai_reads_today`, `ai_reads_day` and the table `ai_global_usage` exist in the schema and are unused; PLAN.md has the migration that drops them.
-- The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model route caps its body at 4 KiB, `/api/ask` at
+- The webhook route logs the reason for a rejection and tells anonymous callers nothing; the AI model save and model-list routes cap their bodies at 4 KiB, `/api/ask` at
   128 KiB for cloud context or 512 KiB for device context, `/api/canvas/resolve` at 100,000 bytes, `/api/data/move` at 2 MB and `/api/restore` at 1 MB; sign-in links return to the required
   `APP_URL`, never to the request's Origin header.
 - No server-side image or PDF processing (Workers' CPU budget); files go to the model as uploaded.

@@ -1,5 +1,6 @@
 import { APICallError, InvalidResponseDataError, type JSONSchema7 } from "ai";
 import type { LanguageModelV4, LanguageModelV4CallOptions, LanguageModelV4Prompt } from "@ai-sdk/provider";
+import { providerFailureKind } from "./provider-failure";
 import { ModelError, type ModelRequest } from "./types";
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
@@ -69,7 +70,11 @@ export async function generate(model: LanguageModelV4, request: ModelRequest) {
     if (APICallError.isInstance(error)) {
       if (error.cause instanceof ModelError) throw error.cause;
       if (error.statusCode && (error.statusCode < 200 || error.statusCode >= 300)) {
-        throw new ModelError("The AI service refused the request.", error.statusCode);
+        let body: unknown = error.data;
+        if (body === undefined && error.responseBody) {
+          try { body = JSON.parse(error.responseBody); } catch { /* Only known categories cross this boundary. */ }
+        }
+        throw new ModelError("The AI service refused the request.", error.statusCode, false, providerFailureKind(error.statusCode, body));
       }
       if (error.statusCode) throw new ModelError("The AI service sent a reply the app could not read.");
     }

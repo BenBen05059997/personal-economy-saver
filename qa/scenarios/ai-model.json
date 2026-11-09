@@ -1,0 +1,890 @@
+[
+  {
+    "id": "AIMODEL-001",
+    "area": "Your AI model",
+    "action": "Paste a fictional Anthropic key",
+    "user_goal": "I want the form to recognise my provider from my key",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "This app’s default is selected",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
+    ],
+    "steps": [
+      "Paste sk-ant-fictional-placeholder into Key",
+      "Leave the form unsaved"
+    ],
+    "expected": [
+      "Provider changes to Anthropic",
+      "The selection happens before the separate catalogue POST"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y9",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-002",
+    "area": "Your AI model",
+    "action": "Paste a fictional OpenRouter key",
+    "user_goal": "I want the form to recognise my provider from my key",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "This app’s default is selected",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
+    ],
+    "steps": [
+      "Paste sk-or-fictional-placeholder into Key",
+      "Leave the form unsaved"
+    ],
+    "expected": [
+      "Provider changes to OpenRouter",
+      "The selection happens before the separate catalogue POST"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y9",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-003",
+    "area": "Your AI model",
+    "action": "Paste a fictional Groq key",
+    "user_goal": "I want the form to recognise my provider from my key",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "This app’s default is selected",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
+    ],
+    "steps": [
+      "Paste gsk_fictional-placeholder into Key",
+      "Leave the form unsaved"
+    ],
+    "expected": [
+      "Provider changes to Groq",
+      "The selection happens before the separate catalogue POST"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y9",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-004",
+    "area": "Your AI model",
+    "action": "Paste a fictional Google Gemini key",
+    "user_goal": "I want the form to recognise my provider from my key",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "This app’s default is selected",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
+    ],
+    "steps": [
+      "Paste AIzafictional-placeholder into Key",
+      "Leave the form unsaved"
+    ],
+    "expected": [
+      "Provider changes to Google Gemini",
+      "The selection happens before the separate catalogue POST"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y9",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-005",
+    "area": "Your AI model",
+    "action": "Paste a key with a plain sk- prefix",
+    "user_goal": "I want to choose the provider when the prefix is ambiguous",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "This app’s default is selected"
+    ],
+    "steps": [
+      "Paste sk-fictional-placeholder into Key"
+    ],
+    "expected": [
+      "Provider stays on This app’s default"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y10",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-006",
+    "area": "Your AI model",
+    "action": "Paste a key after choosing a provider",
+    "user_goal": "I want the form to keep the provider I chose",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "OpenAI was selected manually",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
+    ],
+    "steps": [
+      "Paste sk-ant-fictional-placeholder into Key"
+    ],
+    "expected": [
+      "Provider stays on OpenAI"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y10",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-007",
+    "area": "Your AI model",
+    "action": "Resolve a provider from a pasted prefix",
+    "user_goal": "I want inference to use only distinctive prefixes and respect my choice",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Fictional key strings"
+    ],
+    "steps": [
+      "Run npm run db:ai-test",
+      "Check the four distinctive prefixes, a plain sk- key and an explicit provider"
+    ],
+    "expected": [
+      "The four distinctive prefixes resolve to their providers",
+      "A plain sk- key leaves the default selected",
+      "An explicit provider choice is preserved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y11",
+      "db:ai-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-008",
+    "area": "Your AI model",
+    "action": "Read a provider’s model catalogue",
+    "user_goal": "I want the catalogue to reflect what the provider reports",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Fictional provider catalogue responses"
+    ],
+    "steps": [
+      "Run npm run db:ai-test",
+      "Check catalogue parsing, reported capability flags and ordering"
+    ],
+    "expected": [
+      "The provider connection uses a fixed listed endpoint or a validated custom address",
+      "Only reported capability flags are included",
+      "Tested models are marked and sorted first when present"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y12",
+      "db:ai-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-009",
+    "area": "Your AI model",
+    "action": "List models with a typed or saved key",
+    "user_goal": "I want to see the list without changing my saved connection",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A fictional saved key and simulated provider transport"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Request the model list with a typed key, then with an empty key for matching and different endpoints"
+    ],
+    "expected": [
+      "The typed key is used once and the saved key remains unchanged",
+      "The empty field only reuses the saved key for the same provider and address",
+      "The reply is private, no-store and contains no key"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y13",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-010",
+    "area": "Your AI model",
+    "action": "Reach the model-list request limits",
+    "user_goal": "I want a clear refusal when a list request exceeds its limits",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "An isolated household and simulated provider transport"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Submit an oversized model-list form and exhaust the model-list rate bucket"
+    ],
+    "expected": [
+      "The 4 KiB form cap returns 413",
+      "The independent 20 requests per minute list bucket returns 429"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y13",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-011",
+    "area": "Your AI model",
+    "action": "Request a model list as a household member",
+    "user_goal": "I want only my household owner to be able to use its model key for discovery",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A verified household member"
+    ],
+    "steps": [
+      "Run npm run db:members-test",
+      "Request POST /api/settings/ai-model/models as that member"
+    ],
+    "expected": [
+      "The route returns 403"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y14",
+      "db:members-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-012",
+    "area": "Your AI model",
+    "action": "Reject a model list using another household’s key pointer",
+    "user_goal": "I want my saved provider key to stay inside my household",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Two test households and a saved model key whose Vault pointer is changed to the other household"
+    ],
+    "steps": [
+      "Run npm run db:isolation-test",
+      "Attempt to load the model list connection through the wrong Vault pointer"
+    ],
+    "expected": [
+      "The other household’s saved key cannot be used"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y14",
+      "db:isolation-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-013",
+    "area": "Your AI model",
+    "action": "Load the model list after entering a key",
+    "user_goal": "I want model choices as soon as I enter my key",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "Anthropic is selected"
+    ],
+    "steps": [
+      "Type a fictional key without pausing",
+      "Wait for the list to load"
+    ],
+    "expected": [
+      "Loading models… appears while the list is pending",
+      "The interceptor logs one model-list POST after typing stops",
+      "The shared-model list includes fictional-tested · Tested and fictional-unknown"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y15",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-014",
+    "area": "Your AI model",
+    "action": "Choose separate models for questions and documents",
+    "user_goal": "I want each list to show models suited to that job",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "The fictional model list is loaded"
+    ],
+    "steps": [
+      "Untick Use the same model for documents",
+      "Read each field’s suggestions"
+    ],
+    "expected": [
+      "Questions include fictional-text and exclude fictional-image",
+      "Documents include fictional-image and exclude fictional-text",
+      "Both lists retain fictional-unknown"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y16",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-015",
+    "area": "Your AI model",
+    "action": "Select a tested model ID",
+    "user_goal": "I want to recognise a tested model and enter its exact ID",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "The fictional model list is loaded"
+    ],
+    "steps": [
+      "Choose fictional-tested · Tested in the question field"
+    ],
+    "expected": [
+      "The field contains fictional-tested"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y16",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-016",
+    "area": "Your AI model",
+    "action": "Type a model that is absent from the list",
+    "user_goal": "I want to enter a model ID I already know",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "The fictional model list is loaded"
+    ],
+    "steps": [
+      "Type fictional-unlisted in the question field"
+    ],
+    "expected": [
+      "The field keeps fictional-unlisted"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y17",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-017",
+    "area": "Your AI model",
+    "action": "Keep manual model entry after a refused list request",
+    "user_goal": "I want the refusal explained and the form to stay usable",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "Anthropic is selected and the document model field is visible"
+    ],
+    "steps": [
+      "Set window.qaModelListRefused = true and change the fictional key",
+      "Type a model ID in each field"
+    ],
+    "expected": [
+      "The line reads The key was refused by Anthropic.",
+      "Both fields keep the typed IDs"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y18",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-018",
+    "area": "Your AI model",
+    "action": "Change the selected provider with a typed key",
+    "user_goal": "I want my typed key to stay with the provider it was meant for",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "The Anthropic list has loaded with a fictional typed key"
+    ],
+    "steps": [
+      "Change Provider to OpenAI"
+    ],
+    "expected": [
+      "The Key field clears",
+      "The form waits for a new key before listing for OpenAI"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y19",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-019",
+    "area": "Your AI model",
+    "action": "Discard an obsolete model lookup",
+    "user_goal": "I want the list to reflect what I most recently entered",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A simulated slow model-list response"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Change the lookup while the old response is pending"
+    ],
+    "expected": [
+      "A superseded lookup cannot replace the current catalogue"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y20",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-020",
+    "area": "Your AI model",
+    "action": "Read the provider’s key and billing help",
+    "user_goal": "I want to know where to get a key and who bills me",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household"
+    ],
+    "steps": [
+      "Choose Anthropic",
+      "Untick Use the same model for documents"
+    ],
+    "expected": [
+      "Get a key links to the provider’s key page",
+      "The panel says Your use is billed to your own Anthropic account.",
+      "Must read images and PDFs. stays below the document model controls"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y21"
+    ]
+  },
+  {
+    "id": "AIMODEL-021",
+    "area": "Your AI model",
+    "action": "Refuse a key on save",
+    "user_goal": "I want to know when the provider refuses my key",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "The fictional Mistral transport refuses the key"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Attempt to save the refused connection"
+    ],
+    "expected": [
+      "The key was refused by Mistral."
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y23",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-022",
+    "area": "Your AI model",
+    "action": "Refuse a missing model on save",
+    "user_goal": "I want to know which model name was refused",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "The fictional Mistral transport reports the model is missing"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Attempt to save the missing model"
+    ],
+    "expected": [
+      "Mistral has no model called <name>. names the selected model"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y23",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-023",
+    "area": "Your AI model",
+    "action": "Explain a provider limit on save",
+    "user_goal": "I want to know when my provider has run out of credit or reached its limit",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "The fictional Mistral transport reports a provider limit"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Attempt to save the limited connection"
+    ],
+    "expected": [
+      "Mistral says the key is over its limit or out of credit."
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y23",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-024",
+    "area": "Your AI model",
+    "action": "Explain a connection failure on save",
+    "user_goal": "I want to know when the app cannot reach my provider",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "The fictional Mistral transport fails to connect"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Attempt to save the unreachable connection"
+    ],
+    "expected": [
+      "Couldn’t reach Mistral."
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y23",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-025",
+    "area": "Your AI model",
+    "action": "Refuse a document model that cannot read the test image",
+    "user_goal": "I want my saved connection to stay usable if a replacement cannot read bills",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A working fictional saved connection and a replacement whose document model does not read ¥6,173 from the Kawa Gym image"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Attempt to save the replacement"
+    ],
+    "expected": [
+      "This document model can't be used: It did not read the total from the bill image. Choose a model that reads images.",
+      "The previous models and key remain saved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-026",
+    "area": "Your AI model",
+    "action": "Save separate question and document models",
+    "user_goal": "I want the models I choose from the list to become my connection",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running"
+    ],
+    "steps": [
+      "Paste sk-ant-fictional-stage34-good into Key",
+      "Choose fictional-questions, untick Use the same model for documents, and choose fictional-documents",
+      "Choose Save and check"
+    ],
+    "expected": [
+      "The provider is Anthropic and its catalogue contains both fictional IDs",
+      "The connection keeps both selected model IDs",
+      "The host line says Your questions and documents go to api.anthropic.com."
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y5"
+    ]
+  },
+  {
+    "id": "AIMODEL-027",
+    "area": "Your AI model",
+    "action": "Save with a refused key",
+    "user_goal": "I want a clear message when my provider rejects the key",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Replace Key with sk-ant-fictional-stage34-refused",
+      "Choose Save and check and read the message below the button",
+      "Reload Settings"
+    ],
+    "expected": [
+      "The key was refused by Anthropic.",
+      "The previous two model IDs, saved check and …good key hint remain"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24"
+    ]
+  },
+  {
+    "id": "AIMODEL-028",
+    "area": "Your AI model",
+    "action": "Save with a missing document model",
+    "user_goal": "I want to know which model the provider cannot find",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Replace Key with sk-ant-fictional-stage34-missing",
+      "Choose Save and check and read the message below the button",
+      "Reload Settings"
+    ],
+    "expected": [
+      "Anthropic has no model called fictional-documents.",
+      "The previous two model IDs, saved check and …good key hint remain"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24"
+    ]
+  },
+  {
+    "id": "AIMODEL-029",
+    "area": "Your AI model",
+    "action": "Save when the provider reports its credit limit",
+    "user_goal": "I want to know when the provider is over its limit or out of credit",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Replace Key with sk-ant-fictional-stage34-credit",
+      "Choose Save and check and read the message below the button",
+      "Reload Settings"
+    ],
+    "expected": [
+      "Anthropic says the key is over its limit or out of credit.",
+      "The previous two model IDs, saved check and …good key hint remain"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24"
+    ]
+  },
+  {
+    "id": "AIMODEL-030",
+    "area": "Your AI model",
+    "action": "Save when the provider cannot be reached",
+    "user_goal": "I want to know when the connection to the provider failed",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Replace Key with sk-ant-fictional-stage34-unreachable",
+      "Choose Save and check and read the message below the button",
+      "Reload Settings"
+    ],
+    "expected": [
+      "Couldn’t reach Anthropic.",
+      "The previous two model IDs, saved check and …good key hint remain"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24"
+    ]
+  },
+  {
+    "id": "AIMODEL-031",
+    "area": "Your AI model",
+    "action": "Save a document model that refuses the image",
+    "user_goal": "I want the image failure explained while my previous connection stays in place",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Replace Key with sk-ant-fictional-stage34-noimages",
+      "Choose Save and check and read the message below the button",
+      "Reload Settings"
+    ],
+    "expected": [
+      "This document model can't be used: It did not read the total from the bill image. Choose a model that reads images.",
+      "The previous two model IDs, saved check and …good key hint remain"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24"
+    ]
+  },
+  {
+    "id": "AIMODEL-032",
+    "area": "Your AI model",
+    "action": "Reload after a successful image check",
+    "user_goal": "I want the saved result to show the document image check passed",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Reload Settings"
+    ],
+    "expected": [
+      "The result reads Custom, untested · passed 4 of 4 checks on {date}",
+      "The panel says Reads images: passed."
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y22"
+    ]
+  }
+]

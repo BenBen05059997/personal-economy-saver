@@ -50,3 +50,34 @@ export async function formOf(request: Request): Promise<FormData | Response> {
     return badFields();
   }
 }
+
+export function formText(form: FormData, name: string) {
+  const value = form.get(name);
+  return typeof value === "string" ? value : "";
+}
+
+// Reads at most `limit` bytes whatever Content-Length says (a chunked body has none), then parses the form.
+export async function boundedForm(request: Request, limit: number): Promise<FormData | null> {
+  const reader = request.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (reader) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  try {
+    return await new Response(body, { headers: { "content-type": request.headers.get("content-type") ?? "" } }).formData();
+  } catch { return new FormData(); }
+}

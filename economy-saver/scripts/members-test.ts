@@ -165,6 +165,7 @@ async function main() {
 
     const approve = (await import("@/app/api/approve/route")).POST;
     const model = (await import("@/app/api/settings/ai-model/route")).POST;
+    const models = (await import("@/app/api/settings/ai-model/models/route")).POST;
     const editPeople = (await import("@/app/api/people/route")).POST;
     const deleteHousehold = (await import("@/app/api/household/route")).POST;
     const invitations = (await import("@/app/api/invites/route")).POST;
@@ -190,6 +191,11 @@ async function main() {
       }
       assert.equal((await model(form("/api/settings/ai-model", { kind: "default" }))).status, 403);
       assert.equal((await model(form("/api/settings/ai-model", { kind: "save", provider: "openai" }))).status, 403);
+      const catalogue = await models(form("/api/settings/ai-model/models", { provider: "openai" }));
+      assert.deepEqual([catalogue.status, catalogue.headers.get("cache-control")], [403, "private, no-store"]);
+      assert.deepEqual(await db.select().from(schema.requestBuckets).where(and(
+        eq(schema.requestBuckets.householdId, hid), eq(schema.requestBuckets.purpose, "ai-model-list"),
+      )), [], "a member cannot spend the owner's model list quota");
       assert.equal((await editPeople(form("/api/people", { kind: "remove", id: otherPerson }))).status, 403);
       assert.equal((await deleteHousehold(form("/api/household", { confirmation: "delete" }))).status, 403);
       assert.deepEqual([paypalCalls, modelCalls], [0, 0]);
