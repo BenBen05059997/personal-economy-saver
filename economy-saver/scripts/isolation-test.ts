@@ -15,7 +15,8 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import * as account from "@/db/account";
 import * as aiKeys from "@/db/ai-key";
-import * as askMod from "@/db/ask"; // D60 Ask
+import * as askMod from "@/db/ask";
+import * as askViewMod from "@/db/ask-view"; // D60 Ask
 import * as canvasesMod from "@/db/canvases"; // D57 pins
 import * as conversationMod from "@/db/conversation"; // D60 conversation
 import * as askReceiptsMod from "@/db/ask-receipts"; // D59 ask receipts
@@ -109,7 +110,7 @@ const covered = [
   // people.ts, pots.ts
   "memberCount", "memberByName", "addMember", "savePeople", "removeMember", "savePot", "confirmPot", "removePot", "fillPots",
   // rate-limit.ts, reader-inbox.ts, reader-job.ts, readings.ts, reference-rate.ts
-  "consumeRequest", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "storeReferenceRate",
+  "consumeRequest", "consumeCanvasRequest", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "storeReferenceRate",
   // runway-events.ts, settings.ts, settle.ts, snapshot.ts, statement-charge.ts, workspace.ts
   "lockRunway", "beginMoneyChange", "observeRunway", "loadSettings", "updateSettings", "settleUp", "loadHouseholdSnapshot",
   "syncClosedStatementCharge", "unsyncClosedStatementCharge", "loadNavigationData", "loadWorkspaceData",
@@ -129,7 +130,7 @@ const covered = [
   "listCanvases", "pinCanvas", "updateCanvas", "moveCanvas", "unpinCanvas",
   "saveTurn", "turnById", "allTurns", "setThumb", "assembleContext", "firstUseLine", "requestCount",
   // D69 spaces.ts and conversation.ts
-  "listSpaces", "generalSpace", "seedGeneralSpace", "requireSpace", "createSpace", "renameSpace", "archiveSpace", "deleteSpace", "spaceThread", "legacyThreads", "saveBrief",
+  "loadAskView", "listSpaceChoices", "listSpaces", "generalSpace", "seedGeneralSpace", "requireSpace", "createSpace", "renameSpace", "archiveSpace", "deleteSpace", "spaceThread", "legacyThreads", "saveBrief",
   // D70 history.ts
   "searchHistory", "resolveMemorySpace",
   // D59 ask-receipts.ts
@@ -229,7 +230,7 @@ async function main() {
     ...rulesMod, ...suggestionsMod, ...remindersMod, // D64–D66
     ...memoryMod, // D58 memory
     ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
-    ...spacesMod, ...historyMod, // D69 spaces and D70 history
+    ...askViewMod, ...spacesMod, ...historyMod, // D69 spaces and D70 history
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
   };
   const F = new Proxy(modules, {
@@ -474,6 +475,12 @@ async function main() {
       const foreign = await F.createSpace(store, B.hid, "Fictional B project");
       const beforeB = await fingerprint(B.hid);
       assert.ok(!(await F.listSpaces(store, A.hid)).some(space => space.id === foreign.id));
+      assert.deepEqual((await F.listSpaceChoices(store, A.hid)).map(space => space.id), [generalA.id]);
+      assert.deepEqual((await F.loadAskView(store, A.hid))?.spaces.map(space => space.id), [generalA.id]);
+      assert.equal(await F.loadAskView(store, A.hid, { spaceId: foreign.id }), null);
+      assert.ok(await F.withHousehold(store, A.hid, tx => F.consumeCanvasRequest(tx, A.hid)));
+      assert.equal(await F.requestCount(db, A.hid, "canvas"), 1);
+      assert.equal(await F.requestCount(db, B.hid, "canvas"), 0);
       await assert.rejects(F.requireSpace(store, A.hid, foreign.id), InputError);
       await assert.rejects(F.resolveMemorySpace(store, A.hid, foreign.id), InputError);
       assert.equal((await F.resolveMemorySpace(store, B.hid, "fictional b project")).id, foreign.id);

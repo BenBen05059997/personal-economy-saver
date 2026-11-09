@@ -15,7 +15,7 @@ const MAX_BODY = 128 * 1024;
 const MAX_DEVICE_BODY = 512 * 1024;
 const tooLarge = () => text("That is more than one question can carry. Delete some of what the assistant remembers, or ask in a new space.", 400);
 
-/** One question of the Ask conversation (D60): `{ id, conversationId, text, source, canvas }` in, the reply (`AskReply`) out. */
+/** One question of the Ask conversation (D60): `{ id, conversationId, text, source, screen?, canvas }` in, the reply (`AskReply`) out. */
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;

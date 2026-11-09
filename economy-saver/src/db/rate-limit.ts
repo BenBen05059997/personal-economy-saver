@@ -17,6 +17,11 @@ export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp"
   return rows.length === 1;
 }
 
+/** Sliders and Ask view loads share one canvas request limit. */
+export function consumeCanvasRequest(db: Db, householdId: string) {
+  return consumeRequest(db, householdId, "canvas", 120);
+}
+
 /** How many requests of one purpose this window has used, without spending one. */
 export async function requestCount(db: Db, hid: string, purpose: string, per: Window = "minute"): Promise<number> {
   const [row] = await db.select({ count: requestBuckets.count }).from(requestBuckets)

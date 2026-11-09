@@ -8,24 +8,24 @@ import { DeviceMemoryView } from "@/components/memory/DeviceMemoryView";
 import { MemoryView } from "@/components/memory/MemoryView";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
-import { DocumentCard, type CardForm } from "./DocumentCard";
+import { DocumentCard } from "./DocumentCard";
 import { readAskStream } from "./read-stream";
 import { KeepOfferCard } from "./KeepOffer";
 import { OpenSpaceProposal } from "./OpenSpaceProposal";
 import { SpaceBrief } from "./SpaceBrief";
 import { contextTail, historyTail } from "@/lib/agent/context";
+import type { AskScreen } from "@/lib/agent/screen";
 import type { Brief, BriefRecord } from "@/lib/agent/brief";
-import type { KeepOffer } from "@/lib/agent/keep-offer";
-import type { ClockHousehold } from "@/db/clock";
+import type { AskView } from "@/db/ask-view";
 import { SessionEnded } from "@/components/ui/SessionEnded";
 import { SESSION_ENDED } from "@/lib/session-ended";
 import { drawCanvas } from "@/lib/canvas/draw";
 import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document-card";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
+import type { Drawn, TurnView } from "@/lib/agent/view";
 import type { Recipe } from "@/lib/canvas/schema";
-import type { Place } from "@/db/place";
 import type { MemoryItem } from "@/lib/schema/memory";
-import { DEVICE_MEMORY_SOURCE_LABEL, memorySourceLabel, type ConversationTurn, type TurnKind, type TurnSource } from "@/lib/schema/turn";
+import { DEVICE_MEMORY_SOURCE_LABEL, memorySourceLabel, type ConversationTurn, type TurnSource } from "@/lib/schema/turn";
 import {
   applyDeviceMemoryChanges, deleteDeviceConversation, deleteDeviceTurn, deviceMemory, devicePins, listDevice, pinOnDevice, readDeviceBrief, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin, writeDeviceBrief,
 } from "@/lib/store/device";
@@ -34,16 +34,8 @@ import { DRAFT_EVENT, takeStoredDraft } from "./draft";
 import { useSpeech } from "../voice/use-speech";
 import "./ask.css";
 
-export type TurnView = {
-  id: string; question: string; kind: TurnKind; text: string; choices: string[] | null;
-  sources: TurnSource[]; links: { label: string; href: string }[]; thumb: 1 | -1 | null; documentId: string | null; offers?: KeepOffer[];
-  incognito?: boolean; openSpace?: { name: string };
-};
-export type Drawn = { key: string; title: string; recipe: Recipe; blocks: ResolvedBlock[] };
 type Pin = { id: string; title: string };
-type SpaceChoice = { id: string; name: string; status: string };
 type Earlier = { id: string; question: string };
-type Places = { memory: Place; journal: Place; canvases: Place };
 type MemoryLinks = { notes: ReadonlyMap<string, string>; profile: ReadonlyMap<string, string> };
 
 const viewOf = (turn: ConversationTurn): TurnView => ({
@@ -62,17 +54,16 @@ const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 
 const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays two weeks late?", "Where did last month go?"];
 
-/**
- * Ask (D60): the conversation beside the canvas. The question box, the microphone and Enter-to-ask are here; the top bar only links to this
- * page. A reply is chosen by the server (answer, a clarifying question with buttons, or a fixed decline); a canvas comes with it when it helps.
- */
-export function AskPage({ householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin, firstUse, unavailable, form, cloudBrief, cloudMemory, memoryMoment }: {
-  householdId: string; form: CardForm; places: Places; clock: ClockHousehold;
-  space: SpaceChoice & { isGeneral: boolean }; spaces: SpaceChoice[]; earlier: Earlier[]; legacyId: string | null;
-  pinId: string | null; pins: Pin[]; turns: TurnView[]; starters: Drawn[]; shown: Drawn | null; pin: Pin | null;
-  firstUse: string | null; unavailable: string | null; cloudBrief: BriefRecord | null;
-  cloudMemory: { notes: MemoryItem[]; profileIds: string[]; totalCount: number }; memoryMoment: string;
+/** Ask’s thread, composer and canvas for both the full page and the docked panel (D60). */
+export function AskPage({
+  householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin,
+  firstUse, unavailable, form, cloudBrief, cloudMemory, memoryMoment, variant = "full", screen = "canvas", focusRequest = 0, chooseSpace, onPanelChange,
+}: AskView & {
+  variant?: "full" | "panel"; screen?: AskScreen; focusRequest?: number; chooseSpace?: (id: string) => void; onPanelChange?: () => void;
 }) {
+  const panel = variant === "panel";
+  const anchorPrefix = panel ? "ask-panel-" : "";
+  const Heading = panel ? "h2" : "h1";
   // D59: a kind kept on this device is read from and written to this browser; the question carries what the server needs for it and the server keeps none of it.
   const onDevice = { memory: places.memory === "device", journal: places.journal === "device", canvases: places.canvases === "device" };
   const router = useRouter();
@@ -122,10 +113,12 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
   const attached = useRef<{ key: string; id: string } | null>(null);
   const docCanvases = useRef(0);
   const canvasChosen = useRef(false);
+  const deviceLoaded = useRef(false);
+  const lastFocus = useRef(0);
 
   // This page is keyed by space, thread and pin. Device history loads only this thread; older threads are listed under General.
   useEffect(() => {
-    if (!onDevice.journal && !onDevice.canvases) return;
+    if (deviceLoaded.current || (!onDevice.journal && !onDevice.canvases)) return;
     let cancelled = false;
     (async () => {
       try {
@@ -159,6 +152,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
           if (typeof blocks === "string") setProblem(blocks);
           else if (pinned || !canvasChosen.current) setCanvas({ key, title: recipe.title, recipe, blocks });
         }
+        if (!cancelled) deviceLoaded.current = true;
       } catch (error) { if (!cancelled) setProblem(wordsOf(error)); }
     })();
     return () => { cancelled = true; };
@@ -176,18 +170,25 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       requestAnimationFrame(() => field.current?.setSelectionRange(draft.text.length, draft.text.length));
     }
     takeDraft();
-    if (window.location.hash === "#ask") field.current?.focus();
+    if (!panel && window.location.hash === "#ask") field.current?.focus();
     window.addEventListener(DRAFT_EVENT, takeDraft);
     return () => { window.removeEventListener(DRAFT_EVENT, takeDraft); };
-  }, []);
+  }, [panel]);
+  useEffect(() => {
+    if (focusRequest <= lastFocus.current) return;
+    lastFocus.current = focusRequest;
+    field.current?.focus();
+  }, [focusRequest]);
 
   const speech = useSpeech(words => { setText(words); setSource("voice"); requestId.current = ""; });
   const listening = speech.listening;
   function speak() { setProblem(""); speech.start(); }
 
   function scrollToCanvas() {
-    // On a phone the canvas sits below the conversation: bring it into view.
-    requestAnimationFrame(() => { if (window.matchMedia("(max-width: 899px)").matches) canvasRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }); });
+    // The panel and the phone stack the canvas below the conversation.
+    requestAnimationFrame(() => {
+      if (panel || window.matchMedia("(max-width: 899px)").matches) canvasRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
   }
   function showDocumentCanvas(documentId: string, drawn: NonNullable<Card["canvas"]>, scroll = false) {
     docCanvases.current += 1;
@@ -215,6 +216,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       if (!response.ok) return response.status === 401 ? SESSION_ENDED : (await response.text()) || "Upload failed.";
       const { turn, card } = await response.json() as { turn: ConversationTurn; card: Card };
       attached.current = null;
+      onPanelChange?.();
       setCards(current => ({ ...current, [card.documentId]: card }));
       setTurns(current => [...current.filter(item => item.id !== turn.id), viewOf(turn)]);
       if (onDevice.journal) {
@@ -266,7 +268,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       const visibleMemory = memory?.filter(item => !item.spaceId || spaceIds.has(item.spaceId));
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id, conversationId, spaceId: space.id, text: trimmed, source: how, canvas: currentCanvas?.recipe ?? null,
+          id, conversationId, spaceId: space.id, text: trimmed, source: how, screen, canvas: currentCanvas?.recipe ?? null,
           ...(incognito && { incognito: true }),
           ...(visibleMemory && { memory: visibleMemory }),
           ...(tail && { recent: tail.turns, earlierCount: tail.omitted, deviceBrief: storedBrief?.brief ?? {}, history }),
@@ -313,7 +315,11 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
         setCanvas(drawn);
         scrollToCanvas();
       }
-      if (reply.pending || (!onDevice.memory && reply.memoryChanged)) router.refresh();
+      if (onPanelChange) {
+        if (reply.pending || reply.links.length || reply.memoryChanged || reply.memoryChanges.length || reply.brief) onPanelChange();
+      } else if (reply.pending || (!onDevice.memory && reply.memoryChanged)) {
+        router.refresh();
+      }
     } catch { setProblem("Couldn’t reach your household. Try again."); }
     finally { setBusy(false); setStep(""); }
   }
@@ -377,7 +383,10 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
     try {
       if (update && devicePin) { if (!await updateDevicePin(householdId, devicePin.id, showing.recipe)) { setProblem("That canvas is no longer pinned on this device."); return; } }
       else await pinOnDevice(householdId, { title: showing.recipe.title, recipe: showing.recipe, spaceId: space.id });
-      if (space.isGeneral) router.push("/");
+      if (space.isGeneral) {
+        if (onPanelChange) onPanelChange();
+        else router.push("/");
+      }
       else setLocalPins((await devicePins(householdId)).filter(item => item.spaceId === space.id));
     } catch (error) { setProblem(wordsOf(error)); }
   }
@@ -401,21 +410,26 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
     const localProfile = localMemoryLinks?.profile.get(item.id);
     const note = onDevice.memory ? Boolean(localNote) : cloudMemory.notes.some(note => note.id === item.id);
     const profile = onDevice.memory ? Boolean(localProfile) : cloudMemory.profileIds.includes(item.id);
-    const href = note ? `#memory-${item.id}` : profile ? `/memory#memory-${item.id}` : undefined;
+    const href = note ? `#${anchorPrefix}memory-${item.id}` : profile ? `/memory#memory-${item.id}` : undefined;
     const label = item.label === DEVICE_MEMORY_SOURCE_LABEL ? localNote ?? localProfile ?? item.label : item.label;
     return { href, label };
   }
 
-  return <div className="ask-page">
+  return <div className={panel ? "ask-page is-panel" : "ask-page"}>
     <section className="ask-conversation" aria-label="Conversation">
       <div className="ask-head">
-        <h1 className="ui-title">Ask</h1>
+        <Heading className="ui-title">Ask</Heading>
         <Link href="/memory?tab=spaces" prefetch={false} className="ui-button">Spaces</Link>
       </div>
       <details className="ask-spaces">
         <summary aria-label={`Current space: ${space.name}`}>{space.name}</summary>
         <ul>{spaces.filter(item => item.status === "open").map(item =>
           <li key={item.id}><Link className="ui-button" href={`/canvas?space=${item.id}`} prefetch={false}
+            onClick={event => {
+              if (!chooseSpace || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+              event.preventDefault();
+              if (!busy && item.id !== space.id) chooseSpace(item.id);
+            }}
             aria-current={item.id === space.id && !legacyId ? "page" : undefined}>{item.name}</Link></li>)}</ul>
       </details>
       {space.status === "archived" && <p className="ui-hint">Archived space</p>}
@@ -423,7 +437,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       {!legacyId && <>
         <SpaceBrief id={space.id} record={brief} timeZone={clock.timeZone} ready={deviceReady}
           readOnly={!canWrite} busy={busy} saveOnDevice={onDevice.journal ? saveLocalBrief : undefined} onCloudSaved={setLatestBrief} />
-        <a href="#space-notes" className="ask-notes-link">Space notes ↓</a>
+        <a href={`#${anchorPrefix}space-notes`} className="ask-notes-link">Space notes ↓</a>
       </>}
       {earlierThreads.length > 0 && <details className="ask-spaces">
         <summary>Earlier conversations</summary>
@@ -453,18 +467,18 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
           {turn.incognito && <p className="ui-hint">Not saved</p>}
           {!readOnly && turn.openSpace && <OpenSpaceProposal name={turn.openSpace.name} hidden={incognito} />}
           {!readOnly && turn.offers?.map(offer => <KeepOfferCard key={JSON.stringify(offer)}
-            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} returnTo={spaceHref} onDeviceMemoryKept={notesChanged} hidden={incognito} />)}
+            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} returnTo={spaceHref} onDeviceMemoryKept={() => { notesChanged(); onPanelChange?.(); }} hidden={incognito} />)}
           {turn.kind === "document" && (turn.documentId
             ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} readOnly={!canWrite} returnTo={spaceHref} onCard={takeCard}
               onCanvas={drawn => showDocumentCanvas(turn.documentId as string, drawn, true)} />
             : <p className="ui-hint">{DOCUMENT_WORDS.notKept}</p>)}
           {!readOnly && (!turn.incognito || incognito) && turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
             <button key={choice} type="button" className="ui-button" disabled={busy} onClick={() => void ask(choice, "manual")}>{choice}</button>)}</div>}
-          {turn.links.length > 0 && <div className="ask-links">{turn.links.map(link => <a key={link.href} className="ui-button primary" href={link.href}>{link.label}</a>)}</div>}
+          {turn.links.length > 0 && <div className="ask-links">{turn.links.map(link => <Link key={link.href} className="ui-button primary" href={link.href} prefetch={false}>{link.label}</Link>)}</div>}
           {turn.sources.length > 0 && <p className="ask-sources ui-hint">Based on: {turn.sources.map((item, index) => {
             const { href, label } = sourceDisplay(item);
             return <span key={"href" in item ? item.href + item.label : item.id}>
-              {index > 0 && ", "}{href ? <a href={href}>{label}</a> : label}
+              {index > 0 && ", "}{href ? href.startsWith("#") ? <a href={href}>{label}</a> : <Link href={href} prefetch={false}>{label}</Link> : label}
             </span>;
           })}</p>}
           {canWrite && !turn.incognito && turn.kind === "answer" && <div className="ask-thumbs">
@@ -479,7 +493,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       {busy && <p role="status" aria-live="polite" className="ui-hint">{step || "Checking your numbers…"}</p>}
       {(problem || speech.problem) && <p role="alert" className="ui-problem">{problem === SESSION_ENDED ? <SessionEnded /> : problem || speech.problem}</p>}
       {!readOnly && intro && <p className="ask-intro ui-hint">{intro}</p>}
-      {!readOnly && <form id="ask" className="ask-form" onSubmit={submit}>
+      {!readOnly && <form id={panel ? "ask-panel-question" : "ask"} className="ask-form" onSubmit={submit}>
         <label className="ui-field">Your question
           <textarea ref={field} maxLength={320} rows={3} value={text} required placeholder="What’s due this week? Can I spend ¥4,000?"
             onKeyDown={enterAsks}
@@ -517,6 +531,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       {onStarters && <nav className="ask-starters" aria-label="Canvases to start from">
         {starters.map((item, index) => <button key={item.key} type="button" aria-pressed={index === starter} onClick={() => setStarter(index)}>{item.title}</button>)}
       </nav>}
+      {panel && showing && <Link className="ui-button ask-open-full" href={spaceHref} prefetch={false}>Open full</Link>}
       {showing && <Canvas key={showing.key} recipe={showing.recipe} initial={showing.blocks}>
         {canWrite && (onDevice.canvases ? <div className="ask-pin">
           {devicePin && canvas && <button type="button" className="ui-button primary" onClick={() => void pinHere(true)}>Save to this pin</button>}
@@ -535,8 +550,8 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       </Canvas>}
       {!legacyId && (onDevice.memory
         ? <DeviceMemoryView householdId={householdId} spaceId={space.id} timeZone={clock.timeZone} momentNow={memoryMoment}
-          readOnly={!canWrite} refreshKey={notesVersion} onItems={noteLinks} />
-        : <MemoryView items={cloudMemory.notes} timeZone={clock.timeZone} spaceId={space.id} readOnly={!canWrite}
+          readOnly={!canWrite} anchorPrefix={anchorPrefix} refreshKey={notesVersion} onItems={noteLinks} />
+        : <MemoryView items={cloudMemory.notes} timeZone={clock.timeZone} spaceId={space.id} readOnly={!canWrite} anchorPrefix={anchorPrefix}
           totalCount={cloudMemory.totalCount} />)}
     </section>
   </div>;

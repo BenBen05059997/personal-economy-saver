@@ -12,15 +12,14 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "Any page except Ask"
+      "Home open at 1440px"
     ],
     "steps": [
       "Click the top bar's Ask box (a link reading \"Ask or say: …\")"
     ],
     "expected": [
-      "The page /canvas#ask opens with the heading \"Ask\"",
-      "The cursor is in the \"Your question\" box",
-      "There is no popover"
+      "The desktop Ask panel opens while the URL stays on Home",
+      "The cursor is in the Your question box"
     ],
     "refs": [
       "BROWSER-CHECKS K0",
@@ -40,16 +39,16 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "Home open"
+      "Home open at 1440px"
     ],
     "steps": [
       "Tab to the top bar's Ask link",
       "Type the letter w"
     ],
     "expected": [
-      "Ask opens with \"w\" already in the question box and the cursor after it",
-      "The address does not contain the letter",
-      "sessionStorage key pes-ask-draft is empty once the page has taken it"
+      "The Ask panel opens with \"w\" already in the question box and the cursor after it",
+      "The URL stays on Home",
+      "sessionStorage key pes-ask-draft is empty once the composer has taken it"
     ],
     "refs": [
       "BROWSER-CHECKS K0",
@@ -60,7 +59,7 @@
     "id": "ASK-003",
     "area": "Ask",
     "action": "Press Space, Enter or a browser shortcut on the Ask link",
-    "user_goal": "I just want the page, not a letter",
+    "user_goal": "I want a keyboard shortcut to focus an empty Ask box",
     "type": "edge",
     "priority": "P3",
     "needs": [
@@ -69,16 +68,16 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "Home open, the Ask link focused"
+      "Home open at 1440px with the Ask link focused and the composer empty"
     ],
     "steps": [
       "Press Space",
-      "Go back, focus the link again, press Enter",
-      "Go back, focus the link, press Ctrl+A or Cmd+A",
-      "Repeat with the Ask row at phone width"
+      "Close the panel, focus the link and press Enter",
+      "Close the panel, focus the link and press Ctrl+A or Cmd+A",
+      "At phone width repeat with the Ask row, returning to Home each time"
     ],
     "expected": [
-      "Space and Enter open Ask and focus an empty question box",
+      "Space and Enter open and focus an empty question box in the panel at 1440px, and the full Ask page at phone width",
       "Ctrl+A and Cmd+A keep their browser behavior and leave the app on Home"
     ],
     "refs": [

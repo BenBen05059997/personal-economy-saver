@@ -48,11 +48,13 @@ Cloudflare
 ├── Cron Trigger (`worker.ts` `scheduled`): hourly discovery and one self-bound GET /api/cron per household with `CRON_SECRET`
 └── Next.js 16 app on Workers (OpenNext adapter); `src/middleware.ts` refreshes the auth cookie on every path except the webhook, cron, MCP and inbound
     ├── Pages (server components): the sidebar is Home /, Ask /canvas, To check /to-check, Activity /activity, Cards /cards, Clients /clients, Plan /plan
-    │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory (Profile, Spaces, Goals and Rules), /settings, /account (delete my data), /privacy
+    │   ├── /(workspace) layout: household-keyed AskWorkspace spans the sidebar pages, options, upload, invoice review, Memory, Settings and Account
+    │   ├── /privacy and the other public pages are outside the workspace layout
     │   ├── /start (Start with my numbers), /login, /onboarding, /join/[token] (D68)
     │   └── /family/[token]: the App Router resolves the token without a session. A live link renders the public family view. An expired, stopped or unknown link returns HTTP 200 with the generic ended page and no household information (D52). All responses are no-store, no-referrer and noindex
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
-    │   ├── /api/ask               one question in a verified space `{ id, spaceId, text, source, canvas, incognito? }`; body at most 128 KiB, or 512 KiB with device data. Checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers or space proposal, or an error line)
+    │   ├── /api/ask               one question in a verified space `{ id, spaceId, text, source, canvas, incognito?, screen? }`; body at most 128 KiB, or 512 KiB with device data. Optional screen is a validated section key. Checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers or space proposal, or an error line)
+    │   ├── /api/ask/view          GET `?space=<id>` returns the Ask view as private, no-store JSON and defaults to General. Same-origin household guard (401 or 403), shared 120/min household canvas limit (429) and 404 for a malformed, unknown or foreign space id
     │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, `spaceId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 503 a setting missing and named, 502 a service failed, 500 anything else)
     │   ├── /api/ask/thumb         `{ id, thumb }` on one reply; one content-free log line
     │   ├── /api/canvases          pins on Home and in spaces (D57, D69): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
@@ -207,11 +209,51 @@ Nov 12; Web Push after.
 
 ### 2. The agent loop: Ask and MCP
 
+`loadAskView` in `src/db/ask-view.ts` builds the initial view for both `/canvas` and
+`GET /api/ask/view?space=<id>` in a read-only transaction under the tenant role. It loads
+the selected space and its thread, brief and notes where kept in the cloud, plus the form
+settings, pinned canvases and starter canvases drawn from current money data. Both entry
+points default to General. The full page also accepts a legacy thread or a pin in its URL.
+When the journal is kept on this device, the loader reads space metadata and skips turns
+and briefs. It also skips memory or pins when their kind is kept on this device.
+The GET route shares the 120 requests per minute per household bucket with
+`POST /api/canvas/resolve`.
+
+`AskPage.tsx` takes this view in either its full or panel presentation. The thread,
+question form with voice and attachments, streamed progress, space and brief controls,
+Keep this? offers, bill cards, clarify choices, thumbs, pins and Incognito use the same
+handlers and routes in both. Both render the canvas through `Canvas`. The panel stacks
+the thread and canvas, compacts the blocks, and offers Open full to the selected
+`/canvas?space=<id>` when it shows a canvas.
+
+The `src/app/(workspace)/layout.tsx` provider `AskWorkspace` is keyed by the validated
+household. It shares the page’s session lookup through React `cache` for each server
+render. The desktop bar opens and focuses the panel. At 1200px and up the grid reserves
+380px on the right, with directory detail to its left. At 900–1199px the panel overlays
+the page. Below 900px the Ask bar opens the full page. The panel is hidden on
+`/canvas`. Public pages, including login, start, join and family view, sit outside
+the provider. Account uses the workspace shell.
+
+The first open fetches the view. Space changes and saves refresh it as needed. There
+is no view request from a fresh closed panel. React `Activity` hides a mounted panel
+while preserving its question and in-flight reply across workspace navigation. Panel preferences in per-tab
+`sessionStorage` keep only the open flag and selected space for each household.
+Esc and Close hide the panel and restore focus. Panel mutations refresh the screen
+behind it, including form saves, drafts and attachments. AQ in BROWSER-CHECKS and
+qa/scenarios/ask-view.json cover the desktop panel. `db:test` validates the scenario
+manifest through `qa:check`.
+
+`src/lib/agent/screen.ts` maps the first path segment to an allowed screen key. Account
+uses Settings and the full Ask page uses Ask. The request sends only this key in
+`screen`. Page content, amounts, row IDs and the rest of the path stay out of that field.
+When present, `assembleContext` starts the conversation context with a fixed line such
+as “The person is asking from To check.”
+
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
-| 1. Question | `AskPage.tsx` (`/canvas?space=<id>`, General by default; the top and phone Ask links open /canvas#ask on Enter or Space, and hand a typed character over in `sessionStorage` `pes-ask-draft`; browser shortcuts keep their usual behavior) → POST /api/ask | the canvas on screen, plus device profile, notes, brief and history when stored locally | nothing | the question in the conversation |
+| 1. Question | `AskPage.tsx` (desktop workspace panel or `/canvas?space=<id>`, General by default) → POST /api/ask with the current screen key | the canvas on screen, plus device profile, notes, brief and history when stored locally | nothing | the question in the conversation |
 | 2. Gate | `answerQuestion` (`src/db/ask.ts`) | the selected household space; `readPlaces`; `turnById` and `askReceipt` for a retried id (cloud journal); `askReceipt` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
-| 3. Context | `assembleContext` (`src/db/ask.ts`) | rules, profile (6,000 characters), brief (2,000), space notes (3,000), recent turns (12,000), their live document cards, then canvas | nothing | — |
+| 3. Context | `assembleContext` (`src/db/ask.ts`) | rules, profile (6,000 characters), brief (2,000), space notes (3,000), and conversation context starting with the fixed screen line when supplied, followed by recent turns (12,000), their live document cards and canvas | nothing | — |
 | 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | the assembled context and tool catalogue. `aiConnection(db, hid, "text")` supplies the connection per call | nothing | — |
 | 5. Tools | the catalogue over the engine; the read tools of one model turn run together (`callAll`), draft tools alone in the order asked, results in the order asked | the money state, loaded once per tool turn | draft tools: pending rows in To check, an invoice draft, a memory item (`made_by = ask`, `ask_id`) | the latest step in fixed words (`TOOL_WORDS`) in the line under the box |
 | 6. Reply kind and brief | `chooseReply` (`reply.ts`) + `unconfirmedAmounts` | the question, its tool results and memory for the answer. Memory source ids are checked in code. A brief update uses amounts only from this question’s tool results | nothing | — |

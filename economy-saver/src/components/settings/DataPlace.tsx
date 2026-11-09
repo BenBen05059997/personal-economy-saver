@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAskPanel } from "@/components/shell/AskWorkspace";
 import type { Movable, Place } from "@/db/place";
 import { clearDevice, clearMovedDeviceJournal, countDevice, listDevice, readDeviceJournal, replaceDevice, replaceDeviceJournal, type DeviceJournal } from "@/lib/store/device";
 
@@ -31,6 +32,7 @@ async function post(body: unknown): Promise<unknown> {
  */
 export function DataPlace({ householdId, kind, place, cloudCount, name, unit, what, all, href, journalSpaceCount, children }: Props) {
   const router = useRouter();
+  const askPanel = useAskPanel();
   const [deviceCount, setDeviceCount] = useState<number | null>(null);
   const [panel, setPanel] = useState<"move" | "delete" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,7 +62,7 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
           catch (error) {
             // A lost response or another tab's confirmation may have followed a commit. Discard only a proven stale copy.
             if (error instanceof MoveResponseError && error.status === 409) await clearMovedDeviceJournal(householdId, stored).catch(() => false);
-            else router.refresh();
+            else { askPanel?.invalidate(); router.refresh(); }
             throw error;
           }
         } else {
@@ -82,6 +84,7 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
         try { await clearDevice(householdId, kind); } catch { setMessage("Moved to our cloud, but this browser could not clear its own copy."); }
       }
       setPanel(null);
+      askPanel?.invalidate();
       router.refresh();
     } catch (error) { setMessage(wordsOf(error)); }
     finally { setBusy(false); }
@@ -89,7 +92,12 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
 
   async function remove() {
     setBusy(true); setMessage("");
-    try { await clearDevice(householdId, kind); setDeviceCount(0); setPanel(null); } catch (error) { setMessage(wordsOf(error)); }
+    try {
+      await clearDevice(householdId, kind);
+      setDeviceCount(0);
+      setPanel(null);
+      askPanel?.invalidate();
+    } catch (error) { setMessage(wordsOf(error)); }
     finally { setBusy(false); }
   }
 

@@ -1,18 +1,22 @@
 // The Ask doors and their neighbours: /api/ask (body limit, input, rate limit, error mapping), /api/ask/thumb, /api/confirm as Ask's
-// document card posts it (from=ask, returnTo, answered), the email limits in extractDocument, and the branches of missingAskSetting.
+// document card posts it (from=ask, returnTo, answered), /api/ask/view, reader email limits, and missingAskSetting.
 // The route handlers are called directly with a hand-built Request: Module._load hands them the PGlite database in place of
-// src/db/client and a fixed cookie jar in place of next/headers (nothing else is replaced); `/api/ask`'s answerQuestion is
+// src/db/client and a fixed cookie jar in place of next/headers. The render check stubs router and CSS imports. `/api/ask`'s answerQuestion is
 // replaced only in the cases that need a thrown error, and runs for real otherwise. Fictional data only; PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/ask-routes-test.ts
 import assert from "node:assert/strict";
 import Module from "node:module";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
+import { pinCanvas } from "@/db/canvases";
+import type { AskView } from "@/db/ask-view";
 import { createSpace, generalSpace, listSpaces, saveBrief } from "@/db/spaces";
 import { addMemory, listMemory } from "@/db/memory";
 import { saveTurn, allTurns } from "@/db/conversation";
@@ -27,6 +31,7 @@ import { askUnavailable, missingAskSetting, serverDefaultHost } from "@/lib/agen
 import { extractDocument, extractSchema } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
+import { CLOSED_PANEL, readPanelPreferences, writePanelPreferences } from "@/components/ask/panel-preferences";
 
 type Handler = (request: Request) => Promise<Response>;
 const ORIGIN = "http://127.0.0.1:3123";
@@ -37,7 +42,7 @@ async function main() {
   let passed = 0;
   const ok = (name: string) => { passed++; console.log(`✓ ${name}`); };
 
-  // ---- the two stand-ins, installed before any route is imported
+  // ---- test stand-ins, installed before any route is imported
   let cookie: string | null = null;
   let realAnswerQuestion: typeof import("@/db/ask").answerQuestion;
   let asking: ((...args: unknown[]) => Promise<unknown>) | null = null;
@@ -45,6 +50,8 @@ async function main() {
   const realLoad = loader._load;
   loader._load = function (request, parent, isMain) {
     if (request === "next/headers") return { cookies: async () => ({ getAll: () => (cookie ? [{ name: "household", value: cookie }] : []), get: (name: string) => (name === "household" && cookie ? { name, value: cookie } : undefined) }) };
+    if (request === "next/navigation") return { usePathname: () => "/", useRouter: () => ({}) };
+    if (request.endsWith(".css")) return {};
     const resolved = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
     if (resolved.endsWith("/src/db/client.ts")) return { db: () => db, MissingDatabaseUrl: class extends Error {} };
     const real = realLoad.call(this, request, parent, isMain);
@@ -84,6 +91,56 @@ async function main() {
       return { steps: lines.slice(0, -1).map(line => line.step!), last, status: response.status, text: last.error ?? last.reply!.text, headers: response.headers };
     };
 
+    {
+      const tab = () => {
+        const values = new Map<string, string>();
+        return { values, getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
+      };
+      const firstTab = tab(), secondTab = tab();
+      const spaceId = crypto.randomUUID();
+      const preferred = { open: true, spaceId, draft: "Private draft", view: { question: "Private question" } };
+      writePanelPreferences(firstTab, a, preferred);
+      assert.deepEqual([...firstTab.values.values()].map(value => JSON.parse(value)), [{ open: true, spaceId }]);
+      assert.deepEqual(readPanelPreferences(firstTab, a), { open: true, spaceId });
+      assert.deepEqual(readPanelPreferences(firstTab, b), CLOSED_PANEL);
+      assert.deepEqual(readPanelPreferences(secondTab, a), CLOSED_PANEL);
+      writePanelPreferences(firstTab, b, { open: true, spaceId: null });
+      const secondPreference = { open: true, spaceId: crypto.randomUUID() };
+      writePanelPreferences(secondTab, a, secondPreference);
+      writePanelPreferences(firstTab, a, { open: false, spaceId });
+      assert.deepEqual(readPanelPreferences(firstTab, a), { open: false, spaceId });
+      assert.deepEqual(readPanelPreferences(firstTab, b), { open: true, spaceId: null });
+      assert.deepEqual(readPanelPreferences(secondTab, a), secondPreference);
+      ok("Ask panel preferences store only open and space, separately by household and tab");
+
+      for (const value of ["{broken", "null", "[]", '{"open":"yes"}']) {
+        assert.deepEqual(readPanelPreferences({ getItem: () => value }, a), CLOSED_PANEL);
+      }
+      for (const spaceId of ["not a UUID", "-".repeat(36)]) {
+        const invalidSpace = { getItem: () => JSON.stringify({ open: true, spaceId }) };
+        assert.deepEqual(readPanelPreferences(invalidSpace, a), { open: true, spaceId: null });
+      }
+      const blocked = () => { throw new DOMException("Storage is blocked", "SecurityError"); };
+      assert.deepEqual(readPanelPreferences({ getItem: blocked }, a), CLOSED_PANEL);
+      assert.doesNotThrow(() => writePanelPreferences({ setItem: blocked }, a, { open: true, spaceId }));
+      ok("Malformed and blocked Ask panel storage leave safe preferences");
+
+      const realFetch = globalThis.fetch;
+      let fetches = 0;
+      try {
+        globalThis.fetch = async () => { fetches++; throw new Error("The closed workspace must not fetch"); };
+        const { AskWorkspace } = await import("@/components/shell/AskWorkspace");
+        const workspace = { householdId: a, children: createElement("main", null, "Fictional Home") };
+        const html = renderToStaticMarkup(createElement(AskWorkspace, workspace));
+        assert.ok(html.includes('<main>Fictional Home</main>'));
+        assert.doesNotMatch(html, /data-ask-open|shell-ask-panel|Opening Ask/);
+        assert.equal(fetches, 0);
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+      ok("AskWorkspace server-renders the closed shell without a panel or a fetch");
+    }
+
     const resetDemo = (await import("@/app/api/try/reset/route")).POST as Handler;
     cookie = await seedBen(db, { isDemo: true });
     const resetResult = await resetDemo(post("/api/try/reset", null, { "x-form-fetch": "1" }));
@@ -104,6 +161,105 @@ async function main() {
       assert.equal((await handler(json(path, question()))).status, 401, `${name}: a cookie for no household`);
     }
     ok("all three routes: another origin or no Origin header is 403; no cookie, or one for no household, is 401");
+
+    // ------------------------------------------------------------ /api/ask/view
+    {
+      const view = (await import("@/app/api/ask/view/route")).GET;
+      const resolveCanvas = (await import("@/app/api/canvas/resolve/route")).POST;
+      const getView = (id?: string, fetchSite = "same-origin") => {
+        const url = new URL("/api/ask/view", ORIGIN);
+        if (id !== undefined) url.searchParams.set("space", id);
+        return view(new Request(url, { headers: { "sec-fetch-site": fetchSite } }));
+      };
+      const checkedView = async (id?: string): Promise<AskView> => {
+        const response = await getView(id);
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get("cache-control"), "private, no-store");
+        return response.json();
+      };
+      const viewHid = await seedBen(db, { isDemo: true });
+      const viewGeneral = await generalSpace(db, viewHid);
+      const project = await createSpace(db, viewHid, "Fictional Ask view project");
+      const foreign = await generalSpace(db, b);
+      const recipe = {
+        version: 1 as const, title: "Fictional project recipe",
+        blocks: [{ type: "note" as const, text: "Fictional project canvas note", by: "you" as const }],
+      };
+      const askTurn = {
+        id: crypto.randomUUID(), conversationId: project.id, question: "Fictional project question", kind: "answer" as const,
+        reply: "Fictional project answer", choices: null, recipe, sources: [],
+      };
+      await saveTurn(db, viewHid, askTurn);
+      await saveBrief(db, viewHid, project.id, { about: "Fictional project brief" }, "form");
+      const note = await addMemory(db, viewHid, { kind: "fact", text: "Fictional project note", spaceId: project.id }, { madeBy: "form" });
+      const pin = await pinCanvas(db, viewHid, { spaceId: project.id, title: "Fictional project pin", recipe }, { madeBy: "form" });
+
+      cookie = null;
+      const unauthenticated = await getView(project.id);
+      assert.deepEqual([unauthenticated.status, unauthenticated.headers.get("cache-control")], [401, "private, no-store"]);
+      cookie = viewHid;
+      const crossOrigin = await getView(project.id, "cross-site");
+      assert.deepEqual([crossOrigin.status, crossOrigin.headers.get("cache-control")], [403, "private, no-store"]);
+      for (const id of [foreign.id, crypto.randomUUID(), "not-a-uuid", ""]) {
+        const response = await getView(id);
+        assert.equal(response.status, 404, id);
+        assert.equal(response.headers.get("cache-control"), "private, no-store");
+      }
+      assert.equal((await checkedView()).space.id, viewGeneral.id);
+      const selected = await checkedView(project.id);
+      assert.equal(selected.householdId, viewHid);
+      assert.equal(selected.space.id, project.id);
+      assert.deepEqual(selected.spaces.map(({ id }) => id).sort(), [viewGeneral.id, project.id].sort());
+      assert.deepEqual(selected.turns.map(({ id }) => id), [askTurn.id]);
+      assert.deepEqual(selected.pins.map(({ id }) => id), [pin.id]);
+      assert.deepEqual(selected.cloudMemory.notes.map(({ id }) => id), [note.id]);
+      assert.equal(selected.cloudBrief?.brief.about, "Fictional project brief");
+      ok("/api/ask/view: no session is 401; cross-origin is 403; unknown, malformed and foreign space IDs are 404; own space and General are private and no-store");
+
+      const { AskPage } = await import("@/components/ask/AskPage");
+      const full = renderToStaticMarkup(createElement(AskPage, { ...selected, variant: "full" }));
+      const panel = renderToStaticMarkup(createElement(AskPage, { ...selected, variant: "panel" }));
+      assert.match(full, /class="ask-page"/);
+      assert.match(panel, /class="ask-page is-panel"/);
+      assert.doesNotMatch(full, />Open full</);
+      const openFull = `<a class="ui-button ask-open-full" href="/canvas?space=${project.id}">Open full</a>`;
+      assert.ok(panel.includes(openFull), "Open full points to the current space");
+      for (const part of [askTurn.question, askTurn.reply, "Helpful", "Incognito", "Attach a bill", "Show the recipe", recipe.blocks[0].text]) {
+        assert.ok(full.includes(part) && panel.includes(part), part);
+      }
+      assert.match(full, /href="#space-notes"/);
+      assert.match(panel, /href="#ask-panel-space-notes"/);
+      assert.equal(panel.replace(openFull, "").replace('class="ask-page is-panel"', 'class="ask-page"')
+        .replace('<h2 class="ui-title">Ask</h2>', '<h1 class="ui-title">Ask</h1>').replace('id="ask-panel-question"', 'id="ask"')
+        .replace(/((?:id|href|aria-labelledby)="#?)ask-panel-(?=(?:space-notes|memory-))/g, "$1"), full);
+      ok("AskPage renders the same thread, composer and canvas in both layouts; the panel adds Open full for the current space");
+
+      // Keep rows deliberately to prove the view obeys placement rather than returning an already empty cloud.
+      await db.update(schema.households).set({ memoryPlace: "device", canvasPlace: "device", journalPlace: "device" })
+        .where(eq(schema.households.id, viewHid));
+      const device = await checkedView(project.id);
+      assert.equal(device.space.id, project.id);
+      assert.deepEqual(device.places, { memory: "device", canvases: "device", journal: "device" });
+      assert.deepEqual(device.turns, []);
+      assert.deepEqual(device.earlier, []);
+      assert.deepEqual(device.pins, []);
+      assert.deepEqual(device.cloudMemory, { notes: [], profileIds: [], totalCount: 0 });
+      assert.equal(device.cloudBrief, null);
+      assert.ok(!JSON.stringify(device).includes("Fictional project brief"));
+      ok("/api/ask/view: device placement hides stored turns, briefs, pins and memory while keeping space metadata");
+
+      await db.insert(schema.requestBuckets).values({ householdId: viewHid, purpose: "canvas", window: sql`date_trunc('minute', now())`, count: 119 })
+        .onConflictDoUpdate({ target: [schema.requestBuckets.householdId, schema.requestBuckets.purpose],
+          set: { window: sql`date_trunc('minute', now())`, count: 119 } });
+      await checkedView(project.id);
+      const limitedView = await getView(project.id);
+      assert.deepEqual([limitedView.status, limitedView.headers.get("retry-after"), limitedView.headers.get("cache-control")],
+        [429, "60", "private, no-store"]);
+      assert.equal((await resolveCanvas(json("/api/canvas/resolve", {}))).status, 429, "both routes share the canvas bucket");
+      cookie = b;
+      assert.equal((await checkedView(foreign.id)).householdId, b, "another household has its own canvas bucket");
+      ok("/api/ask/view and /api/canvas/resolve share the per-household canvas bucket of 120 a minute");
+    }
 
     // ------------------------------------------------------------ /api/ask: body, input, limit
     cookie = a;

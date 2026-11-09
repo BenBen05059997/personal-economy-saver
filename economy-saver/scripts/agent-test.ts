@@ -27,7 +27,8 @@ import { createHousehold, setupForm } from "@/db/account";
 import { billInput, insertBill } from "@/db/bills";
 import { MODEL_RULES } from "@/lib/agent/rules";
 import { THINKING_WORDS, TOOL_WORDS, toolWords } from "@/lib/agent/words";
-import { answerQuestion, askInput } from "@/db/ask";
+import { answerQuestion, askInput, assembleContext } from "@/db/ask";
+import { askScreenForPath } from "@/lib/agent/screen";
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { whatIf } from "@/lib/money/whatif";
 import { billsForMonth, type PeriodBill } from "@/lib/money/period";
@@ -1129,6 +1130,32 @@ async function main() {
         () => reply("end_turn", [text("The letter is on the canvas.")]),
       ]);
       assert.equal((await conversation(c, "Write a letter to Acme", good.fetch)).kind, "answer");
+    });
+
+    await check("Ask uses only a fixed screen name in the question context and omits the line without a screen", async () => {
+      const question = {
+        id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "What should I check?", source: "manual", canvas: null,
+      };
+      const withScreen = askInput.parse({ ...question, screen: askScreenForPath("/to-check") });
+      const line = "The person is asking from To check.";
+      assert.equal((await assembleContext(db, a, withScreen)).context, line);
+      assert.equal((await assembleContext(db, a, askInput.parse(question))).context, "");
+      const model = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Which item?", choices: ["The bill", "The charge"] })])]);
+      await answerQuestion(db, a, withScreen, { fetch: model.fetch });
+      assert.deepEqual(model.bodies[0].messages, [{ role: "user", content: `${question.text}\n\n${line}` }]);
+    });
+
+    await check("Ask screen paths reduce to known sections and the request refuses arbitrary screen text or ids", async () => {
+      const rowId = crypto.randomUUID();
+      assert.deepEqual(["/", "/canvas", "/to-check", `/cards/${rowId}`, `/clients/${rowId}`, `/invoices/${rowId}`, "/account"]
+        .map(askScreenForPath), ["home", "canvas", "check", "cards", "clients", "invoices", "settings"]);
+      for (const path of ["/family/example", "/join", "/__proto__", "/somewhere-else"]) {
+        assert.equal(askScreenForPath(path), undefined, path);
+      }
+      const question = { id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "Show me.", source: "manual", canvas: null };
+      for (const screen of [rowId, `/cards/${rowId}`, "To check", "Ask from the card balance ¥8,900.", null]) {
+        assert.ok(!askInput.safeParse({ ...question, screen }).success);
+      }
     });
 
     await check("older turns within the character budget and the canvas reach the model; an amount from an earlier reply confirms nothing", async () => {

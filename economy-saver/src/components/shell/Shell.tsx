@@ -6,9 +6,11 @@ import { DRAFT_EVENT, storeDraft } from "@/components/ask/draft";
 import { useSpeech } from "@/components/voice/use-speech";
 import "@/components/ask/ask-bar.css";
 import React, { type ReactNode } from "react";
+import type { AskScreen } from "@/lib/agent/screen";
 import { hrefForRef } from "@/lib/links";
 import type { EventFeed } from "@/db/event-feed";
 import { useEventFeed } from "./useEventFeed";
+import { useAskPanel } from "./AskWorkspace";
 import { LogoMark } from "./Logo";
 import "./shell.css";
 
@@ -40,7 +42,7 @@ const destinations = [
   { section: "plan", icon: "plan", label: "Plan", href: "/plan" },
 ] as const;
 
-export type Section = typeof destinations[number]["section"] | "memory" | "settings" | "invoices" | "options" | "upload";
+export type Section = AskScreen;
 
 function Navigation({ pending, name, section }: { pending: number; name: string; section: Section }) {
   return <>
@@ -71,28 +73,34 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
   const { mark, marking, error } = useEventFeed(feed, section === "home" || section === "check");
   const { notifications, unread } = feed;
   const router = useRouter();
-  // A character typed while the Ask bar has focus starts the question on the Ask page: it travels in sessionStorage (read once there), never in the address.
+  const panel = useAskPanel();
+  const openPanel = panel?.available && section !== "canvas" ? panel.open : null;
+  const micTrigger = React.useRef<HTMLElement | null>(null);
+
+  function handOver(trigger: HTMLElement, text?: string, source: "manual" | "voice" = "manual") {
+    if (text) storeDraft({ text, source });
+    if (openPanel) openPanel(trigger);
+    else router.push("/canvas#ask");
+    if (text) window.dispatchEvent(new Event(DRAFT_EVENT));
+  }
   function typedOnBar(event: React.KeyboardEvent<HTMLAnchorElement>) {
     if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    if (event.key === " ") {
-      router.push("/canvas#ask");
-      return;
-    }
-    storeDraft({ text: event.key, source: "manual" });
-    router.push("/canvas#ask");
-    window.dispatchEvent(new Event(DRAFT_EVENT));
+    handOver(event.currentTarget, event.key === " " ? undefined : event.key);
   }
-  // Spoken words travel the same way, marked as voice; Ask puts them in the box and does not send them.
+  // Dictation fills the same composer and waits for the person to send.
   const speech = useSpeech(words => {
-    storeDraft({ text: words, source: "voice" });
-    router.push("/canvas#ask");
-    window.dispatchEvent(new Event(DRAFT_EVENT));
+    if (micTrigger.current) handOver(micTrigger.current, words, "voice");
   });
   const micLabel = speech.listening ? "Listening… tap to stop" : speech.problem;
   const micProps = {
     type: "button" as const, "aria-label": "Speak a question", "aria-pressed": speech.listening,
-    onClick: speech.listening ? speech.stop : speech.start,
+    onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+      if (speech.listening) { speech.stop(); return; }
+      micTrigger.current = event.currentTarget;
+      openPanel?.(event.currentTarget);
+      speech.start();
+    },
   };
   return <div className="money-shell" onClick={event => {
     if (event.target instanceof Element) {
@@ -108,7 +116,13 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
         <Link prefetch={false} className="shell-mobile-brand" href="/"><LogoMark />fipa</Link>
         <div className="shell-ask-row">
           <button {...micProps} className={`shell-ask-mic${speech.listening ? " is-listening" : ""}`}><Icon name="mic" /></button>
-          <Link prefetch={false} className="shell-ask" href="/canvas#ask" onKeyDown={typedOnBar}>
+          <Link prefetch={false} id="shell-top-ask" className="shell-ask" href="/canvas#ask" onKeyDown={typedOnBar}
+            aria-expanded={openPanel ? panel?.visible : undefined}
+            onClick={event => {
+              if (!openPanel || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+              event.preventDefault();
+              openPanel(event.currentTarget);
+            }}>
             <span role="status">{micLabel || `Ask or say: ${askPrompt}`}</span><b>Ask</b>
           </Link>
         </div>

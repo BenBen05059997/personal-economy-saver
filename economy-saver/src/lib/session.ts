@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { accountHousehold, accountMembership } from "@/db/account";
 import { verifiedUid } from "./auth-request";
 import { FORM_REDIRECT_HEADER, postedByForm } from "./form-fetch";
@@ -11,7 +12,7 @@ import { noteHousehold } from "./request-log";
 
 // The UUID cookie is a bearer credential only for anonymous Try it households.
 export async function currentHouseholdId(): Promise<string | null> {
-  const id = await resolveHouseholdId();
+  const id = await householdForRender();
   if (id) noteHousehold(id);
   return id;
 }
@@ -26,6 +27,8 @@ async function resolveHouseholdId(): Promise<string | null> {
   if (!id) return null;
   return findDemoHousehold(db(), id);
 }
+
+const householdForRender = cache(resolveHouseholdId);
 
 /** The guard for household-scoped mutating routes: the household id, or the 403/401 response to return as is. */
 export async function householdRequest(request: Request): Promise<string | Response> {

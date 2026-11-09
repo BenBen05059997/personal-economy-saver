@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { ApiForm } from "@/components/ui/ApiForm";
 import type { Brief, BriefRecord } from "@/lib/agent/brief";
 import { briefFromForm, BRIEF_LIST_FIELDS, BRIEF_REF_FIELDS } from "@/lib/agent/brief-form";
@@ -61,6 +61,7 @@ export function SpaceBrief({ id, record, timeZone, ready, readOnly, busy, saveOn
   onCloudSaved: (record: BriefRecord) => void;
 }) {
   // Freeze the editor's initial values while it is open, even if an answer updates the displayed brief.
+  const headingId = useId();
   const [draft, setDraft] = useState<BriefRecord | null | undefined>(undefined);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -88,8 +89,8 @@ export function SpaceBrief({ id, record, timeZone, ready, readOnly, busy, saveOn
       <button type="button" className="ui-button" disabled={saving} onClick={() => setDraft(undefined)}>Cancel</button>
     </div>
   </>;
-  return <section className="ui-panel ask-brief" aria-labelledby="space-brief">
-    <h2 id="space-brief">Space brief</h2>
+  return <section className="ui-panel ask-brief" aria-labelledby={headingId}>
+    <h2 id={headingId}>Space brief</h2>
     {ready ? <BriefText brief={record?.brief} /> : <p className="ui-hint">Opening the brief on this device…</p>}
     {record && updatedAt && <p className="ui-hint">
       {record.updatedBy === "ask" ? "Agent updated it " : "You updated it "}
