@@ -72,7 +72,7 @@ The expected numbers for a fresh Try it household are in [BROWSER-CHECKS.md](../
 
 - The app on http://127.0.0.1:3123 (`npm run dev -- -p 3123` in `economy-saver/`) and, for scenarios that need a model, the Codex bridge on http://127.0.0.1:3130 (`npm run codex:bridge`). The bridge reads images but refuses PDFs.
 - Try it and Start with my numbers have no hourly limit, so both runs can make as many households as they need.
-- `npm run cf:preview` (the `worker-preview` launch entry, port 8787) runs the Worker locally for the scenarios that read its request log.
+- `npm run cf:preview` (the `worker-preview` launch entry, port 8787) runs the Worker locally for the scenarios that read its request log. It cannot reach the Codex bridge (the Worker refuses private addresses), so scenarios that need a model are `skipped` there, not failed.
 
 ## Advancing the Try it date
 

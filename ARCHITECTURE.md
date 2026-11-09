@@ -680,7 +680,11 @@ The per-address limit counts a connection, not a person: people behind one share
 
 ### Environments
 
-One Supabase project and one PayPal sandbox app serve both local development and the future deployment.
+One Supabase project and one PayPal sandbox app serve all three places the app runs:
+
+- **`next dev` on http://127.0.0.1:3123** reads `.env.local`. It can use the Codex bridge on 127.0.0.1:3130 as its model.
+- **The local Worker (`npm run cf:preview`) on http://localhost:8787** reads `.dev.vars`, whose `APP_URL` is `http://localhost:8787`. It cannot use the Codex bridge or any other model on a private address: `wrangler.jsonc` sets `global_fetch_strictly_public`, so the Worker's `fetch` refuses private addresses, and Ask and the reader answer with their "could not reach" errors. Model features are checked on `next dev` with the bridge, or on a Worker with a public provider.
+- **The deployed Worker** at https://personal-economy-saver.globalperspectives-app.workers.dev reads Workers secrets (uploaded with `wrangler secret bulk` from the ignored `economy-saver/.env.worker`). It runs the code of its last deploy, which can be behind `main`.
 
 ### Reset and deletion
 
