@@ -9,6 +9,7 @@ import React, { type ReactNode } from "react";
 import { hrefForRef } from "@/lib/links";
 import type { EventFeed } from "@/db/event-feed";
 import { useEventFeed } from "./useEventFeed";
+import { LogoMark } from "./Logo";
 import "./shell.css";
 
 const iconPaths = {
@@ -43,7 +44,7 @@ export type Section = typeof destinations[number]["section"] | "memory" | "setti
 
 function Navigation({ pending, name, section }: { pending: number; name: string; section: Section }) {
   return <>
-    <Link prefetch={false} className="shell-brand" href="/"><span aria-hidden="true">¥</span>Money</Link>
+    <Link prefetch={false} className="shell-brand" href="/"><LogoMark />fipa</Link>
     <nav className="shell-links" aria-label="Main navigation">
       {destinations.map(({ section: target, icon, label, href }) => <Link prefetch={false} key={target} href={href} aria-current={target === section ? "page" : undefined}>
         <Icon name={icon} />{label}{target === "check" && pending > 0 && <span className="shell-badge">{pending}</span>}
@@ -104,7 +105,7 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
     <div className="shell-workspace">
       <header className="shell-bar">
         <button className="shell-mobile-toggle" popoverTarget="shell-nav" aria-label="Open navigation"><Icon name="activity" /></button>
-        <Link prefetch={false} className="shell-mobile-brand" href="/">Money</Link>
+        <Link prefetch={false} className="shell-mobile-brand" href="/"><LogoMark />fipa</Link>
         <div className="shell-ask-row">
           <button {...micProps} className={`shell-ask-mic${speech.listening ? " is-listening" : ""}`}><Icon name="mic" /></button>
           <Link prefetch={false} className="shell-ask" href="/canvas#ask" onKeyDown={typedOnBar}>

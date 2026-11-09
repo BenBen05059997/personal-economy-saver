@@ -31,16 +31,7 @@
   font-weight: 600;
   font-size: 15px;
 }
-.shell-brand span {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  background: var(--ink);
-  color: var(--screen);
-  font: 500 13px/1 var(--serif);
-}
+.shell-brand .logo-mark, .shell-mobile-brand .logo-mark { flex: none; display: block; }
 .shell-links { display: flex; flex-direction: column; gap: 2px; }
 .shell-links a, .shell-footer a, .shell-person {
   display: flex;
@@ -213,7 +204,7 @@
     padding: 0 max(12px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
   }
   .shell-bar .shell-mobile-toggle { display: inline-flex; width: 44px; height: 44px; }
-  .shell-mobile-brand { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; text-decoration: none; }
+  .shell-mobile-brand { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; color: inherit; font-weight: 600; text-decoration: none; }
   .shell-bell { min-height: 44px; }
   .shell-bar .shell-add { height: 44px; padding: 0 12px; }
   .shell-main { padding: 18px max(20px, env(safe-area-inset-right)) var(--ask-bar-clearance) max(20px, env(safe-area-inset-left)); }
