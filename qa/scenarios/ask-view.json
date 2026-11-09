@@ -1,0 +1,138 @@
+[
+  {
+    "id": "ASKVIEW-001",
+    "area": "Ask view",
+    "action": "Open General and a named space directly",
+    "user_goal": "I want an Ask link to open the right space",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household"
+    ],
+    "steps": [
+      "Open Ask at /canvas",
+      "Use Memory → Spaces to create March paperwork",
+      "Open that space’s /canvas?space=<id> URL directly",
+      "Return to General, then Home"
+    ],
+    "expected": [
+      "General opens by default and shows starter canvases",
+      "The space selector says March paperwork and the new thread is empty",
+      "Returning to General restores its view",
+      "Home still shows ¥0 safe to spend and a ¥18,780 shortfall on Nov 27 if clients are late"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ1"
+    ]
+  },
+  {
+    "id": "ASKVIEW-002",
+    "area": "Ask view",
+    "action": "Request the Ask view for the current household",
+    "user_goal": "I want the view to return my selected space privately",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A household with General and a named space"
+    ],
+    "steps": [
+      "Run npm run db:ask-routes-test",
+      "Check the same-origin view with no space parameter and with the named space id"
+    ],
+    "expected": [
+      "Both responses return 200 with Cache-Control: private, no-store",
+      "The first view selects General and the second selects the named space"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ2",
+      "db:ask-routes-test"
+    ]
+  },
+  {
+    "id": "ASKVIEW-003",
+    "area": "Ask view",
+    "action": "Request an Ask view without access",
+    "user_goal": "I want only my household to be able to read my Ask spaces",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Two households with their own spaces"
+    ],
+    "steps": [
+      "Run npm run db:ask-routes-test",
+      "Check requests without a session, from a foreign origin, and with malformed, unknown or foreign space ids"
+    ],
+    "expected": [
+      "The missing session returns 401 and the foreign origin returns 403",
+      "Each invalid space lookup returns 404 without space data"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ2",
+      "db:ask-routes-test"
+    ]
+  },
+  {
+    "id": "ASKVIEW-004",
+    "area": "Ask view",
+    "action": "Load an Ask view with kinds kept on this device",
+    "user_goal": "I want my device-held thread, brief, notes and pins to stay on this device",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "The household keeps its journal, memory and canvases on this device"
+    ],
+    "steps": [
+      "Run npm run db:ask-routes-test",
+      "Load a view for the selected space"
+    ],
+    "expected": [
+      "The view includes the space metadata and omits turns, briefs, notes and pins for device-held kinds"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ3",
+      "db:ask-routes-test"
+    ]
+  },
+  {
+    "id": "ASKVIEW-005",
+    "area": "Ask view",
+    "action": "Reach the shared Ask view and canvas request limit",
+    "user_goal": "I want the app to tell me when I should wait before retrying",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A household at its canvas request limit"
+    ],
+    "steps": [
+      "Run npm run db:ask-routes-test",
+      "Make a view request with the household’s canvas request bucket exhausted"
+    ],
+    "expected": [
+      "The view returns 429 for the shared 120 requests per minute household bucket"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ3",
+      "db:ask-routes-test"
+    ]
+  }
+]

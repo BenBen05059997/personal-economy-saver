@@ -33,10 +33,19 @@ export async function generalSpace(db: Db, householdId: string): Promise<Space> 
   });
 }
 
+const spaceOrder = [sql`${spaces.isGeneral} desc`, asc(spaces.createdAt), asc(spaces.id)];
+
 export async function listSpaces(db: Db, householdId: string): Promise<Space[]> {
   const hid = requireHousehold(householdId);
-  return withHousehold(db, hid, tx => tx.select().from(spaces).where(eq(spaces.householdId, hid))
-    .orderBy(sql`${spaces.isGeneral} desc`, asc(spaces.createdAt), asc(spaces.id)));
+  return withHousehold(db, hid, tx => tx.select().from(spaces).where(eq(spaces.householdId, hid)).orderBy(...spaceOrder));
+}
+
+/** The journal can be kept on this device while space names still live in the cloud. */
+export async function listSpaceChoices(db: Db, householdId: string) {
+  const hid = requireHousehold(householdId);
+  return withHousehold(db, hid, tx => tx.select({
+    id: spaces.id, name: spaces.name, isGeneral: spaces.isGeneral, status: spaces.status,
+  }).from(spaces).where(eq(spaces.householdId, hid)).orderBy(...spaceOrder));
 }
 
 async function selectSpace(tx: Db, hid: string, id: string, lock = false): Promise<Space> {

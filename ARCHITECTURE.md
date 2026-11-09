@@ -53,6 +53,7 @@ Cloudflare
     │   └── /family/[token]: the App Router resolves the token without a session. A live link renders the public family view. An expired, stopped or unknown link returns HTTP 200 with the generic ended page and no household information (D52). All responses are no-store, no-referrer and noindex
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
     │   ├── /api/ask               one question in a verified space `{ id, spaceId, text, source, canvas, incognito? }`; body at most 128 KiB, or 512 KiB with device data. Checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers or space proposal, or an error line)
+    │   ├── /api/ask/view          GET `?space=<id>` returns the Ask view as private, no-store JSON and defaults to General. Same-origin household guard (401 or 403), shared 120/min household canvas limit (429) and 404 for a malformed, unknown or foreign space id
     │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, `spaceId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 503 a setting missing and named, 502 a service failed, 500 anything else)
     │   ├── /api/ask/thumb         `{ id, thumb }` on one reply; one content-free log line
     │   ├── /api/canvases          pins on Home and in spaces (D57, D69): `kind` pin, update, move or unpin; the recipe is checked with `RecipeSchema`; at most 8
@@ -206,6 +207,16 @@ household's at the database's `now()`; an explicit `occurredAt`, such as a provi
 Nov 12; Web Push after.
 
 ### 2. The agent loop: Ask and MCP
+
+`loadAskView` in `src/db/ask-view.ts` builds the initial view for both `/canvas` and
+`GET /api/ask/view?space=<id>` in a read-only transaction under the tenant role. It loads
+the selected space and its thread, brief and notes where kept in the cloud, plus the form
+settings, pinned canvases and starter canvases drawn from current money data. Both entry
+points default to General. The full page also accepts a legacy thread or a pin in its URL.
+When the journal is kept on this device, the loader reads space metadata and skips turns
+and briefs. It also skips memory or pins when their kind is kept on this device.
+The GET route shares the 120 requests per minute per household bucket with
+`POST /api/canvas/resolve`.
 
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|

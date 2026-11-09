@@ -590,3 +590,10 @@ After the owner applies migration 0030, start from a fresh Try it. Use 375px and
 - AP31. Owner delivery round. Use an isolated signed-in household with both reminder channels configured and two new eligible findings assigned to different spaces. Let the ordinary schedule reach that member’s local hour. The delivered digest has the assigned space names, the existing amount wording and the single Home link. Check that the member gets at most one digest on each channel for the day.
 - AP32. `db:ask-routes-test` exercises Incognito persistence, blocked writes, the retry key after a completed run and releasing it after a failed run. `db:suggest-test` checks rule assignment and finding groups. `db:notify-test` checks space labels and one delivery per channel using simulated transports. The MCP suite checks the catalogue includes list_spaces and keeps the open_space proposal in Ask.
 - AP33. Open Privacy and check that it describes saved space threads and briefs, the device journal option, and how Incognito sends the question and context to the chosen model while leaving it out of the saved journal. The Reminders section mentions relevant space labels and its Home link.
+
+
+## AQ. Ask view loading (33A)
+
+- AQ1. On a fresh Ben Try it, open Ask at `/canvas` at 1440px. General is selected and starter canvases appear. From Memory → Spaces, create “March paperwork” and open it directly at `/canvas?space=<id>`. The space selector says “March paperwork” and the new thread is empty. Returning to General restores its own view. Home still shows ¥0 safe to spend and a ¥18,780 shortfall on Nov 27 if clients are late.
+- AQ2. `db:ask-routes-test` checks that the same-origin GET returns General by default and the requested space for its own household, with `Cache-Control: private, no-store`. A missing session returns 401 and a cross-origin request returns 403. Malformed, unknown and foreign space ids each return 404.
+- AQ3. The same suite checks that the view skips cloud turns and briefs, notes and pins when their kinds are kept on this device. It also checks that the view and canvas resolution share a household bucket of 120 requests per minute.

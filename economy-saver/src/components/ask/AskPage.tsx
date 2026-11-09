@@ -15,17 +15,17 @@ import { OpenSpaceProposal } from "./OpenSpaceProposal";
 import { SpaceBrief } from "./SpaceBrief";
 import { contextTail, historyTail } from "@/lib/agent/context";
 import type { Brief, BriefRecord } from "@/lib/agent/brief";
-import type { KeepOffer } from "@/lib/agent/keep-offer";
 import type { ClockHousehold } from "@/db/clock";
 import { SessionEnded } from "@/components/ui/SessionEnded";
 import { SESSION_ENDED } from "@/lib/session-ended";
 import { drawCanvas } from "@/lib/canvas/draw";
 import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document-card";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
+import type { Drawn, TurnView } from "@/lib/agent/view";
 import type { Recipe } from "@/lib/canvas/schema";
 import type { Place } from "@/db/place";
 import type { MemoryItem } from "@/lib/schema/memory";
-import { DEVICE_MEMORY_SOURCE_LABEL, memorySourceLabel, type ConversationTurn, type TurnKind, type TurnSource } from "@/lib/schema/turn";
+import { DEVICE_MEMORY_SOURCE_LABEL, memorySourceLabel, type ConversationTurn, type TurnSource } from "@/lib/schema/turn";
 import {
   applyDeviceMemoryChanges, deleteDeviceConversation, deleteDeviceTurn, deviceMemory, devicePins, listDevice, pinOnDevice, readDeviceBrief, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin, writeDeviceBrief,
 } from "@/lib/store/device";
@@ -34,12 +34,6 @@ import { DRAFT_EVENT, takeStoredDraft } from "./draft";
 import { useSpeech } from "../voice/use-speech";
 import "./ask.css";
 
-export type TurnView = {
-  id: string; question: string; kind: TurnKind; text: string; choices: string[] | null;
-  sources: TurnSource[]; links: { label: string; href: string }[]; thumb: 1 | -1 | null; documentId: string | null; offers?: KeepOffer[];
-  incognito?: boolean; openSpace?: { name: string };
-};
-export type Drawn = { key: string; title: string; recipe: Recipe; blocks: ResolvedBlock[] };
 type Pin = { id: string; title: string };
 type SpaceChoice = { id: string; name: string; status: string };
 type Earlier = { id: string; question: string };
