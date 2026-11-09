@@ -8,8 +8,6 @@ import { aboutMoney, dayLabel, minorMoney } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
 import { splitBalance, transferLine } from "@/lib/money/split";
 import type { MoneyState } from "@/lib/money/types";
-import "@/components/home/home.css";
-import "./family.css";
 
 /** D52: the read-only family page. No buttons, no forms, no links into the signed-in app, nothing from PayPal and no emails. */
 export function FamilyView({ name, state }: { name: string; state: MoneyState }) {

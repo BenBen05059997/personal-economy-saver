@@ -181,8 +181,9 @@ Round 3 (lead, with Haiku and Sonnet for the runs)
 - [x] The model hint (owner, Nov 6): Settings → Your AI model and the Ask first-use line say every household starts on the server’s default model and can choose another in Settings → Your AI model.
 - [x] 20C. `callModel` uses the maintained Vercel AI SDK provider packages with the existing neutral contract. The agent, reader, AI and voice suites pass.
 
-*Stage 16, what is left*
-- [ ] `--run` steps for S-A and S-B (Make a link, open it without a cookie, Stop sharing). Left: an ended link answers 200 with the ended text on `next dev` (`notFound()` after the stream started); the copy buttons are not yet tried with a real clipboard
+*Stage 16: family sharing*
+- [x] `--run` covers S-A’s month split and S-B’s make, cookieless open, and Stop sharing flow. Stopped and unknown links return HTTP 404 with the ended page.
+- [ ] Browser S-B: verify Copy link, Copy message for LINE and the clipboard-denied fallback with a real clipboard. Check the ended page at 375px and desktop width.
 
 **After the stages**, each with its evidence in [research/users/money-chores-worldwide.md](research/users/money-chores-worldwide.md): held PayPal money shown as expected on a date, never as cash (Balances API: available vs withheld); each client's pay run, so a reminder lands before it; one warning the day before a known debit when the forecast is short (after the deploy); the dispute clock from the Disputes API; a recurring remittance with its fee; the agent proposing categories from unknown names; renaming or merging categories in Settings; per-country calendars (pay cycles, renewal seasons, festival and government dates) as content tables, never code. Also: income other than invoices (D28), the catalogue as an agent tool once households have a profile (D6), moving money between pots.
 

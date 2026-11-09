@@ -3111,7 +3111,7 @@
       "GET /family/ with a very long token"
     ],
     "expected": [
-      "Each answers the Page not found page and shows nothing of any household",
+      "Each returns HTTP 404 with “This link has ended. Ask for a new one.”",
       "No household data is in any response"
     ],
     "refs": [
@@ -3142,7 +3142,7 @@
     ],
     "expected": [
       "The question says \"The link stops working for everyone who has it.\"; Keep changes nothing",
-      "After Stop sharing the row is gone and the old link shows \"This link has ended. Ask for a new one.\" (or the not found page)"
+      "After Stop sharing the row is gone and the old link returns HTTP 404 with \"This link has ended. Ask for a new one.\" at 375px and desktop width"
     ],
     "refs": [
       "BROWSER-CHECKS S-B2"

@@ -52,8 +52,11 @@ async function step(type, label, run) {
     return undefined;
   }
 }
+function markup(html) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+}
 function text(html) {
-  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  return markup(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
 }
 function flight(html) {
   // PPR may deliver the completed server tree only as inline Flight chunks.
@@ -452,6 +455,70 @@ await step("page", "cards", () => page("/cards", /Card B/));
 await step("page", "clients", () => page("/clients", /Beacon/));
 await step("page", "plan", () => page("/plan", /Add a pot/));
 await step("page", "plan-where-the-month-goes", () => page("/plan", /Where the month goes[\s\S]*Housing ¥82,000/));
+// S-A and S-B (D52): the two-person month and the public read-only family link.
+{
+  const prior = cookie;
+  const familySession = await step("action", "family-try-it-session", async () => {
+    adopt(await request("/api/try", { session: "" }));
+    return true;
+  });
+  if (familySession) {
+    const together = /Together ¥88,780 · Ben ¥63,450 · Wife ¥0 this month/;
+    await step("action", "family-s-a-month-split", async () => {
+      expect(!together.test(pageContent(await page("/plan", /Where the month goes/))), "family-single-person");
+      const added = await request("/api/people", { method: "POST", form: { kind: "add", name: "Wife" } });
+      expect(added.response.status === 200, "family-add-person");
+      const month = plain(pageContent(await page("/plan", together)));
+      expect(month.includes("Shared ¥82,000") && month.includes("Ben ¥10,700"), "family-month-shares");
+    });
+    const link = await step("action", "family-s-b-make-a-link", async () => {
+      const created = await request("/api/family-links", { method: "POST", form: { kind: "create" } });
+      expect(created.response.status === 200, "family-create-status");
+      const { id, link, message, day } = JSON.parse(created.body);
+      const url = new URL(link);
+      expect(/^[0-9a-f-]{36}$/i.test(id) && /^\/family\/[A-Za-z0-9_-]{43}$/.test(url.pathname)
+        && !url.search && !url.hash && url.origin === base.origin, "family-create-shape");
+      expect(day === "Nov 21" && message.endsWith(`See our month: ${link} (until Nov 21)`), "family-line-message");
+      return { id, path: url.pathname };
+    });
+    const privateHeaders = ({ headers }) => {
+      expect(headers.get("cache-control")?.includes("no-store"), "family-cache-control");
+      expect(headers.get("referrer-policy") === "no-referrer", "family-referrer");
+      expect(headers.get("x-robots-tag") === "noindex, nofollow", "family-robots");
+    };
+    if (link) {
+      await step("page", "family-s-b-open-without-a-cookie", async () => {
+        const { response, body } = await request(link.path, { session: "" });
+        expect(response.status === 200, "family-open-status");
+        privateHeaders(response);
+        const content = plain(pageContent(body));
+        expect(together.test(content) && ["Ben · family view", "Where the month goes", "Shared bills coming up",
+          "Who owes whom", "Nothing can be changed from here."].every(word => content.includes(word)), "family-open-content");
+        const view = markup(body).match(/<main\b[^>]*class="family-page"[^>]*>([\s\S]*?)<\/main>/i)?.[1];
+        expect(view && !/<(?:a|button|form)\b/i.test(view), "family-read-only");
+      });
+      await step("action", "family-s-b-stop-sharing", async () => {
+        const stopped = await request("/api/family-links", { method: "POST", form: { kind: "stop", id: link.id } });
+        expect(stopped.response.status === 200 && stopped.body === "Sharing stopped. That link no longer opens.", "family-stop");
+      });
+    }
+    await step("guard", "family-s-b-ended-and-unknown-are-404", async () => {
+      const unknown = randomUUID().replaceAll("-", "") + "a".repeat(11);
+      const paths = ["/family/" + unknown, "/family/invalid"];
+      if (link) paths.push(link.path);
+      for (const path of paths) {
+        const { response, body } = await request(path, { session: "" });
+        expect(response.status === 404, "family-ended-status");
+        privateHeaders(response);
+        const content = plain(pageContent(body));
+        expect(content.includes("This link has ended.") && content.includes("Ask for a new one.")
+          && !content.includes("Ben · family view"), "family-ended-content");
+      }
+    });
+  }
+  cookie = prior;
+}
+
 // Stage 17 plan (D53): the search box, the Spending panel and the month links, on the Try it household (today Nov 14).
 const TRY_TODAY = "2026-11-14";
 const lastMonth = (() => { const [y, m] = TRY_TODAY.split("-").map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`; })();
