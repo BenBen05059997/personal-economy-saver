@@ -608,13 +608,14 @@ async function main() {
       await insertBill(db, f, billInput.parse({ id: paid, biller: "Fictional groceries", amount: "30000", due: TODAY, category: "food", paidByMemberId: wife }), "confirmed", { madeBy: "form" });
       await insertCharge(db, f, chargeInput.parse({ id: randomUUID(), cardId: sharedCard, merchant: "Fictional outing", amount: "5000", date: TODAY, category: "other", shared: true }), "confirmed", "manual", { madeBy: "form" });
       await assert.rejects(removeMember(db, f, { id: wife }), /^Error: Settle up with Wife first\.$|Settle up with Wife first\./);
-      await assert.rejects(removeMember(db, f, { id: fBen }), /owner cannot be removed/);
+      await assert.rejects(removeMember(db, f, { id: fBen }), { message: "The household’s owner cannot be removed" });
       assert.equal(await removeMember(db, a, { id: wife }), false, "another household's person is not found");
       assert.equal(await removeMember(db, f, { id: aki }), false, "nor is this household's id given to the other");
       assert.equal((await members(f)).length, 2, "nothing removed by the refusals");
       await settleUp(db, f);
       assert.equal(await removeMember(db, f, { id: wife }), true);
       assert.deepEqual((await members(f)).map(m => [m.displayName, m.shareBp]), [["Ben", 10_000]]);
+      await assert.rejects(removeMember(db, f, { id: fBen }), { message: "The last person in a household cannot be removed" });
       const billRows = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, f), eq(schema.bills.id, own)));
       const paidRows = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, f), eq(schema.bills.id, paid)));
       assert.deepEqual([billRows[0].memberId, billRows[0].paidByMemberId, paidRows[0].paidByMemberId], [null, fBen, fBen], "her bill is shared and paid by Ben; the bill she paid is Ben's to pay");

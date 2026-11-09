@@ -718,6 +718,12 @@ One Supabase project and one PayPal sandbox app serve all three places the app r
 - **The local Worker (`npm run cf:preview`) on http://localhost:8787** reads `.dev.vars`, whose `APP_URL` is `http://localhost:8787`. It cannot use the Codex bridge or any other model on a private address: `wrangler.jsonc` sets `global_fetch_strictly_public`, so the Worker's `fetch` refuses private addresses, and Ask and the reader answer with their "could not reach" errors. Model features are checked on `next dev` with the bridge, or on a Worker with a public provider.
 - **The deployed Worker** at https://personal-economy-saver.globalperspectives-app.workers.dev reads Workers secrets (uploaded with `wrangler secret bulk` from the ignored `economy-saver/.env.worker`). It runs the code of its last deploy, which can be behind `main`.
 
+The Worker build runs through `scripts/build-worker.mjs` with the pinned OpenNext adapter. The build hook enables esbuild
+`keepNames` for the server bundle. React stores function names when Next prerenders postponed boundaries. The Worker must
+preserve those names when replaying the stored tree. Home’s outer loading boundary (“Opening…”) relies on this replay on a
+full reload. The `frontend-check.mjs --extra` HTTP suite checks that a Try it Home reload completes with the household content
+and without the React replay error.
+
 ### Reset and deletion
 
 The Settings Reset control sends `x-form-fetch: 1` and navigates once to the destination in the 204 response’s `x-form-redirect` header.
