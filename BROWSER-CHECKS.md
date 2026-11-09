@@ -117,16 +117,16 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 
 ## K. Ask
 
-Ask is the page `/canvas` (sidebar label "Ask"). The top bar's Ask box is a link to `/canvas#ask`; there is no popover.
+The sidebar opens full Ask at `/canvas`. The top bar opens the Ask panel on desktop workspace pages. On a phone, the Ask row opens `/canvas#ask`.
 
-- K0. The top bar's Ask box (a link, "Ask or say: …" and an "Ask" label on desktop) opens the Ask page with the cursor in the question box. Tab to the bar and type a letter (say "w"): the page opens with that letter already typed and the cursor after it (the letter travels in the browser's session storage, never in the address). Space and Enter open Ask with the question box empty. Ctrl/Cmd shortcuts keep their browser behavior. On a phone the Ask row under the top bar does the same. Opening `/canvas#ask` puts the cursor in the box.
+- K0. On Home at 1440px, the top bar’s Ask box (“Ask or say: …”) opens the panel and focuses the question box. Close it, tab to the bar and type “w”. Ask opens with the letter and the cursor after it. The letter travels through session storage and clears from there after the composer takes it. The URL stays on Home. In a fresh empty composer, Space and Enter both open and focus Ask. Ctrl/Cmd shortcuts keep their browser behavior. At phone width the Ask row opens and focuses the full page at `/canvas#ask`.
 - K1. Without the AI settings, Ask shows "Ask isn’t available on this server yet (AI_TEXT_MODEL)." and nothing breaks.
 - K2. Enter sends; Shift+Enter adds a line; Japanese input (IME) does not send mid-word.
 - K3. Needs the AI settings: "can I afford ¥4,000 tonight", "what's due", "where am I", "who owes whom" and one free-form question each get one or two sentences in ≤ 8 s, with numbers equal to Home's, and "Based on:" links to the pages they came from.
 - K4. Needs the AI settings: "I paid ¥3,800 at the noodle place on Card B" → a pending charge in To check; confirming it matches C4.
 - K5. Voice listening, in your own Chrome or Safari with a microphone (the desktop app's browser pane blocks it), at 375px and 1440px, in English and Japanese:
-  - The top bar (1440px) and the phone bar (375px) each have a mic button left of the Ask link (44px at 375px). Tap it → the browser asks for the microphone once; allow it. The bar reads "Listening… tap to stop" and keeps its size. Tap again → listening stops and nothing opens.
-  - Tap, then say "What's due this week?" → Ask (`/canvas#ask`) opens with the words in the box, the cursor at the end, and nothing is sent until Ask or Enter. With the browser set to Japanese, say 「今週の支払いは？」 → the Japanese words appear.
+  - The top bar (1440px) and the phone bar (375px) each have a mic button left of the Ask link (44px at 375px). Tap it → the browser asks for the microphone once; allow it. The bar reads "Listening… tap to stop" and keeps its size. On desktop the mic also opens the panel. Tap again to stop listening without sending.
+  - Tap, then say "What's due this week?" The words appear in the desktop panel or the phone’s full Ask page at `/canvas#ask`, with the cursor at the end. Sending waits for Ask or Enter. With the browser set to Japanese, say 「今週の支払いは？」 → the Japanese words appear.
   - On `/canvas` the phone bar is absent and the top-bar mic still works. Typing a character on the link still starts a question.
   - In Ask: Use microphone → the button reads "Stop listening"; say "What's due this week?" → the button returns to "Use microphone" and the words appear in the box, not sent. Stop part-way, or leave the page → listening stops and nothing is sent. Block the microphone and try again → "Speech wasn’t captured. Try again or type below.", and typing still works.
   - In Firefox → "This browser doesn’t offer speech recognition. Type your question below." in the bar and in Ask, and the link still works.
@@ -592,10 +592,13 @@ After the owner applies migration 0030, start from a fresh Try it. Use 375px and
 - AP33. Open Privacy and check that it describes saved space threads and briefs, the device journal option, and how Incognito sends the question and context to the chosen model while leaving it out of the saved journal. The Reminders section mentions relevant space labels and its Home link.
 
 
-## AQ. Ask view loading and layout (33A–33B)
+## AQ. Ask view loading and layout (33A–33C)
 
 - AQ1. On a fresh Ben Try it, open Ask at `/canvas` at 1440px. General is selected and starter canvases appear. From Memory → Spaces, create “March paperwork” and open it directly at `/canvas?space=<id>`. The space selector says “March paperwork” and the new thread is empty. Returning to General restores its own view. Home still shows ¥0 safe to spend and a ¥18,780 shortfall on Nov 27 if clients are late.
 - AQ2. `db:ask-routes-test` checks that the same-origin GET returns General by default and the requested space for its own household, with `Cache-Control: private, no-store`. A missing session returns 401 and a cross-origin request returns 403. Malformed, unknown and foreign space ids each return 404.
 - AQ3. The same suite checks that the view skips cloud turns and briefs, notes and pins when their kinds are kept on this device. It also checks that the view and canvas resolution share a household bucket of 120 requests per minute.
 - AQ4. `db:ask-routes-test` renders both Ask presentations from the same view. Both have the question form, space controls, brief and canvas. Only the panel offers Open full, which links to the selected space.
-- AQ5. At 1440px after the shell mounts the panel in 33C, open Ask on Home and select “March paperwork”. The question form and canvas stack vertically. The starter canvas fits the panel without sideways scrolling. Choose Open full. The full Ask page opens at the same space’s `/canvas?space=<id>` URL with “March paperwork” selected.
+- AQ5. At 1440px, open the Ask panel on Home and select “March paperwork”. The question form and canvas stack vertically. The starter canvas fits the panel without sideways scrolling. Choose Open full. The full Ask page opens at the same space’s `/canvas?space=<id>` URL with “March paperwork” selected.
+- AQ6. `db:ask-routes-test` checks that the initial closed workspace renders without an Ask panel or a view request and that per-household panel preferences retain only the open flag and selected space.
+- AQ7. At 1440px on Home, open the Ask panel and type an unsent question. Go to Plan and back. The panel stays open with the same selected space and draft. Esc closes it and puts focus on the top-bar Ask control. Reopen it, then use Close. The panel closes and Home stays open.
+- AQ8. At 1280px on Clients, open Acme’s details and then open the Ask panel. The list, Acme details and Ask are visible in that order. The page does not scroll sideways. Close Ask and check that the client details are still selected.

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { drawCanvas } from "@/lib/canvas/draw";
+import { useAskPanel } from "@/components/shell/AskWorkspace";
 import { PinCard } from "./PinCard";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import { devicePins, moveDevicePin, unpinOnDevice } from "@/lib/store/device";
@@ -25,6 +26,7 @@ export function DevicePins({ householdId, generalId }: { householdId: string; ge
   const [drawn, setDrawn] = useState<Drawn[] | null>(null);
   const [problem, setProblem] = useState("");
   const [version, setVersion] = useState(0);
+  const askRevision = useAskPanel()?.revision;
   useEffect(() => {
     let cancelled = false;
     devicePins(householdId).then(pins => Promise.all(pins.filter(pin => pin.spaceId == null || pin.spaceId === generalId).map(draw))).then(
@@ -32,7 +34,7 @@ export function DevicePins({ householdId, generalId }: { householdId: string; ge
       error => { if (!cancelled) { setProblem(error instanceof Error ? error.message : "Couldn’t read the canvases on this device."); setDrawn([]); } },
     );
     return () => { cancelled = true; };
-  }, [generalId, householdId, version]);
+  }, [askRevision, generalId, householdId, version]);
 
   async function change(work: () => Promise<boolean>) {
     try { if (!await work()) setProblem("That canvas is no longer pinned on this device."); setVersion(v => v + 1); }

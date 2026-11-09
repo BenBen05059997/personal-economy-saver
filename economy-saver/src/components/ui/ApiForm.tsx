@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useId, useRef, useState, type For
 import { useRouter } from "next/navigation";
 import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
 
+export const ApiFormNavigation = createContext<((action: string, destination: string | null) => boolean) | null>(null);
+
 const LastSubmitted = createContext<{ last: string; setLast: (id: string) => void } | null>(null);
 
 /** Forms inside one group share a single status line: only the form submitted last shows its message. */
@@ -25,6 +27,7 @@ export function ApiForm({ children, action = "/api/settings", secret = false, cl
   const router = useRouter();
   const id = useId();
   const group = useContext(LastSubmitted);
+  const navigateAfterSave = useContext(ApiFormNavigation);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const status = useRef<HTMLParagraphElement>(null);
@@ -44,7 +47,9 @@ export function ApiForm({ children, action = "/api/settings", secret = false, cl
       const response = await fetch(action, { method: "POST", body, headers: { [FORM_FETCH_HEADER]: "1" } });
       if (response.ok && onDone) await onDone(response.clone());
       const destination = response.ok ? response.headers.get(FORM_REDIRECT_HEADER) : null;
-      if (destination) {
+      if (response.ok && navigateAfterSave?.(action, destination)) {
+        if (!destination) setMessage(await response.text());
+      } else if (destination) {
         if (destination === window.location.pathname + window.location.search) router.refresh();
         else router.push(destination);
       } else {

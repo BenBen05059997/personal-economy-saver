@@ -174,7 +174,6 @@
     ],
     "how": "browser",
     "preconditions": [
-      "The desktop shell mounts the Ask panel (33C)",
       "A fresh Ben Try it household with a named space March paperwork"
     ],
     "steps": [
@@ -188,6 +187,89 @@
     ],
     "refs": [
       "BROWSER-CHECKS AQ5"
+    ]
+  },
+  {
+    "id": "ASKVIEW-008",
+    "area": "Ask view",
+    "action": "Keep desktop Ask preferences for this tab",
+    "user_goal": "I want my panel preferences to stay local to my tab and household",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A fresh workspace and a second household"
+    ],
+    "steps": [
+      "Run npm run db:ask-routes-test",
+      "Check the initial workspace rendering and the panel preference round trip"
+    ],
+    "expected": [
+      "The initial workspace renders without an Ask panel or a view request",
+      "Panel preferences round-trip only the open flag and selected space and are separate by household"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ6",
+      "db:ask-routes-test"
+    ]
+  },
+  {
+    "id": "ASKVIEW-009",
+    "area": "Ask view",
+    "action": "Keep the Ask composer across workspace navigation",
+    "user_goal": "I want to see Plan without losing the question I am writing",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household at 1440px"
+    ],
+    "steps": [
+      "Open the Ask panel on Home and type an unsent question",
+      "Go to Plan and back",
+      "Press Escape",
+      "Open the panel again and use Close"
+    ],
+    "expected": [
+      "The panel keeps the selected space and the draft while navigating",
+      "Escape closes the panel and returns focus to the top-bar Ask control",
+      "Close also closes the panel while Home stays open"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ7"
+    ]
+  },
+  {
+    "id": "ASKVIEW-010",
+    "area": "Ask view",
+    "action": "Open Ask alongside client details",
+    "user_goal": "I want to keep the client record in view while I ask a question",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household at 1280px",
+      "Clients open with Acme’s details selected"
+    ],
+    "steps": [
+      "Open the Ask panel",
+      "Close the panel"
+    ],
+    "expected": [
+      "The list, selected client details and Ask are visible in that order without sideways scrolling",
+      "Acme stays selected after closing the panel"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ8"
     ]
   }
 ]

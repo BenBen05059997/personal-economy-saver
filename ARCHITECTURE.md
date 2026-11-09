@@ -48,7 +48,8 @@ Cloudflare
 ├── Cron Trigger (`worker.ts` `scheduled`): hourly discovery and one self-bound GET /api/cron per household with `CRON_SECRET`
 └── Next.js 16 app on Workers (OpenNext adapter); `src/middleware.ts` refreshes the auth cookie on every path except the webhook, cron, MCP and inbound
     ├── Pages (server components): the sidebar is Home /, Ask /canvas, To check /to-check, Activity /activity, Cards /cards, Clients /clients, Plan /plan
-    │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory (Profile, Spaces, Goals and Rules), /settings, /account (delete my data), /privacy
+    │   ├── /(workspace) layout: household-keyed AskWorkspace spans the sidebar pages, options, upload, invoice review, Memory, Settings and Account
+    │   ├── /privacy and the other public pages are outside the workspace layout
     │   ├── /start (Start with my numbers), /login, /onboarding, /join/[token] (D68)
     │   └── /family/[token]: the App Router resolves the token without a session. A live link renders the public family view. An expired, stopped or unknown link returns HTTP 200 with the generic ended page and no household information (D52). All responses are no-store, no-referrer and noindex
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
@@ -223,11 +224,26 @@ question form with voice and attachments, streamed progress, space and brief con
 Keep this? offers, bill cards, clarify choices, thumbs, pins and Incognito use the same
 handlers and routes in both. Both render the canvas through `Canvas`. The panel stacks
 the thread and canvas, compacts the blocks, and offers Open full to the selected
-`/canvas?space=<id>` when it shows a canvas. The shell mounts the panel in 33C.
+`/canvas?space=<id>` when it shows a canvas.
+
+The `src/app/(workspace)/layout.tsx` provider `AskWorkspace` is keyed by the validated
+household. It shares the page’s session lookup through React `cache` for each server
+render. The desktop bar opens and focuses the panel. At 1200px and up the grid reserves
+380px on the right, with directory detail to its left. At 900–1199px the panel overlays
+the page. Below 900px the Ask bar opens the full page. The panel is hidden on
+`/canvas`. Public pages, including login, start, join and family view, sit outside
+the provider. Account uses the workspace shell.
+
+The first open fetches the view. Space changes and saves refresh it as needed. There
+is no view request from a fresh closed panel. React `Activity` hides a mounted panel
+while preserving its question and in-flight reply across workspace navigation. Panel preferences in per-tab
+`sessionStorage` keep only the open flag and selected space for each household.
+Esc and Close hide the panel and restore focus. Panel mutations refresh the screen
+behind it, including form saves, drafts and attachments.
 
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
-| 1. Question | `AskPage.tsx` (`/canvas?space=<id>`, General by default; the top and phone Ask links open /canvas#ask on Enter or Space, and hand a typed character over in `sessionStorage` `pes-ask-draft`; browser shortcuts keep their usual behavior) → POST /api/ask | the canvas on screen, plus device profile, notes, brief and history when stored locally | nothing | the question in the conversation |
+| 1. Question | `AskPage.tsx` (desktop workspace panel or `/canvas?space=<id>`, General by default) → POST /api/ask | the canvas on screen, plus device profile, notes, brief and history when stored locally | nothing | the question in the conversation |
 | 2. Gate | `answerQuestion` (`src/db/ask.ts`) | the selected household space; `readPlaces`; `turnById` and `askReceipt` for a retried id (cloud journal); `askReceipt` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
 | 3. Context | `assembleContext` (`src/db/ask.ts`) | rules, profile (6,000 characters), brief (2,000), space notes (3,000), recent turns (12,000), their live document cards, then canvas | nothing | — |
 | 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | the assembled context and tool catalogue. `aiConnection(db, hid, "text")` supplies the connection per call | nothing | — |

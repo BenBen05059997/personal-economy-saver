@@ -19,7 +19,8 @@
       "Tap the mic button beside the Ask link in the top bar (the phone bar at 375px)"
     ],
     "expected": [
-      "Ask opens at /canvas#ask with \"Can I afford ¥4,000 tonight?\" in the box and the cursor at the end",
+      "The desktop panel opens on Home at 1440px, and the full Ask page opens at /canvas#ask at 375px",
+      "The composer has \"Can I afford ¥4,000 tonight?\" with the cursor at the end",
       "Nothing is sent: no turn appears until Ask or Enter",
       "The mic button is 44px tall at 375px"
     ],

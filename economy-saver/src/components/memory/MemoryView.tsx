@@ -27,23 +27,23 @@ export type MemoryForms = {
   addKey: string | number;
 };
 
-export function MemoryHeader({ note, spaceId }: { note?: string; spaceId?: string | null }) {
+export function MemoryHeader({ note, spaceId, anchorPrefix = "" }: { note?: string; spaceId?: string | null; anchorPrefix?: string }) {
   return <header>
-    {spaceId ? <h2 id="space-notes">Space notes</h2> : <h1 className="ui-title">What the assistant knows</h1>}
+    {spaceId ? <h2 id={`${anchorPrefix}space-notes`}>Space notes</h2> : <h1 className="ui-title">What the assistant knows</h1>}
     <p className="ui-hint">{spaceId ? "These notes belong to this space." : "This shapes how the assistant answers. It never changes your numbers."}</p>
     {note && <p className="ui-hint">{note}</p>}
   </header>;
 }
 
 /** The list, the add box and Forget everything, shared by the cloud page and the device page; only `forms` differs. */
-export function MemoryLayout({ items, timeZone, forms, note, spaceId = null, readOnly = false, totalCount = items.length }: {
-  items: MemoryItem[]; timeZone: string; forms: MemoryForms; note?: string; spaceId?: string | null; readOnly?: boolean; totalCount?: number;
+export function MemoryLayout({ items, timeZone, forms, note, spaceId = null, readOnly = false, totalCount = items.length, anchorPrefix = "" }: {
+  items: MemoryItem[]; timeZone: string; forms: MemoryForms; note?: string; spaceId?: string | null; readOnly?: boolean; totalCount?: number; anchorPrefix?: string;
 }) {
   const day = dayIn(timeZone), how = howIn(day);
   const { form, busy, status } = forms;
   const Heading = spaceId ? "h3" : "h2";
   return <div className="memory-page">
-    <MemoryHeader note={note} spaceId={spaceId} />
+    <MemoryHeader note={note} spaceId={spaceId} anchorPrefix={anchorPrefix} />
 
     {items.length === 0 ? <section className="memory-empty ui-panel">
       {spaceId ? <p>No notes yet.</p> : <>
@@ -52,10 +52,10 @@ export function MemoryLayout({ items, timeZone, forms, note, spaceId = null, rea
       </>}
     </section> : MEMORY_KIND_KEYS.map(key => {
       const group = items.filter(item => item.kind === key);
-      return group.length === 0 ? null : <section key={key} className="memory-group" aria-labelledby={`memory-${key}`}>
-        <Heading id={`memory-${key}`}>{MEMORY_KINDS[key].label}</Heading>
+      return group.length === 0 ? null : <section key={key} className="memory-group" aria-labelledby={`${anchorPrefix}memory-${key}`}>
+        <Heading id={`${anchorPrefix}memory-${key}`}>{MEMORY_KINDS[key].label}</Heading>
         <p className="ui-hint">{MEMORY_KINDS[key].help}</p>
-        <ul>{group.map(item => <li key={`${item.id}-${item.updatedAt}`} id={`memory-${item.id}`} className="memory-item">
+        <ul>{group.map(item => <li key={`${item.id}-${item.updatedAt}`} id={`${anchorPrefix}memory-${item.id}`} className="memory-item">
           <p className="memory-text">{item.text}</p>
           <p className="ui-hint">{how(item)}{item.updatedAt !== item.createdAt && ` · edited ${day(item.updatedAt)}`}</p>
           {!readOnly && <div className="memory-actions">
@@ -107,8 +107,8 @@ export function MemoryLayout({ items, timeZone, forms, note, spaceId = null, rea
 }
 
 /** The cloud page: each action posts to /api/memory and the page reloads. */
-export function MemoryView({ items, timeZone, spaceId = null, readOnly, totalCount }: {
-  items: MemoryItem[]; timeZone: string; spaceId?: string | null; readOnly?: boolean; totalCount?: number;
+export function MemoryView({ items, timeZone, spaceId = null, readOnly, totalCount, anchorPrefix }: {
+  items: MemoryItem[]; timeZone: string; spaceId?: string | null; readOnly?: boolean; totalCount?: number; anchorPrefix?: string;
 }) {
   const forms: MemoryForms = {
     busy: false,
@@ -122,5 +122,5 @@ export function MemoryView({ items, timeZone, spaceId = null, readOnly, totalCou
       {children}
     </ApiForm>,
   };
-  return <MemoryLayout items={items} timeZone={timeZone} forms={forms} spaceId={spaceId} readOnly={readOnly} totalCount={totalCount} />;
+  return <MemoryLayout items={items} timeZone={timeZone} forms={forms} spaceId={spaceId} readOnly={readOnly} totalCount={totalCount} anchorPrefix={anchorPrefix} />;
 }

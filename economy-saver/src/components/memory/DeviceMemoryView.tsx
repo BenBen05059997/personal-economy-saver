@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useAskPanel } from "@/components/shell/AskWorkspace";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { addDeviceMemory, deviceMemory, editDeviceMemory, forgetDeviceMemory, forgetDeviceMemoryScope, householdMomentSince } from "@/lib/store/device";
 import { MemoryHeader, MemoryLayout, type MemoryForms } from "./MemoryView";
@@ -8,9 +9,9 @@ import { MemoryHeader, MemoryLayout, type MemoryForms } from "./MemoryView";
 const wordsOf = (error: unknown) => error instanceof Error ? error.message : "Something went wrong. Try again.";
 
 /** /memory when the household keeps its memory on this device only (D59): the items are read in the browser, and every change goes to the device store, never to /api/memory. */
-export function DeviceMemoryView({ householdId, timeZone, momentNow, spaceId = null, readOnly = false, refreshKey = 0, onItems }: {
+export function DeviceMemoryView({ householdId, timeZone, momentNow, spaceId = null, readOnly = false, refreshKey = 0, onItems, anchorPrefix = "" }: {
   householdId: string; timeZone: string; momentNow: string; spaceId?: string | null; readOnly?: boolean; refreshKey?: number;
-  onItems?: (items: MemoryItem[]) => void;
+  onItems?: (items: MemoryItem[]) => void; anchorPrefix?: string;
 }) {
   const [items, setItems] = useState<MemoryItem[] | null>(null);
   const [unreadable, setUnreadable] = useState("");
@@ -20,6 +21,8 @@ export function DeviceMemoryView({ householdId, timeZone, momentNow, spaceId = n
   const openedAt = useRef(0); // when the page arrived, in the browser's clock; the household's clock moves on from `momentNow` by the time since
   const householdNow = () => householdMomentSince(momentNow, openedAt.current); // like the cloud path (D34)
   const scrolledToCitation = useRef(false);
+  const workspace = useAskPanel();
+  const askRevision = spaceId ? undefined : workspace?.revision;
 
   const show = useCallback((list: MemoryItem[]) => {
     setItems(list); setUnreadable(""); onItems?.(list);
@@ -33,13 +36,13 @@ export function DeviceMemoryView({ householdId, timeZone, momentNow, spaceId = n
     let cancelled = false;
     deviceMemory(householdId).then(list => { if (!cancelled) show(list); }, error => { if (!cancelled) setUnreadable(wordsOf(error)); });
     return () => { cancelled = true; };
-  }, [householdId, refreshKey, show]);
+  }, [askRevision, householdId, refreshKey, show]);
   useEffect(() => {
     if (!items || scrolledToCitation.current) return;
     scrolledToCitation.current = true;
     const hash = window.location.hash;
-    if (/^#memory-[0-9a-f-]{36}$/.test(hash)) document.getElementById(hash.slice(1))?.scrollIntoView();
-  }, [items]);
+    if (hash.startsWith(`#${anchorPrefix}memory-`) && /[0-9a-f-]{36}$/.test(hash)) document.getElementById(hash.slice(1))?.scrollIntoView();
+  }, [anchorPrefix, items]);
 
   async function change(id: string, work: () => Promise<void>) {
     if (busy) return;
@@ -56,8 +59,8 @@ export function DeviceMemoryView({ householdId, timeZone, momentNow, spaceId = n
   const status = (id: string) => message?.id === id ? <p className="ui-hint" role="status">{message.text}</p> : null;
 
   const note = "On this device only. Other devices and connected assistants (MCP) see none of it. Clearing this browser’s data deletes it.";
-  if (unreadable) return <div className="memory-page"><MemoryHeader note={note} spaceId={spaceId} /><section className="ui-panel"><p role="alert">{unreadable}</p></section></div>;
-  if (!items) return <div className="memory-page"><MemoryHeader note={note} spaceId={spaceId} /><p className="ui-hint" role="status">Opening what is kept on this device…</p></div>;
+  if (unreadable) return <div className="memory-page"><MemoryHeader note={note} spaceId={spaceId} anchorPrefix={anchorPrefix} /><section className="ui-panel"><p role="alert">{unreadable}</p></section></div>;
+  if (!items) return <div className="memory-page"><MemoryHeader note={note} spaceId={spaceId} anchorPrefix={anchorPrefix} /><p className="ui-hint" role="status">Opening what is kept on this device…</p></div>;
 
   const forms: MemoryForms = {
     busy, status, addKey: formKey,
@@ -72,5 +75,5 @@ export function DeviceMemoryView({ householdId, timeZone, momentNow, spaceId = n
     }}>{children}</form>,
   };
   return <MemoryLayout items={items.filter(item => (item.spaceId ?? null) === spaceId)} totalCount={items.length}
-    timeZone={timeZone} forms={forms} note={note} spaceId={spaceId} readOnly={readOnly} />;
+    timeZone={timeZone} forms={forms} note={note} spaceId={spaceId} readOnly={readOnly} anchorPrefix={anchorPrefix} />;
 }

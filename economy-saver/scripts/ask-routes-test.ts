@@ -31,6 +31,7 @@ import { askUnavailable, missingAskSetting, serverDefaultHost } from "@/lib/agen
 import { extractDocument, extractSchema } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
+import { CLOSED_PANEL, readPanelPreferences, writePanelPreferences } from "@/components/ask/panel-preferences";
 
 type Handler = (request: Request) => Promise<Response>;
 const ORIGIN = "http://127.0.0.1:3123";
@@ -49,7 +50,7 @@ async function main() {
   const realLoad = loader._load;
   loader._load = function (request, parent, isMain) {
     if (request === "next/headers") return { cookies: async () => ({ getAll: () => (cookie ? [{ name: "household", value: cookie }] : []), get: (name: string) => (name === "household" && cookie ? { name, value: cookie } : undefined) }) };
-    if (request === "next/navigation") return { useRouter: () => ({}) };
+    if (request === "next/navigation") return { usePathname: () => "/", useRouter: () => ({}) };
     if (request.endsWith(".css")) return {};
     const resolved = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
     if (resolved.endsWith("/src/db/client.ts")) return { db: () => db, MissingDatabaseUrl: class extends Error {} };
@@ -89,6 +90,56 @@ async function main() {
       assert.ok(("reply" in last) !== ("error" in last) && !("step" in last), "the last line is a reply or an error");
       return { steps: lines.slice(0, -1).map(line => line.step!), last, status: response.status, text: last.error ?? last.reply!.text, headers: response.headers };
     };
+
+    {
+      const tab = () => {
+        const values = new Map<string, string>();
+        return { values, getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
+      };
+      const firstTab = tab(), secondTab = tab();
+      const spaceId = crypto.randomUUID();
+      const preferred = { open: true, spaceId, draft: "Private draft", view: { question: "Private question" } };
+      writePanelPreferences(firstTab, a, preferred);
+      assert.deepEqual([...firstTab.values.values()].map(value => JSON.parse(value)), [{ open: true, spaceId }]);
+      assert.deepEqual(readPanelPreferences(firstTab, a), { open: true, spaceId });
+      assert.deepEqual(readPanelPreferences(firstTab, b), CLOSED_PANEL);
+      assert.deepEqual(readPanelPreferences(secondTab, a), CLOSED_PANEL);
+      writePanelPreferences(firstTab, b, { open: true, spaceId: null });
+      const secondPreference = { open: true, spaceId: crypto.randomUUID() };
+      writePanelPreferences(secondTab, a, secondPreference);
+      writePanelPreferences(firstTab, a, { open: false, spaceId });
+      assert.deepEqual(readPanelPreferences(firstTab, a), { open: false, spaceId });
+      assert.deepEqual(readPanelPreferences(firstTab, b), { open: true, spaceId: null });
+      assert.deepEqual(readPanelPreferences(secondTab, a), secondPreference);
+      ok("Ask panel preferences store only open and space, separately by household and tab");
+
+      for (const value of ["{broken", "null", "[]", '{"open":"yes"}']) {
+        assert.deepEqual(readPanelPreferences({ getItem: () => value }, a), CLOSED_PANEL);
+      }
+      for (const spaceId of ["not a UUID", "-".repeat(36)]) {
+        const invalidSpace = { getItem: () => JSON.stringify({ open: true, spaceId }) };
+        assert.deepEqual(readPanelPreferences(invalidSpace, a), { open: true, spaceId: null });
+      }
+      const blocked = () => { throw new DOMException("Storage is blocked", "SecurityError"); };
+      assert.deepEqual(readPanelPreferences({ getItem: blocked }, a), CLOSED_PANEL);
+      assert.doesNotThrow(() => writePanelPreferences({ setItem: blocked }, a, { open: true, spaceId }));
+      ok("Malformed and blocked Ask panel storage leave safe preferences");
+
+      const realFetch = globalThis.fetch;
+      let fetches = 0;
+      try {
+        globalThis.fetch = async () => { fetches++; throw new Error("The closed workspace must not fetch"); };
+        const { AskWorkspace } = await import("@/components/shell/AskWorkspace");
+        const workspace = { householdId: a, children: createElement("main", null, "Fictional Home") };
+        const html = renderToStaticMarkup(createElement(AskWorkspace, workspace));
+        assert.ok(html.includes('<main>Fictional Home</main>'));
+        assert.doesNotMatch(html, /data-ask-open|shell-ask-panel|Opening Ask/);
+        assert.equal(fetches, 0);
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+      ok("AskWorkspace server-renders the closed shell without a panel or a fetch");
+    }
 
     const resetDemo = (await import("@/app/api/try/reset/route")).POST as Handler;
     cookie = await seedBen(db, { isDemo: true });
@@ -176,8 +227,11 @@ async function main() {
       for (const part of [askTurn.question, askTurn.reply, "Helpful", "Incognito", "Attach a bill", "Show the recipe", recipe.blocks[0].text]) {
         assert.ok(full.includes(part) && panel.includes(part), part);
       }
+      assert.match(full, /href="#space-notes"/);
+      assert.match(panel, /href="#ask-panel-space-notes"/);
       assert.equal(panel.replace(openFull, "").replace('class="ask-page is-panel"', 'class="ask-page"')
-        .replace('<h2 class="ui-title">Ask</h2>', '<h1 class="ui-title">Ask</h1>').replace('id="ask-panel-question"', 'id="ask"'), full);
+        .replace('<h2 class="ui-title">Ask</h2>', '<h1 class="ui-title">Ask</h1>').replace('id="ask-panel-question"', 'id="ask"')
+        .replace(/((?:id|href|aria-labelledby)="#?)ask-panel-(?=(?:space-notes|memory-))/g, "$1"), full);
       ok("AskPage renders the same thread, composer and canvas in both layouts; the panel adds Open full for the current space");
 
       // Keep rows deliberately to prove the view obeys placement rather than returning an already empty cloud.

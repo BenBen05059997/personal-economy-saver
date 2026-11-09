@@ -56,9 +56,12 @@ const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays 
 /** Ask’s thread, composer and canvas for both the full page and the docked panel (D60). */
 export function AskPage({
   householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin,
-  firstUse, unavailable, form, cloudBrief, cloudMemory, memoryMoment, variant = "full",
-}: AskView & { variant?: "full" | "panel" }) {
+  firstUse, unavailable, form, cloudBrief, cloudMemory, memoryMoment, variant = "full", focusRequest = 0, chooseSpace, onPanelChange,
+}: AskView & {
+  variant?: "full" | "panel"; focusRequest?: number; chooseSpace?: (id: string) => void; onPanelChange?: () => void;
+}) {
   const panel = variant === "panel";
+  const anchorPrefix = panel ? "ask-panel-" : "";
   const Heading = panel ? "h2" : "h1";
   // D59: a kind kept on this device is read from and written to this browser; the question carries what the server needs for it and the server keeps none of it.
   const onDevice = { memory: places.memory === "device", journal: places.journal === "device", canvases: places.canvases === "device" };
@@ -109,10 +112,12 @@ export function AskPage({
   const attached = useRef<{ key: string; id: string } | null>(null);
   const docCanvases = useRef(0);
   const canvasChosen = useRef(false);
+  const deviceLoaded = useRef(false);
+  const lastFocus = useRef(0);
 
   // This page is keyed by space, thread and pin. Device history loads only this thread; older threads are listed under General.
   useEffect(() => {
-    if (!onDevice.journal && !onDevice.canvases) return;
+    if (deviceLoaded.current || (!onDevice.journal && !onDevice.canvases)) return;
     let cancelled = false;
     (async () => {
       try {
@@ -146,6 +151,7 @@ export function AskPage({
           if (typeof blocks === "string") setProblem(blocks);
           else if (pinned || !canvasChosen.current) setCanvas({ key, title: recipe.title, recipe, blocks });
         }
+        if (!cancelled) deviceLoaded.current = true;
       } catch (error) { if (!cancelled) setProblem(wordsOf(error)); }
     })();
     return () => { cancelled = true; };
@@ -163,10 +169,15 @@ export function AskPage({
       requestAnimationFrame(() => field.current?.setSelectionRange(draft.text.length, draft.text.length));
     }
     takeDraft();
-    if (window.location.hash === "#ask") field.current?.focus();
+    if (!panel && window.location.hash === "#ask") field.current?.focus();
     window.addEventListener(DRAFT_EVENT, takeDraft);
     return () => { window.removeEventListener(DRAFT_EVENT, takeDraft); };
-  }, []);
+  }, [panel]);
+  useEffect(() => {
+    if (focusRequest <= lastFocus.current) return;
+    lastFocus.current = focusRequest;
+    field.current?.focus();
+  }, [focusRequest]);
 
   const speech = useSpeech(words => { setText(words); setSource("voice"); requestId.current = ""; });
   const listening = speech.listening;
@@ -204,6 +215,7 @@ export function AskPage({
       if (!response.ok) return response.status === 401 ? SESSION_ENDED : (await response.text()) || "Upload failed.";
       const { turn, card } = await response.json() as { turn: ConversationTurn; card: Card };
       attached.current = null;
+      onPanelChange?.();
       setCards(current => ({ ...current, [card.documentId]: card }));
       setTurns(current => [...current.filter(item => item.id !== turn.id), viewOf(turn)]);
       if (onDevice.journal) {
@@ -302,7 +314,11 @@ export function AskPage({
         setCanvas(drawn);
         scrollToCanvas();
       }
-      if (reply.pending || (!onDevice.memory && reply.memoryChanged)) router.refresh();
+      if (onPanelChange) {
+        if (reply.pending || reply.links.length || reply.memoryChanged || reply.memoryChanges.length || reply.brief) onPanelChange();
+      } else if (reply.pending || (!onDevice.memory && reply.memoryChanged)) {
+        router.refresh();
+      }
     } catch { setProblem("Couldn’t reach your household. Try again."); }
     finally { setBusy(false); setStep(""); }
   }
@@ -366,7 +382,10 @@ export function AskPage({
     try {
       if (update && devicePin) { if (!await updateDevicePin(householdId, devicePin.id, showing.recipe)) { setProblem("That canvas is no longer pinned on this device."); return; } }
       else await pinOnDevice(householdId, { title: showing.recipe.title, recipe: showing.recipe, spaceId: space.id });
-      if (space.isGeneral) router.push("/");
+      if (space.isGeneral) {
+        if (onPanelChange) onPanelChange();
+        else router.push("/");
+      }
       else setLocalPins((await devicePins(householdId)).filter(item => item.spaceId === space.id));
     } catch (error) { setProblem(wordsOf(error)); }
   }
@@ -390,7 +409,7 @@ export function AskPage({
     const localProfile = localMemoryLinks?.profile.get(item.id);
     const note = onDevice.memory ? Boolean(localNote) : cloudMemory.notes.some(note => note.id === item.id);
     const profile = onDevice.memory ? Boolean(localProfile) : cloudMemory.profileIds.includes(item.id);
-    const href = note ? `#memory-${item.id}` : profile ? `/memory#memory-${item.id}` : undefined;
+    const href = note ? `#${anchorPrefix}memory-${item.id}` : profile ? `/memory#memory-${item.id}` : undefined;
     const label = item.label === DEVICE_MEMORY_SOURCE_LABEL ? localNote ?? localProfile ?? item.label : item.label;
     return { href, label };
   }
@@ -405,6 +424,11 @@ export function AskPage({
         <summary aria-label={`Current space: ${space.name}`}>{space.name}</summary>
         <ul>{spaces.filter(item => item.status === "open").map(item =>
           <li key={item.id}><Link className="ui-button" href={`/canvas?space=${item.id}`} prefetch={false}
+            onClick={event => {
+              if (!chooseSpace || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+              event.preventDefault();
+              if (!busy && item.id !== space.id) chooseSpace(item.id);
+            }}
             aria-current={item.id === space.id && !legacyId ? "page" : undefined}>{item.name}</Link></li>)}</ul>
       </details>
       {space.status === "archived" && <p className="ui-hint">Archived space</p>}
@@ -412,7 +436,7 @@ export function AskPage({
       {!legacyId && <>
         <SpaceBrief id={space.id} record={brief} timeZone={clock.timeZone} ready={deviceReady}
           readOnly={!canWrite} busy={busy} saveOnDevice={onDevice.journal ? saveLocalBrief : undefined} onCloudSaved={setLatestBrief} />
-        <a href="#space-notes" className="ask-notes-link">Space notes ↓</a>
+        <a href={`#${anchorPrefix}space-notes`} className="ask-notes-link">Space notes ↓</a>
       </>}
       {earlierThreads.length > 0 && <details className="ask-spaces">
         <summary>Earlier conversations</summary>
@@ -442,18 +466,18 @@ export function AskPage({
           {turn.incognito && <p className="ui-hint">Not saved</p>}
           {!readOnly && turn.openSpace && <OpenSpaceProposal name={turn.openSpace.name} hidden={incognito} />}
           {!readOnly && turn.offers?.map(offer => <KeepOfferCard key={JSON.stringify(offer)}
-            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} returnTo={spaceHref} onDeviceMemoryKept={notesChanged} hidden={incognito} />)}
+            offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDevice.memory} returnTo={spaceHref} onDeviceMemoryKept={() => { notesChanged(); onPanelChange?.(); }} hidden={incognito} />)}
           {turn.kind === "document" && (turn.documentId
             ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} readOnly={!canWrite} returnTo={spaceHref} onCard={takeCard}
               onCanvas={drawn => showDocumentCanvas(turn.documentId as string, drawn, true)} />
             : <p className="ui-hint">{DOCUMENT_WORDS.notKept}</p>)}
           {!readOnly && (!turn.incognito || incognito) && turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
             <button key={choice} type="button" className="ui-button" disabled={busy} onClick={() => void ask(choice, "manual")}>{choice}</button>)}</div>}
-          {turn.links.length > 0 && <div className="ask-links">{turn.links.map(link => <a key={link.href} className="ui-button primary" href={link.href}>{link.label}</a>)}</div>}
+          {turn.links.length > 0 && <div className="ask-links">{turn.links.map(link => <Link key={link.href} className="ui-button primary" href={link.href} prefetch={false}>{link.label}</Link>)}</div>}
           {turn.sources.length > 0 && <p className="ask-sources ui-hint">Based on: {turn.sources.map((item, index) => {
             const { href, label } = sourceDisplay(item);
             return <span key={"href" in item ? item.href + item.label : item.id}>
-              {index > 0 && ", "}{href ? <a href={href}>{label}</a> : label}
+              {index > 0 && ", "}{href ? href.startsWith("#") ? <a href={href}>{label}</a> : <Link href={href} prefetch={false}>{label}</Link> : label}
             </span>;
           })}</p>}
           {canWrite && !turn.incognito && turn.kind === "answer" && <div className="ask-thumbs">
@@ -525,8 +549,8 @@ export function AskPage({
       </Canvas>}
       {!legacyId && (onDevice.memory
         ? <DeviceMemoryView householdId={householdId} spaceId={space.id} timeZone={clock.timeZone} momentNow={memoryMoment}
-          readOnly={!canWrite} refreshKey={notesVersion} onItems={noteLinks} />
-        : <MemoryView items={cloudMemory.notes} timeZone={clock.timeZone} spaceId={space.id} readOnly={!canWrite}
+          readOnly={!canWrite} anchorPrefix={anchorPrefix} refreshKey={notesVersion} onItems={noteLinks} />
+        : <MemoryView items={cloudMemory.notes} timeZone={clock.timeZone} spaceId={space.id} readOnly={!canWrite} anchorPrefix={anchorPrefix}
           totalCount={cloudMemory.totalCount} />)}
     </section>
   </div>;
