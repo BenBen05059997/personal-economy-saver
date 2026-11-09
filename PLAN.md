@@ -42,6 +42,9 @@ Warm single HTTP request through the complete response body on the same demo hou
 | Save Settings | | 1.10 |
 | Ask with a canvas (answer ≤ 8 s, needs a live model) | not measured | not measured |
 | Home with pinned canvases (no model call) | not measured | not measured |
+| Worker preview startup (Nov 9) | | 0.314 to ready, 0.726 to first byte from local server start |
+| Worker preview first anonymous Home (Nov 9) | | 0.412 to first byte, 0.475 complete |
+| Wrangler local startup profile (Nov 9) | | 0.159 profile window, 0.016 active CPU |
 
 
 ## To Nov 12: days and what waits on whom
@@ -161,7 +164,7 @@ Round 3 (lead, with Haiku and Sonnet for the runs)
 - [ ] Left of round 3: the timings table refilled (Ask with a canvas and Home with pins included; Ask with a canvas needs a real model, since the Codex bridge spends about 9 s a call); the BROWSER-CHECKS steps that read a document with a model (AF1–AF5a, the Harbor Energy 11月分 bill and `bills_for_month` in Ask), the error page's Reference (AF7) and the upload cap (J4); the Worker's startup time (box S, on the deploy). Done: `tsc`, lint, `db:test`, the three HTTP suites, `cf:size`, the migration-order rule in AGENTS.md, migrations 0025 and 0026 applied to Tokyo, and in the browser Home, Ask's progress line at 375px and desktop, the not-found page, the Privacy page lines and the Settings period edit (AF5b)
 
 *Before the deploy*
-- [ ] S. The Worker starts within 1 s. The limit is 64 MiB uncompressed on both plans (no compressed limit; wrangler's gzip figure is for reference); `npm run cf:size` read 17,330.06 KiB uncompressed (4,663.63 KiB gzip) on Nov 8, 2026, for 31B. Left: confirm the startup time in `npm run cf:preview`, then on the deploy (owner). `mathjs` and a nested `ai@4.3.19` come in through `@paypal/agent-toolkit`; the app calls `PayPalAPI.run()` and its tool definitions only (D13), so keeping them out is an option if startup is slow.
+- [ ] S. The Worker starts within 1 s. The limit is 64 MiB uncompressed on both plans ([Cloudflare limits](https://developers.cloudflare.com/workers/platform/limits/#worker-size)). On Nov 9, 2026, `npm run cf:size` measured 20,754.81 KiB uncompressed and 5,628.56 KiB gzip. Local `npm run cf:preview` on 8787 was ready in 0.314 s after Wrangler started its local server. The first anonymous Home response began at 0.726 s from that marker (HTTP 200, request TTFB 0.412 s, full response 0.475 s). `wrangler check startup` reported a 159.2 ms local profile window and 16.4 ms active CPU. The owner still needs the deployed Worker’s startup reading.
 
 *Stage 26: what foreign money costs (D62; migration 0024 adds `cards.foreign_fee_bp` and `charges.fx_estimated`; `chargeInput` takes `originalAmount` and `originalCurrency`)*
 - [x] 26A (engine and tool). Owns `src/lib/money/fx-cost.ts` (pure: per charge with an original amount, the cost above the reference rate of its date, exact when the billed yen is known, estimated from the card's fee when `fx_estimated`, else unknown; per paid USD invoice, PayPal Japan's receive fees and the 3% conversion markup at the rate on the row; twelve-month totals per card and per client; the words), `src/db/fx-cost.ts` (the household-scoped loader: rate history, charges, cards, paid invoices and clients), the read tool `foreign_costs` and the `log_charge`/`log_charges` original fields in `src/lib/agent/tools.ts`, the rule lines in `rules.ts`, the reader setting `fx_estimated`, the Card type and `foreignFeeBp` in the money state, snapshot and export (`npm run schema`), `scripts/fx-cost-test.ts` (new suite), the agent, mcp, isolation and reader cases
