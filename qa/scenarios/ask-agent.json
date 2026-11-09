@@ -1971,14 +1971,15 @@
     "steps": [
       "Clear the household and pes-auth cookies in another tab",
       "Press Ask with a question",
-      "Attach a bill, use a canvas block that asks the server to draw it again, and wait for a document card to refresh"
+      "Attach a bill, move a slider on What if clients pay late to trigger a canvas redraw, and wait for a document card to refresh"
     ],
     "expected": [
       "Each 401 shows \"Your session has expired.\" with a link \"Start again from the home page.\" to /",
       "Nothing is stored and no model is called"
     ],
     "refs": [
-      "src/components/ask/SessionEnded.tsx"
+      "src/components/ui/SessionEnded.tsx",
+      "db:canvas-test"
     ]
   },
   {

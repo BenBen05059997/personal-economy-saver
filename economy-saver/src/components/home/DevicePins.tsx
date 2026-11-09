@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { drawCanvas } from "@/lib/canvas/draw";
 import { PinCard } from "./PinCard";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import { devicePins, moveDevicePin, unpinOnDevice } from "@/lib/store/device";
@@ -11,9 +12,8 @@ type Drawn = { pin: DevicePin; blocks: ResolvedBlock[] | null; words: string };
 /** Asks the engine to draw one recipe. The route reads the household's records and keeps nothing (D57, D59). */
 async function draw(pin: DevicePin): Promise<Drawn> {
   try {
-    const response = await fetch("/api/canvas/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipe: pin.recipe }) });
-    if (!response.ok) return { pin, blocks: null, words: await response.text() };
-    return { pin, blocks: (await response.json() as { blocks: ResolvedBlock[] }).blocks, words: "" };
+    const drawn = await drawCanvas(pin.recipe);
+    return typeof drawn === "string" ? { pin, blocks: null, words: drawn } : { pin, blocks: drawn, words: "" };
   } catch { return { pin, blocks: null, words: "Couldn’t reach your household. Reload to try again." }; }
 }
 

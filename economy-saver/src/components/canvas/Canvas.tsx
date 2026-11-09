@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { SessionEnded } from "@/components/ui/SessionEnded";
+import { SESSION_ENDED } from "@/lib/session-ended";
+import { drawCanvas } from "@/lib/canvas/draw";
 import { blockWords, KIND_WORDS } from "@/lib/canvas/words";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Change, Recipe, Scenario } from "@/lib/canvas/schema";
@@ -56,9 +59,9 @@ export function Canvas({ recipe, initial, children }: { recipe: Recipe; initial:
     const timer = setTimeout(async () => {
       setDrawing(true);
       try {
-        const response = await fetch("/api/canvas/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipe, scenario }), signal: controller.signal });
-        if (!response.ok) throw new Error(await response.text());
-        const next = (await response.json()).blocks as ResolvedBlock[];
+        const next = await drawCanvas(recipe, { scenario, signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (typeof next === "string") throw new Error(next);
         setBlocks(current => current.map((block, index) => (block.live && next[index] ? next[index] : block)));
         setProblem(null);
         setDrawing(false);
@@ -83,7 +86,7 @@ export function Canvas({ recipe, initial, children }: { recipe: Recipe; initial:
       <button type="button" className="ui-button" aria-pressed={showRecipe} onClick={() => setShowRecipe(on => !on)}>{showRecipe ? "Hide the recipe" : "Show the recipe"}</button>
       <span role="status" className="canvas-status">{drawing ? "Redrawing…" : ""}</span>
     </div>
-    {problem && <p role="alert" className="ui-problem">{problem}</p>}
+    {problem && <p role="alert" className="ui-problem">{problem === SESSION_ENDED ? <SessionEnded /> : problem}</p>}
     {showRecipe && <div className="canvas-recipe">
       <p>This canvas is a list of blocks. A block that shows money holds a question, not a number; your records answer it each time it is drawn.</p>
       <ol>{recipe.blocks.map((block, index) => <li key={index}>{blockWords(block)}</li>)}</ol>
