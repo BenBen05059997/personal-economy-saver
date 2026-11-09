@@ -592,8 +592,10 @@ After the owner applies migration 0030, start from a fresh Try it. Use 375px and
 - AP33. Open Privacy and check that it describes saved space threads and briefs, the device journal option, and how Incognito sends the question and context to the chosen model while leaving it out of the saved journal. The Reminders section mentions relevant space labels and its Home link.
 
 
-## AQ. Ask view loading (33A)
+## AQ. Ask view loading and layout (33A–33B)
 
 - AQ1. On a fresh Ben Try it, open Ask at `/canvas` at 1440px. General is selected and starter canvases appear. From Memory → Spaces, create “March paperwork” and open it directly at `/canvas?space=<id>`. The space selector says “March paperwork” and the new thread is empty. Returning to General restores its own view. Home still shows ¥0 safe to spend and a ¥18,780 shortfall on Nov 27 if clients are late.
 - AQ2. `db:ask-routes-test` checks that the same-origin GET returns General by default and the requested space for its own household, with `Cache-Control: private, no-store`. A missing session returns 401 and a cross-origin request returns 403. Malformed, unknown and foreign space ids each return 404.
 - AQ3. The same suite checks that the view skips cloud turns and briefs, notes and pins when their kinds are kept on this device. It also checks that the view and canvas resolution share a household bucket of 120 requests per minute.
+- AQ4. `db:ask-routes-test` renders both Ask presentations from the same view. Both have the question form, space controls, brief and canvas. Only the panel offers Open full, which links to the selected space.
+- AQ5. At 1440px after the shell mounts the panel in 33C, open Ask on Home and select “March paperwork”. The question form and canvas stack vertically. The starter canvas fits the panel without sideways scrolling. Choose Open full. The full Ask page opens at the same space’s `/canvas?space=<id>` URL with “March paperwork” selected.

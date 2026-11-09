@@ -134,5 +134,60 @@
       "BROWSER-CHECKS AQ3",
       "db:ask-routes-test"
     ]
+  },
+  {
+    "id": "ASKVIEW-006",
+    "area": "Ask view",
+    "action": "Render the same Ask view in both sizes",
+    "user_goal": "I want the compact view to have the same Ask controls",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A named Ask space with a starter canvas"
+    ],
+    "steps": [
+      "Run npm run db:ask-routes-test",
+      "Render the full and panel presentations from the same Ask view"
+    ],
+    "expected": [
+      "Both render the question form, space controls, brief and canvas",
+      "Only the panel renders Open full for the selected space"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ4",
+      "db:ask-routes-test"
+    ]
+  },
+  {
+    "id": "ASKVIEW-007",
+    "area": "Ask view",
+    "action": "Open the selected space in full Ask",
+    "user_goal": "I want more room for the canvas in the space I am using",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "The desktop shell mounts the Ask panel (33C)",
+      "A fresh Ben Try it household with a named space March paperwork"
+    ],
+    "steps": [
+      "At 1440px open the Ask panel from Home",
+      "Select March paperwork",
+      "Choose Open full above the canvas"
+    ],
+    "expected": [
+      "The question form and compact starter canvas stack and fit the panel without sideways scrolling",
+      "Open full opens the named space’s /canvas?space=<id> page with March paperwork selected"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ5"
+    ]
   }
 ]

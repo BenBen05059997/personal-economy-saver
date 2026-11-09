@@ -218,6 +218,13 @@ and briefs. It also skips memory or pins when their kind is kept on this device.
 The GET route shares the 120 requests per minute per household bucket with
 `POST /api/canvas/resolve`.
 
+`AskPage.tsx` takes this view in either its full or panel presentation. The thread,
+question form with voice and attachments, streamed progress, space and brief controls,
+Keep this? offers, bill cards, clarify choices, thumbs, pins and Incognito use the same
+handlers and routes in both. Both render the canvas through `Canvas`. The panel stacks
+the thread and canvas, compacts the blocks, and offers Open full to the selected
+`/canvas?space=<id>` when it shows a canvas. The shell mounts the panel in 33C.
+
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
 | 1. Question | `AskPage.tsx` (`/canvas?space=<id>`, General by default; the top and phone Ask links open /canvas#ask on Enter or Space, and hand a typed character over in `sessionStorage` `pes-ask-draft`; browser shortcuts keep their usual behavior) → POST /api/ask | the canvas on screen, plus device profile, notes, brief and history when stored locally | nothing | the question in the conversation |

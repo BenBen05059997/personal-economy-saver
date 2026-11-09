@@ -1,8 +1,8 @@
 /* Ask (D60): the conversation (about 330px) beside the canvas at desktop width; stacked on a phone. App tokens only. */
 .ask-page { display: grid; gap: var(--space-5); align-items: start; min-width: 0; }
 @media (min-width: 900px) {
-  .ask-page { grid-template-columns: 330px minmax(0, 1fr); gap: var(--space-6); }
-  .ask-conversation { position: sticky; top: var(--space-4); max-height: calc(100dvh - 2 * var(--space-4)); overflow-y: auto; }
+  .ask-page:not(.is-panel) { grid-template-columns: 330px minmax(0, 1fr); gap: var(--space-6); }
+  .ask-page:not(.is-panel) .ask-conversation { position: sticky; top: var(--space-4); max-height: calc(100dvh - 2 * var(--space-4)); overflow-y: auto; }
 }
 .ask-conversation, .ask-canvas { display: grid; gap: var(--space-3); min-width: 0; align-content: start; }
 .ask-canvas { scroll-margin-top: var(--space-4); }
@@ -82,3 +82,10 @@
 
 .ask-incognito { display: inline-flex; align-items: center; gap: var(--space-2); justify-self: start; min-height: 44px; cursor: pointer; }
 .ask-incognito input { flex: none; width: 20px; height: 20px; margin: 0; }
+
+.ask-page.is-panel { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+.ask-open-full { justify-self: start; }
+.ask-page.is-panel .canvas-block { padding: var(--space-3); overflow-wrap: anywhere; }
+.ask-page.is-panel .canvas-table :is(th, td) { padding-inline: var(--space-1); white-space: normal; }
+.ask-page.is-panel .canvas-number { white-space: normal; }
+.ask-page.is-panel .canvas-plot { height: 128px; }

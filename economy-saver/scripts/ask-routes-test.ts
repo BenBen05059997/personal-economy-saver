@@ -1,11 +1,13 @@
 // The Ask doors and their neighbours: /api/ask (body limit, input, rate limit, error mapping), /api/ask/thumb, /api/confirm as Ask's
 // document card posts it (from=ask, returnTo, answered), /api/ask/view, reader email limits, and missingAskSetting.
 // The route handlers are called directly with a hand-built Request: Module._load hands them the PGlite database in place of
-// src/db/client and a fixed cookie jar in place of next/headers (nothing else is replaced); `/api/ask`'s answerQuestion is
+// src/db/client and a fixed cookie jar in place of next/headers. The render check stubs router and CSS imports. `/api/ask`'s answerQuestion is
 // replaced only in the cases that need a thrown error, and runs for real otherwise. Fictional data only; PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/ask-routes-test.ts
 import assert from "node:assert/strict";
 import Module from "node:module";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
@@ -39,7 +41,7 @@ async function main() {
   let passed = 0;
   const ok = (name: string) => { passed++; console.log(`✓ ${name}`); };
 
-  // ---- the two stand-ins, installed before any route is imported
+  // ---- test stand-ins, installed before any route is imported
   let cookie: string | null = null;
   let realAnswerQuestion: typeof import("@/db/ask").answerQuestion;
   let asking: ((...args: unknown[]) => Promise<unknown>) | null = null;
@@ -47,6 +49,8 @@ async function main() {
   const realLoad = loader._load;
   loader._load = function (request, parent, isMain) {
     if (request === "next/headers") return { cookies: async () => ({ getAll: () => (cookie ? [{ name: "household", value: cookie }] : []), get: (name: string) => (name === "household" && cookie ? { name, value: cookie } : undefined) }) };
+    if (request === "next/navigation") return { useRouter: () => ({}) };
+    if (request.endsWith(".css")) return {};
     const resolved = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
     if (resolved.endsWith("/src/db/client.ts")) return { db: () => db, MissingDatabaseUrl: class extends Error {} };
     const real = realLoad.call(this, request, parent, isMain);
@@ -126,16 +130,18 @@ async function main() {
       const viewGeneral = await generalSpace(db, viewHid);
       const project = await createSpace(db, viewHid, "Fictional Ask view project");
       const foreign = await generalSpace(db, b);
+      const recipe = {
+        version: 1 as const, title: "Fictional project recipe",
+        blocks: [{ type: "note" as const, text: "Fictional project canvas note", by: "you" as const }],
+      };
       const askTurn = {
         id: crypto.randomUUID(), conversationId: project.id, question: "Fictional project question", kind: "answer" as const,
-        reply: "Fictional project answer", choices: null, recipe: null, sources: [],
+        reply: "Fictional project answer", choices: null, recipe, sources: [],
       };
       await saveTurn(db, viewHid, askTurn);
       await saveBrief(db, viewHid, project.id, { about: "Fictional project brief" }, "form");
       const note = await addMemory(db, viewHid, { kind: "fact", text: "Fictional project note", spaceId: project.id }, { madeBy: "form" });
-      const pin = await pinCanvas(db, viewHid, { spaceId: project.id, title: "Fictional project pin",
-        recipe: { version: 1, title: "Fictional project recipe", blocks: [{ type: "sentence", query: { q: "sentence" } }] },
-      }, { madeBy: "form" });
+      const pin = await pinCanvas(db, viewHid, { spaceId: project.id, title: "Fictional project pin", recipe }, { madeBy: "form" });
 
       cookie = null;
       const unauthenticated = await getView(project.id);
@@ -158,6 +164,21 @@ async function main() {
       assert.deepEqual(selected.cloudMemory.notes.map(({ id }) => id), [note.id]);
       assert.equal(selected.cloudBrief?.brief.about, "Fictional project brief");
       ok("/api/ask/view: no session is 401; cross-origin is 403; unknown, malformed and foreign space IDs are 404; own space and General are private and no-store");
+
+      const { AskPage } = await import("@/components/ask/AskPage");
+      const full = renderToStaticMarkup(createElement(AskPage, { ...selected, variant: "full" }));
+      const panel = renderToStaticMarkup(createElement(AskPage, { ...selected, variant: "panel" }));
+      assert.match(full, /class="ask-page"/);
+      assert.match(panel, /class="ask-page is-panel"/);
+      assert.doesNotMatch(full, />Open full</);
+      const openFull = `<a class="ui-button ask-open-full" href="/canvas?space=${project.id}">Open full</a>`;
+      assert.ok(panel.includes(openFull), "Open full points to the current space");
+      for (const part of [askTurn.question, askTurn.reply, "Helpful", "Incognito", "Attach a bill", "Show the recipe", recipe.blocks[0].text]) {
+        assert.ok(full.includes(part) && panel.includes(part), part);
+      }
+      assert.equal(panel.replace(openFull, "").replace('class="ask-page is-panel"', 'class="ask-page"')
+        .replace('<h2 class="ui-title">Ask</h2>', '<h1 class="ui-title">Ask</h1>').replace('id="ask-panel-question"', 'id="ask"'), full);
+      ok("AskPage renders the same thread, composer and canvas in both layouts; the panel adds Open full for the current space");
 
       // Keep rows deliberately to prove the view obeys placement rather than returning an already empty cloud.
       await db.update(schema.households).set({ memoryPlace: "device", canvasPlace: "device", journalPlace: "device" })

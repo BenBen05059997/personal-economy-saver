@@ -8,14 +8,14 @@ import { DeviceMemoryView } from "@/components/memory/DeviceMemoryView";
 import { MemoryView } from "@/components/memory/MemoryView";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
-import { DocumentCard, type CardForm } from "./DocumentCard";
+import { DocumentCard } from "./DocumentCard";
 import { readAskStream } from "./read-stream";
 import { KeepOfferCard } from "./KeepOffer";
 import { OpenSpaceProposal } from "./OpenSpaceProposal";
 import { SpaceBrief } from "./SpaceBrief";
 import { contextTail, historyTail } from "@/lib/agent/context";
 import type { Brief, BriefRecord } from "@/lib/agent/brief";
-import type { ClockHousehold } from "@/db/clock";
+import type { AskView } from "@/db/ask-view";
 import { SessionEnded } from "@/components/ui/SessionEnded";
 import { SESSION_ENDED } from "@/lib/session-ended";
 import { drawCanvas } from "@/lib/canvas/draw";
@@ -23,7 +23,6 @@ import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Drawn, TurnView } from "@/lib/agent/view";
 import type { Recipe } from "@/lib/canvas/schema";
-import type { Place } from "@/db/place";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { DEVICE_MEMORY_SOURCE_LABEL, memorySourceLabel, type ConversationTurn, type TurnSource } from "@/lib/schema/turn";
 import {
@@ -35,9 +34,7 @@ import { useSpeech } from "../voice/use-speech";
 import "./ask.css";
 
 type Pin = { id: string; title: string };
-type SpaceChoice = { id: string; name: string; status: string };
 type Earlier = { id: string; question: string };
-type Places = { memory: Place; journal: Place; canvases: Place };
 type MemoryLinks = { notes: ReadonlyMap<string, string>; profile: ReadonlyMap<string, string> };
 
 const viewOf = (turn: ConversationTurn): TurnView => ({
@@ -56,17 +53,13 @@ const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 
 const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays two weeks late?", "Where did last month go?"];
 
-/**
- * Ask (D60): the conversation beside the canvas. The question box, the microphone and Enter-to-ask are here; the top bar only links to this
- * page. A reply is chosen by the server (answer, a clarifying question with buttons, or a fixed decline); a canvas comes with it when it helps.
- */
-export function AskPage({ householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin, firstUse, unavailable, form, cloudBrief, cloudMemory, memoryMoment }: {
-  householdId: string; form: CardForm; places: Places; clock: ClockHousehold;
-  space: SpaceChoice & { isGeneral: boolean }; spaces: SpaceChoice[]; earlier: Earlier[]; legacyId: string | null;
-  pinId: string | null; pins: Pin[]; turns: TurnView[]; starters: Drawn[]; shown: Drawn | null; pin: Pin | null;
-  firstUse: string | null; unavailable: string | null; cloudBrief: BriefRecord | null;
-  cloudMemory: { notes: MemoryItem[]; profileIds: string[]; totalCount: number }; memoryMoment: string;
-}) {
+/** Ask’s thread, composer and canvas for both the full page and the docked panel (D60). */
+export function AskPage({
+  householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin,
+  firstUse, unavailable, form, cloudBrief, cloudMemory, memoryMoment, variant = "full",
+}: AskView & { variant?: "full" | "panel" }) {
+  const panel = variant === "panel";
+  const Heading = panel ? "h2" : "h1";
   // D59: a kind kept on this device is read from and written to this browser; the question carries what the server needs for it and the server keeps none of it.
   const onDevice = { memory: places.memory === "device", journal: places.journal === "device", canvases: places.canvases === "device" };
   const router = useRouter();
@@ -180,8 +173,10 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
   function speak() { setProblem(""); speech.start(); }
 
   function scrollToCanvas() {
-    // On a phone the canvas sits below the conversation: bring it into view.
-    requestAnimationFrame(() => { if (window.matchMedia("(max-width: 899px)").matches) canvasRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }); });
+    // The panel and the phone stack the canvas below the conversation.
+    requestAnimationFrame(() => {
+      if (panel || window.matchMedia("(max-width: 899px)").matches) canvasRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    });
   }
   function showDocumentCanvas(documentId: string, drawn: NonNullable<Card["canvas"]>, scroll = false) {
     docCanvases.current += 1;
@@ -400,10 +395,10 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
     return { href, label };
   }
 
-  return <div className="ask-page">
+  return <div className={panel ? "ask-page is-panel" : "ask-page"}>
     <section className="ask-conversation" aria-label="Conversation">
       <div className="ask-head">
-        <h1 className="ui-title">Ask</h1>
+        <Heading className="ui-title">Ask</Heading>
         <Link href="/memory?tab=spaces" prefetch={false} className="ui-button">Spaces</Link>
       </div>
       <details className="ask-spaces">
@@ -473,7 +468,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       {busy && <p role="status" aria-live="polite" className="ui-hint">{step || "Checking your numbers…"}</p>}
       {(problem || speech.problem) && <p role="alert" className="ui-problem">{problem === SESSION_ENDED ? <SessionEnded /> : problem || speech.problem}</p>}
       {!readOnly && intro && <p className="ask-intro ui-hint">{intro}</p>}
-      {!readOnly && <form id="ask" className="ask-form" onSubmit={submit}>
+      {!readOnly && <form id={panel ? "ask-panel-question" : "ask"} className="ask-form" onSubmit={submit}>
         <label className="ui-field">Your question
           <textarea ref={field} maxLength={320} rows={3} value={text} required placeholder="What’s due this week? Can I spend ¥4,000?"
             onKeyDown={enterAsks}
@@ -511,6 +506,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       {onStarters && <nav className="ask-starters" aria-label="Canvases to start from">
         {starters.map((item, index) => <button key={item.key} type="button" aria-pressed={index === starter} onClick={() => setStarter(index)}>{item.title}</button>)}
       </nav>}
+      {panel && showing && <Link className="ui-button ask-open-full" href={spaceHref} prefetch={false}>Open full</Link>}
       {showing && <Canvas key={showing.key} recipe={showing.recipe} initial={showing.blocks}>
         {canWrite && (onDevice.canvases ? <div className="ask-pin">
           {devicePin && canvas && <button type="button" className="ui-button primary" onClick={() => void pinHere(true)}>Save to this pin</button>}
