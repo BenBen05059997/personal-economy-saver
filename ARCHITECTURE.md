@@ -146,7 +146,7 @@ cancel-by dates become `cancelNotices`, the dated rows Coming up shows next to t
 statements, invoices, clients, pots (cash starts from `availableCash`: bank + PayPal less confirmed pots), and with two or more members the split
 (`src/lib/money/split.ts`: shared bills and charges since the last settlement, past monthly occurrences included; it moves no money in the runway).
 Home draws, between the sentence with its action and the panels, the household's pinned canvases (at most 8, drawn by the engine with `resolveRecipe`
-and no model call: `Pinned.tsx` for cloud pins, `DevicePins.tsx` through `POST /api/canvas/resolve` for pins on this device). Activity, Settings and
+and no model call: `Pinned.tsx` for cloud pins, `DevicePins.tsx` through `POST /api/canvas/resolve` for pins on this device). Home passes its validated household ID to the scoped pin read and starts it alongside the workspace and suggestion reads. Activity, Settings and
 Upload only need the owner, the event feed, the timezone and the pending count for their navigation; the count uses the same household and charge
 date window as To check. `refreshPayPal` (`src/db/paypal-refresh.ts`, D37) runs on Home at most every 5 minutes behind a persisted lease: it reads
 each tracked invoice (draft or sent, with a PayPal id) and, for the household bound by `PAYPAL_BALANCE_HOUSEHOLD_ID`, the balance report; a demo with
