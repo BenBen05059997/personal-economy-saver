@@ -340,6 +340,10 @@ Settings → Your AI model (`/settings#ai-model`, a panel in the right column at
 - Y10. At 1440px paste a fictional plain `sk-` key while Provider is on “This app’s default”. The selection stays on the default. Choose OpenAI yourself. Paste a different fictional key with the `sk-ant-` prefix and check that OpenAI stays selected. Leave the form unsaved.
 - Y11. `db:ai-test` checks the four distinctive prefixes, a plain `sk-` key and preservation of an explicit provider.
 
+- Y12. `db:ai-test` exercises the provider model lists using fictional responses. It checks listed endpoints, a validated custom address, redirects and the timeout, and model ids with reported capability flags. Missing flags stay unknown. Tested entries sort first when present.
+- Y13. `db:settings-test` covers the one-use model list route. A typed key is used for that request. An empty key field reuses a saved key only for the same provider and address. The response is private and no-store. The 4 KiB form cap and the independent limit of 20 lists per minute still apply. Provider key, credit and connection failures return fixed words.
+- Y14. `db:members-test` checks that a member’s model-list request returns 403. `db:isolation-test` checks that a household cannot list models with another household’s Vault key even if the saved pointer names it.
+
 ## Z. The conversation (D60)
 
 A fresh Try it household, needs the AI settings for everything except the first lines (a model that works). Each question is a turn: the question, a reply, and what follows it. On a phone the canvas, if there is one, scrolls into view under the conversation.

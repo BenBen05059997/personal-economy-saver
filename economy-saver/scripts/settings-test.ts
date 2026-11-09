@@ -1,6 +1,7 @@
 // Isolated SQL contract tests. The test-only Vault double does not claim encryption verification.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import Module from "node:module";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
@@ -413,6 +414,82 @@ async function main() {
       }
       const count = await pg.query<{ n: number }>("select count(*)::integer as n from vault.secrets");
       assert.equal(count.rows[0].n, 0);
+    });
+    await check("the model list POST uses typed keys once, reuses a saved key only at its endpoint, and caps its own requests", async () => {
+      process.env.APP_URL = APP.href;
+      const hid = await finishSetup(db, randomUUID(), setupForm.parse({
+        name: "Fictional Catalogue Owner", currency: "USD", timeZone: "Asia/Tokyo", bank: "12.37",
+      }), null);
+      const baseUrl = "https://catalogue.example/v1";
+      await own(hid, { provider: "custom", baseUrl }).done;
+      const before = await row(hid);
+      const events = await aiEvents(hid);
+      const secrets = await vaultCount();
+      const loader = Module as unknown as {
+        _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+        _resolveFilename: (request: string, parent: unknown, isMain: boolean) => string;
+      };
+      const realLoad = loader._load;
+      const realFetch = globalThis.fetch;
+      const requests: Request[] = [];
+      let failKey = false;
+      loader._load = function (request, parent, isMain) {
+        const path = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
+        if (path.endsWith("/src/db/client.ts")) return { db: () => db };
+        if (path.endsWith("/src/lib/session.ts")) return { ownerRequest: async () => hid };
+        return realLoad.call(this, request, parent, isMain);
+      };
+      globalThis.fetch = async (input, init) => {
+        requests.push(new Request(input, init));
+        return failKey
+          ? Response.json({ error: { message: another } }, { status: 401 })
+          : Response.json({ data: [{ id: "fictional-catalogue-model" }] });
+      };
+      try {
+        const { POST } = await import("@/app/api/settings/ai-model/models/route");
+        const form = (over: Record<string, string> = {}) => POST(new Request(new URL("/api/settings/ai-model/models", APP), {
+          method: "POST", body: new URLSearchParams({ provider: "custom", baseUrl, key: "", ...over }),
+        }));
+        const ok = async (over: Record<string, string> = {}) => {
+          const response = await form(over);
+          assert.deepEqual([response.status, response.headers.get("cache-control")], [200, "private, no-store"]);
+          assert.deepEqual(await response.json(), { models: [{ id: "fictional-catalogue-model", tested: false }] });
+        };
+        await ok({ key: another });
+        await ok();
+        await ok({ baseUrl: "https://other-catalogue.example/v1" });
+        assert.deepEqual(requests.map(request => [request.url, request.headers.get("authorization")]), [
+          [baseUrl + "/models", `Bearer ${another}`],
+          [baseUrl + "/models", `Bearer ${fictional}`],
+          ["https://other-catalogue.example/v1/models", null],
+        ]);
+        const missing = await form({ provider: "groq" });
+        assert.equal(missing.status, 400);
+        assert.equal(await missing.text(), "Enter the key for this provider.");
+        assert.equal(requests.length, 3, "another listed provider cannot use the saved key or the app default");
+        failKey = true;
+        const refused = await form({ key: another });
+        assert.deepEqual([refused.status, refused.headers.get("cache-control"), await refused.text()],
+          [502, "private, no-store", "The key was refused by your provider."]);
+        failKey = false;
+        assert.equal((await form({ padding: "x".repeat(4096) })).status, 413);
+        assert.equal(requests.length, 4, "oversize forms do not reach the provider");
+
+        await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, hid));
+        for (let i = 0; i < 20; i++) await ok();
+        const limited = await form();
+        assert.deepEqual([limited.status, limited.headers.get("retry-after"), limited.headers.get("cache-control")], [429, "60", "private, no-store"]);
+        assert.equal(requests.length, 24);
+        const buckets = await db.select().from(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, hid));
+        assert.deepEqual(buckets.map(bucket => [bucket.purpose, bucket.count]), [["ai-model-list", 20]]);
+        assert.deepEqual(await row(hid), before);
+        assert.deepEqual(await aiEvents(hid), events);
+        assert.equal(await vaultCount(), secrets);
+        assert.equal(await aiKey(db, hid), fictional);
+      } finally {
+        loader._load = realLoad;
+        globalThis.fetch = realFetch;
+      }
     });
     console.log(`${passed}/${passed} settings and AI-key contract checks passed.`);
   } finally {

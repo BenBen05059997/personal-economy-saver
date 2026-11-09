@@ -190,5 +190,140 @@
       "BROWSER-CHECKS Y11",
       "db:ai-test"
     ]
+  },
+  {
+    "id": "AIMODEL-008",
+    "area": "Your AI model",
+    "action": "Read a provider’s model catalogue",
+    "user_goal": "I want the catalogue to reflect what the provider reports",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Fictional provider catalogue responses"
+    ],
+    "steps": [
+      "Run npm run db:ai-test",
+      "Check catalogue parsing, reported capability flags and ordering"
+    ],
+    "expected": [
+      "The provider connection uses a fixed listed endpoint or a validated custom address",
+      "Only reported capability flags are included",
+      "Tested models are marked and sorted first when present"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y12",
+      "db:ai-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-009",
+    "area": "Your AI model",
+    "action": "List models with a typed or saved key",
+    "user_goal": "I want to see the list without changing my saved connection",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A fictional saved key and simulated provider transport"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Request the model list with a typed key, then with an empty key for matching and different endpoints"
+    ],
+    "expected": [
+      "The typed key is used once and the saved key remains unchanged",
+      "The empty field only reuses the saved key for the same provider and address",
+      "The reply is private, no-store and contains no key"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y13",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-010",
+    "area": "Your AI model",
+    "action": "Reach the model-list request limits",
+    "user_goal": "I want a clear refusal when a list request exceeds its limits",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "An isolated household and simulated provider transport"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Submit an oversized model-list form and exhaust the model-list rate bucket"
+    ],
+    "expected": [
+      "The 4 KiB form cap returns 413",
+      "The independent 20 requests per minute list bucket returns 429"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y13",
+      "db:settings-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-011",
+    "area": "Your AI model",
+    "action": "Request a model list as a household member",
+    "user_goal": "I want only my household owner to be able to use its model key for discovery",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A verified household member"
+    ],
+    "steps": [
+      "Run npm run db:members-test",
+      "Request POST /api/settings/ai-model/models as that member"
+    ],
+    "expected": [
+      "The route returns 403"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y14",
+      "db:members-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-012",
+    "area": "Your AI model",
+    "action": "Reject a model list using another household’s key pointer",
+    "user_goal": "I want my saved provider key to stay inside my household",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Two test households and a saved model key whose Vault pointer is changed to the other household"
+    ],
+    "steps": [
+      "Run npm run db:isolation-test",
+      "Attempt to load the model list connection through the wrong Vault pointer"
+    ],
+    "expected": [
+      "The other household’s saved key cannot be used"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y14",
+      "db:isolation-test"
+    ]
   }
 ]

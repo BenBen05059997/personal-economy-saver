@@ -5,6 +5,7 @@ import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
 import { readCheck, type ConnectionCheck } from "@/lib/ai/check";
 import { providerById } from "@/lib/ai/providers";
 import { isTested } from "@/lib/ai/tested";
+import type { ModelListConnection } from "@/lib/ai/list-models";
 import type { Connection } from "@/lib/ai/types";
 import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { households } from "./schema";
@@ -134,6 +135,42 @@ const modelName = (value: string, what: string) => {
 const KEY_SHAPE = /^[^\s\u0000-\u001f\u007f]{1,500}$/;
 const hintOf = (key: string) => `…${key.slice(-4)}`;
 
+function chosenEndpoint(input: Pick<ConnectionInput, "provider" | "baseUrl" | "key">, signedIn: boolean) {
+  const provider = providerById(input.provider);
+  if (!provider) throw new AiKeyError("Choose a provider.");
+  if (provider.id === "custom" && !signedIn) throw new AiKeyError("A custom address needs an account. Sign in from Settings → Account.");
+  let baseUrl: string;
+  try { baseUrl = checkBaseUrl(provider.baseUrl ?? input.baseUrl, { allowLocal: allowLocal() }); }
+  catch (error) { if (error instanceof InputError) throw new AiKeyError(error.message); throw error; }
+  const newKey = input.key.trim();
+  if (newKey && !KEY_SHAPE.test(newKey)) throw new AiKeyError("The key must be 1 to 500 characters with no spaces.");
+  return { provider, baseUrl, newKey };
+}
+
+async function keyForEndpoint(db: Db, hid: string, saved: SavedKey, provider: string, baseUrl: string, newKey: string) {
+  const sameHost = saved.aiProvider === provider && saved.aiBaseUrl === baseUrl;
+  const key = newKey || (sameHost && saved.aiKeySecretId ? await vaultKey(db, hid, saved) : null);
+  if (!key && provider !== "custom") throw new AiKeyError("Enter the key for this provider.");
+  return key;
+}
+
+/** A one-use connection for the model catalogue. It never reads the app default or changes a saved key. */
+export async function modelListConnection(db: Db, householdId: string, input: Pick<ConnectionInput, "provider" | "baseUrl" | "key">): Promise<ModelListConnection> {
+  const hid = requireHousehold(householdId);
+  try {
+    const [saved] = await withHousehold(db, hid, tx => tx.select({
+      isDemo: households.isDemo, aiProvider: households.aiProvider, aiBaseUrl: households.aiBaseUrl, aiKeySecretId: households.aiKeySecretId,
+    }).from(households).where(eq(households.id, hid)));
+    if (!saved) throw new AiKeyError("Household no longer exists");
+    const { provider, baseUrl, newKey } = chosenEndpoint(input, !saved.isDemo);
+    const key = await keyForEndpoint(db, hid, saved, provider.id, baseUrl, newKey);
+    return { provider: provider.id, baseUrl, key };
+  } catch (error) {
+    if (error instanceof AiKeyError) throw error;
+    throw new AiKeyError(STORAGE_DOWN);
+  }
+}
+
 async function writeSecret(tx: Db, household: typeof households.$inferSelect, hid: string, plainKey: string) {
   const key = await sealAiKey(hid, plainKey);
   const name = secretName(hid);
@@ -158,23 +195,14 @@ async function writeSecret(tx: Db, household: typeof households.$inferSelect, hi
  */
 export async function saveHouseholdConnection(db: Db, householdId: string, input: ConnectionInput, opts: { signedIn: boolean; check: CheckFn }) {
   const hid = requireHousehold(householdId);
-  const provider = providerById(input.provider);
-  if (!provider) throw new AiKeyError("Choose a provider.");
-  if (provider.id === "custom" && !opts.signedIn) throw new AiKeyError("A custom address needs an account. Sign in from Settings → Account.");
-  let baseUrl: string;
-  try { baseUrl = checkBaseUrl(provider.baseUrl ?? input.baseUrl, { allowLocal: allowLocal() }); }
-  catch (error) { if (error instanceof InputError) throw new AiKeyError(error.message); throw error; }
+  const { provider, baseUrl, newKey } = chosenEndpoint(input, opts.signedIn);
   const textModel = modelName(input.textModel, "questions");
   const documentModel = input.sameForDocuments ? textModel : modelName(input.documentModel, "documents");
-  const newKey = input.key.trim();
-  if (newKey && !KEY_SHAPE.test(newKey)) throw new AiKeyError("The key must be 1 to 500 characters with no spaces.");
   try {
     const [before] = await withHousehold(db, hid, async tx => tx.select().from(households).where(eq(households.id, hid)));
     if (!before) throw new AiKeyError("Household no longer exists");
     // Without a new key, the saved one is kept only for the same provider and address; a key never moves to another host.
-    const sameHost = before.aiProvider === provider.id && before.aiBaseUrl === baseUrl;
-    const key = newKey || (sameHost && before.aiKeySecretId ? await vaultKey(db, hid, before) : null);
-    if (!key && provider.id !== "custom") throw new AiKeyError("Enter the key for this provider.");
+    const key = await keyForEndpoint(db, hid, before, provider.id, baseUrl, newKey);
     const connection: Connection = { protocol: provider.protocol, baseUrl, key, textModel, documentModel, own: true };
     const tested = isTested(provider.id, textModel);
     const result = tested ? null : await opts.check(connection);

@@ -85,7 +85,7 @@ const covered = [
   // account.ts
   "householdClock", "householdDate", "accountHousehold", "accountMembership", "createHousehold", "finishSetup", "deleteOwnedHousehold",
   // ai-key.ts
-  "aiConnection", "saveHouseholdConnection", "deleteHouseholdConnection", "connectionView", "deleteHouseholdKey",
+  "aiConnection", "modelListConnection", "saveHouseholdConnection", "deleteHouseholdConnection", "connectionView", "deleteHouseholdKey",
   // D68 invites.ts
   "activeInvites", "createInvite", "cancelInvite", "inviteView", "inviteMatchesEmail", "acceptInvite", "leaveHousehold",
   // approval.ts
@@ -850,12 +850,15 @@ async function main() {
       });
       await check(`${X.name} -> ${Y.name}: the Anthropic key (Vault) cannot be reached through a wrong pointer`, async () => {
         const own = one(await db.select({ id: schema.households.aiKeySecretId }).from(schema.households).where(eq(schema.households.id, X.hid))).id!;
+        const listInput = { provider: "openai", baseUrl: "", key: "" };
         try {
           // Corrupt X's pointer so that it names the other household's secret; every path must still refuse.
           await db.update(schema.households).set({ aiKeySecretId: y.secret }).where(eq(schema.households.id, X.hid));
           const reading = await attempt(() => F.aiConnection(store, X.hid, "text"));
           assert.ok(reading.threw && reading.error instanceof AiKeyError, "aiConnection must not return the other household's key");
           await untouched("aiConnection through a wrong pointer");
+          await mustThrow("modelListConnection through a wrong pointer", () => F.modelListConnection(store, X.hid, listInput), /Enter the key/);
+          await untouched("modelListConnection through a wrong pointer");
           await mustThrow("saveHouseholdConnection through a wrong pointer", () => F.saveHouseholdConnection(store, X.hid, { provider: "openai", baseUrl: "", textModel: "iso-text", documentModel: "", sameForDocuments: true, key: "probe-" + "z".repeat(24) }, { signedIn: true, check: async () => ({ at: new Date().toISOString(), passed: ["uses_tools", "ignores_injection", "stays_on_money"], failed: [] }) }), /ownership/);
           await mustThrow("deleteHouseholdKey through a wrong pointer", () => db.transaction(tx => F.deleteHouseholdKey(tx as unknown as Db, X.hid)), /ownership/);
         } finally {
@@ -863,6 +866,8 @@ async function main() {
         }
         assert.equal((await F.aiConnection(store, X.hid, "text")).key, X.key, "the household's own key is returned when the pointer is right");
         assert.notEqual((await F.aiConnection(store, X.hid, "text")).key, Y.key);
+        assert.equal((await F.modelListConnection(store, X.hid, listInput)).key, X.key);
+        await mustThrow("modelListConnection will not move the key", () => F.modelListConnection(store, X.hid, { ...listInput, provider: "groq" }), /Enter the key/);
       });
       await check(`${X.name} -> ${Y.name}: pins and turns refuse the other's ids, and thumbs, moves and unpins change nothing there`, async () => {
         const by = { madeBy: "form" } as const;

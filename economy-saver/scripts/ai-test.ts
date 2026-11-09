@@ -16,6 +16,7 @@ import { firstUse, MODEL_HINT } from "@/lib/agent/reply";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { AGENT_CASES, CASE_NAMES, gradeOutcome, runEval, scriptedModel, type Outcome } from "./model-eval-cases";
 import { callModel } from "@/lib/ai/call";
+import { listModels, markListedModels } from "@/lib/ai/list-models";
 import { checkConnection } from "@/lib/ai/check";
 import { isTested, TESTED } from "@/lib/ai/tested";
 import { fakeModel, type FakeMode } from "./ai-fake";
@@ -217,6 +218,107 @@ async function main() {
         assert.doesNotThrow(() => checkBaseUrl(getKeyUrl, { allowLocal: false }), id);
       }
     }
+  });
+
+  await check("Anthropic model listing uses the fixed GET address and API headers, paginates, and shares a ten-second deadline", async () => {
+    const seen: { request: Request; signal?: AbortSignal | null }[] = [];
+    const controller = new AbortController();
+    const deadlines: number[] = [];
+    const realTimeout = AbortSignal.timeout;
+    try {
+      AbortSignal.timeout = ms => { deadlines.push(ms); return controller.signal; };
+      const models = await listModels({ provider: "anthropic", baseUrl: "https://ignored.example/v1", key: SECRET }, { appUrl: APP,
+        fetch: async (input, init) => {
+          seen.push({ request: new Request(input, init), signal: init?.signal });
+          return seen.length === 1
+            ? Response.json({ data: [{ id: "fictional-claude-vision" }], has_more: true, last_id: "fictional cursor" })
+            : Response.json({ data: [{ id: "fictional-claude-next" }], has_more: false });
+        },
+      });
+      assert.deepEqual(models, [{ id: "fictional-claude-vision" }, { id: "fictional-claude-next" }]);
+    } finally { AbortSignal.timeout = realTimeout; }
+    assert.deepEqual(deadlines, [10_000]);
+    assert.equal(seen.length, 2);
+    for (const { request, signal } of seen) {
+      const url = new URL(request.url);
+      assert.equal(url.origin + url.pathname, "https://api.anthropic.com/v1/models");
+      assert.equal(url.searchParams.get("limit"), "1000");
+      assert.equal(request.method, "GET");
+      assert.equal(request.redirect, "error");
+      assert.equal(request.headers.get("x-api-key"), SECRET);
+      assert.equal(request.headers.get("anthropic-version"), "2023-06-01");
+      assert.equal(request.headers.get("authorization"), null);
+      assert.equal(signal, controller.signal);
+    }
+    assert.equal(new URL(seen[0].request.url).searchParams.get("after_id"), null);
+    assert.equal(new URL(seen[1].request.url).searchParams.get("after_id"), "fictional cursor");
+  });
+
+  await check("model listings use the provider's fixed endpoint and only reported tool and image capabilities", async () => {
+    const unknown = { id: "fictional-vision-tools-model" };
+    const endpoints = [
+      ["openai", "https://api.openai.com/v1/models"],
+      ["gemini", "https://generativelanguage.googleapis.com/v1beta/openai/models"],
+      ["groq", "https://api.groq.com/openai/v1/models"],
+      ["mistral", "https://api.mistral.ai/v1/models"],
+      ["openrouter", "https://openrouter.ai/api/v1/models"],
+      ["custom", "https://custom.example/v1/models"],
+    ];
+    for (const [provider, url] of endpoints) {
+      const requests: Request[] = [];
+      const baseUrl = provider === "custom" ? "https://custom.example/v1/" : "https://ignored.example/v1";
+      const key = provider === "custom" ? null : SECRET;
+      const models = await listModels({ provider, baseUrl, key }, { appUrl: APP, fetch: async (input, init) => {
+        requests.push(new Request(input, init));
+        if (provider === "mistral") {
+          return Response.json([unknown, { id: "fictional-small", capabilities: { function_calling: false, vision: true } }]);
+        }
+        if (provider === "openrouter") {
+          return Response.json({ data: [unknown, { id: "fictional/vendor-text", supported_parameters: ["temperature", "tools"],
+            architecture: { input_modalities: ["text"] } }] });
+        }
+        return Response.json({ data: [unknown] });
+      } });
+      assert.equal(requests.length, 1);
+      const [request] = requests;
+      assert.deepEqual([request.url, request.method, request.redirect], [url, "GET", "error"]);
+      assert.equal(request.headers.get("authorization"), key ? `Bearer ${key}` : null);
+      assert.equal(request.headers.get("x-api-key"), null);
+      const expected = [unknown];
+      if (provider === "mistral") assert.deepEqual(models, [...expected, { id: "fictional-small", tools: false, images: true }]);
+      else if (provider === "openrouter") assert.deepEqual(models, [...expected, { id: "fictional/vendor-text", tools: true, images: false }]);
+      else assert.deepEqual(models, expected);
+    }
+  });
+
+  await check("tested model labels match provider and id without hiding untested or unknown models", () => {
+    const models = [{ id: "shared" }, { id: "local", tools: true }, { id: "unseen", images: false }];
+    const checkedOn = "2026-11-01";
+    assert.deepEqual(markListedModels("mistral", models, [
+      { provider: "openai", model: "shared", checkedOn }, { provider: "mistral", model: "local", checkedOn },
+    ]), [{ ...models[1], tested: true }, { ...models[0], tested: false }, { ...models[2], tested: false }]);
+  });
+
+  await check("model listing refuses redirects, provider errors, malformed or key-echoing lists, and unreachable services", async () => {
+    const connection = { provider: "openai", baseUrl: "", key: SECRET };
+    const expect = async (response: () => Response, words: RegExp) =>
+      assert.rejects(listModels(connection, { appUrl: APP, fetch: async () => response() }), words);
+    await expect(() => Response.json({ error: { message: SECRET } }, { status: 401 }), /refused the request/);
+    await expect(() => Response.json({ models: [{ id: "wrong shape" }] }), /could not read/);
+    await expect(() => Response.json({ data: [{ id: `echo-${SECRET}` }] }), /could not read/);
+    let requests = 0;
+    await assert.rejects(listModels(connection, { appUrl: APP, fetch: async (input, init) => {
+      requests++;
+      const request = new Request(input, init);
+      if (request.redirect === "error") throw new TypeError("Redirect refused by fetch");
+      return Response.redirect("https://redirect.example/models");
+    } }), /Couldn't reach the AI service/);
+    assert.equal(requests, 1);
+    await assert.rejects(listModels(connection, { appUrl: APP, fetch: async () => { throw new Error(SECRET); } }),
+      { message: "Couldn't reach the AI service." });
+    await assert.rejects(listModels({ provider: "custom", baseUrl: "https://10.0.0.1/v1", key: SECRET }, {
+      appUrl: APP, fetch: async () => { assert.fail("blocked address must not be fetched"); },
+    }), /private network/);
   });
 
   await check("anthropic: the request carries the system text, turns, tools and a forced tool; the reply maps to the neutral shape", async () => {
