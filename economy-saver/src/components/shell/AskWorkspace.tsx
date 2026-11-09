@@ -7,6 +7,7 @@ import { CLOSED_PANEL, readPanelPreferences, writePanelPreferences } from "@/com
 import { ApiFormNavigation } from "@/components/ui/ApiForm";
 import { LoadingIndicator } from "@/components/ui/LoadingState";
 import { SessionEnded } from "@/components/ui/SessionEnded";
+import { askScreenForPath } from "@/lib/agent/screen";
 import type { AskView } from "@/db/ask-view";
 import "./ask-workspace.css";
 
@@ -184,7 +185,7 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
             </>}
           </div>}
           {view && <ApiFormNavigation.Provider value={formSaved}>
-            <AskPage key={view.space.id} {...view} variant="panel" focusRequest={focusRequest}
+            <AskPage key={view.space.id} {...view} variant="panel" screen={askScreenForPath(pathname)} focusRequest={focusRequest}
               chooseSpace={chooseSpace} onPanelChange={changed} />
           </ApiFormNavigation.Provider>}
         </aside>

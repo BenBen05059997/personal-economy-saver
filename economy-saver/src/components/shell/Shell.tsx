@@ -6,6 +6,7 @@ import { DRAFT_EVENT, storeDraft } from "@/components/ask/draft";
 import { useSpeech } from "@/components/voice/use-speech";
 import "@/components/ask/ask-bar.css";
 import React, { type ReactNode } from "react";
+import type { AskScreen } from "@/lib/agent/screen";
 import { hrefForRef } from "@/lib/links";
 import type { EventFeed } from "@/db/event-feed";
 import { useEventFeed } from "./useEventFeed";
@@ -41,7 +42,7 @@ const destinations = [
   { section: "plan", icon: "plan", label: "Plan", href: "/plan" },
 ] as const;
 
-export type Section = typeof destinations[number]["section"] | "memory" | "settings" | "invoices" | "options" | "upload";
+export type Section = AskScreen;
 
 function Navigation({ pending, name, section }: { pending: number; name: string; section: Section }) {
   return <>

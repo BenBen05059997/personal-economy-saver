@@ -26,11 +26,13 @@ import { DEVICE_MEMORY_SOURCE_LABEL } from "@/lib/schema/turn";
 import { MemoryItem } from "@/lib/schema/memory";
 import type { DeviceMemory, MemoryChange } from "@/lib/store/memory-ops";
 import { appUrl } from "@/lib/supabase-auth";
+import { ASK_SCREEN_NAMES, type AskScreen } from "@/lib/agent/screen";
 
 export const askInput = z.object({
   id: z.string().uuid(), conversationId: z.string().uuid(), text: z.string().trim().min(1).max(320),
   spaceId: z.string().uuid().optional(),
   source: z.enum(["voice", "manual"]),
+  screen: z.enum(Object.keys(ASK_SCREEN_NAMES) as [AskScreen, ...AskScreen[]]).optional(),
   /** The canvas on screen, so "make it a table" or "what about March?" can change it. */
   canvas: RecipeSchema.nullable(),
   /** D59: sent only when the household keeps its memory on one device (the whole list, at most 200). Used for this question and never stored. */
@@ -68,7 +70,7 @@ async function clockMoment(db: Db, hid: string, at?: Date): Promise<Date> {
   return householdMoment(household, at);
 }
 
-type ContextInput = Pick<z.infer<typeof askInput>, "conversationId" | "canvas" | "spaceId" | "memory" | "recent" | "earlierCount" | "deviceBrief">;
+type ContextInput = Pick<z.infer<typeof askInput>, "conversationId" | "canvas" | "spaceId" | "memory" | "recent" | "earlierCount" | "deviceBrief" | "screen">;
 
 /** Postgres counts a lower bound on serialized characters. JS checks the exact budget of the retained tail. */
 async function storedContextTurns(tx: Db, hid: string, conversationId: string) {
@@ -105,9 +107,10 @@ export async function assembleContext(db: Db, hid: string, input: ContextInput) 
     const { turns, omitted } = contextTail(raw.turns);
     const ids = [...new Set(turns.flatMap(turn => turn.kind === "document" && turn.documentId ? [turn.documentId] : []))];
     const cards = new Map(await Promise.all(ids.map(async id => [id, await documentCard(tx, hid, id, { draw: false })] as const)));
+    const screen = input.screen ? `The person is asking from ${ASK_SCREEN_NAMES[input.screen]}.` : "";
     return {
       systemData, memoryForAmounts: [profile, notes].filter(Boolean), memory,
-      context: contextText(turns, input.canvas, cards, omitted + raw.omitted),
+      context: [screen, contextText(turns, input.canvas, cards, omitted + raw.omitted)].filter(Boolean).join("\n\n"),
     };
   });
 }
@@ -144,7 +147,7 @@ function incognitoRetry(id: string): AskReply {
 
 /** Free-form questions go to the agent (D40). `pending` is true when a tool left a bill or charge in To check (D39). */
 export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date; onStep?: (step: string) => void } = {}): Promise<AskReply> {
-  const { id, conversationId, spaceId, text, source, canvas, memory, recent, earlierCount, deviceBrief, history, incognito } = askInput.parse(input);
+  const { id, conversationId, spaceId, text, source, screen, canvas, memory, recent, earlierCount, deviceBrief, history, incognito } = askInput.parse(input);
   const householdId = requireHousehold(hid);
   const prepared = await withHousehold<{ reply: AskReply } | { assembled: Awaited<ReturnType<typeof assembleContext>>; effectiveSpaceId?: string; deviceMemory?: DeviceMemory }>(db, householdId, async tx => {
     // A kind kept on the device comes with the question and is never stored here; a kind kept in the cloud is read here and the question must not carry it.
@@ -189,7 +192,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
       } };
     }
     const assembled = await assembleContext(tx, householdId, {
-      conversationId, canvas, spaceId: effectiveSpaceId, memory, recent, earlierCount, deviceBrief,
+      conversationId, canvas, spaceId: effectiveSpaceId, memory, recent, earlierCount, deviceBrief, screen,
     });
     const deviceMemory = memory === undefined ? undefined : { items: [...memory], changes: [], moment: await clockMoment(tx, householdId, deps.at) };
     return { assembled, effectiveSpaceId, deviceMemory };

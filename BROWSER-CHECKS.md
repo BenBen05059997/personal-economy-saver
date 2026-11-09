@@ -592,7 +592,7 @@ After the owner applies migration 0030, start from a fresh Try it. Use 375px and
 - AP33. Open Privacy and check that it describes saved space threads and briefs, the device journal option, and how Incognito sends the question and context to the chosen model while leaving it out of the saved journal. The Reminders section mentions relevant space labels and its Home link.
 
 
-## AQ. Ask view loading and layout (33A–33C)
+## AQ. Ask view loading, layout and context (33A–33D)
 
 - AQ1. On a fresh Ben Try it, open Ask at `/canvas` at 1440px. General is selected and starter canvases appear. From Memory → Spaces, create “March paperwork” and open it directly at `/canvas?space=<id>`. The space selector says “March paperwork” and the new thread is empty. Returning to General restores its own view. Home still shows ¥0 safe to spend and a ¥18,780 shortfall on Nov 27 if clients are late.
 - AQ2. `db:ask-routes-test` checks that the same-origin GET returns General by default and the requested space for its own household, with `Cache-Control: private, no-store`. A missing session returns 401 and a cross-origin request returns 403. Malformed, unknown and foreign space ids each return 404.
@@ -602,3 +602,5 @@ After the owner applies migration 0030, start from a fresh Try it. Use 375px and
 - AQ6. `db:ask-routes-test` checks that the initial closed workspace renders without an Ask panel or a view request and that per-household panel preferences retain only the open flag and selected space.
 - AQ7. At 1440px on Home, open the Ask panel and type an unsent question. Go to Plan and back. The panel stays open with the same selected space and draft. Esc closes it and puts focus on the top-bar Ask control. Reopen it, then use Close. The panel closes and Home stays open.
 - AQ8. At 1280px on Clients, open Acme’s details and then open the Ask panel. The list, Acme details and Ask are visible in that order. The page does not scroll sideways. Close Ask and check that the client details are still selected.
+- AQ9. `db:agent-test` checks the optional screen key and the fixed context sentence, “The person is asking from To check.” A request without a screen has no screen line.
+- AQ10. At 1440px with a model configured, open Clients → Acme and ask “What’s due this week?” in the panel. In the Network request for `POST /api/ask`, the `screen` field is `clients`. The field contains no row ID, client name, page text or amount. Open full Ask and ask again. The field is now `canvas`.

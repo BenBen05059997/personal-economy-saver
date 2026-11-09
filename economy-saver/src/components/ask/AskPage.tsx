@@ -14,6 +14,7 @@ import { KeepOfferCard } from "./KeepOffer";
 import { OpenSpaceProposal } from "./OpenSpaceProposal";
 import { SpaceBrief } from "./SpaceBrief";
 import { contextTail, historyTail } from "@/lib/agent/context";
+import type { AskScreen } from "@/lib/agent/screen";
 import type { Brief, BriefRecord } from "@/lib/agent/brief";
 import type { AskView } from "@/db/ask-view";
 import { SessionEnded } from "@/components/ui/SessionEnded";
@@ -56,9 +57,9 @@ const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays 
 /** Ask’s thread, composer and canvas for both the full page and the docked panel (D60). */
 export function AskPage({
   householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin,
-  firstUse, unavailable, form, cloudBrief, cloudMemory, memoryMoment, variant = "full", focusRequest = 0, chooseSpace, onPanelChange,
+  firstUse, unavailable, form, cloudBrief, cloudMemory, memoryMoment, variant = "full", screen = "canvas", focusRequest = 0, chooseSpace, onPanelChange,
 }: AskView & {
-  variant?: "full" | "panel"; focusRequest?: number; chooseSpace?: (id: string) => void; onPanelChange?: () => void;
+  variant?: "full" | "panel"; screen?: AskScreen; focusRequest?: number; chooseSpace?: (id: string) => void; onPanelChange?: () => void;
 }) {
   const panel = variant === "panel";
   const anchorPrefix = panel ? "ask-panel-" : "";
@@ -267,7 +268,7 @@ export function AskPage({
       const visibleMemory = memory?.filter(item => !item.spaceId || spaceIds.has(item.spaceId));
       const response = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id, conversationId, spaceId: space.id, text: trimmed, source: how, canvas: currentCanvas?.recipe ?? null,
+          id, conversationId, spaceId: space.id, text: trimmed, source: how, screen, canvas: currentCanvas?.recipe ?? null,
           ...(incognito && { incognito: true }),
           ...(visibleMemory && { memory: visibleMemory }),
           ...(tail && { recent: tail.turns, earlierCount: tail.omitted, deviceBrief: storedBrief?.brief ?? {}, history }),

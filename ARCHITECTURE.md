@@ -53,7 +53,7 @@ Cloudflare
     │   ├── /start (Start with my numbers), /login, /onboarding, /join/[token] (D68)
     │   └── /family/[token]: the App Router resolves the token without a session. A live link renders the public family view. An expired, stopped or unknown link returns HTTP 200 with the generic ended page and no household information (D52). All responses are no-store, no-referrer and noindex
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
-    │   ├── /api/ask               one question in a verified space `{ id, spaceId, text, source, canvas, incognito? }`; body at most 128 KiB, or 512 KiB with device data. Checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers or space proposal, or an error line)
+    │   ├── /api/ask               one question in a verified space `{ id, spaceId, text, source, canvas, incognito?, screen? }`; body at most 128 KiB, or 512 KiB with device data. Optional screen is a validated section key. Checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers or space proposal, or an error line)
     │   ├── /api/ask/view          GET `?space=<id>` returns the Ask view as private, no-store JSON and defaults to General. Same-origin household guard (401 or 403), shared 120/min household canvas limit (429) and 404 for a malformed, unknown or foreign space id
     │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, `spaceId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 503 a setting missing and named, 502 a service failed, 500 anything else)
     │   ├── /api/ask/thumb         `{ id, thumb }` on one reply; one content-free log line
@@ -241,11 +241,17 @@ while preserving its question and in-flight reply across workspace navigation. P
 Esc and Close hide the panel and restore focus. Panel mutations refresh the screen
 behind it, including form saves, drafts and attachments.
 
+`src/lib/agent/screen.ts` maps the first path segment to an allowed screen key. Account
+uses Settings and the full Ask page uses Ask. The request sends only this key in
+`screen`. Page content, amounts, row IDs and the rest of the path stay out of that field.
+When present, `assembleContext` starts the conversation context with a fixed line such
+as “The person is asking from To check.”
+
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
-| 1. Question | `AskPage.tsx` (desktop workspace panel or `/canvas?space=<id>`, General by default) → POST /api/ask | the canvas on screen, plus device profile, notes, brief and history when stored locally | nothing | the question in the conversation |
+| 1. Question | `AskPage.tsx` (desktop workspace panel or `/canvas?space=<id>`, General by default) → POST /api/ask with the current screen key | the canvas on screen, plus device profile, notes, brief and history when stored locally | nothing | the question in the conversation |
 | 2. Gate | `answerQuestion` (`src/db/ask.ts`) | the selected household space; `readPlaces`; `turnById` and `askReceipt` for a retried id (cloud journal); `askReceipt` (device journal) | nothing | a retried id gets its saved reply (cloud journal) or the fixed "already saved" sentence (device journal) |
-| 3. Context | `assembleContext` (`src/db/ask.ts`) | rules, profile (6,000 characters), brief (2,000), space notes (3,000), recent turns (12,000), their live document cards, then canvas | nothing | — |
+| 3. Context | `assembleContext` (`src/db/ask.ts`) | rules, profile (6,000 characters), brief (2,000), space notes (3,000), and conversation context starting with the fixed screen line when supplied, followed by recent turns (12,000), their live document cards and canvas | nothing | — |
 | 4. Model | `runAgent` → `callModel`; `onStep` says `THINKING_WORDS` ("Thinking about your question") before each model call | the assembled context and tool catalogue. `aiConnection(db, hid, "text")` supplies the connection per call | nothing | — |
 | 5. Tools | the catalogue over the engine; the read tools of one model turn run together (`callAll`), draft tools alone in the order asked, results in the order asked | the money state, loaded once per tool turn | draft tools: pending rows in To check, an invoice draft, a memory item (`made_by = ask`, `ask_id`) | the latest step in fixed words (`TOOL_WORDS`) in the line under the box |
 | 6. Reply kind and brief | `chooseReply` (`reply.ts`) + `unconfirmedAmounts` | the question, its tool results and memory for the answer. Memory source ids are checked in code. A brief update uses amounts only from this question’s tool results | nothing | — |

@@ -271,5 +271,61 @@
     "refs": [
       "BROWSER-CHECKS AQ8"
     ]
+  },
+  {
+    "id": "ASKVIEW-011",
+    "area": "Ask view",
+    "action": "Use the current section as Ask context",
+    "user_goal": "I want Ask to know which screen I’m on from a fixed label",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "An Ask request with the To check screen key"
+    ],
+    "steps": [
+      "Run npm run db:agent-test",
+      "Compare the context with and without the screen field"
+    ],
+    "expected": [
+      "The screen field adds the fixed sentence The person is asking from To check.",
+      "With no screen the context omits that sentence"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ9",
+      "db:agent-test"
+    ]
+  },
+  {
+    "id": "ASKVIEW-012",
+    "area": "Ask view",
+    "action": "Send only the current section in the screen field",
+    "user_goal": "I want opening a client record to keep its details out of the screen label",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it household at 1440px",
+      "Clients open with Acme’s details selected"
+    ],
+    "steps": [
+      "Open the Ask panel and send What’s due this week?",
+      "Inspect the screen field in the POST /api/ask payload",
+      "Open full Ask, ask again and inspect the same field"
+    ],
+    "expected": [
+      "The panel sends clients in the screen field",
+      "That field contains no client name, row ID, page text or amount",
+      "The full page sends canvas in the screen field"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AQ10"
+    ]
   }
 ]
