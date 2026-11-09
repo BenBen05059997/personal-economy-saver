@@ -27,6 +27,20 @@
       "port": 3130
     },
     {
+      "name": "codex-bridge-medium",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "CODEX_EFFORT=medium",
+        "CODEX_TIMEOUT_MS=90000",
+        "npm",
+        "--prefix",
+        "economy-saver",
+        "run",
+        "codex:bridge"
+      ],
+      "port": 3130
+    },
+    {
       "name": "worker-preview",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
