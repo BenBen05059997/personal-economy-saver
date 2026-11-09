@@ -25,6 +25,8 @@ MCP_TOKEN_KEY=
 AI_KEY_SEAL_KEY=
 AI_DOCUMENT_MODEL=
 AI_TEXT_MODEL=
+# Optional Ask timeout in milliseconds for slow development models. Production leaves it unset (20000).
+ASK_BUDGET_MS=
 SUPABASE_DOCUMENT_BUCKET=
 FORWARDING_DOMAIN=
 INBOUND_ADDRESS_KEY=

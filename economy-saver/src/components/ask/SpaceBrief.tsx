@@ -55,9 +55,10 @@ function BriefText({ brief }: { brief: Brief | undefined }) {
   </>;
 }
 
-export function SpaceBrief({ id, record, timeZone, ready, readOnly, busy, saveOnDevice }: {
+export function SpaceBrief({ id, record, timeZone, ready, readOnly, busy, saveOnDevice, onCloudSaved }: {
   id: string; record: BriefRecord | null; timeZone: string; ready: boolean; readOnly: boolean; busy: boolean;
   saveOnDevice?: (brief: Brief) => Promise<void>;
+  onCloudSaved: (record: BriefRecord) => void;
 }) {
   // Freeze the editor's initial values while it is open, even if an answer updates the displayed brief.
   const [draft, setDraft] = useState<BriefRecord | null | undefined>(undefined);
@@ -102,6 +103,9 @@ export function SpaceBrief({ id, record, timeZone, ready, readOnly, busy, saveOn
           <fieldset disabled={saving}>{controls}</fieldset>
           {problem && <p className="ui-problem" role="alert">{problem}</p>}
         </form>
-        : <ApiForm action="/api/spaces" onDone={done}>{controls}</ApiForm>)}
+        : <ApiForm action="/api/spaces" onDone={async response => {
+          onCloudSaved(await response.json() as BriefRecord);
+          done();
+        }}>{controls}</ApiForm>)}
   </section>;
 }

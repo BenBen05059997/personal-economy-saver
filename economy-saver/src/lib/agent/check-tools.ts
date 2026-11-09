@@ -11,7 +11,7 @@ const checkOut = (checks: Check[]) => checks.map(({ kind, words, choices }) => (
 export const checkTools: Tool[] = [
   {
     name: "to_check",
-    description: "Everything waiting for the user's OK in To check: readings from uploaded or forwarded documents, drafts saved by Ask or MCP (bills, card charges, bank balances, pots), and documents still being read. Each bill, charge or reading carries the checks the app ran (missing amount or date, already saved, due date passed, amount far from the usual, repeat not known), each with the app's words and the choices it offers. Quote the words as they are and offer the choices; never decide a check and never say anything is saved: the user confirms in To check or in Ask. Amounts are integer minor units of the currency given (whole yen for JPY, cents for USD). Information only.",
+    description: "Read pending drafts, document readings and in-flight files. Quote the app’s checks and choices. Confirmation stays with the user. Amounts are minor units.",
     input: z.object({}), scope: "read",
     run: async (ctx: ToolContext) => {
       const [state, inbox] = await Promise.all([ctx.state(), readerInbox(ctx.db, ctx.householdId)]);

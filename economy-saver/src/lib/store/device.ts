@@ -178,16 +178,34 @@ export async function saveDeviceTurn(householdId: string, turn: ConversationTurn
   });
 }
 export async function setDeviceThumb(householdId: string, id: string, thumb: 1 | -1 | null): Promise<boolean> {
-  const turns = await listDevice(householdId, "journal");
-  if (!turns.some(turn => turn.id === id)) return false;
-  await replaceDevice(householdId, "journal", turns.map(turn => (turn.id === id ? { ...turn, thumb } : turn)));
-  return true;
+  return transact(householdId, "journal", "readwrite", tx => {
+    const journal = tx.objectStore("journal");
+    const read = journal.get(id) as IDBRequest<ConversationTurn | undefined>;
+    read.onsuccess = () => {
+      if (read.result) journal.put({ ...read.result, thumb });
+    };
+    return () => read.result !== undefined;
+  });
 }
+
+export async function deleteDeviceTurn(householdId: string, id: string): Promise<void> {
+  await run(householdId, "journal", "readwrite", store => store.delete(id));
+}
+
 export async function deleteDeviceConversation(householdId: string, conversationId: string): Promise<number> {
-  const turns = await listDevice(householdId, "journal");
-  const rest = turns.filter(turn => turn.conversationId !== conversationId);
-  if (rest.length !== turns.length) await replaceDevice(householdId, "journal", rest);
-  return turns.length - rest.length;
+  return transact(householdId, "journal", "readwrite", tx => {
+    const journal = tx.objectStore("journal");
+    const read = journal.getAll() as IDBRequest<ConversationTurn[]>;
+    let removed = 0;
+    read.onsuccess = () => {
+      for (const turn of read.result) {
+        if (turn.conversationId !== conversationId) continue;
+        journal.delete(turn.id);
+        removed++;
+      }
+    };
+    return () => removed;
+  });
 }
 
 // ------------------------------------------------------------------ pinned canvases

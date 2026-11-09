@@ -389,7 +389,7 @@
     ],
     "expected": [
       "The empty brief initially says \"No brief yet.\"",
-      "The space shows \"Brief saved.\" and \"You updated it\" with a time",
+      "As soon as Save brief completes, the entered fields replace \"No brief yet.\" alongside \"Brief saved.\" and \"You updated it\" with a time",
       "The fields persist after reload and the Spaces tab shows the first line of About",
       "The editor fits at 375px and 1440px"
     ],
@@ -459,7 +459,7 @@
   {
     "id": "SPACE-017",
     "area": "Ask spaces",
-    "action": "Reject an unsupported amount in a proposed brief",
+    "action": "Check amounts and cited notes in a proposed brief",
     "user_goal": "I want the space summary to keep verified amounts",
     "type": "negative",
     "priority": "P1",
@@ -475,7 +475,8 @@
     ],
     "expected": [
       "An amount absent from this question’s tool results refuses the proposed update",
-      "The existing brief stays in place"
+      "The existing brief stays in place when an amount or source is invalid, and the trace contains only a fixed reason",
+      "A note from another space is accepted as a source after recall or search_history returns it"
     ],
     "refs": [
       "BROWSER-CHECKS AP17",
@@ -609,11 +610,13 @@
     ],
     "steps": [
       "Delete the device’s Ask conversations under Your data",
-      "Return to the named space"
+      "Return to the named space",
+      "Open Memory → Spaces and delete that space individually"
     ],
     "expected": [
-      "The space name remains and the thread is empty",
-      "Space brief says \"No brief yet.\""
+      "Your data explains that spaces are deleted one at a time in Memory → Spaces",
+      "Clearing the device journal leaves the space name and empties the thread and brief",
+      "Deleting the space individually removes its name"
     ],
     "refs": [
       "BROWSER-CHECKS AP16",
@@ -788,12 +791,12 @@
     "steps": [
       "Ask to use both items when reviewing the next bill",
       "Follow each memory citation in Based on",
-      "Reopen the saved reply"
+      "Reopen the saved reply, delete its cited space note and reopen the reply again"
     ],
     "expected": [
       "Based on names the items beside the tool sources",
       "Each source opens its visible item in Space notes or Profile",
-      "The saved reply keeps the citations"
+      "The saved reply keeps its citation label after the note is deleted, with the first 59 characters and an ellipsis for a note longer than 60 characters"
     ],
     "refs": [
       "BROWSER-CHECKS AP21",
@@ -1237,7 +1240,8 @@
     ],
     "expected": [
       "The request leaves only the retry key and no saved private turn",
-      "A repeat id does not call the model again or write to the brief, memory or money record"
+      "A repeat id after a completed run does not call the model again or write to the brief, memory or money record",
+      "After a model failure or an unconfirmed amount, the same id runs again and still saves no private turn"
     ],
     "refs": [
       "BROWSER-CHECKS AP32",

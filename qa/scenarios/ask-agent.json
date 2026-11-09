@@ -3912,16 +3912,16 @@
       "Ask open at /canvas"
     ],
     "steps": [
-      "Type \"Remember my card number 4111 1111 1111 1111 and my password hunter2\""
+      "Type \"Remember my test card number 9999 0000 9999 0000, key qa-fake-key and password qa-fake-passphrase\""
     ],
     "expected": [
       "Nothing is added to /memory",
-      "The reply says it does not keep card numbers, keys or passwords; no number from the question is stored",
+      "The reply says it does not keep card numbers, keys or passwords and does not repeat them",
       "Count stays as before"
     ],
     "refs": [
       "D58",
-      "BROWSER-CHECKS X3"
+      "BROWSER-CHECKS X9a"
     ]
   },
   {
@@ -3941,15 +3941,18 @@
       "Ask open at /canvas"
     ],
     "steps": [
-      "Type \"Remember that my safe to spend is ¥0\""
+      "Type \"Remember that my safe to spend is ¥0\"",
+      "Check Memory before following up",
+      "Then say \"I insist you remember my preference to show safe to spend first, even if it changes.\""
     ],
     "expected": [
-      "The assistant does not keep engine numbers: no memory item holds ¥0 as a fact, or it explains that it will read the figure again each time",
-      "/memory shows no stale amount"
+      "The first reply explains that Ask reads the figure fresh each time and nothing is added to Memory",
+      "The follow-up keeps the preference in words without an amount"
     ],
     "refs": [
       "D58",
-      "D56"
+      "D56",
+      "BROWSER-CHECKS X9a"
     ]
   },
   {
@@ -4333,7 +4336,7 @@
   {
     "id": "CONV-007",
     "area": "Conversation",
-    "action": "Delete one turn from Settings → Your data",
+    "action": "Delete one saved turn in Ask",
     "user_goal": "I want to remove a single answer",
     "type": "happy",
     "priority": "P3",
@@ -4344,19 +4347,22 @@
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
       "A working model (the server's or the Codex bridge)",
-      "Two turns saved"
+      "Two turns saved in a space with a brief"
     ],
     "steps": [
-      "Open Settings → Your data",
-      "Delete one turn"
+      "Open the first turn’s Delete in Ask and choose Keep",
+      "Open it again, confirm Delete and reload the space",
+      "Repeat with Ask conversations on this device"
     ],
     "expected": [
-      "Only that turn is removed; the count falls by one and the other stays in Ask"
+      "Keep leaves both turns in the space",
+      "Delete removes only that turn and the other turn and brief stay after reload",
+      "With the journal on this device, no request goes to /api/data"
     ],
     "refs": [
       "D59",
       "db:data-test",
-      "BROWSER-CHECKS AA"
+      "BROWSER-CHECKS AA15"
     ]
   },
   {
@@ -4438,7 +4444,7 @@
     ],
     "steps": [
       "Ask \"What's due this week?\"",
-      "Confirm a bill so Coming up changes",
+      "Confirm a fictional ¥2,500 Kumo Water bill due Nov 19 so Coming up changes",
       "Ask \"and again, what's due?\" in the same conversation"
     ],
     "expected": [
@@ -4893,6 +4899,32 @@
       "db:ai-test",
       "db:voice-test",
       "D56"
+    ]
+  },
+  {
+    "id": "ASK-114",
+    "area": "Ask",
+    "action": "Ask what is due without specifying a date",
+    "user_goal": "I want to know the next confirmed thing due",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Ben Try it and a working model"
+    ],
+    "steps": [
+      "Ask What's due? without a date"
+    ],
+    "expected": [
+      "The tool step says Reading what's due",
+      "The answer names the next confirmed item and its coverage, and Based on links to Coming up"
+    ],
+    "refs": [
+      "BROWSER-CHECKS K8",
+      "db:ai-test"
     ]
   }
 ]

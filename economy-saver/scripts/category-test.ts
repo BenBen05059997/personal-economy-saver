@@ -367,6 +367,20 @@ async function main() {
       assert.equal(view.categories.find(c => c.category === "food")!.items.filter(i => i.label === "Fictional bento").length, 1);
     });
 
+    await check("Kumo Water has a sure Utilities guess and the bill save preserves an explicit Other", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      for (const name of ["Kumo Water", "kumo WATER", "Kumo　Water"]) {
+        assert.deepEqual(guessCategory(name), { category: "utilities", sure: true });
+      }
+      const form = { biller: "Kumo Water", amount: "2500", due: "2026-11-17" };
+      const guessed = randomUUID(), overridden = randomUUID();
+      await insertBill(db, hid, billInput.parse({ ...form, id: guessed, category: guessCategory(form.biller).category }), "confirmed", { madeBy: "form" });
+      await insertBill(db, hid, billInput.parse({ ...form, id: overridden, category: "other" }), "confirmed", { madeBy: "form" });
+      const water = (await db.select({ id: schema.bills.id, category: schema.bills.category }).from(schema.bills)
+        .where(and(eq(schema.bills.householdId, hid), eq(schema.bills.biller, form.biller))));
+      assert.deepEqual(new Map(water.map(row => [row.id, row.category])), new Map([[guessed, "utilities"], [overridden, "other"]]));
+    });
+
     // ------------------------------------------------------------ the agent and MCP tools
     await check("tools: add_bill and log_charge take category and business_bp, guess from the name when none is given and say so, and keep both through To check", async () => {
       const hid = await seedBen(db, { isDemo: true });
@@ -377,8 +391,7 @@ async function main() {
       for (const name of ["add_bill", "log_charge"]) {
         const schemaOf = toolInputSchema(tool(name)) as unknown as { required: string[]; properties: Record<string, { anyOf: { enum?: string[]; type: string }[]; description?: string }> };
         assert.ok(schemaOf.required.includes("category") && schemaOf.required.includes("business_bp"), `${name} lists both`);
-        assert.ok(CATEGORY_KEYS.every(key => schemaOf.properties.category.description!.includes(key)), `${name}'s category field lists the fourteen keys`);
-        assert.ok(CATEGORY_KEYS.every(key => tool(name).description.includes(key)), `${name} names every key in its description`);
+        assert.ok(CATEGORY_KEYS.every(key => JSON.stringify(schemaOf.properties.category).includes(key)), `${name}'s schema lists all fourteen keys`);
         assert.equal(tool(name).scope, "draft");
       }
       assert.throws(() => tool("add_bill").input.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", memberId: null, repeat: null, shared: null, paidBy: null }));

@@ -12,6 +12,11 @@ export function appendTurn(turns: ConversationTurn[], turn: ConversationTurn): C
   return [...turns.filter(item => item.id !== turn.id), turn].sort(byTime);
 }
 
+/** Drops one saved turn while keeping the order and contents of the other turns. */
+export function removeTurn<T extends { id: string }>(turns: T[], id: string): T[] {
+  return turns.filter(turn => turn.id !== id);
+}
+
 export const threadOf = (turns: ConversationTurn[], id: string) => turns.filter(turn => turn.conversationId === id).sort(byTime);
 
 /** Pre-space threads stay grouped under General and are named by their first question. */

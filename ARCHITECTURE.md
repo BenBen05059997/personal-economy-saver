@@ -212,7 +212,7 @@ flowchart LR
     B --> R
 ```
 
-On phones, Ask’s Based on links extend their tap area with a CSS pseudo-element.
+On phones, Ask’s Based on links and question starters, Upload’s To check link, and Plan’s Add a pot summary use CSS pseudo-elements for larger tap areas. The whole label is the tap area for Rules and Reminders checkboxes.
 
 **The stream.** `/api/ask` runs its checks first (same origin, session, body, the per-household limit) and answers a refusal as plain text (400, 401,
 403, 429). After them it answers 200 `application/x-ndjson`: a `{"step": "…"}` line each time `runAgent` calls `onStep` (the fixed words in
@@ -220,7 +220,7 @@ On phones, Ask’s Based on links extend their tap area with a CSS pseudo-elemen
 `{"error": "…"}` (the sentence a failure carried as a 503 before the stream began). `src/components/ask/read-stream.ts` (`readAskStream`) reads it line
 by line; the page shows the latest step in a `role="status"` line under the box and the error where it always showed it. A 401 on any Ask request (the question, attach a bill, a canvas block, the document card) shows "Your session has expired." with a link "Start again from the home page." to `/` (`SessionEnded.tsx`). The To check Retry control posts through `ApiForm`.
 
-**Budgets and limits.** `MAX_TOOL_TURNS` 4, `BUDGET_MS` 20 s shared by every model call of the question, `MAX_TOKENS` 16,000, no retries (every
+**Budgets and limits.** `MAX_TOOL_TURNS` 4 and `MAX_TOKENS` 16,000. The question shares one `ASK_BUDGET_MS` deadline across model calls and tool reads. Ask reads it once and defaults to 20 s. Slow development models can override it. Production leaves it unset. Model calls have no retries (every
 attempt asks for its own connection); the ask limit is 30 a minute; declined questions are not capped; the read tools of a model turn are raced against the time left of the 20 s (`beforeDeadline` in `run.ts`): past it the question stops with "That took too long while <the step's words>. Try a simpler question." (outcome `budget`), while a write, `clarify` and `out_of_scope` are waited for and a write already done is kept (`savedThenStopped`); a question is 1 to 320 characters; one question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`;
 `remember` and `forget` refuse the 21st in words). With no setting for a model, the Ask page names the missing `AI_` setting.
 
@@ -231,7 +231,9 @@ thread and points the model to `search_history`. It includes the live `cardConte
 gets its tool catalogue with that context. The same thread can continue after any interval. Amounts from earlier
 turns, the brief, document card text and history search results are read again from current tools before being used in an answer.
 
-**The tools (one catalogue, `src/lib/agent/tools.ts`).** Read tools return the engine’s numbers and relevant context: `where_am_i`, `whats_due`, `open_gaps`, `can_i_spend`, `list_clients_and_cards`, `timeline`, `options_when_short`, `list_invoices`,
+**Model tool payload.** The 38 definitions share the runtime Zod schemas. The model-facing form keeps fields and types, with compact descriptions and bulk item guidance on the matching single-item tool. `db:ai-test` checks the 25,000-character budget and the bulk field sets.
+
+**The tools (one catalogue, `src/lib/agent/tools.ts`).** Read tools return the engine’s numbers and relevant context. `whats_due` answers undated due questions. `timeline` gives the cash flow for a specified day or the next 30 days. The tools include `where_am_i`, `whats_due`, `open_gaps`, `can_i_spend`, `list_clients_and_cards`, `timeline`, `options_when_short`, `list_invoices`,
 `household_snapshot`, `plan_for`, `who_owes_whom`, `month_by_category`, `search_spending`, `bills_for_month`, `regular_costs`, `foreign_costs`, `what_if`, `make_canvas`,
 `recall`, `search_history`, `list_spaces`, `to_check`. `bills_for_month` (input `{ month, text }`, D63) lists the stored bills, confirmed or waiting in To check, past or due later up to two years ahead, whose period overlaps the month ("November's electricity" is the bill that says 11月分, though it is paid in December): `billsForMonth` in `src/lib/money/period.ts` builds the summary in code and the totals per currency, `loadPeriodBills` in `src/db/spending.ts` reads the rows, and its note says a bill with no period counts by its due date and points to `month_by_category`; its step words are "Finding the bills for that month" and its "Based on" source is Plan. `what_if` runs the engine on a copy of the household (`src/lib/money/whatif.ts`), so nothing is written. `make_canvas` takes a
 recipe as JSON text, checks it, has the engine fill it and returns a summary; the last valid recipe of the question becomes the reply's canvas (a
@@ -282,7 +284,8 @@ usual create form to `/api/spaces` and navigates to the created space. Not now d
 
 **Incognito (D71).** The Ask switch sends `incognito: true`. Ask loads the same space context for this question.
 The tool catalogue for the question allows read-only behavior. The only saved Ask data is the receipt’s retry key.
-A retry returns a fixed sentence explaining that the reply was never saved. The answer shows "Not saved" in the current view. It stays out of the cloud and device journals. The brief and
+A retry of a completed question returns a fixed sentence explaining that the reply was never saved.
+If the agent run fails, Ask releases the receipt so the same request can try again. The answer shows "Not saved" in the current view. It stays out of the cloud and device journals. The brief and
 notes keep their saved state. The temporary canvas is a preview. The saved canvas returns when Incognito is off.
 The household’s configured provider still receives the question and context.
 
@@ -290,11 +293,12 @@ The household’s configured provider still receives the question and context.
 Decisions, Open questions, Check next, and lists of bill, client, pot and document ids. It allows up to 2,000
 characters of serialized JSON and refuses a run of 12 or more digits in brief text. `briefContext` quotes the saved brief for the next question.
 The Ask-only `update_brief` tool proposes a replacement when an answer changes what the space knows. It writes
-nothing during tool execution. Code checks the proposed amounts against this question’s tool results. The brief
+nothing during tool execution. State lines may cite a tool, a profile or current-space note, or a note returned by
+`recall` or `search_history` during this question. Code checks amounts against this question’s tool results. The brief
 is applied after the answer’s turn. Cloud saves put both in one transaction and record `brief_updated` in
 Activity without the brief text. Device saves carry the accepted brief back to the browser. A rejected proposal
-leaves the previous brief in place. Ask shows the Space brief with "Agent updated it" or "You updated it" and the time. Edit opens the structured
-fields, with each State line entered as `source | detail`. A cloud save posts `kind=brief` to `/api/spaces`.
+leaves the previous brief in place. The Ask trace records a fixed `briefDropped` reason without the brief text. Ask shows the Space brief with "Agent updated it" or "You updated it" and the time. Edit opens the structured
+fields, with each State line entered as `source | detail`. A cloud save posts `kind=brief` to `/api/spaces` and renders the committed record from the response before refreshing the page.
 
 **The turn and the page.** The turn (question, kind, reply, choices, recipe, sources) is stored in `conversation_turns`
 (`src/db/conversation.ts`) and a thread keeps its turns until deletion; the reply carries kind, text, choices, the canvas the engine drew, "Based on" sources from the tools and the individual profile items and space notes the model cited,
@@ -322,6 +326,8 @@ Your data can delete the entire memory category. `recall` reads the profile or a
 offer goes to the current space unless the person says it is standing information, such as "always" or "from now on".
 Standing information goes to the profile. The To check card’s "Also tell the assistant" box saves a profile correction
 with the confirmation. Cloud writes use `src/db/memory.ts` under the household role and emit content-free Activity events.
+Ask explains that secrets do not belong in memory and reads calculated figures fresh each time. If the person insists,
+Ask can keep a preference about the figure in words without the amount.
 
 **History and sources (D70).** The read tool `search_history` in Ask and MCP accepts `{ text, space? }`, with an optional
 space name or id. `src/db/history.ts` searches the household’s turn questions, replies and memory text for a literal
@@ -329,7 +335,7 @@ substring, including English and Japanese. The trigram indexes from 0030 support
 ten newest matches with their dates, space names and matching lines. Results are context for choosing current read tools.
 The model cites an individual note or profile item with `[[memory:<id>]]`. `run.ts` checks the id against the memory the
 model saw in context or through a memory read, removes the marker from the display text, and stores a
-`{ kind: "memory", id, label }` turn source for Based on. A visible item links to its note or profile entry. A cloud journal stores a neutral label for a device-memory citation. The browser that holds the item can display its text.
+`{ kind: "memory", id, label }` turn source for Based on. Labels longer than 60 characters keep the first 59 and an ellipsis. Deleting the note leaves past replies and their saved labels intact. A visible item links to its note or profile entry. A cloud journal stores a neutral label for a device-memory citation. The browser that holds the item can display its text.
 
 **When memory or the journal is kept on this device (D59).** The browser sends the profile and scoped notes when memory
 is local. For a local journal it sends the selected space’s brief and recent turns and a newest-first search window with
@@ -495,8 +501,10 @@ Under Uploaded documents, `listDocuments` returns each household document's date
 | Sessions | browser cookies: Supabase `pes-auth` (30 days), `household` (a demo UUID, 30 days), `upgrade-demo` (1 hour) | the browser | — | logout; deletion clears them |
 
 Your data counts named spaces with the cloud journal and shows the space count separately when turns are kept on this device. General does not contribute a space to the count.
-Deleting the cloud journal removes the named spaces with their threads, notes, pins and briefs and clears the General thread and brief. General and all documents stay.
-Deleting the device journal clears its local turns and briefs. Named spaces are still managed in Memory.
+Deleting Ask conversations in Your data removes named spaces with their cloud threads, notes, pins and briefs. It clears General’s thread and brief. General and all documents stay.
+Deleting the device journal clears its local turns and briefs. Delete spaces one at a time in Memory → Spaces.
+A saved turn’s Delete removes only that turn. Cloud journals post `delete_one` for `journal` to `/api/data` and return to
+the space. Device journals delete the turn by id in IndexedDB without a request.
 
 **Export and Import (D44, D59).** `loadHouseholdSnapshot` (`src/db/snapshot.ts`) is the only builder: one read transaction, `requireHousehold`,
 named columns (it never selects a secret or pointer column), and it parses its own result. `/api/export` (a POST form, so nothing is in a URL)

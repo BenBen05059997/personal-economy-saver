@@ -31,6 +31,8 @@
 .ask-pin-form { display: block; }
 @media (max-width: 899px) {
   .ask-choices .ui-button, .ask-thumbs .ui-button, .ask-buttons .ui-button, .ask-starters button { min-height: 44px; }
+  .ask-examples .ui-button { position: relative; }
+  .ask-examples .ui-button::after { content: ""; position: absolute; inset: -5px 0; }
   .ask-sources a { position: relative; display: inline-block; min-height: 20px; }
   .ask-sources a::after { content: ""; position: absolute; inset: -12px -6px; }
 }

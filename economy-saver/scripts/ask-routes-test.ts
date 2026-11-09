@@ -26,6 +26,7 @@ import { MissingAuthSetting } from "@/lib/supabase-auth";
 import { askUnavailable, missingAskSetting, serverDefaultHost } from "@/lib/agent/availability";
 import { extractDocument, extractSchema } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
+import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
 
 type Handler = (request: Request) => Promise<Response>;
 const ORIGIN = "http://127.0.0.1:3123";
@@ -82,6 +83,15 @@ async function main() {
       assert.ok(("reply" in last) !== ("error" in last) && !("step" in last), "the last line is a reply or an error");
       return { steps: lines.slice(0, -1).map(line => line.step!), last, status: response.status, text: last.error ?? last.reply!.text, headers: response.headers };
     };
+
+    const resetDemo = (await import("@/app/api/try/reset/route")).POST as Handler;
+    cookie = await seedBen(db, { isDemo: true });
+    const resetResult = await resetDemo(post("/api/try/reset", null, { "x-form-fetch": "1" }));
+    assert.equal(resetResult.status, 204);
+    assert.equal(resetResult.headers.get("x-form-redirect"), "/");
+    assert.equal(resetResult.headers.get("location"), null);
+    assert.match(resetResult.headers.get("set-cookie") ?? "", /household=[0-9a-f-]{36}/);
+    ok("Try it Reset uses the fetch form redirect header and sets a fresh demo cookie");
 
     // ------------------------------------------------------------ the guard (all three routes)
     for (const [name, handler, path] of [["ask", ask, "/api/ask"], ["thumb", thumb, "/api/ask/thumb"], ["confirm", confirm, "/api/confirm"]] as const) {
@@ -200,6 +210,54 @@ async function main() {
     Object.assign(process.env, savedEnv);
     ok("/api/ask, real answerQuestion: a memory/place mismatch is 400 with its sentence; no AI settings is an error line with words");
 
+    // The guarded QA clock calls the real in-app suggestion pass in PGlite.
+    {
+      const advance = (await import("@/app/api/try/date/route")).POST as Handler;
+      const path = "/api/try/date";
+      const dateForm = (date: string) => new URLSearchParams({ date });
+      const beforeFlag = process.env.NEXT_PUBLIC_QA_TOOLS;
+      const fixture = await seedBen(db, { isDemo: true });
+      const blank = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ fixedToday: null }).where(eq(schema.households.id, blank));
+      try {
+        cookie = fixture;
+        delete process.env.NEXT_PUBLIC_QA_TOOLS;
+        assert.equal((await advance(post(path, dateForm("2026-11-15")))).status, 404);
+        process.env.NEXT_PUBLIC_QA_TOOLS = "1";
+        assert.equal((await advance(post(path, dateForm("2026-11-15"), { origin: "http://evil.example" }))).status, 403);
+        cookie = null;
+        assert.equal((await advance(post(path, dateForm("2026-11-15")))).status, 401);
+        cookie = blank;
+        assert.equal((await advance(post(path, dateForm("2026-11-15")))).status, 403);
+        cookie = fixture;
+        assert.equal((await advance(post(path, dateForm("2026-02-30")))).status, 400);
+        const moved = await advance(post(path, dateForm("2026-11-15")));
+        assert.equal(moved.status, 200);
+        assert.equal(moved.headers.get("cache-control"), "private, no-store");
+        assert.deepEqual(await moved.json(), { today: "2026-11-15" });
+        const [household] = await db.select({ today: schema.households.fixedToday }).from(schema.households)
+          .where(eq(schema.households.id, fixture));
+        assert.equal(household.today, "2026-11-15");
+        const findings = await db.select().from(schema.suggestions).where(eq(schema.suggestions.householdId, fixture));
+        assert.ok(findings.some(row => row.title === "CloudBox Plus due Nov 18" && row.createdOn === "2026-11-15"
+          && row.reason.startsWith("¥1,980,")), "a new finding uses the advanced date");
+        assert.equal((await advance(post(path, dateForm("2026-11-15")))).status, 400);
+        assert.equal((await advance(post(path, dateForm("2026-11-14")))).status, 400);
+        await db.delete(schema.standingRules).where(and(eq(schema.standingRules.householdId, fixture),
+          eq(schema.standingRules.kind, "bill_ahead")));
+        const multipart = new FormData();
+        multipart.set("date", "2026-11-16");
+        assert.equal((await advance(post(path, multipart))).status, 503, "a failed pass refuses the date change");
+        const [after] = await db.select({ today: schema.households.fixedToday }).from(schema.households)
+          .where(eq(schema.households.id, fixture));
+        assert.equal(after.today, "2026-11-15", "the failed pass and rejected dates leave the clock unchanged");
+      } finally {
+        if (beforeFlag === undefined) delete process.env.NEXT_PUBLIC_QA_TOOLS;
+        else process.env.NEXT_PUBLIC_QA_TOOLS = beforeFlag;
+      }
+    }
+    ok("the guarded QA date route advances only Try it, runs suggestions on the new date and rolls back a failed pass");
+
     // Stage 32D. Real route and runner, simulated Anthropic responses only.
     const privateHid = await seedBen(db, { isDemo: true });
     cookie = privateHid;
@@ -259,6 +317,31 @@ async function main() {
     assert.equal((await ask(json("/api/ask", { ...privateQuestion, incognito: false }))).status, 400);
     ok("Incognito reads the existing context, refuses even forced writes, and stores only the retry key");
 
+    for (const fail of ["model", "amount"]) {
+      const input = { ...privateQuestion, id: crypto.randomUUID() };
+      scripted(index => {
+        if (fail === "model") return new Response(null, { status: 500 });
+        if (index === 0) return modelReply("tool_use", [call("where_am_i", {})]);
+        return modelReply("end_turn", [{ type: "text", text: "You have ¥888,888." }]);
+      });
+      const failure = (await streamed(await ask(json("/api/ask", input)))).last;
+      assert.ok(failure.error);
+      if (fail === "amount") assert.match(failure.error, /could not confirm/);
+      const receipts = () => db.select().from(schema.askReceipts)
+        .where(and(eq(schema.askReceipts.householdId, privateHid), eq(schema.askReceipts.askId, input.id)));
+      assert.deepEqual(await receipts(), [], `${fail}: a failed run releases its claim`);
+      const calls = scripted(index => index === 0
+        ? modelReply("tool_use", [call("where_am_i", {})])
+        : modelReply("end_turn", [{ type: "text", text: "I checked again." }]));
+      const retry = (await streamed(await ask(json("/api/ask", input)))).last.reply!;
+      assert.equal(retry.text, "I checked again.");
+      assert.equal(retry.incognito, true);
+      assert.equal(calls(), 2);
+      assert.equal((await receipts()).length, 1);
+      assert.equal((await allTurns(db, privateHid)).length, 1);
+    }
+    ok("failed Incognito runs release the receipt so the same id can run again without saving a turn");
+
     const localHid = await seedBen(db, { isDemo: true });
     const localGeneral = await generalSpace(db, localHid);
     await db.update(schema.households).set({ memoryPlace: "device", journalPlace: "device" }).where(eq(schema.households.id, localHid));
@@ -302,6 +385,31 @@ async function main() {
     const other = await createSpace(db, b, "Fictional foreign space");
     assert.equal((await ask(json("/api/ask", question({ spaceId: other.id, conversationId: other.id })))).status, 400);
     ok("Ask proposes a space without creating it; only the guarded Open space form creates it");
+
+    const openedSpaceLocation = opened.headers.get("location")!;
+    const openedSpaceId = new URL(openedSpaceLocation, ORIGIN).searchParams.get("space")!;
+    const briefForm = new FormData();
+    briefForm.set("kind", "brief");
+    briefForm.set("id", openedSpaceId);
+    briefForm.set("about", "  Check the March paperwork  ");
+    briefForm.set("state", "timeline | Check the next statement");
+    const briefRequest = post("/api/spaces", briefForm);
+    briefRequest.headers.set(FORM_FETCH_HEADER, "1");
+    const confirmedBrief = await spacesRoute(briefRequest);
+    assert.equal(confirmedBrief.status, 200);
+    assert.equal(confirmedBrief.headers.get(FORM_REDIRECT_HEADER), openedSpaceLocation);
+    assert.equal(confirmedBrief.headers.get("cache-control"), "private, no-store");
+    const savedBriefRecord = await confirmedBrief.json();
+    const savedBriefRow = (await listSpaces(db, privateHid)).find(row => row.id === openedSpaceId)!;
+    assert.equal(savedBriefRecord.brief.about, "Check the March paperwork");
+    assert.deepEqual(savedBriefRecord, { brief: savedBriefRow.brief, updatedAt: savedBriefRow.briefUpdatedAt?.toISOString(), updatedBy: "form" });
+    briefForm.set("state", "A line with no source");
+    const refusedBrief = post("/api/spaces", briefForm);
+    refusedBrief.headers.set(FORM_FETCH_HEADER, "1");
+    assert.equal((await spacesRoute(refusedBrief)).status, 400);
+    assert.deepEqual((await listSpaces(db, privateHid)).find(row => row.id === openedSpaceId)?.brief, savedBriefRow.brief);
+    ok("a brief save returns the committed fields and timestamp to the editor; a refused edit keeps the saved brief");
+
     asking = null;
     for (const key of ["AI_PROTOCOL", "AI_API_KEY", "AI_TEXT_MODEL", "AI_BASE_URL"]) {
       if (savedEnv[key] === undefined) delete process.env[key];

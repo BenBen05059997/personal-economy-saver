@@ -4,7 +4,8 @@ import { withHousehold } from "@/db/household";
 import { consumeRequest } from "@/db/rate-limit";
 import { archiveSpace, createSpace, deleteSpace, renameSpace, saveBrief } from "@/db/spaces";
 import { briefFromForm } from "@/lib/agent/brief-form";
-import { badFields, failure, formOf, redirectTo, tooMany } from "@/lib/door";
+import { badFields, failure, formOf, NO_STORE, redirectTo, tooMany } from "@/lib/door";
+import { FORM_REDIRECT_HEADER, postedByForm } from "@/lib/form-fetch";
 import { householdRequest } from "@/lib/session";
 
 const name = z.string().trim().min(1).max(60);
@@ -31,15 +32,19 @@ export async function POST(request: Request) {
       return tooMany("Too many space changes. Try again in a minute.");
     }
     const action = parsed.data;
-    const destination = await withHousehold(connection, hid, async tx => {
+    return await withHousehold(connection, hid, async tx => {
       switch (action.kind) {
         case "create": {
           const space = await createSpace(tx, hid, action.name);
-          return `/canvas?space=${space.id}`;
+          return redirectTo(`/canvas?space=${space.id}`, request);
         }
-        case "brief":
-          await saveBrief(tx, hid, action.id, briefFromForm(form), "form");
-          return `/canvas?space=${action.id}`;
+        case "brief": {
+          const record = await saveBrief(tx, hid, action.id, briefFromForm(form), "form");
+          const destination = `/canvas?space=${action.id}`;
+          return postedByForm(request)
+            ? Response.json(record, { headers: { ...NO_STORE, [FORM_REDIRECT_HEADER]: destination } })
+            : redirectTo(destination, request);
+        }
         case "rename":
           await renameSpace(tx, hid, action.id, action.name);
           break;
@@ -50,9 +55,8 @@ export async function POST(request: Request) {
           await deleteSpace(tx, hid, action.id);
           break;
       }
-      return "/memory?tab=spaces";
+      return redirectTo("/memory?tab=spaces", request);
     });
-    return redirectTo(destination, request);
   } catch (error) {
     return failure(error);
   }

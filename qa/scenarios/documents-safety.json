@@ -2819,10 +2819,11 @@
       "Viewport 375px"
     ],
     "steps": [
-      "Measure every link, button, input, select and summary row on Home, To check, Upload, Settings (include the client links in Home's sentence and Coming up, \"Later in the month\", \"Allow invoice drafts\")"
+      "Measure links, buttons, inputs, selects and summaries on Home, Ask, To check, Upload, Plan, Memory → Rules and Settings. Include Ask question and canvas starters, Upload’s To check link, Plan’s Add a pot summary, the Rules On row, and the Email reminders and Quiet days rows"
     ],
     "expected": [
       "Each box, or its ::after hit area, is at least 44px tall",
+      "Tapping the expanded area activates its own button, link, summary or checkbox",
       "The Ask row never covers the last row"
     ],
     "refs": [
@@ -2927,7 +2928,7 @@
       "Trigger the error message under the button"
     ],
     "expected": [
-      "Nothing scrolls sideways; the file field, button and To check link are at least 44px tall at 375px",
+      "Nothing scrolls sideways. At 375px the file field, button and To check link each have at least 44px of tap height, and the link opens To check",
       "The red message wraps and is readable in dark"
     ],
     "refs": [

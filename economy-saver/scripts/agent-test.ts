@@ -2,6 +2,7 @@
 // The send-capable PayPal runner is kept out of the agent by lint (no-restricted-imports in eslint.config.mjs)
 // and by the source scan at the end of this script.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
@@ -11,14 +12,14 @@ import { and, eq, inArray } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { aiConnection } from "@/db/ai-key";
 import { householdDate } from "@/db/account";
-import { addMemory, listMemory } from "@/db/memory";
+import { addMemory, deleteMemory, listMemory } from "@/db/memory";
 import { removeBill } from "@/db/bills";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
 import { createSpace, generalSpace, saveBrief } from "@/db/spaces";
 import { BriefSchema } from "@/lib/agent/brief";
 import { seedBen } from "@/db/seed";
-import { AgentError, runAgent } from "@/lib/agent/run";
+import { AgentError, askBudgetMs, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { dueAnswer, statusAnswer } from "@/lib/money/ask";
 import { addDays, low, medianLow, safeToSpend, series } from "@/lib/money/runway";
@@ -103,7 +104,7 @@ function chatTransport(script: ((bodies: ChatBody[]) => Response)[] | ((bodies: 
 }
 const toolMessages = (body: ChatBody) => body.messages.filter(m => m.role === "tool") as { tool_call_id: string; content: string }[];
 
-const AI_NAMES = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL"];
+const AI_NAMES = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL", "ASK_BUDGET_MS"];
 const KEY = "sk-ant-fictional-" + "a".repeat(40);
 const APP = new URL("http://127.0.0.1:3123");
 
@@ -111,6 +112,8 @@ async function main() {
   const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
   const saved = Object.fromEntries(AI_NAMES.map(name => [name, process.env[name]]));
+  const budgetProbe = process.argv.includes("--ask-budget-check");
+  if (!budgetProbe) delete process.env.ASK_BUDGET_MS;
   let passed = 0;
   const realInfo = console.info;
   async function check(name: string, run: () => Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
@@ -128,6 +131,27 @@ async function main() {
     console.info = (...args: unknown[]) => { const first = String(args[0]); if (first.startsWith('{"at":')) logged.push(JSON.parse(first)); else realInfo(...args); };
     const ask = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { now?: () => number; source?: "voice" | "manual"; askId?: string; onStep?: (step: string) => void } = {}) =>
       runAgent({ db, householdId: hid, question, askId: extra.askId ?? crypto.randomUUID(), appUrl: APP, connection: () => aiConnection(db, hid, "text"), fetch, ...extra });
+
+    if (budgetProbe) {
+      assert.equal(askBudgetMs(), 1_250);
+      process.env.ASK_BUDGET_MS = "9000";
+      let clock = 0;
+      const model = transport(() => {
+        clock = 1_250;
+        return reply("tool_use", [toolUse("due", "whats_due", {})]);
+      });
+      await assert.rejects(ask(a, "What’s due?", model.fetch, { now: () => clock }),
+        (error: unknown) => error instanceof AgentError && error.outcome === "budget");
+      assert.equal(model.bodies.length, 1, "Ask uses the cached override for its deadline");
+      return;
+    }
+
+    await check("Ask defaults to 20 seconds and uses the configured budget for its deadline", async () => {
+      assert.equal(askBudgetMs(), 20_000);
+      execFileSync(process.execPath, [...process.execArgv, process.argv[1], "--ask-budget-check"], {
+        env: { ...process.env, ASK_BUDGET_MS: "1250" },
+      });
+    });
 
     await check("a question runs a tool, feeds the engine's own answer back, one model call per turn", async () => {
       const { fetch, bodies } = transport([
@@ -1139,6 +1163,32 @@ async function main() {
       assert.ok(JSON.stringify(second.bodies[0].messages[0]).includes("7,777"), "the earlier reply was shown to the model as context");
     });
 
+    await check("CONV-010: a confirmed Nov 19 bill changes the same week's follow-up", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const { id: conversationId } = await generalSpace(db, hid);
+      const bill = "Kumo Water";
+      const askWeek = async (question: string, includesBill: boolean) => {
+        const model = transport([
+          () => reply("tool_use", [toolUse("t", "timeline", { scenario: "as_usual" })]),
+          () => reply("end_turn", [text(includesBill ? "Kumo Water is also due this week." : "I checked what is due this week.")]),
+        ]);
+        const answer = await conversation(hid, question, model.fetch, { conversationId });
+        const [result] = toolResults(model.bodies[1]);
+        const events: { label: string; date: string; amountMinor: number }[] = JSON.parse(result.content).events;
+        const week = events.filter(event => event.date >= "2026-11-14" && event.date <= "2026-11-21");
+        const matched = week.find(event => event.label === bill);
+        assert.equal(Boolean(matched), includesBill);
+        if (matched) assert.deepEqual([matched.date, Math.abs(matched.amountMinor)], ["2026-11-19", 2500]);
+        return answer;
+      };
+      const first = await askWeek("What's due this week?", false);
+      await insertBill(db, hid, billInput.parse({ id: crypto.randomUUID(), biller: bill, amount: "2500", due: "2026-11-19", category: "utilities" }),
+        "confirmed", { madeBy: "form" });
+      const next = await askWeek("And again, what's due?", true);
+      assert.notEqual(next.text, first.text);
+      assert.match(next.text, /Kumo Water/);
+    });
+
     await check("the checked space brief is saved after the answer and appears on the next question", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const general = await generalSpace(db, hid);
@@ -1154,6 +1204,8 @@ async function main() {
       const unconfirmed = propose({ about: "Invented ¥7,777", state: [{ text: "Pending", source: "where_am_i" }] });
       const refused = await askInSpace(unconfirmed.fetch, "Check the forecast for ¥7,777.");
       assert.equal(refused.brief, undefined, "an amount in the question alone does not confirm a brief");
+      assert.equal(logged.at(-1)?.briefDropped, "unconfirmed_amount");
+      assert.doesNotMatch(JSON.stringify(logged.at(-1)), /Invented|7,777/);
       assert.equal((await generalSpace(db, hid)).brief.about, "Original brief");
       assert.equal(BriefSchema.safeParse({ about: "1234 5678 9012" }).success, false);
       assert.equal(BriefSchema.safeParse({ about: "x".repeat(2000) }).success, false);
@@ -1171,11 +1223,37 @@ async function main() {
       assert.match(JSON.stringify(followup.bodies[0].system), /Space brief.*Checked cash/);
     });
 
+    await check("notes read through recall or history are valid brief sources and unread note ids are dropped", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const here = await generalSpace(db, hid);
+      const other = await createSpace(db, hid, "Fictional records");
+      const note = await addMemory(db, hid, { kind: "fact", text: "Receipt is in the blue folder.", spaceId: other.id }, { madeBy: "form" });
+      const state = [{ text: note.text, source: note.id }];
+      const askWith = (name: string, args: object) => {
+        const model = transport([
+          () => reply("tool_use", [toolUse("read", name, args), toolUse("brief", "update_brief", { state })]),
+          () => reply("end_turn", [text("I checked the notes.")]),
+        ]);
+        return answerQuestion(db, hid, askInput.parse({
+          id: crypto.randomUUID(), conversationId: here.id, spaceId: here.id, text: "Check the blue folder note and update the brief.", source: "manual", canvas: null,
+        }), { fetch: model.fetch });
+      };
+      assert.equal((await askWith("where_am_i", {})).brief, undefined);
+      assert.equal(logged.at(-1)?.briefDropped, "invalid_source");
+      const dropped = JSON.stringify(logged.at(-1));
+      assert.ok(!dropped.includes(note.id) && !dropped.includes(note.text));
+      for (const [name, args] of [["recall", { space: other.name }], ["search_history", { text: "blue folder", space: other.name }]] as const) {
+        assert.deepEqual((await askWith(name, args)).brief?.brief.state, state, name);
+        assert.equal(logged.at(-1)?.briefDropped, undefined, name);
+      }
+      assert.deepEqual((await generalSpace(db, hid)).brief.state, state);
+    });
+
     await check("the profile and current note reach Ask, and Based on names only the memory item it cited", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const here = await createSpace(db, hid, "Fictional tax desk"), elsewhere = await createSpace(db, hid, "Fictional repair desk");
       await addMemory(db, hid, { kind: "fact", text: "Profile says to use Japanese." }, { madeBy: "form" });
-      const note = await addMemory(db, hid, { kind: "fact", text: "Keep the tax receipt in the March folder.", spaceId: here.id }, { madeBy: "form" });
+      const note = await addMemory(db, hid, { kind: "fact", text: "Keep the tax receipt in the March folder and group the other receipts by client.", spaceId: here.id }, { madeBy: "form" });
       const other = await addMemory(db, hid, { kind: "fact", text: "An unrelated repair note.", spaceId: elsewhere.id }, { madeBy: "form" });
       const model = transport([
         () => reply("tool_use", [toolUse("w", "where_am_i", {})]),
@@ -1187,10 +1265,15 @@ async function main() {
       assert.ok(prompt.indexOf("Profile says") < prompt.indexOf("Keep the tax receipt") && prompt.includes("Profile says"));
       assert.ok(!prompt.includes("unrelated repair"));
       assert.equal(answer.text, "Keep the receipt in March.");
-      const sources = [{ kind: "memory", id: note.id, label: note.text }];
+      const sources = [{ kind: "memory", id: note.id, label: note.text.slice(0, 59) + "…" }];
+      assert.ok(note.text.length > 60);
       assert.deepEqual(answer.sources.filter(source => "id" in source), sources);
       const replay = await answerQuestion(db, hid, input, { fetch: transport([]).fetch });
       assert.deepEqual(replay.sources.filter(source => "id" in source), sources);
+      assert.equal(await deleteMemory(db, hid, note.id, { madeBy: "form" }), true);
+      const afterDelete = await answerQuestion(db, hid, input, { fetch: transport([]).fetch });
+      assert.equal(afterDelete.text, answer.text);
+      assert.deepEqual(afterDelete.sources.filter(source => "id" in source), sources);
     });
 
     await check("a cloud journal never stores the citation text of device-only memory", async () => {

@@ -13,8 +13,8 @@
 .reader-upload .reader-error { color: var(--red); }
 /* Phone: the To check link reaches 44px to tap without changing how it looks; an invisible ::after grows the hit area. */
 @media (max-width: 760px) {
-  .reader-check { position: relative; }
-  .reader-check::after { content: ""; position: absolute; inset: -12px -8px; }
+  .reader-check { position: relative; display: inline-flex; align-items: center; min-height: 44px; }
+  .reader-check::after { content: ""; position: absolute; inset: 0 -8px; }
 }
 .check-lines { display: grid; gap: var(--space-3); margin-block: var(--space-3); }
 .check-line { padding: var(--space-3); border-left: 3px solid var(--rule); background: var(--wash); }

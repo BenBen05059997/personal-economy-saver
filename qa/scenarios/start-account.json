@@ -2190,7 +2190,7 @@
     ],
     "expected": [
       "The question reads \"Everything you added goes. Reset?\"; Keep changes nothing",
-      "Reset returns to Home with Ben's numbers in BROWSER-CHECKS Expected numbers and no First steps panel",
+      "Reset returns to Home with Ben's numbers in BROWSER-CHECKS Expected numbers and no First steps panel. The fetch form receives 204 and x-form-redirect: /",
       "The line \"Puts Ben's fictional starting numbers back.\" shows under the button"
     ],
     "refs": [
@@ -2326,9 +2326,10 @@
       "Open /settings#your-data"
     ],
     "expected": [
-      "The panel reads \"What the app keeps about you, where it is kept, and how to delete it. …\"",
-      "Five rows with \"In our cloud, Tokyo.\": Your numbers (counts as in BROWSER-CHECKS AA1; its only note \"Deleted only with everything else.\", no delete), What the assistant remembers, Canvases pinned to Home, Ask conversations, Uploaded documents",
-      "Then Export my data, Import and Delete everything; a row with nothing in it has no Delete"
+      "The panel reads \"What the app keeps about you, where it is kept, and how to delete it. A question you ask goes to the household’s AI model.\"",
+      "Seven rows show \"In our cloud, Tokyo.\": Your numbers, What the assistant remembers, Canvases pinned to Home, Ask conversations, Reminder history, Push subscriptions, Uploaded documents",
+      "Fresh Try it counts match BROWSER-CHECKS AA1. Your numbers says \"Deleted only with everything else.\" and has no Delete",
+      "Then Export my data, Import and Delete everything. A row with nothing in it has no Delete"
     ],
     "refs": [
       "BROWSER-CHECKS AA1"
@@ -2386,7 +2387,7 @@
       "The question reads \"Delete all the assistant remembers? This can’t be undone.\" Keep closes it and changes nothing",
       "Delete returns to Settings with the row at \"0 things\" and no Delete",
       "Activity records \"The assistant forgot everything\" and never names the text",
-      "The pinned canvases, cloud Ask journal and documents ask \"Delete all pinned canvases?\", \"Delete all conversations and named spaces?\", and \"Delete all uploaded documents?\""
+      "The pinned canvases, cloud Ask journal and documents ask \"Delete all pinned canvases?\", \"Delete all conversations, briefs and named spaces?\", and \"Delete all uploaded documents?\""
     ],
     "refs": [
       "BROWSER-CHECKS AA2"

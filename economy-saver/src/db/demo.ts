@@ -1,9 +1,10 @@
-import { and, asc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { type Db, requireHousehold, withHousehold } from "./household";
 import { events, households } from "./schema";
 import { seedBenRows } from "./seed";
-import { refreshSuggestions } from "./suggestions";
+import { refreshSuggestions, runPass } from "./suggestions";
+import { InputError } from "./input-error";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
 
@@ -20,6 +21,24 @@ export async function tryItKind(db: Db, id: string): Promise<"try-it" | "blank" 
   const [row] = await db.select({ fixedToday: households.fixedToday }).from(households)
     .where(and(eq(households.id, requireHousehold(id)), eq(households.isDemo, true)));
   return row ? (row.fixedToday ? "try-it" : "blank") : null;
+}
+
+/** Advance a Try it fixture and refresh its findings atomically. A blank demo or signed-in household has no QA clock. */
+export async function advanceTryItDate(db: Db, id: string, date: string): Promise<string | null> {
+  if (!z.string().date().safeParse(date).success) throw new InputError("Enter a valid date in YYYY-MM-DD format.");
+  const hid = requireHousehold(id);
+  const tryIt = and(eq(households.id, hid), eq(households.isDemo, true), isNotNull(households.fixedToday));
+  return withHousehold(db, hid, async tx => {
+    const [changed] = await tx.update(households).set({ fixedToday: date })
+      .where(and(tryIt, lt(households.fixedToday, date))).returning({ id: households.id });
+    if (!changed) {
+      const [current] = await tx.select({ id: households.id }).from(households).where(tryIt);
+      if (!current) return null;
+      throw new InputError("Choose a date later than the current Try it date.");
+    }
+    await runPass(tx, hid);
+    return date;
+  });
 }
 
 // The one deletion of a demo household (Reset and the sweeper both call it): lock the row with is_demo re-checked,

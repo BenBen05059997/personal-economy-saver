@@ -135,7 +135,7 @@
       "Tap Keep on the rule offer and reload Rules"
     ],
     "expected": [
-      "The offer appears under the answer with Keep and No, while the rule is still off",
+      "Ask answers with the ¥50,000 safe-to-spend rule offer and Keep and No. The rule stays off until Keep",
       "Keep shows Kept. Rules shows Flag safe to spend below ¥50,000 and Activity shows the matching rule change"
     ],
     "refs": [

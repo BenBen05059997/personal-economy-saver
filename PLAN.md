@@ -207,6 +207,7 @@ One database function per job, called by both the form and the agent tool (D39).
 Phase A, the OK before the first deploy and before the repo goes public, answers to the open questions in DECISIONS.md (O2, O5), recording the final video and submitting are the owner's. Of these phases, H goes first, then F.
 
 ### A. Setup
+- [ ] Leave `ASK_BUDGET_MS` unset on the production Worker (20 seconds). Set it only for slow development models when needed.
 - [ ] Join the hackathon on Devpost
 - [ ] `npx wrangler login` from `economy-saver`
 - [x] Migration 0027 (`ask_receipts.pending` and `links`) applied to the owner's database

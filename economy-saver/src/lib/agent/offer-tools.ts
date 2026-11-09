@@ -30,7 +30,7 @@ function positiveAmount(text: string, currency: string): number {
 
 export const offerTools: Tool[] = [{
   name: "offer_keep", scope: "ask", input,
-  description: "Offer one useful thing to keep after the answer, up to three per question. Writes nothing. Use kind memory with memoryKind and the person's own words as text (up to 400 characters), kind goal with name, target (a positive amount in the home currency) and targetDate (YYYY-MM-DD), or kind rule with ruleKind, enabled and value (plain whole days, whole percent, or a home-currency amount as text; null for goal_behind or for turning a rule off without a number). Do not repeat existing memory, goals, or rules, or include a key, password, card or account number.",
+  description: "Offer up to three memory items, savings goals or standing rules. Use the person’s words. A rule value is days, percent or home-currency amount as applicable. Omit duplicates and secrets.",
   run: async (ctx: ToolContext, { offer }: z.infer<typeof input>) => {
     if (!ctx.onOffer) throw new InputError("Keep offers are available in Ask.");
     ctx.onOffer(offer);

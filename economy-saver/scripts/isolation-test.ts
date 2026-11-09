@@ -92,7 +92,7 @@ const covered = [
   // bank-balance.ts, bills.ts, charges.ts, clients.ts, confirm.ts
   "setBankBalance", "confirmBalanceUpdate", "insertBill", "removeBill", "updateBill", "insertCharge", "removeCharge", "insertClient", "confirmPending",
   // daily.ts, demo.ts, document-cleanup.ts, event-feed.ts
-  "runDaily", "findDemoHousehold", "tryItKind", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
+  "runDaily", "findDemoHousehold", "tryItKind", "advanceTryItDate", "resetDemoHousehold", "deleteDemoHousehold", "sweepDemoHouseholds", "removeHouseholdDocuments", "eventFeed",
   // D64–D66 suggestions and standing rules
   "seedRules", "rulesFor", "setStandingRule", "changeStandingRule", "runPass", "openSuggestions", "dismiss", "notNow", "closeByRef",
   // D65 reminders.ts
@@ -133,7 +133,7 @@ const covered = [
   // D70 history.ts
   "searchHistory", "resolveMemorySpace",
   // D59 ask-receipts.ts
-  "noteAskWrote", "claimAskReceipt", "noteAskReply", "askReceipt", "pruneAskReceipts",
+  "noteAskWrote", "claimAskReceipt", "releaseAskReceipt", "noteAskReply", "askReceipt", "pruneAskReceipts",
   // D61 document-card.ts
   "documentCard", "attachDocument",
   // 27E document-cleanup.ts: Storage bytes and the removal of old raw files
@@ -614,6 +614,12 @@ async function main() {
       assert.deepEqual(await F.askReceipt(store, hid, receiptId), { pending: true, links: [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }] });
       assert.equal(await F.askReceipt(store, other.hid, receiptId), null, "another household's note is not seen by this id");
       assert.equal(await F.askReceipt(store, other.hid, receiptId) !== null, false, "another household's receipt is not seen by this id");
+      await F.releaseAskReceipt(store, other.hid, receiptId);
+      assert.notEqual(await F.askReceipt(store, hid, receiptId), null, "another household cannot release the receipt");
+      const failedId = randomUUID();
+      assert.equal(await F.claimAskReceipt(store, hid, failedId), true);
+      await F.releaseAskReceipt(store, hid, failedId);
+      assert.equal(await F.askReceipt(store, hid, failedId), null);
       assert.equal(await F.pruneAskReceipts(store, hid), 0, "a receipt under a day old stays");
       await pg.query("update ask_receipts set created_at = now() - interval '2 days' where household_id = $1 and ask_id = $2", [hid, receiptId]);
       const otherBefore = (await db.select().from(schema.askReceipts).where(eq(schema.askReceipts.householdId, other.hid))).length;
@@ -1092,6 +1098,17 @@ async function main() {
       assert.equal((await fingerprint(uid)).text, accountBefore);
       await bothUntouched("replacing the visitor's own demo");
       await F.deleteHousehold(store, named);
+    });
+    await check("advanceTryItDate: a fixture advances under its tenant role, while other households keep their date and findings", async () => {
+      const tryIt = await seedBen(db, { isDemo: true });
+      const real = await seedBen(db);
+      assert.equal(await F.advanceTryItDate(store, tryIt, "2026-11-15"), "2026-11-15");
+      assert.equal(await F.householdDate(store, tryIt), "2026-11-15");
+      assert.equal(await F.advanceTryItDate(store, real, "2026-11-15"), null);
+      await assert.rejects(F.withHousehold(store, tryIt, tx => F.advanceTryItDate(tx, B.hid, "2026-11-15")), /Cannot change households/);
+      await bothUntouched("advanceTryItDate");
+      await F.deleteHousehold(store, tryIt);
+      await F.deleteHousehold(store, real);
     });
     await check("demo functions: find, reset, delete and cleanup name one household and leave A and B as they were", async () => {
       const [c1, c2, c3, c4] = [await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true })];

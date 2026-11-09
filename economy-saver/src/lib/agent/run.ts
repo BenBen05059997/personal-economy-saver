@@ -12,7 +12,7 @@ import { normalise } from "@/lib/money/name-key";
 import { callModel } from "@/lib/ai/call";
 import { ModelError, type Connection, type ToolResult, type ToolSpec, type Turn } from "@/lib/ai/types";
 import type { MoneyState } from "@/lib/money/types";
-import { logCall, type ToolLog } from "./log";
+import { logCall, type BriefDropReason, type ToolLog } from "./log";
 import type { Recipe } from "@/lib/canvas/schema";
 import { chooseReply, type ReplyKind, type Source } from "./reply";
 import { briefWords, type Brief } from "./brief";
@@ -39,7 +39,19 @@ export class AgentError extends Error {
 const NOT_SOURCES = new Set(["remember", "forget", "make_canvas", "offer_keep", "update_brief", "search_history", "open_space"]);
 
 const MAX_TOOL_TURNS = 4;
-const BUDGET_MS = 20_000;
+let cachedBudgetMs: number | undefined;
+
+/** Read once per process, when Ask first runs. */
+export function askBudgetMs(): number {
+  if (cachedBudgetMs !== undefined) return cachedBudgetMs;
+  const setting = process.env.ASK_BUDGET_MS?.trim();
+  if (!setting) return cachedBudgetMs = 20_000;
+  const ms = Number(setting);
+  if (!/^\d+$/.test(setting) || !Number.isInteger(ms) || ms < 1 || ms > 2_147_483_647) {
+    throw new Error("ASK_BUDGET_MS must be a positive whole number of milliseconds within the timer range.");
+  }
+  return cachedBudgetMs = ms;
+}
 const MAX_TOKENS = 16_000;
 
 const definitions: ToolSpec[] = tools.map(tool => ({ name: tool.name, description: tool.description, schema: toolInputSchema(tool) }));
@@ -76,7 +88,7 @@ function apiFailure(error: unknown): AgentError {
 }
 
 /** What the one log line is built from; filled in as the Ask runs. */
-type Trace = { kind?: string; canvas?: boolean; stop: string; turns: number; tools: ToolLog[]; inputTokens: number; outputTokens: number; protocol?: string; own?: boolean };
+type Trace = { kind?: string; canvas?: boolean; briefDropped?: BriefDropReason; stop: string; turns: number; tools: ToolLog[]; inputTokens: number; outputTokens: number; protocol?: string; own?: boolean };
 
 type AskOptions = {
   db: Db; householdId: string; question: string; askId: string; appUrl: URL; source?: "voice" | "manual";
@@ -117,6 +129,7 @@ export async function runAgent(opts: AskOptions): Promise<AskResult> {
     logCall({
       at: "ask", householdId: opts.householdId, askId: opts.askId, ...(opts.source && { source: opts.source }),
       kind: trace.kind ?? "error", canvas: trace.canvas ?? false,
+      ...(trace.briefDropped && { briefDropped: trace.briefDropped }),
       stop: trace.stop, turns: trace.turns, tools: trace.tools, outcome, ms: now() - started,
       inputTokens: trace.inputTokens, outputTokens: trace.outputTokens,
       ...(trace.protocol && { protocol: trace.protocol, own: trace.own }),
@@ -126,7 +139,7 @@ export async function runAgent(opts: AskOptions): Promise<AskResult> {
 
 async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const now = opts.now ?? Date.now;
-  const deadline = now() + BUDGET_MS;
+  const deadline = now() + askBudgetMs();
   const hid = requireHousehold(opts.householdId);
 
   const links: { label: string; href: string }[] = [];
@@ -173,7 +186,10 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     onMemoryRead: id => { readIds.add(id); },
     incognito: opts.incognito,
     onOpenSpace: next => { openSpace ??= next; },
-    onBrief: opts.spaceId ? next => { brief = next; } : undefined,
+    onBrief: opts.spaceId ? next => {
+      brief = next;
+      trace.briefDropped = "no_answer";
+    } : undefined,
     onPending: () => { pending = true; ctx.addLink?.({ label: "Open To check", href: new URL("/to-check", opts.appUrl).href }); },
   };
   const memory = memoryBlock(initialMemory.filter(item => !item.spaceId));
@@ -295,13 +311,20 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       const spaceId = offer.kind === "memory" ? memorySpaceId : offer.kind === "rule" ? opts.spaceId : undefined;
       return spaceId ? { ...offer, spaceId } : offer;
     });
-    const validSources = new Set([
-      ...tools.map(tool => tool.name),
-      ...initialMemory.filter(item => !item.spaceId || item.spaceId === opts.spaceId).map(item => item.id),
-    ]);
-    const checkedBrief = chosen.kind === "answer" && brief && brief.state.every(line => validSources.has(line.source))
-      && unconfirmedAmounts(briefWords(brief).join("\n"), toolAmounts).length === 0
-      ? brief : undefined;
+    let checkedBrief: Brief | undefined;
+    if (brief && chosen.kind === "answer") {
+      const validSources = new Set([
+        ...tools.map(tool => tool.name),
+        ...initialMemory.filter(item => !item.spaceId || item.spaceId === opts.spaceId).map(item => item.id),
+        ...readIds,
+      ]);
+      if (!brief.state.every(line => validSources.has(line.source))) trace.briefDropped = "invalid_source";
+      else if (unconfirmedAmounts(briefWords(brief).join("\n"), toolAmounts).length) trace.briefDropped = "unconfirmed_amount";
+      else {
+        delete trace.briefDropped;
+        checkedBrief = brief;
+      }
+    }
     const memorySources: MemorySource[] = [];
     if (chosen.kind === "answer") {
       for (const id of citedIds) {

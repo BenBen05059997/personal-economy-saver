@@ -16,15 +16,19 @@
       "Disposable Ben Try it copy on Nov 14"
     ],
     "steps": [
-      "Add a confirmed Kumo Water bill for ¥2,500 due Nov 17 in Utilities",
+      "Open a fresh Add bill form and type Kumo Water into its visible Name field",
+      "Check the category summary, then open More without choosing a category",
+      "Fill ¥2,500 and Nov 17, then tap Add bill",
       "Open Home"
     ],
     "expected": [
+      "The summary says One-off · Utilities · Change › and More already selects Utilities",
       "Home shows Kumo Water due Nov 17 and ¥2,500, covered even if clients pay late",
-      "Review bill opens the confirmed bill"
+      "Review bill opens the confirmed bill, which has Utilities in Edit"
     ],
     "refs": [
       "BROWSER-CHECKS AL1",
+      "db:category-test",
       "D64"
     ]
   },

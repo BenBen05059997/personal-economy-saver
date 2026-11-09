@@ -100,18 +100,19 @@
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14)",
       "Add a bill or charge → Bill open",
-      "Before the tap, define window.webkitSpeechRecognition as a class whose start() calls this.onresult({ results: [[{ transcript }]] }) then this.onend() with the transcript \"2,000 dollars\""
+      "Before the tap, set both window.SpeechRecognition and window.webkitSpeechRecognition to a fake recognizer. In start(), queue a microtask that calls onresult with results [[{ transcript: \"fifty dollars\" }]], then calls onend"
     ],
     "steps": [
       "Tap Fill by voice"
     ],
     "expected": [
       "Amount stays empty",
-      "The note reads \"You said dollars; this field takes yen.\"",
+      "Exactly one note reads \"You said dollars; this field takes yen.\"",
       "Nothing is saved"
     ],
     "refs": [
       "BROWSER-CHECKS K6",
+      "db:voice-test",
       "D26"
     ]
   },
