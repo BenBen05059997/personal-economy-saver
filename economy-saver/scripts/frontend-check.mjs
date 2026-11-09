@@ -1,6 +1,6 @@
 // Opt-in HTTP checks against a running local app. Creates fictional Try-it data only.
 // node scripts/frontend-check.mjs --run http://127.0.0.1:3123
-// --extra checks reader pages and saves/retries a fictional draft without sending.
+// --extra checks Home reload and reader pages, and saves/retries a fictional draft without sending.
 // Timings include the complete response body; redirects are measured separately.
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
@@ -220,6 +220,17 @@ await step("page", "landing-and-start-link-to-privacy", async () => {
 await step("action", "create-fictional-session", async () => adopt(await request("/api/try")));
 if (!cookie) process.exit(1); // Never proceed against an unverified session.
 if (args[0] === "--extra") {
+  await step("page", "home-reload-stays-server-rendered", async () => {
+    const navigation = { Accept: "text/html", "Sec-Fetch-Dest": "document" };
+    expect((await request("/", { extraHeaders: navigation })).response.status === 200, "home-initial-status");
+    const { response, body } = await request("/", { extraHeaders: { ...navigation, "Cache-Control": "max-age=0" } });
+    expect(response.status === 200, "home-reload-status");
+    const html = markup(body);
+    // React defines $RX on healthy pages too. Calling it for a boundary means the server left that boundary to the client.
+    expect(!/\$RX\s*\(\s*["']B:[^"']+["']/.test(body)
+      && !/<template\b[^>]*\bdata-dgst(?:\s|=|>)/i.test(html) && !/<!--\$!-->/.test(html), "home-reload-client-render");
+    expect(/<article\b[^>]*\bclass="money-home"/i.test(html) && /18,780/.test(text(html)), "home-reload-markup");
+  });
   await step("page", "authenticated-upload", () => page("/upload", /Upload a bill or receipt/));
   await step("guard", "authenticated-invalid-upload", async () => {
     const result = await request("/api/upload", { method: "POST", form: {} });
@@ -366,7 +377,10 @@ if (args[0] === "--extra") {
     const gasBill = (over) => ({ id: randomUUID(), biller: "Sakura Gas", amount: "6,000", due: "2026-12-10", category: "utilities", businessShare: "personal", ...over });
     const comingUp = async () => {
       const html = await page("/", /Coming up/);
-      return plain(pageContent(html.slice(html.indexOf('id="coming-up"'))));
+      // Count server-rendered rows once. Inline Flight repeats the same amounts.
+      const section = html.indexOf('id="coming-up"');
+      expect(section !== -1, "s18v-coming-up-markup");
+      return plain(text(html.slice(section)));
     };
     const linkedBody = async (id) => (await events()).events.find(event => event.kind === "bill_added" && event.refId === id)?.body;
     await step("action", "stage18-varies-try-it-session", async () => adopt(await request("/api/try", { session: "" })));

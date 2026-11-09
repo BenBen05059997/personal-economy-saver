@@ -152,7 +152,7 @@ Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Options, Settings, 
 - L3. Dark mode: all text is readable, the red shortfall and green Covered stay clear, and form fields and buttons are visible.
 - L4. Desktop: the sidebar, top bar (Ask, bell, Add) and panels line up; Settings uses two columns.
 - L5. Loading states ("Opening …") give way to the page within a second or two on a visible tab.
-- L6. The browser console shows no errors on any page.
+- L6. The browser console shows no errors on any page. On an owner-run local Worker, fully reload Home in the same Try it household. “Opening…” gives way to Ben’s Home with the expected numbers. The console has no React error #419. `scripts/frontend-check.mjs --extra` against the loopback Worker covers the complete Home reload response.
 
 ## M. Categories and the month view
 

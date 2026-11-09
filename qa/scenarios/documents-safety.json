@@ -1990,10 +1990,12 @@
       "Fresh Try it household (Ben, today Nov 14)"
     ],
     "steps": [
-      "Open Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Options, Settings, Upload, Login with the console open"
+      "Open Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Options, Settings, Upload, Login with the console open",
+      "In the owner-run local Worker browser check, fully reload Home in the same Try it household"
     ],
     "expected": [
-      "No console errors on any page"
+      "No console errors on any page",
+      "On the Worker reload, Ben’s Home and its expected numbers appear and the console has no React error #419"
     ],
     "refs": [
       "BROWSER-CHECKS L6"
