@@ -2770,7 +2770,7 @@
     ],
     "expected": [
       "scrollWidth equals clientWidth on every screen",
-      "No text is cut off or overlaps. Long names, including Home’s sentence note, wrap in the UI-006 fixture"
+      "No text is cut off or overlaps. Long names wrap in Home and Ask’s sentence notes and Plan’s expanded “not counted” note in the UI-006 fixture"
     ],
     "refs": [
       "BROWSER-CHECKS L1"
@@ -2895,13 +2895,15 @@
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14)",
       "Fictional bills with a 60-character unbroken name and a long Japanese name, plus a client with a 60-character unbroken name",
-      "One of the bills has an unknown amount or date and appears in Home’s sentence note"
+      "The 60-character bill has a due date this month and an unknown amount, so it appears in the sentence notes"
     ],
     "steps": [
-      "Open Home, To check, Plan, Settings, Activity at 375px"
+      "Open Home, Ask, To check, Plan, Settings and Activity at 375px",
+      "In Ask open This month. In Plan expand the bill’s category under Where the month goes",
+      "Compare document scrollWidth with clientWidth"
     ],
     "expected": [
-      "Names wrap in Home’s sentence, note and lists, in To check, in Plan’s spending list, and in Settings and Activity",
+      "Names wrap in Home and Ask’s sentence notes, in Plan’s expanded “not counted” note and spending list, and in To check, Settings and Activity",
       "The right column and amounts stay on screen and the document has no sideways scroll"
     ],
     "refs": [

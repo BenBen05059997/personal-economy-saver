@@ -1043,6 +1043,17 @@ await step("action", "stage15b-three-field-bill-with-guessed-defaults", async ()
     expect(refused.response.status === 400 && refused.body === "Choose a bill of this household", "s19b-foreign-id");
   });
 }
+await step("action", "long-uncounted-bill-appears-in-ask-and-plan-notes", async () => {
+  const name = "LongBiller".repeat(6);
+  const added = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: name,
+    due: "2026-11-25", category: "utilities", businessShare: "personal", amountUnknown: "on" } });
+  expect(added.response.status === 303, "long-bill-saved");
+  const ask = plain(pageContent(await page("/canvas", /This month/)));
+  const plan = plain(pageContent(await page("/plan", /Where the month goes/)));
+  expect(ask.includes(`Not counted: ${name} (amount not known).`), "long-bill-ask-note");
+  expect(plan.includes(`1 bill not counted: ${name} (amount not known)`), "long-bill-plan-note");
+});
+
 await step("action", "client-detail-accepts-the-full-120-character-name", async () => {
   const id = randomUUID();
   const name = "LongClient".repeat(12);

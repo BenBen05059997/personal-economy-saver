@@ -17,6 +17,7 @@
 .canvas-number { margin: 0; font: 400 28px/1.15 var(--serif); font-variant-numeric: tabular-nums lining-nums; white-space: nowrap; }
 .canvas-number small { color: var(--muted); font: 400 13px/1.3 var(--sans); white-space: normal; }
 .canvas-sub, .canvas-note { margin: 0; color: var(--muted); font: 400 13px/1.45 var(--sans); }
+.canvas-note { overflow-wrap: anywhere; }
 .canvas-sub b { color: var(--ink); font-weight: 500; }
 .canvas-text { margin: 0; font: 400 15px/1.5 var(--sans); white-space: pre-wrap; overflow-wrap: anywhere; }
 .canvas .is-short { color: var(--red); }
