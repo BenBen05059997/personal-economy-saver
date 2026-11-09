@@ -141,6 +141,26 @@ async function main() {
       ok("AskWorkspace server-renders the closed shell without a panel or a fetch");
     }
 
+    const { AddEntry } = await import("@/components/household/AddEntry");
+    const entry = renderToStaticMarkup(createElement(AddEntry, {
+      ids: { bill: crypto.randomUUID(), charge: crypto.randomUUID() },
+      returnTo: "/", today: "2026-11-14", currency: "JPY",
+      people: [{ id: crypto.randomUUID(), name: "Ben" }],
+      cards: [{ id: crypto.randomUUID(), label: "Fictional card" }],
+    }));
+    const entryForms = [...entry.matchAll(/<form\b[^>]*action="\/api\/(bills|charges)"[^>]*>([\s\S]*?)<\/form>/g)];
+    assert.deepEqual(entryForms.map(([, kind]) => kind), ["bills", "charges"]);
+    for (const [, kind, form] of entryForms) {
+      const more = /<details\b[^>]*class="add-entry-more"[^>]*>/.exec(form);
+      assert.ok(more, kind);
+      assert.doesNotMatch(more[0], /\sopen(?:[\s=>])/);
+      const visible = form.slice(0, more.index);
+      assert.match(visible, /class="add-entry-guess-words">(?:One-off · )?Other<\/span>/, kind);
+      assert.match(visible, /Guessed from the name, change if wrong/, kind);
+      assert.equal((form.match(/Guessed from the name, change if wrong/g) ?? []).length, 1, kind);
+    }
+    ok("Add bill and Add charge show one category guess hint above the closed More details");
+
     const resetDemo = (await import("@/app/api/try/reset/route")).POST as Handler;
     cookie = await seedBen(db, { isDemo: true });
     const resetResult = await resetDemo(post("/api/try/reset", null, { "x-form-fetch": "1" }));

@@ -480,7 +480,7 @@ due date's month and day, 29 Feb on the 28th in a common year) or null for a one
 optional `cancel_by` that is information only, and `repeat_until` for the last payment; `checkSchedule` in `src/db/bills.ts` refuses a schedule that
 does not hang together, and the reader's review card and `add_bill` take the same fields. Every bill and charge carries a `category` key and a
 `business_bp` share (D46): the forms post `category`, `businessShare` and `businessPercent`, the routes refuse a key outside the list with 400, and the
-agent's tools guess the category from the name when none is given. `fillGap` (`src/db/bills.ts`, `kind=fill`) sets only the missing amount or date
+agent's tools guess the category from the name when none is given. The bill and charge add forms show the guess in the collapsed summary until the person chooses a category. When no keyword matches, the summary shows Other. `fillGap` (`src/db/bills.ts`, `kind=fill`) sets only the missing amount or date
 of a bill and records an event with the old estimate; the bill waits in To check and repeats only once confirmed (D55). A charge goes through the
 statement-charge lock. **Paid in another currency (D62):** the charge form (`AddEntry.tsx`) and `/api/charges` post `originalAmount` and
 `originalCurrency` into `chargeInput` (both or neither); `insertCharge` keeps `amount` as what the issuer billed and stores `original_amount_minor`,
