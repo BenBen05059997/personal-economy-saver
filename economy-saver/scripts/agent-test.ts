@@ -1204,6 +1204,8 @@ async function main() {
       const unconfirmed = propose({ about: "Invented ¥7,777", state: [{ text: "Pending", source: "where_am_i" }] });
       const refused = await askInSpace(unconfirmed.fetch, "Check the forecast for ¥7,777.");
       assert.equal(refused.brief, undefined, "an amount in the question alone does not confirm a brief");
+      assert.equal(logged.at(-1)?.briefDropped, "unconfirmed_amount");
+      assert.doesNotMatch(JSON.stringify(logged.at(-1)), /Invented|7,777/);
       assert.equal((await generalSpace(db, hid)).brief.about, "Original brief");
       assert.equal(BriefSchema.safeParse({ about: "1234 5678 9012" }).success, false);
       assert.equal(BriefSchema.safeParse({ about: "x".repeat(2000) }).success, false);
@@ -1219,6 +1221,32 @@ async function main() {
       const followup = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Here is the latest.")])]);
       await askInSpace(followup.fetch, "What about today?");
       assert.match(JSON.stringify(followup.bodies[0].system), /Space brief.*Checked cash/);
+    });
+
+    await check("notes read through recall or history are valid brief sources and unread note ids are dropped", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const here = await generalSpace(db, hid);
+      const other = await createSpace(db, hid, "Fictional records");
+      const note = await addMemory(db, hid, { kind: "fact", text: "Receipt is in the blue folder.", spaceId: other.id }, { madeBy: "form" });
+      const state = [{ text: note.text, source: note.id }];
+      const askWith = (name: string, args: object) => {
+        const model = transport([
+          () => reply("tool_use", [toolUse("read", name, args), toolUse("brief", "update_brief", { state })]),
+          () => reply("end_turn", [text("I checked the notes.")]),
+        ]);
+        return answerQuestion(db, hid, askInput.parse({
+          id: crypto.randomUUID(), conversationId: here.id, spaceId: here.id, text: "Check the blue folder note and update the brief.", source: "manual", canvas: null,
+        }), { fetch: model.fetch });
+      };
+      assert.equal((await askWith("where_am_i", {})).brief, undefined);
+      assert.equal(logged.at(-1)?.briefDropped, "invalid_source");
+      const dropped = JSON.stringify(logged.at(-1));
+      assert.ok(!dropped.includes(note.id) && !dropped.includes(note.text));
+      for (const [name, args] of [["recall", { space: other.name }], ["search_history", { text: "blue folder", space: other.name }]] as const) {
+        assert.deepEqual((await askWith(name, args)).brief?.brief.state, state, name);
+        assert.equal(logged.at(-1)?.briefDropped, undefined, name);
+      }
+      assert.deepEqual((await generalSpace(db, hid)).brief.state, state);
     });
 
     await check("the profile and current note reach Ask, and Based on names only the memory item it cited", async () => {

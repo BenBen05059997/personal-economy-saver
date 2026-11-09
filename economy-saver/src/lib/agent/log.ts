@@ -4,6 +4,8 @@
 // through here so tests can capture it.
 export type ToolLog = { name: string; ok: boolean; ms: number };
 
+export type BriefDropReason = "no_answer" | "invalid_source" | "unconfirmed_amount";
+
 type CallLog = {
   at: "ask" | "mcp";
   householdId: string;
@@ -16,6 +18,7 @@ type CallLog = {
   /** Ask only: answer, clarify, declined or error; and whether the reply carried a canvas. */
   kind?: string;
   canvas?: boolean;
+  briefDropped?: BriefDropReason;
   ms: number;
   inputTokens?: number;
   outputTokens?: number;

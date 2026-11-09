@@ -459,7 +459,7 @@
   {
     "id": "SPACE-017",
     "area": "Ask spaces",
-    "action": "Reject an unsupported amount in a proposed brief",
+    "action": "Check amounts and cited notes in a proposed brief",
     "user_goal": "I want the space summary to keep verified amounts",
     "type": "negative",
     "priority": "P1",
@@ -475,7 +475,8 @@
     ],
     "expected": [
       "An amount absent from this question’s tool results refuses the proposed update",
-      "The existing brief stays in place"
+      "The existing brief stays in place when an amount or source is invalid, and the trace contains only a fixed reason",
+      "A note from another space is accepted as a source after recall or search_history returns it"
     ],
     "refs": [
       "BROWSER-CHECKS AP17",

@@ -293,10 +293,11 @@ The household’s configured provider still receives the question and context.
 Decisions, Open questions, Check next, and lists of bill, client, pot and document ids. It allows up to 2,000
 characters of serialized JSON and refuses a run of 12 or more digits in brief text. `briefContext` quotes the saved brief for the next question.
 The Ask-only `update_brief` tool proposes a replacement when an answer changes what the space knows. It writes
-nothing during tool execution. Code checks the proposed amounts against this question’s tool results. The brief
+nothing during tool execution. State lines may cite a tool, a profile or current-space note, or a note returned by
+`recall` or `search_history` during this question. Code checks amounts against this question’s tool results. The brief
 is applied after the answer’s turn. Cloud saves put both in one transaction and record `brief_updated` in
 Activity without the brief text. Device saves carry the accepted brief back to the browser. A rejected proposal
-leaves the previous brief in place. Ask shows the Space brief with "Agent updated it" or "You updated it" and the time. Edit opens the structured
+leaves the previous brief in place. The Ask trace records a fixed `briefDropped` reason without the brief text. Ask shows the Space brief with "Agent updated it" or "You updated it" and the time. Edit opens the structured
 fields, with each State line entered as `source | detail`. A cloud save posts `kind=brief` to `/api/spaces` and renders the committed record from the response before refreshing the page.
 
 **The turn and the page.** The turn (question, kind, reply, choices, recipe, sources) is stored in `conversation_turns`
