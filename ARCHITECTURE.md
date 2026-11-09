@@ -438,7 +438,7 @@ flowchart LR
 ```
 
 **In, in detail.** `/api/upload` and `/api/ask/document` check the file with `readUpload` (`src/lib/reader/accept.ts`): one of `image/jpeg`,
-`image/png`, `image/webp`, `application/pdf`, its header matching (`matchesFileType`), at most 6 MiB (`MAX_DOCUMENT_BYTES`). `/api/inbound` accepts
+`image/png`, `image/webp`, `application/pdf`, its header matching (`matchesFileType`), at most 6 MiB (`MAX_DOCUMENT_BYTES`). Upload announces each refused file as an alert. Waiting and sent files have individual status announcements. `/api/inbound` accepts
 only the Email Worker: origin `https://worker.internal`, `INBOUND_WORKER_SECRET` compared in constant time, and the envelope recipient's 64-character
 local part on `FORWARDING_DOMAIN` resolved to a household (`householdForRecipient`); unknown addresses get 404 and the Worker rejects the mail. The
 four entry points have no per-minute limit; a file is guarded by its size, the storage cap, the session or the Worker secret, and the digest below. The document id is a content digest of household, media type and bytes (`contentId`), so a

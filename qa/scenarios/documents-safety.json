@@ -2125,7 +2125,8 @@
       "Tap Upload and read"
     ],
     "expected": [
-      "The big file's line reads \"name — Document exceeds the 6 MiB limit.\"; the other two lines read \"sent\"",
+      "The big file's line reads \"name — Document exceeds the 6 MiB limit.\" with role alert",
+      "The other two lines read \"sent\" and each has role status. The list has no live announcement of its own.",
       "The page stays on Upload with the button usable again (a refused file keeps the person here); the two good files are in To check"
     ],
     "refs": [

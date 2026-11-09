@@ -823,6 +823,21 @@ async function main() {
     set({ ...full, AI_PROTOCOL: "other" }); assert.equal(serverDefaultHost(), null);
     ok("missingAskSetting: every branch and the order (own connection, model, protocol, openai address, key, daily limit; blanks count as unset); askUnavailable and serverDefaultHost");
 
+    const { UploadLines } = await import("@/components/reader/UploadForm");
+    const uploadLines = renderToStaticMarkup(createElement(UploadLines, { lines: [
+      { name: "Fictional receipt.png", result: "sent" },
+      { name: "Fictional note.txt", result: "Select a PDF, JPEG, PNG or WebP file.", refused: true },
+      { name: "Fictional invoice.pdf", result: "waiting" },
+    ] }));
+    const announcements = [...uploadLines.matchAll(/<li\b[^>]*><span role="(alert|status)">([^<]+)<\/span><\/li>/g)];
+    assert.deepEqual(announcements.map(([, role, content]) => [role, content]), [
+      ["status", "Fictional receipt.png — sent"],
+      ["alert", "Fictional note.txt — Select a PDF, JPEG, PNG or WebP file."],
+      ["status", "Fictional invoice.pdf — waiting"],
+    ]);
+    assert.doesNotMatch(uploadLines, /\baria-live=/, "the list does not announce the per-file messages again");
+    ok("Upload announces refused files as alerts and other files as individual statuses");
+
     // ------------------------------------------------------------ status codes: the person's file is 400, the server's side is 502 or 503
     const upload = (await import("@/app/api/upload/route")).POST as Handler;
     const attach = (await import("@/app/api/ask/document/route")).POST as Handler;

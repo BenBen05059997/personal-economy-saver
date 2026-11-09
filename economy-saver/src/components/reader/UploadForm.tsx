@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FORM_FETCH_HEADER } from "@/lib/form-fetch";
 
-type Line = { name: string; result: string };
+type Line = { name: string; result: string; refused?: boolean };
+
+export function UploadLines({ lines }: { lines: Line[] }) {
+  return <ul className="ui-hint">{lines.map(({ name, result, refused }, index) => <li key={index} className={refused ? "reader-error" : undefined}>
+    <span key={refused ? "refusal" : "progress"} role={refused ? "alert" : "status"}>{name} — {result}</span>
+  </li>)}</ul>;
+}
 
 /** Posts each chosen file to /api/upload on its own, one after another, and shows a line per file; a refused file does not stop the others. */
 export function UploadForm() {
@@ -22,14 +28,15 @@ export function UploadForm() {
     let sent = 0;
     for (const [index, file] of files.entries()) {
       let result: string;
+      let refused = true;
       try {
         const body = new FormData();
         body.set("document", file);
         const response = await fetch("/api/upload", { method: "POST", body, headers: { [FORM_FETCH_HEADER]: "1" } });
-        if (response.ok) { sent += 1; result = "sent"; }
+        if (response.ok) { sent += 1; result = "sent"; refused = false; }
         else result = (await response.text()) || "Upload failed.";
       } catch { result = "Couldn’t upload. Check your connection and try again."; }
-      setLines(current => current.map((line, at) => at === index ? { ...line, result } : line));
+      setLines(current => current.map((line, at) => at === index ? { ...line, result, refused } : line));
     }
     if (sent === files.length) { router.push("/to-check"); return; }
     setBusy(false);
@@ -38,6 +45,6 @@ export function UploadForm() {
     <label className="ui-field">Documents<input type="file" name="document" required multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={busy} /></label>
     <p className="ui-hint">JPEG, PNG, WebP or PDF · up to 6 MiB each · choose as many as you like</p>
     <div className="ui-row"><button className="ui-button primary" disabled={busy}>{busy ? "Uploading…" : "Upload and read"}</button><Link className="reader-check" href="/to-check">To check</Link></div>
-    <ul aria-live="polite" className="ui-hint">{lines.map((line, index) => <li key={index} className={line.result === "sent" || line.result === "waiting" ? undefined : "reader-error"}>{line.name} — {line.result}</li>)}</ul>
+    <UploadLines lines={lines} />
   </form>;
 }
