@@ -408,7 +408,7 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
       {legacyId && <Link href={spaceHref} prefetch={false} className="ui-button">Back to General</Link>}
       {!legacyId && <>
         <SpaceBrief id={space.id} record={brief} timeZone={clock.timeZone} ready={deviceReady}
-          readOnly={!canWrite} busy={busy} saveOnDevice={onDevice.journal ? saveLocalBrief : undefined} />
+          readOnly={!canWrite} busy={busy} saveOnDevice={onDevice.journal ? saveLocalBrief : undefined} onCloudSaved={setLatestBrief} />
         <a href="#space-notes" className="ask-notes-link">Space notes ↓</a>
       </>}
       {earlierThreads.length > 0 && <details className="ask-spaces">

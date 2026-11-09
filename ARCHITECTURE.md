@@ -294,7 +294,7 @@ nothing during tool execution. Code checks the proposed amounts against this que
 is applied after the answer’s turn. Cloud saves put both in one transaction and record `brief_updated` in
 Activity without the brief text. Device saves carry the accepted brief back to the browser. A rejected proposal
 leaves the previous brief in place. Ask shows the Space brief with "Agent updated it" or "You updated it" and the time. Edit opens the structured
-fields, with each State line entered as `source | detail`. A cloud save posts `kind=brief` to `/api/spaces`.
+fields, with each State line entered as `source | detail`. A cloud save posts `kind=brief` to `/api/spaces` and renders the committed record from the response before refreshing the page.
 
 **The turn and the page.** The turn (question, kind, reply, choices, recipe, sources) is stored in `conversation_turns`
 (`src/db/conversation.ts`) and a thread keeps its turns until deletion; the reply carries kind, text, choices, the canvas the engine drew, "Based on" sources from the tools and the individual profile items and space notes the model cited,

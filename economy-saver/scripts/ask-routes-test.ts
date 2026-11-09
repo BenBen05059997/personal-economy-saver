@@ -26,6 +26,7 @@ import { MissingAuthSetting } from "@/lib/supabase-auth";
 import { askUnavailable, missingAskSetting, serverDefaultHost } from "@/lib/agent/availability";
 import { extractDocument, extractSchema } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
+import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
 
 type Handler = (request: Request) => Promise<Response>;
 const ORIGIN = "http://127.0.0.1:3123";
@@ -302,6 +303,31 @@ async function main() {
     const other = await createSpace(db, b, "Fictional foreign space");
     assert.equal((await ask(json("/api/ask", question({ spaceId: other.id, conversationId: other.id })))).status, 400);
     ok("Ask proposes a space without creating it; only the guarded Open space form creates it");
+
+    const openedSpaceLocation = opened.headers.get("location")!;
+    const openedSpaceId = new URL(openedSpaceLocation, ORIGIN).searchParams.get("space")!;
+    const briefForm = new FormData();
+    briefForm.set("kind", "brief");
+    briefForm.set("id", openedSpaceId);
+    briefForm.set("about", "  Check the March paperwork  ");
+    briefForm.set("state", "timeline | Check the next statement");
+    const briefRequest = post("/api/spaces", briefForm);
+    briefRequest.headers.set(FORM_FETCH_HEADER, "1");
+    const confirmedBrief = await spacesRoute(briefRequest);
+    assert.equal(confirmedBrief.status, 200);
+    assert.equal(confirmedBrief.headers.get(FORM_REDIRECT_HEADER), openedSpaceLocation);
+    assert.equal(confirmedBrief.headers.get("cache-control"), "private, no-store");
+    const savedBriefRecord = await confirmedBrief.json();
+    const savedBriefRow = (await listSpaces(db, privateHid)).find(row => row.id === openedSpaceId)!;
+    assert.equal(savedBriefRecord.brief.about, "Check the March paperwork");
+    assert.deepEqual(savedBriefRecord, { brief: savedBriefRow.brief, updatedAt: savedBriefRow.briefUpdatedAt?.toISOString(), updatedBy: "form" });
+    briefForm.set("state", "A line with no source");
+    const refusedBrief = post("/api/spaces", briefForm);
+    refusedBrief.headers.set(FORM_FETCH_HEADER, "1");
+    assert.equal((await spacesRoute(refusedBrief)).status, 400);
+    assert.deepEqual((await listSpaces(db, privateHid)).find(row => row.id === openedSpaceId)?.brief, savedBriefRow.brief);
+    ok("a brief save returns the committed fields and timestamp to the editor; a refused edit keeps the saved brief");
+
     asking = null;
     for (const key of ["AI_PROTOCOL", "AI_API_KEY", "AI_TEXT_MODEL", "AI_BASE_URL"]) {
       if (savedEnv[key] === undefined) delete process.env[key];

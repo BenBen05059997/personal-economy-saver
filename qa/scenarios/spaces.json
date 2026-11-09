@@ -389,7 +389,7 @@
     ],
     "expected": [
       "The empty brief initially says \"No brief yet.\"",
-      "The space shows \"Brief saved.\" and \"You updated it\" with a time",
+      "As soon as Save brief completes, the entered fields replace \"No brief yet.\" alongside \"Brief saved.\" and \"You updated it\" with a time",
       "The fields persist after reload and the Spaces tab shows the first line of About",
       "The editor fits at 375px and 1440px"
     ],
