@@ -17,7 +17,9 @@ import { contextTail, historyTail } from "@/lib/agent/context";
 import type { Brief, BriefRecord } from "@/lib/agent/brief";
 import type { KeepOffer } from "@/lib/agent/keep-offer";
 import type { ClockHousehold } from "@/db/clock";
-import { SESSION_ENDED, SessionEnded } from "./SessionEnded";
+import { SessionEnded } from "@/components/ui/SessionEnded";
+import { SESSION_ENDED } from "@/lib/session-ended";
+import { drawCanvas } from "@/lib/canvas/draw";
 import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document-card";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
@@ -51,8 +53,7 @@ const wordsOf = (error: unknown) => (error instanceof Error ? error.message : "C
 /** Draws a recipe through the engine; the route reads the household's records and keeps nothing. */
 async function drawOnServer(recipe: Recipe): Promise<ResolvedBlock[] | string> {
   try {
-    const response = await fetch("/api/canvas/resolve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipe }) });
-    return response.ok ? (await response.json() as { blocks: ResolvedBlock[] }).blocks : response.status === 401 ? SESSION_ENDED : await response.text();
+    return await drawCanvas(recipe);
   } catch { return "Couldn’t reach your household. Try again."; }
 }
 

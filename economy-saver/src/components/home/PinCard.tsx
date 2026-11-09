@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { SessionEnded } from "@/components/ui/SessionEnded";
+import { SESSION_ENDED } from "@/lib/session-ended";
 import { Canvas } from "@/components/canvas/Canvas";
 import type { Recipe } from "@/lib/canvas/schema";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
@@ -12,6 +14,6 @@ export function PinCard({ id, title, recipe, blocks, words, note, actions }: {
     <h2>{title} <Link prefetch={false} href={`/canvas?pin=${id}`}>Open ›</Link></h2>
     {note && <p className="ui-hint">{note}</p>}
     <div className="home-pin-actions">{actions}</div>
-    {blocks ? <Canvas recipe={recipe} initial={blocks} /> : <p role="alert" className="ui-problem">This canvas can&apos;t be drawn: {words}</p>}
+    {blocks ? <Canvas recipe={recipe} initial={blocks} /> : <p role="alert" className="ui-problem">{words === SESSION_ENDED ? <SessionEnded /> : `This canvas can't be drawn: ${words}`}</p>}
   </article>;
 }

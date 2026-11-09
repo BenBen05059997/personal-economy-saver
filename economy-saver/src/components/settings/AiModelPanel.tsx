@@ -2,6 +2,7 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { connectionView } from "@/db/ai-key";
 import { askUnavailable, missingAskSetting, serverDefaultHost } from "@/lib/agent/availability";
+import { MODEL_HINT } from "@/lib/agent/reply";
 import { CHECK_NAMES, type ConnectionCheck } from "@/lib/ai/check";
 import { PROVIDERS } from "@/lib/ai/providers";
 import { TESTED } from "@/lib/ai/tested";
@@ -29,7 +30,7 @@ export async function AiModelPanel({ demo }: { demo: boolean }) {
   const host = view ? view.host : serverDefaultHost();
   return <section className="ui-panel" id="ai-model"><h2>Your AI model</h2>
     {missing ? <p className="ui-hint">{askUnavailable(missing)}</p> : host ? <p className="ui-hint">Your questions and documents go to {host}.</p> : null}
-    {view ? <CheckLine tested={view.tested} check={view.check} /> : <p className="ui-hint">Using the app’s default model.</p>}
+    {view ? <CheckLine tested={view.tested} check={view.check} /> : <p className="ui-hint">{MODEL_HINT}</p>}
     <AiModelForm key={view ? `${view.provider}|${view.baseUrl}|${view.textModel}|${view.documentModel}|${view.hint}` : "default"} demo={demo}
       providers={PROVIDERS.map(p => ({ id: p.id, label: p.label }))} tested={TESTED.map(t => ({ provider: t.provider, model: t.model }))}
       initial={{ provider: view?.provider ?? "", baseUrl: view?.provider === "custom" ? view.baseUrl : "", textModel: view?.textModel ?? "",

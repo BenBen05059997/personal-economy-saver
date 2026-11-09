@@ -1818,7 +1818,7 @@
       "Open Settings → Your AI model"
     ],
     "expected": [
-      "It reads \"Ask isn't available on this server yet (AI_TEXT_MODEL).\" and \"Using the app's default model.\"; there is no allowance or \"default calls recorded\" line",
+      "It reads \"Ask isn't available on this server yet (AI_TEXT_MODEL).\" and \"Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.\"; there is no allowance or \"default calls recorded\" line",
       "There is no \"go to\" host line and no \"Use this app's default\" button",
       "With a server model the first line is \"Your questions and documents go to {host}.\""
     ],
@@ -2190,7 +2190,7 @@
     ],
     "expected": [
       "The question reads \"Everything you added goes. Reset?\"; Keep changes nothing",
-      "Reset returns to Home with Ben's numbers in BROWSER-CHECKS Expected numbers and no First steps panel. The fetch form receives 204 and x-form-redirect: /",
+      "Reset returns to Home with Ben's numbers in BROWSER-CHECKS Expected numbers and no First steps panel. Network shows one Reset POST with x-form-fetch: 1, a 204 with x-form-redirect: /, and one navigation to Home",
       "The line \"Puts Ben's fictional starting numbers back.\" shows under the button"
     ],
     "refs": [
@@ -3111,8 +3111,8 @@
       "GET /family/ with a very long token"
     ],
     "expected": [
-      "Each answers the Page not found page and shows nothing of any household",
-      "No household data is in any response"
+      "Each returns HTTP 200 with “This link has ended. Ask for a new one.” and no household information",
+      "The response headers include Cache-Control: no-store, Referrer-Policy: no-referrer and X-Robots-Tag: noindex, nofollow"
     ],
     "refs": [
       "BROWSER-CHECKS S-B2",
@@ -3142,7 +3142,8 @@
     ],
     "expected": [
       "The question says \"The link stops working for everyone who has it.\"; Keep changes nothing",
-      "After Stop sharing the row is gone and the old link shows \"This link has ended. Ask for a new one.\" (or the not found page)"
+      "After Stop sharing the row is gone and the old link returns HTTP 200 with \"This link has ended. Ask for a new one.\" and no household information at 375px and desktop width",
+      "The ended response keeps the no-store, no-referrer and noindex headers"
     ],
     "refs": [
       "BROWSER-CHECKS S-B2"

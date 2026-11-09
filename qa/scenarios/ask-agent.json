@@ -1971,14 +1971,15 @@
     "steps": [
       "Clear the household and pes-auth cookies in another tab",
       "Press Ask with a question",
-      "Attach a bill, use a canvas block that asks the server to draw it again, and wait for a document card to refresh"
+      "Attach a bill, move a slider on What if clients pay late to trigger a canvas redraw, and wait for a document card to refresh"
     ],
     "expected": [
       "Each 401 shows \"Your session has expired.\" with a link \"Start again from the home page.\" to /",
       "Nothing is stored and no model is called"
     ],
     "refs": [
-      "src/components/ask/SessionEnded.tsx"
+      "src/components/ui/SessionEnded.tsx",
+      "db:canvas-test"
     ]
   },
   {
@@ -2327,7 +2328,7 @@
       "Ask \"Where am I?\""
     ],
     "expected": [
-      "Before the first answer a line above the box reads \"A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to {host}.\" with the host Settings → Your AI model shows",
+      "Before the first answer a line above the box reads \"A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to {host}. Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.\" with the host Settings → Your AI model shows",
       "After the first real answer the line is gone",
       "It stays gone after reload; a decline or a clarifying question does not remove it"
     ],

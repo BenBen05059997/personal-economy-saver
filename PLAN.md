@@ -20,28 +20,38 @@
 - **Traceable agent work and a nudge rule (D50).** `made_by` on every row and event, client pace, the standing nudge rule and daily suggestions on Home (D64), one content-free log line per Ask and MCP call.
 - **Catalogue (D6).** Japan 20 moves and US 16 in `src/lib/catalogue/` and `src/data/catalogue/`; nothing calls it until households have a profile.
 - **Known and left as is.** Options links to the rate references behind "Reference & assumptions" (D7); Settings says email forwarding isn’t available on this server until `FORWARDING_DOMAIN` is set (rule 10); the bell keeps an unread notice after its bill is confirmed; a refused AI key clears its field; slow first loads on dev.
-- **Checks.** `tsc` and lint are clean; `npm run db:test` runs thirty-nine isolated suites, including the tenant-isolation suite (`db:isolation-test`: two households, every exported function in `src/db` called across the boundary in both directions, a coverage guard that fails when a new export is neither tested nor listed as not applicable with a reason); the three HTTP suites (`scripts/frontend-check.mjs`) on dev against Tokyo, last run Nov 7 on the Stage 27 code: `--guards` 38 and `--extra` 37 pass; `--run` passes 104 of 105, the one failure Ask's 20 s budget on the slow Codex bridge (`typed-ask-read-only`); every suite run creates demo households, so they share the 30-an-hour per-address limit and the 60-an-hour app-wide one, and a second `--run` in the same hour answers 429 at a `*-session` step; the Ask check accepts the missing-setting error line; the local Worker preview last passed before the export step was added. An independent security review of the build and its fixes (D12, D37) passed.
+- **Checks.** `tsc`, lint and the thirty-nine isolated suites in `npm run db:test` pass, including tenant isolation. The three HTTP suites passed on the isolated dev server against Tokyo on Nov 9. The Ask HTTP check exercised the missing-model path. The local Worker preview rendered the landing page. An independent security review of the build and its fixes (D12, D37) passed.
 - **Submission files.** `submission/DEVPOST.md` and `submission/VIDEO-SCRIPT.md` are private current-state drafts. The code is MIT-licensed; the bundled Hanken Grotesk and Newsreader fonts carry SIL OFL 1.1 notices. Fictional samples (bills, a card-statement email, a 国保 slip, a US power bill) are in `economy-saver/samples/bills/`.
 
-### Timings (latest measurement, Nov 3)
+### Timings (Nov 9, 2026)
 
-Warm single HTTP request through the complete response body on the same demo household, excluding browser rendering; a range is the spread over repeated runs. "First Home" is the first visit in a fresh session. Actions not listed were not timed on Tokyo.
+Dev page readings are three sequential HTTP samples through the complete response body after one discarded compile warm-up. Each sample uses a fresh Ben Try it session on the isolated `next dev` server and Tokyo database. First Home uses the new session. Try it → Home adds session creation and First Home. The pinned Home uses one This month starter. The suite readings are wall-clock totals, including any route compilation. Worker readings below are from the separate local preview.
 
 | Action or page | `next dev` on Tokyo (s) | Local Worker on Tokyo (s) |
 |---|---:|---:|
-| Try it (create session) | 0.63–0.86 | 0.87 |
-| First Home | 0.87 | 1.03–1.06 |
-| Warm Home | 0.77–0.82 | 0.96–1.08 |
-| Cards | 1.09 | |
-| Clients | 1.13 | |
-| Activity | 0.44–0.47 | 0.57–0.59 |
-| Invoice review (read only) | 1.15 | |
-| To check | 0.72–0.78 | |
-| Confirm Hikari Denki | 0.94 | 1.04 |
-| Settings (open) | 0.58–0.62 | 0.72–0.75 |
-| Save Settings | | 1.10 |
-| Ask with a canvas (answer ≤ 8 s, needs a live model) | not measured | not measured |
-| Home with pinned canvases (no model call) | not measured | not measured |
+| Try it → Home (target ≤ 1.5 s) | 3.762–3.921 | |
+| Try it (create session) | 1.626–1.727 | |
+| First Home | 2.136–2.194 | |
+| Warm Home | 2.102–2.118 | |
+| Cards | 1.188–1.250 | |
+| Clients | 1.201–1.260 | |
+| Plan | 1.732–2.153 | |
+| Activity | 0.728–0.776 | |
+| Memory | 0.865–0.900 | |
+| Invoice review (read only) | 1.177–1.232 | |
+| To check | 1.238–1.261 | |
+| Confirm Hikari Denki (seeded reading) | 2.412–2.567 | |
+| Settings (open) | 2.161–2.208 | |
+| Save Settings | 2.491–2.519 | |
+| Ask (answer ≤ 8 s) | Waiting for a real model | Waiting for a real model |
+| Ask with a canvas (answer ≤ 8 s) | Waiting for a real model | Waiting for a real model |
+| Home with pinned canvases (no model call) | 2.330–2.353 | |
+| HTTP `--guards` (38 passed) | 11.53 | |
+| HTTP `--extra` (36 passed) | 81.08 | |
+| HTTP `--run` (111 passed) | 252.21 | |
+| Worker preview startup (Nov 9) | | 0.314 to ready, 0.726 to first byte from local server start |
+| Worker preview first anonymous Home (Nov 9) | | 0.412 to first byte, 0.475 complete |
+| Wrangler local startup profile (Nov 9) | | 0.159 profile window, 0.016 active CPU |
 
 
 ## To Nov 12: days and what waits on whom
@@ -128,6 +138,7 @@ Round 3
 
 *Stage 30: members (D68; migration 0028)*
 - [x] 30A. Migration 0028 adds household-scoped invitations. The signed-in owner creates or cancels an invite in Settings → People and sees its link once. Join verifies the invited email through the existing magic-link flow and attaches the login to the selected person. The owner alone approves PayPal actions, removes a person, changes the household AI model, manages invitations, issues or revokes MCP keys, creates or stops family links, or deletes the household. Members can add records and settle up. Account lets a member unlink their login and stop their reminders while retaining the person and split history. The owner’s Who has access list shows people, active family links and MCP tokens. db:members-test and db:isolation-test exercise these boundaries with simulated identities. The live magic-link check remains in the owner’s browser test round.
+- [ ] Live member verification (30A, D68). With a verified magic link, walk the invitation, member permissions and leave flow in BROWSER-CHECKS AM. The PGlite suites cover these boundaries with simulated identities.
 
 *Stage 31: the platform*
 - [ ] 31A. Contract migration, only after a deployed Worker no longer reads them (owner says when): drop `households.ai_reads_today`, `ai_reads_day`, `nudge_after_days` and the table `ai_global_usage`
@@ -157,11 +168,10 @@ Round 2 (after round 1 is reviewed)
 - [x] 27I (follow-ups to 27F and 27G). A question's id is its idempotency key on a device journal too: migration 0026 also holds `ask_receipts` (0027 adds its `pending` and `links`; `src/db/ask-receipts.ts`: `noteAskWrote`, `noteAskReply`, `askReceipt`, `pruneAskReceipts`, pruned by the daily job after a day), and a retry after the first draft tool succeeded gets `FIXED.alreadySaved` with no model call and no write (D59, D60); Settings → Edit has "Month this bill covers" for a one-off bill (First day, Last day, the `periodProblem` refusals, Activity "Period 10月分" or "No period"); the read tool `bills_for_month` and a canvas `table` query of the same name (`billsForMonth` in `src/lib/money/period.ts`, `loadPeriodBills` in `src/db/spending.ts`; BROWSER-CHECKS AF5, AF5a, AF5b) (D63)
 
 Round 3 (lead, with Haiku and Sonnet for the runs)
-- [ ] Left of round 3: the timings table refilled (Ask with a canvas and Home with pins included; Ask with a canvas needs a real model, since the Codex bridge spends about 9 s a call); the BROWSER-CHECKS steps that read a document with a model (AF1–AF5a, the Harbor Energy 11月分 bill and `bills_for_month` in Ask), the error page's Reference (AF7) and the upload cap (J4); the Worker's startup time (box S, on the deploy). Done: `tsc`, lint, `db:test`, the three HTTP suites, `cf:size`, the migration-order rule in AGENTS.md, migrations 0025 and 0026 applied to Tokyo, and in the browser Home, Ask's progress line at 375px and desktop, the not-found page, the Privacy page lines and the Settings period edit (AF5b)
+- [ ] Left of round 3: time Ask with a canvas on a real model. Run the document-reading browser checks (AF1–AF5a, including Harbor Energy 11月分 and `bills_for_month` in Ask), the error page Reference (AF7) and the upload cap (J4). Record hosted Worker startup after deploy (S).
 
 *Before the deploy*
-- [ ] Contract migration (once no running code reads them; nothing deployed reads them today): drop `households.ai_reads_today`, `households.ai_reads_day` and the table `ai_global_usage` (the AI caps are gone; the running Worker must not read them first)
-- [ ] S. The Worker starts within 1 s. The limit is 64 MiB uncompressed on both plans (no compressed limit; wrangler's gzip figure is for reference); `npm run cf:size` read 17,330.06 KiB uncompressed (4,663.63 KiB gzip) on Nov 8, 2026, for 31B. Left: confirm the startup time in `npm run cf:preview`, then on the deploy (owner). `mathjs` and a nested `ai@4.3.19` come in through `@paypal/agent-toolkit`; the app calls `PayPalAPI.run()` and its tool definitions only (D13), so keeping them out is an option if startup is slow.
+- [ ] S. The Worker starts within 1 s. The limit is 64 MiB uncompressed on both plans ([Cloudflare limits](https://developers.cloudflare.com/workers/platform/limits/#worker-size)). On Nov 9, 2026, `npm run cf:size` measured 19,296.51 KiB uncompressed and 5,206.18 KiB gzip. This is 1,458.30 KiB smaller uncompressed than the 20,754.81 KiB bundle. The local startup readings in Timings are for that larger bundle. Startup for the current bundle is still to be measured locally and on the deploy.
 
 *Stage 26: what foreign money costs (D62; migration 0024 adds `cards.foreign_fee_bp` and `charges.fx_estimated`; `chargeInput` takes `originalAmount` and `originalCurrency`)*
 - [x] 26A (engine and tool). Owns `src/lib/money/fx-cost.ts` (pure: per charge with an original amount, the cost above the reference rate of its date, exact when the billed yen is known, estimated from the card's fee when `fx_estimated`, else unknown; per paid USD invoice, PayPal Japan's receive fees and the 3% conversion markup at the rate on the row; twelve-month totals per card and per client; the words), `src/db/fx-cost.ts` (the household-scoped loader: rate history, charges, cards, paid invoices and clients), the read tool `foreign_costs` and the `log_charge`/`log_charges` original fields in `src/lib/agent/tools.ts`, the rule lines in `rules.ts`, the reader setting `fx_estimated`, the Card type and `foreignFeeBp` in the money state, snapshot and export (`npm run schema`), `scripts/fx-cost-test.ts` (new suite), the agent, mcp, isolation and reader cases
@@ -174,16 +184,16 @@ Round 3 (lead, with Haiku and Sonnet for the runs)
 *Stages 20 to 24, what is left*
 - [x] `src/lib/ai/number-check.ts` (`unconfirmedAmounts`) confirms an amount from a tool result only by a JSON field whose key ends in Minor or is a plain money name, or by a currency-marked amount in its text; dates, ids, day counts, percentages and basis points no longer confirm. The question and the memory block are plain text and still confirm from any number.
 - [x] `src/lib/money/whatif.ts` `add_income` converts through dollars and back; `canvas-test.ts` checks a USD-home household: the series rises by exactly the cents given (no drift).
-- [ ] **E. The eval set (D56).** Owns new `scripts/model-eval-test.ts` and `scripts/model-eval-cases.ts`, the entries in `src/lib/ai/tested.ts`, and the grading tests in `scripts/ai-test.ts`. Cases on Ben's Try it household in PGlite with the real `runAgent`: the three of `checkConnection`; "Can I afford ¥4,000 tonight?" (`can_i_spend`, its number quoted); "What's due this week?" (`whats_due`); "Which stock should I buy?" (declined, `not_offered`); "Did the client pay?" (clarify, the choices name Ben's clients); "What if Northwind pays two weeks late?" (`what_if`; the low point equals the engine's); "I paid ¥3,800 at the noodle place on Card B" (`log_charge`, pending, never "sent" or "paid"); "Remember that rent goes up in April" (`remember`); "Show me where October went" (`make_canvas` with a `month_by_category` or table block that resolves); "What do my PayPal payouts cost me?" (`foreign_costs`, the engine's total cost quoted, no provider other than PayPal named, no advice to leave PayPal). A pair is tested when every case passes. `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` reads the key from `EVAL_API_KEY` in `.env.local` through `process.env` only and prints one line per case (pass, or fail and why; never the key) and the `TESTED` line to add.
+- [ ] **E. Verify real providers (D56).** Run the existing eval on Ben’s fictional household. `scripts/model-eval-cases.ts` defines the connection, agent and voice cases, `scripts/ai-test.ts` exercises the graders with fake transports, and `src/lib/ai/tested.ts` lists passing provider/model pairs. Run `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` with `EVAL_API_KEY` set in `economy-saver/.env.local`. The command prints the case results and the `TESTED` entry when the pair passes.
   - [x] The cases, graders and `npm run model:eval` are built; the graders are tested on the fake transport in `ai-test`
-  - [ ] The lead runs it on at least two providers once the owner has added the keys, and adds the passing pairs to `src/lib/ai/tested.ts` (still empty: no real provider run yet)
-- [ ] **W–Z. Browser checks** (Sonnet tester, after wave 2 closes; writes the sections into BROWSER-CHECKS.md and walks them at 375px and 1440px, light and dark, on fresh Try it households): W, Ask and the canvas (a question that brings a canvas, the numbers equal to Home's, Show the recipe, a what-if and its sliders, pin, Home shows it, move, unpin, a pin whose client was removed); X, memory (remember in Ask, the page lists it with "Said in Ask", edit, delete, Forget everything, the digit refusal, the correction tick on a review card); Y, Your AI model (a listed provider, Other refused on Try it, the host line, the check result, back to the default, the privacy page's host line); Z, the conversation (each kind of reply, a clarifying question's buttons, a follow-up within ten minutes and a fresh one after, Based on links, thumbs, the first-use line, six declines in a row each declined); AA, Your data, once 24A is in. Failures become boxes here. **Left:** the steps that need a model (a question that brings a canvas, pin from a real answer, memory said in Ask, the check result of a saved model, each kind of reply, follow-ups, thumbs, the first-use line, six declines) are not walked until a model is configured; W10 (a pin whose client was removed) has no UI to remove a client, so it cannot be walked in the browser. AA (Your data) is written; its steps that need a model are in the same left list
-- [ ] The model hint (owner, Nov 6): every household starts on the server's default model; Settings → Your AI model and the Ask first-use line say so and that another model can be chosen there. No model per job and no new tests for it.
+  - [ ] The lead runs it on at least two providers once the owner has added the keys, and adds the passing pairs to `src/lib/ai/tested.ts` (`TESTED` is currently empty)
+- [ ] **W–Z and AA. Browser checks.** Use fresh Try it households at 375px and 1440px, in light and dark. W covers engine figures on canvases, recipes, what-if sliders and pins. The canvas suite covers W10’s missing-client refusal. The browser check needs a prepared fixture because Clients has no removal control. X covers Profile and space notes, Ask memory, editing, deletion and review corrections. Y covers the default and household model, its host and connection check. Z covers replies and clarification, following up in the same space after a break, a separate thread for a new task, Based on, thumbs and declines. AA covers Your data and its cloud and device behavior. Use a working model for the steps that call one.
+- [x] The model hint (owner, Nov 6): Settings → Your AI model and the Ask first-use line say every household starts on the server’s default model and can choose another in Settings → Your AI model.
 - [x] 20C. `callModel` uses the maintained Vercel AI SDK provider packages with the existing neutral contract. The agent, reader, AI and voice suites pass.
 
-*Stage 16, what is left*
-- [ ] `--run` steps for S-A and S-B (Make a link, open it without a cookie, Stop sharing). Left: an ended link answers 200 with the ended text on `next dev` (`notFound()` after the stream started); the copy buttons are not yet tried with a real clipboard
-- [ ] Next (after a verified magic link): invite a member to join as an existing person with their own login; the member sees the same, adds and settles, cannot approve PayPal sends; leave on their own; the owner sees who has access
+*Stage 16: family sharing*
+- [x] `--run` covers S-A’s month split and S-B’s make, cookieless open, and Stop sharing flow. Expired, stopped and unknown links return HTTP 200 with the generic ended page, no household information and the no-store, no-referrer and noindex headers. The database suite checks expiry.
+- [ ] Browser S-B: verify Copy link, Copy message for LINE and the clipboard-denied fallback with a real clipboard. Check the ended page at 375px and desktop width.
 
 **After the stages**, each with its evidence in [research/users/money-chores-worldwide.md](research/users/money-chores-worldwide.md): held PayPal money shown as expected on a date, never as cash (Balances API: available vs withheld); each client's pay run, so a reminder lands before it; one warning the day before a known debit when the forecast is short (after the deploy); the dispute clock from the Disputes API; a recurring remittance with its fee; the agent proposing categories from unknown names; renaming or merging categories in Settings; per-country calendars (pay cycles, renewal seasons, festival and government dates) as content tables, never code. Also: income other than invoices (D28), the catalogue as an agent tool once households have a profile (D6), moving money between pots.
 
@@ -195,7 +205,7 @@ One database function per job, called by both the form and the agent tool (D39).
 - [ ] Full run on the Worker after the first deploy
 - [ ] Voice (K5, K6) by the owner in their own Chrome or Safari with a microphone, in English and Japanese, at 375px and 1440px (the desktop app's browser pane blocks the microphone)
 - [ ] The "Needs …" checks once their settings exist: magic link (A5), agent drafts (D2, K3, K4), PayPal send and webhook (E4), MCP (I5), delete my data (I7), the reader (J2, J3)
-- [ ] Measured times go in the timings table above: Try it to Home ≤ 1.5 s (A2), a To check row ≤ 30 s after upload (J2), Sent in Activity ≤ 2 s (E4), an answer ≤ 8 s (K3)
+- [ ] Performance targets. Try it to Home (A2) measured 3.762–3.921 s against a 1.5 s target. Still to time: a To check row ≤ 30 s after a live upload (J2), Sent in Activity ≤ 2 s (E4), and an answer ≤ 8 s on a real model (K3).
 
 ### J. Foundation and security hardening (last stage, D38)
 - [ ] Manual encrypted database dump before demo day (owner)
@@ -211,17 +221,16 @@ Phase A, the OK before the first deploy and before the repo goes public, answers
 - [ ] Join the hackathon on Devpost
 - [ ] `npx wrangler login` from `economy-saver`
 - [x] Migration 0027 (`ask_receipts.pending` and `links`) applied to the owner's database
-- [ ] The AI key in `economy-saver/.env.local`: `AI_API_KEY` is empty (the other AI settings are set: `AI_PROTOCOL=anthropic`, `AI_TEXT_MODEL` and `AI_DOCUMENT_MODEL` `claude-sonnet-5-5`); the owner pastes the key, then `cp .env.local .dev.vars` without printing. Until then Ask says "Ask isn’t available on this server yet (AI_API_KEY)." and a document read fails
-- [ ] A key for a second provider as `EVAL_API_KEY` in `.env.local`, for the eval (E)
+- [ ] Configure the server’s default AI connection in `economy-saver/.env.local` and `economy-saver/.dev.vars`. Set `AI_PROTOCOL`, `AI_API_KEY`, `AI_TEXT_MODEL` and `AI_DOCUMENT_MODEL`. An OpenAI-compatible server also needs `AI_BASE_URL`. Ask names its first missing setting.
+- [ ] Supply `EVAL_API_KEY` in `economy-saver/.env.local` for each provider eval run (E).
 - [ ] Confirm the Worker starts within 1 s on the deploy (S)
 - [ ] Forwarding settings in `.env.local`: `FORWARDING_DOMAIN` (the Cloudflare domain), `INBOUND_ADDRESS_KEY`, `INBOUND_WORKER_SECRET`
-- [ ] Other settings the app reads: `AI_KEY_SEAL_KEY` (generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`; `.env.local` and `.dev.vars` already have one) and, where `.env.local` lacks them, `MCP_TOKEN_KEY`, `CRON_SECRET` (required by the cron route), and `PAYPAL_BALANCE_HOUSEHOLD_ID` (a non-demo household, so sign in first; a live PayPal import and merchant balance wait on it)
-- [ ] Sign in once at `/login` to verify a real magic link and session refresh (V9)
+- [ ] Check `AI_KEY_SEAL_KEY` for sealed household AI keys, `MCP_TOKEN_KEY` for MCP, and `CRON_SECRET` for the daily job. For live PayPal history import and merchant balance, set `PAYPAL_BALANCE_HOUSEHOLD_ID` to a signed-in household.
+- [ ] Sign in at `/login` and verify a real magic link, onboarding and session refresh (V9 and BROWSER-CHECKS A5).
 - [ ] Reminders by email (D65): a Resend account, the sending domain verified (the forwarding domain), then `RESEND_API_KEY` and `REMINDER_FROM` in `.env.local` and `.dev.vars`
-- [ ] Reminders by push (D65): after 29B, `npm run push:keys` (writes the key pair without printing it) and `WEB_PUSH_SUBJECT` (a `mailto:` address of the owner's) in `.env.local` and `.dev.vars`
+- [ ] Reminders by push (D65). Run `npm run push:keys` to write the key pair, and set `WEB_PUSH_SUBJECT` to the owner’s `mailto:` address in `economy-saver/.env.local` and `economy-saver/.dev.vars`.
 - [x] Migration 0028 (Stages 29 and 30) applied to the owner's database
 - [x] Migration 0029 (`0029_tenant_wall.sql`, the `pes_app` role and its policies) applied to the owner's database
-- [ ] Apply migration 0030 (`0030_ask_spaces.sql`, spaces, General backfill and history indexes) to the owner's database
 - [x] Migration 0030 (`0030_ask_spaces.sql`: spaces, `pg_trgm` and its indexes) applied to the owner's database
 
 ### B. First deploy and the live PayPal loop (owner runs the deploy)
@@ -245,7 +254,7 @@ Phase A, the OK before the first deploy and before the repo goes public, answers
 
 ### I. Final
 - [ ] Owner verifies hosted settings and live sandbox behaviour before public submission
-- [ ] Submission drafts rewritten for the agent with a canvas (lead drafts on Nov 10, owner approves): `submission/DEVPOST.md` (the pitch from D9, "What it does" with Ask, the canvas, what-if, pins, memory and any model; "Built with" says any model through one call instead of Claude; Status) and `submission/VIDEO-SCRIPT.md` (the ask → canvas → what-if → pin → approve → webhook path; the record-after list names the AI settings, not Anthropic)
+- [ ] Update the existing `submission/DEVPOST.md` and `submission/VIDEO-SCRIPT.md` drafts for owner review. Show Ask → canvas → what-if → pin → approval → verified webhook. Describe spaces and memory, the provider-neutral AI connection and the live checks verified at submission.
 - [ ] Final video 2:40–2:55 recorded on a Try it household on the deployed URL (owner records)
 - [ ] `design/`: the canvas concept saved as `design/money-canvas.html` once the owner approves it (the lead copies it from the session scratchpad), and AGENTS.md "Where things are" names it
 - [ ] Submitted by the evening of Nov 12, Tokyo

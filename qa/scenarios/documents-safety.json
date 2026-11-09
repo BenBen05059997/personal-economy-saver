@@ -2770,7 +2770,7 @@
     ],
     "expected": [
       "scrollWidth equals clientWidth on every screen",
-      "No text is cut off or overlaps. Long names, including Home’s sentence note, wrap in the UI-006 fixture"
+      "No text is cut off or overlaps. Long names wrap in Home and Ask’s sentence notes and Plan’s expanded “not counted” note in the UI-006 fixture"
     ],
     "refs": [
       "BROWSER-CHECKS L1"
@@ -2819,11 +2819,12 @@
       "Viewport 375px"
     ],
     "steps": [
-      "Measure links, buttons, inputs, selects and summaries on Home, Ask, To check, Upload, Plan, Memory → Rules and Settings. Include Ask question and canvas starters, Upload’s To check link, Plan’s Add a pot summary, the Rules On row, and the Email reminders and Quiet days rows"
+      "Measure links, buttons, inputs, selects and summaries on Home, Ask, To check, Upload, Plan, Memory → Rules and Settings. Include Ask question and canvas starters, Upload’s To check link, Plan’s Add a pot summary, the Rules On row, and the Email reminders and Quiet days rows",
+      "Measure and edge-tap Acme and Northwind in Ask’s This month canvas, and CloudBox Plus, Mobaile Tsushin and Card A in Home’s Coming up"
     ],
     "expected": [
       "Each box, or its ::after hit area, is at least 44px tall",
-      "Tapping the expanded area activates its own button, link, summary or checkbox",
+      "Tapping the expanded area activates its own button, link, summary or checkbox. The canvas and Coming up links cover no neighboring content",
       "The Ask row never covers the last row"
     ],
     "refs": [
@@ -2895,13 +2896,15 @@
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14)",
       "Fictional bills with a 60-character unbroken name and a long Japanese name, plus a client with a 60-character unbroken name",
-      "One of the bills has an unknown amount or date and appears in Home’s sentence note"
+      "The 60-character bill has a due date this month and an unknown amount, so it appears in the sentence notes"
     ],
     "steps": [
-      "Open Home, To check, Plan, Settings, Activity at 375px"
+      "Open Home, Ask, To check, Plan, Settings and Activity at 375px",
+      "In Ask open This month. In Plan expand the bill’s category under Where the month goes",
+      "Compare document scrollWidth with clientWidth"
     ],
     "expected": [
-      "Names wrap in Home’s sentence, note and lists, in To check, in Plan’s spending list, and in Settings and Activity",
+      "Names wrap in Home and Ask’s sentence notes, in Plan’s expanded “not counted” note and spending list, and in To check, Settings and Activity",
       "The right column and amounts stay on screen and the document has no sideways scroll"
     ],
     "refs": [

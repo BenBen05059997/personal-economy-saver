@@ -127,7 +127,7 @@ function Cards({ state }: Props) {
     {state.cards.map((card) => {
       const { owed, limitLeft, next, shortBy } = cardSummary(state, card.id);
       return <div key={card.id} className="home-row home-card-row">
-        <Link prefetch={false} href={hrefFor({ type: "card", id: card.id })}>{card.label}</Link>
+        <Link prefetch={false} className="home-link-target" href={hrefFor({ type: "card", id: card.id })}>{card.label}</Link>
         <div className="home-number">{format(owed)}<small>owed now</small></div>
         {limitLeft !== undefined && <small className="home-card-limit">{format(Math.max(0, limitLeft))} limit left</small>}
         <small className="home-card-next">{next ? `${next.open ? "So far" : "Statement"} ${format(next.amount)} · due ${dayLabel(next.dueOn)}` : "No statement due"}</small>
@@ -212,8 +212,8 @@ function ComingUp({ state, people, entryIds, added, addedId }: Props & { people:
       return <div key={event.id} id={firstOfBill.has(index) ? `bill-${event.id.split("@")[0]}` : undefined} className="home-row home-dated">
         <time dateTime={event.date}>{dayLabel(event.date)}</time>
         <div>{payment ? <><Link prefetch={false} href={hrefFor({ type: "client", id: payment.clientId })}>{event.label}</Link> pays</>
-          : event.kind === "statement" && event.cardId ? <Link prefetch={false} href={hrefFor({ type: "statement", id: event.cardId })}>{event.label}</Link>
-          : event.kind === "bill" ? <Link prefetch={false} href={event.pending ? "/to-check" : hrefFor({ type: "bill", id: event.id.split("@")[0] })}>{event.label}</Link> : event.label}
+          : event.kind === "statement" && event.cardId ? <Link prefetch={false} className="home-link-target" href={hrefFor({ type: "statement", id: event.cardId })}>{event.label}</Link>
+          : event.kind === "bill" ? <Link prefetch={false} className="home-link-target" href={event.pending ? "/to-check" : hrefFor({ type: "bill", id: event.id.split("@")[0] })}>{event.label}</Link> : event.label}
           {payment ? <small>Usual date · if late, {dayLabel(payment.worstOn)}</small>
             : event.pending ? <small>Awaiting confirmation</small>
             : carries[index] && <small className="home-short">Short by {format(-late[i])} if clients pay late</small>}

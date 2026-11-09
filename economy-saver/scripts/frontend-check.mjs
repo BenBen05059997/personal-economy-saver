@@ -52,8 +52,11 @@ async function step(type, label, run) {
     return undefined;
   }
 }
+function markup(html) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+}
 function text(html) {
-  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  return markup(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
 }
 function flight(html) {
   // PPR may deliver the completed server tree only as inline Flight chunks.
@@ -86,8 +89,10 @@ async function events() {
   expect(Array.isArray(data.events) && Number.isInteger(data.feed?.unread), "events-shape");
   return data;
 }
-function adopt(result) {
-  expect(result.response.status === 303 && result.response.headers.get("location") === "/", "session-redirect");
+function adopt(result, fetchForm = false) {
+  const { status, headers } = result.response;
+  expect(fetchForm ? status === 204 && headers.get("x-form-redirect") === "/" && !headers.has("location") && result.body === ""
+    : status === 303 && headers.get("location") === "/", "session-redirect");
   const next = result.response.headers.get("set-cookie")?.match(/(?:^|,\s*)household=([^;]+)/)?.[1];
   expect(next && /^[0-9a-f-]{36}$/i.test(next), "session-cookie");
   cookie = "household=" + next;
@@ -406,6 +411,20 @@ const firstCookie = cookie;
 // Cold means first Home in this fresh session, not a restarted server or cleared compiler cache.
 const home = await step("page", "home-first-session", () => page("/", /18,780/));
 await step("page", "home-warm", () => page("/", /18,780/));
+await step("page", "phone-links-keep-their-own-home-and-canvas-destinations", async () => {
+  const hrefForLink = (html, name, className) => [...markup(html).matchAll(/<a\b([^>]+)>([^<]+)<\/a>/g)]
+    .filter(([, attrs, label]) => label.trim() === name && (!className || attrs.includes(`class="${className}"`)))
+    .map(([, attrs]) => /href="([^"]+)"/.exec(attrs)?.[1]);
+  const home = await page("/", /Coming up/);
+  for (const name of ["CloudBox Plus", "Mobaile Tsushin"]) {
+    expect(hrefForLink(home, name, "home-link-target").some(href => /^\/settings#bill-[0-9a-f-]{36}$/.test(href ?? "")), "home-bill-link");
+  }
+  expect(hrefForLink(home, "Card A", "home-link-target").some(href => /^\/cards\/[0-9a-f-]{36}$/.test(href ?? "")), "home-card-link");
+  const ask = await page("/canvas", /This month/);
+  const sentence = markup(ask).match(/<p class="canvas-sentence">([\s\S]*?)<\/p>/)?.[1] ?? "";
+  const clients = ["Acme", "Northwind"].map(name => hrefForLink(sentence, name)[0]);
+  expect(clients.every(href => /^\/clients\/[0-9a-f-]{36}$/.test(href ?? "")) && clients[0] !== clients[1], "canvas-client-links");
+});
 // D47: Try it arrives with every step true, so the First steps panel never shows and the demo numbers are untouched.
 await step("page", "home-try-it-has-no-first-steps", async () => {
   const html = await page("/", /18,780/);
@@ -452,6 +471,72 @@ await step("page", "cards", () => page("/cards", /Card B/));
 await step("page", "clients", () => page("/clients", /Beacon/));
 await step("page", "plan", () => page("/plan", /Add a pot/));
 await step("page", "plan-where-the-month-goes", () => page("/plan", /Where the month goes[\s\S]*Housing ¥82,000/));
+// S-A and S-B (D52): the two-person month and the public read-only family link.
+{
+  const prior = cookie;
+  const familySession = await step("action", "family-try-it-session", async () => {
+    adopt(await request("/api/try", { session: "" }));
+    return true;
+  });
+  if (familySession) {
+    const together = /Together ¥88,780 · Ben ¥63,450 · Wife ¥0 this month/;
+    const familyWords = ["Ben · family view", "Where the month goes", "Shared bills coming up",
+      "Who owes whom", "Nothing can be changed from here."];
+    const privateWords = [...familyWords, "Acme Corp", "Northwind", "CloudBox Plus", "Wife", "¥88,780"];
+    await step("action", "family-s-a-month-split", async () => {
+      expect(!together.test(pageContent(await page("/plan", /Where the month goes/))), "family-single-person");
+      const added = await request("/api/people", { method: "POST", form: { kind: "add", name: "Wife" } });
+      expect(added.response.status === 200, "family-add-person");
+      const month = plain(pageContent(await page("/plan", together)));
+      expect(month.includes("Shared ¥82,000") && month.includes("Ben ¥10,700"), "family-month-shares");
+    });
+    const link = await step("action", "family-s-b-make-a-link", async () => {
+      const created = await request("/api/family-links", { method: "POST", form: { kind: "create" } });
+      expect(created.response.status === 200, "family-create-status");
+      const { id, link, message, day } = JSON.parse(created.body);
+      const url = new URL(link);
+      expect(/^[0-9a-f-]{36}$/i.test(id) && /^\/family\/[A-Za-z0-9_-]{43}$/.test(url.pathname)
+        && !url.search && !url.hash && url.origin === base.origin, "family-create-shape");
+      expect(day === "Nov 21" && message.endsWith(`See our month: ${link} (until Nov 21)`), "family-line-message");
+      return { id, path: url.pathname };
+    });
+    const privateHeaders = ({ headers }) => {
+      expect(headers.get("cache-control")?.includes("no-store"), "family-cache-control");
+      expect(headers.get("referrer-policy") === "no-referrer", "family-referrer");
+      expect(headers.get("x-robots-tag") === "noindex, nofollow", "family-robots");
+    };
+    if (link) {
+      await step("page", "family-s-b-open-without-a-cookie", async () => {
+        const { response, body } = await request(link.path, { session: "" });
+        expect(response.status === 200, "family-open-status");
+        privateHeaders(response);
+        const content = plain(pageContent(body));
+        expect(together.test(content) && familyWords.every(word => content.includes(word)), "family-open-content");
+        const view = markup(body).match(/<main\b[^>]*class="family-page"[^>]*>([\s\S]*?)<\/main>/i)?.[1];
+        expect(view && !/<(?:a|button|form)\b/i.test(view), "family-read-only");
+      });
+      await step("action", "family-s-b-stop-sharing", async () => {
+        const stopped = await request("/api/family-links", { method: "POST", form: { kind: "stop", id: link.id } });
+        expect(stopped.response.status === 200 && stopped.body === "Sharing stopped. That link no longer opens.", "family-stop");
+      });
+    }
+    await step("guard", "family-s-b-ended-and-unknown-show-ended-page", async () => {
+      const unknown = randomUUID().replaceAll("-", "") + "a".repeat(11);
+      const paths = ["/family/" + unknown, "/family/invalid"];
+      if (link) paths.push(link.path);
+      for (const path of paths) {
+        const { response, body } = await request(path, { session: "" });
+        expect(response.status === 200, "family-ended-status");
+        privateHeaders(response);
+        const content = plain(pageContent(body));
+        expect(content.includes("This link has ended.") && content.includes("Ask for a new one."), "family-ended-content");
+        expect(privateWords.every(word => !content.includes(word)), "family-ended-no-household-data");
+      }
+    });
+  }
+  cookie = prior;
+}
+
 // Stage 17 plan (D53): the search box, the Spending panel and the month links, on the Try it household (today Nov 14).
 const TRY_TODAY = "2026-11-14";
 const lastMonth = (() => { const [y, m] = TRY_TODAY.split("-").map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`; })();
@@ -630,7 +715,10 @@ await step("action", "ai-model-default-is-accepted-and-an-oversize-body-is-refus
   expect(big.response.status === 413, "ai-model-oversize-status");
 });
 await step("page", "settings", () => page("/settings", /Household &amp; bank|Household & bank/));
-await step("page", "settings-offers-start-over-with-my-numbers", () => page("/settings", /Start over with my numbers/));
+await step("page", "settings-offers-start-over-with-my-numbers", async () => {
+  const html = await page("/settings", /Start over with my numbers/);
+  expect(pageContent(html).includes("Every household starts on the server’s default model, and you can choose another in Settings → Your AI model."), "settings-model-hint");
+});
 await step("action", "export-my-data", async () => {
   const result = await request("/api/export", { method: "POST" });
   const { headers } = result.response;
@@ -727,9 +815,9 @@ await step("page", "settings-reload-saved-name", async () => {
   const flightField = /"name"\s*:\s*"name"[^}]*"(?:defaultValue|value)"\s*:\s*"Fictional Check"/.test(flight(html));
   expect(htmlField || flightField, "saved-name-field");
 });
-await step("action", "reset-fictional-session", async () => {
+await step("action", "reset-fetch-form-gets-one-redirect-destination", async () => {
   const old = cookie;
-  adopt(await request("/api/try/reset", { method: "POST" }));
+  adopt(await request("/api/try/reset", { method: "POST", extraHeaders: { "x-form-fetch": "1" } }), true);
   expect(cookie !== old && cookie !== firstCookie, "reset-fresh-session");
 });
 await step("page", "home-after-reset-18780", () => page("/", /18,780/));
@@ -971,5 +1059,25 @@ await step("action", "stage15b-three-field-bill-with-guessed-defaults", async ()
     expect(refused.response.status === 400 && refused.body === "Choose a bill of this household", "s19b-foreign-id");
   });
 }
+await step("action", "long-uncounted-bill-appears-in-ask-and-plan-notes", async () => {
+  const name = "LongBiller".repeat(6);
+  const added = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: name,
+    due: "2026-11-25", category: "utilities", businessShare: "personal", amountUnknown: "on" } });
+  expect(added.response.status === 303, "long-bill-saved");
+  const ask = plain(pageContent(await page("/canvas", /This month/)));
+  const plan = plain(pageContent(await page("/plan", /Where the month goes/)));
+  expect(ask.includes(`Not counted: ${name} (amount not known).`), "long-bill-ask-note");
+  expect(plan.includes(`1 bill not counted: ${name} (amount not known)`), "long-bill-plan-note");
+});
+
+await step("action", "client-detail-accepts-the-full-120-character-name", async () => {
+  const id = randomUUID();
+  const name = "LongClient".repeat(12);
+  const added = await request("/api/clients", { method: "POST", form: { id, name, email: "long-client@example.com", termsDays: "30" } });
+  expect(added.response.status === 303 && added.response.headers.get("location") === `/clients/${id}`, "long-client-saved");
+  const detail = await page(`/clients/${id}`, /Work and invoices/);
+  expect(pageContent(detail).includes(name), "long-client-detail-name");
+});
+
 console.log(`${failures ? "FAIL" : "PASS"} summary ${failures} failed`);
 process.exitCode = failures ? 1 : 0;

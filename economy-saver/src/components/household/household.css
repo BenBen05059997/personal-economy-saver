@@ -15,7 +15,7 @@
 .directory small { display: block; margin-top: var(--space-1); font-size: 13px; color: var(--muted); }
 .directory-detail { position: sticky; top: calc(var(--topbar-height) + var(--space-4)); padding: var(--space-5); border-left: 1px solid var(--rule); max-height: calc(100dvh - var(--topbar-height) - var(--space-8)); overflow-y: auto; }
 .directory-detail header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-5); }
-.directory-detail h2 { font: 400 26px/1.2 var(--serif); margin: 0; }
+.directory-detail h2 { min-width: 0; overflow-wrap: anywhere; font: 400 26px/1.2 var(--serif); margin: 0; }
 .directory-detail header a { color: var(--muted); }
 .directory-detail h3 { margin: var(--space-5) 0 var(--space-1); font: 500 16px var(--sans); }
 .directory-detail dl { margin: var(--space-4) 0; }

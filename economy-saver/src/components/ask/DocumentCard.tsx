@@ -6,7 +6,7 @@ import type { Currency } from "@/lib/catalogue/types";
 import type { Check, CheckChoice } from "@/lib/money/checks";
 import { DOCUMENT_WORDS, needsForm as readingNeedsForm, type DocumentCard as Card, type DocumentCardItem } from "@/lib/reader/document-card";
 import { ApiForm } from "@/components/ui/ApiForm";
-import { SessionEnded } from "./SessionEnded";
+import { SessionEnded } from "@/components/ui/SessionEnded";
 import { answerCheck, type CheckAnswers } from "@/components/reader/check-answers";
 import { majorText, ReadingForm } from "@/components/reader/ReadingForm";
 

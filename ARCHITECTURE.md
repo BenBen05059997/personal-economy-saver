@@ -29,7 +29,7 @@ Cloudflare
     ├── Pages (server components): the sidebar is Home /, Ask /canvas, To check /to-check, Activity /activity, Cards /cards, Clients /clients, Plan /plan
     │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory (Profile, Spaces, Goals and Rules), /settings, /account (delete my data), /privacy
     │   ├── /start (Start with my numbers), /login, /onboarding, /join/[token] (D68)
-    │   └── /family/[token]: no session; the token resolves to a household (D52); no-store, noindex, no referrer
+    │   └── /family/[token]: the App Router resolves the token without a session. A live link renders the public family view. An expired, stopped or unknown link returns HTTP 200 with the generic ended page and no household information (D52). All responses are no-store, no-referrer and noindex
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
     │   ├── /api/ask               one question in a verified space `{ id, spaceId, text, source, canvas, incognito? }`; body at most 128 KiB, or 512 KiB with device data. Checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers or space proposal, or an error line)
     │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, `spaceId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 503 a setting missing and named, 502 a service failed, 500 anything else)
@@ -218,7 +218,7 @@ On phones, Ask’s Based on links and question starters, Upload’s To check lin
 403, 429). After them it answers 200 `application/x-ndjson`: a `{"step": "…"}` line each time `runAgent` calls `onStep` (the fixed words in
 `src/lib/agent/words.ts`: `THINKING_WORDS`, one `TOOL_WORDS` line per tool, never an amount, argument or result), then one last line, `{"reply": AskReply}` or
 `{"error": "…"}` (the sentence a failure carried as a 503 before the stream began). `src/components/ask/read-stream.ts` (`readAskStream`) reads it line
-by line; the page shows the latest step in a `role="status"` line under the box and the error where it always showed it. A 401 on any Ask request (the question, attach a bill, a canvas block, the document card) shows "Your session has expired." with a link "Start again from the home page." to `/` (`SessionEnded.tsx`). The To check Retry control posts through `ApiForm`.
+by line; the page shows the latest step in a `role="status"` line under the box and the error where it always showed it. A 401 on any Ask request (the question, attach a bill, a canvas block, the document card) shows "Your session has expired." with a link "Start again from the home page." to `/` (`components/ui/SessionEnded.tsx`). Ask, sliders and device pins use the same browser canvas request helper (`src/lib/canvas/draw.ts`), which maps a 401 to that shared message. The To check Retry control posts through `ApiForm`.
 
 **Budgets and limits.** `MAX_TOOL_TURNS` 4 and `MAX_TOKENS` 16,000. The question shares one `ASK_BUDGET_MS` deadline across model calls and tool reads. Ask reads it once and defaults to 20 s. Slow development models can override it. Production leaves it unset. Model calls have no retries (every
 attempt asks for its own connection); the ask limit is 30 a minute; declined questions are not capped; the read tools of a model turn are raced against the time left of the 20 s (`beforeDeadline` in `run.ts`): past it the question stops with "That took too long while <the step's words>. Try a simpler question." (outcome `budget`), while a write, `clarify` and `out_of_scope` are waited for and a write already done is kept (`savedThenStopped`); a question is 1 to 320 characters; one question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`;
@@ -622,6 +622,8 @@ The per-address limit counts a connection, not a person: people behind one share
 One Supabase project and one PayPal sandbox app serve both local development and the future deployment.
 
 ### Reset and deletion
+
+The Settings Reset control sends `x-form-fetch: 1` and navigates once to the destination in the 204 response’s `x-form-redirect` header.
 
 Reset (`/api/try/reset`), sign-in upgrade, Delete everything (`deleteOwnedHousehold`, the signed-in owner of a non-demo household) and the demo
 sweep lock the household before removing its Vault key (`deleteHouseholdKey`) and private Storage objects (`removeHouseholdDocuments`), then delete

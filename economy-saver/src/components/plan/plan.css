@@ -66,4 +66,4 @@
 .plan-regular-up { color: var(--red); font-weight: 500; }
 .plan-regular-down { color: var(--green); font-weight: 500; }
 .plan-regular-same { color: var(--muted); }
-.plan-uncounted { margin: var(--space-1) 0 var(--space-3); }
+.plan-uncounted { overflow-wrap: anywhere; margin: var(--space-1) 0 var(--space-3); }

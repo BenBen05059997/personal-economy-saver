@@ -9,6 +9,8 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { savePot } from "@/db/pots";
 import { seedBen } from "@/db/seed";
+import { drawCanvas } from "@/lib/canvas/draw";
+import { SESSION_ENDED } from "@/lib/session-ended";
 import { loadCanvasContext, resolveCanvasRequest } from "@/lib/canvas/request";
 import { CanvasError, resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { BlockSchema, RecipeSchema, ScenarioSchema, recipeJsonSchema, type Change, type Recipe } from "@/lib/canvas/schema";
@@ -60,6 +62,21 @@ async function main() {
   async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 
   // ------------------------------------------------------------ the what-if, by hand
+  await check("canvas redraw uses the shared session message for 401 and keeps other refusals", async () => {
+    const recipe: Recipe = { version: 1, title: "Fixture", blocks: [{ type: "sentence", query: { q: "sentence" } }] };
+    const scenario = { case: "usual" as const, changes: [] };
+    const signal = new AbortController().signal;
+    assert.equal(await drawCanvas(recipe, { scenario, signal }, async (url, init) => {
+      assert.equal(url, "/api/canvas/resolve");
+      assert.equal(init?.method, "POST");
+      assert.equal(init?.signal, signal);
+      assert.deepEqual(JSON.parse(String(init?.body)), { recipe, scenario });
+      return new Response("No household", { status: 401 });
+    }), SESSION_ENDED);
+    assert.equal(await drawCanvas(recipe, {}, async () => new Response("Invalid recipe", { status: 400 })), "Invalid recipe");
+    assert.deepEqual(await drawCanvas(recipe, {}, async () => Response.json({ blocks: [] })), []);
+  });
+
   await check("the hand-worked household: usual low ¥30,000 on Nov 20, late low ¥25,000 on Nov 25", () => {
     assert.deepEqual([lowOf(small, "expected").amount, lowOf(small, "expected").date], [30_000, "2026-11-20"]);
     assert.deepEqual([lowOf(small, "worst").amount, lowOf(small, "worst").date], [25_000, "2026-11-25"]);

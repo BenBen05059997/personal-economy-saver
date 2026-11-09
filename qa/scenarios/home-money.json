@@ -1411,15 +1411,16 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Add a client with a 120 character name with no spaces (the most the field takes)",
+      "Add a client with exactly 120 characters and no spaces (the most the field takes)",
+      "Open that client's detail page at 375px",
       "Add one with an empty name"
     ],
     "expected": [
-      "The long name wraps without sideways scroll at 375px",
+      "The full name wraps in the detail heading beside Close without sideways scroll at 375px",
       "The empty name is refused"
     ],
     "refs": [
-      "BROWSER-CHECKS L"
+      "BROWSER-CHECKS F3"
     ]
   },
   {
