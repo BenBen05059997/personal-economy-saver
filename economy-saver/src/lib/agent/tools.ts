@@ -27,7 +27,7 @@ import { minorPerUnit } from "@/lib/money/format";
 import { dayView } from "@/lib/money/window";
 import { gapAmountWords, gapDateWords, gapQuestion, openGaps } from "@/lib/money/gaps";
 import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
-import { BusinessBp, CATEGORY_KEYS, CategoryKeySchema, categoryLabel } from "@/lib/money/categories";
+import { BusinessBp, CategoryKeySchema, categoryLabel } from "@/lib/money/categories";
 import { guessCategory } from "@/lib/money/categorise";
 import { monthByCategory, monthText, monthWhen } from "@/lib/money/month";
 import { HISTORY_MONTHS, monthBounds, monthsBack, SEARCH_QUERY_MAX, searchLine, searchSpending, spendingItems } from "@/lib/money/spending";
@@ -109,20 +109,20 @@ function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
 const none = z.object({});
 // D45: the agent names people, not ids. `shared` and `paidBy` replace the form's member ids.
 const categoryField = CategoryKeySchema.nullable().default(null)
-  .describe(`One of: ${CATEGORY_KEYS.join(", ")}. null when the user did not say; the app then proposes one from the name and the user confirms it in To check.`);
+  .describe("Null lets the app guess from the name.");
 const businessField = BusinessBp.nullable().default(null)
-  .describe("The business share in basis points: 0 personal, 10000 business, 3000 for 30% business. null = personal.");
+  .describe("Business share in basis points. Null is personal.");
 // D54's "amount varies" is set by the user on the form or in Settings, not by the agent; an agent's one-off still links on confirm.
 const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, repeatUntil: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true, periodStart: true, periodEnd: true }).extend({
-  amount: z.string().trim().nullable().describe("A plain number in the household's home currency (3800 for ¥3,800), or null when the user does not know the amount yet (D55: the app estimates it from earlier bills of the same name and asks the user to fill it in)."),
-  due: z.string().date().nullable().describe("YYYY-MM-DD, or null when the user does not know the date yet (it counts as due today until the user fills it in). A bill that repeats, or has cancel_by, needs its date."),
-  repeat: RepeatUnitSchema.nullable().default(null).describe("month = every month on the due date's day, year = every year on its month and day, null = a one-off."),
-  next_amount: z.string().trim().nullable().default(null).describe("The amount from next_amount_from on, a plain number in the home currency (a price rise); needs repeat. null = unchanged."),
-  next_amount_from: z.string().date().nullable().default(null).describe("YYYY-MM-DD, after the due date; the first date the next_amount applies on. null with no next_amount."),
-  cancel_by: z.string().date().nullable().default(null).describe("YYYY-MM-DD, before the next time the bill is charged: the last day to cancel or change it. null = none."),
-  repeat_until: z.string().date().nullable().default(null).describe("YYYY-MM-DD: the last time a repeating bill is charged (a gym membership that ends after December: its December due date); null = it goes on. Needs repeat; on or after due."),
-  period_start: z.string().date().nullable().default(null).describe("YYYY-MM-DD: the first day the bill covers, only when the user says or the bill shows the month or dates it is for (a November electricity bill: 11-01). Information only: the bill still counts on its due date. Set together with period_end; a one-off only; null = not known."),
-  period_end: z.string().date().nullable().default(null).describe("YYYY-MM-DD: the last day the bill covers (11-30 for November); on or after period_start. null with no period_start."),
+  amount: z.string().trim().nullable().describe("Home-currency number as text. Null if unknown."),
+  due: z.string().date().nullable().describe("Null if unknown. Repeating bills and cancel_by need a date."),
+  repeat: RepeatUnitSchema.nullable().default(null).describe("Uses the due day. Null for a one-off."),
+  next_amount: z.string().trim().nullable().default(null).describe("New home-currency amount for a repeating bill."),
+  next_amount_from: z.string().date().nullable().default(null).describe("First day of next_amount, after due."),
+  cancel_by: z.string().date().nullable().default(null).describe("Cancel-by date before the next charge."),
+  repeat_until: z.string().date().nullable().default(null).describe("Last charge date of a repeating bill, on or after due."),
+  period_start: z.string().date().nullable().default(null).describe("Start of the known service period. Use both period dates on one-offs only."),
+  period_end: z.string().date().nullable().default(null).describe("End of the known service period, on or after period_start."),
   category: categoryField,
   business_bp: businessField,
   shared: z.boolean().nullable().default(null),
@@ -130,8 +130,8 @@ const addBillInput = billInput.omit({ paidByMemberId: true, category: true, busi
 });
 const logChargeInput = chargeInput.omit({ category: true, businessBp: true, originalAmount: true, originalCurrency: true }).extend({
   category: categoryField, business_bp: businessField,
-  original_amount: z.string().trim().nullable().default(null).describe("D62: when the purchase was in another currency, the plain number the person paid in original_currency (12.50 for $12.50); amount stays what the card billed in the home currency. null = not in another currency."),
-  original_currency: Currency.nullable().default(null).describe("USD or JPY: the currency the person paid in; it must differ from the card's currency. null = not in another currency."),
+  original_amount: z.string().trim().nullable().default(null).describe("Number paid in original_currency. amount stays the billed amount."),
+  original_currency: Currency.nullable().default(null).describe("Must differ from the card currency."),
 });
 
 /** The category a tool saves: the one given, or the keyword table's guess from the name; and the sentence that tells the agent which. */
@@ -195,7 +195,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "open_gaps", scope: "read", input: none,
-    description: "Bills and readings in To check that are missing an amount or a date (D55), urgent ones first. Each has missing (amount, date), the question to ask the user, amountWords (an estimate with its range and basis, or \"amount not known\"), dateWords, urgent and why (due_soon, or could_change_sentence when the estimate's high end or an uncounted amount could change the 30-day sentence). A missing amount is counted at the estimate, or for nothing when there is none; a missing date counts as due today. Quote the words as they are; the user fills a gap in To check.",
+    description: "Bills and readings missing a date or amount, urgent first. Quote the gap words and question. Estimates count when available and unknown dates count today. The person fills gaps in To check.",
     run: async ctx => {
       const [state, inbox] = await Promise.all([ctx.state(), readerInbox(ctx.db, ctx.householdId)]);
       const gaps = openGaps(state, inbox.readings.map(({ id, value }) => ({ id, value })));
@@ -209,7 +209,7 @@ export const tools: Tool[] = [
   defineTool({
     name: "can_i_spend", scope: "read",
     input: z.object({ amount_minor: z.number().int().positive().safe(), card_id: z.string().uuid().nullish() }),
-    description: "Check a purchase. amount_minor is in the household's home currency minor units: whole yen for JPY, cents for USD. card_id (from list_clients_and_cards) limits the check to one card; null checks all cards.",
+    description: "Check a purchase in home-currency minor units. Use a card ID from list_clients_and_cards or null for all cards.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       if (input.card_id && !state.cards.some(card => card.id === input.card_id)) throw new Error("Unknown card");
@@ -218,7 +218,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "list_clients_and_cards", scope: "read", input: none,
-    description: "List client and card names and IDs for this household. Each client also has usualDaysToPay (the usual days from sending an invoice to being paid) and slowestDaysToPay, both null when the client has no paid invoice yet. Mention a client's pace when it bears on the answer.",
+    description: "Household client and card IDs and names, with each client’s usual and slowest days to pay. Mention pace when relevant.",
     run: async ctx => {
       const state = await ctx.state();
       const pace = (c: (typeof state.clients)[number]) => { const p = clientPace(c); return { usualDaysToPay: p?.usual ?? null, slowestDaysToPay: p?.slowest ?? null }; };
@@ -227,8 +227,8 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "timeline", scope: "read",
-    input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("YYYY-MM-DD: one day from today to two years ahead; null = the next 30 days.") }),
-    description: "The next 30 days of dated money events (bills, card statements, expected client payments) with the running balance after each, and the lowest point with its date. Amounts are signed home-currency minor units: negative goes out. scenario as_usual means clients pay on their usual day; late means on their slowest day. Pass `on` for one day up to two years ahead, e.g. what's due or how much is left on Dec 31: the answer is that day's events and balanceAfterMinor, the balance at the end of that day.",
+    input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("One day within two years, or null.") }),
+    description: "Dated cash flow with running balances and the lowest point. Signed home-currency minor units. as_usual uses each client’s usual pay day and late uses their slowest day. Set on for one day, including end-of-day balance, or null for the next 30 days.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const kind = SCENARIOS[input.scenario];
@@ -252,7 +252,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "options_when_short", scope: "read", input: none,
-    description: "When the household would run short if clients pay late: the ranked options to close the gap, cheapest first, with cost and status. Information only. Returns 'not short' when the runway is fine.",
+    description: "Options to close a shortfall if clients pay late, cheapest first, with cost and status.",
     run: async ctx => {
       const state = await ctx.state();
       const plan = fundingOptions(state);
@@ -270,7 +270,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "list_invoices", scope: "read", input: none,
-    description: "The household's 50 most recent invoices: client name, status, USD amount in cents, sent, due and paid dates, and the client's usualDaysToPay and slowestDaysToPay (days from sending to being paid; null when the client has no paid invoice yet).",
+    description: "The 50 latest invoices with status, USD cents, dates and each client’s usual and slowest days to pay.",
     run: async ctx => {
       const hid = requireHousehold(ctx.householdId);
       const state = await ctx.state();
@@ -289,12 +289,12 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "household_snapshot", scope: "read", input: z.object({}).strict(),
-    description: `The whole household as one JSON document (schema version 3; this tool gives the record only): household, members (with their shares of shared costs), cards, statements, charges, stored bills (a repeating bill appears once, with repeatUnit, repeatDay for a monthly one, and any nextAmountMinor from nextAmountFrom, cancelBy and repeatUntil, the last payment), clients, invoices, pots, settlements, bank balance updates and document references. Money is integer minor units next to a currency; dates are ISO strings. Use it as context for the household as a whole, to find ids and see what exists. It is not an answer: what the household can spend, what is due and how short it would be come from the engine tools (where_am_i, whats_due, can_i_spend, timeline). Rows with status pending are waiting in To check and count for nothing yet. Each of bills, charges, statements, invoices, balanceUpdates and documents holds at most its ${SNAPSHOT_TOOL_WINDOW} most recent rows, oldest first; truncated says which lists were cut. No audit-trail events and no secrets are included.`,
+    description: `Version 3 household record for context and IDs. Up to ${SNAPSHOT_TOOL_WINDOW} most recent rows per long list. Check truncated. Pending rows do not count. Use engine tools for answers.`,
     run: async ctx => JSON.stringify(await loadHouseholdSnapshot(ctx.db, ctx.householdId, { events: false, recent: SNAPSHOT_TOOL_WINDOW })),
   }),
   defineTool({
     name: "goals", scope: "read", input: none,
-    description: "Read the household’s dated savings goals and their progress, including what should be saved by now, the gap, what to save each month, and the date at the current pace if available. Amounts named Minor are home-currency minor units. Quote summary as written. To show the goals on a canvas use a progress block with query q goals.",
+    description: "Dated pots and savings pace, gaps and needed monthly saving. Quote summary. The goals query draws a progress canvas.",
     run: async ctx => {
       const state = await ctx.state();
       const goals = goalPaces(state);
@@ -309,7 +309,7 @@ export const tools: Tool[] = [
       monthly_minor: z.number().int().positive().safe().nullish(),
       pot_id: z.string().uuid().nullish(),
     }),
-    description: "Plan saving for something: how much to set aside each month to reach a target by a date, the date the target is reached at a monthly pace, and whether the next 30 days leave enough room. target_minor is the amount to reach, in home-currency minor units (whole yen for JPY, cents for USD). target_date (YYYY-MM-DD) asks for the monthly amount needed by then. monthly_minor tests a pace you were given; without it the pace is what the next 30 days leave over if clients pay as usual. pot_id (from the pots the user has) plans for an existing pot: its saved amount counts, and its target and date are used when you give none. Quote summary to the user as it is; it is built in code. Information only; use add_pot to put a pot in To check.",
+    description: "Work out a savings target’s monthly pace, completion date and 30-day room. Amounts are home-currency minor units. A pot_id uses the existing pot’s savings and supplies omitted target details. Quote summary. Use add_pot for a draft.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const pot = input.pot_id ? state.pots.find(p => p.id === input.pot_id) : undefined;
@@ -334,7 +334,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "who_owes_whom", scope: "read", input: none,
-    description: "Who owes whom for the household's shared bills and card charges since the last settlement, split by each person's share: the fewest payments that bring everyone to zero, and what each person has paid and owes. Quote summary to the user as it is; it is built in code. Information only; the user taps Mark settled in the app.",
+    description: "Shared bills and card charges since the last settlement, what each person paid and owes, and the fewest payments to settle. Quote summary.",
     run: async ctx => {
       const state = await ctx.state();
       const balance = splitBalance(state.split, state.today);
@@ -354,7 +354,7 @@ export const tools: Tool[] = [
       month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").nullable().default(null)
         .describe(`YYYY-MM, one of the last ${HISTORY_MONTHS} months including the current one; null = the current month.`),
     }),
-    description: "Where a calendar month goes (the current one unless month is given): confirmed bills (a repeating bill once) and card charges in the home currency, grouped by category, each split into its business and personal part, with the items under each. Quote it to the user as it is; it is built in code. Information only: categories and business shares move no money and do not change what is safe to spend.",
+    description: "Confirmed bills and card charges by category and business share for one calendar month. Defaults to this month. Quote the tool’s words.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       const month = input.month ?? today.slice(0, 7);
@@ -367,10 +367,10 @@ export const tools: Tool[] = [
   defineTool({
     name: "search_spending", scope: "read",
     input: z.object({
-      query: z.string().max(SEARCH_QUERY_MAX).default("").describe("Words to find in bill and charge names or categories (hotel, rent, travel, food); every word must match. An empty string lists everything."),
+      query: z.string().max(SEARCH_QUERY_MAX).default("").describe("All words must match. Empty lists everything."),
       months: z.number().int().min(1).max(HISTORY_MONTHS).nullable().default(null).describe(`How many calendar months to look back, 1 to ${HISTORY_MONTHS}, the current month included; null = 3.`),
     }),
-    description: `Where did the money go: confirmed bills (a repeating bill once per occurrence, at the amount of that day) and card charges up to today that match the query (plus bills due later this month whose amount is not known, listed as "amount not known" and never summed), by month, newest first, with totals per month and per category and the items. A word matches an item's name, its category key or its category label, so "hotel" and "travel" both find a hotel. Amounts are home-currency minor units (whole yen for JPY, cents for USD). Quote summary to the user as it is; it is built in code. Information only.`,
+    description: "Search bills and card charges by name or category, newest month first. Unknown amounts due later this month are listed but never summed. Home-currency minor units. Quote summary.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       const from = `${monthsBack(today.slice(0, 7), input.months ?? 3)}-01`;
@@ -383,10 +383,10 @@ export const tools: Tool[] = [
   defineTool({
     name: "bills_for_month", scope: "read",
     input: z.object({
-      month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").describe("The month the bill is FOR, YYYY-MM (November's electricity is the bill that says 11月分 or a November service period, though it is usually paid in December)."),
-      text: z.string().max(SEARCH_QUERY_MAX).default("").describe("Each word must match the biller's name or identify its category (electricity, gas). An empty string lists every bill for that month."),
+      month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").describe("Service month, YYYY-MM."),
+      text: z.string().max(SEARCH_QUERY_MAX).default("").describe("Matches name or category. Empty lists all."),
     }),
-    description: "What was a month's bill: every stored bill (confirmed or waiting in To check, past or due later) whose period, the month it is for, overlaps the month, each with its biller, amount (or amount not known), due date, period and status, and the totals per currency. Use it for \"what was November's electricity\" or \"the bill for October\": the month a bill is FOR. Use month_by_category or search_spending for the month money was PAID or is due. A bill with no period is not listed here; it is counted by its due date, so say so and use month_by_category. Amounts named Minor are minor units of the item's own currency (whole yen for JPY, cents for USD). Quote summary to the user as it is; it is built in code. Information only: the period moves no money and changes no forecast.",
+    description: "Find bills whose service period overlaps the month, including waiting items. Returns biller, amount, due date, period, status and totals in each currency. For when money was paid or due, or a bill without a period, use month_by_category or search_spending. Quote summary.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       if (input.month > latestDate(today).slice(0, 7)) throw new InputError(`month must be no later than ${latestDate(today).slice(0, 7)}, two years from today`);
@@ -395,7 +395,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "suggestions", scope: "read", input: none,
-    description: "Read the open findings shown on Home under From your assistant, most urgent first. Use it when the person asks what needs their attention or what the assistant noticed. Quote the title and reason as written, and name the space when spaceName is present. Information only.",
+    description: "Open Home findings, most urgent first. Quote title and reason and name the space when spaceName is present.",
     run: async ctx => JSON.stringify(await openSuggestions(ctx.db, ctx.householdId)),
   }),
   defineTool({
@@ -403,7 +403,7 @@ export const tools: Tool[] = [
     input: z.object({
       months: z.number().int().min(2).max(6).nullable().default(null).describe(`How many calendar months to compare, 2 to 6, the current month included; null = ${REGULAR_MONTHS}.`),
     }),
-    description: "Regular costs (D54): bills and card charges that come back month after month (a monthly repeating bill, or the same name and category in at least two of the months), each with its amount in every month (oldest first), this month against last month and a status: up, down, same, started, stopped, or not_yet (nothing this month yet; it usually comes later, on usualDay). This month is the month so far plus confirmed bills still due in it; card charges count up to today, and soFar says the amount can still grow. Amounts are home-currency minor units (whole yen for JPY, cents for USD). Quote summary to the user as it is; it is built in code. Information only.",
+    description: "Recurring bills and card charges by month, with changes and usual dates. This month includes confirmed bills still due and charges through today. Quote summary.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       const months = input.months ?? REGULAR_MONTHS;
@@ -415,7 +415,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "foreign_costs", scope: "read", input: none,
-    description: "What foreign money cost the household over the last twelve months (D62): paid USD invoices received through PayPal (the fee to receive and the conversion markup, per client) and card purchases made in another currency (the cost above the reference rate, per card; exact when the billed amount is known, an estimate from the card's fee when it is not, unknown otherwise). Call it when the person asks what their foreign payments, card purchases abroad, PayPal fees or currency conversion cost them, or how to pay less for them. To show it, call make_canvas with a table or number block whose query is q foreign_costs (the same numbers, drawn so the person can pin it). Amounts named Minor are home-currency minor units. Quote words as they are; when guidance is present, the general ways to lower the cost come from it (never name another provider, never tell the person to leave PayPal, never forecast a rate). Information only.",
+    description: "Past 12 months’ PayPal fees and conversion markup by client, and foreign card costs by card. Quote the words and use returned guidance without naming other providers or forecasting exchange rates. The foreign_costs query draws a canvas.",
     run: async ctx => {
       const costs = await foreignCosts(ctx.db, ctx.householdId);
       const nothing = costs.chargeTotals.count === 0 && costs.payoutTotals.count === 0;
@@ -440,7 +440,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "draft_invoice", scope: "draft", input: draftInput,
-    description: "Save a local USD invoice draft for the user to review; nothing is sent. amount is dollars, like 18.52. id is a new UUID; reuse the same id when retrying. client_id comes from list_clients_and_cards.",
+    description: "Draft a USD invoice for review. amount is dollars. Get client_id from list_clients_and_cards. Use a new UUID and reuse it on retry.",
     run: async (ctx, input) => {
       const id = await saveInvoiceDraft(ctx.db, ctx.householdId, input, by(ctx));
       const href = new URL("/invoices/" + id, ctx.appUrl).href;
@@ -450,7 +450,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bill", scope: "draft", input: addBillInput,
-    description: `Add a bill the user tells you about (period_start and period_end name the month or dates it covers when known: "November's electricity"; the bill still counts on its due date). It waits in To check until the user confirms it; it does not count yet. amount is a plain number in the household's home currency (3800 for ¥3,800), or null when the user does not know it yet. due is YYYY-MM-DD, or null when the user does not know the date yet. A bill with a missing amount or date is saved anyway and shows in open_gaps until it is filled in. memberId is null for a household bill. repeat is "month" when the bill repeats every month on the due date's day (rent, phone, a subscription), "year" when it repeats every year on the due date's month and day (insurance, a domain, an annual plan), null for a one-off; it only starts repeating once the user confirms it. next_amount with next_amount_from says the amount changes from that date (a rent increase, a price rise; needs repeat, and the date is after the due date). cancel_by is the last day to cancel before the bill is charged again: the app shows it as a dated reminder and never cancels anything; it must be before the next time the bill is charged. repeat_until is the last day a repeating bill may be charged (a gym that ends after December: its December due date); nothing after it counts; null = it goes on. In a household of two or more people, shared is true when the bill is split between them and paidBy is the display name of the person who pays it (every month, for a monthly bill); otherwise leave both null. A shared bill has no memberId. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the name and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. id is a new UUID; reuse the same id when retrying.`,
+    description: "Draft a bill for To check. Use a new UUID and reuse it on retry. A shared bill needs two people, paidBy by display name, and memberId null. Otherwise leave shared and paidBy null. Only confirmed bills count.",
     run: async (ctx, input) => {
       const { bill, status, biller, note } = await prepareBill(ctx, input);
       await insertBill(ctx.db, ctx.householdId, bill, status, by(ctx));
@@ -460,7 +460,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bills", scope: "draft", input: z.object({ items: z.array(addBillInput).min(1).max(10) }),
-    description: "Add 1 to 10 bills the user tells you about in one call, when they give several at once. Each item has exactly the fields of add_bill and the same meaning (see add_bill). All of them are saved together and wait in To check until the user confirms them; if one item is invalid, none is saved and the error names the item's index (counting from 0), so fix it and send the whole list again. Each id is a new UUID; reuse the same ids when retrying.",
+    description: "Draft 1–10 bills atomically. Each item follows add_bill, including retry IDs. An error names the zero-based item.",
     run: async (ctx, input) => {
       const prepared: Awaited<ReturnType<typeof prepareBill>>[] = [];
       for (const [i, item] of input.items.entries()) prepared.push(await atItem(i, () => prepareBill(ctx, item)));
@@ -474,7 +474,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "log_charge", scope: "draft", input: logChargeInput,
-    description: `Log a card purchase the user tells you about. It waits in To check until the user confirms it. amount is a plain number in the household's home currency. date is YYYY-MM-DD (today if the user does not say). card_id comes from list_clients_and_cards. shared is true when the purchase is split between the household's people (needs two or more people and a card that belongs to one of them, who paid); false otherwise. category is one of ${CATEGORY_KEYS.join(", ")}, or null when the user did not say (the app proposes one from the merchant and the user confirms it in To check). business_bp is the part that is business, in basis points: 0 personal, 10000 all business, 3000 for 30%; null means personal. When the person says a purchase was in another currency, give the amount they paid in it as original_amount with original_currency (USD or JPY, different from the card's currency), and the billed home-currency amount in amount if they know it; if they know only the foreign amount, ask for the billed amount (clarify) rather than converting it yourself. id is a new UUID; reuse the same id when retrying.`,
+    description: "Draft a card purchase for To check. amount is in the household’s home currency. date defaults to today. Get cardId from list_clients_and_cards. Shared requires two people and a member’s card. Ask for the billed amount if only the foreign amount is known. Reuse the UUID on retry.",
     run: async (ctx, input) => {
       const { charge, merchant, note } = prepareCharge(input);
       await insertCharge(ctx.db, ctx.householdId, charge, "pending", ctx.source ?? "manual", by(ctx));
@@ -484,7 +484,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "log_charges", scope: "draft", input: z.object({ items: z.array(logChargeInput).min(1).max(10) }),
-    description: "Log 1 to 10 card purchases the user tells you about in one call, when they give several at once. Each item has exactly the fields of log_charge and the same meaning (see log_charge). All of them are saved together and wait in To check until the user confirms them; if one item is invalid, none is saved and the error names the item's index (counting from 0), so fix it and send the whole list again. Each id is a new UUID; reuse the same ids when retrying.",
+    description: "Draft 1–10 card purchases atomically. Each item follows log_charge, including retry IDs. An error names the zero-based item.",
     run: async (ctx, input) => {
       const prepared = input.items.map(prepareCharge);
       const maker = by(ctx);
@@ -497,7 +497,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_pot", scope: "draft", input: potInput.pick({ id: true, name: true, target: true, targetDate: true, fillPct: true }),
-    description: "Suggest a pot, money set aside with a reason, only when the user talks about saving for something or a payment just landed and they ask what to do. It waits in To check until the user confirms it; money in a pot is not safe to spend once confirmed. name is the reason (Car, Trip, Tax). target is a plain number in the household's home currency, or null. targetDate is YYYY-MM-DD, or null. fillPct is the share of each client payment to set aside, such as 25 for 25 percent, or null. id is a new UUID; reuse the same id when retrying.",
+    description: "Draft a savings pot for To check. target is in home currency. targetDate and fillPct (% of each client payment) are optional. Use a new UUID and reuse it on retry.",
     run: async (ctx, input) => {
       await savePot(ctx.db, ctx.householdId, { ...input, saved: "0", memberId: null }, "pending", by(ctx));
       ctx.onPending?.();
@@ -506,7 +506,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "update_bank_balance", scope: "draft", input: bankBalanceInput,
-    description: "Update the household's bank balance to the amount the user tells you. It waits in To check until the user confirms it; the balance does not change yet. amount is the new balance as a plain number in the household's home currency (182000 for ¥182,000; a negative number if overdrawn). id is a new UUID; reuse the same id when retrying.",
+    description: "Draft the stated bank balance for To check. amount is in home currency and may be negative. Use a new UUID and reuse it on retry.",
     run: async (ctx, input) => {
       await setBankBalance(ctx.db, ctx.householdId, input, "pending", by(ctx));
       ctx.onPending?.();
@@ -524,28 +524,37 @@ export const tools: Tool[] = [
 
 /**
  * The tool's input as a JSON Schema for the Messages API with strict tool use: every property required (optional
- * ones are nullable in the zod schema), no extra properties, constraints the API ignores moved into descriptions.
+ * ones are nullable in the zod schema), no extra properties, and the runtime Zod schema retains validation bounds. Bulk item guidance and enum lists live on the single-item tool.
  */
 export function toolInputSchema(tool: Tool): Record<string, unknown> {
   const raw = zodToJsonSchema(tool.input, { $refStrategy: "none" }) as Record<string, unknown>;
   delete raw.$schema;
-  return strictJsonSchema(strictShape(raw));
+  return strictJsonSchema(strictShape(raw, tool.name !== "add_bills" && tool.name !== "log_charges"));
 }
 
 // type: ["string", "null"] becomes anyOf, and every object lists all of its properties as required.
-function strictShape(node: unknown): Record<string, unknown> {
+function strictShape(node: unknown, keepDescriptions: boolean): Record<string, unknown> {
   const schema = { ...(node as Record<string, unknown>) };
+  // These are validated by Zod. Sending them here makes the SDK spell them out as repeated prose.
+  for (const key of ["default", "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "pattern", "multipleOf", "maxItems"])
+    delete schema[key];
+  if (!keepDescriptions) {
+    delete schema.description;
+    delete schema.enum;
+  }
   if (Array.isArray(schema.type)) {
     const { type, description, ...rest } = schema;
-    const variants = (type as string[]).map(t => t === "null" ? { type: "null" } : strictShape({ ...rest, type: t }));
+    const variants = (type as string[]).map(t => t === "null" ? { type: "null" } : strictShape({
+      ...rest, type: t, ...(Array.isArray(rest.enum) && { enum: rest.enum.filter(value => value !== null) }),
+    }, keepDescriptions));
     return { ...(description === undefined ? {} : { description }), anyOf: variants };
   }
   if (schema.properties) {
-    const props = Object.fromEntries(Object.entries(schema.properties as Record<string, unknown>).map(([k, v]) => [k, strictShape(v)]));
+    const props = Object.fromEntries(Object.entries(schema.properties as Record<string, unknown>).map(([k, v]) => [k, strictShape(v, keepDescriptions)]));
     schema.properties = props;
     schema.required = Object.keys(props);
   }
-  if (schema.items) schema.items = strictShape(schema.items);
-  if (Array.isArray(schema.anyOf)) schema.anyOf = schema.anyOf.map(strictShape);
+  if (schema.items) schema.items = strictShape(schema.items, keepDescriptions);
+  if (Array.isArray(schema.anyOf)) schema.anyOf = schema.anyOf.map(item => strictShape(item, keepDescriptions));
   return schema;
 }

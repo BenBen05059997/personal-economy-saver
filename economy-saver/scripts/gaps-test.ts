@@ -18,7 +18,7 @@ import { InputError } from "@/db/input-error";
 import { reviewReading } from "@/db/readings";
 import { seedBen } from "@/db/seed";
 import { loadSpending } from "@/db/spending";
-import { tools, type ToolContext } from "@/lib/agent/tools";
+import { toolInputSchema, tools, type ToolContext } from "@/lib/agent/tools";
 import { readingForm, readingUnknown } from "@/lib/reader/form";
 import { sharedBillsComing } from "@/lib/money/family";
 import { GAP_HISTORY, URGENT_DAYS, confirmedGaps, gapAmountWords, gapCountedWords, gapDateWords, gapEstimate, gapMeanwhileWords, gapQuestion, gapUncountedWords, gapUrgencyWords, openGaps, type Gap } from "@/lib/money/gaps";
@@ -562,7 +562,8 @@ async function main() {
     const state = await loadMoneyState(store, hid, TODAY);
     assert.equal(state.bills.find(b => b.id === id)!.uncounted, true);
     assert.ok(openGaps(state).some(g => g.id === id && g.status === "pending"));
-    assert.match(tool("add_bill").description, /null when the user does not know it yet/);
+    const properties = toolInputSchema(tool("add_bill")).properties as Record<string, { description: string }>;
+    for (const field of ["amount", "due"]) assert.match(properties[field].description, /null if unknown/i);
     const timelineJson = JSON.parse(await tool("timeline").run(ctx, tool("timeline").input.parse({ scenario: "as_usual" }) as never)) as { events: { label: string; uncounted?: true }[] };
     assert.ok(timelineJson.events.filter(e => e.label === "Minato Cloud").every(e => e.uncounted === true));
   });

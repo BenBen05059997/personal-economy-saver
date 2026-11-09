@@ -6,14 +6,14 @@ import { resolveMemorySpace } from "@/db/history";
 import { InputError } from "@/db/input-error";
 import { DEVICE_MEMORY_WORDS, readPlaces } from "@/db/place";
 import { addMemoryItem, forgetMemoryItem, inMemoryScope, MAX_MEMORY_CHANGES } from "@/lib/store/memory-ops";
-import { MEMORY_KIND_KEYS, MEMORY_KINDS, MemoryKind, MemoryText } from "@/lib/schema/memory";
+import { MEMORY_KINDS, MemoryKind, MemoryText } from "@/lib/schema/memory";
 import type { Tool, ToolContext } from "./tools";
 
 const by = (ctx: ToolContext) => ({ madeBy: ctx.madeBy, ...(ctx.askId && { askId: ctx.askId }) });
 
 const remember = z.object({
-  kind: MemoryKind.describe(`One of: ${MEMORY_KIND_KEYS.map(k => `${k} (${MEMORY_KINDS[k].help.toLowerCase()})`).join("; ")}`),
-  text: MemoryText.describe("The person's own words, short, in plain language. Never a number a tool gave, a key, a password, or a card or account number."),
+  kind: MemoryKind,
+  text: MemoryText.describe("The person’s own words, without secrets."),
 });
 /** True when the household keeps its memory on one device and this call has no list from it (MCP, or a stale page): the tools do not touch the cloud then. */
 const onAnotherDevice = async (ctx: ToolContext) => !ctx.deviceMemory && (await readPlaces(ctx.db, ctx.householdId)).memory === "device";
@@ -29,7 +29,7 @@ const forget = z.object({ id: z.string().uuid().describe("The id of the remember
 export const memoryTools: Tool[] = [
   {
     name: "remember",
-    description: "Remember something the person asked you to remember, or a lasting fact, preference, goal or standing instruction about their money life they told you. Say in your answer what you remembered. It is shown on their Memory page, where they can change or delete it.",
+    description: "Keep what the person explicitly asks you to remember. Say what you kept.",
     input: remember, scope: "draft",
     run: async (ctx: ToolContext, input: z.infer<typeof remember>) => {
       if (ctx.canRemember === false) throw new InputError("Use Keep this? unless the person asks to remember it.");
@@ -65,7 +65,7 @@ export const memoryTools: Tool[] = [
   },
   {
     name: "recall",
-    description: "Read the profile and, in Ask, the current space notes. With space, read only the named space's notes. Returns JSON with id, kind, text and createdAt for each item.",
+    description: "Read Profile and current Ask notes. An explicit space selects only its notes.",
     input: recall, scope: "read",
     run: async (ctx: ToolContext, { space }: z.infer<typeof recall>) => {
       if (await onAnotherDevice(ctx)) return DEVICE_MEMORY_WORDS;

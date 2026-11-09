@@ -377,8 +377,7 @@ async function main() {
       for (const name of ["add_bill", "log_charge"]) {
         const schemaOf = toolInputSchema(tool(name)) as unknown as { required: string[]; properties: Record<string, { anyOf: { enum?: string[]; type: string }[]; description?: string }> };
         assert.ok(schemaOf.required.includes("category") && schemaOf.required.includes("business_bp"), `${name} lists both`);
-        assert.ok(CATEGORY_KEYS.every(key => schemaOf.properties.category.description!.includes(key)), `${name}'s category field lists the fourteen keys`);
-        assert.ok(CATEGORY_KEYS.every(key => tool(name).description.includes(key)), `${name} names every key in its description`);
+        assert.ok(CATEGORY_KEYS.every(key => JSON.stringify(schemaOf.properties.category).includes(key)), `${name}'s schema lists all fourteen keys`);
         assert.equal(tool(name).scope, "draft");
       }
       assert.throws(() => tool("add_bill").input.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", memberId: null, repeat: null, shared: null, paidBy: null }));

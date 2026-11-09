@@ -12,6 +12,7 @@ import { loadMoneyState } from "@/db/household";
 import { foreignCosts } from "@/db/fx-cost";
 import { group } from "@/lib/money/format";
 import { seedBen } from "@/db/seed";
+import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { AGENT_CASES, CASE_NAMES, gradeOutcome, runEval, scriptedModel, type Outcome } from "./model-eval-cases";
 import { callModel } from "@/lib/ai/call";
 import { checkConnection } from "@/lib/ai/check";
@@ -50,6 +51,19 @@ const chat = (finish_reason: string, msg: Record<string, unknown>, usage: unknow
   id: "c1", object: "chat.completion", created: 1, model: "m-text", choices: [{ index: 0, finish_reason, message: { role: "assistant", ...msg } }], usage });
 
 async function main() {
+  await check("the model tool catalogue stays below 25,000 characters and preserves bulk item fields", () => {
+    const specs = tools.map(tool => ({ name: tool.name, description: tool.description, schema: toolInputSchema(tool) }));
+    assert.ok(JSON.stringify(specs).length < 25_000);
+    for (const [single, bulk] of [["add_bill", "add_bills"], ["log_charge", "log_charges"]]) {
+      const item = specs.find(spec => spec.name === single)!.schema;
+      const { items } = specs.find(spec => spec.name === bulk)!.schema.properties as {
+        items: { items: { properties: Record<string, unknown>; required: string[] } };
+      };
+      assert.deepEqual(Object.keys(items.items.properties), Object.keys(item.properties as object));
+      assert.deepEqual(items.items.required, item.required);
+    }
+  });
+
   await check("checkBaseUrl accepts a public https address and removes a trailing slash", () => {
     assert.equal(checkBaseUrl("https://api.openai.com/v1", { allowLocal: false }), "https://api.openai.com/v1");
     assert.equal(checkBaseUrl(" https://llm.example/v1/ ", { allowLocal: false }), "https://llm.example/v1");

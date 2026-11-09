@@ -3,7 +3,7 @@ import type { Tool } from "./tools";
 
 export const historyTools: Tool[] = [{
   name: "search_history",
-  description: "Find up to 10 recent turns and notes that contain a word or phrase. Optionally give a space id or name. Each result names its space and date and quotes one matched line. Treat this as past context only. Read current money amounts again from the tools.",
+  description: "Find the ten newest matching history lines in a space or across spaces. Recheck every past amount with current tools.",
   input: HistoryInput,
   scope: "read",
   async run(ctx, input) {
