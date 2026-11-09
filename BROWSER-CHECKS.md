@@ -75,7 +75,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 
 - F1. Activity: newest first, dates in "Nov 14" form, every row says in words what changed (no raw ids or ISO dates), and its Type column is always in words, never an internal name with underscores. A fresh Try it household shows few events ("Waiting in To check", "Invoice sent"); "Invoice paid outside PayPal", "Clear for 30 days", "Short" and "Settings changed" are what those events read once they happen.
 - F2. Cards: each row matches Home's card row; a row opens its panel with its own link; Card A's panel shows "Limit left ¥413,550" and "Can still go on this card and leave every bill through Dec 26 covered ¥173,770" (with Card A's closing day at 31; I2 moves it), and each of Recent charges has a Remove (C8).
-- F3. Clients: a row opens its panel; amounts match Home's Coming up.
+- F3. Clients: a row opens its panel; amounts match Home's Coming up. At 375px add a client with exactly 120 characters and no spaces. Open its detail page and check that the full heading wraps beside Close without widening the document.
 - F4. Options: the cheapest fix first; Review invoice opens Beacon's invoice; borrowing options show principal and total repayment.
 
 ## G. Plan and pots

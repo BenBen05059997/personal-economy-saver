@@ -1043,5 +1043,14 @@ await step("action", "stage15b-three-field-bill-with-guessed-defaults", async ()
     expect(refused.response.status === 400 && refused.body === "Choose a bill of this household", "s19b-foreign-id");
   });
 }
+await step("action", "client-detail-accepts-the-full-120-character-name", async () => {
+  const id = randomUUID();
+  const name = "LongClient".repeat(12);
+  const added = await request("/api/clients", { method: "POST", form: { id, name, email: "long-client@example.com", termsDays: "30" } });
+  expect(added.response.status === 303 && added.response.headers.get("location") === `/clients/${id}`, "long-client-saved");
+  const detail = await page(`/clients/${id}`, /Work and invoices/);
+  expect(pageContent(detail).includes(name), "long-client-detail-name");
+});
+
 console.log(`${failures ? "FAIL" : "PASS"} summary ${failures} failed`);
 process.exitCode = failures ? 1 : 0;
