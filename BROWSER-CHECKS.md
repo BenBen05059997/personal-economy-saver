@@ -103,7 +103,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 - I3. Export my data → a file `personal-economy-saver-2026-11-14.json` downloads; it opens as JSON with the household, cards, bills, clients and events, and no AI key, tokens, sign-in email or uploaded files (clients' billing emails are the household's own data and belong in it).
 - I4. Settings → Your AI model: section Y.
 - I5. Needs `MCP_TOKEN_KEY`: Connect another AI assistant → Create key → the key is shown once (the endpoint and "bearer token" sit under For developers); an MCP client can call `where_am_i` and `who_owes_whom`, and `draft_invoice` opens as a draft in the app.
-- I6. Settings → Account → Reset to Ben's starting numbers asks "Everything you added goes. Reset?"; Keep changes nothing. Reset returns to Home with Ben's expected numbers. The fetch form receives 204 with `x-form-redirect: /`.
+- I6. Settings → Account → Reset to Ben's starting numbers asks "Everything you added goes. Reset?"; Keep changes nothing. Reset returns to Home with Ben's expected numbers. Network shows a single Reset POST with `x-form-fetch: 1`, a 204 with `x-form-redirect: /`, then one navigation to Home.
 - I7. Needs a signed-in account: Account → Delete household → everything is gone, including uploaded files.
 
 ## J. Upload and forwarded email

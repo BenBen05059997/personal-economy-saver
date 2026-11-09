@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
 
 /** Try it households only: a two-step reset, asked on the page itself (no confirm() dialog). */
 export function ResetDemo() {
-  const router = useRouter();
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -15,9 +14,12 @@ export function ResetDemo() {
     setBusy(true);
     setMessage("");
     try {
-      const response = await fetch("/api/try/reset", { method: "POST" });
-      if (response.ok) { router.push("/"); router.refresh(); return; }
-      setMessage(await response.text());
+      const response = await fetch("/api/try/reset", {
+        method: "POST", headers: { [FORM_FETCH_HEADER]: "1" }, redirect: "error",
+      });
+      const destination = response.headers.get(FORM_REDIRECT_HEADER);
+      if (response.status === 204 && destination) { window.location.assign(destination); return; }
+      setMessage(response.ok ? "Couldn’t open Home after reset. Reload to try again." : await response.text());
     } catch { setMessage("Couldn’t reset. Check your connection and try again."); }
     setBusy(false);
     setAsking(false);

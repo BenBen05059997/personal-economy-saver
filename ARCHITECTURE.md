@@ -623,6 +623,8 @@ One Supabase project and one PayPal sandbox app serve both local development and
 
 ### Reset and deletion
 
+The Settings Reset control sends `x-form-fetch: 1` and navigates once to the destination in the 204 response’s `x-form-redirect` header.
+
 Reset (`/api/try/reset`), sign-in upgrade, Delete everything (`deleteOwnedHousehold`, the signed-in owner of a non-demo household) and the demo
 sweep lock the household before removing its Vault key (`deleteHouseholdKey`) and private Storage objects (`removeHouseholdDocuments`), then delete
 the row; the schema's cascades remove everything else. Database pointers remain when cleanup fails so a retry can finish. Storage removal is

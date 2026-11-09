@@ -89,8 +89,10 @@ async function events() {
   expect(Array.isArray(data.events) && Number.isInteger(data.feed?.unread), "events-shape");
   return data;
 }
-function adopt(result) {
-  expect(result.response.status === 303 && result.response.headers.get("location") === "/", "session-redirect");
+function adopt(result, fetchForm = false) {
+  const { status, headers } = result.response;
+  expect(fetchForm ? status === 204 && headers.get("x-form-redirect") === "/" && !headers.has("location") && result.body === ""
+    : status === 303 && headers.get("location") === "/", "session-redirect");
   const next = result.response.headers.get("set-cookie")?.match(/(?:^|,\s*)household=([^;]+)/)?.[1];
   expect(next && /^[0-9a-f-]{36}$/i.test(next), "session-cookie");
   cookie = "household=" + next;
@@ -813,9 +815,9 @@ await step("page", "settings-reload-saved-name", async () => {
   const flightField = /"name"\s*:\s*"name"[^}]*"(?:defaultValue|value)"\s*:\s*"Fictional Check"/.test(flight(html));
   expect(htmlField || flightField, "saved-name-field");
 });
-await step("action", "reset-fictional-session", async () => {
+await step("action", "reset-fetch-form-gets-one-redirect-destination", async () => {
   const old = cookie;
-  adopt(await request("/api/try/reset", { method: "POST" }));
+  adopt(await request("/api/try/reset", { method: "POST", extraHeaders: { "x-form-fetch": "1" } }), true);
   expect(cookie !== old && cookie !== firstCookie, "reset-fresh-session");
 });
 await step("page", "home-after-reset-18780", () => page("/", /18,780/));
