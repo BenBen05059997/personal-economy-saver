@@ -4333,7 +4333,7 @@
   {
     "id": "CONV-007",
     "area": "Conversation",
-    "action": "Delete one turn from Settings → Your data",
+    "action": "Delete one saved turn in Ask",
     "user_goal": "I want to remove a single answer",
     "type": "happy",
     "priority": "P3",
@@ -4344,19 +4344,22 @@
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
       "A working model (the server's or the Codex bridge)",
-      "Two turns saved"
+      "Two turns saved in a space with a brief"
     ],
     "steps": [
-      "Open Settings → Your data",
-      "Delete one turn"
+      "Open the first turn’s Delete in Ask and choose Keep",
+      "Open it again, confirm Delete and reload the space",
+      "Repeat with Ask conversations on this device"
     ],
     "expected": [
-      "Only that turn is removed; the count falls by one and the other stays in Ask"
+      "Keep leaves both turns in the space",
+      "Delete removes only that turn and the other turn and brief stay after reload",
+      "With the journal on this device, no request goes to /api/data"
     ],
     "refs": [
       "D59",
       "db:data-test",
-      "BROWSER-CHECKS AA"
+      "BROWSER-CHECKS AA15"
     ]
   },
   {

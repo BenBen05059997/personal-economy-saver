@@ -503,6 +503,8 @@ Deleting Ask conversations in Your data removes named spaces with their cloud th
 Deleting the device journal clears its local turns and briefs. Delete spaces one at a time in Memory → Spaces.
 
 **Export and Import (D44, D59).** `loadHouseholdSnapshot` (`src/db/snapshot.ts`) is the only builder: one read transaction, `requireHousehold`,
+A saved turn’s Delete removes only that turn. Cloud journals post `delete_one` for `journal` to `/api/data` and return to
+the space. Device journals delete the turn by id in IndexedDB without a request.
 named columns (it never selects a secret or pointer column), and it parses its own result. `/api/export` (a POST form, so nothing is in a URL)
 downloads the version 3 snapshot with `events`, `memory`, `canvases`, `spaces` and `journal`. `ExportData.tsx` adds this device's items to the file in the
 browser before it is saved when a kind is kept on the device. Local brief and update metadata go into their matching space entries. `/api/restore` accepts version 2 and version 3 files (at most 1 MB) into an empty household

@@ -369,6 +369,7 @@ A fresh Try it household, then (AA5) a blank one. Settings → Your data (`/sett
 - AA13. Needs the AI settings: with memory on the device, Ask "What's due this week?" with the Preference "Answer in Japanese" saved on the device → answered in Japanese with Home's amounts; the network log shows the memory in the question's request body and nothing stored on the server (no new turn in the export's `journal`, and `/memory` still lists the device items). "Remember this in my profile from now on: rent goes up in April" → the answer says it remembered it and `/memory` (device view) lists "Rent goes up in April" with "Said in Ask · {date}"; "Forget that" removes it from the device. A thumb on an answer stays on the device when the conversations are on the device.
 - AA14. At 375px every control in Your data (the "See what it remembers ›" link, each Delete and "Keep on this device only" / "Move back to our cloud" summary, Cancel, Move, Export, the file box and "Delete everything") is at least 44px tall, and a long unbroken word in a memory item wraps in both `/memory` views.
 
+- AA15. In Ask, save two questions and replies in a space with a brief. Open the first turn’s Delete, choose Keep and check both remain. Open it again and confirm Delete. The other turn and brief stay. Reload to verify. Repeat with Ask conversations on this device and check that deleting the turn sends no request to /api/data.
 ## AB. A last payment on a repeating bill (D41)
 
 A fresh Try it household. Home → Add a bill or charge → Bill.

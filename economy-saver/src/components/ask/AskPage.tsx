@@ -25,9 +25,9 @@ import type { Place } from "@/db/place";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { DEVICE_MEMORY_SOURCE_LABEL, memorySourceLabel, type ConversationTurn, type TurnKind, type TurnSource } from "@/lib/schema/turn";
 import {
-  applyDeviceMemoryChanges, deleteDeviceConversation, deviceMemory, devicePins, listDevice, pinOnDevice, readDeviceBrief, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin, writeDeviceBrief,
+  applyDeviceMemoryChanges, deleteDeviceConversation, deleteDeviceTurn, deviceMemory, devicePins, listDevice, pinOnDevice, readDeviceBrief, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin, writeDeviceBrief,
 } from "@/lib/store/device";
-import { legacyOf, threadOf } from "@/lib/store/journal-ops";
+import { legacyOf, removeTurn, threadOf } from "@/lib/store/journal-ops";
 import { DRAFT_EVENT, takeStoredDraft } from "./draft";
 import { useSpeech } from "../voice/use-speech";
 import "./ask.css";
@@ -335,6 +335,19 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
     if (response?.ok || onDevice.journal) setTurns(current => current.map(item => (item.id === turn.id ? { ...item, thumb: next } : item)));
   }
 
+  function removeFromThread(id: string) {
+    setTurns(current => removeTurn(current, id));
+  }
+
+  async function removeLocalTurn(id: string) {
+    try {
+      await deleteDeviceTurn(householdId, id);
+      removeFromThread(id);
+    } catch (error) {
+      setProblem(wordsOf(error));
+    }
+  }
+
   function clearThread() {
     speech.stop();
     setTurns([]); setCards({}); setCanvas(null); setPrivateCanvas(null); canvasChosen.current = false; attached.current = null; setText(""); setProblem(unavailable ?? ""); requestId.current = "";
@@ -457,6 +470,9 @@ export function AskPage({ householdId, places, clock, space, spaces, earlier, le
             <button type="button" className="ui-button" aria-pressed={turn.thumb === 1} onClick={() => void thumb(turn, 1)}>Helpful</button>
             <button type="button" className="ui-button" aria-pressed={turn.thumb === -1} onClick={() => void thumb(turn, -1)}>Not helpful</button>
           </div>}
+          {!incognito && !turn.incognito && <ConfirmRemove kind="data" what="journal" id={turn.id} label="this question and reply"
+            returnTo={spaceHref} onDone={() => removeFromThread(turn.id)}
+            onRemove={onDevice.journal ? () => void removeLocalTurn(turn.id) : undefined} />}
         </li>)}
       </ol>
       {busy && <p role="status" aria-live="polite" className="ui-hint">{step || "Checking your numbers…"}</p>}

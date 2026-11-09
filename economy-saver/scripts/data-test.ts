@@ -19,7 +19,7 @@ import { addMemory, listMemory } from "@/db/memory";
 import { DEVICE_MEMORY_WORDS, itemsToMove, moveToCloud, moveToDevice, readPlaces, requireCloud } from "@/db/place";
 import { addMemoryItem, applyMemoryChanges, editMemoryItem, forgetMemoryItem } from "@/lib/store/memory-ops";
 import { MAX_PINS } from "@/lib/canvas/schema";
-import { appendTurn, movePin, pinItem, threadOf, unpinItem, updatePin, type DevicePin } from "@/lib/store/journal-ops";
+import { appendTurn, movePin, pinItem, removeTurn, threadOf, unpinItem, updatePin, type DevicePin } from "@/lib/store/journal-ops";
 import { DEVICE_MEMORY_SOURCE_LABEL, type ConversationTurn } from "@/lib/schema/turn";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { NOT_EMPTY, OLD_VERSION, restoreHousehold } from "@/db/restore";
@@ -179,6 +179,30 @@ async function main() {
       assert.equal((await listMemory(db, b)).length, 1);
       assert.equal((await listCanvases(db, b)).length, 1);
       assert.equal((await allTurns(db, b)).length, 1);
+    });
+
+    await check("deleting one saved turn keeps its space, brief, notes, pin and other turns", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const space = await createSpace(db, hid, "Fictional project");
+      const { brief } = await saveBrief(db, hid, space.id, { about: "Fictional paperwork" }, "form");
+      const note = await addMemory(db, hid, { kind: "fact", text: "Use the March folder.", spaceId: space.id }, form);
+      const pin = await pinCanvas(db, hid, { title: "Project cash", recipe: recipe("Project cash"), spaceId: space.id }, form);
+      for (const question of ["First?", "Second?"]) {
+        await saveTurn(db, hid, { id: randomUUID(), conversationId: space.id, question, kind: "answer",
+          reply: "Yes.", choices: null, recipe: null, sources: [] });
+      }
+      const saved = await allTurns(db, hid);
+      const first = saved.find(turn => turn.question === "First?")!;
+      const second = saved.find(turn => turn.question === "Second?")!;
+      assert.equal(await deleteOne(db, hid, "journal", first.id, form), true);
+      const snapshot = await loadHouseholdSnapshot(db, hid, { events: false, stored: true });
+      assert.deepEqual(snapshot.journal?.map(turn => turn.id), [second.id]);
+      assert.deepEqual(snapshot.spaces?.find(item => item.id === space.id)?.brief, brief);
+      assert.ok(snapshot.memory?.some(item => item.id === note.id));
+      assert.ok(snapshot.canvases?.some(item => item.id === pin.id));
+      assert.deepEqual(removeTurn(saved, first.id), [second]);
+      assert.deepEqual(removeTurn(saved, randomUUID()), saved);
+      assert.equal(saved.length, 2, "the browser operation leaves the original list intact");
     });
 
     await check("delete a conversation removes its turns only", async () => {
