@@ -336,13 +336,42 @@ Settings → Your AI model (`/settings#ai-model`, a panel in the right column at
 - Y7. Needs a saved model: "Use this app’s default" clears the model and the key → the panel returns to Y1's lines, the host line shows the server's host again, and Ask works through the server's connection.
 - Y8. `/privacy`, in a private window and signed in: under "Who processes it" the AI model provider line reads "By default, questions and documents go to {host}." (the server's host) or "This server has no AI model set up." (after a moment, once it has read the server's settings), then says that a model chosen in Settings sends them to the host shown there. After Y6, Settings shows that host.
 
-- Y9. At 1440px with “This app’s default” selected, paste a fictional key. Test each prefix separately in a fresh form. `sk-ant-` selects Anthropic, `sk-or-` selects OpenRouter, `gsk_` selects Groq and `AIza` selects Google Gemini. In the Network panel verify that selecting the provider from the paste makes no request. Leave the form unsaved.
-- Y10. At 1440px paste a fictional plain `sk-` key while Provider is on “This app’s default”. The selection stays on the default. Choose OpenAI yourself. Paste a different fictional key with the `sk-ant-` prefix and check that OpenAI stays selected. Leave the form unsaved.
+- Y9. At 1440px with “This app’s default” selected, paste a fictional key. Test each prefix separately in a fresh form. `sk-ant-` selects Anthropic, `sk-or-` selects OpenRouter, `gsk_` selects Groq and `AIza` selects Google Gemini. Use the fictional catalogue interception below. The provider selection updates from the prefix before the separate model-list POST. Leave the form unsaved.
+- Y10. At 1440px with the fictional catalogue interception below, paste a fictional plain `sk-` key while Provider is on “This app’s default”. The selection stays on the default. Choose OpenAI yourself. Paste a different fictional key with the `sk-ant-` prefix and check that OpenAI stays selected. Leave the form unsaved.
 - Y11. `db:ai-test` checks the four distinctive prefixes, a plain `sk-` key and preservation of an explicit provider.
 
 - Y12. `db:ai-test` exercises the provider model lists using fictional responses. It checks listed endpoints, a validated custom address, redirects and the timeout, and model ids with reported capability flags. Missing flags stay unknown. Tested entries sort first when present.
 - Y13. `db:settings-test` covers the one-use model list route. A typed key is used for that request. An empty key field reuses a saved key only for the same provider and address. The response is private and no-store. The 4 KiB form cap and the independent limit of 20 lists per minute still apply. Provider key, credit and connection failures return fixed words.
 - Y14. `db:members-test` checks that a member’s model-list request returns 403. `db:isolation-test` checks that a household cannot list models with another household’s Vault key even if the saved pointer names it.
+
+- Y15. At 1440px with the fictional catalogue below, choose Anthropic and type a fictional key into Key without pausing. “Loading models…” appears. The interceptor logs one model-list POST after typing stops. The question field lists `fictional-tested · Tested` and `fictional-unknown` when Use the same model for documents is checked.
+- Y16. Untick Use the same model for documents. The questions list adds `fictional-text` and the document list includes `fictional-image`. Neither list excludes `fictional-unknown` because its capabilities are unreported. Choose the tested entry and verify the field holds the model ID `fictional-tested`.
+- Y17. Type an unlisted model ID in either field. The field keeps the typed ID. The form accepts typing while it loads, after a list response, and after a failure.
+- Y18. Set `window.qaModelListRefused = true` in the console and change the fictional key. The line reads “The key was refused by Anthropic.” Both model fields still accept typed IDs. Leave the form unsaved.
+- Y19. After loading a list with a typed Anthropic key, change Provider to OpenAI. Key clears and the form waits for a new key before listing for OpenAI.
+- Y20. `db:settings-test` checks that an obsolete lookup is cancelled and cannot replace the current catalogue. It also checks that unreported capabilities keep a model in each applicable chooser.
+
+For Y9, Y10 and Y15–Y19, install the interception below in the browser console on the Settings page before entering the fictional key. It responds to the app’s catalogue POST in the tab and keeps it from reaching the server. Reinstall after reloading. The fixture supplies a marked entry while the app’s tested list is empty. Reload after the checks to remove the interception.
+
+```js
+const fetchBeforeModelQA = window.fetch;
+window.fetch = async (input, init) => {
+  if (input !== "/api/settings/ai-model/models" || init?.method !== "POST") {
+    return fetchBeforeModelQA.call(window, input, init);
+  }
+  console.count("Fictional model-list POST");
+  await new Promise(resolve => setTimeout(resolve, 800));
+  if (window.qaModelListRefused) {
+    return new Response("The key was refused by Anthropic.", { status: 502 });
+  }
+  return Response.json({ models: [
+    { id: "fictional-tested", tools: true, images: true, tested: true },
+    { id: "fictional-unknown", tested: false },
+    { id: "fictional-text", tools: true, images: false, tested: false },
+    { id: "fictional-image", tools: false, images: true, tested: false },
+  ] });
+};
+```
 
 ## Z. The conversation (D60)
 

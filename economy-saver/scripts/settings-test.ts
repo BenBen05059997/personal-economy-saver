@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import Module from "node:module";
+import { setImmediate as nextTask } from "node:timers/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
@@ -11,6 +12,7 @@ import * as schema from "@/db/schema";
 import { missingAskSetting } from "@/lib/agent/availability";
 import { AiKeyError, deleteHouseholdConnection, deleteHouseholdKey, aiConnection, connectionView, saveHouseholdConnection, unsealAiKey } from "@/db/ai-key";
 import { checkConnection } from "@/lib/ai/check";
+import { modelsFor, scheduleModelChoices } from "@/components/settings/model-choices";
 import { fakeModel, type FakeMode } from "./ai-fake";
 import { seedBen } from "@/db/seed";
 import { parseMinor } from "@/db/money";
@@ -490,6 +492,70 @@ async function main() {
         loader._load = realLoad;
         globalThis.fetch = realFetch;
       }
+    });
+    await check("model choosers exclude only explicit capability mismatches for their intended use", async () => {
+      const models = [
+        { id: "unknown", tested: false },
+        { id: "both", tools: true, images: true, tested: true },
+        { id: "questions-only", tools: true, images: false, tested: false },
+        { id: "documents-only", tools: false, images: true, tested: false },
+        { id: "neither", tools: false, images: false, tested: false },
+        { id: "tools-unknown", images: true, tested: false },
+        { id: "images-unknown", tools: true, tested: false },
+      ];
+      const ids = (items: readonly { id: string }[]) => items.map(model => model.id);
+      assert.deepEqual(ids(modelsFor(models, "questions", false)), ["unknown", "both", "questions-only", "tools-unknown", "images-unknown"]);
+      assert.deepEqual(ids(modelsFor(models, "documents", false)), ["unknown", "both", "documents-only", "tools-unknown", "images-unknown"]);
+      assert.deepEqual(ids(modelsFor(models, "questions", true)), ["unknown", "both", "tools-unknown", "images-unknown"]);
+    });
+
+    await check("model chooser requests coalesce and cannot apply a late result after cancellation", async () => {
+      const seen: Request[] = [];
+      const staleResponse = Promise.withResolvers<Response>();
+      const staleStarted = Promise.withResolvers<void>();
+      const models = [{ id: "current-model", tested: true }];
+      const fakeFetch: typeof globalThis.fetch = async (input, init) => {
+        assert.equal(typeof input, "string");
+        const request = new Request(new URL(String(input), APP), init);
+        seen.push(request);
+        if (seen.length === 1) {
+          staleStarted.resolve();
+          return staleResponse.promise;
+        }
+        return Response.json({ models });
+      };
+      const form = (key: string) => () => new URLSearchParams({ provider: "openrouter", baseUrl: "", key });
+      const opts = { fetch: fakeFetch, delayMs: 0 };
+      const unexpected = () => assert.fail("a cancelled schedule must not deliver a result");
+      scheduleModelChoices(form("fictional-first-keystroke"), unexpected, opts)();
+      scheduleModelChoices(form("fictional-second-keystroke"), unexpected, opts)();
+      let staleCalls = 0;
+      const cancelStale = scheduleModelChoices(form(fictional), () => { staleCalls++; }, opts);
+      await staleStarted.promise;
+      assert.equal(seen.length, 1);
+      cancelStale();
+      const latest = new Promise(resolve => { scheduleModelChoices(form(""), resolve, opts); });
+      assert.deepEqual(await latest, { models, problem: "" });
+      staleResponse.resolve(Response.json({ models: [{ id: "stale-model", tested: false }] }));
+      await nextTask();
+      assert.equal(staleCalls, 0);
+      assert.equal(seen.length, 2);
+      assert.equal(seen[0].signal.aborted, true);
+      for (const [request, key] of [[seen[0], fictional], [seen[1], ""]] as const) {
+        assert.deepEqual([request.method, request.cache, new URL(request.url).pathname], ["POST", "no-store", "/api/settings/ai-model/models"]);
+        assert.deepEqual(Object.fromEntries(await request.formData()), { provider: "openrouter", baseUrl: "", key });
+      }
+    });
+
+    await check("model chooser problems use the route's fixed words or a safe message that leaves typing available", async () => {
+      const read = (fetch: typeof globalThis.fetch) => new Promise(resolve => {
+        scheduleModelChoices(() => new URLSearchParams({ provider: "openrouter", key: fictional }), resolve, { fetch, delayMs: 0 });
+      });
+      const refused = "The key was refused by OpenRouter.";
+      assert.deepEqual(await read(async () => new Response(refused, { status: 502 })), { models: [], problem: refused });
+      const problem = "Couldn’t load models. You can type a model ID.";
+      assert.deepEqual(await read(async () => new Response(null, { status: 503 })), { models: [], problem });
+      assert.deepEqual(await read(async () => { throw new Error(fictional); }), { models: [], problem });
     });
     console.log(`${passed}/${passed} settings and AI-key contract checks passed.`);
   } finally {

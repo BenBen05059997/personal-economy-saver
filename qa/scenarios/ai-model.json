@@ -12,7 +12,8 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "This app’s default is selected and the Network panel is open"
+      "This app’s default is selected",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
     ],
     "steps": [
       "Paste sk-ant-fictional-placeholder into Key",
@@ -20,7 +21,7 @@
     ],
     "expected": [
       "Provider changes to Anthropic",
-      "The paste makes no network request"
+      "The selection happens before the separate catalogue POST"
     ],
     "refs": [
       "BROWSER-CHECKS Y9",
@@ -40,7 +41,8 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "This app’s default is selected and the Network panel is open"
+      "This app’s default is selected",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
     ],
     "steps": [
       "Paste sk-or-fictional-placeholder into Key",
@@ -48,7 +50,7 @@
     ],
     "expected": [
       "Provider changes to OpenRouter",
-      "The paste makes no network request"
+      "The selection happens before the separate catalogue POST"
     ],
     "refs": [
       "BROWSER-CHECKS Y9",
@@ -68,7 +70,8 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "This app’s default is selected and the Network panel is open"
+      "This app’s default is selected",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
     ],
     "steps": [
       "Paste gsk_fictional-placeholder into Key",
@@ -76,7 +79,7 @@
     ],
     "expected": [
       "Provider changes to Groq",
-      "The paste makes no network request"
+      "The selection happens before the separate catalogue POST"
     ],
     "refs": [
       "BROWSER-CHECKS Y9",
@@ -96,7 +99,8 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "This app’s default is selected and the Network panel is open"
+      "This app’s default is selected",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
     ],
     "steps": [
       "Paste AIzafictional-placeholder into Key",
@@ -104,7 +108,7 @@
     ],
     "expected": [
       "Provider changes to Google Gemini",
-      "The paste makes no network request"
+      "The selection happens before the separate catalogue POST"
     ],
     "refs": [
       "BROWSER-CHECKS Y9",
@@ -150,7 +154,8 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "OpenAI was selected manually"
+      "OpenAI was selected manually",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
     ],
     "steps": [
       "Paste sk-ant-fictional-placeholder into Key"
@@ -324,6 +329,203 @@
     "refs": [
       "BROWSER-CHECKS Y14",
       "db:isolation-test"
+    ]
+  },
+  {
+    "id": "AIMODEL-013",
+    "area": "Your AI model",
+    "action": "Load the model list after entering a key",
+    "user_goal": "I want model choices as soon as I enter my key",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "Anthropic is selected"
+    ],
+    "steps": [
+      "Type a fictional key without pausing",
+      "Wait for the list to load"
+    ],
+    "expected": [
+      "Loading models… appears while the list is pending",
+      "The interceptor logs one model-list POST after typing stops",
+      "The shared-model list includes fictional-tested · Tested and fictional-unknown"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y15",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-014",
+    "area": "Your AI model",
+    "action": "Choose separate models for questions and documents",
+    "user_goal": "I want each list to show models suited to that job",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "The fictional model list is loaded"
+    ],
+    "steps": [
+      "Untick Use the same model for documents",
+      "Read each field’s suggestions"
+    ],
+    "expected": [
+      "Questions include fictional-text and exclude fictional-image",
+      "Documents include fictional-image and exclude fictional-text",
+      "Both lists retain fictional-unknown"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y16",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-015",
+    "area": "Your AI model",
+    "action": "Select a tested model ID",
+    "user_goal": "I want to recognise a tested model and enter its exact ID",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "The fictional model list is loaded"
+    ],
+    "steps": [
+      "Choose fictional-tested · Tested in the question field"
+    ],
+    "expected": [
+      "The field contains fictional-tested"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y16",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-016",
+    "area": "Your AI model",
+    "action": "Type a model that is absent from the list",
+    "user_goal": "I want to enter a model ID I already know",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "The fictional model list is loaded"
+    ],
+    "steps": [
+      "Type fictional-unlisted in the question field"
+    ],
+    "expected": [
+      "The field keeps fictional-unlisted"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y17",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-017",
+    "area": "Your AI model",
+    "action": "Keep manual model entry after a refused list request",
+    "user_goal": "I want the refusal explained and the form to stay usable",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "Anthropic is selected and the document model field is visible"
+    ],
+    "steps": [
+      "Set window.qaModelListRefused = true and change the fictional key",
+      "Type a model ID in each field"
+    ],
+    "expected": [
+      "The line reads The key was refused by Anthropic.",
+      "Both fields keep the typed IDs"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y18",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-018",
+    "area": "Your AI model",
+    "action": "Change the selected provider with a typed key",
+    "user_goal": "I want my typed key to stay with the provider it was meant for",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "The Anthropic list has loaded with a fictional typed key"
+    ],
+    "steps": [
+      "Change Provider to OpenAI"
+    ],
+    "expected": [
+      "The Key field clears",
+      "The form waits for a new key before listing for OpenAI"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y19",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-019",
+    "area": "Your AI model",
+    "action": "Discard an obsolete model lookup",
+    "user_goal": "I want the list to reflect what I most recently entered",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "A simulated slow model-list response"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Change the lookup while the old response is pending"
+    ],
+    "expected": [
+      "A superseded lookup cannot replace the current catalogue"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y20",
+      "db:settings-test"
     ]
   }
 ]

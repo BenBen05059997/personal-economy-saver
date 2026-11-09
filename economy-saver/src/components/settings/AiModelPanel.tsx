@@ -5,7 +5,6 @@ import { askUnavailable, missingAskSetting, serverDefaultHost } from "@/lib/agen
 import { MODEL_HINT } from "@/lib/agent/reply";
 import { CHECK_NAMES, type ConnectionCheck } from "@/lib/ai/check";
 import { PROVIDERS } from "@/lib/ai/providers";
-import { TESTED } from "@/lib/ai/tested";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { currentHouseholdId } from "@/lib/session";
 import { AiModelForm } from "./AiModelForm";
@@ -32,7 +31,7 @@ export async function AiModelPanel({ demo }: { demo: boolean }) {
     {missing ? <p className="ui-hint">{askUnavailable(missing)}</p> : host ? <p className="ui-hint">Your questions and documents go to {host}.</p> : null}
     {view ? <CheckLine tested={view.tested} check={view.check} /> : <p className="ui-hint">{MODEL_HINT}</p>}
     <AiModelForm key={view ? `${view.provider}|${view.baseUrl}|${view.textModel}|${view.documentModel}|${view.hint}` : "default"} demo={demo}
-      providers={PROVIDERS.map(p => ({ id: p.id, label: p.label }))} tested={TESTED.map(t => ({ provider: t.provider, model: t.model }))}
+      providers={PROVIDERS.map(p => ({ id: p.id, label: p.label }))}
       initial={{ provider: view?.provider ?? "", baseUrl: view?.provider === "custom" ? view.baseUrl : "", textModel: view?.textModel ?? "",
         documentModel: view?.documentModel ?? "", same: view ? view.sameForDocuments : true, hint: view?.hint ?? null }} />
     {view && <ApiForm action="/api/settings/ai-model"><input type="hidden" name="kind" value="default" /><button className="ui-button">Use this app’s default</button></ApiForm>}

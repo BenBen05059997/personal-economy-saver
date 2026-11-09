@@ -656,14 +656,21 @@ tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in produc
 In Settings, `AiModelForm` calls `providerFromKey` in the browser when the owner pastes a key with Provider still on the app’s default.
 `PROVIDERS` stores the provider key-page metadata and the distinctive prefixes `sk-ant-` (Anthropic), `sk-or-` (OpenRouter),
 `gsk_` (Groq) and `AIza` (Google Gemini). A plain `sk-` key leaves the default selected. An explicit provider choice is preserved.
-Inference uses the prefix locally and makes no request.
+Provider inference uses the prefix locally. The model-list request runs separately after the input settles.
 
 The model-list route prepares a one-use connection in `modelListConnection`. A typed key takes precedence. An empty field uses the saved
 Vault key only when the provider and normalised address match. The list request leaves the saved key untouched and keeps the typed key
 out of storage, logs and responses. `listModels` sends a GET to the provider’s fixed models endpoint or the validated custom address.
 The request refuses redirects and shares a 10-second timeout across provider pages. Reported tool and image capability is included when
 available. Missing flags stay unknown and model names carry no inferred capability. Entries marked in `TESTED` sort first. Provider
-failures use fixed app wording for the key, credit or connection problem. The Settings form currently offers its existing typed model fields.
+failures use fixed app wording for the key, credit or connection problem.
+
+`AiModelForm` uses `scheduleModelChoices` from `model-choices.ts` for a list request 350 ms after the provider, address and key
+inputs settle. The provider must be selected and a typed or matching saved key available. Superseded lookups are cancelled.
+Changing an already-selected provider or an existing custom URL clears the typed key before the form can send it to the new address.
+The question and document fields use editable datalists. A model stays in each list unless its reported tools or images flag explicitly
+rules it out for that job. With one model for both jobs, the question list checks both capabilities. Tested entries use the label
+“ID · Tested”. A loading or failure line leaves manual entry available.
 
 Optional reminder email needs `RESEND_API_KEY` and `REMINDER_FROM`. Browser push needs `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` and `WEB_PUSH_SUBJECT`. The owner generates the VAPID pair with `npm run push:keys`, which writes the two ignored local settings files without printing the keys. Only the public key goes to the browser. `/api/health` reports each channel’s setting names or readiness separately.
 
