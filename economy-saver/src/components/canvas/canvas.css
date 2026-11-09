@@ -23,6 +23,9 @@
 .canvas .is-short { color: var(--red); }
 .canvas-sentence { max-width: 30em; margin: 0; font: 400 26px/1.25 var(--serif); text-wrap: pretty; }
 .canvas-sentence a { color: inherit; text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+@media (max-width: 899px) {
+  .canvas-sentence a { display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; overflow-wrap: anywhere; }
+}
 .canvas-meter { height: 10px; border-radius: 5px; background: var(--wash); overflow: hidden; }
 .canvas-meter i { display: block; height: 100%; border-radius: 5px; background: var(--accent); }
 .canvas-goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }

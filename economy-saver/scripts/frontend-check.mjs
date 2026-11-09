@@ -409,6 +409,20 @@ const firstCookie = cookie;
 // Cold means first Home in this fresh session, not a restarted server or cleared compiler cache.
 const home = await step("page", "home-first-session", () => page("/", /18,780/));
 await step("page", "home-warm", () => page("/", /18,780/));
+await step("page", "phone-links-keep-their-own-home-and-canvas-destinations", async () => {
+  const hrefForLink = (html, name, className) => [...markup(html).matchAll(/<a\b([^>]+)>([^<]+)<\/a>/g)]
+    .filter(([, attrs, label]) => label.trim() === name && (!className || attrs.includes(`class="${className}"`)))
+    .map(([, attrs]) => /href="([^"]+)"/.exec(attrs)?.[1]);
+  const home = await page("/", /Coming up/);
+  for (const name of ["CloudBox Plus", "Mobaile Tsushin"]) {
+    expect(hrefForLink(home, name, "home-link-target").some(href => /^\/settings#bill-[0-9a-f-]{36}$/.test(href ?? "")), "home-bill-link");
+  }
+  expect(hrefForLink(home, "Card A", "home-link-target").some(href => /^\/cards\/[0-9a-f-]{36}$/.test(href ?? "")), "home-card-link");
+  const ask = await page("/canvas", /This month/);
+  const sentence = markup(ask).match(/<p class="canvas-sentence">([\s\S]*?)<\/p>/)?.[1] ?? "";
+  const clients = ["Acme", "Northwind"].map(name => hrefForLink(sentence, name)[0]);
+  expect(clients.every(href => /^\/clients\/[0-9a-f-]{36}$/.test(href ?? "")) && clients[0] !== clients[1], "canvas-client-links");
+});
 // D47: Try it arrives with every step true, so the First steps panel never shows and the demo numbers are untouched.
 await step("page", "home-try-it-has-no-first-steps", async () => {
   const html = await page("/", /18,780/);

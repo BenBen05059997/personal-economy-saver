@@ -2819,11 +2819,12 @@
       "Viewport 375px"
     ],
     "steps": [
-      "Measure links, buttons, inputs, selects and summaries on Home, Ask, To check, Upload, Plan, Memory → Rules and Settings. Include Ask question and canvas starters, Upload’s To check link, Plan’s Add a pot summary, the Rules On row, and the Email reminders and Quiet days rows"
+      "Measure links, buttons, inputs, selects and summaries on Home, Ask, To check, Upload, Plan, Memory → Rules and Settings. Include Ask question and canvas starters, Upload’s To check link, Plan’s Add a pot summary, the Rules On row, and the Email reminders and Quiet days rows",
+      "Measure and edge-tap Acme and Northwind in Ask’s This month canvas, and CloudBox Plus, Mobaile Tsushin and Card A in Home’s Coming up"
     ],
     "expected": [
       "Each box, or its ::after hit area, is at least 44px tall",
-      "Tapping the expanded area activates its own button, link, summary or checkbox",
+      "Tapping the expanded area activates its own button, link, summary or checkbox. The canvas and Coming up links cover no neighboring content",
       "The Ask row never covers the last row"
     ],
     "refs": [

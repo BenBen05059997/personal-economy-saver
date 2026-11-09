@@ -166,7 +166,8 @@
   .home-upcoming summary { display: flex; align-items: center; min-height: 44px; }
   .home-options::after, .home-panel h2 a::after, .home-card-row > a::after, .home-balance summary::after, .home-upcoming summary::after { content: ""; position: absolute; inset: -14px -8px; }
   .home-options::after { inset: -8px -8px -20px; }
-  .home-card-row > a::after { inset: -12px 0; }
+  .home-row .home-link-target { display: inline-flex; align-items: center; min-height: 44px; max-width: 100%; justify-self: start; }
+  .home-row .home-link-target::after { content: none; }
   .home-balance summary::after { inset: -20px 0 -6px; }
   .home-upcoming summary::after { inset: 0; }
   /* The demo line's Start link and the panels' small "›" links (Change closing day, Share costs) get the same 44px hit area. */
