@@ -282,7 +282,7 @@ async function main() {
       } });
       assert.equal(requests.length, 1);
       const [request] = requests;
-      assert.deepEqual([request.url, request.method, request.redirect], [url, "GET", "error"]);
+      assert.deepEqual([request.url, request.method, request.redirect, request.cache], [url, "GET", "error", "no-store"]);
       assert.equal(request.headers.get("authorization"), key ? `Bearer ${key}` : null);
       assert.equal(request.headers.get("x-api-key"), null);
       const expected = [unknown];

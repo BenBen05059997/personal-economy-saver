@@ -47,7 +47,7 @@ export async function listModels(connection: ModelListConnection, opts: { fetch?
   const cursors = new Set<string>();
   try {
     while (true) {
-      const response = await (opts.fetch ?? globalThis.fetch)(endpoint.href, { method: "GET", headers, redirect: "error", signal });
+      const response = await (opts.fetch ?? globalThis.fetch)(endpoint.href, { method: "GET", headers, redirect: "error", cache: "no-store", signal });
       const json: unknown = await response.json().catch(() => null);
       if (!response.ok) throw new ModelError("The AI service refused the request.", response.status, false, providerFailureKind(response.status, json));
       // Mistral documents model cards both as a data envelope and as a bare array.

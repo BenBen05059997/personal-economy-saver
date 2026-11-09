@@ -11,7 +11,9 @@ import { and, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { missingAskSetting } from "@/lib/agent/availability";
 import { AiKeyError, deleteHouseholdConnection, deleteHouseholdKey, aiConnection, connectionView, saveHouseholdConnection, unsealAiKey } from "@/db/ai-key";
-import { checkConnection } from "@/lib/ai/check";
+import { CHECK_NAMES, checkConnection } from "@/lib/ai/check";
+import { listModels } from "@/lib/ai/list-models";
+import { providerFailureOf, type ProviderFailureKind } from "@/lib/ai/provider-failure";
 import { modelsFor, scheduleModelChoices } from "@/components/settings/model-choices";
 import { fakeModel, type FakeMode } from "./ai-fake";
 import { seedBen } from "@/db/seed";
@@ -606,6 +608,64 @@ async function main() {
       const problem = "Couldn’t load models. You can type a model ID.";
       assert.deepEqual(await read(async () => new Response(null, { status: 503 })), { models: [], problem });
       assert.deepEqual(await read(async () => { throw new Error(fictional); }), { models: [], problem });
+    });
+    await check("the Stage 34 QA preload is opt-in and keeps its marked fictional keys on the fixture host", async () => {
+      const priorOptIn = process.env.PES_MODEL_SETTINGS_QA;
+      const originalFetch = globalThis.fetch;
+      delete process.env.PES_MODEL_SETTINGS_QA;
+      let fixture: typeof import("./model-settings-qa");
+      try {
+        fixture = await import("./model-settings-qa");
+        assert.equal(globalThis.fetch, originalFetch);
+      } finally {
+        globalThis.fetch = originalFetch;
+        if (priorOptIn !== undefined) process.env.PES_MODEL_SETTINGS_QA = priorOptIn;
+      }
+      const passthrough: string[] = [];
+      const fetch = fixture.withModelSettingsFixture(async input => {
+        passthrough.push(input instanceof Request ? input.url : String(input));
+        return new Response("Fictional unrelated transport");
+      });
+      const key = "sk-ant-fictional-stage34-good";
+      const wrongHost = "https://unrelated.example.test/v1/models";
+      await assert.rejects(fetch(wrongHost, { headers: { "x-api-key": key } }), { message: "Unexpected fictional model settings request." });
+      await assert.rejects(fetch(new Request(wrongHost, { headers: { authorization: `Bearer ${key}` } })), { message: "Unexpected fictional model settings request." });
+      await assert.rejects(fetch(wrongHost, { headers: { "x-api-key": "ordinary-fictional-key", authorization: `Bearer ${key}` } }),
+        { message: "Unexpected fictional model settings request." });
+      await assert.rejects(fetch("https://api.anthropic.com/unexpected", { headers: { "x-api-key": key } }), { message: "Unexpected fictional model settings request." });
+      assert.deepEqual(passthrough, []);
+      assert.equal(await (await fetch(wrongHost)).text(), "Fictional unrelated transport");
+      assert.deepEqual(passthrough, [wrongHost]);
+    });
+
+    await check("the Stage 34 QA transport drives the real catalogue and save checks without network", async () => {
+      const { withModelSettingsFixture } = await import("./model-settings-qa");
+      const fetch = withModelSettingsFixture(async () => {
+        assert.fail("marked fictional keys must never reach the fallback transport");
+      });
+      const provider = "anthropic";
+      const baseUrl = "https://api.anthropic.com";
+      const models = { protocol: provider, baseUrl, textModel: "fictional-questions", documentModel: "fictional-documents", own: true } as const;
+      const keyFor = (mode: string) => `sk-ant-fictional-stage34-${mode}`;
+      const opts = { fetch, appUrl: APP };
+      const key = keyFor("good");
+      assert.deepEqual(await listModels({ provider, baseUrl, key }, opts), [{ id: models.textModel }, { id: models.documentModel }]);
+      const result = await checkConnection({ ...models, key }, opts);
+      assert.deepEqual(result.passed, CHECK_NAMES);
+      assert.deepEqual(result.failed, []);
+      const failures: [string, ProviderFailureKind][] = [["refused", "key"], ["credit", "credit"], ["unreachable", "reach"]];
+      for (const [mode, expected] of failures) {
+        const failingKey = keyFor(mode);
+        await assert.rejects(listModels({ provider, baseUrl, key: failingKey }, opts), (error: unknown) =>
+          error instanceof Error && providerFailureOf(error) === expected && !error.message.includes(failingKey));
+        const check = await checkConnection({ ...models, key: failingKey }, opts);
+        assert.deepEqual(check.failed.map(failure => failure.name), CHECK_NAMES);
+        assert.ok(check.failed.every(failure => failure.providerFailure === expected && !failure.why.includes(failingKey)));
+      }
+      const image = await checkConnection({ ...models, key: keyFor("noimages") }, opts);
+      assert.deepEqual(image.failed, [{ name: "reads_images", why: "It did not read the total from the bill image." }]);
+      const missing = await checkConnection({ ...models, key: keyFor("missing") }, opts);
+      assert.deepEqual(missing.failed.map(({ name, providerFailure }) => [name, providerFailure]), [["reads_images", "model"]]);
     });
     console.log(`${passed}/${passed} settings and AI-key contract checks passed.`);
   } finally {

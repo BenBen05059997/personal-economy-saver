@@ -685,5 +685,206 @@
       "BROWSER-CHECKS Y24",
       "db:settings-test"
     ]
+  },
+  {
+    "id": "AIMODEL-026",
+    "area": "Your AI model",
+    "action": "Save separate question and document models",
+    "user_goal": "I want the models I choose from the list to become my connection",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running"
+    ],
+    "steps": [
+      "Paste sk-ant-fictional-stage34-good into Key",
+      "Choose fictional-questions, untick Use the same model for documents, and choose fictional-documents",
+      "Choose Save and check"
+    ],
+    "expected": [
+      "The provider is Anthropic and its catalogue contains both fictional IDs",
+      "The connection keeps both selected model IDs",
+      "The host line says Your questions and documents go to api.anthropic.com."
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y5"
+    ]
+  },
+  {
+    "id": "AIMODEL-027",
+    "area": "Your AI model",
+    "action": "Save with a refused key",
+    "user_goal": "I want a clear message when my provider rejects the key",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Replace Key with sk-ant-fictional-stage34-refused",
+      "Choose Save and check and read the message below the button",
+      "Reload Settings"
+    ],
+    "expected": [
+      "The key was refused by Anthropic.",
+      "The previous two model IDs, saved check and …good key hint remain"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24"
+    ]
+  },
+  {
+    "id": "AIMODEL-028",
+    "area": "Your AI model",
+    "action": "Save with a missing document model",
+    "user_goal": "I want to know which model the provider cannot find",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Replace Key with sk-ant-fictional-stage34-missing",
+      "Choose Save and check and read the message below the button",
+      "Reload Settings"
+    ],
+    "expected": [
+      "Anthropic has no model called fictional-documents.",
+      "The previous two model IDs, saved check and …good key hint remain"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24"
+    ]
+  },
+  {
+    "id": "AIMODEL-029",
+    "area": "Your AI model",
+    "action": "Save when the provider reports its credit limit",
+    "user_goal": "I want to know when the provider is over its limit or out of credit",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Replace Key with sk-ant-fictional-stage34-credit",
+      "Choose Save and check and read the message below the button",
+      "Reload Settings"
+    ],
+    "expected": [
+      "Anthropic says the key is over its limit or out of credit.",
+      "The previous two model IDs, saved check and …good key hint remain"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24"
+    ]
+  },
+  {
+    "id": "AIMODEL-030",
+    "area": "Your AI model",
+    "action": "Save when the provider cannot be reached",
+    "user_goal": "I want to know when the connection to the provider failed",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Replace Key with sk-ant-fictional-stage34-unreachable",
+      "Choose Save and check and read the message below the button",
+      "Reload Settings"
+    ],
+    "expected": [
+      "Couldn’t reach Anthropic.",
+      "The previous two model IDs, saved check and …good key hint remain"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24"
+    ]
+  },
+  {
+    "id": "AIMODEL-031",
+    "area": "Your AI model",
+    "action": "Save a document model that refuses the image",
+    "user_goal": "I want the image failure explained while my previous connection stays in place",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Replace Key with sk-ant-fictional-stage34-noimages",
+      "Choose Save and check and read the message below the button",
+      "Reload Settings"
+    ],
+    "expected": [
+      "This document model can't be used: It did not read the total from the bill image. Choose a model that reads images.",
+      "The previous two model IDs, saved check and …good key hint remain"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y24"
+    ]
+  },
+  {
+    "id": "AIMODEL-032",
+    "area": "Your AI model",
+    "action": "Reload after a successful image check",
+    "user_goal": "I want the saved result to show the document image check passed",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
+    ],
+    "steps": [
+      "Reload Settings"
+    ],
+    "expected": [
+      "The result reads Custom, untested · passed 4 of 4 checks on {date}",
+      "The panel says Reads images: passed."
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y22"
+    ]
   }
 ]

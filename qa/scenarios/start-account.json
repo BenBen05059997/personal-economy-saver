@@ -2025,28 +2025,25 @@
     "type": "security",
     "priority": "P1",
     "needs": [
-      "model",
-      "owner"
+      "none"
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A saved own model",
-      "A working model (the server's or the Codex bridge)"
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
-      "Open Settings and read the Key box",
-      "View the page source and the network log",
+      "Read the empty Key box",
       "Save again with the key empty",
       "Export my data"
     ],
     "expected": [
-      "The Key box shows \"Saved: …{last four}. Leave empty to keep it.\" and the key itself never appears in the page source, responses, Ask or the export",
-      "Saving with the key empty keeps it",
-      "The export file has no AI key"
+      "The box shows Saved: …good. Leave empty to keep it.",
+      "Listing and saving with the empty field still work",
+      "The full fictional key is absent from page source, responses and the export"
     ],
     "refs": [
-      "BROWSER-CHECKS Y5",
       "BROWSER-CHECKS Y6",
       "BROWSER-CHECKS AF9",
       "BROWSER-CHECKS I3",
@@ -2061,22 +2058,20 @@
     "type": "happy",
     "priority": "P2",
     "needs": [
-      "model",
-      "owner"
+      "none"
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A saved own model",
-      "A working model (the server's or the Codex bridge)"
+      "Settings → Your AI model at 1440px",
+      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
-      "Press \"Use this app's default\"",
-      "Open Ask"
+      "Choose Use this app’s default"
     ],
     "expected": [
-      "The model and key are cleared, the panel returns to the default lines and the host line shows the server's host again",
-      "Ask answers through the server's connection"
+      "The saved model IDs, key hint and check result disappear",
+      "Provider is This app’s default and the host or missing-setting line shows the server’s configuration"
     ],
     "refs": [
       "BROWSER-CHECKS Y7"

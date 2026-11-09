@@ -680,6 +680,10 @@ the database or Vault changes. The saved panel shows Reads images: passed. for a
 their recorded check count. Listing and saving map provider failures to fixed messages for refused keys, missing models, credit or
 connection problems. The catalogue has no selected model to name in an error.
 
+The owner’s isolated Settings browser check uses `scripts/model-settings-qa.ts` as an opt-in Next dev preload. It recognises
+the fictional Stage 34 keys and simulates Anthropic’s model list and Messages API. The preload is outside the application import graph.
+`db:settings-test` checks its fetch wrapper. BROWSER-CHECKS Y has the launch command and fixtures.
+
 Optional reminder email needs `RESEND_API_KEY` and `REMINDER_FROM`. Browser push needs `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` and `WEB_PUSH_SUBJECT`. The owner generates the VAPID pair with `npm run push:keys`, which writes the two ignored local settings files without printing the keys. Only the public key goes to the browser. `/api/health` reports each channel’s setting names or readiness separately.
 
 ### What is held, and for how long
