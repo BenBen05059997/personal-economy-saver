@@ -2,10 +2,14 @@
 // Fictional data only; PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/canvas-test.ts
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
+import { TableBlock } from "@/components/canvas/blocks";
 import * as schema from "@/db/schema";
 import { savePot } from "@/db/pots";
 import { seedBen } from "@/db/seed";
@@ -235,6 +239,35 @@ async function main() {
         starter.recipe.blocks.forEach(blockWords);
         assert.ok(resolved.every(r => r.source.length > 0));
       }
+    });
+
+    await check("starter tables keep row names readable and put overflow in their own keyboard-accessible region", () => {
+      const css = readFileSync("src/components/canvas/canvas.css", "utf8");
+      const scroller = css.match(/\.canvas-table-scroll\s*\{([^}]*)\}/)?.[1] ?? "";
+      assert.match(scroller, /min-width:\s*0\s*;/);
+      assert.match(scroller, /overflow-x:\s*auto\s*;/);
+      const nameCell = css.match(/\.canvas-table :is\(th, td\):first-child\s*\{([^}]*)\}/)?.[1] ?? "";
+      assert.match(nameCell, /min-width:\s*8rem\s*;/);
+      assert.match(nameCell, /overflow-wrap:\s*break-word\s*;/);
+
+      const checked = new Set<string>();
+      for (const starter of starters) {
+        for (const resolved of resolveRecipe(starter.recipe, context)) {
+          if (resolved.type !== "table") continue;
+          const html = renderToStaticMarkup(createElement(TableBlock, { data: resolved.data }));
+          const region = html.match(/<div\b(?=[^>]*class="canvas-table-scroll")([^>]*)><table\b/)?.[1];
+          assert.ok(region, starter.id);
+          assert.match(region, /\brole="region"/);
+          assert.match(region, /\btabindex="0"/);
+          assert.ok(region.includes(`aria-label="${resolved.data.title ?? "Canvas table"}"`));
+          if (starter.id === "regular") {
+            assert.match(html, /<th scope="row">CloudBox Plus \(Subscriptions\)<\/th>/);
+            assert.match(html, /<th scope="row">Hikari Denki \(Utilities\)<\/th>/);
+          }
+          checked.add(starter.id);
+        }
+      }
+      assert.ok(checked.has("regular") && checked.has("month-vs-last"));
     });
 
     await check("This month: the sentence is homeSentence, safe to spend, cash and the low point are the engine's, the action leads to Beacon's invoice", () => {

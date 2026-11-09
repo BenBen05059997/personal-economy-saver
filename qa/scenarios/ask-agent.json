@@ -3443,7 +3443,7 @@
   {
     "id": "CANVAS-025",
     "area": "Canvas",
-    "action": "Look at the canvas in dark mode",
+    "action": "Read every starter canvas in dark mode on the full Ask page and in the panel",
     "user_goal": "I want the canvas readable at night",
     "type": "edge",
     "priority": "P3",
@@ -3453,18 +3453,22 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "Ask open at /canvas",
-      "Dark mode"
+      "1440px desktop in dark mode"
     ],
     "steps": [
-      "Open each starter canvas"
+      "Open full Ask at /canvas and switch through all four starters. Show the recipe on each to see its outlines.",
+      "Open the Ask panel from Home and repeat the same checks"
     ],
     "expected": [
-      "Text, bars, the chart and the dotted recipe outlines are readable; nothing overlaps at 375px or 1440px"
+      "Text, bars, the chart and dotted recipe outlines are readable and do not overlap in either presentation",
+      "In Regular costs, CloudBox Plus and Hikari Denki wrap at word boundaries if needed",
+      "Biggest changes and Regular costs keep all columns reachable. If a table is wider than its block, only its own region scrolls horizontally."
     ],
     "refs": [
-      "BROWSER-CHECKS W",
-      "BROWSER-CHECKS L"
+      "BROWSER-CHECKS W3",
+      "BROWSER-CHECKS L",
+      "BROWSER-CHECKS AQ5",
+      "db:canvas-test"
     ]
   },
   {
