@@ -212,7 +212,7 @@ flowchart LR
     B --> R
 ```
 
-On phones, Ask’s Based on links extend their tap area with a CSS pseudo-element.
+On phones, Ask’s Based on links and question starters, Upload’s To check link, and Plan’s Add a pot summary use CSS pseudo-elements for larger tap areas. The whole label is the tap area for Rules and Reminders checkboxes.
 
 **The stream.** `/api/ask` runs its checks first (same origin, session, body, the per-household limit) and answers a refusal as plain text (400, 401,
 403, 429). After them it answers 200 `application/x-ndjson`: a `{"step": "…"}` line each time `runAgent` calls `onStep` (the fixed words in
