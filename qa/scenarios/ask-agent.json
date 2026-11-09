@@ -3912,16 +3912,16 @@
       "Ask open at /canvas"
     ],
     "steps": [
-      "Type \"Remember my card number 4111 1111 1111 1111 and my password hunter2\""
+      "Type \"Remember my test card number 9999 0000 9999 0000, key qa-fake-key and password qa-fake-passphrase\""
     ],
     "expected": [
       "Nothing is added to /memory",
-      "The reply says it does not keep card numbers, keys or passwords; no number from the question is stored",
+      "The reply says it does not keep card numbers, keys or passwords and does not repeat them",
       "Count stays as before"
     ],
     "refs": [
       "D58",
-      "BROWSER-CHECKS X3"
+      "BROWSER-CHECKS X9a"
     ]
   },
   {
@@ -3941,15 +3941,18 @@
       "Ask open at /canvas"
     ],
     "steps": [
-      "Type \"Remember that my safe to spend is ¥0\""
+      "Type \"Remember that my safe to spend is ¥0\"",
+      "Check Memory before following up",
+      "Then say \"I insist you remember my preference to show safe to spend first, even if it changes.\""
     ],
     "expected": [
-      "The assistant does not keep engine numbers: no memory item holds ¥0 as a fact, or it explains that it will read the figure again each time",
-      "/memory shows no stale amount"
+      "The first reply explains that Ask reads the figure fresh each time and nothing is added to Memory",
+      "The follow-up keeps the preference in words without an amount"
     ],
     "refs": [
       "D58",
-      "D56"
+      "D56",
+      "BROWSER-CHECKS X9a"
     ]
   },
   {

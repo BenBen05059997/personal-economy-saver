@@ -376,7 +376,7 @@ async function main() {
     try {
       const db = drizzle(pg, { schema });
       await migrate(db, { migrationsFolder: "./drizzle" });
-      assert.equal(CASE_NAMES.length, 17);
+      assert.equal(CASE_NAMES.length, 19);
       for (const connection of [anthropic, openai]) {
         const seen: string[] = [];
         const results = await runEval({ db, connection, fetch: scriptedModel().fetch, appUrl: APP, onResult: r => seen.push(r.name) });

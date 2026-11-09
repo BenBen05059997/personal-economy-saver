@@ -326,6 +326,8 @@ Your data can delete the entire memory category. `recall` reads the profile or a
 offer goes to the current space unless the person says it is standing information, such as "always" or "from now on".
 Standing information goes to the profile. The To check card’s "Also tell the assistant" box saves a profile correction
 with the confirmation. Cloud writes use `src/db/memory.ts` under the household role and emit content-free Activity events.
+Ask explains that secrets do not belong in memory and reads calculated figures fresh each time. If the person insists,
+Ask can keep a preference about the figure in words without the amount.
 
 **History and sources (D70).** The read tool `search_history` in Ask and MCP accepts `{ text, space? }`, with an optional
 space name or id. `src/db/history.ts` searches the household’s turn questions, replies and memory text for a literal
@@ -501,10 +503,10 @@ Under Uploaded documents, `listDocuments` returns each household document's date
 Your data counts named spaces with the cloud journal and shows the space count separately when turns are kept on this device. General does not contribute a space to the count.
 Deleting Ask conversations in Your data removes named spaces with their cloud threads, notes, pins and briefs. It clears General’s thread and brief. General and all documents stay.
 Deleting the device journal clears its local turns and briefs. Delete spaces one at a time in Memory → Spaces.
-
-**Export and Import (D44, D59).** `loadHouseholdSnapshot` (`src/db/snapshot.ts`) is the only builder: one read transaction, `requireHousehold`,
 A saved turn’s Delete removes only that turn. Cloud journals post `delete_one` for `journal` to `/api/data` and return to
 the space. Device journals delete the turn by id in IndexedDB without a request.
+
+**Export and Import (D44, D59).** `loadHouseholdSnapshot` (`src/db/snapshot.ts`) is the only builder: one read transaction, `requireHousehold`,
 named columns (it never selects a secret or pointer column), and it parses its own result. `/api/export` (a POST form, so nothing is in a URL)
 downloads the version 3 snapshot with `events`, `memory`, `canvases`, `spaces` and `journal`. `ExportData.tsx` adds this device's items to the file in the
 browser before it is saved when a kind is kept on the device. Local brief and update metadata go into their matching space entries. `/api/restore` accepts version 2 and version 3 files (at most 1 MB) into an empty household
