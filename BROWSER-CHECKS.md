@@ -136,7 +136,7 @@ Ask is the page `/canvas` (sidebar label "Ask"). The top bar's Ask box is a link
   - Card charge: say "3,800 yen at the noodle place on Card B yesterday" → Amount 3800, Date Nov 13, Card B.
   - New invoice draft: say "Beacon Studio, logo work, 400 dollars" → Client Beacon Studio, What for logo work, Amount 400.
   - Bank balance: say "150,000 yen" → Amount 150000, and the balance on Home is unchanged until Save.
-  - Bill: say "2,000 dollars" → Amount stays empty and a note reads "You said dollars; this field takes yen."
+  - Bill: say "fifty dollars" → Amount stays empty and one note reads "You said dollars; this field takes yen." The route still returns this note if the model omits the amount, as checked by db:voice-test.
   - Filled fields are outlined until edited, "Heard: “…”" shows what was said, and nothing is saved until the form's own button. Add a client's email has no voice (only Name is filled).
 
 - K7. With a working model and fresh Try it, ask about paying the minimum on Card A. The reply gives ¥58,000 due Nov 26 and the safe-to-spend picture, and says the app never recommends minimum, revolving or instalment payments. Ask to pay rent from PayPal or mark Acme’s invoice paid. Ask explains that it cannot pay or mark paid, that a verified PayPal payment marks an invoice paid, and offers to show the numbers or draft an invoice for review. Ask which bills are due through Nov 20. The reply names both CloudBox Plus and Mobaile Tsushin.

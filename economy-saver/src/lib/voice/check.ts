@@ -55,6 +55,10 @@ function dateValue(proposed: unknown, spec: Extract<FieldSpec, { kind: "date" }>
 export function checkFill(proposed: Record<string, unknown>, request: VoiceFillRequest, today: string): { values: Record<string, string>; notes: string[] } {
   const values: Record<string, string> = {};
   const notes: string[] = [];
+  // Even a model that omits the amount cannot hide a spoken currency the form has no amount field for.
+  const clashes = request.fields.flatMap(spec => spec.kind === "amount" ? [currencyClash(request.text, spec.currency)] : []);
+  const firstClash = clashes[0];
+  if (firstClash && clashes.every(Boolean)) notes.push(firstClash);
   for (const spec of request.fields) {
     if (!Object.hasOwn(proposed, spec.name)) continue;
     const value = proposed[spec.name];
@@ -72,5 +76,5 @@ export function checkFill(proposed: Record<string, unknown>, request: VoiceFillR
     }
     if (kept !== null) values[spec.name] = kept;
   }
-  return { values, notes };
+  return { values, notes: [...new Set(notes)] };
 }
