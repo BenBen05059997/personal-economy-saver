@@ -29,7 +29,7 @@ Cloudflare
     ├── Pages (server components): the sidebar is Home /, Ask /canvas, To check /to-check, Activity /activity, Cards /cards, Clients /clients, Plan /plan
     │   ├── /options, /upload, /invoices/new, /invoices/[id], /memory (Profile, Spaces, Goals and Rules), /settings, /account (delete my data), /privacy
     │   ├── /start (Start with my numbers), /login, /onboarding, /join/[token] (D68)
-    │   └── /family/[token]: no session; the Pages Router resolves the token and sets the status before rendering, with HTTP 404 for unknown, expired or stopped links (D52). Live page props contain only the rendered public view; no-store, noindex, no referrer
+    │   └── /family/[token]: the App Router resolves the token without a session. A live link renders the public family view. An expired, stopped or unknown link returns HTTP 200 with the generic ended page and no household information (D52). All responses are no-store, no-referrer and noindex
     ├── API routes (`src/app/api`): mutating routes start with `householdRequest` (`src/lib/session.ts`); answers come from `src/lib/door.ts`
     │   ├── /api/ask               one question in a verified space `{ id, spaceId, text, source, canvas, incognito? }`; body at most 128 KiB, or 512 KiB with device data. Checks answer plain text (400, 401, 403, 429), then the answer streams as `application/x-ndjson` (step lines, then the reply with any Keep this? offers or space proposal, or an error line)
     │   ├── /api/ask/document      POST attaches a file in Ask (multipart: `id`, `conversationId`, `spaceId`, optional `text`, the file); GET `?id=` gives the card again; its failures answer as `/api/upload` does (400 the file or form, 503 a setting missing and named, 502 a service failed, 500 anything else)

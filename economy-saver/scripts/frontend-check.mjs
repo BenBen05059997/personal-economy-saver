@@ -464,6 +464,9 @@ await step("page", "plan-where-the-month-goes", () => page("/plan", /Where the m
   });
   if (familySession) {
     const together = /Together ¥88,780 · Ben ¥63,450 · Wife ¥0 this month/;
+    const familyWords = ["Ben · family view", "Where the month goes", "Shared bills coming up",
+      "Who owes whom", "Nothing can be changed from here."];
+    const privateWords = [...familyWords, "Acme Corp", "Northwind", "CloudBox Plus", "Wife", "¥88,780"];
     await step("action", "family-s-a-month-split", async () => {
       expect(!together.test(pageContent(await page("/plan", /Where the month goes/))), "family-single-person");
       const added = await request("/api/people", { method: "POST", form: { kind: "add", name: "Wife" } });
@@ -492,8 +495,7 @@ await step("page", "plan-where-the-month-goes", () => page("/plan", /Where the m
         expect(response.status === 200, "family-open-status");
         privateHeaders(response);
         const content = plain(pageContent(body));
-        expect(together.test(content) && ["Ben · family view", "Where the month goes", "Shared bills coming up",
-          "Who owes whom", "Nothing can be changed from here."].every(word => content.includes(word)), "family-open-content");
+        expect(together.test(content) && familyWords.every(word => content.includes(word)), "family-open-content");
         const view = markup(body).match(/<main\b[^>]*class="family-page"[^>]*>([\s\S]*?)<\/main>/i)?.[1];
         expect(view && !/<(?:a|button|form)\b/i.test(view), "family-read-only");
       });
@@ -502,17 +504,17 @@ await step("page", "plan-where-the-month-goes", () => page("/plan", /Where the m
         expect(stopped.response.status === 200 && stopped.body === "Sharing stopped. That link no longer opens.", "family-stop");
       });
     }
-    await step("guard", "family-s-b-ended-and-unknown-are-404", async () => {
+    await step("guard", "family-s-b-ended-and-unknown-show-ended-page", async () => {
       const unknown = randomUUID().replaceAll("-", "") + "a".repeat(11);
       const paths = ["/family/" + unknown, "/family/invalid"];
       if (link) paths.push(link.path);
       for (const path of paths) {
         const { response, body } = await request(path, { session: "" });
-        expect(response.status === 404, "family-ended-status");
+        expect(response.status === 200, "family-ended-status");
         privateHeaders(response);
         const content = plain(pageContent(body));
-        expect(content.includes("This link has ended.") && content.includes("Ask for a new one.")
-          && !content.includes("Ben · family view"), "family-ended-content");
+        expect(content.includes("This link has ended.") && content.includes("Ask for a new one."), "family-ended-content");
+        expect(privateWords.every(word => !content.includes(word)), "family-ended-no-household-data");
       }
     });
   }

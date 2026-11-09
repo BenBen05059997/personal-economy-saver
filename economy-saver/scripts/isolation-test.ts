@@ -150,7 +150,6 @@ const notApplicable: Record<string, string> = {
   clockForHousehold: "pure date maths on a household row passed in",
   householdMoment: "pure date maths on a household row passed in",
   db: "the database client: takes no household id",
-  requestDatabase: "opens the same database client and registers cleanup; takes no household id",
   withOwnedDatabase: "the database client: takes no household id",
   publicEvent: "pure mapper of one row passed in",
   requireHousehold: "pure check that a value is a UUID",

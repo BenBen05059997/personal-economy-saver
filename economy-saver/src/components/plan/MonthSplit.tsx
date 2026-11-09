@@ -4,6 +4,7 @@ import { shareLabel } from "@/lib/money/categories";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "@/lib/money/gaps";
 import { allUncounted } from "@/lib/money/spending";
 import { businessLine, monthWhen, splitLine, type MonthView, type WhoseTotals } from "@/lib/money/month";
+import "./plan.css";
 
 export type MonthPerson = { id: string; name: string };
 

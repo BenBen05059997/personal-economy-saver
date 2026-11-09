@@ -3111,8 +3111,8 @@
       "GET /family/ with a very long token"
     ],
     "expected": [
-      "Each returns HTTP 404 with “This link has ended. Ask for a new one.”",
-      "No household data is in any response"
+      "Each returns HTTP 200 with “This link has ended. Ask for a new one.” and no household information",
+      "The response headers include Cache-Control: no-store, Referrer-Policy: no-referrer and X-Robots-Tag: noindex, nofollow"
     ],
     "refs": [
       "BROWSER-CHECKS S-B2",
@@ -3142,7 +3142,8 @@
     ],
     "expected": [
       "The question says \"The link stops working for everyone who has it.\"; Keep changes nothing",
-      "After Stop sharing the row is gone and the old link returns HTTP 404 with \"This link has ended. Ask for a new one.\" at 375px and desktop width"
+      "After Stop sharing the row is gone and the old link returns HTTP 200 with \"This link has ended. Ask for a new one.\" and no household information at 375px and desktop width",
+      "The ended response keeps the no-store, no-referrer and noindex headers"
     ],
     "refs": [
       "BROWSER-CHECKS S-B2"
