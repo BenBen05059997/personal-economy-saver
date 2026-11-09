@@ -20,28 +20,35 @@
 - **Traceable agent work and a nudge rule (D50).** `made_by` on every row and event, client pace, the standing nudge rule and daily suggestions on Home (D64), one content-free log line per Ask and MCP call.
 - **Catalogue (D6).** Japan 20 moves and US 16 in `src/lib/catalogue/` and `src/data/catalogue/`; nothing calls it until households have a profile.
 - **Known and left as is.** Options links to the rate references behind "Reference & assumptions" (D7); Settings says email forwarding isn’t available on this server until `FORWARDING_DOMAIN` is set (rule 10); the bell keeps an unread notice after its bill is confirmed; a refused AI key clears its field; slow first loads on dev.
-- **Checks.** `tsc` and lint are clean; `npm run db:test` runs thirty-nine isolated suites, including the tenant-isolation suite (`db:isolation-test`: two households, every exported function in `src/db` called across the boundary in both directions, a coverage guard that fails when a new export is neither tested nor listed as not applicable with a reason); the three HTTP suites (`scripts/frontend-check.mjs`) on dev against Tokyo, last run Nov 7 on the Stage 27 code: `--guards` 38 and `--extra` 37 pass; `--run` passes 104 of 105, the one failure Ask's 20 s budget on the slow Codex bridge (`typed-ask-read-only`); every suite run creates demo households, so they share the 30-an-hour per-address limit and the 60-an-hour app-wide one, and a second `--run` in the same hour answers 429 at a `*-session` step; the Ask check accepts the missing-setting error line; the local Worker preview last passed before the export step was added. An independent security review of the build and its fixes (D12, D37) passed.
+- **Checks.** `tsc`, lint and the thirty-nine isolated suites in `npm run db:test` pass, including tenant isolation. The three HTTP suites passed on the isolated dev server against Tokyo on Nov 9. The Ask HTTP check exercised the missing-model path. The local Worker preview returned the landing page and the family-link 404. An independent security review of the build and its fixes (D12, D37) passed.
 - **Submission files.** `submission/DEVPOST.md` and `submission/VIDEO-SCRIPT.md` are private current-state drafts. The code is MIT-licensed; the bundled Hanken Grotesk and Newsreader fonts carry SIL OFL 1.1 notices. Fictional samples (bills, a card-statement email, a 国保 slip, a US power bill) are in `economy-saver/samples/bills/`.
 
-### Timings (latest measurement, Nov 3)
+### Timings (Nov 9, 2026)
 
-Warm single HTTP request through the complete response body on the same demo household, excluding browser rendering; a range is the spread over repeated runs. "First Home" is the first visit in a fresh session. Actions not listed were not timed on Tokyo.
+Dev page readings are three sequential HTTP samples through the complete response body after one discarded compile warm-up. Each sample uses a fresh Ben Try it session on the isolated `next dev` server and Tokyo database. First Home uses the new session. Try it → Home adds session creation and First Home. The pinned Home uses one This month starter. The suite readings are wall-clock totals, including any route compilation. Worker readings below are from the separate local preview.
 
 | Action or page | `next dev` on Tokyo (s) | Local Worker on Tokyo (s) |
 |---|---:|---:|
-| Try it (create session) | 0.63–0.86 | 0.87 |
-| First Home | 0.87 | 1.03–1.06 |
-| Warm Home | 0.77–0.82 | 0.96–1.08 |
-| Cards | 1.09 | |
-| Clients | 1.13 | |
-| Activity | 0.44–0.47 | 0.57–0.59 |
-| Invoice review (read only) | 1.15 | |
-| To check | 0.72–0.78 | |
-| Confirm Hikari Denki | 0.94 | 1.04 |
-| Settings (open) | 0.58–0.62 | 0.72–0.75 |
-| Save Settings | | 1.10 |
-| Ask with a canvas (answer ≤ 8 s, needs a live model) | not measured | not measured |
-| Home with pinned canvases (no model call) | not measured | not measured |
+| Try it → Home (target ≤ 1.5 s) | 3.762–3.921 | |
+| Try it (create session) | 1.626–1.727 | |
+| First Home | 2.136–2.194 | |
+| Warm Home | 2.102–2.118 | |
+| Cards | 1.188–1.250 | |
+| Clients | 1.201–1.260 | |
+| Plan | 1.732–2.153 | |
+| Activity | 0.728–0.776 | |
+| Memory | 0.865–0.900 | |
+| Invoice review (read only) | 1.177–1.232 | |
+| To check | 1.238–1.261 | |
+| Confirm Hikari Denki (seeded reading) | 2.412–2.567 | |
+| Settings (open) | 2.161–2.208 | |
+| Save Settings | 2.491–2.519 | |
+| Ask (answer ≤ 8 s) | Waiting for a real model | Waiting for a real model |
+| Ask with a canvas (answer ≤ 8 s) | Waiting for a real model | Waiting for a real model |
+| Home with pinned canvases (no model call) | 2.330–2.353 | |
+| HTTP `--guards` (38 passed) | 11.53 | |
+| HTTP `--extra` (36 passed) | 81.08 | |
+| HTTP `--run` (111 passed) | 252.21 | |
 | Worker preview startup (Nov 9) | | 0.314 to ready, 0.726 to first byte from local server start |
 | Worker preview first anonymous Home (Nov 9) | | 0.412 to first byte, 0.475 complete |
 | Wrangler local startup profile (Nov 9) | | 0.159 profile window, 0.016 active CPU |
@@ -161,7 +168,7 @@ Round 2 (after round 1 is reviewed)
 - [x] 27I (follow-ups to 27F and 27G). A question's id is its idempotency key on a device journal too: migration 0026 also holds `ask_receipts` (0027 adds its `pending` and `links`; `src/db/ask-receipts.ts`: `noteAskWrote`, `noteAskReply`, `askReceipt`, `pruneAskReceipts`, pruned by the daily job after a day), and a retry after the first draft tool succeeded gets `FIXED.alreadySaved` with no model call and no write (D59, D60); Settings → Edit has "Month this bill covers" for a one-off bill (First day, Last day, the `periodProblem` refusals, Activity "Period 10月分" or "No period"); the read tool `bills_for_month` and a canvas `table` query of the same name (`billsForMonth` in `src/lib/money/period.ts`, `loadPeriodBills` in `src/db/spending.ts`; BROWSER-CHECKS AF5, AF5a, AF5b) (D63)
 
 Round 3 (lead, with Haiku and Sonnet for the runs)
-- [ ] Left of round 3: the timings table refilled (Ask with a canvas and Home with pins included; Ask with a canvas needs a real model, since the Codex bridge spends about 9 s a call); the BROWSER-CHECKS steps that read a document with a model (AF1–AF5a, the Harbor Energy 11月分 bill and `bills_for_month` in Ask), the error page's Reference (AF7) and the upload cap (J4); the Worker's startup time (box S, on the deploy). Done: `tsc`, lint, `db:test`, the three HTTP suites, `cf:size`, the migration-order rule in AGENTS.md, migrations 0025 and 0026 applied to Tokyo, and in the browser Home, Ask's progress line at 375px and desktop, the not-found page, the Privacy page lines and the Settings period edit (AF5b)
+- [ ] Left of round 3: time Ask with a canvas on a real model. Run the document-reading browser checks (AF1–AF5a, including Harbor Energy 11月分 and `bills_for_month` in Ask), the error page Reference (AF7) and the upload cap (J4). Record hosted Worker startup after deploy (S).
 
 *Before the deploy*
 - [ ] S. The Worker starts within 1 s. The limit is 64 MiB uncompressed on both plans ([Cloudflare limits](https://developers.cloudflare.com/workers/platform/limits/#worker-size)). On Nov 9, 2026, `npm run cf:size` measured 20,754.81 KiB uncompressed and 5,628.56 KiB gzip. Local `npm run cf:preview` on 8787 was ready in 0.314 s after Wrangler started its local server. The first anonymous Home response began at 0.726 s from that marker (HTTP 200, request TTFB 0.412 s, full response 0.475 s). `wrangler check startup` reported a 159.2 ms local profile window and 16.4 ms active CPU. The owner still needs the deployed Worker’s startup reading.
@@ -198,7 +205,7 @@ One database function per job, called by both the form and the agent tool (D39).
 - [ ] Full run on the Worker after the first deploy
 - [ ] Voice (K5, K6) by the owner in their own Chrome or Safari with a microphone, in English and Japanese, at 375px and 1440px (the desktop app's browser pane blocks the microphone)
 - [ ] The "Needs …" checks once their settings exist: magic link (A5), agent drafts (D2, K3, K4), PayPal send and webhook (E4), MCP (I5), delete my data (I7), the reader (J2, J3)
-- [ ] Measured times go in the timings table above: Try it to Home ≤ 1.5 s (A2), a To check row ≤ 30 s after upload (J2), Sent in Activity ≤ 2 s (E4), an answer ≤ 8 s (K3)
+- [ ] Performance targets. Try it to Home (A2) measured 3.762–3.921 s against a 1.5 s target. Still to time: a To check row ≤ 30 s after a live upload (J2), Sent in Activity ≤ 2 s (E4), and an answer ≤ 8 s on a real model (K3).
 
 ### J. Foundation and security hardening (last stage, D38)
 - [ ] Manual encrypted database dump before demo day (owner)
