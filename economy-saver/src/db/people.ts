@@ -152,9 +152,9 @@ export async function removeMember(db: Db, householdId: string, input: z.infer<t
     const [home] = await tx.select({ currency: households.homeCurrency }).from(households).where(eq(households.id, hid));
     const [person] = await tx.select({ id: members.id, name: members.displayName, role: members.role }).from(members).where(and(eq(members.householdId, hid), eq(members.id, id)));
     if (!person) return false;
-    if (person.role === "owner") throw new InputError("The household’s owner cannot be removed");
     const current = await orderedMembers(tx, hid);
     if (current.length < 2) throw new InputError("The last person in a household cannot be removed");
+    if (person.role === "owner") throw new InputError("The household’s owner cannot be removed");
     const [paypal] = await tx.select({ id: paypalConnections.id }).from(paypalConnections).where(and(eq(paypalConnections.householdId, hid), eq(paypalConnections.memberId, id))).limit(1);
     if (paypal) throw new InputError(`${person.name} has PayPal connected, so they cannot be removed here`);
     const owner = current[0];

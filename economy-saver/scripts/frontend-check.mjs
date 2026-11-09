@@ -328,6 +328,8 @@ if (args[0] === "--extra") {
     expect(settled.response.status === 303, "nov5-settled");
     const removed = await request("/api/people", { method: "POST", form: { kind: "remove", id: wife, returnTo: "/settings" }, extraHeaders: { "x-form-fetch": "1" } });
     expect(removed.response.status === 204 && removed.response.headers.get("x-form-redirect") === "/settings", "nov5-removed");
+    const last = await request("/api/people", { method: "POST", form: { kind: "remove", id: ids[0], returnTo: "/settings" } });
+    expect(last.response.status === 400 && last.body === "The last person in a household cannot be removed", "nov5-last-person-stays");
     const gone = await request("/api/people", { method: "POST", form: { kind: "remove", id: wife, returnTo: "/settings" } });
     expect(gone.response.status === 400 && gone.body === "Choose a person of this household", "nov5-removed-twice");
     expect((await events()).events.some(event => event.kind === "person_removed" && event.title === "Fictional Wife left the household"), "nov5-person-removed-event");
