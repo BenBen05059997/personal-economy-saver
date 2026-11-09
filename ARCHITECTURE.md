@@ -3,15 +3,36 @@
 ## What the system is
 
 A Next.js 16 app on Cloudflare Workers (OpenNext) over household-scoped Postgres in Supabase (Tokyo, `ap-northeast-1`, transaction pooler).
-Try it and magic-link sessions, Home and invoice review, typed-in data (clients, bills, card charges, pots, people, invoices marked paid),
-statement and PayPal history import, the reader (upload, forwarded email, a file attached in Ask), the in-app agent with its canvas and memory,
-MCP, the family view, Your data (export, import, delete, this device only), what foreign money costs (D62), PayPal approval and verified-webhook
-handling are implemented, along with daily suggestions from the money engine (D64), optional email and push reminders (D65), goals and standing rules (D66), and Keep this? offers in Ask (D67). The local test suites run them on isolated PGlite data with simulated external results. Next.js dev and the local
-Worker read a fictional household from the Tokyo project; Vault and the private Storage bucket are verified there. Not yet verified live:
-magic-link delivery, a live model call, the deployed Worker, Email Routing, and a real PayPal send-to-webhook round trip. The repository and
-the app are private. Decisions: D18, D31–D67 in [DECISIONS.md](DECISIONS.md).
 
-Long biller and client names wrap within their rows on narrow screens, including Home's forecast notes and the To check cards.
+Implemented:
+- Try it and magic-link sessions, Home and invoice review, typed-in data (clients, bills, card charges, pots, people, invoices marked paid).
+- Statement and PayPal history import, the reader (upload, forwarded email, a file attached in Ask), what foreign money costs (D62).
+- The in-app agent with its canvas and memory, MCP, the family view, Your data (export, import, delete, this device only).
+- PayPal approval and verified-webhook handling.
+- Daily suggestions from the money engine (D64), optional email and push reminders (D65), goals and standing rules (D66), Keep this? offers in Ask (D67).
+
+The local test suites run all of this on isolated PGlite data with simulated external results. Next.js dev and the local Worker read a fictional household from the Tokyo project; Vault and the private Storage bucket are verified there.
+
+The Worker is deployed at `https://personal-economy-saver.globalperspectives-app.workers.dev` with its settings uploaded and a 39 ms startup. It has no `AI_` settings yet. Not yet verified live: magic-link delivery (the deployed URL is not yet in Supabase's redirect URLs), a live model call, Email Routing, and a real PayPal send-to-webhook round trip (`PAYPAL_WEBHOOK_ID` is not set). The repository and the app are private. Decisions: D18 and D31–D71 in [DECISIONS.md](DECISIONS.md).
+
+## Who does what: the agent and the code
+
+The model does three things: it understands what the person typed or uploaded (including reading a bill), decides which tools to call, and puts the result into words or a canvas layout. Everything else is code, so any model can be swapped in (D56) and only reading quality and tool-calling reliability vary (D40, D61).
+
+| Step | Who | Where |
+|---|---|---|
+| Understand a question or read a bill | model | `callModel`; `src/lib/reader/extract.ts` |
+| Choose tools | model | `src/lib/agent/tools.ts`, `run.ts` |
+| All maths: safe to spend, shortfalls, splits, what-ifs, goal pace | code | `src/lib/money/` |
+| Checks on a bill reading | code | `checks.ts`, `period.ts` |
+| Advice findings | code | `suggest.ts` (D64) |
+| Which reply kind goes out | code | `chooseReply` in `reply.ts` |
+| Every amount in a reply matches a tool result | code | `unconfirmedAmounts` |
+| Household scoping | code | `src/db/household.ts` |
+| Writes: only pending To check rows, drafts, Keep this? offers, and memory the person explicitly asks it to keep (D58); send is the Approve tap (D12), paid is a verified webhook (D15) | code and the person | `src/db/`, the approve route, `src/lib/events.ts` |
+| Words and canvas layout | model | blocks hold queries, never numbers (D57) |
+
+The rules prompt (`MODEL_RULES` and `ASK_RULES` in `src/lib/agent/rules.ts`, the reader's instructions in `extract.ts`) makes a good model behave. The code guarantees that even a weak model cannot send money, invent a number or save something unconfirmed. `checkConnection` and `npm run model:eval` measure whether a given model follows the rules.
 
 ## The stack tree
 
@@ -211,8 +232,6 @@ flowchart LR
     S --> B[Save any validated brief update]
     B --> R
 ```
-
-On phones, Ask’s Based on links and question starters, Upload’s To check link, and Plan’s Add a pot summary use CSS pseudo-elements for larger tap areas. The whole label is the tap area for Rules and Reminders checkboxes.
 
 **The stream.** `/api/ask` runs its checks first (same origin, session, body, the per-household limit) and answers a refusal as plain text (400, 401,
 403, 429). After them it answers 200 `application/x-ndjson`: a `{"step": "…"}` line each time `runAgent` calls `onStep` (the fixed words in

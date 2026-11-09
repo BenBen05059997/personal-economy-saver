@@ -7,8 +7,8 @@ What to check by hand in a real browser before saying the app works. Each check 
 - Restart `npm run dev -- -p 3123` after any change in `src/db/`, the schema or `next.config.ts`; keep one browser tab open.
 - Start from a fresh Try it household: Settings → Account → Reset to Ben's starting numbers → Reset (or a private window, then Try it).
 - Run the checks in order; later ones assume the earlier changes.
-- Do every screen at 375px and at 1440px. Do section L in light and dark.
-- A check fails if the number differs, the screen errors, a button does nothing, or anything scrolls sideways or overlaps. In every section, no text overlaps, a long unbroken word wraps, and at 375px every button, link, input and select is at least 44px tall; sections W to AA are also done in light and dark.
+- Do every screen at 1440px (desktop; judges use a computer). Steps and lines written for 375px are phone checks, run only when the owner asks. Do section L in light and dark.
+- A check fails if the number differs, the screen errors, a button does nothing, or anything scrolls sideways or overlaps. In every section, no text overlaps, a long unbroken word wraps, and in a phone run (375px) every button, link, input and select is at least 44px tall; sections W to AA are also done in light and dark.
 - "Needs …" checks (including "Needs the AI settings": a working `AI_` model on the server, or a household's own) wait on a setting or account the owner provides; skip them until it exists and note them as skipped.
 
 ## Expected numbers on a fresh Try it household

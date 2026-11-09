@@ -42,7 +42,7 @@ The expected numbers for a fresh Try it household are in [BROWSER-CHECKS.md](../
 | `type` | `happy` (it works as meant), `negative` (wrong input or a refused request), `edge` (limits, empty, long, odd dates or currencies), `security` (another household, sending without a tap, injection, secrets), `agent` (the model's tool choice and wording) |
 | `priority` | `P1` the demo loop or money shown wrong; `P2` a main screen or action; `P3` polish |
 | `needs` | what must exist before it can run: `none`, `model` (a working AI model: the server's or the Codex bridge), `deploy` (the Worker on Cloudflare), `paypal_webhook` (a registered sandbox webhook), `email` (the magic link or Email Routing), `microphone`, `owner` (the owner's account or keys). A scenario whose needs are missing here is recorded `skipped`, never `pass` |
-| `how` | `browser` (the browser pane, at 375px and 1440px), `http` (a request against the dev server, like `scripts/frontend-check.mjs`), `suite` (an existing `npm run db:*` suite already proves it: `refs` names the suite), `eval` (`npm run model:eval`) |
+| `how` | `browser` (the browser pane, at 1440px; 375px only in a phone run the owner asks for), `http` (a request against the dev server, like `scripts/frontend-check.mjs`), `suite` (an existing `npm run db:*` suite already proves it: `refs` names the suite), `eval` (`npm run model:eval`) |
 | `preconditions`, `steps`, `expected` | short sentences; every `expected` line is something you can see or measure |
 | `refs` | BROWSER-CHECKS sections, decisions (D…), suites (`db:…-test`) |
 
@@ -57,7 +57,7 @@ The expected numbers for a fresh Try it household are in [BROWSER-CHECKS.md](../
     {
       "id": "ASK-004",
       "status": "fail",
-      "width": "375",
+      "width": "1440",
       "actual": "The answer said ¥4,000 fits; safe to spend on Home is ¥0",
       "evidence": "screenshot or the response text, short",
       "ran_at": "2026-11-07T10:12:00+09:00"
@@ -92,7 +92,7 @@ Ben starts on Nov 14, 2026. Advancing to `2026-11-15` brings the Nov 18 CloudBox
 >
 > **Setup.** The app runs at http://127.0.0.1:3123 (always 127.0.0.1, not localhost) and its AI model is the Codex bridge on 127.0.0.1:3130; don't start, stop or restart either. Use one Chrome window with one tab for the app. Start from Ben's Try it household: open http://127.0.0.1:3123 and click Try it (opening /api/try directly is refused). When a scenario needs a fresh household again, use Settings → Account → Reset to Ben's starting numbers → Reset, or a new Try it. Follow each scenario's preconditions; when one names an earlier scenario, run them in order.
 >
-> **Widths.** 375px is the main width: open DevTools (Cmd+Option+I), turn on the device toolbar (Cmd+Shift+M) and set the width to 375. Also check 1440px (device toolbar off, window maximised) for scenarios whose expected lines mention layout, both widths or 1440, and once for each screen. Record `width` as `375`, `1440` or `both`.
+> **Width.** Run at 1440px (device toolbar off, window maximised): judges use a computer. Skip steps and expected lines that apply only at 375px unless I ask for a phone run. Record `width` as `1440` (or `375` in a phone run).
 >
 > **Judging.** A scenario passes only if every `expected` line is true. It fails if any expected line is wrong, a number differs from BROWSER-CHECKS "Expected numbers", a button does nothing, the page shows an error, or anything scrolls sideways or overlaps. A scenario whose `needs` includes `owner`, `deploy`, `email`, `paypal_webhook` or `microphone` is `skipped` unless it truly can run here; say what is missing. A model scenario that needs a PDF read is `skipped` (the bridge refuses PDFs); use an image instead where the scenario allows it. Use `blocked` only when the app itself stopped a scenario that should have run. Scenarios that need a model use the app's Ask, which can take 10–20 s an answer: wait for it.
 >

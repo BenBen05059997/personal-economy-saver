@@ -4,7 +4,7 @@ The briefing for any coding agent working on Personal Economy Saver. The owner i
 
 ## The product in one paragraph
 
-A personal money agent for people paid through PayPal (D2). Home is one sentence with a date and a client name — *"You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th."* — then safe to spend (including unbilled card spend), the events in date order, and one PayPal action the user approves: invoice finished work or nudge a late client. The user taps Approve, PayPal (sandbox) sends, a verified webhook marks it paid, the sentence changes. Around that loop the person asks in their own words: the agent answers from the cash-flow engine, lays the answer out on a canvas of blocks that hold queries, never numbers (D57), remembers what it is told (D58), and runs on the model the household chooses (D56). One person is on screen: Ben, a freelance designer in Tokyo paid in USD (D8). The canvas, memory, any model, the storage choice and here's my bill (D56 to D61) are built; decisions say why, the code is the truth, and what is left is in PLAN.md.
+A personal money agent for people paid through PayPal (D2). Home is one sentence with a date and a client name — *"You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th."* — then safe to spend (including unbilled card spend), the events in date order, and one PayPal action the user approves: invoice finished work or nudge a late client. The user taps Approve, PayPal (sandbox) sends, a verified webhook marks it paid, the sentence changes. Around that loop the person asks in their own words: the agent answers from the cash-flow engine, lays the answer out on a canvas of blocks that hold queries, never numbers (D57), remembers what it is told (D58), and runs on the model the household chooses (D56). The model only understands (what is typed or uploaded, including reading a bill), dispatches (picks tools) and words the result; the engine and code do all the maths, the checks on a bill reading, the advice findings and every write, so any model can be swapped in and none can send money, invent a number or save something unconfirmed. One person is on screen: Ben, a freelance designer in Tokyo paid in USD (D8). The canvas, memory, any model, the storage choice and here's my bill (D56 to D61) are built; decisions say why, the code is the truth, and what is left is in PLAN.md.
 
 ## Hard rules (never break these)
 
@@ -86,7 +86,7 @@ economy-saver/                           the app
 | PayPal sandbox smoke test | `npm run smoke` |
 | Codex bridge (dev and test only: runs the app's AI features on the owner's local Codex CLI login, no API key; settings, limits and the real-API caveat: `economy-saver/README.md`). Fictional data only | `npm run codex:bridge` / `npm run codex:bridge-check` |
 
-Before calling any task done: `tsc`, `lint` and `db:test` pass, and the screens it touches pass their checks in [BROWSER-CHECKS.md](BROWSER-CHECKS.md) at phone width (375px) and desktop width.
+Before calling any task done: `tsc`, `lint` and `db:test` pass, and the screens it touches pass their checks in [BROWSER-CHECKS.md](BROWSER-CHECKS.md) at desktop width (1440px; judges use a computer). Phone-width checks run only when the owner asks.
 
 ## How to continue
 
