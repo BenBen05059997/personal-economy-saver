@@ -21,7 +21,7 @@ import { isTested, TESTED } from "@/lib/ai/tested";
 import { fakeModel, type FakeMode } from "./ai-fake";
 import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
 import { unconfirmedAmounts } from "@/lib/ai/number-check";
-import { PROVIDERS, tokenParamFor } from "@/lib/ai/providers";
+import { PROVIDERS, providerFromKey, tokenParamFor } from "@/lib/ai/providers";
 import { ModelError, type Connection, type ModelRequest } from "@/lib/ai/types";
 
 let passed = 0;
@@ -187,6 +187,36 @@ async function main() {
     assert.equal(tokenParamFor("https://api.openai.com/v1"), "max_completion_tokens");
     assert.equal(tokenParamFor("https://api.mistral.ai/v1"), "max_tokens");
     assert.equal(tokenParamFor("https://llm.example/v1"), "max_tokens");
+  });
+
+  await check("provider inference recognizes only distinctive prefixes while the app default is selected", () => {
+    const examples = [
+      ["sk-ant-fictional-example", "anthropic"],
+      ["sk-or-fictional-example", "openrouter"],
+      ["gsk_fictional_example", "groq"],
+      ["AIza-fictional-example", "gemini"],
+    ] as const;
+    for (const [key, provider] of examples) {
+      assert.equal(providerFromKey(key, ""), provider);
+      assert.equal(providerFromKey(` \t${key}\n `, ""), provider);
+    }
+    for (const key of ["sk-fictional-example", "FictionalMistralKeyExample", "unknown-fictional-key", "example-sk-ant-fictional", "  "]) {
+      assert.equal(providerFromKey(key, ""), undefined);
+    }
+    for (const { id } of PROVIDERS) {
+      assert.equal(providerFromKey("sk-ant-fictional-example", id), undefined, id);
+    }
+  });
+
+  await check("each listed provider has a public HTTPS key page and custom has no link", () => {
+    for (const { id, getKeyUrl } of PROVIDERS) {
+      if (id === "custom") {
+        assert.equal(getKeyUrl, null);
+      } else {
+        assert.ok(getKeyUrl, id);
+        assert.doesNotThrow(() => checkBaseUrl(getKeyUrl, { allowLocal: false }), id);
+      }
+    }
   });
 
   await check("anthropic: the request carries the system text, turns, tools and a forced tool; the reply maps to the neutral shape", async () => {

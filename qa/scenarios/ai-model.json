@@ -1,0 +1,194 @@
+[
+  {
+    "id": "AIMODEL-001",
+    "area": "Your AI model",
+    "action": "Paste a fictional Anthropic key",
+    "user_goal": "I want the form to recognise my provider from my key",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "This app’s default is selected and the Network panel is open"
+    ],
+    "steps": [
+      "Paste sk-ant-fictional-placeholder into Key",
+      "Leave the form unsaved"
+    ],
+    "expected": [
+      "Provider changes to Anthropic",
+      "The paste makes no network request"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y9",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-002",
+    "area": "Your AI model",
+    "action": "Paste a fictional OpenRouter key",
+    "user_goal": "I want the form to recognise my provider from my key",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "This app’s default is selected and the Network panel is open"
+    ],
+    "steps": [
+      "Paste sk-or-fictional-placeholder into Key",
+      "Leave the form unsaved"
+    ],
+    "expected": [
+      "Provider changes to OpenRouter",
+      "The paste makes no network request"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y9",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-003",
+    "area": "Your AI model",
+    "action": "Paste a fictional Groq key",
+    "user_goal": "I want the form to recognise my provider from my key",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "This app’s default is selected and the Network panel is open"
+    ],
+    "steps": [
+      "Paste gsk_fictional-placeholder into Key",
+      "Leave the form unsaved"
+    ],
+    "expected": [
+      "Provider changes to Groq",
+      "The paste makes no network request"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y9",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-004",
+    "area": "Your AI model",
+    "action": "Paste a fictional Google Gemini key",
+    "user_goal": "I want the form to recognise my provider from my key",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "This app’s default is selected and the Network panel is open"
+    ],
+    "steps": [
+      "Paste AIzafictional-placeholder into Key",
+      "Leave the form unsaved"
+    ],
+    "expected": [
+      "Provider changes to Google Gemini",
+      "The paste makes no network request"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y9",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-005",
+    "area": "Your AI model",
+    "action": "Paste a key with a plain sk- prefix",
+    "user_goal": "I want to choose the provider when the prefix is ambiguous",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "This app’s default is selected"
+    ],
+    "steps": [
+      "Paste sk-fictional-placeholder into Key"
+    ],
+    "expected": [
+      "Provider stays on This app’s default"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y10",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-006",
+    "area": "Your AI model",
+    "action": "Paste a key after choosing a provider",
+    "user_goal": "I want the form to keep the provider I chose",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px on a fresh Try it household",
+      "OpenAI was selected manually"
+    ],
+    "steps": [
+      "Paste sk-ant-fictional-placeholder into Key"
+    ],
+    "expected": [
+      "Provider stays on OpenAI"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y10",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-007",
+    "area": "Your AI model",
+    "action": "Resolve a provider from a pasted prefix",
+    "user_goal": "I want inference to use only distinctive prefixes and respect my choice",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "Fictional key strings"
+    ],
+    "steps": [
+      "Run npm run db:ai-test",
+      "Check the four distinctive prefixes, a plain sk- key and an explicit provider"
+    ],
+    "expected": [
+      "The four distinctive prefixes resolve to their providers",
+      "A plain sk- key leaves the default selected",
+      "An explicit provider choice is preserved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y11",
+      "db:ai-test"
+    ]
+  }
+]

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { providerFromKey } from "@/lib/ai/providers";
 import { ApiForm } from "@/components/ui/ApiForm";
 
 type ProviderChoice = { id: string; label: string };
@@ -13,26 +14,34 @@ export function AiModelForm({ providers, tested, initial, demo }: {
   const [provider, setProvider] = useState(initial.provider);
   const [same, setSame] = useState(initial.same);
   const key = useRef<HTMLInputElement>(null);
+  const pickedProvider = useRef(false);
   const suggestions = tested.filter(t => t.provider === provider);
   const isDefault = provider === "";
   return <ApiForm action="/api/settings/ai-model" onDone={() => { if (key.current) key.current.value = ""; }}>
     <input type="hidden" name="kind" value="save" />
     <label className="ui-field">Provider
-      <select name="provider" value={provider} onChange={event => setProvider(event.target.value)}>
+      <select name="provider" value={provider} onChange={event => { pickedProvider.current = true; setProvider(event.target.value); }}>
         <option value="" disabled={initial.provider !== ""}>This app’s default</option>
         {providers.map(p => <option key={p.id} value={p.id} disabled={demo && p.id === "custom"}>{p.label}</option>)}
       </select></label>
     {demo && <p className="ui-hint">A custom address needs an account. Sign in from Settings → Account.</p>}
     {provider === "custom" && <label className="ui-field">Address<input name="baseUrl" type="url" defaultValue={initial.baseUrl} placeholder="https://models.example/v1" spellCheck={false} maxLength={300} required /></label>}
+    <label className="ui-field">Key{provider === "custom" ? " (optional)" : ""}
+      <input ref={key} name="key" type="password" autoComplete="new-password" spellCheck={false} maxLength={500}
+        required={!isDefault && provider !== "custom" && !initial.hint} placeholder={initial.hint ? `Saved: ${initial.hint}. Leave empty to keep it.` : ""}
+        onPaste={event => {
+          if (pickedProvider.current) return;
+          const inferred = providerFromKey(event.clipboardData.getData("text"), provider);
+          if (inferred) setProvider(inferred);
+        }} />
+    </label>
     {!isDefault && <>
       <label className="ui-field">Model for questions<input name="textModel" list="ai-text-models" defaultValue={initial.textModel} spellCheck={false} maxLength={200} required />
         <datalist id="ai-text-models">{suggestions.map(t => <option key={t.model} value={t.model} />)}</datalist></label>
       <label className="settings-check"><input name="sameForDocuments" type="checkbox" checked={same} onChange={event => setSame(event.target.checked)} />Use the same model for documents</label>
       {!same && <label className="ui-field">Model for documents<input name="documentModel" defaultValue={initial.documentModel} spellCheck={false} maxLength={200} required /></label>}
-      <label className="ui-field">Key{provider === "custom" ? " (optional)" : ""}
-        <input ref={key} name="key" type="password" autoComplete="new-password" spellCheck={false} maxLength={500} required={provider !== "custom" && !initial.hint} placeholder={initial.hint ? `Saved: ${initial.hint}. Leave empty to keep it.` : ""} /></label>
       <p className="ui-hint">Only the last four characters are shown again.</p>
       <button className="ui-button primary" disabled={false}>Save and check</button></>}
-    {isDefault && <p className="ui-hint">Choose a provider to use your own model.</p>}
+    {isDefault && <><button type="submit" hidden disabled /><p className="ui-hint">Paste a key or choose a provider to use your own model.</p></>}
   </ApiForm>;
 }

@@ -652,6 +652,11 @@ never replaced by another key. A question or document travels to the host Settin
 under the owner's key; no call is capped (D33). Saving a model runs `checkConnection` (uses_tools, ignores_injection, stays_on_money) and stores the result in `ai_check`. MCP
 tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
 
+In Settings, `AiModelForm` calls `providerFromKey` in the browser when the owner pastes a key with Provider still on the app’s default.
+`PROVIDERS` stores the provider key-page metadata and the distinctive prefixes `sk-ant-` (Anthropic), `sk-or-` (OpenRouter),
+`gsk_` (Groq) and `AIza` (Google Gemini). A plain `sk-` key leaves the default selected. An explicit provider choice is preserved.
+Inference uses the prefix locally and makes no request.
+
 Optional reminder email needs `RESEND_API_KEY` and `REMINDER_FROM`. Browser push needs `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` and `WEB_PUSH_SUBJECT`. The owner generates the VAPID pair with `npm run push:keys`, which writes the two ignored local settings files without printing the keys. Only the public key goes to the browser. `/api/health` reports each channel’s setting names or readiness separately.
 
 ### What is held, and for how long

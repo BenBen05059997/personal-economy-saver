@@ -1845,7 +1845,7 @@
     ],
     "expected": [
       "The order is This app's default, Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Mistral, Other (OpenAI-compatible address)",
-      "On the default only \"Choose a provider to use your own model.\" shows"
+      "On the default there is a Key password field with \"Paste a key or choose a provider to use your own model.\" and no Save and check button"
     ],
     "refs": [
       "BROWSER-CHECKS Y2"
