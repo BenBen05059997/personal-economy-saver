@@ -2,6 +2,7 @@
 // The send-capable PayPal runner is kept out of the agent by lint (no-restricted-imports in eslint.config.mjs)
 // and by the source scan at the end of this script.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
@@ -18,7 +19,7 @@ import { loadMoneyState } from "@/db/household";
 import { createSpace, generalSpace, saveBrief } from "@/db/spaces";
 import { BriefSchema } from "@/lib/agent/brief";
 import { seedBen } from "@/db/seed";
-import { AgentError, runAgent } from "@/lib/agent/run";
+import { AgentError, askBudgetMs, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { dueAnswer, statusAnswer } from "@/lib/money/ask";
 import { addDays, low, medianLow, safeToSpend, series } from "@/lib/money/runway";
@@ -103,7 +104,7 @@ function chatTransport(script: ((bodies: ChatBody[]) => Response)[] | ((bodies: 
 }
 const toolMessages = (body: ChatBody) => body.messages.filter(m => m.role === "tool") as { tool_call_id: string; content: string }[];
 
-const AI_NAMES = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL"];
+const AI_NAMES = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL", "ASK_BUDGET_MS"];
 const KEY = "sk-ant-fictional-" + "a".repeat(40);
 const APP = new URL("http://127.0.0.1:3123");
 
@@ -111,6 +112,8 @@ async function main() {
   const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
   const saved = Object.fromEntries(AI_NAMES.map(name => [name, process.env[name]]));
+  const budgetProbe = process.argv.includes("--ask-budget-check");
+  if (!budgetProbe) delete process.env.ASK_BUDGET_MS;
   let passed = 0;
   const realInfo = console.info;
   async function check(name: string, run: () => Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
@@ -128,6 +131,27 @@ async function main() {
     console.info = (...args: unknown[]) => { const first = String(args[0]); if (first.startsWith('{"at":')) logged.push(JSON.parse(first)); else realInfo(...args); };
     const ask = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { now?: () => number; source?: "voice" | "manual"; askId?: string; onStep?: (step: string) => void } = {}) =>
       runAgent({ db, householdId: hid, question, askId: extra.askId ?? crypto.randomUUID(), appUrl: APP, connection: () => aiConnection(db, hid, "text"), fetch, ...extra });
+
+    if (budgetProbe) {
+      assert.equal(askBudgetMs(), 1_250);
+      process.env.ASK_BUDGET_MS = "9000";
+      let clock = 0;
+      const model = transport(() => {
+        clock = 1_250;
+        return reply("tool_use", [toolUse("due", "whats_due", {})]);
+      });
+      await assert.rejects(ask(a, "What’s due?", model.fetch, { now: () => clock }),
+        (error: unknown) => error instanceof AgentError && error.outcome === "budget");
+      assert.equal(model.bodies.length, 1, "Ask uses the cached override for its deadline");
+      return;
+    }
+
+    await check("Ask defaults to 20 seconds and uses the configured budget for its deadline", async () => {
+      assert.equal(askBudgetMs(), 20_000);
+      execFileSync(process.execPath, [...process.execArgv, process.argv[1], "--ask-budget-check"], {
+        env: { ...process.env, ASK_BUDGET_MS: "1250" },
+      });
+    });
 
     await check("a question runs a tool, feeds the engine's own answer back, one model call per turn", async () => {
       const { fetch, bodies } = transport([

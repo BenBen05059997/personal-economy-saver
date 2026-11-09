@@ -220,7 +220,7 @@ On phones, Ask’s Based on links and question starters, Upload’s To check lin
 `{"error": "…"}` (the sentence a failure carried as a 503 before the stream began). `src/components/ask/read-stream.ts` (`readAskStream`) reads it line
 by line; the page shows the latest step in a `role="status"` line under the box and the error where it always showed it. A 401 on any Ask request (the question, attach a bill, a canvas block, the document card) shows "Your session has expired." with a link "Start again from the home page." to `/` (`SessionEnded.tsx`). The To check Retry control posts through `ApiForm`.
 
-**Budgets and limits.** `MAX_TOOL_TURNS` 4, `BUDGET_MS` 20 s shared by every model call of the question, `MAX_TOKENS` 16,000, no retries (every
+**Budgets and limits.** `MAX_TOOL_TURNS` 4 and `MAX_TOKENS` 16,000. The question shares one `ASK_BUDGET_MS` deadline across model calls and tool reads. Ask reads it once and defaults to 20 s. Slow development models can override it. Production leaves it unset. Model calls have no retries (every
 attempt asks for its own connection); the ask limit is 30 a minute; declined questions are not capped; the read tools of a model turn are raced against the time left of the 20 s (`beforeDeadline` in `run.ts`): past it the question stops with "That took too long while <the step's words>. Try a simpler question." (outcome `budget`), while a write, `clarify` and `out_of_scope` are waited for and a write already done is kept (`savedThenStopped`); a question is 1 to 320 characters; one question makes at most 20 memory changes on a device (`MAX_MEMORY_CHANGES`;
 `remember` and `forget` refuse the 21st in words). With no setting for a model, the Ask page names the missing `AI_` setting.
 

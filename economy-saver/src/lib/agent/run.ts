@@ -39,7 +39,19 @@ export class AgentError extends Error {
 const NOT_SOURCES = new Set(["remember", "forget", "make_canvas", "offer_keep", "update_brief", "search_history", "open_space"]);
 
 const MAX_TOOL_TURNS = 4;
-const BUDGET_MS = 20_000;
+let cachedBudgetMs: number | undefined;
+
+/** Read once per process, when Ask first runs. */
+export function askBudgetMs(): number {
+  if (cachedBudgetMs !== undefined) return cachedBudgetMs;
+  const setting = process.env.ASK_BUDGET_MS?.trim();
+  if (!setting) return cachedBudgetMs = 20_000;
+  const ms = Number(setting);
+  if (!/^\d+$/.test(setting) || !Number.isInteger(ms) || ms < 1 || ms > 2_147_483_647) {
+    throw new Error("ASK_BUDGET_MS must be a positive whole number of milliseconds within the timer range.");
+  }
+  return cachedBudgetMs = ms;
+}
 const MAX_TOKENS = 16_000;
 
 const definitions: ToolSpec[] = tools.map(tool => ({ name: tool.name, description: tool.description, schema: toolInputSchema(tool) }));
@@ -126,7 +138,7 @@ export async function runAgent(opts: AskOptions): Promise<AskResult> {
 
 async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const now = opts.now ?? Date.now;
-  const deadline = now() + BUDGET_MS;
+  const deadline = now() + askBudgetMs();
   const hid = requireHousehold(opts.householdId);
 
   const links: { label: string; href: string }[] = [];
