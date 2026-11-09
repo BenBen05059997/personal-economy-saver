@@ -317,6 +317,31 @@ async function main() {
     assert.equal((await ask(json("/api/ask", { ...privateQuestion, incognito: false }))).status, 400);
     ok("Incognito reads the existing context, refuses even forced writes, and stores only the retry key");
 
+    for (const fail of ["model", "amount"]) {
+      const input = { ...privateQuestion, id: crypto.randomUUID() };
+      scripted(index => {
+        if (fail === "model") return new Response(null, { status: 500 });
+        if (index === 0) return modelReply("tool_use", [call("where_am_i", {})]);
+        return modelReply("end_turn", [{ type: "text", text: "You have ¥888,888." }]);
+      });
+      const failure = (await streamed(await ask(json("/api/ask", input)))).last;
+      assert.ok(failure.error);
+      if (fail === "amount") assert.match(failure.error, /could not confirm/);
+      const receipts = () => db.select().from(schema.askReceipts)
+        .where(and(eq(schema.askReceipts.householdId, privateHid), eq(schema.askReceipts.askId, input.id)));
+      assert.deepEqual(await receipts(), [], `${fail}: a failed run releases its claim`);
+      const calls = scripted(index => index === 0
+        ? modelReply("tool_use", [call("where_am_i", {})])
+        : modelReply("end_turn", [{ type: "text", text: "I checked again." }]));
+      const retry = (await streamed(await ask(json("/api/ask", input)))).last.reply!;
+      assert.equal(retry.text, "I checked again.");
+      assert.equal(retry.incognito, true);
+      assert.equal(calls(), 2);
+      assert.equal((await receipts()).length, 1);
+      assert.equal((await allTurns(db, privateHid)).length, 1);
+    }
+    ok("failed Incognito runs release the receipt so the same id can run again without saving a turn");
+
     const localHid = await seedBen(db, { isDemo: true });
     const localGeneral = await generalSpace(db, localHid);
     await db.update(schema.households).set({ memoryPlace: "device", journalPlace: "device" }).where(eq(schema.households.id, localHid));

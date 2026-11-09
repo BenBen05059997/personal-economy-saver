@@ -8,7 +8,7 @@ import { readPlaces } from "./place";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
 import { RecipeSchema, type Recipe } from "@/lib/canvas/schema";
-import { askReceipt, claimAskReceipt, noteAskReply, noteAskWrote } from "./ask-receipts";
+import { askReceipt, claimAskReceipt, noteAskReply, noteAskWrote, releaseAskReceipt } from "./ask-receipts";
 import { requireSpace, saveBrief } from "./spaces";
 import { saveTurn, turnById } from "./conversation";
 import { documentCard } from "./document-card";
@@ -212,6 +212,10 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
       connection: () => aiConnection(db, householdId, "text"),
     });
   } catch (error) {
+    if (incognito) {
+      await withHousehold(db, householdId, tx => releaseAskReceipt(tx, householdId, id));
+      throw error;
+    }
     // A write tool already succeeded: what it kept is shown, with the reason the answer stopped, instead of an error that hides it (a retry would write it twice).
     if (!(error instanceof AgentError) || !error.saved) throw error;
     result = { kind: ANSWER, answer: FIXED.savedThenStopped + error.message, choices: null, recipe: null, sources: [], links: error.saved.links, pending: error.saved.pending, offers: [] };

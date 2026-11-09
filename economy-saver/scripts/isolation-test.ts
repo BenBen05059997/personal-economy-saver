@@ -133,7 +133,7 @@ const covered = [
   // D70 history.ts
   "searchHistory", "resolveMemorySpace",
   // D59 ask-receipts.ts
-  "noteAskWrote", "claimAskReceipt", "noteAskReply", "askReceipt", "pruneAskReceipts",
+  "noteAskWrote", "claimAskReceipt", "releaseAskReceipt", "noteAskReply", "askReceipt", "pruneAskReceipts",
   // D61 document-card.ts
   "documentCard", "attachDocument",
   // 27E document-cleanup.ts: Storage bytes and the removal of old raw files
@@ -614,6 +614,12 @@ async function main() {
       assert.deepEqual(await F.askReceipt(store, hid, receiptId), { pending: true, links: [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }] });
       assert.equal(await F.askReceipt(store, other.hid, receiptId), null, "another household's note is not seen by this id");
       assert.equal(await F.askReceipt(store, other.hid, receiptId) !== null, false, "another household's receipt is not seen by this id");
+      await F.releaseAskReceipt(store, other.hid, receiptId);
+      assert.notEqual(await F.askReceipt(store, hid, receiptId), null, "another household cannot release the receipt");
+      const failedId = randomUUID();
+      assert.equal(await F.claimAskReceipt(store, hid, failedId), true);
+      await F.releaseAskReceipt(store, hid, failedId);
+      assert.equal(await F.askReceipt(store, hid, failedId), null);
       assert.equal(await F.pruneAskReceipts(store, hid), 0, "a receipt under a day old stays");
       await pg.query("update ask_receipts set created_at = now() - interval '2 days' where household_id = $1 and ask_id = $2", [hid, receiptId]);
       const otherBefore = (await db.select().from(schema.askReceipts).where(eq(schema.askReceipts.householdId, other.hid))).length;

@@ -1237,7 +1237,8 @@
     ],
     "expected": [
       "The request leaves only the retry key and no saved private turn",
-      "A repeat id does not call the model again or write to the brief, memory or money record"
+      "A repeat id after a completed run does not call the model again or write to the brief, memory or money record",
+      "After a model failure or an unconfirmed amount, the same id runs again and still saves no private turn"
     ],
     "refs": [
       "BROWSER-CHECKS AP32",

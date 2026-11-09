@@ -284,7 +284,8 @@ usual create form to `/api/spaces` and navigates to the created space. Not now d
 
 **Incognito (D71).** The Ask switch sends `incognito: true`. Ask loads the same space context for this question.
 The tool catalogue for the question allows read-only behavior. The only saved Ask data is the receipt’s retry key.
-A retry returns a fixed sentence explaining that the reply was never saved. The answer shows "Not saved" in the current view. It stays out of the cloud and device journals. The brief and
+A retry of a completed question returns a fixed sentence explaining that the reply was never saved.
+If the agent run fails, Ask releases the receipt so the same request can try again. The answer shows "Not saved" in the current view. It stays out of the cloud and device journals. The brief and
 notes keep their saved state. The temporary canvas is a preview. The saved canvas returns when Incognito is off.
 The household’s configured provider still receives the question and context.
 
