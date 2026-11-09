@@ -15,8 +15,10 @@ export const FIXED = {
   alreadySaved: "This question already saved what you told me. Open To check to see it.",
 } as const;
 
+export const MODEL_HINT = "Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.";
+
 /** The line above the question box until the household has an answer. */
-export const firstUse = (host: string) => `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to ${host}.`;
+export const firstUse = (host: string) => `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to ${host}. ${MODEL_HINT}`;
 
 /** The page each tool's answer came from. `make_canvas`, `what_if` and `household_snapshot` add none. */
 const TOOL_SOURCES: Record<string, LinkSource> = {

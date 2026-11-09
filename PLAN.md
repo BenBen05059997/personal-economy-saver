@@ -178,7 +178,7 @@ Round 3 (lead, with Haiku and Sonnet for the runs)
   - [x] The cases, graders and `npm run model:eval` are built; the graders are tested on the fake transport in `ai-test`
   - [ ] The lead runs it on at least two providers once the owner has added the keys, and adds the passing pairs to `src/lib/ai/tested.ts` (`TESTED` is currently empty)
 - [ ] **W–Z and AA. Browser checks.** Use fresh Try it households at 375px and 1440px, in light and dark. W covers engine figures on canvases, recipes, what-if sliders and pins. The canvas suite covers W10’s missing-client refusal. The browser check needs a prepared fixture because Clients has no removal control. X covers Profile and space notes, Ask memory, editing, deletion and review corrections. Y covers the default and household model, its host and connection check. Z covers replies and clarification, following up in the same space after a break, a separate thread for a new task, Based on, thumbs and declines. AA covers Your data and its cloud and device behavior. Use a working model for the steps that call one.
-- [ ] The model hint (owner, Nov 6): every household starts on the server's default model; Settings → Your AI model and the Ask first-use line say so and that another model can be chosen there. No model per job and no new tests for it.
+- [x] The model hint (owner, Nov 6): Settings → Your AI model and the Ask first-use line say every household starts on the server’s default model and can choose another in Settings → Your AI model.
 - [x] 20C. `callModel` uses the maintained Vercel AI SDK provider packages with the existing neutral contract. The agent, reader, AI and voice suites pass.
 
 *Stage 16, what is left*

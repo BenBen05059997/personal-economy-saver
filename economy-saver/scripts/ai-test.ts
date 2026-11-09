@@ -12,6 +12,7 @@ import { loadMoneyState } from "@/db/household";
 import { foreignCosts } from "@/db/fx-cost";
 import { group } from "@/lib/money/format";
 import { seedBen } from "@/db/seed";
+import { firstUse, MODEL_HINT } from "@/lib/agent/reply";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { AGENT_CASES, CASE_NAMES, gradeOutcome, runEval, scriptedModel, type Outcome } from "./model-eval-cases";
 import { callModel } from "@/lib/ai/call";
@@ -471,6 +472,11 @@ async function main() {
         assert.match(other.why!, /other than PayPal/);
       }
     } finally { await pg.close(); }
+  });
+
+  await check("Settings and Ask name the default model and where a household can choose another", () => {
+    assert.equal(MODEL_HINT, "Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.");
+    assert.equal(firstUse("models.example"), `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to models.example. ${MODEL_HINT}`);
   });
 
   await check("the tested list is empty until the evaluation fills it, and isTested matches provider and model", () => {

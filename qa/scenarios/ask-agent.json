@@ -2327,7 +2327,7 @@
       "Ask \"Where am I?\""
     ],
     "expected": [
-      "Before the first answer a line above the box reads \"A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to {host}.\" with the host Settings → Your AI model shows",
+      "Before the first answer a line above the box reads \"A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to {host}. Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.\" with the host Settings → Your AI model shows",
       "After the first real answer the line is gone",
       "It stays gone after reload; a decline or a clarifying question does not remove it"
     ],

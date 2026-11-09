@@ -630,7 +630,10 @@ await step("action", "ai-model-default-is-accepted-and-an-oversize-body-is-refus
   expect(big.response.status === 413, "ai-model-oversize-status");
 });
 await step("page", "settings", () => page("/settings", /Household &amp; bank|Household & bank/));
-await step("page", "settings-offers-start-over-with-my-numbers", () => page("/settings", /Start over with my numbers/));
+await step("page", "settings-offers-start-over-with-my-numbers", async () => {
+  const html = await page("/settings", /Start over with my numbers/);
+  expect(pageContent(html).includes("Every household starts on the server’s default model, and you can choose another in Settings → Your AI model."), "settings-model-hint");
+});
 await step("action", "export-my-data", async () => {
   const result = await request("/api/export", { method: "POST" });
   const { headers } = result.response;
