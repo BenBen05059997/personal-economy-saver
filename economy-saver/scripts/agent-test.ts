@@ -1163,6 +1163,32 @@ async function main() {
       assert.ok(JSON.stringify(second.bodies[0].messages[0]).includes("7,777"), "the earlier reply was shown to the model as context");
     });
 
+    await check("CONV-010: a confirmed Nov 19 bill changes the same week's follow-up", async () => {
+      const hid = await seedBen(db, { isDemo: true });
+      const { id: conversationId } = await generalSpace(db, hid);
+      const bill = "Kumo Water";
+      const askWeek = async (question: string, includesBill: boolean) => {
+        const model = transport([
+          () => reply("tool_use", [toolUse("t", "timeline", { scenario: "as_usual" })]),
+          () => reply("end_turn", [text(includesBill ? "Kumo Water is also due this week." : "I checked what is due this week.")]),
+        ]);
+        const answer = await conversation(hid, question, model.fetch, { conversationId });
+        const [result] = toolResults(model.bodies[1]);
+        const events: { label: string; date: string; amountMinor: number }[] = JSON.parse(result.content).events;
+        const week = events.filter(event => event.date >= "2026-11-14" && event.date <= "2026-11-21");
+        const matched = week.find(event => event.label === bill);
+        assert.equal(Boolean(matched), includesBill);
+        if (matched) assert.deepEqual([matched.date, Math.abs(matched.amountMinor)], ["2026-11-19", 2500]);
+        return answer;
+      };
+      const first = await askWeek("What's due this week?", false);
+      await insertBill(db, hid, billInput.parse({ id: crypto.randomUUID(), biller: bill, amount: "2500", due: "2026-11-19", category: "utilities" }),
+        "confirmed", { madeBy: "form" });
+      const next = await askWeek("And again, what's due?", true);
+      assert.notEqual(next.text, first.text);
+      assert.match(next.text, /Kumo Water/);
+    });
+
     await check("the checked space brief is saved after the answer and appears on the next question", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const general = await generalSpace(db, hid);

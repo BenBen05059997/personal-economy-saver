@@ -4438,7 +4438,7 @@
     ],
     "steps": [
       "Ask \"What's due this week?\"",
-      "Confirm a bill so Coming up changes",
+      "Confirm a fictional ¥2,500 Kumo Water bill due Nov 19 so Coming up changes",
       "Ask \"and again, what's due?\" in the same conversation"
     ],
     "expected": [
