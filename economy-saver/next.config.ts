@@ -37,6 +37,8 @@ const nextConfig: NextConfig = {
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "Permissions-Policy", value: "microphone=(self), camera=(), geolocation=(), payment=()" },
+    ] }, { source: "/api/auth/callback", headers: [
+      { key: "Referrer-Policy", value: "no-referrer" },
     ] }, { source: "/family/:path*", headers: [
       { key: "Cache-Control", value: "private, no-store" },
       { key: "Referrer-Policy", value: "no-referrer" },

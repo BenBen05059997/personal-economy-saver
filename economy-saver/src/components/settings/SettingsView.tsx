@@ -29,6 +29,7 @@ import { OwnCategories } from "./OwnCategories";
 import { groupOwnCategories } from "@/db/own-categories";
 import type { OwnChoices } from "@/lib/reader/own-choices";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
+import { LoadingIndicator } from "@/components/ui/LoadingState";
 import "./settings.css";
 
 type SettingsData = Awaited<ReturnType<typeof loadSettings>>;
@@ -180,9 +181,9 @@ export function SettingsView({ data, own, canImportPayPal = false, familyLinks, 
       <p className="ui-hint">Add the clients and invoices from your PayPal sandbox account. This only reads from PayPal and never changes your balance.</p>
       <form method="post" action="/api/paypal/import"><button className="ui-button">Import clients and invoices from PayPal</button></form>
     </section>}
-    {canManage && <Suspense fallback={<section className="ui-panel" id="ai-model"><h2>Your AI model</h2><p className="ui-hint">Loading…</p></section>}>
+    {canManage && <Suspense fallback={<section className="ui-panel" id="ai-model"><h2>Your AI model</h2><LoadingIndicator label="Loading…" /></section>}>
       <AiModelPanel demo={household.demo} /></Suspense>}
-    <Suspense fallback={<section className="ui-panel" id="your-data"><h2>Your data</h2><p className="ui-hint">Loading…</p></section>}><YourData canDeleteHousehold={canManage} /></Suspense>
+    <Suspense fallback={<section className="ui-panel" id="your-data"><h2>Your data</h2><LoadingIndicator label="Loading…" /></section>}><YourData canDeleteHousehold={canManage} /></Suspense>
     <section className="ui-panel"><h2>Account</h2><p className="ui-hint">{household.demo ? "This is a fictional Try it household. Sign in to start with your own balances." : canManage ? "Manage sign-in and delete your household data." : "Manage sign-in or leave this household."}</p><Link className="ui-button" prefetch={false} href="/account">Open account</Link> <Link className="account-link" href="/privacy">Privacy ›</Link>
       {household.demo && <ResetDemo />}</section>
   </>;

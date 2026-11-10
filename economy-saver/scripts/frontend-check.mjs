@@ -157,7 +157,8 @@ if (args[0] === "--guards") {
   const checks = [
     ["sign-in-invalid-email", "/api/auth/link", { method: "POST", form: { email: "invalid" } }, 400],
     ["sign-in-json-body", "/api/auth/link", { method: "POST", json: { email: "a@example.com" } }, 400],
-    ["callback-without-code", "/api/auth/callback", {}, 303, "/login?expired=1"],
+    ["callback-hands-off", "/api/auth/callback?code=x", {}, 303, "/signing-in?code=x"],
+    ["finish-without-code", "/api/auth/finish", {}, 303, "/login?expired=1"],
     ["approve-without-household", "/api/approve", { method: "POST" }, 401],
     ["unsigned-webhook", "/api/paypal/webhook", { method: "POST", json: { id: "fictional-check", event_type: "INVOICING.INVOICE.PAID" } }, 400],
     ["private-upload-without-household", "/api/upload", { method: "POST" }, 401],

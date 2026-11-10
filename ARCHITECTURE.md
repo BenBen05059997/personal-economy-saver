@@ -84,7 +84,7 @@ Cloudflare
     │   ├── /api/reminders        POST per-member settings, subscribe, unsubscribe or test (D65)
     │   ├── /api/events            GET events since a time plus the feed summary; POST mark read (the bell)
     │   ├── /api/try, /api/try/reset, /api/try/blank   Try it (Ben's demo household); demo-only reset; Start with my numbers (D47)
-    │   ├── /api/auth/link, /callback, /logout   magic-link request, callback and logout
+    │   ├── /api/auth/link, /callback, /finish, /logout   magic-link request; the emailed callback (it only 303s to `/signing-in` with the same query); finish (the exchange, invite and household check, then `/onboarding`, `/` or a refusal); logout. `/signing-in` is a public, no-referrer, no-index page that shows the full loader ("Signing you in…") and opens finish
     │   ├── /api/onboarding        first-run setup for a signed-in person through `createHousehold`; upgrades a Try it or blank demo household
     │   ├── /api/settings, /api/settings/ai-model, /api/forwarding   name and balance, a card (with its foreign fee, D62); Your AI model; forwarding address
     │   ├── /api/settings/ai-model/models   POST `provider`, `baseUrl`, `key` (URL-encoded form, 4 KiB). Same-origin owner guard, 20/min, private no-store. Returns model ids with reported tools/images flags and a tested flag, or a fixed failure message
@@ -631,7 +631,7 @@ database policies directly, with no tenant predicate in its own SQL, and verifie
 
 Try it visitor: a random token in an httpOnly cookie, a bearer for that demo household only (`issueDemoToken` stores its SHA-256 hash; `demoHouseholdForToken` resolves it; every Try it, Reset and Start with my numbers issues a fresh one, retiring the last; `findDemoHousehold` only tests whether an id is a demo household and is never a credential); Try it makes an anonymous session with its own
 fictional household (Ben's, on its fixed date, D51) or a blank one (Start with my numbers, D47). Signed-in person: email → magic link (PKCE, the
-callback at the required `APP_URL`) → callback → Supabase auth cookies (`pes-auth`, 30 days, refreshed in middleware, `getUser()` per request) →
+callback at the required `APP_URL`) → callback → `/signing-in` loader → `/api/auth/finish` → Supabase auth cookies (`pes-auth`, 30 days, refreshed in middleware, `getUser()` per request) →
 `users` → `members` → household; a Try it household can be upgraded through sign-in (`upgrade-demo`, one hour). MCP client: a token hashed in
 `api_tokens`, scoped and revocable. Family view: a random token in the link, hashed in `family_links`, valid seven days of real time and stoppable
 (D52). Cron: `CRON_SECRET`, compared in constant time. Email Worker: `INBOUND_WORKER_SECRET` and the internal origin. PayPal: the webhook signature.

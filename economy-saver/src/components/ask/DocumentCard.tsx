@@ -10,6 +10,7 @@ import { SessionEnded } from "@/components/ui/SessionEnded";
 import { guessedOwn, type OwnChoices } from "@/lib/reader/own-choices";
 import { answerCheck, type CheckAnswers } from "@/components/reader/check-answers";
 import { majorText, ReadingForm } from "@/components/reader/ReadingForm";
+import { LoadingIndicator } from "@/components/ui/LoadingState";
 
 export type CardForm = { today: string; homeCurrency: Currency; cards: { id: string; label: string }[]; own: OwnChoices };
 
@@ -58,7 +59,7 @@ export function DocumentCard({ documentId, initial, form, readOnly, returnTo, on
     return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", visible); };
   }, [reading, gaveUp]);
 
-  if (card === null) return <p className="ui-hint ask-document" role="status">{ended ? <SessionEnded /> : "Opening…"}</p>;
+  if (card === null) return <p className="ui-hint ask-document">{ended ? <SessionEnded /> : <LoadingIndicator label="Opening…" />}</p>;
   const words = reading && gaveUp ? DOCUMENT_WORDS.stillReading : card.words;
   return <div className="ask-document">
     <p className="ask-document-words" aria-live="polite">{words}</p>

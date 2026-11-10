@@ -6,7 +6,7 @@ import { authCookieOptions, hasAuthCookie, supabaseAuth } from "@/lib/supabase-a
 
 /** The error pages quote the request's Cloudflare ray: a client boundary can't read headers, so a page request leaves it in a cookie it can (src/components/shell/ErrorReference.tsx). */
 function pageHeaders(request: NextRequest, response: NextResponse) {
-  if (/^\/join(?:\/|$)/i.test(request.nextUrl.pathname)) {
+  if (/^\/(?:join|signing-in)(?:\/|$)/i.test(request.nextUrl.pathname)) {
     response.headers.set("Cache-Control", "private, no-store");
     response.headers.set("Referrer-Policy", "no-referrer");
   }

@@ -14,6 +14,7 @@ import { middleware } from "@/middleware";
 const ORIGIN = "https://saver.example.test";
 const EMAIL = "fictional-invite@example.test";
 const CALLBACK = "/api/auth/callback";
+const FINISH = "/api/auth/finish";
 type Check = (name: string, run: () => Promise<void>) => Promise<void>;
 type AuthUser = { id: string; email: string; email_confirmed_at?: string };
 
@@ -80,18 +81,27 @@ export async function runInviteAuthChecks(db: Db, check: Check) {
 
   try {
     const link = (await import("@/app/api/auth/link/route")).POST;
-    const callback = (await import("@/app/api/auth/callback/route")).GET;
+    const callback = (await import("@/app/api/auth/finish/route")).GET;
+    const callbackRoute = (await import("@/app/api/auth/callback/route")).GET;
     const logout = (await import("@/app/api/auth/logout/route")).POST;
     const post = (path: string, values: Record<string, string>, headers: Record<string, string> = {}) => new Request(ORIGIN + path, {
       method: "POST", body: new URLSearchParams(values),
       headers: { origin: ORIGIN, "x-test-client-ip": "203.0.113.16", ...headers },
     });
     const linkPost = (values: Record<string, string>, headers?: Record<string, string>) => link(post("/api/auth/link", values, headers));
-    const returnFromAuth = (query = "?code=fixture&sb_flow_id=fixture-flow") => callback(new Request(ORIGIN + CALLBACK + query));
+    const returnFromAuth = (query = "?code=fixture&sb_flow_id=fixture-flow") => callback(new Request(ORIGIN + FINISH + query));
     function assertClearedPending() {
       assert.equal(incoming.has(INVITE_COOKIE), false);
-      assert.deepEqual(deletions.at(-1), { name: INVITE_COOKIE, path: CALLBACK });
+      assert.deepEqual(deletions.at(-1), { name: INVITE_COOKIE, path: FINISH });
     }
+
+    await check("the emailed callback only hands its query to the signing-in page", async () => {
+      const res = await callbackRoute(new Request(ORIGIN + CALLBACK + "?code=fixture&sb_flow_id=fixture-flow"));
+      assert.equal(res.status, 303);
+      assert.equal(res.headers.get("location"), "/signing-in?code=fixture&sb_flow_id=fixture-flow");
+      assert.equal(res.headers.get("referrer-policy"), "no-referrer");
+      assert.equal(res.headers.get("cache-control"), "private, no-store");
+    });
 
     await check("invite link rejects a foreign origin, malformed token, wrong email or invalid token before sending", async () => {
       assert.equal((await linkPost({ email: EMAIL, invite: token }, { origin: "https://other.example.test" })).status, 403);
@@ -109,7 +119,7 @@ export async function runInviteAuthChecks(db: Db, check: Check) {
       assert.ok(res instanceof NextResponse);
       const pending = res.cookies.get(INVITE_COOKIE);
       assert.equal(pending?.value === token, true);
-      assert.deepEqual([pending?.path, pending?.httpOnly, pending?.sameSite, pending?.maxAge], [CALLBACK, true, "lax", INVITE_COOKIE_AGE]);
+      assert.deepEqual([pending?.path, pending?.httpOnly, pending?.sameSite, pending?.maxAge], [FINISH, true, "lax", INVITE_COOKIE_AGE]);
       assert.equal(res.cookies.get("upgrade-demo")?.value, "");
       assert.equal(res.headers.get("referrer-policy"), "no-referrer");
     });
