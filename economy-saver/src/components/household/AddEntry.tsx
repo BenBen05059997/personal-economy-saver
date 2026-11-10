@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import { ApiForm } from "@/components/ui/ApiForm";
 import { CheckedInput } from "@/components/ui/CheckedInput";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
-import { CategoryKeySchema } from "@/lib/money/categories";
+import { CategoryKeySchema, type CategoryKey } from "@/lib/money/categories";
 import { guessCategory, guessRepeat } from "@/lib/money/categorise";
 import { Currency } from "@/lib/catalogue/types";
 import { AmountField } from "./AmountField";
@@ -114,15 +114,17 @@ function Guess({ words, focus, categoryGuessed, ownGuessed }: { words: string[];
   </>;
 }
 
-type FormProps = { id: string; returnTo: "/" | "/to-check"; today: string; currency: string; people: { id: string; name: string }[]; own: OwnChoices };
+/** The setup steps start a bill from a chip: its name and category, repeating every month. */
+export type BillPreset = { name: string; category: CategoryKey; varies?: boolean };
+type FormProps = { id: string; returnTo: string; today: string; currency: string; people: { id: string; name: string }[]; own: OwnChoices };
 
-function BillForm({ id, returnTo, today, currency, people, own }: FormProps) {
-  const [name, setName] = useState(""); // the name typed so far; the category and the repeat follow it until the user chooses
+export function BillForm({ id, returnTo, today, currency, people, own, preset }: FormProps & { preset?: BillPreset }) {
+  const [name, setName] = useState(preset?.name ?? ""); // the name typed so far; the category and the repeat follow it until the user chooses
   const [due, setDue] = useState(today);
   const [whose, setWhose] = useState(""); // "" = shared
-  const [repeat, setRepeat] = useState<Repeat | null>(null); // null = not chosen: it follows the name
-  const [varies, setVaries] = useState(false); // D54: only saved while the bill repeats every month
-  const [category, setCategory] = useState<string | null>(null);
+  const [repeat, setRepeat] = useState<Repeat | null>(preset ? "month" : null); // null = not chosen: it follows the name
+  const [varies, setVaries] = useState(preset?.varies ?? false); // D54: only saved while the bill repeats every month
+  const [category, setCategory] = useState<string | null>(preset?.category ?? null);
   const [applied, setApplied] = useState<OwnApplied>(null);
   const [nextAmount, setNextAmount] = useState("");
   const [cancelBy, setCancelBy] = useState("");

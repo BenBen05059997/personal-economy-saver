@@ -26,7 +26,8 @@ import { ConfirmButton } from "@/components/household/ConfirmButton";
 import { Suggestions } from "./Suggestions";
 import type { openSuggestions } from "@/db/suggestions";
 import type { OwnChoices } from "@/lib/reader/own-choices";
-import { GetStarted, StepsPanel, type GetStartedProgress } from "./GetStarted";
+import { GetStarted, type GetStartedProgress } from "./GetStarted";
+import { Hints } from "./Hints";
 import "./home.css";
 
 type Props = { state: MoneyState };
@@ -75,21 +76,17 @@ function ToCheck({ state, inbox, forwarding }: Props & { inbox: ReaderInbox; for
   </section>;
 }
 
-/** D47, D51: what makes the forecast real, one open step at a time in order of value, each with its reason. A done step is one ticked line; the panel is gone once every step is done, and for Try it (Ben's household has them). A household with no card is asked for one before the card charge. */
-function FirstSteps({ state, tryIt }: Props & { tryIt: boolean }) {
+/** The hints panel for a real or blank household: what can be done on Home, each card ticked once its thing exists. Try it has the Get started tour instead. */
+function HintsPanel({ state, inbox, tryIt, householdId }: Props & { inbox: ReaderInbox; tryIt: boolean; householdId: string }) {
   if (tryIt) return null;
-  const steps = [
-    { done: state.bills.length > 0, open: "Add your rent, so the day it leaves shows up", closed: "Bill added", href: ADD_BILL },
-    { done: state.clients.length > 0, open: "Add a client who pays you, so late payments show in the sentence", closed: "Client added", href: "/clients" },
-    ...(state.cards.length === 0 ? [{ done: false, open: "Add a card, so card bills count", closed: "Card added", href: SETTINGS_CARDS }] : []),
-    { done: state.charges.length > 0, open: "Add a card charge, so unbilled spend counts", closed: "Card charge added", href: ADD_CHARGE },
-    { done: state.split.members.length > 1, open: "Share costs with someone", closed: "Costs shared", href: SETTINGS_PEOPLE },
-  ];
-  const current = steps.find(step => !step.done);
-  if (!current) return null;
-  const left = steps.filter(step => !step.done).length;
-  return <StepsPanel sectionId="first-steps" id="first-steps-title" title={`First steps · ${left} to go`}
-    rows={[...steps.filter(step => step.done).map(step => ({ done: true, label: step.closed })), { done: false, label: current.open, href: current.href }]} />;
+  const done = {
+    bank: state.bank !== 0,
+    bill: state.bills.length > 0,
+    client: state.clients.length > 0,
+    charge: state.charges.length > 0,
+    upload: inbox.readings.length + inbox.jobs.length > 0,
+  };
+  return <Hints householdId={householdId} done={done} hasCard={state.cards.length > 0} links={{ bill: ADD_BILL, charge: ADD_CHARGE, cards: SETTINGS_CARDS }} />;
 }
 
 function Cards({ state }: Props) {
@@ -259,7 +256,7 @@ export function HomeView({ state, inbox, notice, people, entryIds, own, balanceI
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} forwarding={forwarding} />
     <Suspense fallback={null}>{pins}</Suspense>
-    {tryIt && getStarted ? <GetStarted key={householdId} householdId={householdId} progress={getStarted} peopleCount={state.split.members.length} /> : <FirstSteps state={state} tryIt={tryIt} />}
+    {tryIt && getStarted ? <GetStarted key={householdId} householdId={householdId} progress={getStarted} peopleCount={state.split.members.length} /> : <HintsPanel state={state} inbox={inbox} tryIt={tryIt} householdId={householdId} />}
     <HomeViews state={state} spending={spending} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
     <div className="home-panels">
       <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} /></div>

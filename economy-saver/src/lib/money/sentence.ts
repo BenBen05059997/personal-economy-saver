@@ -79,7 +79,7 @@ function hasNothingToForecast(state: MoneyState) {
 
 export function homeSentence(state: MoneyState): SentenceParts {
   if (hasNothingToForecast(state)) {
-    return parts(["Add your rent, your bills and the clients who pay you to see your next 30 days."], `Bank balance ${money(state.bank, state.homeCurrency)}.`, null, null, false);
+    return parts(["Add your bills and the clients who pay you to see your next 30 days."], `Bank balance ${money(state.bank, state.homeCurrency)}.`, null, null, false);
   }
   // The amount and low point do not use the monthly-essentials threshold (only the verdict does).
   return { ...composeSentence(safeToSpend(state, 0), low(series(state, "expected")), state.homeCurrency, expectsClientPayment(state), state.clients), note: gapNote(state) };

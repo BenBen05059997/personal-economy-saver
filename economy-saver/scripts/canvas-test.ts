@@ -502,7 +502,7 @@ async function main() {
         assert.ok(table.data.caption?.includes(jpy(111_637)), "the payout words are the caption");
       }
       assert.equal(JSON.stringify(resolveRecipe(recipe, withFx)), JSON.stringify(resolveRecipe(recipe, await loadCanvasContext(db, a, recipe))), "the same numbers twice");
-      // Ben's seed has no foreign card charge (Fontly Cloud is typed in by hand, BROWSER-CHECKS AE2): the $24 charge billed ¥3,710 at 150 costs ¥110.
+      // Ben's seed has no foreign card charge (Fontly Cloud is typed in by hand, qa/README AE): the $24 charge billed ¥3,710 at 150 costs ¥110.
       const fontly = { ...withFx, foreignCosts: foreignCosts({
         today: TODAY, homeCurrency: "JPY", rates: [{ date: "2026-01-01", perUsd: 150 }], cards: [{ id: "c1", label: "Card A", currency: "JPY", foreignFeeBp: null }], invoices: [],
         charges: [{ id: "x1", cardId: "c1", merchant: "Fontly Cloud", date: "2026-11-10", amountMinor: 3710, original: { amountMinor: 2400, currency: "USD" }, fxEstimated: false }],

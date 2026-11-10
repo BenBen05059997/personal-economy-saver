@@ -89,10 +89,11 @@ async function events() {
   expect(Array.isArray(data.events) && Number.isInteger(data.feed?.unread), "events-shape");
   return data;
 }
-function adopt(result, fetchForm = false) {
+const SETUP_START = "/setup?step=bank"; // where "Start planning" lands: the setup steps
+function adopt(result, fetchForm = false, to = "/") {
   const { status, headers } = result.response;
-  expect(fetchForm ? status === 204 && headers.get("x-form-redirect") === "/" && !headers.has("location") && result.body === ""
-    : status === 303 && headers.get("location") === "/", "session-redirect");
+  expect(fetchForm ? status === 204 && headers.get("x-form-redirect") === to && !headers.has("location") && result.body === ""
+    : status === 303 && headers.get("location") === to, "session-redirect");
   const next = result.response.headers.get("set-cookie")?.match(/(?:^|,\s*)household=([^;]+)/)?.[1];
   expect(next && /^[A-Za-z0-9_-]{43}$/.test(next), "session-cookie"); // a Try it token, never the household id (D34)
   cookie = "household=" + next;
@@ -489,7 +490,7 @@ await step("page", "phone-links-keep-their-own-home-and-canvas-destinations", as
 await step("page", "home-try-it-get-started", async () => {
   const html = await page("/", /18,780/);
   expect(/Get started/.test(pageContent(html)) && /Read the sentence and the forecast/.test(pageContent(html)) && /Hikari Denki bill in To check/.test(pageContent(html)), "try-it-get-started");
-  expect(!/Add your rent\s*,\s*your bills and the clients/.test(pageContent(html)), "empty-sentence-shown");
+  expect(!/Add your bills and the clients/.test(pageContent(html)), "empty-sentence-shown");
   // Any demo household says so on Home and links to Start with my numbers.
   expect(/A fictional household that lives in this browser/.test(plain(pageContent(html))) && /href="\/start"/.test(html), "demo-line-missing");
   // The five Add actions lead to their existing forms.
@@ -843,7 +844,7 @@ await step("action", "import-refuses-a-full-household-an-old-file-and-an-oversiz
 await step("action", "import-fills-an-empty-household-from-an-export", async () => {
   const start = await request("/api/try/blank", { method: "POST", form: { name: "Fictional importer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "1", card: "Card I", closingDay: "25", dueDay: "10", limit: "" }, session: "" });
   const blank = start.response.headers.get("set-cookie")?.match(/(?:^|,\s*)household=([^;]+)/)?.[1];
-  expect(start.response.status === 303 && blank, "import-blank-session");
+  expect(start.response.status === 303 && start.response.headers.get("location") === SETUP_START && blank, "import-blank-session");
   const old = await request("/api/restore", { method: "POST", session: "household=" + blank, json: { ...JSON.parse(tryItExport), version: 1 } });
   expect(old.response.status === 400 && /version 1/.test(old.body), "import-old-version-refused");
   const done = await request("/api/restore", { method: "POST", session: "household=" + blank, json: JSON.parse(tryItExport) });
@@ -851,7 +852,7 @@ await step("action", "import-fills-an-empty-household-from-an-export", async () 
   const counts = JSON.parse(done.body).imported;
   expect(counts.clients === 3 && counts.bills > 0 && counts.invoices > 0, "import-counts");
   const home = plain(pageContent((await request("/", { session: "household=" + blank })).body));
-  expect(/short on the 27th|fine/i.test(home) && !/Add your rent, your bills/.test(home), "import-home-shows-the-forecast");
+  expect(/short on the 27th|fine/i.test(home) && !/Add your bills/.test(home), "import-home-shows-the-forecast");
 });
 await step("action", "settings-invalid-input", async () => {
   const result = await request("/api/settings", { method: "POST", form: { kind: "household", name: "Fictional Check", bank: "invalid" } });
@@ -905,17 +906,15 @@ await step("guard", "start-blank-bad-form-refused", async () => {
   const result = await request("/api/try/blank", { method: "POST", form: { ...setup, closingDay: "40" }, session: "" });
   expect(result.response.status === 400 && !result.response.headers.get("set-cookie"), "blank-bad-form");
 });
-await step("action", "start-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" })));
+await step("action", "start-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" }), false, SETUP_START));
 if (cookie === "") process.exit(1);
 await step("page", "start-blank-home-empty-sentence", async () => {
-  const content = plain(pageContent(await page("/", /Add your rent\s*,\s*your bills and the clients who pay you to see your next 30 days/)));
-  expect(content.includes("Add your rent, your bills and the clients who pay you to see your next 30 days."), "blank-sentence");
+  const content = plain(pageContent(await page("/", /Add your bills and the clients who pay you to see your next 30 days/)));
+  expect(content.includes("Add your bills and the clients who pay you to see your next 30 days."), "blank-sentence");
   // The demo line is Try it's alone (Ben's fictional numbers); a blank household is the user's own.
   expect(!/A fictional household that lives in this browser/.test(content), "blank-demo-line-shown");
   expect(/Bank balance ¥120,000\./.test(content), "blank-bank-balance");
   expect(!/You(?:'|&#x27;)re fine/.test(content), "blank-fine-verdict");
-  expect(/First steps · 4 to go/.test(content), "blank-four-steps-open");
-  expect(content.includes("Add your rent, so the day it leaves shows up") && !content.includes("Add a client who pays you, so"), "blank-only-the-first-step-is-open");
   expect(/Nothing due in the next 30 days\. Add a bill ›/.test(content), "blank-coming-up-hint");
   expect(/Card N/.test(content), "blank-card-row");
 });
@@ -927,21 +926,19 @@ await step("page", "start-form-says-it-replaces-the-demo", async () => {
 });
 await step("action", "start-blank-second-post-replaces-the-demo", async () => {
   const old = cookie;
-  adopt(await request("/api/try/blank", { method: "POST", form: setup }));
+  adopt(await request("/api/try/blank", { method: "POST", form: setup }), false, SETUP_START);
   expect(cookie !== old, "blank-second-fresh-cookie");
   expect((await request("/api/events", { session: old })).response.status === 401, "blank-old-demo-gone");
   expect((await request("/api/events")).response.status === 200, "blank-new-demo-works");
 });
-await step("page", "start-blank-new-household-is-empty-again", () => page("/", /Add your rent\s*,\s*your bills and the clients who pay you to see your next 30 days/));
+await step("page", "start-blank-new-household-is-empty-again", () => page("/", /Add your bills and the clients who pay you to see your next 30 days/));
 await step("action", "start-blank-add-rent", async () => {
   const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional rent", amount: "60,000", due: "2026-11-27", category: "housing", businessShare: "personal" } });
   expect(result.response.status === 303 && /^\/\?added=[0-9a-f-]{36}#coming-up$/.test(result.response.headers.get("location") ?? ""), "blank-bill-result");
 });
 await step("page", "start-blank-home-after-bill", async () => {
   const content = plain(pageContent(await page("/", /You(?:'|&#x27;)re fine for the next 30 days[\s\S]*¥60,000 on the 27th/)));
-  expect(!/Add your rent, your bills and the clients/.test(content), "blank-empty-still-shown");
-  expect(/First steps · 3 to go/.test(content) && content.includes("Bill added"), "blank-three-steps-left");
-  expect(!content.includes("Add your rent, so the day"), "blank-bill-step-still-open");
+  expect(!/Add your bills and the clients/.test(content), "blank-empty-still-shown");
 });
 // D48 on a blank household (Try it numbers never move): a yearly bill with a new amount and a cancel-by date goes through the
 // same door the form uses; Coming up says "Yearly" and has the cancel-by row, Activity names what the bill carries.
@@ -969,7 +966,7 @@ await step("page", "start-blank-plan-month-counts-the-yearly-bill-in-its-month-o
 await step("action", "start-blank-fetch-form-gets-redirect-header", async () => {
   cookie = "";
   const result = await request("/api/try/blank", { method: "POST", form: setup, session: "", extraHeaders: { "x-form-fetch": "1" } });
-  expect(result.response.status === 204 && result.response.headers.get("x-form-redirect") === "/", "blank-fetch-redirect");
+  expect(result.response.status === 204 && result.response.headers.get("x-form-redirect") === SETUP_START, "blank-fetch-redirect");
   expect(/household=[A-Za-z0-9_-]{43};/.test(result.response.headers.get("set-cookie") ?? ""), "blank-fetch-cookie");
 });
 // Stage 15 A: Start asks only for a name (the bank balance is set on Home); the household lives on the real date; Home asks for one thing at a time.
@@ -981,30 +978,66 @@ await step("page", "stage15a-start-form-has-two-fields-and-folded-card-and-regio
   expect(/Your name/.test(content) && /· Change/.test(content), "a-start-labels");
   expect(!/Add a card now/.test(content) && !html.includes('name="card"'), "a-no-card-fields");
 });
-await step("action", "stage15a-start-two-fields", async () => adopt(await request("/api/try/blank", { method: "POST", form: twoFields, session: "" })));
-await step("page", "stage15a-home-has-the-real-date-no-card-and-the-card-step", async () => {
-  const html = await page("/", /First steps/);
+await step("action", "stage15a-start-two-fields", async () => adopt(await request("/api/try/blank", { method: "POST", form: twoFields, session: "" }), false, SETUP_START));
+// The setup steps after "Start planning": one question per page, with a progress line, Back, Skip and Next (Finish on the last).
+const SETUP_STEPS = [
+  { step: "bank", question: /What(?:'|&#x27;|’)s in your bank today\?/, why: /So the forecast starts from today(?:'|&#x27;|’)s money\./, back: false, next: "Next", to: "/setup?step=income", control: 'name="amount"' },
+  { step: "income", question: /Who pays you\?/, why: /So fipa knows what comes in\./, back: true, next: "Next", to: "/setup?step=bills", control: 'name="email"' },
+  { step: "bills", question: /What do you pay every month\?/, why: /So the days money leaves show up\./, back: true, next: "Next", to: "/setup?step=card", control: "Rent" },
+  { step: "card", question: /Do you pay with a credit card\?/, why: /So card bills land on the right day\./, back: true, next: "Finish", to: "/", control: 'name="closingDay"' },
+];
+for (const [index, item] of SETUP_STEPS.entries()) {
+  await step("page", `setup-${item.step}-step-has-its-question-and-controls`, async () => {
+    adopt(await request("/api/try/blank", { method: "POST", form: twoFields, session: "" }), false, SETUP_START); // a fresh blank household
+    const html = await page(`/setup?step=${item.step}`, item.question);
+    const content = plain(pageContent(html));
+    expect(new RegExp(`Step ${index + 1} of 4`).test(content), "setup-progress");
+    expect(html.includes('role="progressbar"') && html.includes(`aria-valuenow="${index + 1}"`), "setup-bar");
+    expect(item.why.test(content), "setup-why");
+    expect(html.includes(item.control), "setup-form-control");
+    expect(/>Skip</.test(html) && new RegExp(`>${item.next}<`).test(html), "setup-skip-and-next");
+    expect(html.includes(`href="${item.to.replace("?", "?")}"`), "setup-next-target");
+    expect(item.back ? html.includes(`href="/setup?step=${SETUP_STEPS[index - 1]?.step}"`) && />Back</.test(html) : !/>Back</.test(html), "setup-back");
+  });
+}
+await step("page", "setup-bills-step-offers-the-nine-chips", async () => {
+  const html = await page("/setup?step=bills", /What do you pay every month\?/);
+  for (const label of ["Rent", "Phone", "Internet", "Electricity", "Gas &amp; water", "Subscriptions", "Insurance", "Loan", "Other"]) expect(html.includes(`>${label}</button>`), "setup-chip");
+});
+await step("action", "setup-forms-save-and-stay-on-their-step", async () => {
+  const bank = await request("/api/bank-balance", { method: "POST", form: { id: randomUUID(), amount: "250,000", returnTo: "/setup?step=bank" } });
+  expect(bank.response.status === 303 && bank.response.headers.get("location") === "/setup?step=bank", "setup-bank-stays");
+  const client = await request("/api/clients", { method: "POST", form: { id: randomUUID(), name: "Fictional Kestrel Studio", email: "accounts@kestrel.example", termsDays: "30", returnTo: "/setup?step=income" } });
+  expect(client.response.status === 303 && client.response.headers.get("location") === "/setup?step=income", "setup-client-stays");
+  const bill = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Rent", amount: "80,000", due: "2026-12-27", category: "housing", businessShare: "personal", repeat: "month", returnTo: "/setup?step=bills" } });
+  expect(bill.response.status === 303 && bill.response.headers.get("location") === "/setup?step=bills", "setup-bill-stays");
+  const other = await request("/api/bank-balance", { method: "POST", form: { id: randomUUID(), amount: "1", returnTo: "/setup?step=elsewhere" } });
+  expect(other.response.headers.get("location") === "/", "setup-return-target-checked");
+  const bills = await page("/setup?step=bills", /Rent/);
+  expect(/Bills so far/.test(bills) && /¥80,000/.test(plain(pageContent(bills))), "setup-bill-listed");
+  expect(/Kestrel Studio/.test(await page("/setup?step=income", /Kestrel Studio/)), "setup-client-listed");
+});
+await step("guard", "setup-without-a-household-goes-to-start", async () => {
+  const result = await request("/setup?step=bank", { session: "" });
+  expect(result.response.status === 307 || result.response.status === 303 || /\/start/.test(result.body), "setup-needs-household");
+});
+await step("action", "setup-checks-leave-a-fresh-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: twoFields, session: "" }), false, SETUP_START));
+await step("page", "stage15a-home-has-the-real-date-no-card", async () => {
+  const html = await page("/", /Bank balance/);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   expect(html.includes(`dateTime="${today}"`), "a-real-date");
   const content = plain(pageContent(html));
-  expect(/Add your rent, so the day it leaves shows up/.test(content) && html.includes('href="/#add-bill"'), "a-first-step-is-rent");
   expect(/Bank balance ¥0\./.test(content), "a-bank");
   expect(/No card yet\./.test(content), "a-no-card");
 });
-await step("action", "stage15a-add-rent-collapses-step-and-asks-for-a-client", async () => {
+await step("action", "stage15a-add-rent-shows-on-home", async () => {
   const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional rent", amount: "60,000", due: "2026-12-27", category: "housing", businessShare: "personal" } });
   expect(result.response.status === 303, "a-bill-result");
-  const html = await page("/", /Bill added/);
-  const content = plain(pageContent(html));
-  // No card yet, so the card step still counts: client, card, charge and share remain.
-  expect(/First steps · 4 to go/.test(content) && /Add a client who pays you, so late payments show in the sentence/.test(content), "a-client-step-next");
-  expect(html.includes('href="/clients"') && !/Add your rent, so the day/.test(content), "a-rent-step-collapsed");
+  await page("/", /Fictional rent/);
 });
 await step("action", "stage15a-start-with-card-block", async () => {
-  adopt(await request("/api/try/blank", { method: "POST", form: { ...twoFields, card: "Card Q", closingDay: "25", dueDay: "10", limit: "" }, session: "" }));
+  adopt(await request("/api/try/blank", { method: "POST", form: { ...twoFields, card: "Card Q", closingDay: "25", dueDay: "10", limit: "" }, session: "" }), false, SETUP_START);
   await page("/", /Card Q/);
-  const html = await page("/", /First steps/);
-  expect(!/Add a card, so card bills count/.test(pageContent(html)), "a-card-step-hidden-with-a-card");
 });
 await step("guard", "stage15a-half-a-card-refused", async () => {
   const result = await request("/api/try/blank", { method: "POST", form: { ...twoFields, card: "Card Q" }, session: "" });
@@ -1018,7 +1051,7 @@ await step("action", "stage15a-try-it-keeps-nov-14-and-shows-get-started", async
 await step("page", "stage15a-start-notice-names-ben-for-try-it", () => page("/start", /This replaces the Try it household in this browser\. Reset in Settings brings Ben(?:'|&#x27;|’)s numbers back\./));
 
 // Stage 15 C: every empty panel names what fills it and links there; rows lead to what they are about.
-await step("action", "stage15c-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" })));
+await step("action", "stage15c-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" }), false, SETUP_START));
 await step("page", "stage15c-empty-panel-hints-link-to-what-fills-them", async () => {
   const html = await page("/", /Nothing due in the next 30 days/);
   const content = plain(pageContent(html));

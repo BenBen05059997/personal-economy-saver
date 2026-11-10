@@ -26,6 +26,7 @@ import { InvitePeople, type InviteRow } from "./InvitePeople";
 import { ResetDemo } from "./ResetDemo";
 import { ImportStatement } from "./ImportStatement";
 import { OwnCategories } from "./OwnCategories";
+import { CardFields, Person } from "./CardFields";
 import { groupOwnCategories } from "@/db/own-categories";
 import type { OwnChoices } from "@/lib/reader/own-choices";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
@@ -36,12 +37,6 @@ type SettingsData = Awaited<ReturnType<typeof loadSettings>>;
 function PaidBy({ people, selected }: { people: SettingsData["people"]; selected: string | null }) {
   return <label className="ui-field">Paid by (a shared bill is split by shares)
     <select name="paidByMemberId" defaultValue={selected ?? ""}><PayerOptions people={people} /></select></label>;
-}
-function Person({ people, selected, shared = false }: { people: SettingsData["people"]; selected: string | null; shared?: boolean }) {
-  return <label className="ui-field">{shared ? "Bill belongs to" : "Card belongs to"}
-    <select name="memberId" defaultValue={selected ?? ""}><option value="">{shared ? "Shared" : "Shared card"}</option>
-      {people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
-    </select></label>;
 }
 /** Who a bill belongs to: a person, "Shared, paid by …" when split, or "Shared" with no payer (left out of who owes whom). Nothing when one person is everything. */
 function billOwner(bill: SettingsData["bills"][number], people: SettingsData["people"]) {
@@ -115,18 +110,6 @@ function RemovePerson({ person, people, cards }: { person: SettingsData["people"
     ...(people.length > 2 ? ["Everyone’s share becomes equal again."] : [])].join(" ");
   return <div className="settings-bill"><p>{person.name}</p><ConfirmRemove kind="person" id={person.id} returnTo="/settings" label={person.name} note={note} /></div>;
 }
-function CardFields({ data, card }: { data: SettingsData; card?: SettingsData["cards"][number] }) {
-  return <><input type="hidden" name="kind" value="card" /><input type="hidden" name="id" value={card?.id ?? ""} />
-    <label className="ui-field">Card label<input name="label" defaultValue={card?.label} maxLength={80} required /></label>
-    {data.people.length < 2 ? <input type="hidden" name="memberId" value={card?.memberId ?? ""} /> : <Person people={data.people} selected={card?.memberId ?? null} />}
-    <div className="settings-grid"><label className="ui-field">Statement closes on the<input name="closingDay" type="number" min="1" max="31" defaultValue={card?.closingDay} required /></label>
-      <label className="ui-field">Card bill is paid on the<input name="dueDay" type="number" min="1" max="31" defaultValue={card?.dueDay} required /></label></div>
-    <label className="ui-field">Credit limit ({data.household.currency}, optional)<AmountInput name="limit" currency={data.household.currency} defaultValue={card?.limitMinor == null ? "" : fromMinor(card.limitMinor, card.currency)} /></label>
-    <label className="ui-field">Foreign transaction fee, optional (%)<input name="foreignFee" inputMode="decimal" maxLength={5} placeholder="2.2" defaultValue={card?.foreignFeeBp == null ? "" : String(card.foreignFeeBp / 100)} pattern="(10(\.0{1,2})?|[0-9](\.[0-9]{1,2})?)" title="Enter a percentage from 0 to 10, like 2.2" /></label>
-    <p className="ui-hint">From your card’s terms: the fee the issuer adds to purchases in another currency. The app uses it only to estimate what a foreign purchase cost.</p>
-    <button className="ui-button">{card ? "Save card" : "Add card"}</button></>;
-}
-
 export function SettingsView({ data, own, canImportPayPal = false, familyLinks, reminders, canManage, access }: {
   data: SettingsData; own: OwnChoices; canImportPayPal?: boolean; familyLinks: FamilyLinkRow[]; reminders: Awaited<ReturnType<typeof reminderView>>;
   canManage: boolean; access: { invites: InviteRow[]; tokens: McpTokenInfo[]; invited: string[] } | null;

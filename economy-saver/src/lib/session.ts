@@ -54,12 +54,12 @@ export async function ownerRequest(request: Request): Promise<string | Response>
  * Gives the demo household a fresh cookie token, sets it and sends the visitor Home: a 303, or, to a post made by `ApiForm`
  * (pass the request), 204 with the destination in a header.
  */
-export async function demoResponse(id: string, request?: Request) {
+export async function demoResponse(id: string, request?: Request, to = "/") {
   const token = await issueDemoToken(db(), id);
   if (!token) return new NextResponse("Demo session has expired", { status: 409, headers: { "Cache-Control": "private, no-store" } });
   const response = request && postedByForm(request)
-    ? new NextResponse(null, { status: 204, headers: { [FORM_REDIRECT_HEADER]: "/" } })
-    : new NextResponse(null, { status: 303, headers: { Location: "/" } });
+    ? new NextResponse(null, { status: 204, headers: { [FORM_REDIRECT_HEADER]: to } })
+    : new NextResponse(null, { status: 303, headers: { Location: to } });
   response.headers.set("Cache-Control", "private, no-store");
   response.cookies.set("household", token, {
     httpOnly: true,

@@ -12,7 +12,7 @@ async function Setup() {
   if (!uid) redirect("/login");
   if (await accountHousehold(db(), uid)) redirect("/");
   return <SetupForm forwarding={missingForwardingSetting() === null} action="/api/onboarding" title="Set up your household" button="Start planning"
-    hint="Start with your name; set your bank balance on Home. Your household starts fresh with the figures you enter here. Demo bills and payments stay out of your accounts." />;
+    hint="Start with your name; the next pages ask about your money, and you can skip any. Your household starts fresh with the figures you enter here. Demo bills and payments stay out of your accounts." />;
 }
 export default function OnboardingPage() {
   return <Suspense fallback={<LoadingState label="Opening setup…" />}><Setup /></Suspense>;

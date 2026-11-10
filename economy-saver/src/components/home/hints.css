@@ -1,0 +1,17 @@
+.home-hints { margin: 28px 0 16px; padding: 20px 24px; border: 1px solid var(--rule); border-radius: var(--radius-panel); background: var(--screen); display: flex; flex-direction: column; gap: 14px; }
+.home-hints-heading { display: flex; align-items: center; gap: 12px; }
+.home-hints-heading h2 { margin: 0; font-size: 17px; font-weight: 600; color: var(--ink); text-transform: none; letter-spacing: 0; }
+.home-hints-heading button { margin-left: auto; min-height: 44px; padding: 0 8px; border: 0; background: none; color: var(--ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.home-hints-heading button:hover { text-decoration: underline; }
+.home-hints ul { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.home-hints li a { position: relative; display: flex; align-items: flex-start; gap: 12px; height: 100%; box-sizing: border-box; padding: 14px 16px; border: 1px solid var(--rule); border-radius: 10px; color: var(--ink); text-decoration: none; background: var(--screen); }
+.home-hints li a:hover { border-color: var(--chart); background: var(--wash); }
+.home-hints li a:focus-visible, .home-hints-heading button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 10px; }
+.home-hints li a > svg { flex: none; margin-top: 1px; color: var(--chart); }
+.home-hints-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.home-hints-text b { font-size: 15px; font-weight: 600; }
+.home-hints-text small { font-size: 13px; line-height: 1.4; color: var(--muted); }
+.home-hints-done { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--green); }
+.home-hints li a.is-done > svg { color: var(--muted); }
+@media (max-width: 1000px) { .home-hints ul { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .home-hints ul { grid-template-columns: 1fr; } .home-hints { padding: 18px 0; border: 0; border-top: 1px solid var(--rule); border-radius: 0; background: none; } }

@@ -142,7 +142,7 @@ async function main() {
       assert.deepEqual(joined(benMoney), ["You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th.", "2026-11-27", true, "c-acme,c-northwind"]);
       assert.deepEqual(joined(rich), ["You're fine for the next 30 days, even if clients pay late. Lowest point ¥21,220 on the 27th.", "2026-11-27", false, ""]);
       assert.deepEqual(joined({ ...benMoney, bank: benMoney.bank - 300_000 }), ["Even if clients pay as usual, you're ¥178,780 short on the 20th.", "2026-11-20", true, ""]);
-      assert.deepEqual(joined({ ...benMoney, bills: [], charges: [], statements: [], invoices: [] }), ["Add your rent, your bills and the clients who pay you to see your next 30 days. Bank balance ¥67,000.", null, false, ""]);
+      assert.deepEqual(joined({ ...benMoney, bills: [], charges: [], statements: [], invoices: [] }), ["Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥67,000.", null, false, ""]);
       const one = homeSentence({ ...benMoney, invoices: benMoney.invoices.filter(i => i.clientId === "c-acme" || i.status !== "sent") });
       assert.equal(one.text, "You're fine if Acme pays as usual. If that payment is late, you're ¥18,780 short on the 27th.");
       assert.deepEqual(one.leadParts, ["You're fine if ", { id: "c-acme", name: "Acme" }, " pays as usual. If that payment is late, you're"]);

@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     if (error instanceof InputError) return text(error.message, 400);
     return text(error instanceof AiKeyError || error instanceof ReaderError ? error.message : "Household setup could not finish. Your existing household is retained; try again.", 503);
   }
-  const response = redirectTo("/", request, NO_REFERRER);
+  const response = redirectTo("/setup?step=bank", request, NO_REFERRER);
   response.cookies.delete("household");
   response.cookies.delete("upgrade-demo");
   return response;

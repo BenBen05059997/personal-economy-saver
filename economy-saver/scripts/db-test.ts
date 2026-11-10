@@ -507,7 +507,7 @@ async function main() {
     const empty = await loadMoneyState(db, blank, today);
     assert.equal(empty.cards.length, 1);
     assert.equal(empty.bills.length + empty.charges.length + empty.invoices.length + empty.clients.length + empty.pots.length, 0, "no Ben data");
-    assert.deepEqual(lines(homeSentence(empty)), { lead: "Add your rent, your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." });
+    assert.deepEqual(lines(homeSentence(empty)), { lead: "Add your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." });
     const bill = { id: randomUUID(), biller: "Fictional rent", amount: "300", due: "2026-11-20", category: "housing" as const, businessBp: 0, memberId: null, paidByMemberId: null, repeat: null, nextAmount: null, nextAmountFrom: null, cancelBy: null };
     await insertBill(db, blank, bill, "pending", { madeBy: "form" });
     assert.equal(homeSentence(await loadMoneyState(db, blank, today)).emphasis, "Bank balance $1,200.", "a pending bill alone is still nothing to forecast");

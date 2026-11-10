@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     if (!form.success) return text("Check your name, timezone, balance and card settings.", 400);
     const old = (await cookies()).get("household")?.value;
     const replaceDemo = old ? await demoHouseholdForToken(db(), old) : null; // createHousehold deletes it only if it is a demo household
-    return await demoResponse(await createHousehold(db(), crypto.randomUUID(), form.data, { isDemo: true, replaceDemo }), request);
+    return await demoResponse(await createHousehold(db(), crypto.randomUUID(), form.data, { isDemo: true, replaceDemo }), request, "/setup?step=bank");
   } catch (error) {
     if (error instanceof MissingDatabaseUrl) return text(error.message, 503);
     if (error instanceof InputError) return text(error.message, 400);

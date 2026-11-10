@@ -37,7 +37,7 @@ export { tooMany } from "@/db/rate-limit";
 
 /** Only the pages that offer a form are valid return targets. */
 export function returnPath(value: FormDataEntryValue | null) {
-  return value === "/to-check" || value === "/plan" || value === "/settings" || value === "/memory" || value === "/canvas" || (typeof value === "string" && /^\/(?:cards\/|canvas\?space=)[0-9a-f-]{36}$/.test(value)) ? String(value) : "/";
+  return value === "/to-check" || value === "/plan" || value === "/settings" || value === "/memory" || value === "/canvas" || (typeof value === "string" && /^\/setup\?step=(?:bank|income|bills|card)$/.test(value)) || (typeof value === "string" && /^\/(?:cards\/|canvas\?space=)[0-9a-f-]{36}$/.test(value)) ? String(value) : "/";
 }
 
 /** Plain-text failure: a request problem is 400 with its user-facing message, anything else is 503 with no detail. */

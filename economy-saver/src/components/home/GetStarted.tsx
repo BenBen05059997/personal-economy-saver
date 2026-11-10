@@ -48,9 +48,9 @@ export function GetStarted({ householdId, progress, peopleCount }: { householdId
 
 export type StepRow = { done: boolean; label: string; href?: string };
 
-/** The panel Get started and a real household's First steps share: a header, an optional progress bar and one row per step. */
-export function StepsPanel({ id, title, meta, progress, onHide, rows, sectionId }: { id: string; title: string; meta?: string; progress?: { done: number; of: number }; onHide?: () => void; rows: StepRow[]; sectionId?: string }) {
-  return <section id={sectionId} className="get-started" aria-labelledby={id}>
+/** The panel Get started draws: a header, an optional progress bar and one row per step. */
+function StepsPanel({ id, title, meta, progress, onHide, rows, }: { id: string; title: string; meta?: string; progress?: { done: number; of: number }; onHide?: () => void; rows: StepRow[] }) {
+  return <section className="get-started" aria-labelledby={id}>
     <div className="get-started-heading">
       <h2 id={id}>{title}</h2>
       {meta && <span className="get-started-meta">{meta}</span>}

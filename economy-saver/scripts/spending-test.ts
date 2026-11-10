@@ -235,7 +235,7 @@ async function main() {
       assert.deepEqual([october.totalMinor, october.businessMinor], [132_060, 31_986], "with October's Hikari Denki bill");
     });
 
-    await check("BROWSER-CHECKS M, S, T: the hand-checked sums of Ben's months, searches, whose lines and the Confirm and charge steps", async () => {
+    await check("qa/README M1, S-A, T: the hand-checked sums of Ben's months, searches, whose lines and the Confirm and charge steps", async () => {
       const today = "2026-11-14", current = today.slice(0, 7), oldest = monthsBack(current, HISTORY_MONTHS);
       const ben = await seedBen(db, { isDemo: true });
       const read = (hid: string) => loadSpending(db, hid, { from: monthBounds(oldest).first, to: monthBounds(current).last });

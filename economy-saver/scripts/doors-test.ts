@@ -208,7 +208,7 @@ async function main() {
 
     await check("a blank household reads the empty sentence, then the normal one after its first confirmed bill (D47)", async () => {
       const blank = await createHousehold(db, randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo", bank: "1,200", card: "Card D", limit: "", closingDay: "20", dueDay: "10" }), { isDemo: true });
-      const empty = { lead: "Add your rent, your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." };
+      const empty = { lead: "Add your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." };
       assert.deepEqual(lines(homeSentence(await loadMoneyState(db, blank, TODAY))), empty);
       await insertClient(db, blank, clientInput.parse({ id: randomUUID(), name: "Fictional Paper Co", email: "ap@paper.example", termsDays: "14" }));
       assert.deepEqual(lines(homeSentence(await loadMoneyState(db, blank, TODAY))), empty, "a client alone is nothing to forecast");
