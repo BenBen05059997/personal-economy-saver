@@ -70,7 +70,7 @@ function composeSentence(safe: SafeToSpend, usualLow: LowPoint, currency: Curren
 }
 
 /** D47: nothing to forecast (no confirmed bill, no confirmed card charge, no closed statement, no invoice still to be paid): pending items count for nothing, as everywhere else. */
-function hasNothingToForecast(state: MoneyState) {
+export function hasNothingToForecast(state: MoneyState) {
   return !state.bills.some(bill => bill.status === "confirmed")
     && !state.charges.some(charge => charge.status === "confirmed")
     && !state.statements.some(statement => !statement.paid)

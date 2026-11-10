@@ -281,7 +281,7 @@
     "expected": [
       "Home opens in 1.5 s or less with the empty sentence \"Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.\"",
       "The sentence never says \"You're fine\" and has no red shortfall",
-      "Safe to spend is ¥120,000 and the Next 30 days chart is flat",
+      "Safe to spend is ¥120,000 and the Your next 30 days panel shows no chart (see HOME-113)",
       "Cards shows \"Card N ¥0 owed now · No statement due\""
     ],
     "refs": [

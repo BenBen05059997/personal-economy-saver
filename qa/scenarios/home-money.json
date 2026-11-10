@@ -189,7 +189,7 @@
     "expected": [
       "The sentence reads 'Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.'",
       "It never says 'You're fine' and has no red shortfall",
-      "Safe to spend is ¥120,000 and the chart is flat"
+      "Safe to spend is ¥120,000 and the Your next 30 days panel shows no chart, only the empty line (see HOME-113)"
     ],
     "refs": [
       "D47"
@@ -3751,6 +3751,35 @@
     ],
     "refs": [
       "D29"
+    ]
+  },
+  {
+    "id": "HOME-113",
+    "area": "Home",
+    "action": "See Home before there is anything to forecast",
+    "user_goal": "I want to be asked for what is missing, not shown a flat chart",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Try it, Start with my numbers, Skip through the four setup pages to Home"
+    ],
+    "steps": [
+      "Open Home at 1440px",
+      "Press Add a bill in the Your next 30 days panel and save a bill due in the next 30 days",
+      "Come back to Home"
+    ],
+    "expected": [
+      "Your next 30 days shows no chart, no Forecast / Categories / Trend switches, no Chart / Table switch and no Ask about this button",
+      "It says 'Nothing to forecast yet. Add a bill or a client and your next 30 days show here.' with Add a bill (primary) and Add a client buttons",
+      "The Bank balance row with its Update stays in the panel, and the hints card Set today's bank balance still opens its form",
+      "After the bill is saved the chart and its switches are back"
+    ],
+    "refs": [
+      "D47"
     ]
   },
   {

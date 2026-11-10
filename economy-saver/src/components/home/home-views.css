@@ -132,3 +132,5 @@
 .hv-bar-total{font-size:12.5px;font-weight:600;fill:var(--ink)}
 
 @media(max-width:600px){.hv-panel>header{flex-wrap:wrap}.hv-summary{grid-template-columns:1fr;gap:12px}.hv-summary>div,.hv-summary>div:first-child{padding:0}.hv-summary>div+div{border-left:0;border-top:1px solid var(--rule);padding-top:12px}.hv-cat-axis{display:none}.hv-cat{grid-template-columns:1fr 1fr}.hv-cat-track{grid-column:1/-1;grid-row:2}}
+
+.hv-blank-actions{display:flex;gap:10px;flex-wrap:wrap}

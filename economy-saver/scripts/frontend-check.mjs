@@ -927,6 +927,10 @@ await step("page", "start-blank-home-empty-sentence", async () => {
   expect(!/You(?:'|&#x27;)re fine/.test(content), "blank-fine-verdict");
   expect(/Nothing due in the next 30 days\. Add a bill ›/.test(content), "blank-coming-up-hint");
   expect(/Card N/.test(content), "blank-card-row");
+  // The empty panel replaces the chart: its line and buttons show, the view switches do not.
+  expect(content.includes("Nothing to forecast yet. Add a bill or a client and your next 30 days show here."), "blank-empty-panel-line");
+  const html = (await request("/")).body;
+  expect(!/aria-label="View"/.test(html) && !/>Forecast<\/button>/.test(html), "blank-view-switches-hidden");
 });
 // Start with my numbers never reuses the cookie household: a second post makes a new one and deletes the old demo.
 await step("page", "start-form-says-it-replaces-the-demo", async () => {
