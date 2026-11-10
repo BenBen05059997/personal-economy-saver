@@ -23,7 +23,6 @@
       "The pending invitation remains after reload"
     ],
     "refs": [
-      "BROWSER-CHECKS AM1",
       "D68"
     ]
   },
@@ -49,7 +48,6 @@
       "One person and one pending invitation appear"
     ],
     "refs": [
-      "BROWSER-CHECKS AM2",
       "D68"
     ]
   },
@@ -76,7 +74,6 @@
       "The invite disappears from People and its link is unavailable"
     ],
     "refs": [
-      "BROWSER-CHECKS AM2",
       "D68"
     ]
   },
@@ -105,7 +102,6 @@
       "The invitee never enters onboarding"
     ],
     "refs": [
-      "BROWSER-CHECKS AM3",
       "D68"
     ]
   },
@@ -131,7 +127,6 @@
       "The join attempt is refused"
     ],
     "refs": [
-      "BROWSER-CHECKS AM3",
       "D68"
     ]
   },
@@ -157,7 +152,6 @@
       "Both links are unavailable"
     ],
     "refs": [
-      "BROWSER-CHECKS AM4",
       "D68"
     ]
   },
@@ -184,7 +178,6 @@
       "The invite is consumed and Home opens for the intended member"
     ],
     "refs": [
-      "BROWSER-CHECKS AM3",
       "D68"
     ]
   },
@@ -210,7 +203,6 @@
       "Both actions use the same household’s records"
     ],
     "refs": [
-      "BROWSER-CHECKS AM5",
       "D68"
     ]
   },
@@ -262,7 +254,6 @@
       "People, current family links and active MCP keys are listed without full credentials"
     ],
     "refs": [
-      "BROWSER-CHECKS AM6",
       "D68"
     ]
   },
@@ -291,7 +282,6 @@
       "Their person record and shares stay with the household"
     ],
     "refs": [
-      "BROWSER-CHECKS AM7",
       "D68"
     ]
   },
@@ -318,7 +308,6 @@
       "The person loses login access and existing settlement guards are respected"
     ],
     "refs": [
-      "BROWSER-CHECKS AM7",
       "D68"
     ]
   },
@@ -345,7 +334,6 @@
       "The demo keeps MCP-key and family-link controls for its own household"
     ],
     "refs": [
-      "BROWSER-CHECKS AM8",
       "D68"
     ]
   },
@@ -374,7 +362,6 @@
     ],
     "refs": [
       "db:members-test",
-      "BROWSER-CHECKS AM5",
       "D68"
     ]
   },
@@ -403,7 +390,6 @@
     ],
     "refs": [
       "db:members-test",
-      "BROWSER-CHECKS AM5",
       "D68"
     ]
   },
@@ -432,7 +418,6 @@
     ],
     "refs": [
       "db:members-test",
-      "BROWSER-CHECKS AM5",
       "D68"
     ]
   },
@@ -461,7 +446,6 @@
     ],
     "refs": [
       "db:members-test",
-      "BROWSER-CHECKS AM7",
       "D68"
     ]
   }

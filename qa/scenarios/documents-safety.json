@@ -23,8 +23,7 @@
       "Nothing scrolls sideways at 375px and 1440px"
     ],
     "refs": [
-      "BROWSER-CHECKS J1",
-      "BROWSER-CHECKS L"
+
     ]
   },
   {
@@ -51,10 +50,9 @@
       "The button reads \"Uploading…\" while it works, then To check opens",
       "\"Reading document…\" shows at once, then a reading card appears within 30 s with name, amount and date filled",
       "Nothing is counted yet: Home's sentence is unchanged until Confirm",
-      "Confirming changes safe to spend (numbers: BROWSER-CHECKS Expected numbers)"
+      "Confirming changes safe to spend (numbers: qa/README Expected numbers)"
     ],
     "refs": [
-      "BROWSER-CHECKS J2",
       "D32"
     ]
   },
@@ -82,7 +80,7 @@
       "Each shows as a document in To check"
     ],
     "refs": [
-      "BROWSER-CHECKS J1"
+
     ]
   },
   {
@@ -107,7 +105,6 @@
       "No document row or To check entry appears"
     ],
     "refs": [
-      "BROWSER-CHECKS J1",
       "frontend-check --extra"
     ]
   },
@@ -136,7 +133,7 @@
       "The button returns to \"Upload and read\"; no navigation, no raw text page"
     ],
     "refs": [
-      "BROWSER-CHECKS J1"
+
     ]
   },
   {
@@ -189,8 +186,7 @@
       "Exactly 6 MiB is accepted (the multipart overhead allowance is 8 KiB)"
     ],
     "refs": [
-      "BROWSER-CHECKS J1",
-      "BROWSER-CHECKS AD2"
+
     ]
   },
   {
@@ -269,7 +265,7 @@
       "Hikari Denki stays ¥11,220 and the sentence is unchanged"
     ],
     "refs": [
-      "BROWSER-CHECKS AD1"
+
     ]
   },
   {
@@ -351,7 +347,6 @@
       "The second reading card shows \"Already saved: …\" or the same reading is not offered twice; confirming one never double-counts the bill (Hikari or the checks line explains it)"
     ],
     "refs": [
-      "BROWSER-CHECKS AC2",
       "D61"
     ]
   },
@@ -410,7 +405,7 @@
       "A file with two items attached in Ask gives one card with Confirm, Edit and Don't add it on each"
     ],
     "refs": [
-      "BROWSER-CHECKS AD4"
+
     ]
   },
   {
@@ -440,7 +435,6 @@
       "The sentence is unchanged until Confirm"
     ],
     "refs": [
-      "BROWSER-CHECKS AF1",
       "D63"
     ]
   },
@@ -468,8 +462,6 @@
       "The line reads \"Estimated from 11月分: usually paid on the 27th. Check the date or type the day.\""
     ],
     "refs": [
-      "BROWSER-CHECKS AF2",
-      "BROWSER-CHECKS AF2a",
       "db:reader-test (a malformed model date is cleared before the Dec 27 estimate)",
       "D63"
     ]
@@ -501,7 +493,7 @@
       "The To check count drops by one"
     ],
     "refs": [
-      "BROWSER-CHECKS AF3"
+
     ]
   },
   {
@@ -529,7 +521,6 @@
       "Neither saves the bill; the reading stays in To check"
     ],
     "refs": [
-      "BROWSER-CHECKS AF4",
       "db:reader-test"
     ]
   },
@@ -560,8 +551,7 @@
       "The sentence uses the edited amount"
     ],
     "refs": [
-      "D36",
-      "BROWSER-CHECKS D1"
+      "D36"
     ]
   },
   {
@@ -617,7 +607,7 @@
       "The To check count drops by one"
     ],
     "refs": [
-      "BROWSER-CHECKS D"
+
     ]
   },
   {
@@ -647,7 +637,6 @@
       "Confirming with the amount ticked saves a bill that appears in To check → Missing"
     ],
     "refs": [
-      "BROWSER-CHECKS V-E",
       "D55"
     ]
   },
@@ -732,7 +721,7 @@
       "Reload shows the same card; To check shows \"Document needs attention · AI_API_KEY is not set · Retry\"; Hikari Denki still ¥11,220"
     ],
     "refs": [
-      "BROWSER-CHECKS AD1"
+
     ]
   },
   {
@@ -760,7 +749,7 @@
       "Neither adds a turn to the conversation"
     ],
     "refs": [
-      "BROWSER-CHECKS AD2"
+
     ]
   },
   {
@@ -791,8 +780,6 @@
       "Reload: card and canvas are the same; To check no longer lists the bill"
     ],
     "refs": [
-      "BROWSER-CHECKS AD4",
-      "BROWSER-CHECKS AD4a",
       "db:reader-test (digit-string amount, invalid category, extra fields and safe error paths)",
       "D61",
       "D57"
@@ -819,8 +806,7 @@
       "A Confirm sent without the answer is refused with \"Answer the question first: …\""
     ],
     "refs": [
-      "db:ask-document-test",
-      "BROWSER-CHECKS AD4"
+      "db:ask-document-test"
     ]
   },
   {
@@ -847,7 +833,7 @@
       "\"Nothing to add was found in this file.\""
     ],
     "refs": [
-      "BROWSER-CHECKS AD4"
+
     ]
   },
   {
@@ -903,7 +889,6 @@
       "A mark naming a bill outside the window draws no ring and no \"This bill\" row"
     ],
     "refs": [
-      "BROWSER-CHECKS AD3",
       "D57"
     ]
   },
@@ -962,7 +947,7 @@
       "Forwarding an email with no body and no supported attachment gives \"Email has no readable body or supported attachment.\" on the document row"
     ],
     "refs": [
-      "BROWSER-CHECKS J3"
+
     ]
   },
   {
@@ -990,8 +975,7 @@
       "On a server lacking INBOUND_WORKER_SECRET: 503 with no body and one server log line naming the variable"
     ],
     "refs": [
-      "frontend-check --guards",
-      "BROWSER-CHECKS J"
+      "frontend-check --guards"
     ]
   },
   {
@@ -1048,7 +1032,6 @@
       "After Confirm Coming up shows \"Every month · last one <date>\""
     ],
     "refs": [
-      "BROWSER-CHECKS AB4",
       "D41"
     ]
   },
@@ -1077,7 +1060,6 @@
       "\"Same one, don't add it\" is the card's Dismiss"
     ],
     "refs": [
-      "BROWSER-CHECKS AC2",
       "D61"
     ]
   },
@@ -1104,9 +1086,7 @@
       "The nav badge and Home heading read the same count"
     ],
     "refs": [
-      "BROWSER-CHECKS D1",
-      "BROWSER-CHECKS AC1",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -1134,8 +1114,7 @@
       "Nov 27 has two rows; only the last reads \"Short by ¥30,000 if clients pay late\""
     ],
     "refs": [
-      "BROWSER-CHECKS D1",
-      "BROWSER-CHECKS AC1"
+
     ]
   },
   {
@@ -1188,7 +1167,6 @@
       "Confirm makes it real and the sentence moves"
     ],
     "refs": [
-      "BROWSER-CHECKS D2",
       "AGENTS.md rule 5"
     ]
   },
@@ -1245,7 +1223,6 @@
       "Home's sentence says ¥28,800 short on the 27th (late case counts the high end)"
     ],
     "refs": [
-      "BROWSER-CHECKS V-A",
       "D55"
     ]
   },
@@ -1273,7 +1250,7 @@
       "The sentence reads ¥30,000 short on the 27th; the Nov 25 row reads ¥11,220 with no \"about\"; month total ¥163,450"
     ],
     "refs": [
-      "BROWSER-CHECKS V-A"
+
     ]
   },
   {
@@ -1299,7 +1276,7 @@
       "The bill stays in Missing, unchanged"
     ],
     "refs": [
-      "BROWSER-CHECKS V-A"
+
     ]
   },
   {
@@ -1327,7 +1304,6 @@
       "Search shows \"amount not known in November\", never \"Nothing matches\""
     ],
     "refs": [
-      "BROWSER-CHECKS V-B",
       "D55"
     ]
   },
@@ -1354,7 +1330,7 @@
       "Sentence reads ¥25,580 short on the 27th; month total ¥159,030; Activity \"Minato Gas: ¥6,800\""
     ],
     "refs": [
-      "BROWSER-CHECKS V-B"
+
     ]
   },
   {
@@ -1382,7 +1358,6 @@
       "After Save: sentence back to ¥18,780, Activity \"Minato Water: due Nov 30\", row moves to Nov 30, Missing section goes"
     ],
     "refs": [
-      "BROWSER-CHECKS V-C",
       "D55"
     ]
   },
@@ -1409,7 +1384,7 @@
       "Filling only the amount keeps the row with the date question"
     ],
     "refs": [
-      "BROWSER-CHECKS V-C"
+
     ]
   },
   {
@@ -1439,7 +1414,6 @@
       "A ticked then hidden box saves the field as shown (empty and required)"
     ],
     "refs": [
-      "BROWSER-CHECKS V-D",
       "D55"
     ]
   },
@@ -1472,7 +1446,6 @@
       "\"Choose a bill of this household\""
     ],
     "refs": [
-      "BROWSER-CHECKS V-D",
       "db:gaps-test"
     ]
   },
@@ -1501,7 +1474,6 @@
       "Settings shows the amount is unknown on the stored series"
     ],
     "refs": [
-      "BROWSER-CHECKS V-D",
       "D54",
       "db:gaps-test"
     ]
@@ -1532,7 +1504,6 @@
       "The check does not block Confirm"
     ],
     "refs": [
-      "BROWSER-CHECKS AC2",
       "D61"
     ]
   },
@@ -1567,7 +1538,6 @@
       "Not sure on a separate reading leaves it one-off"
     ],
     "refs": [
-      "BROWSER-CHECKS AC2",
       "D61"
     ]
   },
@@ -1784,7 +1754,7 @@
       "From the nav it returns to /to-check"
     ],
     "refs": [
-      "BROWSER-CHECKS D"
+
     ]
   },
   {
@@ -1811,8 +1781,7 @@
       "Text, the Missing label and check lines are readable in dark"
     ],
     "refs": [
-      "BROWSER-CHECKS L",
-      "BROWSER-CHECKS AC"
+
     ]
   },
   {
@@ -1838,7 +1807,7 @@
       "At 375px and 1440px, light and dark, nothing overlaps"
     ],
     "refs": [
-      "BROWSER-CHECKS AF6"
+
     ]
   },
   {
@@ -1864,7 +1833,7 @@
       "/to-check redirects to the start, never a stack trace"
     ],
     "refs": [
-      "BROWSER-CHECKS AF6"
+
     ]
   },
   {
@@ -1890,7 +1859,6 @@
       "The Worker log line has the method, the route with ids as :id, a household id or null, the status, milliseconds and the db timings. It excludes the URL query, cookie, address, SQL text, parameters and results."
     ],
     "refs": [
-      "BROWSER-CHECKS AF7",
       "D50"
     ]
   },
@@ -1918,7 +1886,6 @@
       "The page request set the pes-ray cookie and API routes do not"
     ],
     "refs": [
-      "BROWSER-CHECKS AF7",
       "D50"
     ]
   },
@@ -1945,8 +1912,7 @@
       "The typed fields remain; nothing is saved; no page of raw text"
     ],
     "refs": [
-      "BROWSER-CHECKS C",
-      "BROWSER-CHECKS AB2"
+
     ]
   },
   {
@@ -1999,7 +1965,7 @@
       "On the Worker reload, Ben’s Home and its expected numbers appear and the console has no React error #419"
     ],
     "refs": [
-      "BROWSER-CHECKS L6"
+
     ]
   },
   {
@@ -2101,7 +2067,6 @@
       "All three go to To check, each as its own row"
     ],
     "refs": [
-      "BROWSER-CHECKS J5",
       "D36"
     ]
   },
@@ -2130,7 +2095,6 @@
       "The page stays on Upload with the button usable again (a refused file keeps the person here); the two good files are in To check"
     ],
     "refs": [
-      "BROWSER-CHECKS J5",
       "D36"
     ]
   },
@@ -2185,7 +2149,6 @@
       "Home numbers are unchanged"
     ],
     "refs": [
-      "BROWSER-CHECKS J4",
       "db:limits-test"
     ]
   },
@@ -2211,7 +2174,6 @@
       "Exactly at the cap is allowed; one byte over is refused"
     ],
     "refs": [
-      "BROWSER-CHECKS J4",
       "db:limits-test"
     ]
   },
@@ -2241,7 +2203,6 @@
       "The storage total drops by that document's size and the upload succeeds"
     ],
     "refs": [
-      "BROWSER-CHECKS J4",
       "D59"
     ]
   },
@@ -2268,8 +2229,7 @@
       "A recent settle (under 30 days) keeps it"
     ],
     "refs": [
-      "db:limits-test",
-      "BROWSER-CHECKS AF8"
+      "db:limits-test"
     ]
   },
   {
@@ -2546,7 +2506,6 @@
       "Saving it again fixes it"
     ],
     "refs": [
-      "BROWSER-CHECKS AF9",
       "D33"
     ]
   },
@@ -2626,7 +2585,6 @@
       "No URL query string, cookie, address, user agent, body, SQL text, parameters or results appear"
     ],
     "refs": [
-      "BROWSER-CHECKS AF7",
       "db:doors-test",
       "D50"
     ]
@@ -2790,7 +2748,7 @@
       "No text is cut off or overlaps. Long names wrap in Home and Ask’s sentence notes and Plan’s expanded “not counted” note in the UI-006 fixture"
     ],
     "refs": [
-      "BROWSER-CHECKS L1"
+
     ]
   },
   {
@@ -2816,8 +2774,7 @@
       "Settings uses two columns"
     ],
     "refs": [
-      "BROWSER-CHECKS L1",
-      "BROWSER-CHECKS L4"
+
     ]
   },
   {
@@ -2845,7 +2802,7 @@
       "The Ask row never covers the last row"
     ],
     "refs": [
-      "BROWSER-CHECKS L2"
+
     ]
   },
   {
@@ -2871,7 +2828,7 @@
       "Form fields, buttons, the check lines and the reading card are visible"
     ],
     "refs": [
-      "BROWSER-CHECKS L3"
+
     ]
   },
   {
@@ -2896,7 +2853,7 @@
       "Each page replaces the fallback within a second or two (a hidden pane can throttle: not a bug)"
     ],
     "refs": [
-      "BROWSER-CHECKS L5"
+
     ]
   },
   {
@@ -2925,8 +2882,7 @@
       "The right column and amounts stay on screen and the document has no sideways scroll"
     ],
     "refs": [
-      "BROWSER-CHECKS L1",
-      "BROWSER-CHECKS V"
+
     ]
   },
   {
@@ -2952,8 +2908,7 @@
       "The red message wraps and is readable in dark"
     ],
     "refs": [
-      "BROWSER-CHECKS L",
-      "BROWSER-CHECKS J"
+
     ]
   },
   {
@@ -2979,8 +2934,7 @@
       "Choice buttons wrap to the next line and are 44px tall"
     ],
     "refs": [
-      "BROWSER-CHECKS V",
-      "BROWSER-CHECKS AC"
+
     ]
   },
   {
@@ -3006,7 +2960,7 @@
       "The file field, Upload and read, Confirm reading and Dismiss are all reachable and work with the keyboard"
     ],
     "refs": [
-      "BROWSER-CHECKS L"
+
     ]
   },
   {
@@ -3031,7 +2985,7 @@
       "Each check line is a group labelled with its words; the upload message has role alert; the Document readings section is named"
     ],
     "refs": [
-      "BROWSER-CHECKS L"
+
     ]
   },
   {
@@ -3057,8 +3011,7 @@
       "The attach control is at least 44px, the card fits the screen and the Ask row never hides the Confirm button"
     ],
     "refs": [
-      "BROWSER-CHECKS AD",
-      "BROWSER-CHECKS L2"
+
     ]
   },
   {
@@ -3082,7 +3035,7 @@
       "The long address wraps or scrolls inside its box without widening the page"
     ],
     "refs": [
-      "BROWSER-CHECKS L1"
+
     ]
   },
   {
@@ -3111,7 +3064,6 @@
       "A disabled control is not posted"
     ],
     "refs": [
-      "BROWSER-CHECKS V-D",
       "D55"
     ]
   },
@@ -3140,7 +3092,6 @@
       "Commit and rollback clear the scope"
     ],
     "refs": [
-      "BROWSER-CHECKS AO1",
       "db:isolation-test",
       "PLAN 31C"
     ]

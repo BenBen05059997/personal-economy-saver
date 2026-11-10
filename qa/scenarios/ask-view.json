@@ -25,9 +25,7 @@
       "Returning to General restores its view",
       "Home still shows ¥0 safe to spend and a ¥18,780 shortfall on Nov 27 if clients are late"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ1"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-002",
@@ -52,7 +50,6 @@
       "The first view selects General and the second selects the named space"
     ],
     "refs": [
-      "BROWSER-CHECKS AQ2",
       "db:ask-routes-test"
     ]
   },
@@ -79,7 +76,6 @@
       "Each invalid space lookup returns 404 without space data"
     ],
     "refs": [
-      "BROWSER-CHECKS AQ2",
       "db:ask-routes-test"
     ]
   },
@@ -105,7 +101,6 @@
       "The view includes the space metadata and omits turns, briefs, notes and pins for device-held kinds"
     ],
     "refs": [
-      "BROWSER-CHECKS AQ3",
       "db:ask-routes-test"
     ]
   },
@@ -131,7 +126,6 @@
       "The view returns 429 for the shared 120 requests per minute household bucket"
     ],
     "refs": [
-      "BROWSER-CHECKS AQ3",
       "db:ask-routes-test"
     ]
   },
@@ -158,7 +152,6 @@
       "Only the panel renders Open full for the selected space, and it leaves out the brief, notes, delete control and starter canvases"
     ],
     "refs": [
-      "BROWSER-CHECKS AQ4",
       "db:ask-routes-test"
     ]
   },
@@ -186,9 +179,7 @@
       "The panel is one column with the composer docked at the bottom, no brief, notes or starter chips; the compact table fits and any horizontal scrolling stays inside its table block",
       "Open full opens the named space’s /canvas?space=<id> page with March paperwork selected"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ5"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-008",
@@ -214,7 +205,6 @@
       "Preferences contain only the open flag and selected space and are separate by household"
     ],
     "refs": [
-      "BROWSER-CHECKS AQ6",
       "db:ask-routes-test"
     ]
   },
@@ -243,9 +233,7 @@
       "Escape closes the panel and returns focus to the top-bar Ask control",
       "Close also closes the panel while Home stays open"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ7"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-010",
@@ -270,9 +258,7 @@
       "The list, selected client details and Ask are visible in that order without sideways scrolling",
       "Acme stays selected after closing the panel"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ8"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-011",
@@ -297,7 +283,6 @@
       "With no screen the context omits that sentence"
     ],
     "refs": [
-      "BROWSER-CHECKS AQ9",
       "db:agent-test"
     ]
   },
@@ -326,9 +311,7 @@
       "That field contains no client name, row ID, page text or amount",
       "The full page sends canvas in the screen field"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ10"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-013",
@@ -353,9 +336,7 @@
       "The answer says ¥4,000 does not fit, quotes ¥0 safe to spend and links to its basis",
       "Home stays at / with the unchanged ¥0 safe to spend and ¥18,780 late-case shortfall on Nov 27"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ11"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-014",
@@ -382,9 +363,7 @@
       "The same space stays open and shows one copy of the question and reply",
       "The Network log has one POST /api/ask for the turn"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ12"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-015",
@@ -408,9 +387,7 @@
       "The compact canvas uses the same amounts as W5 with Northwind delayed 14 days",
       "The canvas fits without sideways scrolling and offers Open full"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ13"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-016",
@@ -433,9 +410,7 @@
       "The full page opens at /canvas?space=<id> with March paperwork selected",
       "The saved question and its model canvas are present and the separate panel is hidden"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ14"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-017",
@@ -462,9 +437,7 @@
       "The card shows Kawa Gym, ¥6,000 and Dec 12",
       "Home’s Coming up omits the unconfirmed bill"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ15"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-018",
@@ -489,9 +462,7 @@
       "The panel says Confirmed. Here is your month with it. and marks Kawa Gym in its canvas timeline",
       "Home stays open and Coming up shows Kawa Gym for ¥6,000 on Dec 12 without manually reloading"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ16"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-019",
@@ -517,9 +488,7 @@
       "The answer offers Keep this? for a Preference with Keep and No",
       "The preference is still absent from Profile before Keep"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ17"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-020",
@@ -543,9 +512,7 @@
       "The panel says Kept. and stays open on Home",
       "Profile shows one preference with the offered words"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ18"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-021",
@@ -570,9 +537,7 @@
       "Open full shows one question box and no separate Ask panel",
       "On returning to Home the panel is open"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ19"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-022",
@@ -595,9 +560,7 @@
     "expected": [
       "Sign-in appears without an Ask panel or workspace top bar"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ20"
-    ]
+    "refs": []
   },
   {
     "id": "ASKVIEW-023",
@@ -622,8 +585,6 @@
       "Panel controls, canvas and page text remain readable",
       "Nothing overlaps or scrolls sideways"
     ],
-    "refs": [
-      "BROWSER-CHECKS AQ21"
-    ]
+    "refs": []
   }
 ]

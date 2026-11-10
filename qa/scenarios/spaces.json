@@ -25,7 +25,6 @@
       "Ben still has ¥0 safe to spend and is ¥18,780 short on Nov 27 if clients pay late"
     ],
     "refs": [
-      "BROWSER-CHECKS AP1",
       "D69"
     ]
   },
@@ -52,7 +51,6 @@
       "General remains available and the space controls fit at 375px and 1440px"
     ],
     "refs": [
-      "BROWSER-CHECKS AP2",
       "D69"
     ]
   },
@@ -80,7 +78,6 @@
       "The space has the same URL and keeps its thread"
     ],
     "refs": [
-      "BROWSER-CHECKS AP3",
       "D69"
     ]
   },
@@ -111,7 +108,6 @@
       "Tax for March still shows its question and answer"
     ],
     "refs": [
-      "BROWSER-CHECKS AP4",
       "D69"
     ]
   },
@@ -138,7 +134,6 @@
       "Legacy threads are read-only, and General can accept a new question"
     ],
     "refs": [
-      "BROWSER-CHECKS AP5",
       "D69"
     ]
   },
@@ -166,7 +161,6 @@
       "Its saved thread is available read-only"
     ],
     "refs": [
-      "BROWSER-CHECKS AP6",
       "D69"
     ]
   },
@@ -195,7 +189,6 @@
       "Confirming removes the space and thread; the file still appears under Uploaded documents and the waiting reading opens in To check"
     ],
     "refs": [
-      "BROWSER-CHECKS AP7",
       "D69"
     ]
   },
@@ -225,7 +218,6 @@
       "The task pin opens from Pinned in this space in Tax for March and is absent from Home"
     ],
     "refs": [
-      "BROWSER-CHECKS AP8",
       "D69"
     ]
   },
@@ -253,7 +245,6 @@
       "The saved turn’s conversationId equals the exported task’s id"
     ],
     "refs": [
-      "BROWSER-CHECKS AP9",
       "D69"
     ]
   },
@@ -281,7 +272,6 @@
       "The task and thread use destination ids"
     ],
     "refs": [
-      "BROWSER-CHECKS AP10",
       "D69"
     ]
   },
@@ -307,7 +297,6 @@
       "The next create is refused and archiving frees a slot"
     ],
     "refs": [
-      "BROWSER-CHECKS AP11",
       "db:spaces-test",
       "D69"
     ]
@@ -334,7 +323,6 @@
       "A request by another household cannot access or mutate the space"
     ],
     "refs": [
-      "BROWSER-CHECKS AP11",
       "db:isolation-test",
       "db:spaces-test",
       "D69"
@@ -362,7 +350,6 @@
       "The household keeps the documents"
     ],
     "refs": [
-      "BROWSER-CHECKS AP11",
       "db:spaces-test",
       "D69"
     ]
@@ -394,7 +381,6 @@
       "The editor fits at 375px and 1440px"
     ],
     "refs": [
-      "BROWSER-CHECKS AP12",
       "D69"
     ]
   },
@@ -425,7 +411,6 @@
       "Activity shows the update without the brief text"
     ],
     "refs": [
-      "BROWSER-CHECKS AP13",
       "D69"
     ]
   },
@@ -452,7 +437,6 @@
       "Ask continues the same task and reads current tool results before quoting money"
     ],
     "refs": [
-      "BROWSER-CHECKS AP14",
       "D71"
     ]
   },
@@ -479,7 +463,6 @@
       "A note from another space is accepted as a source after recall or search_history returns it"
     ],
     "refs": [
-      "BROWSER-CHECKS AP17",
       "db:agent-test",
       "D69"
     ]
@@ -506,7 +489,6 @@
       "The document card for an included turn travels with the question and the earlier turns stay in the thread"
     ],
     "refs": [
-      "BROWSER-CHECKS AP17",
       "db:conversation-test",
       "db:agent-test",
       "D71"
@@ -536,7 +518,6 @@
       "The device edit survives reload and the Spaces list shows its updated About line"
     ],
     "refs": [
-      "BROWSER-CHECKS AP15",
       "D59"
     ]
   },
@@ -562,7 +543,6 @@
       "The local brief and its update metadata appear on the matching space in the version 3 export"
     ],
     "refs": [
-      "BROWSER-CHECKS AP15",
       "D44",
       "D59"
     ]
@@ -590,7 +570,6 @@
       "The device’s journal and brief copies have been cleared"
     ],
     "refs": [
-      "BROWSER-CHECKS AP16",
       "D59"
     ]
   },
@@ -619,7 +598,6 @@
       "Deleting the space individually removes its name"
     ],
     "refs": [
-      "BROWSER-CHECKS AP16",
       "D59"
     ]
   },
@@ -649,7 +627,6 @@
       "It is absent from the other space and the profile"
     ],
     "refs": [
-      "BROWSER-CHECKS AP18",
       "D70"
     ]
   },
@@ -678,7 +655,6 @@
       "Deleting the note preserves the other note and the profile item"
     ],
     "refs": [
-      "BROWSER-CHECKS AP18",
       "D70"
     ]
   },
@@ -707,7 +683,6 @@
       "The fact appears under Space notes with \"Said in Ask\" and stays out of Profile"
     ],
     "refs": [
-      "BROWSER-CHECKS AP19",
       "D70"
     ]
   },
@@ -736,7 +711,6 @@
       "The preference is available when asking in General"
     ],
     "refs": [
-      "BROWSER-CHECKS AP19",
       "D70"
     ]
   },
@@ -766,7 +740,6 @@
       "After Keep the preference appears in Space notes and Profile is unchanged"
     ],
     "refs": [
-      "BROWSER-CHECKS AP20",
       "D67",
       "D70"
     ]
@@ -799,7 +772,6 @@
       "The saved reply keeps its citation label after the note is deleted, with the first 59 characters and an ellipsis for a note longer than 60 characters"
     ],
     "refs": [
-      "BROWSER-CHECKS AP21",
       "D70"
     ]
   },
@@ -827,7 +799,6 @@
       "The current statement amount is ¥58,000 due Nov 26"
     ],
     "refs": [
-      "BROWSER-CHECKS AP22",
       "D70"
     ]
   },
@@ -854,7 +825,6 @@
       "The ten newest hits carry matching lines, space names and dates"
     ],
     "refs": [
-      "BROWSER-CHECKS AP24",
       "db:memory-test",
       "db:agent-test",
       "D70"
@@ -881,7 +851,6 @@
       "The caller sees only the matches from its own household"
     ],
     "refs": [
-      "BROWSER-CHECKS AP24",
       "db:memory-test",
       "D70"
     ]
@@ -914,7 +883,6 @@
       "The other browser sees the space name with none of that local text"
     ],
     "refs": [
-      "BROWSER-CHECKS AP23",
       "D59",
       "D70"
     ]
@@ -944,7 +912,6 @@
       "The other space still shows its notes and the 200-item counter includes them"
     ],
     "refs": [
-      "BROWSER-CHECKS AP25",
       "D70"
     ]
   },
@@ -974,7 +941,6 @@
       "Open space opens the new thread and adds it to the Spaces list"
     ],
     "refs": [
-      "BROWSER-CHECKS AP26",
       "D69"
     ]
   },
@@ -1002,7 +968,6 @@
       "April statements was not created"
     ],
     "refs": [
-      "BROWSER-CHECKS AP27",
       "D69"
     ]
   },
@@ -1030,7 +995,6 @@
       "The archived space is absent"
     ],
     "refs": [
-      "BROWSER-CHECKS AP26",
       "D69"
     ]
   },
@@ -1062,7 +1026,6 @@
       "The saved brief is unchanged"
     ],
     "refs": [
-      "BROWSER-CHECKS AP28",
       "D71"
     ]
   },
@@ -1092,7 +1055,6 @@
       "The question and reply are absent from the reloaded thread and the export"
     ],
     "refs": [
-      "BROWSER-CHECKS AP28",
       "D59",
       "D71"
     ]
@@ -1123,7 +1085,6 @@
       "The saved brief, notes and To check remain as they were"
     ],
     "refs": [
-      "BROWSER-CHECKS AP29",
       "D71",
       "db:ask-routes-test"
     ]
@@ -1155,7 +1116,6 @@
       "The original review links and the six canonical rules stay available"
     ],
     "refs": [
-      "BROWSER-CHECKS AP30",
       "D64",
       "D66",
       "db:suggest-test"
@@ -1186,7 +1146,6 @@
       "The member receives at most one email digest for that day"
     ],
     "refs": [
-      "BROWSER-CHECKS AP31",
       "D65",
       "db:notify-test"
     ]
@@ -1216,7 +1175,6 @@
       "At most one scheduled push digest is claimed for the member that day"
     ],
     "refs": [
-      "BROWSER-CHECKS AP31",
       "D65",
       "db:notify-test"
     ]
@@ -1244,7 +1202,6 @@
       "After a model failure or an unconfirmed amount, the same id runs again and still saves no private turn"
     ],
     "refs": [
-      "BROWSER-CHECKS AP32",
       "db:ask-routes-test",
       "D71"
     ]
@@ -1271,7 +1228,6 @@
       "Delivery is still deduplicated by member, local day and channel"
     ],
     "refs": [
-      "BROWSER-CHECKS AP32",
       "db:suggest-test",
       "db:notify-test",
       "D64",
@@ -1302,7 +1258,6 @@
       "Reminders describes relevant space labels and the Home link"
     ],
     "refs": [
-      "BROWSER-CHECKS AP33",
       "D59",
       "D65",
       "D71"

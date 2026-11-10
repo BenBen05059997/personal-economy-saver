@@ -13,7 +13,7 @@
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
       "This app’s default is selected",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md"
     ],
     "steps": [
       "Paste sk-ant-fictional-placeholder into Key",
@@ -24,7 +24,6 @@
       "The selection happens before the separate catalogue POST"
     ],
     "refs": [
-      "BROWSER-CHECKS Y9",
       "D56"
     ]
   },
@@ -42,7 +41,7 @@
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
       "This app’s default is selected",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md"
     ],
     "steps": [
       "Paste sk-or-fictional-placeholder into Key",
@@ -53,7 +52,6 @@
       "The selection happens before the separate catalogue POST"
     ],
     "refs": [
-      "BROWSER-CHECKS Y9",
       "D56"
     ]
   },
@@ -71,7 +69,7 @@
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
       "This app’s default is selected",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md"
     ],
     "steps": [
       "Paste gsk_fictional-placeholder into Key",
@@ -82,7 +80,6 @@
       "The selection happens before the separate catalogue POST"
     ],
     "refs": [
-      "BROWSER-CHECKS Y9",
       "D56"
     ]
   },
@@ -100,7 +97,7 @@
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
       "This app’s default is selected",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md"
     ],
     "steps": [
       "Paste AIzafictional-placeholder into Key",
@@ -111,7 +108,6 @@
       "The selection happens before the separate catalogue POST"
     ],
     "refs": [
-      "BROWSER-CHECKS Y9",
       "D56"
     ]
   },
@@ -137,7 +133,6 @@
       "Provider stays on This app’s default"
     ],
     "refs": [
-      "BROWSER-CHECKS Y10",
       "D56"
     ]
   },
@@ -155,7 +150,7 @@
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
       "OpenAI was selected manually",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y"
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md"
     ],
     "steps": [
       "Paste sk-ant-fictional-placeholder into Key"
@@ -164,7 +159,6 @@
       "Provider stays on OpenAI"
     ],
     "refs": [
-      "BROWSER-CHECKS Y10",
       "D56"
     ]
   },
@@ -192,7 +186,6 @@
       "An explicit provider choice is preserved"
     ],
     "refs": [
-      "BROWSER-CHECKS Y11",
       "db:ai-test"
     ]
   },
@@ -220,7 +213,6 @@
       "Tested models are marked and sorted first when present"
     ],
     "refs": [
-      "BROWSER-CHECKS Y12",
       "db:ai-test"
     ]
   },
@@ -248,7 +240,6 @@
       "The reply is private, no-store and contains no key"
     ],
     "refs": [
-      "BROWSER-CHECKS Y13",
       "db:settings-test"
     ]
   },
@@ -275,7 +266,6 @@
       "The independent 20 requests per minute list bucket returns 429"
     ],
     "refs": [
-      "BROWSER-CHECKS Y13",
       "db:settings-test"
     ]
   },
@@ -301,7 +291,6 @@
       "The route returns 403"
     ],
     "refs": [
-      "BROWSER-CHECKS Y14",
       "db:members-test"
     ]
   },
@@ -327,7 +316,6 @@
       "The other household’s saved key cannot be used"
     ],
     "refs": [
-      "BROWSER-CHECKS Y14",
       "db:isolation-test"
     ]
   },
@@ -344,7 +332,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md",
       "Anthropic is selected"
     ],
     "steps": [
@@ -357,7 +345,6 @@
       "The shared-model list includes fictional-tested · Tested and fictional-unknown"
     ],
     "refs": [
-      "BROWSER-CHECKS Y15",
       "D56"
     ]
   },
@@ -374,7 +361,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md",
       "The fictional model list is loaded"
     ],
     "steps": [
@@ -387,7 +374,6 @@
       "Both lists retain fictional-unknown"
     ],
     "refs": [
-      "BROWSER-CHECKS Y16",
       "D56"
     ]
   },
@@ -404,7 +390,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md",
       "The fictional model list is loaded"
     ],
     "steps": [
@@ -414,7 +400,6 @@
       "The field contains fictional-tested"
     ],
     "refs": [
-      "BROWSER-CHECKS Y16",
       "D56"
     ]
   },
@@ -431,7 +416,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md",
       "The fictional model list is loaded"
     ],
     "steps": [
@@ -441,7 +426,6 @@
       "The field keeps fictional-unlisted"
     ],
     "refs": [
-      "BROWSER-CHECKS Y17",
       "D56"
     ]
   },
@@ -458,7 +442,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md",
       "Anthropic is selected and the document model field is visible"
     ],
     "steps": [
@@ -470,7 +454,6 @@
       "Both fields keep the typed IDs"
     ],
     "refs": [
-      "BROWSER-CHECKS Y18",
       "D56"
     ]
   },
@@ -487,7 +470,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "Install the fictional catalogue interception in BROWSER-CHECKS Y",
+      "Install the fictional catalogue interception described in the model settings run in qa/README.md",
       "The Anthropic list has loaded with a fictional typed key"
     ],
     "steps": [
@@ -498,7 +481,6 @@
       "The form waits for a new key before listing for OpenAI"
     ],
     "refs": [
-      "BROWSER-CHECKS Y19",
       "D56"
     ]
   },
@@ -524,7 +506,6 @@
       "A superseded lookup cannot replace the current catalogue"
     ],
     "refs": [
-      "BROWSER-CHECKS Y20",
       "db:settings-test"
     ]
   },
@@ -551,9 +532,7 @@
       "The panel says Your use is billed to your own Anthropic account.",
       "Must read images and PDFs. stays below the document model controls"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y21"
-    ]
+    "refs": []
   },
   {
     "id": "AIMODEL-021",
@@ -577,7 +556,6 @@
       "The key was refused by Mistral."
     ],
     "refs": [
-      "BROWSER-CHECKS Y23",
       "db:settings-test"
     ]
   },
@@ -603,7 +581,6 @@
       "Mistral has no model called <name>. names the selected model"
     ],
     "refs": [
-      "BROWSER-CHECKS Y23",
       "db:settings-test"
     ]
   },
@@ -629,7 +606,6 @@
       "Mistral says the key is over its limit or out of credit."
     ],
     "refs": [
-      "BROWSER-CHECKS Y23",
       "db:settings-test"
     ]
   },
@@ -655,7 +631,6 @@
       "Couldn’t reach Mistral."
     ],
     "refs": [
-      "BROWSER-CHECKS Y23",
       "db:settings-test"
     ]
   },
@@ -682,7 +657,6 @@
       "The previous models and key remain saved"
     ],
     "refs": [
-      "BROWSER-CHECKS Y24",
       "db:settings-test"
     ]
   },
@@ -699,7 +673,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px on a fresh Try it household",
-      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running"
+      "The isolated dev process from the model settings run in qa/README.md is running"
     ],
     "steps": [
       "Paste sk-ant-fictional-stage34-good into Key",
@@ -711,9 +685,7 @@
       "The connection keeps both selected model IDs",
       "The host line says Your questions and documents go to api.anthropic.com."
     ],
-    "refs": [
-      "BROWSER-CHECKS Y5"
-    ]
+    "refs": []
   },
   {
     "id": "AIMODEL-027",
@@ -728,7 +700,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px",
-      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The isolated dev process from the model settings run in qa/README.md is running",
       "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
@@ -740,9 +712,7 @@
       "The key was refused by Anthropic.",
       "The previous two model IDs, saved check and …good key hint remain"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y24"
-    ]
+    "refs": []
   },
   {
     "id": "AIMODEL-028",
@@ -757,7 +727,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px",
-      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The isolated dev process from the model settings run in qa/README.md is running",
       "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
@@ -769,9 +739,7 @@
       "Anthropic has no model called fictional-documents.",
       "The previous two model IDs, saved check and …good key hint remain"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y24"
-    ]
+    "refs": []
   },
   {
     "id": "AIMODEL-029",
@@ -786,7 +754,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px",
-      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The isolated dev process from the model settings run in qa/README.md is running",
       "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
@@ -798,9 +766,7 @@
       "Anthropic says the key is over its limit or out of credit.",
       "The previous two model IDs, saved check and …good key hint remain"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y24"
-    ]
+    "refs": []
   },
   {
     "id": "AIMODEL-030",
@@ -815,7 +781,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px",
-      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The isolated dev process from the model settings run in qa/README.md is running",
       "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
@@ -827,9 +793,7 @@
       "Couldn’t reach Anthropic.",
       "The previous two model IDs, saved check and …good key hint remain"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y24"
-    ]
+    "refs": []
   },
   {
     "id": "AIMODEL-031",
@@ -844,7 +808,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px",
-      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The isolated dev process from the model settings run in qa/README.md is running",
       "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
@@ -856,9 +820,7 @@
       "This document model can't be used: It did not read the total from the bill image. Choose a model that reads images.",
       "The previous two model IDs, saved check and …good key hint remain"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y24"
-    ]
+    "refs": []
   },
   {
     "id": "AIMODEL-032",
@@ -873,7 +835,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px",
-      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The isolated dev process from the model settings run in qa/README.md is running",
       "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
@@ -883,9 +845,7 @@
       "The result reads Custom, untested · passed 4 of 4 checks on {date}",
       "The panel says Reads images: passed."
     ],
-    "refs": [
-      "BROWSER-CHECKS Y22"
-    ]
+    "refs": []
   },
   {
     "id": "AIMODEL-033",
@@ -912,7 +872,6 @@
       "Save and check gives the same words and nothing is saved"
     ],
     "refs": [
-      "BROWSER-CHECKS Y25",
       "db:settings-test",
       "D56"
     ]
@@ -941,7 +900,6 @@
     ],
     "refs": [
       "db:settings-test",
-      "BROWSER-CHECKS Y26",
       "D56"
     ]
   },

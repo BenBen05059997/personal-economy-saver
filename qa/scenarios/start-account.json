@@ -23,10 +23,7 @@
       "How it works, Ask in your own words, What fipa never does and Privacy are visible",
       "Tap targets are at least 44px tall and nothing overlaps or scrolls sideways"
     ],
-    "refs": [
-      "BROWSER-CHECKS A1",
-      "BROWSER-CHECKS N1"
-    ]
+    "refs": []
   },
   {
     "id": "START-002",
@@ -53,8 +50,7 @@
       "Get started shows the five Try it steps"
     ],
     "refs": [
-      "BROWSER-CHECKS A2",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -79,9 +75,7 @@
       "The button is disabled after the first click",
       "Only one household is made and Home opens once with the expected numbers"
     ],
-    "refs": [
-      "BROWSER-CHECKS A2"
-    ]
+    "refs": []
   },
   {
     "id": "START-004",
@@ -106,9 +100,7 @@
       "The Try it button is not stuck on \"Creating your household…\" after Back (the page restores it)",
       "Pressing it again opens the same household (the cookie is reused), not a second one, with no changes lost"
     ],
-    "refs": [
-      "BROWSER-CHECKS A2"
-    ]
+    "refs": []
   },
   {
     "id": "START-005",
@@ -131,9 +123,7 @@
       "303 to / and the same household cookie is kept",
       "No new household is made"
     ],
-    "refs": [
-      "BROWSER-CHECKS A2"
-    ]
+    "refs": []
   },
   {
     "id": "START-006",
@@ -156,9 +146,7 @@
       "403 \"Same-origin navigation required\"",
       "No household is created and no cookie is set"
     ],
-    "refs": [
-      "BROWSER-CHECKS A6"
-    ]
+    "refs": []
   },
   {
     "id": "START-007",
@@ -182,9 +170,7 @@
       "Every call answers a redirect and makes a new demo household; none answers 429",
       "Start with my numbers is also accepted"
     ],
-    "refs": [
-      "BROWSER-CHECKS A6"
-    ]
+    "refs": []
   },
   {
     "id": "START-009",
@@ -204,16 +190,12 @@
       "Open / and press \"Start with my numbers\""
     ],
     "expected": [
-      "/start is headed \"Start with my numbers\" with one field, Your name (no bank balance box), and the hint \"A name is all it needs; set your bank balance on Home.\"",
+      "/start is headed \"Start with my numbers\" with one field, Your name (no bank balance box), and the hint \"A name is all it needs; the next pages ask about your money, and you can skip any.\"",
       "The line reads \"Currency: ¥ Japanese yen · Time zone: Asia/Tokyo · Change\" (in Tokyo) and there is no card link or card field",
       "The button reads \"Start planning\" and, under it, \"Your numbers stay in this browser's demo household. Privacy ›\"",
       "With no cookie there is no \"This replaces…\" line"
     ],
-    "refs": [
-      "BROWSER-CHECKS N2",
-      "BROWSER-CHECKS R-A",
-      "BROWSER-CHECKS N8"
-    ]
+    "refs": []
   },
   {
     "id": "START-010",
@@ -240,9 +222,7 @@
       "The ¥ in front of the bank box becomes $ and the placeholder becomes 2,800",
       "Choosing yen again brings ¥ and 420,000 back"
     ],
-    "refs": [
-      "BROWSER-CHECKS N2"
-    ]
+    "refs": []
   },
   {
     "id": "START-011",
@@ -262,17 +242,18 @@
     "steps": [
       "Type Mika",
       "Press Start planning",
+      "On the setup page press Skip, Skip, Skip, then Finish",
       "On Home, Bank balance → Update, type 250,000 and Save"
     ],
     "expected": [
-      "Home opens with today's real date in the date line, not Sat Nov 14",
-      "Before the update the sentence reads \"Bank balance ¥0.\"; after it, it includes \"Bank balance ¥250,000.\" and Cards says \"No card yet.\"",
-      "First steps · 5 to go with one open step \"Add your rent, so the day it leaves shows up\"",
+      "Start planning opens setup at /setup?step=bank, not Home; Finish then opens Home",
+      "Home shows today's real date in the date line, not Sat Nov 14",
+      "Before the update the sentence reads \"Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥0.\"; after it, it includes \"Bank balance ¥250,000.\" and Cards says \"No card yet.\"",
+      "\"What you can do here\" shows six cards; after the update \"Set today’s bank balance\" is ticked and \"First steps\" does not exist",
       "Settings, Late-client nudge shows 3"
     ],
     "refs": [
-      "BROWSER-CHECKS R-A",
-      "BROWSER-CHECKS N3"
+      "D47"
     ]
   },
   {
@@ -293,18 +274,18 @@
     "steps": [
       "Type Mika",
       "Press Start planning",
+      "On the setup page press Skip, Skip, Skip, then Finish",
       "On Home, Bank balance → Update, type 120,000 and Save",
       "Settings → Cards → add Card N, closing 25, payment 10, no limit"
     ],
     "expected": [
-      "Home opens in 1.5 s or less with the empty sentence \"Add your rent, your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.\"",
+      "Home opens in 1.5 s or less with the empty sentence \"Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.\"",
       "The sentence never says \"You're fine\" and has no red shortfall",
       "Safe to spend is ¥120,000 and the Next 30 days chart is flat",
       "Cards shows \"Card N ¥0 owed now · No statement due\""
     ],
     "refs": [
-      "BROWSER-CHECKS N3",
-      "BROWSER-CHECKS N4"
+      "D47"
     ]
   },
   {
@@ -329,11 +310,9 @@
     "expected": [
       "The browser stops the first submit on the required field (or the page shows \"Check your name, timezone, balance and card settings.\")",
       "No household is created and no cookie is set by the first attempt",
-      "The second attempt makes a household whose Home reads \"Bank balance ¥0.\""
+      "The second attempt makes a household and opens setup at /setup?step=bank; after Skip through to Finish, Home reads \"Bank balance ¥0.\""
     ],
-    "refs": [
-      "BROWSER-CHECKS N2"
-    ]
+    "refs": []
   },
   {
     "id": "START-014",
@@ -360,9 +339,7 @@
       "Neither attempt makes a household",
       "A card with days but no name is refused the same way"
     ],
-    "refs": [
-      "BROWSER-CHECKS N2"
-    ]
+    "refs": []
   },
   {
     "id": "START-015",
@@ -392,7 +369,6 @@
       "Nothing is created for a refused attempt and what was typed stays"
     ],
     "refs": [
-      "BROWSER-CHECKS N2",
       "DECISIONS D31"
     ]
   },
@@ -418,9 +394,7 @@
     "expected": [
       "The balance is read as ¥120,000 and Home shows \"Bank balance ¥120,000.\""
     ],
-    "refs": [
-      "BROWSER-CHECKS N3"
-    ]
+    "refs": []
   },
   {
     "id": "START-017",
@@ -446,9 +420,7 @@
       "A name with markup is shown as plain text everywhere (Home, Settings), never as formatting",
       "A long unbroken name wraps and nothing scrolls sideways at 375px"
     ],
-    "refs": [
-      "BROWSER-CHECKS N3"
-    ]
+    "refs": []
   },
   {
     "id": "START-018",
@@ -474,9 +446,7 @@
       "The post without Origin is 403 \"Same-origin request required\"",
       "No household is created"
     ],
-    "refs": [
-      "BROWSER-CHECKS N2"
-    ]
+    "refs": []
   },
   {
     "id": "START-019",
@@ -495,7 +465,7 @@
     "steps": [
       "Open /start directly",
       "Read the line above the form",
-      "Submit Mika and the card of START-012, then set the bank balance to 120,000 on Home",
+      "Submit Mika, Skip through setup to Home and add the card of START-012, then set the bank balance to 120,000 on Home",
       "Press Back to the old pages"
     ],
     "expected": [
@@ -503,9 +473,7 @@
       "Home is blank as in START-012, not Ben's",
       "Going Back shows the landing or the new blank household, never Ben's"
     ],
-    "refs": [
-      "BROWSER-CHECKS N8"
-    ]
+    "refs": []
   },
   {
     "id": "START-020",
@@ -530,9 +498,7 @@
       "The line reads \"This replaces your household in this browser and its numbers.\"",
       "Home shows the new numbers and none of the old bills"
     ],
-    "refs": [
-      "BROWSER-CHECKS N8"
-    ]
+    "refs": []
   },
   {
     "id": "START-021",
@@ -557,10 +523,7 @@
       "The link is at least 44px tall at 375px and shows \"Replaces this household with a blank one and your own numbers.\"",
       "It opens /start with the Try it notice"
     ],
-    "refs": [
-      "BROWSER-CHECKS N8",
-      "BROWSER-CHECKS N9"
-    ]
+    "refs": []
   },
   {
     "id": "START-022",
@@ -584,9 +547,7 @@
       "/start redirects to /account",
       "The post redirects to /account and makes nothing"
     ],
-    "refs": [
-      "BROWSER-CHECKS N8"
-    ]
+    "refs": []
   },
   {
     "id": "START-024",
@@ -604,17 +565,14 @@
       "A bill waiting in To check"
     ],
     "steps": [
-      "Read First steps",
+      "Read \"What you can do here\"",
       "Read the sentence"
     ],
     "expected": [
-      "A pending bill counts as a bill for the step but not for the sentence, which is still the empty one",
-      "With no card, \"Add a card, so card bills count\" comes before the card charge step and opens Settings → Cards"
+      "A pending bill waiting in To check does not change the sentence, which is still the empty one",
+      "With no card, the card hint reads \"Add a card\" with \"Card charges and statements need a card first.\" and opens Settings → Cards"
     ],
-    "refs": [
-      "BROWSER-CHECKS N7",
-      "BROWSER-CHECKS R-A"
-    ]
+    "refs": []
   },
   {
     "id": "START-025",
@@ -639,10 +597,7 @@
       "To check says \"Things the app read or drafted, waiting for your OK. Nothing here now.\"",
       "Clients says \"No clients yet. Add a client ›\" and the link jumps to the add form"
     ],
-    "refs": [
-      "BROWSER-CHECKS R-C",
-      "BROWSER-CHECKS N4"
-    ]
+    "refs": []
   },
   {
     "id": "START-026",
@@ -668,9 +623,7 @@
       "New invoice says under Amount \"Invoices are always in US dollars. Home shows what they are worth in your own currency.\"",
       "At 375px the Add bill button is fully above the Ask bar"
     ],
-    "refs": [
-      "BROWSER-CHECKS N9"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-001",
@@ -694,9 +647,7 @@
       "The button reads \"Email me a sign-in link\"",
       "Privacy is reachable from the page"
     ],
-    "refs": [
-      "BROWSER-CHECKS A1"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-002",
@@ -722,9 +673,7 @@
       "The page reads \"Check your email\" and \"Open the sign-in link in this browser to finish.\"",
       "The emailed link opens onboarding for a new address, or Home for a known one"
     ],
-    "refs": [
-      "BROWSER-CHECKS A5"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-003",
@@ -747,9 +696,7 @@
       "Each answers 400 \"Enter a valid email address\"",
       "No link is sent and no limit is used"
     ],
-    "refs": [
-      "BROWSER-CHECKS A7"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-004",
@@ -772,9 +719,7 @@
       "403 \"Same-origin request required\"",
       "Nothing is sent"
     ],
-    "refs": [
-      "BROWSER-CHECKS A7"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-005",
@@ -801,7 +746,6 @@
       "An invalid email is refused with 400 before it counts"
     ],
     "refs": [
-      "BROWSER-CHECKS A7",
       "db:limits-test"
     ]
   },
@@ -827,9 +771,7 @@
       "The page /login shows \"That link is invalid or has expired. Request a new link and open it in this browser.\"",
       "No session is made"
     ],
-    "refs": [
-      "BROWSER-CHECKS A5"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-007",
@@ -853,9 +795,7 @@
       "The link is refused (it is bound to the browser that asked) and /login says the link is invalid or expired",
       "Browser 1 can still request a new link"
     ],
-    "refs": [
-      "BROWSER-CHECKS A5"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-008",
@@ -879,10 +819,7 @@
       "The demo household is upgraded, not lost: after onboarding Home shows the signed-in person's own sentence",
       "The cookie household and upgrade cookie are cleared"
     ],
-    "refs": [
-      "BROWSER-CHECKS A5",
-      "BROWSER-CHECKS N8"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-009",
@@ -900,16 +837,16 @@
     ],
     "steps": [
       "Read /onboarding",
-      "Type a name (the bank balance is set on Home afterwards, a card in Settings)",
-      "Press Start planning"
+      "Type a name (the bank balance is asked on the setup pages that follow, a card on the last)",
+      "Press Start planning",
+      "Press Skip, Skip, Skip, then Finish"
     ],
     "expected": [
-      "/onboarding is headed \"Set up your household\" with the same fields as /start and the hint \"Start with your name; set your bank balance on Home.\"",
-      "Home shows your own sentence with no Ben data and no PayPal demo bills"
+      "/onboarding is headed \"Set up your household\" with the same fields as /start and the hint \"Start with your name; the next pages ask about your money, and you can skip any.\"",
+      "Start planning opens setup at /setup?step=bank, not Home",
+      "After Finish, Home shows your own sentence with no Ben data and no PayPal demo bills"
     ],
-    "refs": [
-      "BROWSER-CHECKS A5"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-010",
@@ -934,9 +871,7 @@
       "No session redirects to /login and the post answers 401 \"A verified email session is required\"",
       "A signed-in person with a household is sent to Home"
     ],
-    "refs": [
-      "BROWSER-CHECKS A5"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-011",
@@ -960,9 +895,7 @@
     "expected": [
       "Each shows \"Check your name, timezone, balance and card settings.\" and creates nothing"
     ],
-    "refs": [
-      "BROWSER-CHECKS N2"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-012",
@@ -987,9 +920,7 @@
       "The household cookie is cleared and Home needs a new Try it or sign-in",
       "Back does not show my pages"
     ],
-    "refs": [
-      "BROWSER-CHECKS A1"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-013",
@@ -1015,9 +946,7 @@
       "Pressing it returns to the landing and clears the cookie; the demo is swept after seven days",
       "There is no Delete household on a Try it household"
     ],
-    "refs": [
-      "BROWSER-CHECKS P2"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-014",
@@ -1039,9 +968,7 @@
     "expected": [
       "It redirects to /login"
     ],
-    "refs": [
-      "BROWSER-CHECKS A1"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-018",
@@ -1065,9 +992,7 @@
       "Every page opens",
       "The phone menu opens and closes the links"
     ],
-    "refs": [
-      "BROWSER-CHECKS A3"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-019",
@@ -1092,10 +1017,7 @@
       "The household, documents, key, memory and sessions are gone and I land on the landing",
       "Signing in again starts onboarding as a new person"
     ],
-    "refs": [
-      "BROWSER-CHECKS I7",
-      "BROWSER-CHECKS P2"
-    ]
+    "refs": []
   },
   {
     "id": "AUTH-020",
@@ -1119,9 +1041,7 @@
       "The first answers 400 \"Confirm household deletion\" and deletes nothing; the checkbox is required in the browser",
       "The Try it post answers 403 \"Authenticated owner required\""
     ],
-    "refs": [
-      "BROWSER-CHECKS I7"
-    ]
+    "refs": []
   },
   {
     "id": "SET-001",
@@ -1144,10 +1064,7 @@
       "Panels appear for Household & bank, Late-client nudge, People, Cards, statement import, Bills, Your AI model, Your data and Account",
       "At 1440px Your AI model and Your data sit in the right column; nothing scrolls sideways; light and dark both read clearly"
     ],
-    "refs": [
-      "BROWSER-CHECKS A3",
-      "BROWSER-CHECKS I4"
-    ]
+    "refs": []
   },
   {
     "id": "SET-002",
@@ -1174,9 +1091,7 @@
       "Putting 67,000 back restores the expected numbers"
     ],
     "refs": [
-      "BROWSER-CHECKS I1",
-      "BROWSER-CHECKS AA10",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -1206,7 +1121,6 @@
       "Put 67,000 back afterwards"
     ],
     "refs": [
-      "BROWSER-CHECKS I1",
       "DECISIONS D31"
     ]
   },
@@ -1231,9 +1145,7 @@
     "expected": [
       "The browser or the form refuses both and the name is unchanged"
     ],
-    "refs": [
-      "BROWSER-CHECKS I1"
-    ]
+    "refs": []
   },
   {
     "id": "SET-005",
@@ -1257,9 +1169,7 @@
       "Nothing breaks and no balance event is added for the unchanged balance",
       "Activity shows \"Household renamed to …\" only when the name changed"
     ],
-    "refs": [
-      "BROWSER-CHECKS I1"
-    ]
+    "refs": []
   },
   {
     "id": "SET-006",
@@ -1289,7 +1199,6 @@
       "Turning it off keeps the rule off on reload and the Save button is at least 44px tall at 375px"
     ],
     "refs": [
-      "BROWSER-CHECKS Q2",
       "D66"
     ]
   },
@@ -1316,10 +1225,7 @@
       "Two name fields and Share (%) fields at 50 and 50 appear",
       "Plan's month shows Together, Ben and Wife and the Shared costs panel appears on Home"
     ],
-    "refs": [
-      "BROWSER-CHECKS S",
-      "BROWSER-CHECKS R-C"
-    ]
+    "refs": []
   },
   {
     "id": "SET-008",
@@ -1348,8 +1254,6 @@
       "Valid shares such as 60 and 40 save and Home's split follows"
     ],
     "refs": [
-      "BROWSER-CHECKS S",
-      "BROWSER-CHECKS H2",
       "db:split-test"
     ]
   },
@@ -1378,10 +1282,7 @@
       "Keep changes nothing; Remove drops Wife and the owner cannot be removed (no button)",
       "A person who still owes or is owed is refused with a sentence"
     ],
-    "refs": [
-      "BROWSER-CHECKS S",
-      "BROWSER-CHECKS R-C"
-    ]
+    "refs": []
   },
   {
     "id": "SET-010",
@@ -1406,9 +1307,7 @@
       "The card appears in the list and on Home's and Cards' rows",
       "The form is empty again and Activity records it"
     ],
-    "refs": [
-      "BROWSER-CHECKS I2"
-    ]
+    "refs": []
   },
   {
     "id": "SET-011",
@@ -1430,13 +1329,12 @@
       "Check Home, then set it back to 31"
     ],
     "expected": [
-      "Card A still reads ¥86,450 owed now and ¥413,550 limit left (BROWSER-CHECKS Expected numbers)",
+      "Card A still reads ¥86,450 owed now and ¥413,550 limit left (qa/README Expected numbers)",
       "The sentence and safe to spend do not move and Coming up gains no new row inside 30 days",
       "Activity records \"closing day 31 → 10\"; setting it back restores the same"
     ],
     "refs": [
-      "BROWSER-CHECKS I2",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -1463,9 +1361,7 @@
       "A negative limit shows \"Credit limit cannot be negative\" or the amount words",
       "A hand-made post of closingDay=32 answers 400 \"Check the required fields and amounts\""
     ],
-    "refs": [
-      "BROWSER-CHECKS I2"
-    ]
+    "refs": []
   },
   {
     "id": "SET-013",
@@ -1492,9 +1388,7 @@
       "Clearing it removes the \"Foreign fee\" words",
       "The hint under the field says the app uses it only to estimate what a foreign purchase cost"
     ],
-    "refs": [
-      "BROWSER-CHECKS AE4"
-    ]
+    "refs": []
   },
   {
     "id": "SET-014",
@@ -1521,9 +1415,7 @@
       "A hand post answers \"Enter the foreign transaction fee as a percentage from 0 to 10, like 2.2\"",
       "The card keeps its old fee"
     ],
-    "refs": [
-      "BROWSER-CHECKS AE4"
-    ]
+    "refs": []
   },
   {
     "id": "SET-015",
@@ -1574,10 +1466,7 @@
       "The row updates, Home's sentence and Coming up follow, and Activity records the change",
       "A repeating bill's amount change starts from the due date shown in the hint"
     ],
-    "refs": [
-      "BROWSER-CHECKS O1",
-      "BROWSER-CHECKS I1"
-    ]
+    "refs": []
   },
   {
     "id": "SET-022",
@@ -1604,7 +1493,6 @@
       "After Remove the shortfall is back to ¥18,780"
     ],
     "refs": [
-      "BROWSER-CHECKS AB3",
       "D41"
     ]
   },
@@ -1630,9 +1518,7 @@
       "Clearing removes the Nov 20 reminder row from Coming up",
       "A cancel-by after the next charge is refused with the \"before the bill is next charged\" words"
     ],
-    "refs": [
-      "BROWSER-CHECKS O5"
-    ]
+    "refs": []
   },
   {
     "id": "SET-024",
@@ -1657,9 +1543,7 @@
       "The question says \"It repeats every year, so every year goes.\"",
       "Coming up loses both rows and Activity says \"Removed bill Fictional Cloud ¥12,000\" with \"Every year, so every occurrence is gone\""
     ],
-    "refs": [
-      "BROWSER-CHECKS O6"
-    ]
+    "refs": []
   },
   {
     "id": "SET-025",
@@ -1715,7 +1599,6 @@
       "The two date fields and Save are at least 44px tall at 375px"
     ],
     "refs": [
-      "BROWSER-CHECKS AF5b",
       "D63"
     ]
   },
@@ -1745,8 +1628,6 @@
       "A repeating bill has no \"Month this bill covers\" in its Edit"
     ],
     "refs": [
-      "BROWSER-CHECKS AF5b",
-      "BROWSER-CHECKS AF4",
       "D63"
     ]
   },
@@ -1772,9 +1653,7 @@
       "One-off bills already due sit under \"Past bills\", not in the main list",
       "Each still has Edit and Remove"
     ],
-    "refs": [
-      "BROWSER-CHECKS A3"
-    ]
+    "refs": []
   },
   {
     "id": "SET-030",
@@ -1801,7 +1680,6 @@
       "Nothing is saved"
     ],
     "refs": [
-      "BROWSER-CHECKS O5",
       "DECISIONS D31"
     ]
   },
@@ -1828,9 +1706,7 @@
       "There is no \"go to\" host line and no clear button",
       "With a server model the first line is \"Your questions and documents go to {host}.\""
     ],
-    "refs": [
-      "BROWSER-CHECKS Y1"
-    ]
+    "refs": []
   },
   {
     "id": "SET-032",
@@ -1853,9 +1729,7 @@
       "The order is This app's default, Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Mistral, Other (OpenAI-compatible address)",
       "On the default there is a Key password field with \"Paste a key or choose a provider to use your own model.\" and no Save and check button"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y2"
-    ]
+    "refs": []
   },
   {
     "id": "SET-033",
@@ -1880,9 +1754,7 @@
       "The hand post is refused and nothing is saved",
       "Signed in, Other shows an Address field"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y3"
-    ]
+    "refs": []
   },
   {
     "id": "SET-034",
@@ -1910,7 +1782,6 @@
       "Nothing is saved and no key is stored"
     ],
     "refs": [
-      "BROWSER-CHECKS Y3",
       "D56"
     ]
   },
@@ -1938,9 +1809,7 @@
       "There is no Address field",
       "The box and its words sit on one line, box at the left; nothing scrolls sideways; fields and button are 44px tall"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y4"
-    ]
+    "refs": []
   },
   {
     "id": "SET-036",
@@ -1964,9 +1833,7 @@
       "The browser stops the submit on the required fields",
       "Nothing is saved and no key is shown back"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y4"
-    ]
+    "refs": []
   },
   {
     "id": "SET-037",
@@ -1991,8 +1858,6 @@
       "The connection view reports the listed provider’s host and only a key hint"
     ],
     "refs": [
-      "BROWSER-CHECKS Y5",
-      "BROWSER-CHECKS Y6",
       "db:settings-test"
     ]
   },
@@ -2019,7 +1884,6 @@
       "The existing connection is unchanged"
     ],
     "refs": [
-      "BROWSER-CHECKS Y5",
       "db:settings-test"
     ]
   },
@@ -2036,7 +1900,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px",
-      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The isolated dev process from the model settings run in qa/README.md is running",
       "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
@@ -2050,9 +1914,6 @@
       "The full fictional key is absent from page source, responses and the export"
     ],
     "refs": [
-      "BROWSER-CHECKS Y6",
-      "BROWSER-CHECKS AF9",
-      "BROWSER-CHECKS I3",
       "D33"
     ]
   },
@@ -2069,7 +1930,7 @@
     "how": "browser",
     "preconditions": [
       "Settings → Your AI model at 1440px",
-      "The owner’s isolated Stage 34 dev process from BROWSER-CHECKS Y is running",
+      "The isolated dev process from the model settings run in qa/README.md is running",
       "The fictional Anthropic connection from AIMODEL-026 is saved"
     ],
     "steps": [
@@ -2079,9 +1940,7 @@
       "The saved model IDs, key hint and check result disappear",
       "Provider is This app’s default and the host or missing-setting line shows the server’s configuration"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y7"
-    ]
+    "refs": []
   },
   {
     "id": "SET-041",
@@ -2107,9 +1966,7 @@
       "kind=other answers 400 \"Check the fields and try again.\"",
       "The seventh answers 429 \"Too many changes. Try again in a minute.\""
     ],
-    "refs": [
-      "BROWSER-CHECKS Y4"
-    ]
+    "refs": []
   },
   {
     "id": "SET-043",
@@ -2134,9 +1991,7 @@
       "After Revoke the key is gone from the list",
       "The client is refused with 401"
     ],
-    "refs": [
-      "BROWSER-CHECKS I5"
-    ]
+    "refs": []
   },
   {
     "id": "SET-044",
@@ -2160,9 +2015,7 @@
       "Each answers 400 \"Choose a token name and scopes.\"",
       "With MCP_TOKEN_KEY unset a valid request answers 503 naming MCP_TOKEN_KEY"
     ],
-    "refs": [
-      "BROWSER-CHECKS I5"
-    ]
+    "refs": []
   },
   {
     "id": "SET-045",
@@ -2190,10 +2043,7 @@
       "Network shows one Reset POST with x-form-fetch: 1, a 204 with x-form-redirect: /, and one navigation to Home",
       "The line “Puts Ben’s fictional starting numbers back.” shows under the button"
     ],
-    "refs": [
-      "BROWSER-CHECKS I6",
-      "BROWSER-CHECKS N9"
-    ]
+    "refs": []
   },
   {
     "id": "SET-046",
@@ -2218,9 +2068,7 @@
       "Another origin answers 403 \"Same-origin request required\"",
       "A swept household answers 409 \"Demo session has expired\""
     ],
-    "refs": [
-      "BROWSER-CHECKS I6"
-    ]
+    "refs": []
   },
   {
     "id": "SET-047",
@@ -2242,9 +2090,7 @@
     "expected": [
       "Only one reset runs and Home reads Ben's numbers with no error"
     ],
-    "refs": [
-      "BROWSER-CHECKS I6"
-    ]
+    "refs": []
   },
   {
     "id": "SET-048",
@@ -2272,10 +2118,7 @@
       "After import: 'Added 7 charges to Card B. See where the month goes on Plan ›'; again: 'Nothing new for Card B (7 already there).'; Activity: 'Imported 7 charges to Card B from a statement'",
       "A file that is not CSV or is empty shows a sentence and imports nothing"
     ],
-    "refs": [
-      "BROWSER-CHECKS T",
-      "BROWSER-CHECKS T-C"
-    ]
+    "refs": []
   },
   {
     "id": "SET-049",
@@ -2301,7 +2144,6 @@
       "The panel is absent when the household cannot import"
     ],
     "refs": [
-      "BROWSER-CHECKS E",
       "D39"
     ]
   },
@@ -2325,11 +2167,11 @@
     "expected": [
       "The panel reads \"What the app keeps about you, where it is kept, and how to delete it. A question you ask goes to the household’s AI model.\"",
       "Seven rows show \"In our cloud, Tokyo.\": Your numbers, What the assistant remembers, Canvases pinned to Home, Ask conversations, Reminder history, Push subscriptions, Uploaded documents",
-      "Fresh Try it counts match BROWSER-CHECKS AA1. Your numbers says \"Deleted only with everything else.\" and has no Delete",
+      "Fresh Try it counts match qa/README AA1. Your numbers says \"Deleted only with everything else.\" and has no Delete",
       "Then Export my data, Import and Delete everything. A row with nothing in it has no Delete"
     ],
     "refs": [
-      "BROWSER-CHECKS AA1"
+      "qa/README AA1"
     ]
   },
   {
@@ -2355,9 +2197,7 @@
       "The row reads \"What the assistant remembers · 1 thing\" and the canvases row \"1 canvas\"",
       "\"See what it remembers ›\" opens /memory and is 44px tall"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA2"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-003",
@@ -2386,9 +2226,7 @@
       "Activity records \"The assistant forgot everything\" and never names the text",
       "The pinned canvases, cloud Ask journal and documents ask \"Delete all pinned canvases?\", \"Delete all conversations, briefs and named spaces?\", and \"Delete all uploaded documents?\""
     ],
-    "refs": [
-      "BROWSER-CHECKS AA2"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-004",
@@ -2413,8 +2251,7 @@
       "The documents and waiting readings are gone, bills already confirmed stay, and the row reads 0 documents"
     ],
     "refs": [
-      "BROWSER-CHECKS AA1",
-      "BROWSER-CHECKS I7"
+      "qa/README AA1"
     ]
   },
   {
@@ -2441,7 +2278,6 @@
       "The other two answer 400 \"Check the required fields and try again.\""
     ],
     "refs": [
-      "BROWSER-CHECKS AA2",
       "D59"
     ]
   },
@@ -2495,10 +2331,7 @@
       "It opens as JSON with \"version\": 3, the record keys, and arrays memory, canvases, spaces and journal. A fresh Try it has General in spaces",
       "It has no AI key, tokens, sign-in email or uploaded files"
     ],
-    "refs": [
-      "BROWSER-CHECKS I3",
-      "BROWSER-CHECKS AA3"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-008",
@@ -2521,9 +2354,7 @@
     "expected": [
       "memory has one item (id, kind, text, source, dates) and canvases one item (id, title, position, recipe, createdAt; no numbers)"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA3"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-009",
@@ -2548,9 +2379,7 @@
       "The seventh answers 429 \"Export limit reached. Try again in a minute.\"",
       "Responses carry no-store and the filename holds the household's date"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA3"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-010",
@@ -2573,9 +2402,7 @@
     "expected": [
       "Under it \"Import works on an empty household. Start with my numbers first.\" shows and counts are unchanged"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA4"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-011",
@@ -2602,9 +2429,7 @@
       "The box shows \"Importing…\" and takes no second file while it works",
       "Nothing changes"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA4"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-012",
@@ -2630,9 +2455,7 @@
       "Activity has one import event, \"Imported a household file\" (Type \"Imported from a file\"); the file's own events are not brought over",
       "A second import is refused as in DATA-010"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA5"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-013",
@@ -2660,9 +2483,7 @@
       "403 for another origin",
       "The third answers 429 \"Import limit reached. Try again in a minute.\""
     ],
-    "refs": [
-      "BROWSER-CHECKS AA4"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-014",
@@ -2691,10 +2512,7 @@
       "The console shows the memory store of pes-device-<id> holding one item and a reload keeps it",
       "The summary and buttons are 44px tall at 375px"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA6",
-      "BROWSER-CHECKS AA14"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-015",
@@ -2723,9 +2541,7 @@
       "Edit, Delete and Forget everything work and match the device store after a reload",
       "The network log shows no request to /api/memory and Activity gets nothing"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA7"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-016",
@@ -2750,9 +2566,7 @@
       "Each is refused with \"You keep what the assistant remembers on this device only. Change that in Settings, Your data, to use it here.\"",
       "Nothing is written"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA8"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-017",
@@ -2779,10 +2593,7 @@
       "The conversations row moves and reads \"On this device only.\"",
       "Home draws the pin with \"On this device only.\", Move up, Move down and Unpin (44px at 375px) and the numbers of the household today with no /api/canvases request"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA9",
-      "BROWSER-CHECKS AA10"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-018",
@@ -2807,9 +2618,7 @@
       "The pin section on Home is gone and Settings counts \"0 canvases\"",
       "No error page shows"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA10"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-019",
@@ -2834,9 +2643,7 @@
       "The message \"Saved, with what you keep on this device added.\" shows",
       "The file is version 3 with the device's items in memory, canvases and journal; with nothing on the device the button reads \"Export my data\""
     ],
-    "refs": [
-      "BROWSER-CHECKS AA11"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-020",
@@ -2862,10 +2669,7 @@
       "/memory is the cloud view and Home's pin is drawn from the cloud, with the same text, title and order",
       "Import and cloud memory work again"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA12",
-      "BROWSER-CHECKS AA8"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-021",
@@ -2918,9 +2722,7 @@
     "expected": [
       "It opens /account where Delete household asks me to tick the box; a Try it household sees only Leave this household there"
     ],
-    "refs": [
-      "BROWSER-CHECKS I7"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-023",
@@ -2943,9 +2745,7 @@
       "Every control (See what it remembers, Delete, Keep on this device only, Cancel, Move, Export, the file box, Delete everything) is at least 44px tall at 375px",
       "A long unbroken word in a memory item wraps in both /memory views; nothing scrolls sideways"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA14"
-    ]
+    "refs": []
   },
   {
     "id": "DATA-024",
@@ -2973,9 +2773,7 @@
       "Nothing is stored on the server (no new journal turn in the export)",
       "The memory appears in /memory (device) with \"Said in Ask\" and Forget that removes it from the device"
     ],
-    "refs": [
-      "BROWSER-CHECKS AA13"
-    ]
+    "refs": []
   },
   {
     "id": "FAM-001",
@@ -3001,9 +2799,7 @@
       "The list shows \"Made Nov 14\" and \"Lasts until Nov 21\" with Stop sharing",
       "The hint says anyone with the link can see it for 7 days and nothing can be changed"
     ],
-    "refs": [
-      "BROWSER-CHECKS S-B1"
-    ]
+    "refs": []
   },
   {
     "id": "FAM-002",
@@ -3030,9 +2826,7 @@
       "Without clipboard access the text is selected and the line reads \"Select and copy the text above.\"",
       "After a reload the link text is gone (only its hash is stored)"
     ],
-    "refs": [
-      "BROWSER-CHECKS S-B1"
-    ]
+    "refs": []
   },
   {
     "id": "FAM-003",
@@ -3056,9 +2850,7 @@
       "The page shows \"Ben · family view\", the date, the sentence with client names as plain text, Where the month goes, Shared bills coming up, Who owes whom and \"Nothing can be changed from here.\"",
       "It has no links, buttons or forms and nothing scrolls sideways at 375px"
     ],
-    "refs": [
-      "BROWSER-CHECKS S-B2"
-    ]
+    "refs": []
   },
   {
     "id": "FAM-004",
@@ -3083,7 +2875,6 @@
       "The page has robots noindex"
     ],
     "refs": [
-      "BROWSER-CHECKS S-B2",
       "D52"
     ]
   },
@@ -3112,7 +2903,6 @@
       "The response headers include Cache-Control: no-store, Referrer-Policy: no-referrer and X-Robots-Tag: noindex, nofollow"
     ],
     "refs": [
-      "BROWSER-CHECKS S-B2",
       "D52"
     ]
   },
@@ -3142,9 +2932,7 @@
       "After Stop sharing the row is gone and the old link returns HTTP 200 with \"This link has ended. Ask for a new one.\" and no household information at 375px and desktop width",
       "The ended response keeps the no-store, no-referrer and noindex headers"
     ],
-    "refs": [
-      "BROWSER-CHECKS S-B2"
-    ]
+    "refs": []
   },
   {
     "id": "FAM-007",
@@ -3169,9 +2957,7 @@
       "A hand post answers \"5 family links are already live. Stop sharing one to make another.\"",
       "Stopping one allows a new link"
     ],
-    "refs": [
-      "BROWSER-CHECKS S-B1"
-    ]
+    "refs": []
   },
   {
     "id": "FAM-008",
@@ -3250,13 +3036,13 @@
       "Reset to Ben alone and look again"
     ],
     "expected": [
-      "The top line reads as in BROWSER-CHECKS S-A, Housing shows a Shared line, Food shows Ben's amount with no \"Shared ¥0\"",
+      "The top line reads as in qa/README S-A, Housing shows a Shared line, Food shows Ben's amount with no \"Shared ¥0\"",
       "Each item is marked Shared, Ben or Wife",
       "Ben alone shows no Together line and no whose lines",
       "At 375px the amount stays on the category's row"
     ],
     "refs": [
-      "BROWSER-CHECKS S-A",
+      "qa/README S-A",
       "D52"
     ]
   },
@@ -3281,9 +3067,7 @@
     "expected": [
       "The link is made and the page opens with the household's name and sentence, with no whose lines and no Who owes whom list of people"
     ],
-    "refs": [
-      "BROWSER-CHECKS S-B1"
-    ]
+    "refs": []
   },
   {
     "id": "FAM-012",
@@ -3306,9 +3090,7 @@
     "expected": [
       "The sentence is the empty sentence, the date is the real date and nothing from Ben appears"
     ],
-    "refs": [
-      "BROWSER-CHECKS S-B2"
-    ]
+    "refs": []
   },
   {
     "id": "PRIV-001",
@@ -3333,9 +3115,7 @@
       "It is about 450 words",
       "The tab title reads \"Privacy · fipa\""
     ],
-    "refs": [
-      "BROWSER-CHECKS P1"
-    ]
+    "refs": []
   },
   {
     "id": "PRIV-010",
@@ -3359,9 +3139,7 @@
       "The footer links read Privacy, Terms, Sign in in that order",
       "/terms opens headed \"Terms\" without a household cookie and the tab title reads \"Terms · fipa\""
     ],
-    "refs": [
-      "BROWSER-CHECKS P4"
-    ]
+    "refs": []
   },
   {
     "id": "PRIV-002",
@@ -3385,10 +3163,7 @@
       "The line reads \"By default, questions and documents go to {host}.\" or \"This server has no AI model set up.\" and says a model chosen in Settings sends them to the host shown there",
       "After a model is saved Settings shows that host"
     ],
-    "refs": [
-      "BROWSER-CHECKS Y8",
-      "BROWSER-CHECKS P1"
-    ]
+    "refs": []
   },
   {
     "id": "PRIV-003",
@@ -3415,10 +3190,7 @@
       "Each opens /privacy",
       "In a signed-in account the account page links \"How your data is stored and deleted ›\" above Delete household"
     ],
-    "refs": [
-      "BROWSER-CHECKS P2",
-      "BROWSER-CHECKS P3"
-    ]
+    "refs": []
   },
   {
     "id": "PRIV-004",
@@ -3440,9 +3212,7 @@
     "expected": [
       "Nothing scrolls sideways, text does not overlap and both themes read clearly; every link is at least 44px tall at 375px"
     ],
-    "refs": [
-      "BROWSER-CHECKS P3"
-    ]
+    "refs": []
   },
   {
     "id": "PRIV-005",
@@ -3467,9 +3237,7 @@
       "The security paragraph says the AI key is encrypted with AES-GCM with a secret only the Worker holds and kept in Supabase Vault",
       "It reads the same signed in"
     ],
-    "refs": [
-      "BROWSER-CHECKS AF8"
-    ]
+    "refs": []
   },
   {
     "id": "PRIV-008",
@@ -3494,8 +3262,6 @@
       "Only the last four characters of a saved key of 20 or more characters can appear in Settings; a shorter key shows (hidden)"
     ],
     "refs": [
-      "BROWSER-CHECKS I3",
-      "BROWSER-CHECKS AF9",
       "AGENTS hard rule 2"
     ]
   },
@@ -3553,8 +3319,7 @@
       "X-Frame-Options is DENY"
     ],
     "refs": [
-      "D56",
-      "BROWSER-CHECKS Y28"
+      "D56"
     ]
   },
   {
@@ -3584,6 +3349,610 @@
       "db:sweep-test",
       "D34",
       "D56"
+    ]
+  },
+  {
+    "id": "SETUP-001",
+    "area": "Setup",
+    "action": "Start planning opens the first setup page",
+    "user_goal": "I want a few easy questions before I see my numbers",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open"
+    ],
+    "steps": [
+      "Open /start",
+      "Type Mika",
+      "Press Start planning"
+    ],
+    "expected": [
+      "The page is /setup?step=bank, not Home",
+      "The heading is the question \"What’s in your bank today?\" with \"Step 1 of 4\" and a progress bar a quarter full",
+      "One sentence says why: \"So the forecast starts from today’s money.\"",
+      "There is no Back; Skip and Next are shown",
+      "Nothing overlaps or scrolls sideways at 1440px"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-002",
+    "area": "Setup",
+    "action": "Start planning from onboarding opens the first setup page",
+    "user_goal": "I want the same easy questions after I sign in",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Just signed in with an address that has no household"
+    ],
+    "steps": [
+      "Read /onboarding",
+      "Type a name",
+      "Press Start planning"
+    ],
+    "expected": [
+      "The page is /setup?step=bank (Step 1 of 4), not Home",
+      "The same four pages follow as after /start"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-003",
+    "area": "Setup",
+    "action": "Save the bank balance and stay on the page",
+    "user_goal": "I want to see my balance was kept",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Type 250,000 in the Bank balance box",
+      "Press Save balance"
+    ],
+    "expected": [
+      "The page stays on Step 1 of 4",
+      "\"Saved: your bank balance is ¥250,000.\" shows under the form",
+      "The field and Save balance are still there to change it"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-004",
+    "area": "Setup",
+    "action": "Next saves a balance typed but not saved",
+    "user_goal": "I want to type and move on without pressing Save first",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Type 250000 in the Bank balance box",
+      "Press Next (not Save balance)",
+      "On the next page press Back"
+    ],
+    "expected": [
+      "Next opens \"Who pays you?\" (Step 2 of 4)",
+      "Back shows step 1 with \"Saved: your bank balance is ¥250,000.\""
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-005",
+    "area": "Setup",
+    "action": "Skip saves nothing",
+    "user_goal": "I want to pass a question without answering",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Type 250,000 in the Bank balance box but do not save",
+      "Press Skip",
+      "Press Back"
+    ],
+    "expected": [
+      "Skip opens \"Who pays you?\" (Step 2 of 4)",
+      "Back shows step 1 with an empty field and no \"Saved:\" line",
+      "Nothing was saved and nothing is required"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-006",
+    "area": "Setup",
+    "action": "Go Back one page",
+    "user_goal": "I want to change an earlier answer",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Press Skip on step 1",
+      "On step 2 press Back"
+    ],
+    "expected": [
+      "Step 2 has a Back button; it returns to step 1 (Step 1 of 4)",
+      "Step 1 has no Back button"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-007",
+    "area": "Setup",
+    "action": "Read the \"Who pays you?\" page",
+    "user_goal": "I want to know why it asks",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Press Skip on step 1"
+    ],
+    "expected": [
+      "The heading is \"Who pays you?\" with \"Step 2 of 4\" and a half-full progress bar",
+      "The sentence reads \"So fipa knows what comes in.\"",
+      "The Add a client form asks Name, Email and Days to pay (30), with Back, Skip and Next below"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-008",
+    "area": "Setup",
+    "action": "Add a client on the setup page and stay",
+    "user_goal": "I want to say who pays me",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Press Skip on step 1",
+      "Add a client: Name \"Fictional Studio\", a fictional email, Days to pay 30",
+      "Press Add client"
+    ],
+    "expected": [
+      "The page stays on Step 2 of 4",
+      "A list \"Clients so far\" shows \"Fictional Studio\" with \"pays in 30 days\"",
+      "The form below is headed \"Add another\" and is empty"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-009",
+    "area": "Setup",
+    "action": "Next saves a client typed but not added",
+    "user_goal": "I want to move on without pressing Add client first",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Press Skip on step 1",
+      "Type a name, a fictional email and 30 days to pay",
+      "Press Next",
+      "Press Back"
+    ],
+    "expected": [
+      "Next opens \"What do you pay every month?\" (Step 3 of 4)",
+      "Back shows the client under \"Clients so far\""
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-010",
+    "area": "Setup",
+    "action": "Next with a required field missing stays put",
+    "user_goal": "I want to be told what is missing",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Press Skip on step 1",
+      "Type only a client name and leave Email empty",
+      "Press Next"
+    ],
+    "expected": [
+      "The person stays on step 2 and the browser shows its message on the required field",
+      "Nothing is saved"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-011",
+    "area": "Setup",
+    "action": "Read the bills page and its chips",
+    "user_goal": "I want an easy way to add my usual bills",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Press Skip on steps 1 and 2"
+    ],
+    "expected": [
+      "The heading is \"What do you pay every month?\" with \"Step 3 of 4\" and the sentence \"So the days money leaves show up.\"",
+      "The chips are Rent, Phone, Internet, Electricity, Gas & water, Subscriptions, Insurance, Loan and Other",
+      "Under them \"Tap one to add it. You do not have to add any.\"",
+      "No Add a bill form shows until a chip is pressed"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-012",
+    "area": "Setup",
+    "action": "Press the Rent chip",
+    "user_goal": "I want my rent started for me",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Skip to step 3",
+      "Press Rent"
+    ],
+    "expected": [
+      "The Add a bill form opens with Name \"Rent\", category Housing and Repeats every month",
+      "The Rent chip is shown as pressed"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-013",
+    "area": "Setup",
+    "action": "Press the Electricity chip",
+    "user_goal": "I want a bill that changes each month",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Skip to step 3",
+      "Press Electricity"
+    ],
+    "expected": [
+      "The form opens with Name \"Electricity\", category Utilities and Repeats every month",
+      "The amount is marked as varying (the guess line says varies)"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-014",
+    "area": "Setup",
+    "action": "Press the Gas & water chip",
+    "user_goal": "I want a bill that changes each month",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Skip to step 3",
+      "Press Gas & water"
+    ],
+    "expected": [
+      "The form opens with Name \"Gas and water\", category Utilities and Repeats every month",
+      "The amount is marked as varying"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-015",
+    "area": "Setup",
+    "action": "Press the Other chip",
+    "user_goal": "I want a bill that is not listed",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Skip to step 3",
+      "Press Other"
+    ],
+    "expected": [
+      "The form opens with an empty Name and category Other, repeating every month",
+      "Typing a name works as in Home's Add a bill form"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-016",
+    "area": "Setup",
+    "action": "Add a bill from a chip and stay",
+    "user_goal": "I want my rent in the plan",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Skip to step 3",
+      "Press Rent",
+      "Type 82,000 and a due date",
+      "Press Add bill"
+    ],
+    "expected": [
+      "The page stays on Step 3 of 4",
+      "A list \"Bills so far\" shows \"Rent\" with ¥82,000 and \"every month\"",
+      "The form is gone until another chip is pressed"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-017",
+    "area": "Setup",
+    "action": "Read the card page",
+    "user_goal": "I want to say if I use a credit card, or not",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Skip to step 4"
+    ],
+    "expected": [
+      "The heading is \"Do you pay with a credit card?\" with \"Step 4 of 4\", a full progress bar and \"So card bills land on the right day.\"",
+      "\"A card is optional. Skip this if you do not use one.\"",
+      "The card form has \"Statement closing day\" and \"Card bill payment day\", each with the hint \"Day of the month, 1 to 31.\"",
+      "The last button reads Finish, not Next"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-018",
+    "area": "Setup",
+    "action": "Add a card on the setup page and stay",
+    "user_goal": "I want my card bill to land on the right day",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Skip to step 4",
+      "Type Card N, closing day 25, payment day 10",
+      "Press Add card"
+    ],
+    "expected": [
+      "The page stays on Step 4 of 4",
+      "A list \"Cards so far\" shows \"Card N\" with \"closes on the 25, paid on the 10\""
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-019",
+    "area": "Setup",
+    "action": "Finish goes to Home",
+    "user_goal": "I want to see my numbers when I am done",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Skip to step 4",
+      "Press Finish"
+    ],
+    "expected": [
+      "Home opens (the URL is /)",
+      "The sentence reads \"Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥0.\" and \"What you can do here\" is shown",
+      "Nothing was required: a household with no answers is fine"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-020",
+    "area": "Setup",
+    "action": "Answer all four pages",
+    "user_goal": "I want my forecast to start from real numbers",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open",
+      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
+    ],
+    "steps": [
+      "Save 250,000 on step 1, add a client on step 2, add Rent ¥82,000 on step 3 and Card N on step 4",
+      "Press Finish"
+    ],
+    "expected": [
+      "Home shows \"Bank balance ¥250,000\" and Rent in Coming up and Card N in Cards",
+      "On Home the cards Set today’s bank balance, Add a bill and Add a client are ticked"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "SETUP-021",
+    "area": "Setup",
+    "action": "Open a setup address without a session or with a wrong step",
+    "user_goal": "I want a bad link to land somewhere sensible",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /setup?step=bank with no household cookie",
+      "With a household, open /setup and /setup?step=nowhere"
+    ],
+    "expected": [
+      "With no household the page redirects to /start",
+      "/setup and an unknown step both redirect to /setup?step=bank"
+    ],
+    "refs": [
+      "D47"
     ]
   }
 ]

@@ -25,7 +25,6 @@
       "Open Rules opens /memory?tab=rules"
     ],
     "refs": [
-      "BROWSER-CHECKS AK1",
       "D66"
     ]
   },
@@ -55,7 +54,6 @@
       "The out-of-range values are refused and Activity has one rule change for the accepted value"
     ],
     "refs": [
-      "BROWSER-CHECKS AK2",
       "D66"
     ]
   },
@@ -84,7 +82,6 @@
       "The card statement rule stays at 3 days"
     ],
     "refs": [
-      "BROWSER-CHECKS AK3",
       "D66"
     ]
   },
@@ -112,7 +109,6 @@
       "The rule stays on at 25% and the invalid percentage does not save"
     ],
     "refs": [
-      "BROWSER-CHECKS AK4",
       "D66"
     ]
   },
@@ -140,7 +136,6 @@
       "The rule remains on at ¥50,000 and the excessive amount is refused"
     ],
     "refs": [
-      "BROWSER-CHECKS AK5",
       "D66"
     ]
   },
@@ -169,7 +164,6 @@
       "Activity shows both rule changes"
     ],
     "refs": [
-      "BROWSER-CHECKS AK6",
       "D66"
     ]
   },
@@ -199,7 +193,6 @@
       "The Safe to spend rule stays off"
     ],
     "refs": [
-      "BROWSER-CHECKS AK7",
       "D66"
     ]
   },
@@ -230,7 +223,6 @@
       "The old value can be turned off as-is. Turning it on requires a valid new number and 30 saves."
     ],
     "refs": [
-      "BROWSER-CHECKS AK8",
       "D66"
     ]
   },
@@ -313,7 +305,6 @@
       "Activity contains one Default standing rules added row"
     ],
     "refs": [
-      "BROWSER-CHECKS AK9",
       "D66"
     ]
   }

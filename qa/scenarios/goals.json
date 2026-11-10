@@ -23,7 +23,6 @@
       "The empty state reads No goals yet. Give a pot a target amount and date in Plan."
     ],
     "refs": [
-      "BROWSER-CHECKS AJ1",
       "D66"
     ]
   },
@@ -50,7 +49,6 @@
       "Plan opens at /plan"
     ],
     "refs": [
-      "BROWSER-CHECKS AJ1",
       "D66"
     ]
   },
@@ -79,7 +77,6 @@
       "Goals shows ¥120,000 a month"
     ],
     "refs": [
-      "BROWSER-CHECKS AJ2",
       "D66"
     ]
   },
@@ -108,7 +105,6 @@
       "The monthly amount still needed is ¥90,000"
     ],
     "refs": [
-      "BROWSER-CHECKS AJ3",
       "D66"
     ]
   },
@@ -136,7 +132,6 @@
       "Plan shows the same pace as Goals"
     ],
     "refs": [
-      "BROWSER-CHECKS AJ3",
       "D66"
     ]
   },
@@ -164,7 +159,6 @@
       "The Camera block gives the saved amount, expected amount, gap and projection in AJ4"
     ],
     "refs": [
-      "BROWSER-CHECKS AJ4",
       "D66"
     ]
   },
@@ -192,7 +186,6 @@
       "The progress entry reads Goals: how much you have saved towards each dated goal and how it is going"
     ],
     "refs": [
-      "BROWSER-CHECKS AJ5",
       "D66"
     ]
   },
@@ -220,7 +213,6 @@
       "The goal pin shows Camera at ¥30,000 of ¥120,000 and 25%"
     ],
     "refs": [
-      "BROWSER-CHECKS AJ5",
       "D66"
     ]
   },
@@ -250,7 +242,6 @@
       "Goals shows ¥60,000 expected, On pace, Dec 14, 2026 at the current pace and ¥60,000 a month"
     ],
     "refs": [
-      "BROWSER-CHECKS AJ6",
       "D66"
     ]
   },
@@ -278,7 +269,6 @@
       "All six standing rules are shown"
     ],
     "refs": [
-      "BROWSER-CHECKS AJ7",
       "D66"
     ]
   },
@@ -307,7 +297,6 @@
       "Furniture is absent from Goals"
     ],
     "refs": [
-      "BROWSER-CHECKS AJ2",
       "D66"
     ]
   }

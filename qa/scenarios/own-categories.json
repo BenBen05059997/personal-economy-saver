@@ -23,7 +23,6 @@
       "Each row has Rename or change default and Remove; \"Add a category\" is closed"
     ],
     "refs": [
-      "BROWSER-CHECKS AS12",
       "D75"
     ]
   },
@@ -52,7 +51,6 @@
       "Travel appears with \"Trains · 30% work · 0 items\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS13",
       "D75"
     ]
   },
@@ -78,7 +76,6 @@
       "Travel lists \"Taxis · 0 items\" with no share shown"
     ],
     "refs": [
-      "BROWSER-CHECKS AS13",
       "D75"
     ]
   },
@@ -105,7 +102,6 @@
       "Nothing is added"
     ],
     "refs": [
-      "BROWSER-CHECKS AS14",
       "D75"
     ]
   },
@@ -132,7 +128,6 @@
       "Nothing is added"
     ],
     "refs": [
-      "BROWSER-CHECKS AS14",
       "D75"
     ]
   },
@@ -159,7 +154,6 @@
       "Nothing is added"
     ],
     "refs": [
-      "BROWSER-CHECKS AS14",
       "D75",
       "D56"
     ]
@@ -213,7 +207,6 @@
       "Food still lists Coffee"
     ],
     "refs": [
-      "BROWSER-CHECKS AS14",
       "D75"
     ]
   },
@@ -241,7 +234,6 @@
       "The row reads \"Cabs · Work · 0 items\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS15",
       "D75"
     ]
   },
@@ -268,7 +260,6 @@
       "Nothing changes"
     ],
     "refs": [
-      "BROWSER-CHECKS AS15",
       "D75"
     ]
   },
@@ -325,7 +316,6 @@
       "Home's Other still totals ¥48,900"
     ],
     "refs": [
-      "BROWSER-CHECKS AS16",
       "D75"
     ]
   },
@@ -355,7 +345,6 @@
       "After Remove the category is gone, its items are under Other, and Other is still ¥48,900"
     ],
     "refs": [
-      "BROWSER-CHECKS AS17",
       "D75"
     ]
   },
@@ -381,7 +370,6 @@
       "The question reads \"Remove Taxis? Nothing is filed under it.\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS17",
       "D75"
     ]
   },
@@ -411,7 +399,6 @@
       "Plan lists the bill under Travel, under Trains, with \"30% business\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS18",
       "D75"
     ]
   },
@@ -438,7 +425,6 @@
       "Your category goes back to None"
     ],
     "refs": [
-      "BROWSER-CHECKS AS18",
       "D75"
     ]
   },
@@ -467,7 +453,6 @@
       "Settings → Your categories lists Fares under Travel with \"1 item\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS19",
       "D75"
     ]
   },
@@ -495,7 +480,6 @@
       "Neither the bill nor the category is saved"
     ],
     "refs": [
-      "BROWSER-CHECKS AS19",
       "D75"
     ]
   },
@@ -525,7 +509,6 @@
       "Plan lists the charge under Food › Coffee"
     ],
     "refs": [
-      "BROWSER-CHECKS AS20",
       "D75"
     ]
   },
@@ -553,7 +536,6 @@
       "The charge saves under Food alone"
     ],
     "refs": [
-      "BROWSER-CHECKS AS20",
       "D75"
     ]
   },
@@ -581,7 +563,6 @@
       "No hint is shown"
     ],
     "refs": [
-      "BROWSER-CHECKS AS20",
       "D75"
     ]
   },
@@ -607,7 +588,6 @@
       "For work? switches to Work"
     ],
     "refs": [
-      "BROWSER-CHECKS AS21",
       "D75"
     ]
   },
@@ -634,7 +614,6 @@
       "For work? stays Personal"
     ],
     "refs": [
-      "BROWSER-CHECKS AS21",
       "D75"
     ]
   },
@@ -660,7 +639,6 @@
       "The category is made in the same save and the charge is filed in it"
     ],
     "refs": [
-      "BROWSER-CHECKS AS22",
       "D75"
     ]
   },
@@ -688,7 +666,6 @@
       "Settings → Your categories lists Subscriptions with \"Tools · 1 item\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS23",
       "D75"
     ]
   },
@@ -717,7 +694,6 @@
       "Tools shows \"Tools · 0 items\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS23",
       "D75"
     ]
   },
@@ -746,7 +722,6 @@
       "The saved charge reads Food › Coffee"
     ],
     "refs": [
-      "BROWSER-CHECKS AS24",
       "D75",
       "D61"
     ]
@@ -773,7 +748,6 @@
       "The line reads \"Food › Coffee · Personal\" for a bill, or \"Card B · Nov 14 · Food › Coffee · Personal · …\" for a charge"
     ],
     "refs": [
-      "BROWSER-CHECKS AS24",
       "D75"
     ]
   },
@@ -802,7 +776,6 @@
       "The saved item is filed under the chosen own category"
     ],
     "refs": [
-      "BROWSER-CHECKS AS25",
       "D75",
       "D61"
     ]
@@ -830,8 +803,6 @@
       "The note reads \"Categories are guessed from the shop names, and a shop you filed before goes under the same category of yours; change any later. A row already on this card (same date, amount and shop) is skipped, so importing a file twice adds nothing.\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS26",
-      "BROWSER-CHECKS T-C",
       "D75",
       "D53"
     ]
@@ -859,7 +830,6 @@
       "Plan lists the café row under Food › Coffee"
     ],
     "refs": [
-      "BROWSER-CHECKS AS26",
       "D75"
     ]
   },
@@ -888,8 +858,7 @@
       "The business line is \"Business ¥32,830 of ¥152,230 this month\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS27",
-      "BROWSER-CHECKS M1",
+      "qa/README M1",
       "D75"
     ]
   },
@@ -918,7 +887,6 @@
       "Only that row moves under Coffee"
     ],
     "refs": [
-      "BROWSER-CHECKS AS28",
       "D75"
     ]
   },
@@ -946,7 +914,6 @@
       "A later Fictional Bakery charge files itself under Coffee"
     ],
     "refs": [
-      "BROWSER-CHECKS AS28",
       "D75"
     ]
   },
@@ -973,7 +940,6 @@
       "It moves to \"Everything else in Food\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS28",
       "D75"
     ]
   },
@@ -999,7 +965,6 @@
       "The form closes and nothing changes"
     ],
     "refs": [
-      "BROWSER-CHECKS AS28",
       "D75"
     ]
   },
@@ -1026,8 +991,6 @@
       "No File control is shown"
     ],
     "refs": [
-      "BROWSER-CHECKS AS29",
-      "BROWSER-CHECKS S-B2",
       "D75",
       "D52"
     ]
@@ -1055,8 +1018,6 @@
       "Rows show \"Food › Coffee\" beside their dates"
     ],
     "refs": [
-      "BROWSER-CHECKS AS30",
-      "BROWSER-CHECKS T",
       "D75",
       "D53"
     ]
@@ -1083,7 +1044,6 @@
       "Tsuki Electronics and Yamabiko Outdoor are listed with \"Other › Gear\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS30",
       "D75"
     ]
   },
@@ -1110,8 +1070,6 @@
       "A cost with none shows just its category, as \"Food\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS31",
-      "BROWSER-CHECKS U",
       "D75",
       "D54"
     ]
@@ -1140,8 +1098,6 @@
       "Bills and charges filed under one carry ownCategoryId"
     ],
     "refs": [
-      "BROWSER-CHECKS AS32",
-      "BROWSER-CHECKS AA",
       "D44",
       "D75"
     ]
@@ -1170,8 +1126,6 @@
       "Plan shows Food › Coffee"
     ],
     "refs": [
-      "BROWSER-CHECKS AS32",
-      "BROWSER-CHECKS AA5",
       "D44",
       "D75"
     ]
@@ -1227,8 +1181,6 @@
       "The section shows only \"Your own names for your spending, kept under the fourteen categories, like Coffee under Food. Make one here, or while adding a bill or charge.\" and an open \"Add a category\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS33",
-      "BROWSER-CHECKS AA",
       "D75",
       "D59"
     ]
@@ -1258,7 +1210,6 @@
       "Nothing is marked paid or sent"
     ],
     "refs": [
-      "BROWSER-CHECKS AS34",
       "D75",
       "D60"
     ]
@@ -1287,7 +1238,6 @@
       "The answer names Coffee as the one that exists under Food and says a new one is made in Settings → Your categories"
     ],
     "refs": [
-      "BROWSER-CHECKS AS35",
       "D75"
     ]
   },
@@ -1315,7 +1265,6 @@
       "\"Based on\" lists \"Your categories\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS35",
       "D75"
     ]
   },
@@ -1500,8 +1449,6 @@
       "Plan's total for November is ¥152,230"
     ],
     "refs": [
-      "BROWSER-CHECKS AS11",
-      "BROWSER-CHECKS AS27",
       "D75"
     ]
   }

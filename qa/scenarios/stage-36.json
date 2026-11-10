@@ -20,7 +20,6 @@
       "The email sign-in card is in view; it offers Email me a sign-in link and Invited to a household?"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -47,7 +46,6 @@
       "The page says Check your inbox"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -74,7 +72,6 @@
       "The sentence, forecast and safe to spend match Expected numbers and the action names Beacon Studio"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -101,7 +98,6 @@
       "Settings opens at People and the person form is available"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -128,7 +124,6 @@
       "Home opens with the add form on its Bill tab"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -155,7 +150,6 @@
       "Home opens with the add form on its Card charge tab"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -182,7 +176,6 @@
       "Clients opens with its add-client form"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -209,7 +202,6 @@
       "Settings opens at the add-person form"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -236,7 +228,6 @@
       "Upload opens"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -263,7 +254,6 @@
       "The Ask panel is docked on the right and the top Ask button is pressed"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -290,7 +280,6 @@
       "The first tap closes the panel and the second opens it"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -317,7 +306,6 @@
       "The panel stays closed; opening it restores the thread"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -344,7 +332,6 @@
       "The chip changes from Looking at Home to Looking at Plan"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -372,7 +359,6 @@
       "The starters, the question field and the microphone are disabled"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -400,7 +386,6 @@
       "The starters, the question field and the microphone are disabled"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -427,7 +412,6 @@
       "The provider key-page links appear without navigating away"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -454,7 +438,6 @@
       "Five steps and an n of 5 progress indicator reflect the current household state"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -481,7 +464,6 @@
       "The panel remains hidden on this device"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -508,7 +490,6 @@
       "The invoice step becomes complete when the paid state is recorded"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -535,7 +516,6 @@
       "The Hikari step becomes complete and the To check count drops"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -562,7 +542,6 @@
       "The step is complete after a key is saved and an answer is recorded"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -589,7 +568,6 @@
       "The person step becomes complete"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -616,7 +594,6 @@
       "The step chart shows late and on-time series, zero line, low point and the area labelled Depends on when they pay"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -643,7 +620,6 @@
       "The date, late and on-time balances and events for that date are shown"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -670,7 +646,6 @@
       "Hikari Denki waits in To check and is not counted yet; the late balance is short ¥18,780"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -697,7 +672,6 @@
       "The table has day, what happens, balance if late and balance if on time"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -724,7 +698,6 @@
       "Ranked bars distinguish spent and still to come, with last-month marks and totals matching Expected numbers"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -751,7 +724,6 @@
       "The category rows show spent, still to come, this month and last month and the total matches Expected numbers"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -778,7 +750,6 @@
       "Monthly columns show up to six months with data and split the current month into spent and still to come"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -805,7 +776,6 @@
       "The monthly table shows the same totals as the trend chart"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -832,7 +802,6 @@
       "Categories and Table remain selected on this device"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -859,7 +828,6 @@
       "Ask opens and sends the view question once; the thread keeps its answer"
     ],
     "refs": [
-      "BROWSER-CHECKS AR",
       "D25",
       "D47",
       "D60"
@@ -887,7 +855,6 @@
       "There is no \"Ask or say:\" field"
     ],
     "refs": [
-      "BROWSER-CHECKS AR9",
       "D25"
     ]
   },
@@ -914,7 +881,6 @@
       "Clicking it closes the panel and the border and fill go away"
     ],
     "refs": [
-      "BROWSER-CHECKS AR9",
       "D60"
     ]
   },
@@ -940,7 +906,6 @@
       "Ask shows a small orange dot at its right edge while the panel is open"
     ],
     "refs": [
-      "BROWSER-CHECKS AR9",
       "D25"
     ]
   },
@@ -966,7 +931,6 @@
       "Forward a bill appears before New invoice only when the forwarding settings exist"
     ],
     "refs": [
-      "BROWSER-CHECKS AR10",
       "D25"
     ]
   },
@@ -992,7 +956,6 @@
       "The Ask button opens the same column as an overlay"
     ],
     "refs": [
-      "BROWSER-CHECKS AR9",
       "D25"
     ]
   },
@@ -1017,7 +980,6 @@
       "The bar shows the chip, the bell and \"+ Add\" and no Ask button"
     ],
     "refs": [
-      "BROWSER-CHECKS AR9",
       "D25"
     ]
   },
@@ -1043,7 +1005,6 @@
       "A light focus ring shows on each control"
     ],
     "refs": [
-      "BROWSER-CHECKS AR9",
       "D72"
     ]
   },
@@ -1068,7 +1029,6 @@
       "Top to bottom: the date \"Sat Nov 14\", the sentence \"You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th.\", the demo line, the \"Invoice Beacon $400\" and \"Upload a receipt\" buttons, \"Get started\", the \"Your next 30 days\" panel, then To check, Cards and Coming up"
     ],
     "refs": [
-      "BROWSER-CHECKS AR11",
       "D25"
     ]
   },
@@ -1093,7 +1053,6 @@
       "To check, Suggestions, Cards and Shared costs are in the left column and Coming up is in the right column"
     ],
     "refs": [
-      "BROWSER-CHECKS AR11",
       "D25"
     ]
   },
@@ -1120,7 +1079,6 @@
       "The other four have empty rings and link to /invoices, /to-check, /settings#ai-model and /settings#people with the words \"Approve Beacon’s invoice and watch the sentence change\", \"Check the Hikari Denki bill in To check\", \"Add your AI key, then ask a question\" and \"Add a person who shares costs\""
     ],
     "refs": [
-      "BROWSER-CHECKS AR11",
       "D47"
     ]
   },
@@ -1147,7 +1105,6 @@
       "Gridlines are solid; y labels −¥100k, ¥0, ¥100k … ¥500k; x labels Today, Nov 21, Nov 28, Dec 5, Dec 12; the direct labels \"If on time\" and \"If late\" sit at the widest gap"
     ],
     "refs": [
-      "BROWSER-CHECKS AR5",
       "D73"
     ]
   },
@@ -1175,7 +1132,6 @@
       "The grey line wraps at \", then\" when the chart is narrow and is left out when the wrapped lines have no room under the low point (phone width); the day's tooltip and the table still carry it"
     ],
     "refs": [
-      "BROWSER-CHECKS AR5",
       "D73"
     ]
   },
@@ -1200,7 +1156,6 @@
       "A crosshair and a tooltip show Fri, Nov 27, −¥18,780 if late, ¥281,220 if on time, \"Hikari Denki ¥11,220 waits in To check and is not counted yet\" and \"Rent −¥82,000\""
     ],
     "refs": [
-      "BROWSER-CHECKS AR5",
       "D73"
     ]
   },
@@ -1226,7 +1181,6 @@
       "The tooltip moves day by day"
     ],
     "refs": [
-      "BROWSER-CHECKS AR5",
       "D73"
     ]
   },
@@ -1254,7 +1208,6 @@
       "\"The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late.\" and Bank balance ¥67,000 with Update"
     ],
     "refs": [
-      "BROWSER-CHECKS AR5",
       "D73"
     ]
   },
@@ -1280,7 +1233,6 @@
       "Rows: Nov 14 (¥128,000), Nov 18, 20, 22, 25, 26, 27 (−¥18,780 late, ¥281,220 on time), 29, Dec 3 and Dec 10"
     ],
     "refs": [
-      "BROWSER-CHECKS AR5",
       "D73"
     ]
   },
@@ -1308,7 +1260,6 @@
       "The table columns are Category, Spent, Still to come, November, October"
     ],
     "refs": [
-      "BROWSER-CHECKS AR6",
       "D73"
     ]
   },
@@ -1335,7 +1286,6 @@
       "The table columns are Month, Spent, Still to come, Total"
     ],
     "refs": [
-      "BROWSER-CHECKS AR7",
       "D73"
     ]
   },
@@ -1360,7 +1310,6 @@
       "Everything stays readable; the late line is orange and the band is a neutral dark grey"
     ],
     "refs": [
-      "BROWSER-CHECKS AR7",
       "D72",
       "D73"
     ]
@@ -1388,7 +1337,6 @@
       "The starters show only while the thread is empty"
     ],
     "refs": [
-      "BROWSER-CHECKS AR12",
       "D60"
     ]
   },
@@ -1415,7 +1363,6 @@
       "At the very bottom the model line \"A model words the answers; every number is the app's own, …\" clamped to two lines with \"More\""
     ],
     "refs": [
-      "BROWSER-CHECKS AR12",
       "D60"
     ]
   },
@@ -1440,7 +1387,6 @@
       "No big \"Ask\" heading, no Space brief or notes, no starter canvas chips and no \"Show the recipe\""
     ],
     "refs": [
-      "BROWSER-CHECKS AR12",
       "D60"
     ]
   },
@@ -1466,7 +1412,6 @@
       "The composer stays at the bottom of the screen and the Home page behind it does not scroll"
     ],
     "refs": [
-      "BROWSER-CHECKS AR12",
       "D60"
     ]
   },
@@ -1492,7 +1437,6 @@
       "The brief, \"Space notes ↓\", the starters and the thread scroll above it and the canvas is on the right"
     ],
     "refs": [
-      "BROWSER-CHECKS AR13",
       "D60"
     ]
   },
@@ -1517,7 +1461,6 @@
       "The same column opens as an overlay"
     ],
     "refs": [
-      "BROWSER-CHECKS AR2",
       "D60"
     ]
   },
@@ -1546,8 +1489,6 @@
       "Forecast and Trend do not show the group"
     ],
     "refs": [
-      "BROWSER-CHECKS AS1",
-      "BROWSER-CHECKS AR6",
       "D74"
     ]
   },
@@ -1577,7 +1518,6 @@
       "Under the bars: \"Business ¥32,830 of ¥152,230 this month\""
     ],
     "refs": [
-      "BROWSER-CHECKS AS2",
       "D74"
     ]
   },
@@ -1607,7 +1547,6 @@
       "No row is indented"
     ],
     "refs": [
-      "BROWSER-CHECKS AS3",
       "D74"
     ]
   },
@@ -1635,7 +1574,6 @@
       "The month total is ¥152,230, the same as in Business or personal"
     ],
     "refs": [
-      "BROWSER-CHECKS AS4",
       "D74"
     ]
   },
@@ -1663,7 +1601,6 @@
       "The answer quotes Business ¥32,830 of ¥152,230"
     ],
     "refs": [
-      "BROWSER-CHECKS AS4",
       "D74",
       "D73"
     ]
@@ -1694,7 +1631,6 @@
       "The stored value `fipa-home-view` reads categories|table|category"
     ],
     "refs": [
-      "BROWSER-CHECKS AS6",
       "D74"
     ]
   },
@@ -1722,7 +1658,6 @@
       "Nothing errors"
     ],
     "refs": [
-      "BROWSER-CHECKS AS6",
       "D74"
     ]
   },
@@ -1749,7 +1684,6 @@
       "A Person button joins Category and Business or personal in Look at it by"
     ],
     "refs": [
-      "BROWSER-CHECKS AS7",
       "D74",
       "D45"
     ]
@@ -1780,7 +1714,6 @@
       "The table columns are Person, Spent, Still to come, November, October"
     ],
     "refs": [
-      "BROWSER-CHECKS AS7",
       "D74"
     ]
   },
@@ -1808,7 +1741,6 @@
       "There is no Person button"
     ],
     "refs": [
-      "BROWSER-CHECKS AS8",
       "D74"
     ]
   },
@@ -1836,7 +1768,6 @@
       "Nothing overlaps"
     ],
     "refs": [
-      "BROWSER-CHECKS AS5",
       "D74"
     ]
   },
@@ -1864,7 +1795,6 @@
       "With it open nothing is cut off and nothing scrolls sideways"
     ],
     "refs": [
-      "BROWSER-CHECKS AS5",
       "D74",
       "D60"
     ]
@@ -1893,7 +1823,6 @@
       "Food still shows ¥10,700; no other row has an arrow except Other"
     ],
     "refs": [
-      "BROWSER-CHECKS AS9",
       "D75"
     ]
   },
@@ -1921,7 +1850,6 @@
       "Pressing the arrow again closes the rows"
     ],
     "refs": [
-      "BROWSER-CHECKS AS9",
       "D75"
     ]
   },
@@ -1949,7 +1877,6 @@
       "Business or personal shows no indented rows"
     ],
     "refs": [
-      "BROWSER-CHECKS AS10",
       "D75"
     ]
   },
@@ -1976,7 +1903,6 @@
       "Safe to spend is ¥0 and the forecast low point is ¥18,780 short on the 27th"
     ],
     "refs": [
-      "BROWSER-CHECKS AS11",
       "D74",
       "D75"
     ]
@@ -2006,6 +1932,32 @@
     "refs": [
       "db:look-by-test",
       "D74"
+    ]
+  },
+  {
+    "id": "VIEW-075",
+    "area": "Landing",
+    "action": "Read the example trip on the landing",
+    "user_goal": "I want to see the kind of answer I would get",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open / with no session",
+      "Read the Ask in your own words example"
+    ],
+    "expected": [
+      "The example asks \"Can I afford a ¥40,000 trip on December 5?\"",
+      "The answer says that after the trip you would have ¥180,220 on December 10 if clients pay as usual"
+    ],
+    "refs": [
+      "D29"
     ]
   }
 ]

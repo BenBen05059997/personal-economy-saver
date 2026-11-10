@@ -23,7 +23,6 @@
       "At 1440px the top bar has no such field; its Ask button toggles the docked panel"
     ],
     "refs": [
-      "BROWSER-CHECKS K0",
       "D60"
     ]
   },
@@ -52,7 +51,6 @@
       "sessionStorage key pes-ask-draft is empty once the composer has taken it"
     ],
     "refs": [
-      "BROWSER-CHECKS K0",
       "D60"
     ]
   },
@@ -81,9 +79,7 @@
       "Space and Enter open and focus an empty question box in the panel at 1100px, and the full Ask page at phone width",
       "Ctrl+A and Cmd+A keep their browser behavior and leave the app on Home"
     ],
-    "refs": [
-      "BROWSER-CHECKS K0"
-    ]
+    "refs": []
   },
   {
     "id": "ASK-004",
@@ -107,9 +103,7 @@
       "Ask opens with the cursor in the box",
       "The row is at least 44px tall and nothing scrolls sideways"
     ],
-    "refs": [
-      "BROWSER-CHECKS K0"
-    ]
+    "refs": []
   },
   {
     "id": "ASK-005",
@@ -139,8 +133,6 @@
       "Nothing throws and no step line is left behind"
     ],
     "refs": [
-      "BROWSER-CHECKS K1",
-      "BROWSER-CHECKS W1",
       "D56"
     ]
   },
@@ -199,7 +191,6 @@
       "Four starter buttons above the canvas with \"This month\" selected"
     ],
     "refs": [
-      "BROWSER-CHECKS W1",
       "D60"
     ]
   },
@@ -229,10 +220,7 @@
       "Enter that confirms an IME candidate does not send",
       "Enter after the text is confirmed sends one question"
     ],
-    "refs": [
-      "BROWSER-CHECKS K2",
-      "BROWSER-CHECKS Z9"
-    ]
+    "refs": []
   },
   {
     "id": "ASK-010",
@@ -256,15 +244,13 @@
     ],
     "expected": [
       "It calls can_i_spend with amount_minor 4000 (whole yen)",
-      "One or two sentences say no or not yet, quote the ¥4,000 asked about, and the lowest point or short-by amount that Home shows (see BROWSER-CHECKS Expected numbers: safe to spend ¥0)",
+      "One or two sentences say no or not yet, quote the ¥4,000 asked about, and the lowest point or short-by amount that Home shows (see qa/README Expected numbers: safe to spend ¥0)",
       "\"Based on:\" has a Safe to spend link to /",
       "Helpful and Not helpful buttons appear",
       "Nothing is saved to To check and nothing is sent",
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS K3",
-      "BROWSER-CHECKS Z2",
       "model:eval can_i_spend",
       "D40"
     ]
@@ -296,7 +282,6 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS K3",
       "D40"
     ]
   },
@@ -327,7 +312,6 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS K3",
       "model:eval whats_due"
     ]
   },
@@ -357,7 +341,6 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS K3",
       "D45"
     ]
   },
@@ -388,7 +371,6 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS K3",
       "D40"
     ]
   },
@@ -418,8 +400,7 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS K3",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -450,7 +431,7 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS Expected numbers",
+      "qa/README Expected numbers",
       "D7",
       "D40"
     ]
@@ -482,8 +463,7 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS Expected numbers",
-      "BROWSER-CHECKS Q1"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -511,7 +491,7 @@
       "\"Based on:\" has a Clients link"
     ],
     "refs": [
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -540,7 +520,7 @@
       "It never says anything is saved or confirmed"
     ],
     "refs": [
-      "BROWSER-CHECKS Expected numbers",
+      "qa/README Expected numbers",
       "D55",
       "D61"
     ]
@@ -572,8 +552,7 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "D40",
-      "BROWSER-CHECKS G"
+      "D40"
     ]
   },
   {
@@ -601,10 +580,7 @@
       "\"Based on:\" has a Plan link",
       "A canvas replaces the starter canvas (see CANVAS-015)"
     ],
-    "refs": [
-      "BROWSER-CHECKS W11",
-      "BROWSER-CHECKS M"
-    ]
+    "refs": []
   },
   {
     "id": "ASK-022",
@@ -632,8 +608,7 @@
       "An item whose amount is not known is described as unknown, never added in"
     ],
     "refs": [
-      "D53",
-      "BROWSER-CHECKS T"
+      "D53"
     ]
   },
   {
@@ -663,7 +638,6 @@
       "Information only: Plan's month view counts it on the day it is paid"
     ],
     "refs": [
-      "BROWSER-CHECKS AF5",
       "D63",
       "db:agent-test"
     ]
@@ -693,7 +667,6 @@
       "Based on links to Plan"
     ],
     "refs": [
-      "BROWSER-CHECKS AF5a",
       "D63"
     ]
   },
@@ -722,7 +695,6 @@
       "\"Based on:\" has a Plan link"
     ],
     "refs": [
-      "BROWSER-CHECKS W3",
       "D54"
     ]
   },
@@ -747,12 +719,12 @@
       "Press Enter"
     ],
     "expected": [
-      "It calls foreign_costs; the total cost over twelve months equals the figure on the foreign-money cost screen (BROWSER-CHECKS AE)",
+      "It calls foreign_costs; the total cost over twelve months equals the figure on the foreign-money cost screen (qa/README AE)",
       "It names no provider other than PayPal and never tells the person to leave PayPal",
       "\"Based on:\" has a Clients link"
     ],
     "refs": [
-      "BROWSER-CHECKS AE",
+      "qa/README AE",
       "model:eval foreign_fees",
       "D62"
     ]
@@ -783,7 +755,7 @@
       "\"Based on:\" has a To check link to /to-check"
     ],
     "refs": [
-      "BROWSER-CHECKS Expected numbers",
+      "qa/README Expected numbers",
       "D61"
     ]
   },
@@ -844,8 +816,6 @@
       "After Confirm the row leaves To check and the result equals confirming a typed charge (C4)"
     ],
     "refs": [
-      "BROWSER-CHECKS K4",
-      "BROWSER-CHECKS Q5",
       "model:eval logs_charge",
       "D39"
     ]
@@ -906,7 +876,6 @@
       "The reply lists both and says they are waiting"
     ],
     "refs": [
-      "BROWSER-CHECKS Q5",
       "D40"
     ]
   },
@@ -966,7 +935,6 @@
       "The reply says it is waiting for the person's OK"
     ],
     "refs": [
-      "BROWSER-CHECKS Q5",
       "D39"
     ]
   },
@@ -1054,7 +1022,6 @@
       "The reply says it is waiting for confirmation"
     ],
     "refs": [
-      "BROWSER-CHECKS Q5",
       "D39"
     ]
   },
@@ -1084,7 +1051,6 @@
       "A pot is not offered when the question has no saving goal (ASK-014)"
     ],
     "refs": [
-      "BROWSER-CHECKS Q5",
       "D39"
     ]
   },
@@ -1115,7 +1081,6 @@
     ],
     "refs": [
       "D12",
-      "BROWSER-CHECKS Q1",
       "AGENTS.md hard rule 5"
     ]
   },
@@ -1178,8 +1143,7 @@
     ],
     "refs": [
       "D15",
-      "AGENTS.md hard rule 5",
-      "BROWSER-CHECKS K7"
+      "AGENTS.md hard rule 5"
     ]
   },
   {
@@ -1207,10 +1171,7 @@
       "\"Based on:\" shows a Coming up link",
       "The progress line still reads in the app's own words"
     ],
-    "refs": [
-      "BROWSER-CHECKS K5",
-      "BROWSER-CHECKS X9"
-    ]
+    "refs": []
   },
   {
     "id": "ASK-051",
@@ -1238,7 +1199,6 @@
       "No amount appears that was not in the question or a tool result"
     ],
     "refs": [
-      "BROWSER-CHECKS Z2",
       "model:eval can_i_spend"
     ]
   },
@@ -1265,9 +1225,7 @@
     "expected": [
       "It calls where_am_i; the Japanese reply says the same as Home's sentence including ¥18,780 and the 27th"
     ],
-    "refs": [
-      "BROWSER-CHECKS K3"
-    ]
+    "refs": []
   },
   {
     "id": "ASK-053",
@@ -1294,7 +1252,6 @@
       "The reply (in Japanese) says it is waiting to be checked, not that it is saved or paid"
     ],
     "refs": [
-      "BROWSER-CHECKS K4",
       "model:eval logs_charge"
     ]
   },
@@ -1323,7 +1280,6 @@
       "No stock, fund or product is named"
     ],
     "refs": [
-      "BROWSER-CHECKS Z6",
       "D60"
     ]
   },
@@ -1383,8 +1339,6 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS Z11",
-      "BROWSER-CHECKS W13",
       "model:eval what_if_late"
     ]
   },
@@ -1415,7 +1369,6 @@
       "Tapping Acme Corp sends \"Acme Corp\" as the next question and gets an answer that says $1,200 is outstanding"
     ],
     "refs": [
-      "BROWSER-CHECKS Z4",
       "model:eval clarifies_client",
       "D60"
     ]
@@ -1444,9 +1397,7 @@
       "While the answer to a tapped choice is pending, the other choice buttons are disabled",
       "Only one new turn appears in the list for the tap"
     ],
-    "refs": [
-      "BROWSER-CHECKS Z4"
-    ]
+    "refs": []
   },
   {
     "id": "ASK-063",
@@ -1503,7 +1454,6 @@
       "No poem text appears"
     ],
     "refs": [
-      "BROWSER-CHECKS Z5",
       "model:eval stays_on_money"
     ]
   },
@@ -1533,7 +1483,6 @@
       "No thumbs and no \"Based on\""
     ],
     "refs": [
-      "BROWSER-CHECKS Z6",
       "model:eval declines_stock",
       "D7"
     ]
@@ -1563,7 +1512,6 @@
       "Then asking \"Can my landlord raise the rent without telling me?\" also gets that sentence"
     ],
     "refs": [
-      "BROWSER-CHECKS Z6",
       "D60"
     ]
   },
@@ -1593,7 +1541,6 @@
       "It is not declined as off-topic"
     ],
     "refs": [
-      "BROWSER-CHECKS W11",
       "D60"
     ]
   },
@@ -1624,7 +1571,6 @@
       "The money question afterwards is answered"
     ],
     "refs": [
-      "BROWSER-CHECKS Z8",
       "D60",
       "db:agent-test"
     ]
@@ -1681,7 +1627,6 @@
       "At 375px and 1440px the line wraps and nothing scrolls sideways"
     ],
     "refs": [
-      "BROWSER-CHECKS Z11",
       "D40",
       "D60"
     ]
@@ -1711,7 +1656,6 @@
       "The answer uses both and \"Based on:\" lists Coming up and Clients"
     ],
     "refs": [
-      "BROWSER-CHECKS Z11",
       "D40"
     ]
   },
@@ -1800,8 +1744,7 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "D60",
-      "BROWSER-CHECKS Z9"
+      "D60"
     ]
   },
   {
@@ -1916,8 +1859,7 @@
       "No turn is added"
     ],
     "refs": [
-      "D60",
-      "BROWSER-CHECKS Z9"
+      "D60"
     ]
   },
   {
@@ -1947,8 +1889,6 @@
       "The journal holds one turn for id X"
     ],
     "refs": [
-      "BROWSER-CHECKS Z9",
-      "BROWSER-CHECKS AF5c",
       "db:agent-test",
       "D60"
     ]
@@ -2034,7 +1974,6 @@
       "Receipts hold only household id, question id, pending, links (fixed words and app paths) and time, and are pruned after a day"
     ],
     "refs": [
-      "BROWSER-CHECKS AF5c",
       "db:agent-test",
       "db:isolation-test",
       "D59"
@@ -2064,9 +2003,7 @@
       "The page ignores the second send while the first is busy",
       "After the reply, one turn is listed and reload shows one turn"
     ],
-    "refs": [
-      "BROWSER-CHECKS Z9"
-    ]
+    "refs": []
   },
   {
     "id": "ASK-084",
@@ -2119,7 +2056,6 @@
       "An amount in an earlier reply does not count as confirmed"
     ],
     "refs": [
-      "BROWSER-CHECKS Z9",
       "db:ai-test",
       "db:agent-test",
       "D56"
@@ -2150,7 +2086,6 @@
       "Every ¥ or $ amount in the reply is on Home, in a tool result, or in the question"
     ],
     "refs": [
-      "BROWSER-CHECKS Z9",
       "D56"
     ]
   },
@@ -2209,8 +2144,6 @@
       "At 375px each link’s tap area is at least 44px tall, including its invisible ::after area"
     ],
     "refs": [
-      "BROWSER-CHECKS Z2",
-      "BROWSER-CHECKS L2",
       "D60"
     ]
   },
@@ -2242,7 +2175,6 @@
       "The log line holds the ids and the thumb, never the question or the answer"
     ],
     "refs": [
-      "BROWSER-CHECKS Z3",
       "D60"
     ]
   },
@@ -2271,10 +2203,7 @@
       "After \"Did the client pay?\" the clarifying question has none either",
       "Neither has \"Based on\""
     ],
-    "refs": [
-      "BROWSER-CHECKS Z3",
-      "BROWSER-CHECKS Z4"
-    ]
+    "refs": []
   },
   {
     "id": "ASK-093",
@@ -2333,7 +2262,6 @@
       "It stays gone after reload; a decline or a clarifying question does not remove it"
     ],
     "refs": [
-      "BROWSER-CHECKS Z1",
       "D60",
       "D56"
     ]
@@ -2361,10 +2289,7 @@
       "With no AI model set up, the first-use line is not shown at all",
       "The unavailable sentence shows instead (ASK-005)"
     ],
-    "refs": [
-      "BROWSER-CHECKS Z1",
-      "BROWSER-CHECKS K1"
-    ]
+    "refs": []
   },
   {
     "id": "ASK-100",
@@ -2515,8 +2440,7 @@
       "It says nothing like \"you should buy\""
     ],
     "refs": [
-      "D7",
-      "BROWSER-CHECKS Z6"
+      "D7"
     ]
   },
   {
@@ -2546,8 +2470,7 @@
     ],
     "refs": [
       "D7",
-      "BROWSER-CHECKS Expected numbers",
-      "BROWSER-CHECKS K7"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -2606,8 +2529,7 @@
     ],
     "refs": [
       "D12",
-      "AGENTS.md hard rule 5",
-      "BROWSER-CHECKS K7"
+      "AGENTS.md hard rule 5"
     ]
   },
   {
@@ -2722,8 +2644,7 @@
       "A what-if canvas may show; nothing is saved and Coming up still lists CloudBox Plus"
     ],
     "refs": [
-      "D57",
-      "BROWSER-CHECKS W13"
+      "D57"
     ]
   },
   {
@@ -2751,7 +2672,6 @@
       "At 375px the canvas sits below the conversation; at 1440px it sits beside it"
     ],
     "refs": [
-      "BROWSER-CHECKS W1",
       "D57"
     ]
   },
@@ -2781,8 +2701,7 @@
       "Each block has a small \"Worked out from your records\" (or \"From your records\") line"
     ],
     "refs": [
-      "BROWSER-CHECKS W2",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -2809,7 +2728,6 @@
       "Reload both: still identical"
     ],
     "refs": [
-      "BROWSER-CHECKS W2",
       "D57"
     ]
   },
@@ -2838,10 +2756,7 @@
       "Regular costs shows \"Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far\" and the rows Rent ¥82,000, Mobaile Tsushin ¥4,800, CloudBox Plus ¥1,980, Hikari Denki ¥10,020 \"not in yet / usually on the 25th\"",
       "\"Open Plan\" opens Plan; at 375px the tables stay inside the screen"
     ],
-    "refs": [
-      "BROWSER-CHECKS W3",
-      "BROWSER-CHECKS M"
-    ]
+    "refs": []
   },
   {
     "id": "CANVAS-005",
@@ -2871,7 +2786,6 @@
       "Hide removes the list and the outlines"
     ],
     "refs": [
-      "BROWSER-CHECKS W4",
       "D57",
       "db:canvas-test"
     ]
@@ -2905,7 +2819,6 @@
       "The chart's low point moves with the slider"
     ],
     "refs": [
-      "BROWSER-CHECKS W5",
       "D57"
     ]
   },
@@ -2934,7 +2847,6 @@
       "Home's sentence and every other page are exactly as before; nothing was saved"
     ],
     "refs": [
-      "BROWSER-CHECKS W5",
       "D57"
     ]
   },
@@ -2961,9 +2873,7 @@
       "The slider is 44px tall",
       "The canvas does not jump sideways and nothing scrolls sideways"
     ],
-    "refs": [
-      "BROWSER-CHECKS W5"
-    ]
+    "refs": []
   },
   {
     "id": "CANVAS-009",
@@ -2994,7 +2904,6 @@
       "Activity says \"Pinned “What if clients pay late” to Home\" (type Pinned to Home)"
     ],
     "refs": [
-      "BROWSER-CHECKS W6",
       "D57"
     ]
   },
@@ -3027,7 +2936,6 @@
       "At 375px \"Open ›\" is a text link and the buttons are 44px tall"
     ],
     "refs": [
-      "BROWSER-CHECKS W7",
       "D57"
     ]
   },
@@ -3054,7 +2962,6 @@
       "The canvas is drawn from today's records, with no model call"
     ],
     "refs": [
-      "BROWSER-CHECKS W8",
       "D57"
     ]
   },
@@ -3082,7 +2989,6 @@
       "No model call was made and nothing was re-saved"
     ],
     "refs": [
-      "BROWSER-CHECKS W8",
       "D57"
     ]
   },
@@ -3109,7 +3015,6 @@
       "Activity records the unpin without naming amounts"
     ],
     "refs": [
-      "BROWSER-CHECKS W9",
       "D57"
     ]
   },
@@ -3136,7 +3041,6 @@
       "No ninth pin appears on Home"
     ],
     "refs": [
-      "BROWSER-CHECKS W9",
       "D57",
       "db:canvas-test"
     ]
@@ -3160,10 +3064,9 @@
     ],
     "expected": [
       "The suite passes its case where a recipe names a client or bill that is not in the household: resolving it is refused with \"not in your records\" instead of drawing wrong numbers",
-      "Not provable in the browser yet: no screen removes a client (BROWSER-CHECKS W10), so how a broken pin looks on Home stays unwalked"
+      "Not provable in the browser yet: no screen removes a client, so how a broken pin looks on Home stays unwalked"
     ],
     "refs": [
-      "BROWSER-CHECKS W10",
       "db:canvas-test"
     ]
   },
@@ -3196,7 +3099,6 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS W11",
       "model:eval makes_canvas"
     ]
   },
@@ -3227,7 +3129,6 @@
       "A note with an invented amount makes the whole answer refused (ASK-085)"
     ],
     "refs": [
-      "BROWSER-CHECKS W11",
       "D57",
       "D56"
     ]
@@ -3259,7 +3160,6 @@
       "\"Save to this pin\" replaces that pin; \"Pin to Home\" adds a new one"
     ],
     "refs": [
-      "BROWSER-CHECKS W12",
       "D57"
     ]
   },
@@ -3290,7 +3190,6 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS W13",
       "model:eval what_if_late"
     ]
   },
@@ -3320,7 +3219,6 @@
       "The pin draws again on Home from the records"
     ],
     "refs": [
-      "BROWSER-CHECKS AF5a",
       "D63"
     ]
   },
@@ -3377,7 +3275,7 @@
       "No amount was typed by the model into a block"
     ],
     "refs": [
-      "BROWSER-CHECKS AE",
+      "qa/README AE",
       "D62",
       "D57"
     ]
@@ -3466,9 +3364,6 @@
       "Biggest changes and Regular costs keep all columns reachable. If a table is wider than its block, only its own region scrolls horizontally."
     ],
     "refs": [
-      "BROWSER-CHECKS W3",
-      "BROWSER-CHECKS L",
-      "BROWSER-CHECKS AQ5",
       "db:canvas-test"
     ]
   },
@@ -3522,7 +3417,6 @@
       "No \"Forget everything\" yet"
     ],
     "refs": [
-      "BROWSER-CHECKS X1",
       "D58"
     ]
   },
@@ -3551,7 +3445,6 @@
       "Groups follow the kind order, not the order added"
     ],
     "refs": [
-      "BROWSER-CHECKS X2",
       "D58"
     ]
   },
@@ -3579,7 +3472,6 @@
       "The short \"rent is 82,000\" is accepted"
     ],
     "refs": [
-      "BROWSER-CHECKS X3",
       "D58"
     ]
   },
@@ -3607,7 +3499,6 @@
       "400 characters pass; the same refusal shows in Edit"
     ],
     "refs": [
-      "BROWSER-CHECKS X3a",
       "db:memory-test"
     ]
   },
@@ -3634,7 +3525,6 @@
       "After a delete, Add works again"
     ],
     "refs": [
-      "BROWSER-CHECKS X3b",
       "db:memory-test",
       "D58"
     ]
@@ -3663,9 +3553,7 @@
       "The row reads \"Rent goes up in May\" and \"Added here · {date} · edited {date}\"",
       "Changing the Kind moves the row to that kind's group"
     ],
-    "refs": [
-      "BROWSER-CHECKS X4"
-    ]
+    "refs": []
   },
   {
     "id": "MEM-007",
@@ -3690,9 +3578,7 @@
       "It asks \"Delete this for good? The assistant will no longer know it.\"",
       "Only that row goes and the count falls by one"
     ],
-    "refs": [
-      "BROWSER-CHECKS X5"
-    ]
+    "refs": []
   },
   {
     "id": "MEM-008",
@@ -3719,7 +3605,6 @@
       "Activity's newest rows read \"The assistant forgot everything\", \"You deleted something the assistant remembered\", etc., type \"Assistant memory changed\", never with the text or an amount"
     ],
     "refs": [
-      "BROWSER-CHECKS X6",
       "D58"
     ]
   },
@@ -3746,9 +3631,7 @@
       "Each is reachable and at least 44px tall",
       "The long word wraps and nothing scrolls sideways"
     ],
-    "refs": [
-      "BROWSER-CHECKS X7"
-    ]
+    "refs": []
   },
   {
     "id": "MEM-010",
@@ -3778,7 +3661,6 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS X8",
       "model:eval remembers",
       "D58"
     ]
@@ -3808,7 +3690,6 @@
       "Only the item asked about is removed"
     ],
     "refs": [
-      "BROWSER-CHECKS X8",
       "D58"
     ]
   },
@@ -3837,7 +3718,6 @@
       "It invents nothing that is not on the page"
     ],
     "refs": [
-      "BROWSER-CHECKS X8",
       "D58"
     ]
   },
@@ -3866,7 +3746,6 @@
       "Memory changed the words, not a number"
     ],
     "refs": [
-      "BROWSER-CHECKS X9",
       "D58"
     ]
   },
@@ -3895,7 +3774,6 @@
       "Any other amount comes from a tool result; a ¥300,000 that is in no memory, tool result or question is never invented"
     ],
     "refs": [
-      "BROWSER-CHECKS X9",
       "D56",
       "D58"
     ]
@@ -3925,8 +3803,7 @@
       "Count stays as before"
     ],
     "refs": [
-      "D58",
-      "BROWSER-CHECKS X9a"
+      "D58"
     ]
   },
   {
@@ -3956,8 +3833,7 @@
     ],
     "refs": [
       "D58",
-      "D56",
-      "BROWSER-CHECKS X9a"
+      "D56"
     ]
   },
   {
@@ -4047,7 +3923,6 @@
       "A correction over 400 characters or with a long number never offers the box"
     ],
     "refs": [
-      "BROWSER-CHECKS X10",
       "D58"
     ]
   },
@@ -4132,8 +4007,6 @@
       "The server stores nothing"
     ],
     "refs": [
-      "BROWSER-CHECKS AA7",
-      "BROWSER-CHECKS AA8",
       "D59"
     ]
   },
@@ -4161,7 +4034,6 @@
       "No row holds the remembered text or an amount"
     ],
     "refs": [
-      "BROWSER-CHECKS X6",
       "D58"
     ]
   },
@@ -4191,7 +4063,6 @@
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
-      "BROWSER-CHECKS Z7",
       "D60"
     ]
   },
@@ -4220,7 +4091,6 @@
     "refs": [
       "db:conversation-test",
       "db:agent-test",
-      "BROWSER-CHECKS AP17",
       "D71"
     ]
   },
@@ -4248,7 +4118,6 @@
       "General keeps the earlier question and reply"
     ],
     "refs": [
-      "BROWSER-CHECKS AP2",
       "D69"
     ]
   },
@@ -4276,7 +4145,6 @@
       "The same space is selected and its saved question and answer are still visible"
     ],
     "refs": [
-      "BROWSER-CHECKS Z10",
       "D69"
     ]
   },
@@ -4366,8 +4234,7 @@
     ],
     "refs": [
       "D59",
-      "db:data-test",
-      "BROWSER-CHECKS AA15"
+      "db:data-test"
     ]
   },
   {
@@ -4427,7 +4294,6 @@
       "The tapped choice appears as the next question in the same list"
     ],
     "refs": [
-      "BROWSER-CHECKS Z4",
       "D60"
     ]
   },
@@ -4456,7 +4322,6 @@
       "The second answer shows the new numbers from the tools, not those of the first reply"
     ],
     "refs": [
-      "BROWSER-CHECKS Z7",
       "D60"
     ]
   },
@@ -4515,7 +4380,6 @@
       "Each call writes a content-free log line"
     ],
     "refs": [
-      "BROWSER-CHECKS I5",
       "db:settings-test"
     ]
   },
@@ -4543,8 +4407,6 @@
       "Activity or the draft says \"· Drafted through MCP\" where it waits"
     ],
     "refs": [
-      "BROWSER-CHECKS I5",
-      "BROWSER-CHECKS Q5",
       "D12",
       "npm run mcp:demo"
     ]
@@ -4788,7 +4650,6 @@
       "Nothing is written to the cloud"
     ],
     "refs": [
-      "BROWSER-CHECKS AA8",
       "db:memory-test",
       "db:data-test",
       "D59"
@@ -4846,8 +4707,6 @@
       "After Confirm the row leaves To check and nothing else on screen changes"
     ],
     "refs": [
-      "BROWSER-CHECKS Q5",
-      "BROWSER-CHECKS I5",
       "D39"
     ]
   },
@@ -4898,7 +4757,6 @@
       "Redirects, timeouts and provider errors stay inside the fixed response contract"
     ],
     "refs": [
-      "BROWSER-CHECKS AN1",
       "db:agent-test",
       "db:reader-test",
       "db:ai-test",
@@ -4928,7 +4786,6 @@
       "The answer names the next confirmed item and its coverage, and Based on links to Coming up"
     ],
     "refs": [
-      "BROWSER-CHECKS K8",
       "db:ai-test"
     ]
   },
@@ -4957,7 +4814,6 @@
       "The example buttons, the question field and Ask are disabled; no request is made to /api/ask"
     ],
     "refs": [
-      "BROWSER-CHECKS Y28",
       "D56",
       "D33"
     ]
@@ -4986,7 +4842,6 @@
       "Ask is disabled"
     ],
     "refs": [
-      "BROWSER-CHECKS Y28",
       "D56",
       "D68"
     ]
@@ -5016,7 +4871,6 @@
       "Nothing is added to the thread and no request reaches a model"
     ],
     "refs": [
-      "BROWSER-CHECKS Y27",
       "D56",
       "db:agent-test"
     ]
@@ -5073,8 +4927,36 @@
     ],
     "refs": [
       "db:memory-test",
-      "BROWSER-CHECKS Y27",
       "D56"
+    ]
+  },
+  {
+    "id": "ASK-119",
+    "area": "Ask",
+    "action": "Ask about hotels and about October",
+    "user_goal": "I want to search my spending in my own words",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026)",
+      "A working model (the server's or the Codex bridge)",
+      "Ask open at /canvas"
+    ],
+    "steps": [
+      "Type \"How much did I spend on hotels in the last three months?\" and press Enter",
+      "Type \"Where did October go?\" and press Enter"
+    ],
+    "expected": [
+      "The first answers ¥28,600 in September, through search_spending",
+      "The second answers through month_by_category with \"in October\""
+    ],
+    "refs": [
+      "D53",
+      "D60"
     ]
   }
 ]

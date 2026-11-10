@@ -25,7 +25,6 @@
       "The mic button is 44px tall at 375px"
     ],
     "refs": [
-      "BROWSER-CHECKS K5",
       "D26"
     ]
   },
@@ -54,7 +53,6 @@
       "The Ask field still opens Ask and typing a character on it still starts a question"
     ],
     "refs": [
-      "BROWSER-CHECKS K5",
       "D26"
     ]
   },
@@ -83,7 +81,6 @@
       "Nothing is saved until Add bill is tapped"
     ],
     "refs": [
-      "BROWSER-CHECKS K6",
       "D26",
       "D42"
     ]
@@ -113,7 +110,6 @@
       "Nothing is saved"
     ],
     "refs": [
-      "BROWSER-CHECKS K6",
       "db:voice-test",
       "D26"
     ]
@@ -230,7 +226,6 @@
       "Nothing is saved until Add charge is tapped"
     ],
     "refs": [
-      "BROWSER-CHECKS K6",
       "D26"
     ]
   }

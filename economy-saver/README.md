@@ -1,140 +1,65 @@
 # Personal Economy Saver
 
-A money assistant for people paid through PayPal. The example follows Ben, a fictional freelance designer in Tokyo whose clients pay in US dollars. Home gives a 30-day runway as one dated sentence, safe to spend, what needs checking and one PayPal action: invoice finished work or nudge a late client. The user must approve before the server sends anything through PayPal Sandbox.
+A personal money agent for people paid through PayPal. Home gives a 30-day runway as one dated sentence, what is safe to spend, and one PayPal action the person approves: invoice finished work or nudge a late client. Ask answers questions about the money in the person's own words. The example follows Ben, a fictional freelance designer in Tokyo paid in US dollars.
 
-This is a private hackathon project in development. Next.js dev and the local Worker render a fictional household from the Supabase project in Tokyo (`ap-northeast-1`). Not yet verified live: the deployed Worker, a live model call, magic-link delivery, Email Routing and a real PayPal sandbox send with its signed webhook.
-
-## What is implemented
-
-- A Next.js 16 app with household-scoped Postgres/Drizzle data and a fictional Ben seed.
-- A deterministic runway and sentence from stored bills, cards, charges, invoices, FX rates and client payment history.
-- Screens: Home, invoice review, To check, Activity, Cards, Clients, Plan, Options, Settings, Upload and document review, Ask (`/canvas`: the conversation and the canvas beside it) and Memory.
-- A Try it household flow (with Reset to Ben's starting numbers in Settings), Start with my numbers (`/start`, also offered in Settings, posts the setup form to `/api/try/blank`: a new blank demo household that replaces any Try it one whose Home says what to add and shows First steps until its steps are done) and passwordless email sign-in.
-- Typed-in data: clients, bills (optionally repeating monthly or yearly, with a last payment), card charges, a one-line bank balance, and invoices marked paid outside PayPal. Amounts take thousands separators and stop at ¥100,000,000 or $1,000,000; dates stop two years ahead. A mistyped bill (a monthly one as a whole series) or card charge is removed with Remove, after an in-page confirm. A refused form shows its message beside the form and keeps what you typed.
-- Pots on Plan set aside money and can take a percentage of each client payment. A pot with a target amount and date also appears under Memory → Goals, with its pace, monthly amount and a link back to its Plan form. Ask and MCP read the same pace, and Ask can pin a live goals canvas to Home.
-- A household split: Settings → People sets each person's share, a bill or card charge can be shared, and Home shows who owes whom with Mark settled. It appears only with two or more people and does not change the runway.
-- Categories and a business share: fourteen fixed categories and a Personal / Business / Mixed share on every bill and charge (proposed from the name, confirmed by you); Plan shows "Where the month goes" for the current month. Neither moves any money. Your own categories (Settings → Your categories) sit under the fourteen, like Coffee under Food; a bill or charge can be filed under one, Plan and Home show them inside their category, and Ask and MCP can file a draft under one that exists (`own_category`) and read them (`own_categories`) but never make one. Home's Categories view can also be looked at by Category, Business or personal, or Person (two or more people).
-- Missing data: a bill can be saved with its amount or date not known yet; the forecast counts it at an estimate from the same name's last three real bills (the high end in the late case), says where the number came from, and To check → Missing asks only for the missing piece.
-- Document intake (upload and forwarded email) with confirmation before a reading changes money records.
-- Ask: the full page `/canvas` (sidebar label Ask) and the desktop panel from the top bar. Both support voice where the browser supports it. `/api/ask` runs a model of your choice (D56) with tools over the engine (reads and drafts only). A reply is an answer, a clarifying question with choices to tap, or a decline for what is not about your money; code chooses which. An answer can come with a canvas: blocks that each hold a question, never a number, which the engine fills from your records, with "Show the recipe", "Based on" links and Helpful / Not helpful. "What if a client pays two weeks late?" runs the engine on a copy of your numbers and saves nothing. "Pin to Home" keeps a canvas (at most 8) under Home's sentence, drawn by the engine with no model call. A bill, receipt or card email can be attached in Ask ("Attach a bill"): the app reads it, asks what is unclear one question at a time, and adds it only when you confirm, then draws your month with it. Ask opens in General by default. Named spaces keep their own threads. The page and the same-origin `GET /api/ask/view?space=<id>` use the same household-scoped loader. The loader leaves device-held kinds to the browser. The full page and the compact panel presentation share the same Ask component and canvas renderer. The panel stacks the conversation and canvas and links to the selected space with Open full. The panel stays available across workspace navigation and remembers its open state and space per tab. It docks at 1200px and up, overlays the screen at 900–1199px, and leaves the full Ask page to smaller screens.
-- Memory: the page `/memory` lists what the assistant remembers (each item says where it came from), and you can add, edit, delete or Forget everything. The assistant can `remember` and `forget` when you ask; a text with a run of 12 or more digits is refused. A To check card with a corrected name, category, work share or card offers "Also tell the assistant".
-- Your AI model: Settings → Your AI model sets a provider (or any OpenAI-compatible address once signed in), the models and a key; Save and check verifies tool use, handling of injected instructions and staying on money for the question model. It also checks that the document model reads the total from a fictional bill image. The panel shows the result and the host your questions go to. With no model of its own a household uses the server's `AI_` settings.
-- The same tool catalogue and rules serve MCP (the server's `instructions`), except `clarify` and `out_of_scope`, which only the Ask page offers. Each Ask and each MCP call writes one content-free JSON log line to standard output.
-- A family view by link: Settings → People makes a link that lasts 7 days (at most 5 live, stoppable at once; only its hash is stored, so the full link and a ready-to-paste LINE message show once). The page at `/family/<token>` needs no sign-in and has no actions: the sentence, the shared bills coming up and who owes whom. `APP_URL` sets the address in the link.
-- One versioned household schema: Settings has Export my data (a version 4 JSON download: the record with the household's events, plus memory, pinned canvases, spaces and conversation turns), the `household_snapshot` read tool gives the agent and MCP the record without events, and the files in `schema/` (`household.v4.json`, `recipe.v1.json`, `memory.v1.json`, `turn.v1.json`, `cash-flow-event.v1.json`) are generated from the same zod definitions.
-- Your data: Settings → Your data lists the record, memory, canvases, conversation and documents, plus reminder history and push subscriptions. It shows where each is kept and how many there are. Memory, canvases and the conversation can be deleted all at once or one by one, and Ask has "Delete this conversation"; documents can be deleted too (confirmed bills and charges stay); "Delete everything" goes to the account page. Import reads a version 2 or 3 export into a household that has nothing in it yet (what it restores and leaves out: D44 in [DECISIONS.md](../DECISIONS.md)).
-- This device only: memory, canvases and the conversation can be kept in the browser instead of our cloud (Settings → Your data). The server then holds none of it and stores nothing from a question; other devices and MCP see none of it, clearing the browser deletes it, and Import is refused while anything is kept there. Export from that device adds its items to the file (D59).
-- PayPal sandbox REST and Agent Toolkit integration, with the draft/read tools separate from the server approval path; verified webhook deliveries are idempotent; a read-only import of sandbox invoice history.
-- Per-household rate limits on every browser-facing route and an app-wide cap on Try it (the numbers: [ARCHITECTURE.md](../ARCHITECTURE.md)); PayPal toolkit calls time out after 20 s.
-- Memory → Rules shows six standing rules with on or off controls and bounded thresholds. Rules guide the suggestion pass. An invoice reminder still needs approval.
-- Ask can offer a lasting memory, dated goal or standing rule after an answer. Keep saves it through Memory, Plan or Rules, including device-only Memory.
-- The signed-in owner can invite a person to join with their own verified email. Settings shows who has access, and members can leave from Account.
-- An hourly Cron Trigger runs the daily suggestion pass by the earliest local reminder hour, including the owner’s hour (08:00 by default). Home lists what the assistant noticed and opens the existing review screens. Sending a sandbox invoice reminder still needs approval.
-- Optional email and web push reminders send the day’s new findings once per channel at each member’s chosen hour. Settings has quiet days and separate test buttons. Reminder history and push subscriptions can be deleted in Your data.
-- Every row and event records who made it (`made_by`); To check and Activity say "Drafted by Ask" or "Drafted through MCP" after what the agent drafted. The invoice review and the client panel show how fast a client usually pays.
-- Isolated PGlite test suites (see Checks); they do not show that hosted services are configured.
-
-## Safety
-
-- The app accepts only `PAYPAL_ENVIRONMENT=SANDBOX`; PayPal requests go to `https://api-m.sandbox.paypal.com`.
-- The server checks webhook signatures before applying a delivery. Only the verified webhook records a PayPal-sent invoice as paid.
-- Lint allows only `src/app/api/approve/route.ts` to import the send-capable PayPal tool functions.
-- Keep real settings in ignored local environment files or the owner's private service configuration. Never paste secrets into chat, screenshots or this repository.
-- Seed records are fictional. Deployment, account setup and any public release are owner-managed.
+PayPal sandbox only, fictional data only. What the product does and why: [../DECISIONS.md](../DECISIONS.md). Rules for anyone working on it: [../AGENTS.md](../AGENTS.md). How to test it by hand: [../qa/README.md](../qa/README.md).
 
 ## Requirements
 
-- Node.js 22.15 or newer and npm (the pinned Cloudflare/OpenNext build hook requires it).
-- A configured Supabase project for running the app against persistent data.
-- PayPal Sandbox application credentials and a fictional/test client recipient for PayPal actions.
+- Node.js 22.15 or newer and npm.
+- A Supabase project (the app has no local database).
+- PayPal sandbox credentials and a fictional recipient.
 
-## Local setup
+## Setup
 
-1. Install packages:
+1. `npm install`
+2. Copy `.env.example` to `.env.local` and fill it in. Each setting is explained there, and the app stops with an error naming any setting it needs and does not have. Keep `PAYPAL_ENVIRONMENT=SANDBOX`.
+3. Notes that are easy to miss:
+   - `APP_URL` is `http://127.0.0.1:3123` locally (open 127.0.0.1, not localhost) and `http://localhost:8787` for the Worker preview. `<APP_URL>/api/auth/callback` must be listed in Supabase under Authentication, URL Configuration, Redirect URLs, or the magic link does not sign in.
+   - Keep `AI_KEY_SEAL_KEY` and `MCP_TOKEN_KEY` fixed once set. A key sealed with another value cannot be opened, and rotating `MCP_TOKEN_KEY` invalidates every token.
+   - `.dev.vars` holds the same settings for the Worker preview (`cp .env.local .dev.vars`).
+   - `db:migrate`, `db:seed` and `db:vault-check` touch the owner's database: owner only.
+4. `npm run dev -- -p 3123`, then open `http://127.0.0.1:3123`. `/api/health` reports readiness without revealing values.
 
-   ```bash
-   npm install
-   ```
+Local ports: 3123 the app, 3130 the Codex bridge, 3125 the design mockup, 8787 the Worker preview.
 
-2. Copy `.env.example` to `.env.local` and fill only the settings the feature needs. The app fails clearly when a required setting is missing; there is no local database fallback. Keep `PAYPAL_ENVIRONMENT=SANDBOX`.
+## Commands
 
-   - **Database-backed routes:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL` (the transaction pooler string, port 6543) and `APP_URL`. Sign-in links return to `APP_URL` (never to the request's Origin header), and `<APP_URL>/api/auth/callback` must be listed under the project's Authentication → URL Configuration → Redirect URLs (otherwise the magic link lands on `/?code=…` and does not sign in). Locally it is `http://127.0.0.1:3123`; in the Worker preview `http://localhost:8787`.
-   - **PayPal actions:** `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `SANDBOX_CLIENT_EMAIL`. A webhook also needs `PAYPAL_WEBHOOK_ID` once the owner has registered it. Refreshing the stored balance and importing invoice history for a non-demo household need `PAYPAL_BALANCE_HOUSEHOLD_ID`.
-   - **AI model (Ask and the reader), the server default:** `AI_PROTOCOL` (`anthropic` or `openai`, the OpenAI-compatible Chat Completions protocol), `AI_BASE_URL` (required for `openai`), `AI_API_KEY`, `AI_TEXT_MODEL` (Ask and plain forwarded mail) and `AI_DOCUMENT_MODEL` (photos, PDFs and mail with attachments; it must accept images). A household can choose its own model in Settings instead; then it needs none of these for its own questions and documents. The deployed Worker sets none of them, so each household (a Try it household included) pastes its own key in Settings → Your AI model. No model call is capped, on either connection.
-   - **Client address (the per-address limit on sign-in links):** `CLIENT_IP_HEADER`, the request header that holds the caller's address: `x-forwarded-for` under `next dev`, `cf-connecting-ip` on the Worker. With it unset those routes answer 503 naming it; a request without the header is refused.
-   - **Reader storage and forwarding:** `SUPABASE_DOCUMENT_BUCKET` (a private bucket; `household-documents` on the Tokyo project), `FORWARDING_DOMAIN`, `INBOUND_ADDRESS_KEY`, `INBOUND_WORKER_SECRET`.
-   - **A household's own AI key:** `AI_KEY_SEAL_KEY`, a dedicated random 32-byte key as unpadded base64url (generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`). A saved key is sealed with it in the Worker (AES-GCM) before it goes into Vault; keep the same value, because a key sealed with another value cannot be opened and has to be saved again. Saving or using a household's own key stops with a clear error when it is missing.
-   - **MCP tokens:** `MCP_TOKEN_KEY`, a dedicated random 32-byte key as unpadded base64url. Keep the same key across instances; rotating it invalidates tokens.
-   - **Cron:** `CRON_SECRET`.
-   - **Optional reminders:** email needs `RESEND_API_KEY` and `REMINDER_FROM` for the owner’s sending domain. Push needs `WEB_PUSH_PUBLIC_KEY`, `WEB_PUSH_PRIVATE_KEY` and `WEB_PUSH_SUBJECT` (an HTTPS or mailto URL). The owner runs `npm run push:keys` to write the VAPID pair to the ignored `.env.local` and `.dev.vars` without printing it. `/api/health` reports each channel’s readiness separately.
+Run from this folder. Never commit or print `.env.local` or `.dev.vars`.
 
-   For the local Cloudflare preview, copy the needed settings to the ignored `.dev.vars`. Worker values are runtime bindings: the build does not package values from `.env.local`; local preview reads `.dev.vars` and deployed Workers get owner-managed secrets. The build hook checks its pinned OpenNext version and emits empty generated project-env exports so build-machine dotenv values are not embedded.
+| What | Command |
+|---|---|
+| Dev server | `npm run dev -- -p 3123` |
+| Type check | `npx tsc --noEmit -p .` |
+| Lint | `npm run lint` |
+| All database tests and the QA scenario check (isolated PGlite, no credentials) | `npm run db:test` |
+| One suite | `npm run db:<name>-test` (package.json lists them) |
+| QA scenario files check | `npm run qa:check` |
+| MCP protocol demo (loopback, isolated) | `npm run mcp:demo` |
+| Regenerate the JSON Schemas in `schema/` from the zod definitions | `npm run schema` |
+| Regenerate a migration after a schema edit | `npm run db:generate` |
+| Apply migrations (owner only) | `npm run db:migrate` |
+| Seed the demo household (owner only) | `npm run db:seed` |
+| Check the Vault connection (owner only) | `npm run db:vault-check` |
+| Model eval on a real provider (key from `EVAL_API_KEY` in `.env.local`) | `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` |
+| HTTP suites against a running dev server | `node scripts/frontend-check.mjs --run\|--extra\|--guards http://127.0.0.1:3123` |
+| PayPal sandbox smoke test (`-- --keep` keeps its draft invoice) | `npm run smoke` |
+| Register the PayPal webhook (owner only) | `npm run webhook:register -- <endpoint>` |
+| Generate Web Push keys (owner only) | `npm run push:keys` |
+| Worker build and local preview | `npm run cf:preview` |
+| Worker size and secret scan | `npm run cf:size` |
+| Deploy (owner only) | `npm run cf:deploy` |
+| Codex bridge (dev only) and its check | `npm run codex:bridge` / `npm run codex:bridge-check` |
 
-3. Apply the schema and create the fictional demo household, only against the owner's configured database:
+Scripts in `scripts/*.ts` run with `npx tsx --tsconfig ./tsconfig.json <file>` so the `@/` paths resolve.
 
-   ```bash
-   npm run db:migrate
-   npm run db:seed
-   ```
+## MCP
 
-   The seed prints the demo household ID only. `npm run db:vault-check` checks the Vault connection and removes its temporary test secret.
+Make a token in Settings, then connect a Streamable HTTP MCP client to `/api/mcp` with it as a Bearer token. It reads and drafts only; approval and sending stay in the app.
 
-4. Start the development server:
+## Codex bridge (dev only)
 
-   ```bash
-   npm run dev -- -p 3123
-   ```
-
-   Open `http://127.0.0.1:3123`. `/api/health` reports readiness without revealing values.
-
-## Checks
-
-These use isolated PGlite databases and simulated external results; they need no Supabase credentials and make no PayPal calls:
-
-```bash
-npm run db:test      # all forty-one suites and the QA scenario manifest check
-npm run schema       # rewrites the five files in schema/ from the zod definitions (db:test fails when one is stale)
-npx tsc --noEmit -p .
-npm run lint
-npm run qa:check     # validates the scenario files without reading QA results
-```
-
-Each suite also runs alone: `db:approve-test`, `mcp:demo`, `db:reader-test`, `db:settings-test` (including model-list keys, guards and limits, catalogue scheduling, capability filtering and preserving a saved connection when the replacement fails, and the fictional browser fixture transport), `db:agent-test` (Keep this? offers, grounded briefs, cited memory and the fixed Ask screen context), `db:ai-test` (including provider inference from pasted key prefixes and model-list transports, capability metadata and the document image check), `db:refresh-test`, `db:doors-test`, `db:import-test`, `db:csv-test`, `db:pots-test`, `db:snapshot-test`, `db:split-test`, `db:category-test`, `db:look-by-test` (the month looked at by category, business or personal, or person, and the remembered Home choice), `db:own-categories-test` (own categories: name rules, the cap, filing, merge, remove, the database foreign key, export and import), `db:spending-test`, `db:regular-test`, `db:varies-test`, `db:gaps-test`, `db:fx-cost-test`, `db:checks-test`, `db:canvas-test`, `db:conversation-test` (character-budgeted threads and document cards), `db:ask-document-test`, `db:ask-routes-test` (including the Ask view's session and origin checks, space isolation, device-held kinds, shared canvas request limit, full and panel rendering, initial closed panel markup, panel preferences, Incognito and space proposals), `db:charge-routes-test` (including household isolation in the write and removal responses), `db:memory-test` (scoped profile, notes and indexed history search), `db:data-test` (including device journal and brief moves), `db:cron-test` (authorised fan-out, ordering, retry and stored rate after an ECB outage), `db:suggest-test` (daily findings, lifecycle, space attribution and the legacy rule migration), `db:notify-test` (simulated email and push, schedule, space labels, deduplication and RFC 8291), `db:goals-test` (dated pots, pace and behind-target findings), `db:sweep-test`, `db:isolation-test`, `db:voice-test` (voice fill: the schema, the checks and the route on a fake model), `db:limits-test` (per-address limits, the AI budget, the storage cap, file retention), `db:family-test`, `db:members-test` (invites, verified membership and role boundaries, including owner-only model listing), `db:spaces-test` (General, the space lifecycle, and export and import). The approval tests use a simulated PayPal transport and cover duplicate approvals, retry recovery, a verified-delivery input and a single balance credit. A local pass is not a live transaction. The hand checks in a real browser, with the numbers each screen should show, are in [BROWSER-CHECKS.md](../BROWSER-CHECKS.md). Section AQ covers both Ask layouts at 1440px and dock reflow at 1280px. Section Y gives the owner’s isolated 1440px run for Your AI model using the optional dev preload `scripts/model-settings-qa.ts` and fictional keys.
-
-The model eval calls a real provider, so it is not part of `db:test`: `npm run model:eval -- --provider <id> --model <name> [--base-url <url>]` runs the real agent on Ben's fictional household in a throwaway database, reads the key from `EVAL_API_KEY` in `.env.local`, and prints one line per case and the `TESTED` line to add to `src/lib/ai/tested.ts`. Its graders are tested on the fake transport in `db:ai-test`.
-
-With the app running and Supabase configured, `node scripts/frontend-check.mjs --run http://127.0.0.1:3123` times the core household workflows. `--extra` covers Upload, Options and invoice draft retries; `--guards` covers integration rejection paths. They create fictional Try it households. Results and timings are in [PLAN.md](../PLAN.md).
-
-Cloudflare: `npm run cf:preview` builds and previews the Worker on port 8787 (reads `.dev.vars`); `npm run cf:size` builds, reports the bundle size (the limit is 64 MiB uncompressed and a startup under 1 s) and scans the Worker for credentials. Deploying (`npm run cf:deploy`) is owner-managed.
-
-## PayPal sandbox
-
-Use only an owner-configured PayPal Developer Sandbox app and sandbox recipients. `npm run smoke` exercises sandbox token, balance and invoice permissions and creates a temporary USD draft invoice, which it deletes unless run with `npm run smoke -- --keep`. `npm run webhook:register -- <approved-endpoint>` registers only against the sandbox and is owner-managed. Keep the webhook ID private. PayPal may cache OAuth tokens for hours after permission changes.
-
-## Ask, voice and MCP
-
-The Ask page accepts typed text and, where the browser supports it, speech (`useSpeech`); the top bar and phone bar have a microphone beside the Ask link, and Fill by voice on the bill, charge, invoice, client and bank balance forms fills a form's fields from what you say (nothing is saved until the form's own button). A character typed in the top bar’s Ask box carries over to the desktop panel or the full Ask page. The agent answers from the runway engine and can only read or draft: a spoken or typed bill, card charge, bank balance update, pot or invoice waits for confirmation (in To check, or on the invoice review page). Without a model (the server's AI settings, or the household's own) the Ask page names the missing setting.
-
-To issue household-scoped MCP tokens, set `MCP_TOKEN_KEY`, then use Settings. Connect a Streamable HTTP MCP client to `/api/mcp` with the token as a Bearer credential. A household holds at most 10 live tokens. The token supports household reads and drafts (the same tools as the agent); approval and sending stay in the app. `npm run mcp:demo` runs a finite protocol demonstration on loopback with an isolated PGlite household and an in-memory key.
-
-## Testing the AI on Codex (dev only)
-
-With the Codex CLI installed and logged in (`codex login`), `npm run codex:bridge` starts a local server on `127.0.0.1:3130` that answers OpenAI Chat Completions requests by running `codex exec`, so the app's AI features can run without an API key. Start the app locally with `AI_PROTOCOL=openai`, `AI_BASE_URL=http://127.0.0.1:3130/v1`, `AI_API_KEY=codex-local` (any non-empty value) and `AI_TEXT_MODEL` / `AI_DOCUMENT_MODEL` set to a model your Codex login offers. `npm run codex:bridge-check` makes real calls through the bridge. It reads images but not PDFs. Only `next dev` can use it: the Worker, including the local preview on 8787, refuses private addresses (`global_fetch_strictly_public`). Prompts go to OpenAI through your ChatGPT login, so use fictional data only. Codex adds its own system prompt, so treat this as a rehearsal and do a final check on a real API. Optional settings: `CODEX_BRIDGE_PORT`, `CODEX_EFFORT` (default `low`), `CODEX_TIMEOUT_MS` (default 60000).
-
-## Project map
-
-```text
-src/app/, src/components/   pages, API routes and UI by area
-src/db/                     schema, household-scoped queries, seeds, rate limits
-src/lib/                    money (the engine), agent, ai, canvas, schema, paypal, mcp, reader, catalogue
-schema/                     the committed JSON Schemas (npm run schema)
-scripts/                    isolated tests and explicit owner-operated checks
-drizzle/                    ordered schema migrations, thirty-three files (0000–0032)
-worker.ts                   Cloudflare Worker entry: the app, the hourly Cron Trigger and the Email Worker handler
-samples/bills/              fictional sample bills for the reader
-```
-
-The full map of files is in [AGENTS.md](../AGENTS.md), "Where things are".
+With the Codex CLI installed and logged in, `npm run codex:bridge` answers OpenAI Chat Completions requests by running `codex exec`, so the AI features run without an API key. Start the app with `AI_PROTOCOL=openai`, `AI_BASE_URL=http://127.0.0.1:3130/v1`, any non-empty `AI_API_KEY`, and `AI_TEXT_MODEL` and `AI_DOCUMENT_MODEL` set to a model your Codex login offers. It reads images but not PDFs, and only `next dev` can use it (the Worker refuses private addresses). Prompts go to OpenAI through your ChatGPT login, so use fictional data only. Its answers and timeouts are not a judgement of Ask; judge Ask with a real key.
 
 ## License
 

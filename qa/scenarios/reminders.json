@@ -26,7 +26,6 @@
       "The saved hour is 10:00"
     ],
     "refs": [
-      "BROWSER-CHECKS AI1",
       "D65"
     ]
   },
@@ -55,7 +54,6 @@
       "Unselected days stay clear"
     ],
     "refs": [
-      "BROWSER-CHECKS AI1",
       "D65"
     ]
   },
@@ -84,7 +82,6 @@
       "The hint reads Sent to your sign-in email."
     ],
     "refs": [
-      "BROWSER-CHECKS AI2",
       "D65"
     ]
   },
@@ -113,7 +110,6 @@
       "Email reminders stays off"
     ],
     "refs": [
-      "BROWSER-CHECKS AI2",
       "D65"
     ]
   },
@@ -142,7 +138,6 @@
       "The test uses the verified sign-in address, Your test reminder arrived., and the configured Home URL"
     ],
     "refs": [
-      "BROWSER-CHECKS AI3",
       "D65"
     ]
   },
@@ -173,7 +168,6 @@
       "The other browser shows push off"
     ],
     "refs": [
-      "BROWSER-CHECKS AI4",
       "D65"
     ]
   },
@@ -204,7 +198,6 @@
       "The only destination is this device’s enrolled endpoint"
     ],
     "refs": [
-      "BROWSER-CHECKS AI5",
       "D65"
     ]
   },
@@ -233,7 +226,6 @@
       "The notification closes and the app opens or focuses Home"
     ],
     "refs": [
-      "BROWSER-CHECKS AI5",
       "D65"
     ]
   },
@@ -263,7 +255,6 @@
       "Push stays off and the test push action is absent"
     ],
     "refs": [
-      "BROWSER-CHECKS AI6",
       "D65"
     ]
   },
@@ -293,7 +284,6 @@
       "The device count is zero"
     ],
     "refs": [
-      "BROWSER-CHECKS AI7",
       "D65"
     ]
   },
@@ -321,7 +311,6 @@
       "Turn on push is disabled"
     ],
     "refs": [
-      "BROWSER-CHECKS AI10",
       "D65"
     ]
   },
@@ -349,7 +338,6 @@
       "The Reminder history count changes from 1 delivery to 0 deliveries"
     ],
     "refs": [
-      "BROWSER-CHECKS AI8",
       "D65"
     ]
   },
@@ -380,7 +368,6 @@
       "This device is off in Reminders"
     ],
     "refs": [
-      "BROWSER-CHECKS AI9",
       "D65"
     ]
   },
@@ -409,7 +396,6 @@
       "Email names RESEND_API_KEY and push names WEB_PUSH_PUBLIC_KEY"
     ],
     "refs": [
-      "BROWSER-CHECKS AI10",
       "D65"
     ]
   },
@@ -435,7 +421,6 @@
       "The response includes setting names and no values"
     ],
     "refs": [
-      "BROWSER-CHECKS AI10",
       "D65"
     ]
   },
@@ -489,7 +474,6 @@
       "The household’s settings stay as they were"
     ],
     "refs": [
-      "D65",
       "D65"
     ]
   }

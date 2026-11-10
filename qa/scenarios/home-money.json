@@ -17,14 +17,11 @@
       "Open Home at 375px and 1440px"
     ],
     "expected": [
-      "The sentence matches BROWSER-CHECKS Expected numbers: fine if Acme and Northwind pay as usual, short on the 27th if they are late",
+      "The sentence matches qa/README Expected numbers: fine if Acme and Northwind pay as usual, short on the 27th if they are late",
       "Acme and Northwind are links to their client pages and the date links to the Next 30 days panel",
       "Under the sentence is the quiet line 'A fictional household that lives in this browser for seven days after your last change. Start with my numbers ›'"
     ],
-    "refs": [
-      "BROWSER-CHECKS A2",
-      "BROWSER-CHECKS B1"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-002",
@@ -41,15 +38,14 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Compare Home, Cards, Clients, Plan and Options with BROWSER-CHECKS Expected numbers"
+      "Compare Home, Cards, Clients, Plan and Options with qa/README Expected numbers"
     ],
     "expected": [
       "Safe to spend, bank balance, both card rows, Coming up rows and the Options gap all match the table",
       "No number differs between screens"
     ],
     "refs": [
-      "BROWSER-CHECKS B1",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -74,9 +70,7 @@
       "The chart marks the shortfall on Nov 27 as a negative amount",
       "Its dates run from Nov 14 to Dec 13"
     ],
-    "refs": [
-      "BROWSER-CHECKS B2"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-004",
@@ -101,10 +95,7 @@
       "The text 'The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late.' sits under it",
       "Money in pots comes off it (see PLAN-006)"
     ],
-    "refs": [
-      "BROWSER-CHECKS B1",
-      "BROWSER-CHECKS T-E"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-005",
@@ -128,10 +119,7 @@
       "The Nov 27 row that carries the shortfall is never folded into the fold",
       "Nov 26 and Nov 27 rows stay above the fold"
     ],
-    "refs": [
-      "BROWSER-CHECKS B3",
-      "BROWSER-CHECKS T-E"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-006",
@@ -155,9 +143,7 @@
     "expected": [
       "They open Options, Cards and Activity in turn"
     ],
-    "refs": [
-      "BROWSER-CHECKS B4"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-007",
@@ -181,9 +167,7 @@
       "Settings has no 'Card belongs to' select and its bills panel is headed 'Bills'",
       "The line 'Add a partner or housemate…' is still there"
     ],
-    "refs": [
-      "BROWSER-CHECKS B5"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-008",
@@ -203,12 +187,12 @@
       "Open Home"
     ],
     "expected": [
-      "The sentence reads 'Add your rent, your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.'",
+      "The sentence reads 'Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.'",
       "It never says 'You're fine' and has no red shortfall",
       "Safe to spend is ¥120,000 and the chart is flat"
     ],
     "refs": [
-      "BROWSER-CHECKS N3"
+      "D47"
     ]
   },
   {
@@ -232,14 +216,12 @@
       "Home reads 'You're fine for the next 30 days. Lowest point ¥60,000 on the 27th.' without the words 'even if clients pay late'",
       "Coming up lists Nov 27 Rent ¥60,000 with a Covered tick"
     ],
-    "refs": [
-      "BROWSER-CHECKS N6"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-010",
     "area": "Home",
-    "action": "Follow First steps on a blank household",
+    "action": "Follow the hints panel on a blank household",
     "user_goal": "I want to be guided through setup",
     "type": "happy",
     "priority": "P2",
@@ -248,29 +230,23 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household as in HOME-008 (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
+      "Blank household (Mika, setup skipped to Home, bank balance not set)"
     ],
     "steps": [
-      "Read First steps under the sentence",
-      "Press the rent step",
-      "Add a bill",
-      "Add a client",
-      "Add a card charge",
-      "Press \"Share costs with someone\""
+      "Read \"What you can do here\" under the sentence",
+      "Press \"Set today’s bank balance\" and save a balance",
+      "Press \"Add a bill\" and add one",
+      "Press \"Add a client\" and add one"
     ],
     "expected": [
-      "First steps · 4 to go shows one open step \"Add your rent, so the day it leaves shows up\" above To check (on a phone under the runway panel, above Cards)",
-      "The rent step opens the Add a bill or charge form on the Bill tab, scrolled into view; the client step opens Clients; the share step opens Settings → People",
-      "Each done step becomes a ticked line with no link and the next step opens in order",
-      "After the fourth the panel is gone; Try it instead shows Get started; no Shared costs panel appears with one person",
-      "Rows are at least 44px tall at 375px"
+      "The panel shows six cards: Set today’s bank balance, Add a bill, Add a client, Add a card, Upload a receipt or bill and Ask a question",
+      "Each card opens its thing: the balance form, the Add a bill form on the Bill tab, Clients",
+      "A card whose thing now exists shows a tick and \"Done\" and stays clickable",
+      "Try it (Ben) shows Get started instead; no \"First steps\" panel exists",
+      "Cards are at least 44px tall at 375px"
     ],
     "refs": [
-      "BROWSER-CHECKS N4",
-      "BROWSER-CHECKS N5",
-      "BROWSER-CHECKS N6",
-      "BROWSER-CHECKS N7",
-      "BROWSER-CHECKS R-A"
+      "D47"
     ]
   },
   {
@@ -293,9 +269,7 @@
     "expected": [
       "The text starts with 'Covered:' and explains the balance stays above zero even if clients pay late (bill) or the statement can be paid from the bank or client payments (card)"
     ],
-    "refs": [
-      "BROWSER-CHECKS N9"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-012",
@@ -321,8 +295,7 @@
       "A pin saved on this device shows from DevicePins"
     ],
     "refs": [
-      "D57",
-      "BROWSER-CHECKS W"
+      "D57"
     ]
   },
   {
@@ -347,8 +320,7 @@
       "It reads Invoice Beacon $400 and opens the Beacon Studio invoice review"
     ],
     "refs": [
-      "BROWSER-CHECKS E1",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -372,9 +344,7 @@
       "Safe to spend still includes the Card B unbilled amount and does not move for a charge billed after the window",
       "The sentence and low point do not move"
     ],
-    "refs": [
-      "BROWSER-CHECKS C4"
-    ]
+    "refs": []
   },
   {
     "id": "PAY-001",
@@ -397,10 +367,7 @@
       "The review shows To Beacon Studio, For 'Brand refresh, milestone 2', Due 'On receipt', Amount $400 with ≈¥60,000, and the note",
       "The pace row reads 'Beacon Studio usually pays 2 days after you send, slowest 3'"
     ],
-    "refs": [
-      "BROWSER-CHECKS E1",
-      "BROWSER-CHECKS Q1"
-    ]
+    "refs": []
   },
   {
     "id": "PAY-002",
@@ -424,7 +391,6 @@
       "Approve and send is the only send control"
     ],
     "refs": [
-      "BROWSER-CHECKS T-E",
       "D12"
     ]
   },
@@ -454,7 +420,6 @@
       "Activity gains 'Invoice sent to Beacon Studio' within about 2 s of the response"
     ],
     "refs": [
-      "BROWSER-CHECKS E4",
       "D12"
     ]
   },
@@ -481,7 +446,6 @@
       "Only one 'Invoice sent' event exists"
     ],
     "refs": [
-      "BROWSER-CHECKS E4",
       "db:approve-test"
     ]
   },
@@ -679,9 +643,7 @@
       "Bank balance rises by ¥60,000 and the invoice reads 'Paid Nov 14.'",
       "The sentence changes to lowest point ¥30,000 on the 27th once Hikari Denki is confirmed; Activity records it"
     ],
-    "refs": [
-      "BROWSER-CHECKS E2"
-    ]
+    "refs": []
   },
   {
     "id": "PAY-015",
@@ -730,9 +692,7 @@
     "expected": [
       "Answered 409 'This invoice cannot be marked paid here.'; the bank balance does not change"
     ],
-    "refs": [
-      "BROWSER-CHECKS E2"
-    ]
+    "refs": []
   },
   {
     "id": "PAY-017",
@@ -786,7 +746,6 @@
       "Replaying the same event does not change anything twice"
     ],
     "refs": [
-      "BROWSER-CHECKS E4",
       "D15"
     ]
   },
@@ -916,7 +875,6 @@
       "PayPal is called only after the tap"
     ],
     "refs": [
-      "BROWSER-CHECKS Q4",
       "D12"
     ]
   },
@@ -994,10 +952,7 @@
       "Under Amount the form says 'Invoices are always in US dollars. Home shows what they are worth in your own currency.'",
       "Activity records 'Invoice drafted for Acme Corp'"
     ],
-    "refs": [
-      "BROWSER-CHECKS E3",
-      "BROWSER-CHECKS N9"
-    ]
+    "refs": []
   },
   {
     "id": "PAY-027",
@@ -1019,9 +974,7 @@
     "expected": [
       "The form shows 'The amount must be more than zero' and keeps what was typed; nothing is saved"
     ],
-    "refs": [
-      "BROWSER-CHECKS C6"
-    ]
+    "refs": []
   },
   {
     "id": "PAY-028",
@@ -1047,9 +1000,7 @@
       "1,000,001 gives 'Enter an amount up to $1,000,000'",
       "A yen amount is refused as not in dollars"
     ],
-    "refs": [
-      "BROWSER-CHECKS C7"
-    ]
+    "refs": []
   },
   {
     "id": "PAY-029",
@@ -1268,8 +1219,7 @@
       "A linked and overdue sandbox invoice gets one nudge suggestion. Only successful approval closes it as approved, using a simulated PayPal transport."
     ],
     "refs": [
-      "db:suggest-test",
-      "BROWSER-CHECKS Q3"
+      "db:suggest-test"
     ]
   },
   {
@@ -1293,9 +1243,7 @@
     "expected": [
       "No 'Pace' row shows"
     ],
-    "refs": [
-      "BROWSER-CHECKS Q1"
-    ]
+    "refs": []
   },
   {
     "id": "CLI-001",
@@ -1320,8 +1268,7 @@
       "Each row opens a panel whose amounts match Home's Coming up"
     ],
     "refs": [
-      "BROWSER-CHECKS F3",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -1344,9 +1291,7 @@
     "expected": [
       "'Time to pay' reads '12 days usual · 16 slowest' and wraps at 375px"
     ],
-    "refs": [
-      "BROWSER-CHECKS Q1"
-    ]
+    "refs": []
   },
   {
     "id": "CLI-003",
@@ -1368,9 +1313,7 @@
     "expected": [
       "The client appears on Clients and in the new-invoice list"
     ],
-    "refs": [
-      "BROWSER-CHECKS C5"
-    ]
+    "refs": []
   },
   {
     "id": "CLI-004",
@@ -1392,9 +1335,7 @@
     "expected": [
       "The browser's own message stops it; nothing is saved"
     ],
-    "refs": [
-      "BROWSER-CHECKS C6"
-    ]
+    "refs": []
   },
   {
     "id": "CLI-005",
@@ -1419,9 +1360,7 @@
       "The full name wraps in the detail heading beside Close without sideways scroll at 375px",
       "The empty name is refused"
     ],
-    "refs": [
-      "BROWSER-CHECKS F3"
-    ]
+    "refs": []
   },
   {
     "id": "CLI-006",
@@ -1467,9 +1406,7 @@
     "expected": [
       "New invoice opens with that client chosen"
     ],
-    "refs": [
-      "BROWSER-CHECKS N9"
-    ]
+    "refs": []
   },
   {
     "id": "CLI-008",
@@ -1491,9 +1428,7 @@
     "expected": [
       "The pace row says 'Acme Corp usually pays 14 days after you send, slowest 25'"
     ],
-    "refs": [
-      "BROWSER-CHECKS Q1"
-    ]
+    "refs": []
   },
   {
     "id": "CARD-001",
@@ -1513,11 +1448,10 @@
       "Open Cards"
     ],
     "expected": [
-      "Card A and Card B rows match BROWSER-CHECKS Expected numbers and Home's card rows"
+      "Card A and Card B rows match qa/README Expected numbers and Home's card rows"
     ],
     "refs": [
-      "BROWSER-CHECKS F2",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -1540,9 +1474,7 @@
     "expected": [
       "Limit left ¥413,550 shows with 'Can still go on this card and leave every bill through Dec 26 covered ¥173,770' and Recent charges each have Remove"
     ],
-    "refs": [
-      "BROWSER-CHECKS F2"
-    ]
+    "refs": []
   },
   {
     "id": "CARD-004",
@@ -1564,9 +1496,7 @@
     "expected": [
       "Card N reads ¥0 owed now and 'No statement due'; panel says 'No card charges yet.'"
     ],
-    "refs": [
-      "BROWSER-CHECKS N4"
-    ]
+    "refs": []
   },
   {
     "id": "CARD-005",
@@ -1588,9 +1518,7 @@
     "expected": [
       "It says 'Add a card in Settings before adding a charge.'"
     ],
-    "refs": [
-      "BROWSER-CHECKS C0"
-    ]
+    "refs": []
   },
   {
     "id": "CARD-006",
@@ -1639,10 +1567,7 @@
       "The sentence and the low point do not move",
       "Home says 'Added Noodle shop ¥3,800 on Card B'"
     ],
-    "refs": [
-      "BROWSER-CHECKS C4",
-      "BROWSER-CHECKS T-E"
-    ]
+    "refs": []
   },
   {
     "id": "CHG-002",
@@ -1664,9 +1589,7 @@
     "expected": [
       "The form shows 'The amount must be more than zero', keeps what was typed and saves nothing"
     ],
-    "refs": [
-      "BROWSER-CHECKS C6"
-    ]
+    "refs": []
   },
   {
     "id": "CHG-003",
@@ -1692,10 +1615,7 @@
       "¥100,000,001 gives 'Enter an amount up to ¥100,000,000'",
       "$24 gives 'This amount is in yen…'"
     ],
-    "refs": [
-      "BROWSER-CHECKS C7",
-      "BROWSER-CHECKS T-E"
-    ]
+    "refs": []
   },
   {
     "id": "CHG-004",
@@ -1719,9 +1639,7 @@
       "The first gives 'Choose a date within the next two years'",
       "Nov 14, 2028 is accepted and Activity reads \"Fictional Market added\" with its amount"
     ],
-    "refs": [
-      "BROWSER-CHECKS C7"
-    ]
+    "refs": []
   },
   {
     "id": "CHG-005",
@@ -1745,9 +1663,7 @@
       "The charge shows under Recent charges",
       "Leaving the section empty saves a plain charge"
     ],
-    "refs": [
-      "BROWSER-CHECKS AE2"
-    ]
+    "refs": []
   },
   {
     "id": "CHG-006",
@@ -1769,9 +1685,7 @@
     "expected": [
       "Currency select offers 'Choose a currency' then USD, never JPY; the Amount field has a $ and the hint 'The amount on the receipt. Above, enter what the card billed in yen; the app shows what the conversion cost.'"
     ],
-    "refs": [
-      "BROWSER-CHECKS AE1"
-    ]
+    "refs": []
   },
   {
     "id": "CHG-007",
@@ -1794,9 +1708,7 @@
       "First: 'An amount in another currency needs both the amount and the currency'",
       "Second saves a plain charge with the currency dropped"
     ],
-    "refs": [
-      "BROWSER-CHECKS AE3"
-    ]
+    "refs": []
   },
   {
     "id": "CHG-008",
@@ -1819,8 +1731,7 @@
       "A post of JPY with an amount is refused with 'The other currency has to differ from the card's'"
     ],
     "refs": [
-      "db:charge-routes-test",
-      "BROWSER-CHECKS AE3"
+      "db:charge-routes-test"
     ]
   },
   {
@@ -1846,9 +1757,7 @@
       "Activity reads \"Amount ¥1,200 → ¥980 · Category Other → Food\"",
       "Coming up shows Noodle shop at ¥980"
     ],
-    "refs": [
-      "BROWSER-CHECKS T-E"
-    ]
+    "refs": []
   },
   {
     "id": "CHG-010",
@@ -1871,9 +1780,7 @@
     "expected": [
       "It asks first; then Card A owed now falls from ¥86,450 to ¥80,050 and Activity says 'Removed charge Yamabiko Outdoor ¥6,400'"
     ],
-    "refs": [
-      "BROWSER-CHECKS C8"
-    ]
+    "refs": []
   },
   {
     "id": "CHG-011",
@@ -1998,7 +1905,6 @@
       "Category is pre-selected as Food and Plan's Food row includes the saved charge with '25% business'"
     ],
     "refs": [
-      "BROWSER-CHECKS M3",
       "db:ask-routes-test"
     ]
   },
@@ -2024,9 +1930,7 @@
       "Home reads 'You're fine for the next 30 days, even if clients pay late. Lowest point ¥14,220 on the 27th.'",
       "Activity shows 'Bank balance set to ¥100,000 (was ¥67,000)'"
     ],
-    "refs": [
-      "BROWSER-CHECKS C1"
-    ]
+    "refs": []
   },
   {
     "id": "BANK-002",
@@ -2048,9 +1952,7 @@
     "expected": [
       "The form closes and focus returns to Update"
     ],
-    "refs": [
-      "BROWSER-CHECKS C1"
-    ]
+    "refs": []
   },
   {
     "id": "BANK-003",
@@ -2075,9 +1977,7 @@
       "Each is refused with the route's message and nothing changes",
       "¥100,000,001 reads 'Enter an amount up to ¥100,000,000'"
     ],
-    "refs": [
-      "BROWSER-CHECKS C7"
-    ]
+    "refs": []
   },
   {
     "id": "BANK-004",
@@ -2099,10 +1999,7 @@
     "expected": [
       "'1,000.50' is refused with 'JPY amounts are whole numbers' and the balance is unchanged; '12,000円' and '¥12,000' each save as ¥12,000"
     ],
-    "refs": [
-      "BROWSER-CHECKS C7",
-      "BROWSER-CHECKS T-E"
-    ]
+    "refs": []
   },
   {
     "id": "BANK-005",
@@ -2150,9 +2047,7 @@
       "It appears in Coming up and the late shortfall moves from ¥18,780 to ¥23,780",
       "Home says 'Added Fictional power ¥5,000, due Nov 25'"
     ],
-    "refs": [
-      "BROWSER-CHECKS C2"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-102",
@@ -2179,7 +2074,6 @@
       "The summary shows the selected category and the hint disappears"
     ],
     "refs": [
-      "BROWSER-CHECKS C2",
       "db:ask-routes-test",
       "db:category-test"
     ]
@@ -2204,9 +2098,7 @@
     "expected": [
       "Coming up shows 'Every month' and Settings lists it"
     ],
-    "refs": [
-      "BROWSER-CHECKS C3"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-104",
@@ -2228,9 +2120,7 @@
     "expected": [
       "'The amount must be more than zero' shows under the form; typed values stay; editing a field clears the message; correcting and resending works"
     ],
-    "refs": [
-      "BROWSER-CHECKS C6"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-105",
@@ -2256,9 +2146,7 @@
       "'Choose a date within the next two years'",
       "The last is accepted and Activity reads '… added, due Nov 14, 2028'"
     ],
-    "refs": [
-      "BROWSER-CHECKS C7"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-106",
@@ -2280,9 +2168,7 @@
     "expected": [
       "It wraps on Home, Plan, Settings and Activity without sideways scroll at 375px"
     ],
-    "refs": [
-      "BROWSER-CHECKS L"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-107",
@@ -2306,9 +2192,7 @@
       "Each opens its existing form; from Plan the bill and charge forms open on the correct tab",
       "At 1200px and wider the menu and the notifications open directly under their own top-bar buttons with the Ask panel closed, with it open (they do not cover the panel) and on the Ask page, where the top bar has no Ask button"
     ],
-    "refs": [
-      "BROWSER-CHECKS C0"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-108",
@@ -2332,9 +2216,7 @@
       "It asks 'Remove Rent ¥82,000? It repeats every month, so every month goes.'; Keep changes nothing",
       "Remove takes every month off Coming up and the runway; Activity says 'Removed bill Rent ¥82,000'"
     ],
-    "refs": [
-      "BROWSER-CHECKS C8"
-    ]
+    "refs": []
   },
   {
     "id": "HOME-109",
@@ -2383,9 +2265,7 @@
     "expected": [
       "The shortfall becomes ¥28,800, Coming up shows 'about ¥9,330 (¥8,640–¥10,020, from your last 2 bills)' with 'Enter it ›' and To check shows a Missing row"
     ],
-    "refs": [
-      "BROWSER-CHECKS V-A"
-    ]
+    "refs": []
   },
   {
     "id": "ACT-001",
@@ -2409,9 +2289,7 @@
       "Type reads in words, such as \"Waiting in To check\" and \"Invoice sent\", never a name with underscores",
       "With the Ask panel docked the Type column is hidden and each row shows its type words as a line under the title; with the panel closed the Type column shows"
     ],
-    "refs": [
-      "BROWSER-CHECKS F1"
-    ]
+    "refs": []
   },
   {
     "id": "ACT-002",
@@ -2457,9 +2335,7 @@
     "expected": [
       "Each shows the 'Page not found' page"
     ],
-    "refs": [
-      "BROWSER-CHECKS AF6"
-    ]
+    "refs": []
   },
   {
     "id": "ACT-004",
@@ -2481,9 +2357,7 @@
     "expected": [
       "It says 'No activity yet.'"
     ],
-    "refs": [
-      "BROWSER-CHECKS N3"
-    ]
+    "refs": []
   },
   {
     "id": "ACT-005",
@@ -2506,9 +2380,7 @@
     "expected": [
       "The title is plain text, not a link"
     ],
-    "refs": [
-      "BROWSER-CHECKS C8"
-    ]
+    "refs": []
   },
   {
     "id": "ACT-006",
@@ -2531,9 +2403,7 @@
     "expected": [
       "Events list; the count clears to 'You're caught up'"
     ],
-    "refs": [
-      "BROWSER-CHECKS A4"
-    ]
+    "refs": []
   },
   {
     "id": "ACT-007",
@@ -2581,9 +2451,7 @@
     "expected": [
       "'Waiting in To check' row shows '· Drafted by Ask'; a typed bill shows none"
     ],
-    "refs": [
-      "BROWSER-CHECKS Q5"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-001",
@@ -2605,10 +2473,7 @@
     "expected": [
       "Reads 'The next 30 days leave about ¥92,220 if clients pay as usual.' with what it counts after; no pots"
     ],
-    "refs": [
-      "BROWSER-CHECKS B1",
-      "BROWSER-CHECKS T-E"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-002",
@@ -2630,9 +2495,7 @@
     "expected": [
       "'No client payments are expected in the next 30 days, so the plan counts your bank balance only.'"
     ],
-    "refs": [
-      "BROWSER-CHECKS G0"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-003",
@@ -2654,9 +2517,7 @@
     "expected": [
       "The Plan line says about ¥300,000 a month, more than the next 30 days leave; Home shows one line for the pot"
     ],
-    "refs": [
-      "BROWSER-CHECKS G1"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-004",
@@ -2679,9 +2540,7 @@
     "expected": [
       "The pot grows by ¥15,000 and Activity records it"
     ],
-    "refs": [
-      "BROWSER-CHECKS G2"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-005",
@@ -2703,9 +2562,7 @@
     "expected": [
       "'Enter a share between 0.01 and 100 percent, such as 25' shows; nothing saved"
     ],
-    "refs": [
-      "BROWSER-CHECKS C6"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-006",
@@ -2729,9 +2586,7 @@
       "The runway's low falls by the pot's ¥10,000 (−¥18,780 → −¥28,780)",
       "Safe to spend stays at ¥0, its floor"
     ],
-    "refs": [
-      "BROWSER-CHECKS G3"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-007",
@@ -2755,9 +2610,7 @@
     "expected": [
       "Home and Plan follow each step"
     ],
-    "refs": [
-      "BROWSER-CHECKS G4"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-008",
@@ -2803,10 +2656,10 @@
       "Open each category row"
     ],
     "expected": [
-      "The line 'Business ¥32,830 of ¥152,230 this month' and the six rows in BROWSER-CHECKS M1 with their splits and items, each chevron turning when opened"
+      "The line 'Business ¥32,830 of ¥152,230 this month' and the six rows in qa/README M1 with their splits and items, each chevron turning when opened"
     ],
     "refs": [
-      "BROWSER-CHECKS M1"
+      "qa/README M1"
     ]
   },
   {
@@ -2831,8 +2684,7 @@
       "Plan gains Utilities ¥11,220 (business ¥3,366 · personal ¥7,854), the business line becomes 'Business ¥36,196 of ¥163,450 this month', the room line falls to ¥81,000, and Home's shortfall is ¥30,000"
     ],
     "refs": [
-      "BROWSER-CHECKS M2",
-      "BROWSER-CHECKS D1"
+      "qa/README M2"
     ]
   },
   {
@@ -2855,9 +2707,7 @@
     "expected": [
       "Food becomes ¥12,700 (business ¥500 · personal ¥12,200) with '25% business' on the item; Card B owed now rises to ¥63,000"
     ],
-    "refs": [
-      "BROWSER-CHECKS M3"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-012",
@@ -2880,9 +2730,7 @@
       "The form shows Other with \"Guessed from the name, change if wrong\" and submits",
       "Plan's Where the month goes lists Zebra Supplies under Other"
     ],
-    "refs": [
-      "BROWSER-CHECKS M4"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-013",
@@ -2905,7 +2753,7 @@
       "October shows 'Where October went' with 'Business ¥31,986 of ¥132,060 in October'; September ¥150,380 with Travel ¥47,000; November has no '›' on the current month"
     ],
     "refs": [
-      "BROWSER-CHECKS T-A"
+      "qa/README T-A"
     ]
   },
   {
@@ -2929,7 +2777,7 @@
       "'Plan shows the last 12 months, December 2025 to November 2026. Here is November.' and the current month unchanged"
     ],
     "refs": [
-      "BROWSER-CHECKS T-A"
+      "qa/README T-A"
     ]
   },
   {
@@ -2950,11 +2798,11 @@
       "Search 'hotel', then 'travel', 'food', 'rent', 'hikari'"
     ],
     "expected": [
-      "Each gives the monthly summary in BROWSER-CHECKS T-B with a row list and an 'in all' total",
+      "Each gives the monthly summary in qa/README T-B with a row list and an 'in all' total",
       "Search and button sit on one row at 375px"
     ],
     "refs": [
-      "BROWSER-CHECKS T-B"
+      "qa/README T-B"
     ]
   },
   {
@@ -2980,8 +2828,7 @@
       "The long search says 'A search is at most 80 characters.'"
     ],
     "refs": [
-      "BROWSER-CHECKS T-B",
-      "BROWSER-CHECKS T-E"
+      "qa/README T-B"
     ]
   },
   {
@@ -3006,9 +2853,7 @@
     "expected": [
       "'Read as Shift_JIS, the Japanese encoding most card issuers use.' with 2 charges and 1 skipped"
     ],
-    "refs": [
-      "BROWSER-CHECKS T-C"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-019",
@@ -3053,10 +2898,10 @@
       "Plan → Regular costs"
     ],
     "expected": [
-      "Top line 'Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far', rows per BROWSER-CHECKS U-A, up in red and down in green with words, amounts stay on their label's line at 375px"
+      "Top line 'Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far', rows per qa/README U-A, up in red and down in green with words, amounts stay on their label's line at 375px"
     ],
     "refs": [
-      "BROWSER-CHECKS U-A"
+      "qa/README U-A"
     ]
   },
   {
@@ -3079,9 +2924,7 @@
     "expected": [
       "The line starts 'Hikari Denki up ¥1,200 · …', its row reads ¥11,220 with Sep ¥8,640 · Oct ¥10,020 · Nov ¥11,220; Home numbers do not change from history"
     ],
-    "refs": [
-      "BROWSER-CHECKS U-B"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-022",
@@ -3103,9 +2946,7 @@
     "expected": [
       "Guess line reads 'Every month · varies · Utilities · Change ›', the Changes to and from fields go away, Coming up shows Dec 10 Sakura Gas 'about ¥6,000'"
     ],
-    "refs": [
-      "BROWSER-CHECKS U-C"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-023",
@@ -3130,9 +2971,7 @@
       "Activity says 'Linked to Sakura Gas: counts toward its estimate' for the first two",
       "The Dec 8 bill says 'replaces December’s estimate' and Coming up has ¥7,100 once with no 'about' row"
     ],
-    "refs": [
-      "BROWSER-CHECKS U-D"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-024",
@@ -3157,9 +2996,7 @@
       "'No longer part of Sakura Gas' and Dec 10 'about ¥6,000' again",
       "'Amount no longer varies · 3 real bills stay as one-offs' and Dec 10 shows ¥6,000"
     ],
-    "refs": [
-      "BROWSER-CHECKS U-E"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-030",
@@ -3186,11 +3023,7 @@
       "Coming up has the Nov 20 reminder row \"Cancel Fictional Cloud by Nov 20 or it renews at ¥12,000 on Dec 1\" with no amount or tick, then Dec 1 \"Fictional Cloud\" with \"Yearly\" and \"¥12,000 ✓\"",
       "Activity's newest row is \"Fictional Cloud added, due Dec 1\" with \"Every year · Changes to ¥13,000 from Dec 1, 2027 · Cancel by Nov 20\""
     ],
-    "refs": [
-      "BROWSER-CHECKS O1",
-      "BROWSER-CHECKS O2",
-      "BROWSER-CHECKS O3"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-031",
@@ -3214,9 +3047,7 @@
       "Coming up has a Nov 14 row \"Fictional Gym\" \"Every month\" \"¥6,000 ✓\" (the new amount, not ¥5,000)",
       "Plan's month shows \"All personal this month\" and one row Subscriptions ¥6,000 with its item"
     ],
-    "refs": [
-      "BROWSER-CHECKS O4"
-    ]
+    "refs": []
   },
   {
     "id": "PLAN-032",
@@ -3246,7 +3077,6 @@
       "What was typed is kept and nothing is saved"
     ],
     "refs": [
-      "BROWSER-CHECKS O5",
       "DECISIONS D31"
     ]
   },
@@ -3273,7 +3103,6 @@
       "Settings shows \"Kawa Gym · ¥6,000 · last one Dec 27\""
     ],
     "refs": [
-      "BROWSER-CHECKS AB1",
       "D41"
     ]
   },
@@ -3303,7 +3132,6 @@
       "Nothing saves for the three refused ones"
     ],
     "refs": [
-      "BROWSER-CHECKS AB2",
       "db:varies-test"
     ]
   },
@@ -3328,8 +3156,7 @@
       "'Cover ¥18,780 by Nov 27.' with the cheapest fix first (Invoice Beacon Studio, ¥0 extra cost) and 'LOWEST COST PROJECTED FIX'; Review invoice opens Beacon's invoice; borrowing options show principal and total repayment"
     ],
     "refs": [
-      "BROWSER-CHECKS F4",
-      "BROWSER-CHECKS Expected numbers"
+      "qa/README Expected numbers"
     ]
   },
   {
@@ -3378,7 +3205,6 @@
       "Quotes ¥111,637 over twelve months, names only PayPal, never says to leave it; 'Based on' shows Clients"
     ],
     "refs": [
-      "BROWSER-CHECKS AE5",
       "D62"
     ]
   },
@@ -3405,7 +3231,6 @@
       "The total is unchanged at ¥111,637"
     ],
     "refs": [
-      "BROWSER-CHECKS AE6",
       "db:fx-cost-test"
     ]
   },
@@ -3430,9 +3255,7 @@
     "expected": [
       "Saved; Home's split follows"
     ],
-    "refs": [
-      "BROWSER-CHECKS H2"
-    ]
+    "refs": []
   },
   {
     "id": "SPLIT-004",
@@ -3480,9 +3303,7 @@
     "expected": [
       "Activity says 'Card B now belongs to Aki'"
     ],
-    "refs": [
-      "BROWSER-CHECKS H3"
-    ]
+    "refs": []
   },
   {
     "id": "SPLIT-006",
@@ -3506,9 +3327,7 @@
     "expected": [
       "Home says 'Aki owes Ben ¥9,000' and Activity says 'Shared, paid by Aki (Card B)'"
     ],
-    "refs": [
-      "BROWSER-CHECKS H4"
-    ]
+    "refs": []
   },
   {
     "id": "SPLIT-007",
@@ -3531,9 +3350,7 @@
     "expected": [
       "Reads 'All settled. New shared items split from here.' (or 'Nobody owes anyone anything' with a shared bill coming); Activity records the payment and 'settled through Nov 14'; the sentence does not move"
     ],
-    "refs": [
-      "BROWSER-CHECKS H5"
-    ]
+    "refs": []
   },
   {
     "id": "SPLIT-008",
@@ -3556,9 +3373,7 @@
     "expected": [
       "'Choose Shared on a bill or charge to split it by shares.'"
     ],
-    "refs": [
-      "BROWSER-CHECKS H5"
-    ]
+    "refs": []
   },
   {
     "id": "SPLIT-009",
@@ -3581,9 +3396,7 @@
     "expected": [
       "It does not count in who owes whom"
     ],
-    "refs": [
-      "BROWSER-CHECKS H6"
-    ]
+    "refs": []
   },
   {
     "id": "SPLIT-010",
@@ -3606,9 +3419,7 @@
     "expected": [
       "The bill stays out of who owes whom; an unowned bill reads 'Shared'"
     ],
-    "refs": [
-      "BROWSER-CHECKS H7"
-    ]
+    "refs": []
   },
   {
     "id": "SPLIT-011",
@@ -3631,9 +3442,7 @@
     "expected": [
       "'Settle up with Aki first.'; after Mark settled it works and Activity says 'Aki left the household'"
     ],
-    "refs": [
-      "BROWSER-CHECKS T-E"
-    ]
+    "refs": []
   },
   {
     "id": "SPLIT-012",
@@ -3663,7 +3472,6 @@
       "Ben remains in Settings → People"
     ],
     "refs": [
-      "BROWSER-CHECKS T-E",
       "frontend-check --extra (nov5-remove-a-person-only-once-settled)",
       "db:split-test"
     ]
@@ -3744,6 +3552,230 @@
     ],
     "refs": [
       "db:split-test"
+    ]
+  },
+  {
+    "id": "HINT-001",
+    "area": "Home hints",
+    "action": "Read the hints panel on a blank household",
+    "user_goal": "I want to know what I can do first",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household (Mika, setup skipped to Home)",
+      "Home open"
+    ],
+    "steps": [
+      "Open Home"
+    ],
+    "expected": [
+      "The panel is headed \"What you can do here\" and has Hide",
+      "Six cards, each with a title and a one-line hint: \"Set today’s bank balance\" (Your forecast starts from this.), \"Add a bill\" (Rent, phone, subscriptions: anything that leaves on a date.), \"Add a client\" (Who pays you, so incoming money shows up.), \"Add a card\" (Card charges and statements need a card first.), \"Upload a receipt or bill\" (fipa reads it; you check before it counts.), \"Ask a question\" (Ask about your money in your own words.)",
+      "No card is ticked",
+      "Nothing overlaps or scrolls sideways"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "HINT-002",
+    "area": "Home hints",
+    "action": "Open each card",
+    "user_goal": "I want a card to take me to the thing",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household (Mika, setup skipped to Home)",
+      "Home open"
+    ],
+    "steps": [
+      "Press each card in turn: Set today’s bank balance, Add a bill, Add a client, Add a card, Upload a receipt or bill, Ask a question"
+    ],
+    "expected": [
+      "The balance card opens Bank balance on Home and scrolls to it",
+      "Add a bill opens the Add a bill or charge form on the Bill tab",
+      "Add a client opens Clients",
+      "Add a card opens Settings → Cards",
+      "Upload opens Upload",
+      "Ask a question opens the Ask panel (or full Ask on a narrow window)"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "HINT-003",
+    "area": "Home hints",
+    "action": "A card is ticked when it is done",
+    "user_goal": "I want to see what I have already done",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household (Mika, setup skipped to Home)",
+      "Home open"
+    ],
+    "steps": [
+      "Save a bank balance, add a bill, add a client, add a card and then a card charge",
+      "Read the panel after each"
+    ],
+    "expected": [
+      "Each matching card shows a tick and \"Done\" as soon as its thing exists, and is still clickable",
+      "After a card exists the card reads \"Add a card charge\" with \"Spending on a card, paid when the statement is due.\" and is ticked once a charge exists",
+      "\"Upload a receipt or bill\" is ticked once a document has been read or is waiting",
+      "\"Ask a question\" is never ticked"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "HINT-004",
+    "area": "Home hints",
+    "action": "Hide the panel and keep it hidden",
+    "user_goal": "I know the hints and want them gone",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household (Mika, setup skipped to Home)",
+      "Home open"
+    ],
+    "steps": [
+      "Press Hide",
+      "Reload Home",
+      "Open Home in a private window with another household"
+    ],
+    "expected": [
+      "The panel disappears at once and stays hidden after a reload on this device",
+      "Another browser or private window still shows the panel for its own household",
+      "Nothing on the server changes"
+    ],
+    "refs": [
+      "D47",
+      "D59"
+    ]
+  },
+  {
+    "id": "HINT-005",
+    "area": "Home hints",
+    "action": "Try it shows Get started, not the hints",
+    "user_goal": "I want the demo to teach the demo",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Home on a fresh Try it household (Ben)"
+    ],
+    "expected": [
+      "Get started shows its steps",
+      "\"What you can do here\" is not on the page"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "HOME-111",
+    "area": "Home",
+    "action": "Open a form or row from a link and it scrolls into view",
+    "user_goal": "I want a link to land where the thing is",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A pot exists (add one on Plan)"
+    ],
+    "steps": [
+      "On Home press Add a bill in the + Add menu, then in Coming up press a bill",
+      "In Activity press a pot",
+      "In the bell press a waiting row"
+    ],
+    "expected": [
+      "The Add a bill or charge form opens on the Bill tab and scrolls into view at 1280px",
+      "Settings opens scrolled to that bill's row",
+      "Plan opens scrolled to the pot",
+      "To check opens scrolled to that row"
+    ],
+    "refs": [
+      "D47"
+    ]
+  },
+  {
+    "id": "HOME-112",
+    "area": "Home",
+    "action": "Read the words of the client and invoice forms",
+    "user_goal": "I want plain words, not accounting terms",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Clients → Add a client",
+      "Open New invoice"
+    ],
+    "expected": [
+      "Add a client has Name, Email and \"Days to pay\" (30) with \"0 means due on receipt\"",
+      "New invoice has Client, What for, Amount ($ inside the field), Review draft and Note under More ›",
+      "The words \"Biller\", \"Business share\", \"basis points\", \"minor\" and \"occurrence\" show nowhere"
+    ],
+    "refs": [
+      "D29"
+    ]
+  },
+  {
+    "id": "SPLIT-016",
+    "area": "Household split",
+    "action": "Add a person and see two shares at once",
+    "user_goal": "I want to split costs with Aki",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Settings → People",
+      "Add Aki"
+    ],
+    "expected": [
+      "Two rows, Ben and Aki, at 50% each appear at once"
+    ],
+    "refs": [
+      "D68"
     ]
   }
 ]

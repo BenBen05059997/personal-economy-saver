@@ -27,7 +27,6 @@
       "Review bill opens the confirmed bill, which has Utilities in Edit"
     ],
     "refs": [
-      "BROWSER-CHECKS AL1",
       "db:category-test",
       "D64"
     ]
@@ -58,7 +57,6 @@
       "The water cost finding appears immediately and reads ¥600 more than last month"
     ],
     "refs": [
-      "BROWSER-CHECKS AL2",
       "D64"
     ]
   },
@@ -88,7 +86,6 @@
       "Home shows Kumo Market costs more this month and ¥600 more than last month so far"
     ],
     "refs": [
-      "BROWSER-CHECKS AL3",
       "D64"
     ]
   },
@@ -118,7 +115,6 @@
       "Review bill opens the confirmed bill"
     ],
     "refs": [
-      "BROWSER-CHECKS AL4",
       "D64"
     ]
   },
@@ -150,7 +146,6 @@
       "The confirmed charge appears on its card once"
     ],
     "refs": [
-      "BROWSER-CHECKS AL5",
       "D64"
     ]
   },
@@ -181,7 +176,6 @@
       "Home shows ¥21,220 safe to spend"
     ],
     "refs": [
-      "BROWSER-CHECKS AL6",
       "D64"
     ]
   },
@@ -212,7 +206,6 @@
       "The confirmed Camera pot appears in Plan"
     ],
     "refs": [
-      "BROWSER-CHECKS AL7",
       "D64"
     ]
   },
@@ -244,7 +237,6 @@
       "Home immediately shows the water cost increase of ¥6,000"
     ],
     "refs": [
-      "BROWSER-CHECKS AL8",
       "D64"
     ]
   },
@@ -273,7 +265,6 @@
       "The replay does not credit a second payment"
     ],
     "refs": [
-      "BROWSER-CHECKS AL9",
       "D64",
       "db:suggest-test"
     ]
@@ -305,7 +296,6 @@
       "Activity records one payment"
     ],
     "refs": [
-      "BROWSER-CHECKS AL10",
       "D64"
     ]
   },
@@ -335,7 +325,6 @@
       "Home immediately shows Kumo Water due Nov 17 with ¥2,500"
     ],
     "refs": [
-      "BROWSER-CHECKS AL11",
       "D64"
     ]
   },
@@ -367,7 +356,6 @@
       "The card shows the charge once"
     ],
     "refs": [
-      "BROWSER-CHECKS AL12",
       "D64"
     ]
   },
@@ -398,7 +386,6 @@
       "Each failed pass writes one operator log line and a later pass resolves the stale finding"
     ],
     "refs": [
-      "BROWSER-CHECKS AL13",
       "db:suggest-test",
       "D64"
     ]

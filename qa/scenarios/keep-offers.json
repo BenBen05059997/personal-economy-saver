@@ -24,7 +24,6 @@
       "Kept. shows and Memory has one item with the offered preference"
     ],
     "refs": [
-      "BROWSER-CHECKS AH1",
       "D67"
     ]
   },
@@ -51,7 +50,6 @@
       "The card disappears and the space has no new preference"
     ],
     "refs": [
-      "BROWSER-CHECKS AH2",
       "D67"
     ]
   },
@@ -79,7 +77,6 @@
       "Plan has one new camera pot after the tap with saved ¥0"
     ],
     "refs": [
-      "BROWSER-CHECKS AH3",
       "D67"
     ]
   },
@@ -109,7 +106,6 @@
       "The other browser cannot see the preference"
     ],
     "refs": [
-      "BROWSER-CHECKS AH4",
       "D67"
     ]
   },
@@ -139,7 +135,6 @@
       "Keep shows Kept. Rules shows Flag safe to spend below ¥50,000 and Activity shows the matching rule change"
     ],
     "refs": [
-      "BROWSER-CHECKS AH5",
       "D67"
     ]
   },
