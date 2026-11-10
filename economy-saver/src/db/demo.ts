@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, lt, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { type Db, requireHousehold, withHousehold } from "./household";
 import { events, households } from "./schema";
@@ -8,6 +8,32 @@ import { InputError } from "./input-error";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
 
+/** A Try it cookie: 32 random bytes, base64url. Only its SHA-256 is stored, so the household id is never a bearer value (D34). */
+const DEMO_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+
+async function demoTokenHash(token: string): Promise<string> {
+  return Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))).toString("hex");
+}
+
+/** Gives a demo household a fresh cookie token (any earlier one stops working) and returns it; null when the id is no demo household. */
+export async function issueDemoToken(db: Db, id: string): Promise<string | null> {
+  const hid = requireHousehold(id);
+  const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+  const hash = await demoTokenHash(token);
+  const [issued] = await withHousehold(db, hid, tx => tx.update(households).set({ demoTokenHash: hash })
+    .where(and(eq(households.id, hid), eq(households.isDemo, true))).returning({ id: households.id }));
+  return issued ? token : null;
+}
+
+/** The demo household a Try it cookie token opens, or null. */
+export async function demoHouseholdForToken(db: Db, token: string): Promise<string | null> {
+  if (!DEMO_TOKEN.test(token)) return null;
+  const [demo] = await db.select({ id: households.id }).from(households)
+    .where(and(eq(households.demoTokenHash, await demoTokenHash(token)), eq(households.isDemo, true)));
+  return demo?.id ?? null;
+}
+
+/** Whether an id is a demo household (never a credential: the cookie holds a token, see demoHouseholdForToken). */
 export async function findDemoHousehold(db: Db, id: string): Promise<string | null> {
   if (!z.string().uuid().safeParse(id).success) return null;
   const [demo] = await withHousehold(db, id, async tx => tx.select({ id: households.id }).from(households)
@@ -63,6 +89,31 @@ export async function resetDemoHousehold(db: Db, id: string): Promise<string | n
   });
   if (hid) await refreshSuggestions(db, hid, "resetDemoHousehold");
   return hid;
+}
+
+/** D34: a Try it household's own AI key is removed after a day with no Activity event; the household itself stays. */
+export const DEMO_KEY_IDLE_HOURS = 24;
+
+export async function dropIdleDemoKeys(db: Db, now = new Date(), limit = SWEEP_LIMIT): Promise<{ dropped: number; failed: number }> {
+  const cutoff = new Date(now.getTime() - DEMO_KEY_IDLE_HOURS * 3_600_000);
+  const idle = and(eq(households.isDemo, true), or(isNotNull(households.aiKeySecretId), isNotNull(households.aiProtocol)), noRecentEvent(cutoff));
+  const rows = await db.select({ id: households.id }).from(households).where(idle).orderBy(asc(households.id)).limit(limit);
+  let dropped = 0, failed = 0;
+  for (const { id } of rows) {
+    try {
+      const done = await db.transaction(async tx => {
+        const [still] = await tx.select({ id: households.id }).from(households).where(and(eq(households.id, id), idle)).for("update");
+        if (!still) return false;
+        await deleteHouseholdKey(tx, id);
+        return true;
+      });
+      if (done) dropped++;
+    } catch (error) {
+      failed++;
+      console.error("[sweep] could not remove an idle demo key", error instanceof Error ? error.message : "unknown error");
+    }
+  }
+  return { dropped, failed };
 }
 
 // D49: a demo household lives seven days after its last change.

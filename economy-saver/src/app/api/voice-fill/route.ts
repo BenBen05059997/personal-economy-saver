@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { connectionView } from "@/db/ai-key";
 import { withHousehold } from "@/db/household";
-import { missingAskSetting } from "@/lib/agent/availability";
+import { missingAskSetting, serverHasNoModel } from "@/lib/agent/availability";
 import { logVoice } from "@/lib/agent/log";
 import { NO_STORE, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
@@ -45,7 +45,8 @@ export async function POST(request: Request) {
   const connection = db();
   const view = await withHousehold(connection, hid, tx => connectionView(tx, hid));
   const missing = missingAskSetting(Boolean(view?.textModel));
-  if (missing) return text(`Voice fill needs an AI model on this server (${missing}). Type the fields instead.`, 503);
+  if (missing) return text(serverHasNoModel() ? "Voice fill needs an AI key in Settings → Your AI model. Type the fields instead."
+    : `Voice fill needs an AI model on this server (${missing}). Type the fields instead.`, 503);
   const started = Date.now();
   try {
     const response = await fillByVoice(connection, hid, data.data);

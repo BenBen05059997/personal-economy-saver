@@ -123,7 +123,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "A dev server the owner started with no AI_TEXT_MODEL and no household model (record blocked if Ask works)",
+      "A dev server the owner started with some AI_ settings but no AI_TEXT_MODEL and no household model (record blocked if Ask works)",
       "Ask open at /canvas"
     ],
     "steps": [
@@ -132,7 +132,7 @@
       "Click a starter canvas"
     ],
     "expected": [
-      "The red line reads \"Ask isn’t available on this server yet (AI_TEXT_MODEL).\"",
+      "The red line reads \"Ask isn’t available on this server yet (AI_TEXT_MODEL).\" (a server with some but not all AI_ settings; with none, see ASK-115)",
       "The example buttons and Ask are disabled; no request is made to /api/ask",
       "The starter canvases still draw",
       "Nothing throws and no step line is left behind"
@@ -2327,7 +2327,7 @@
       "Ask \"Where am I?\""
     ],
     "expected": [
-      "Before the first answer a line above the box reads \"A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to {host}. Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.\" with the host Settings → Your AI model shows",
+      "Before the first answer a line above the box reads \"A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to {host}. Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.\" with the host Settings → Your AI model shows (on a server with no AI_ settings the last sentence is \"Ask runs on your household’s own AI key, set in Settings → Your AI model.\")",
       "After the first real answer the line is gone",
       "It stays gone after reload; a decline or a clarifying question does not remove it"
     ],
@@ -4929,6 +4929,151 @@
     "refs": [
       "BROWSER-CHECKS K8",
       "db:ai-test"
+    ]
+  },
+  {
+    "id": "ASK-115",
+    "area": "Ask",
+    "action": "Open Ask as the owner on a server with no AI settings",
+    "user_goal": "I want to know what to do to use Ask",
+    "type": "negative",
+    "priority": "P1",
+    "needs": [
+      "deploy"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Try it household on the deployed Worker (no AI_ settings, no household key)",
+      "Ask open at /canvas"
+    ],
+    "steps": [
+      "Read the line under the question box",
+      "Choose Open Settings"
+    ],
+    "expected": [
+      "The red line reads \"Add your own AI key in Settings to use Ask.\" with an Open Settings link",
+      "The link opens Settings → Your AI model (#ai-model)",
+      "The example buttons and Ask are disabled; no request is made to /api/ask"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y28",
+      "D56",
+      "D33"
+    ]
+  },
+  {
+    "id": "ASK-116",
+    "area": "Ask",
+    "action": "Open Ask as a member on a server with no AI settings",
+    "user_goal": "I want to know who can fix Ask",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "deploy"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A signed-in member (not the owner) of a household with no key, on the deployed Worker"
+    ],
+    "steps": [
+      "Open Ask",
+      "Read the line under the question box"
+    ],
+    "expected": [
+      "The line reads \"Ask the household’s owner to add an AI key in Settings.\"",
+      "There is no Open Settings link",
+      "Ask is disabled"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y28",
+      "D56",
+      "D68"
+    ]
+  },
+  {
+    "id": "ASK-117",
+    "area": "Ask",
+    "action": "Type a question that contains an API key",
+    "user_goal": "I want a pasted key not to be sent anywhere",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Ask open at /canvas"
+    ],
+    "steps": [
+      "Type \"my key is sk-ant-fictional-stage35-question-text\"",
+      "Press Enter"
+    ],
+    "expected": [
+      "The question field is cleared",
+      "A line reads \"That looks like an API key. Paste it in Settings → Your AI model. It was not sent or saved.\"",
+      "Nothing is added to the thread and no request reaches a model"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y27",
+      "D56",
+      "db:agent-test"
+    ]
+  },
+  {
+    "id": "ASK-118",
+    "area": "Ask",
+    "action": "Ask a key-shaped question straight to the route",
+    "user_goal": "I want the server to refuse a key even when the page does not",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "db:agent-test"
+    ],
+    "steps": [
+      "Run npm run db:agent-test",
+      "Read its check on a key-shaped question"
+    ],
+    "expected": [
+      "answerQuestion refuses before any read, model call or write",
+      "The words are the key-text sentence",
+      "No turn, memory or receipt is stored"
+    ],
+    "refs": [
+      "db:agent-test",
+      "D56"
+    ]
+  },
+  {
+    "id": "MEM-024",
+    "area": "Memory",
+    "action": "Save a memory or note that contains an API key",
+    "user_goal": "I want a pasted key never to be kept",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "db:memory-test"
+    ],
+    "steps": [
+      "Run npm run db:memory-test",
+      "Read its check on key-shaped memory"
+    ],
+    "expected": [
+      "A memory add or edit, a space note and a brief with key-shaped text are each refused with \"That looks like an API key. Paste it in Settings → Your AI model. It was not sent or saved.\"",
+      "Nothing is stored, on the server or on the device"
+    ],
+    "refs": [
+      "db:memory-test",
+      "BROWSER-CHECKS Y27",
+      "D56"
     ]
   }
 ]

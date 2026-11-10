@@ -12,7 +12,8 @@ import { loadMoneyState } from "@/db/household";
 import { foreignCosts } from "@/db/fx-cost";
 import { group } from "@/lib/money/format";
 import { seedBen } from "@/db/seed";
-import { firstUse, MODEL_HINT } from "@/lib/agent/reply";
+import { firstUse, MODEL_HINT, OWN_MODEL_HINT } from "@/lib/agent/reply";
+import { askMissingWords, serverHasNoModel } from "@/lib/agent/availability";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { AGENT_CASES, CASE_NAMES, gradeOutcome, runEval, scriptedModel, type Outcome } from "./model-eval-cases";
 import { callModel } from "@/lib/ai/call";
@@ -245,7 +246,7 @@ async function main() {
       assert.equal(url.origin + url.pathname, "https://api.anthropic.com/v1/models");
       assert.equal(url.searchParams.get("limit"), "1000");
       assert.equal(request.method, "GET");
-      assert.equal(request.redirect, "error");
+      assert.equal(request.redirect, "manual");
       assert.equal(request.headers.get("x-api-key"), SECRET);
       assert.equal(request.headers.get("anthropic-version"), "2023-06-01");
       assert.equal(request.headers.get("authorization"), null);
@@ -282,7 +283,7 @@ async function main() {
       } });
       assert.equal(requests.length, 1);
       const [request] = requests;
-      assert.deepEqual([request.url, request.method, request.redirect, request.cache], [url, "GET", "error", "no-store"]);
+      assert.deepEqual([request.url, request.method, request.redirect, request.cache], [url, "GET", "manual", "no-store"]);
       assert.equal(request.headers.get("authorization"), key ? `Bearer ${key}` : null);
       assert.equal(request.headers.get("x-api-key"), null);
       const expected = [unknown];
@@ -311,15 +312,23 @@ async function main() {
     await assert.rejects(listModels(connection, { appUrl: APP, fetch: async (input, init) => {
       requests++;
       const request = new Request(input, init);
-      if (request.redirect === "error") throw new TypeError("Redirect refused by fetch");
-      return Response.redirect("https://redirect.example/models");
-    } }), /Couldn't reach the AI service/);
+      assert.equal(request.redirect, "manual");
+      return new Response(null, { status: 307, headers: { Location: "https://redirect.example/models" } });
+    } }), /answered with a redirect/);
     assert.equal(requests, 1);
     await assert.rejects(listModels(connection, { appUrl: APP, fetch: async () => { throw new Error(SECRET); } }),
       { message: "Couldn't reach the AI service." });
     await assert.rejects(listModels({ provider: "custom", baseUrl: "https://10.0.0.1/v1", key: SECRET }, {
       appUrl: APP, fetch: async () => { assert.fail("blocked address must not be fetched"); },
     }), /private network/);
+  });
+
+  await check("a model call refuses a redirect answer, so the key is never re-sent", async () => {
+    for (const connection of [anthropic, openai]) {
+      const t = fake(() => new Response(null, { status: 308, headers: { Location: "https://elsewhere.example/v1/messages" } }));
+      await assert.rejects(callModel({ ...REQUEST, connection, fetch: t.fetch }), /answered with a redirect/);
+      assert.equal(t.seen.length, 1);
+    }
   });
 
   await check("anthropic: the request carries the system text, turns, tools and a forced tool; the reply maps to the neutral shape", async () => {
@@ -331,7 +340,9 @@ async function main() {
     ] });
     const [{ url, body, init }] = t.seen;
     assert.equal(`${url.host}${url.pathname}`, "api.anthropic.com/v1/messages");
-    assert.equal((init.headers as Record<string, string>).authorization, "Bearer " + SECRET);
+    assert.equal(init.redirect, "manual");
+    assert.equal((init.headers as Record<string, string>)["x-api-key"], SECRET);
+    assert.equal((init.headers as Record<string, string>).authorization, undefined);
     assert.equal(body.model, "m-text");
     assert.equal(body.max_tokens, 777);
     assert.equal(body.system, "SYSTEM");
@@ -376,7 +387,7 @@ async function main() {
     ] });
     const [{ url, body, init }] = t.seen;
     assert.equal(`${url.host}${url.pathname}`, "llm.example/v1/chat/completions");
-    assert.equal(init.redirect, "error");
+    assert.equal(init.redirect, "manual");
     assert.equal((init.headers as Record<string, string>).authorization, "Bearer " + SECRET);
     assert.equal(body.model, "m-text");
     assert.equal(body.max_tokens, 777);
@@ -645,7 +656,24 @@ async function main() {
 
   await check("Settings and Ask name the default model and where a household can choose another", () => {
     assert.equal(MODEL_HINT, "Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.");
-    assert.equal(firstUse("models.example"), `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to models.example. ${MODEL_HINT}`);
+    assert.equal(firstUse("models.example", false), `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to models.example. ${MODEL_HINT}`);
+    assert.equal(firstUse("models.example", true), `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to models.example. ${OWN_MODEL_HINT}`);
+  });
+
+  await check("D56: with no AI_ setting at all the household is told to add its own key (owner) or ask the owner (member); a partial setup names the setting", () => {
+    const names = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL", "AI_DOCUMENT_MODEL"] as const;
+    const saved = Object.fromEntries(names.map(name => [name, process.env[name]]));
+    try {
+      for (const name of names) delete process.env[name];
+      assert.equal(serverHasNoModel(), true);
+      assert.equal(askMissingWords("AI_TEXT_MODEL", true), "Add your own AI key in Settings to use Ask.");
+      assert.equal(askMissingWords("AI_TEXT_MODEL", false), "Ask the household’s owner to add an AI key in Settings.");
+      process.env.AI_PROTOCOL = "anthropic";
+      assert.equal(serverHasNoModel(), false);
+      assert.equal(askMissingWords("AI_TEXT_MODEL", true), "Ask isn’t available on this server yet (AI_TEXT_MODEL).");
+    } finally {
+      for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
+    }
   });
 
   await check("the tested list is empty until the evaluation fills it, and isTested matches provider and model", () => {

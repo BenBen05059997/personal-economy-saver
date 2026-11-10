@@ -20,9 +20,11 @@ const emailFor = (label: string) => label + "@example.test";
 const identity = (label: string) => ({ uid: randomUUID(), email: emailFor(label) });
 type Identity = ReturnType<typeof identity>;
 
+import { demoCookies } from "./demo-cookie";
 async function main() {
   const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
+  const tokenFor = demoCookies(db); // the Try it cookie is a token (D34)
   let passed = 0;
   async function check(name: string, run: () => Promise<void>) {
     await run();
@@ -44,7 +46,8 @@ async function main() {
   const realLoad = loader._load;
   loader._load = function (request, parent, isMain) {
     if (request === "next/headers") return { cookies: async () => {
-      const entries = [...(signedIn ? [{ name: "pes-auth", value: "fixture-session" }] : []), ...(demoCookie ? [{ name: "household", value: demoCookie }] : [])];
+      const demo = await tokenFor(demoCookie);
+      const entries = [...(signedIn ? [{ name: "pes-auth", value: "fixture-session" }] : []), ...(demo ? [{ name: "household", value: demo }] : [])];
       return { getAll: () => entries, get: (name: string) => entries.find(cookie => cookie.name === name) };
     } };
     if (request === "@supabase/ssr") return { createServerClient: () => ({ auth: {

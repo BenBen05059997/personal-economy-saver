@@ -94,7 +94,7 @@ function adopt(result, fetchForm = false) {
   expect(fetchForm ? status === 204 && headers.get("x-form-redirect") === "/" && !headers.has("location") && result.body === ""
     : status === 303 && headers.get("location") === "/", "session-redirect");
   const next = result.response.headers.get("set-cookie")?.match(/(?:^|,\s*)household=([^;]+)/)?.[1];
-  expect(next && /^[0-9a-f-]{36}$/i.test(next), "session-cookie");
+  expect(next && /^[A-Za-z0-9_-]{43}$/.test(next), "session-cookie"); // a Try it token, never the household id (D34)
   cookie = "household=" + next;
 }
 
@@ -697,7 +697,7 @@ await step("action", "typed-ask-read-only", async () => {
   const lines = result.body.split("\n").filter(Boolean).map(line => JSON.parse(line));
   const last = lines.at(-1);
   expect(lines.slice(0, -1).every(line => typeof line.step === "string"), "ask-steps");
-  if (typeof last.error === "string" && /^Ask isn’t available on this server yet \(AI_[A-Z_]+\)\.$/.test(last.error)) {
+  if (typeof last.error === "string" && /^Ask isn’t available on this server yet \(AI_[A-Z_]+\)\.$|^This needs an AI key in Settings → Your AI model\.$/.test(last.error)) {
     console.log(`NOTE typed-ask-read-only: ${last.error}; the live answer is not checked`);
     return;
   }
@@ -928,7 +928,7 @@ await step("action", "start-blank-fetch-form-gets-redirect-header", async () => 
   cookie = "";
   const result = await request("/api/try/blank", { method: "POST", form: setup, session: "", extraHeaders: { "x-form-fetch": "1" } });
   expect(result.response.status === 204 && result.response.headers.get("x-form-redirect") === "/", "blank-fetch-redirect");
-  expect(/household=[0-9a-f-]{36}/.test(result.response.headers.get("set-cookie") ?? ""), "blank-fetch-cookie");
+  expect(/household=[A-Za-z0-9_-]{43};/.test(result.response.headers.get("set-cookie") ?? ""), "blank-fetch-cookie");
 });
 // Stage 15 A: Start asks for a name and a bank balance (D51); the household lives on the real date; Home asks for one thing at a time.
 const twoFields = { name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "250,000" };

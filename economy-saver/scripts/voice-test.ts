@@ -31,6 +31,7 @@ const request = (text: string, extra: Partial<VoiceFillRequest> = {}): VoiceFill
   ...extra,
 });
 
+import { demoCookies } from "./demo-cookie";
 async function main() {
   let passed = 0;
   const ok = (name: string) => { passed++; console.log(`✓ ${name}`); };
@@ -113,10 +114,11 @@ async function main() {
   const infoLines: string[] = [];
   try {
     const db = drizzle(pg, { schema });
+    const tokenFor = demoCookies(db); // the Try it cookie is a token (D34)
     await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     loader._load = function (name, parent, isMain) {
-      if (name === "next/headers") return { cookies: async () => ({ getAll: () => (cookie ? [{ name: "household", value: cookie }] : []), get: (n: string) => (n === "household" && cookie ? { name: n, value: cookie } : undefined) }) };
+      if (name === "next/headers") return { cookies: async () => { const value = await tokenFor(cookie); return { getAll: () => (value ? [{ name: "household", value }] : []), get: (n: string) => (n === "household" && value ? { name: n, value } : undefined) }; } };
       const resolved = (() => { try { return loader._resolveFilename(name, parent, isMain); } catch { return ""; } })();
       if (resolved.endsWith("/src/db/client.ts")) return { db: () => db, MissingDatabaseUrl: class extends Error {} };
       return realLoad.call(this, name, parent, isMain);

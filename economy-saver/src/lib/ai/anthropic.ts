@@ -13,7 +13,7 @@ export async function callAnthropic(request: ModelRequest): Promise<Reply> {
   const { connection: c } = request;
   if (!c.key) throw new ModelError("The AI key is missing.");
   const provider = createAnthropic({
-    authToken: c.key,
+    apiKey: c.key,
     headers: { "x-stainless-timeout": String(request.timeoutMs / 1000) },
     baseURL: c.baseUrl.replace(/\/$/, "") + "/v1",
     fetch: sdkFetch(request, encoded => {

@@ -65,6 +65,7 @@ export const households = pgTable("households", {
   homeCurrency: char("home_currency", { length: 3 }).notNull(),
   bankBalanceMinor: minor("bank_balance_minor").notNull().default(0), // typed in by the user
   isDemo: boolean("is_demo").notNull().default(false),
+  demoTokenHash: text("demo_token_hash").unique(), // D34: SHA-256 of a Try it household's cookie token; the cookie never holds the id
   fixedToday: date("fixed_today", { mode: "string" }), // D51: set only on Try it (the day Ben's numbers need); null = the real date in the time zone
   forwardingLocalpart: text("forwarding_localpart"),
   runwayShort: boolean("runway_short"),

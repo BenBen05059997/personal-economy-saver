@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { ModelChoice } from "@/lib/ai/list-models";
-import { providerFromKey } from "@/lib/ai/providers";
+import { keyOwner, providerFromKey, wrongProviderWords } from "@/lib/ai/providers";
+import { OWN_KEY_HINT } from "@/lib/agent/availability";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { modelsFor, scheduleModelChoices } from "./model-choices";
 
@@ -25,6 +26,7 @@ export function AiModelForm({ providers, initial, demo }: {
   const [address, setAddress] = useState(initial.baseUrl);
   const [same, setSame] = useState(initial.same);
   const [typedKey, setTypedKey] = useState(false);
+  const [typedOwner, setTypedOwner] = useState<string | undefined>(undefined);
   const [keyVersion, setKeyVersion] = useState(0);
   const [catalogue, setCatalogue] = useState<{ lookup: string; models: ModelChoice[]; problem: string } | null>(null);
   const key = useRef<HTMLInputElement>(null);
@@ -33,7 +35,9 @@ export function AiModelForm({ providers, initial, demo }: {
   const selected = providers.find(choice => choice.id === provider);
   const baseUrl = provider === "custom" ? address.trim().replace(/\/+$/, "") : "";
   const savedKey = initial.hint && provider === initial.provider && baseUrl === initial.baseUrl;
-  const canList = !isDefault && (typedKey || savedKey) && (provider !== "custom" || URL.canParse(baseUrl));
+  // A key made by another listed provider is never looked up with this one (the server refuses it too).
+  const wrongOwner = typedKey && typedOwner && !isDefault && provider !== "custom" && typedOwner !== provider ? typedOwner : undefined;
+  const canList = !isDefault && !wrongOwner && (typedKey || savedKey) && (provider !== "custom" || URL.canParse(baseUrl));
   const lookup = canList ? JSON.stringify([provider, baseUrl, keyVersion]) : "";
   const current = lookup && catalogue?.lookup === lookup ? catalogue : null;
   const models = current?.models ?? [];
@@ -48,6 +52,7 @@ export function AiModelForm({ providers, initial, demo }: {
 
   function noteKey(value: string) {
     setTypedKey(Boolean(value.trim()));
+    setTypedOwner(keyOwner(value.trim()));
     setKeyVersion(current => current + 1);
   }
 
@@ -72,7 +77,7 @@ export function AiModelForm({ providers, initial, demo }: {
       </select></label>
     {selected?.getKeyUrl && <>
       <p className="ui-hint"><a href={selected.getKeyUrl} target="_blank" rel="noreferrer">Get a key</a></p>
-      <p className="ui-hint">Your use is billed to your own {selected.label} account.</p>
+      <p className="ui-hint">Your use is billed to your own {selected.label} account. {OWN_KEY_HINT}</p>
     </>}
     {demo && <p className="ui-hint">A custom address needs an account. Sign in from Settings → Account.</p>}
     {provider === "custom" && <label className="ui-field">Address<input name="baseUrl" type="url" value={address} placeholder="https://models.example/v1" spellCheck={false}
@@ -85,7 +90,8 @@ export function AiModelForm({ providers, initial, demo }: {
         setAddress(next);
       }} /></label>}
     <label className="ui-field">Key{provider === "custom" ? " (optional)" : ""}
-      <input ref={key} name="key" type="password" autoComplete="new-password" spellCheck={false} maxLength={500}
+      <input ref={key} name="key" type="password" autoComplete="off" data-1p-ignore="" data-lpignore="true" data-bwignore="" data-form-type="other"
+        spellCheck={false} maxLength={500}
         required={!isDefault && provider !== "custom" && !savedKey} placeholder={savedKey ? `Saved: ${initial.hint}. Leave empty to keep it.` : ""}
         onChange={event => noteKey(event.target.value)}
         onPaste={event => {
@@ -94,13 +100,14 @@ export function AiModelForm({ providers, initial, demo }: {
           if (inferred) setProvider(inferred);
         }} />
     </label>
+    {wrongOwner && <p className="ui-problem" role="alert">{wrongProviderWords(wrongOwner)}</p>}
     {!isDefault && <>
       {lookup && <p className="ui-hint" role="status">{current ? current.problem : "Loading models…"}</p>}
       <ModelField purpose="questions" models={modelsFor(models, "questions", same)} initial={initial.textModel} />
       <label className="settings-check"><input name="sameForDocuments" type="checkbox" checked={same} onChange={event => setSame(event.target.checked)} />Use the same model for documents</label>
       {!same && <ModelField purpose="documents" models={modelsFor(models, "documents", same)} initial={initial.documentModel} />}
       <p className="ui-hint">Must read images and PDFs.</p>
-      <p className="ui-hint">Only the last four characters are shown again.</p>
+      <p className="ui-hint">Only the last four characters of a longer key are shown again.</p>
       <button className="ui-button primary">Save and check</button></>}
     {isDefault && <><button type="submit" hidden disabled /><p className="ui-hint">Paste a key or choose a provider to use your own model.</p></>}
   </ApiForm>;

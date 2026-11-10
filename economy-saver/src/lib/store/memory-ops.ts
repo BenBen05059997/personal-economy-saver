@@ -3,6 +3,7 @@
 // back in the reply. The same rules as src/db/memory.ts: 400 characters, no run of 12 digits, 200 items, the same text under the same kind and scope is one item.
 import { z } from "zod";
 import { InputError } from "@/db/input-error";
+import { KEY_TEXT_WORDS, looksLikeApiKey } from "@/lib/ai/key-text";
 import { MEMORY_CLASH, MEMORY_KIND_KEYS, MEMORY_LIMIT, memoryFull, MemoryItem, MemoryKind, MemoryText, SECRET_REFUSAL, hasLongNumber } from "@/lib/schema/memory";
 
 /** The most changes one question may make to the memory it carried; the agent stops at it and `applyMemoryChanges` refuses more. */
@@ -39,6 +40,7 @@ export const textOf = (text: unknown) => {
   const parsed = MemoryText.safeParse(text);
   if (!parsed.success) throw new InputError(parsed.error.issues[0].message);
   if (hasLongNumber(parsed.data)) throw new InputError(SECRET_REFUSAL);
+  if (looksLikeApiKey(parsed.data)) throw new InputError(KEY_TEXT_WORDS);
   return parsed.data;
 };
 

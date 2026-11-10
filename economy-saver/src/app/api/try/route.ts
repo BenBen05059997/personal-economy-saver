@@ -8,8 +8,8 @@ export async function GET(request: Request) {
   try {
     if (await verifiedUid()) return privateRedirect("/account");
     const existing = await currentHouseholdId();
-    if (existing) return demoResponse(existing);
-    return demoResponse(await seedBen(db(), { isDemo: true }));
+    if (existing) return await demoResponse(existing);
+    return await demoResponse(await seedBen(db(), { isDemo: true }));
   } catch (error) {
     if (error instanceof MissingDatabaseUrl) return new Response(error.message, { status: 503 });
     throw error;

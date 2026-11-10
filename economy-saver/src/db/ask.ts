@@ -4,6 +4,7 @@ import { aiConnection, connectionView } from "./ai-key";
 import { requireHousehold, withHousehold, type Db } from "./household";
 import { householdMoment } from "./clock";
 import { InputError } from "./input-error";
+import { KEY_TEXT_WORDS, looksLikeApiKey } from "@/lib/ai/key-text";
 import { readPlaces } from "./place";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
@@ -149,6 +150,8 @@ function incognitoRetry(id: string): AskReply {
 export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date; onStep?: (step: string) => void } = {}): Promise<AskReply> {
   const { id, conversationId, spaceId, text, source, screen, canvas, memory, recent, earlierCount, deviceBrief, history, incognito } = askInput.parse(input);
   const householdId = requireHousehold(hid);
+  // Before any read, model call or write: a pasted key is never sent to a model or kept.
+  if (looksLikeApiKey(text)) throw new InputError(KEY_TEXT_WORDS);
   const prepared = await withHousehold<{ reply: AskReply } | { assembled: Awaited<ReturnType<typeof assembleContext>>; effectiveSpaceId?: string; deviceMemory?: DeviceMemory }>(db, householdId, async tx => {
     // A kind kept on the device comes with the question and is never stored here; a kind kept in the cloud is read here and the question must not carry it.
     // The older request shape still reaches legacy conversations, but cannot bypass an existing space’s archive guard.

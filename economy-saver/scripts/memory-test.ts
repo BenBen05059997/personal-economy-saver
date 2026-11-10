@@ -241,6 +241,17 @@ async function main() {
       await deleteMemory(db, g, ok.id, form);
     });
 
+    await check("D56: text that looks like an API key is refused on add and edit, from the page and the tools", async () => {
+      const refusal = /That looks like an API key\. Paste it in Settings → Your AI model\. It was not sent or saved\./;
+      for (const text of ["My key sk-ant-api03-" + "k".repeat(30), "gsk_" + "k".repeat(30), "AIza" + "k".repeat(35)]) {
+        await assert.rejects(addMemory(db, g, { kind: "fact", text }, form), refusal, text);
+        await assert.rejects(run("remember", g, { kind: "fact", text }), refusal, text);
+      }
+      const ok = await addMemory(db, g, { kind: "fact", text: "The desk-booking cost goes up in May" }, form);
+      await assert.rejects(editMemory(db, g, ok.id, { text: "Use sk-proj-" + "k".repeat(30) }, form), refusal);
+      await deleteMemory(db, g, ok.id, form);
+    });
+
     await check("memoryContext: empty with nothing; instructions, corrections, preferences, goals, facts, newest first", async () => {
       const h = await seedBen(db, { isDemo: true });
       assert.equal(await memoryContext(db, h), "");

@@ -886,5 +886,119 @@
     "refs": [
       "BROWSER-CHECKS Y22"
     ]
+  },
+  {
+    "id": "AIMODEL-033",
+    "area": "Your AI model",
+    "action": "Paste a key from another provider",
+    "user_goal": "I want a wrong-provider key stopped before it is sent",
+    "type": "negative",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Settings → Your AI model at 1440px",
+      "Provider set to Anthropic"
+    ],
+    "steps": [
+      "Paste a fictional sk-or-fictional-wrong-provider key",
+      "Choose Save and check"
+    ],
+    "expected": [
+      "An alert reads \"That looks like an OpenRouter key. Choose OpenRouter as the provider.\"",
+      "\"Loading models…\" never appears and no model list is requested",
+      "Save and check gives the same words and nothing is saved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS Y25",
+      "db:settings-test",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-034",
+    "area": "Your AI model",
+    "action": "Put a key in a model field",
+    "user_goal": "I want a key typed in the wrong box not to be saved",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "db:settings-test"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Read its check on a key in a model name"
+    ],
+    "expected": [
+      "The save is refused with \"Enter a model ID in the model fields and the key in Key.\"",
+      "Nothing is saved and no provider is called"
+    ],
+    "refs": [
+      "db:settings-test",
+      "BROWSER-CHECKS Y26",
+      "D56"
+    ]
+  },
+  {
+    "id": "AIMODEL-035",
+    "area": "Your AI model",
+    "action": "Save a short key",
+    "user_goal": "I want a short key not to show any of its characters",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "db:settings-test"
+    ],
+    "steps": [
+      "Run npm run db:settings-test",
+      "Read its check on a key under 20 characters"
+    ],
+    "expected": [
+      "The hint reads (hidden), not the last four characters",
+      "A key of 20 or more characters shows …abcd"
+    ],
+    "refs": [
+      "db:settings-test",
+      "D33"
+    ]
+  },
+  {
+    "id": "AIMODEL-036",
+    "area": "Your AI model",
+    "action": "Meet a redirect from the provider",
+    "user_goal": "I want my key never re-sent after a redirect",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "db:ai-test"
+    ],
+    "steps": [
+      "Run npm run db:ai-test",
+      "Read its check on a redirecting provider"
+    ],
+    "expected": [
+      "Every model call, list request and save check is sent with redirect manual",
+      "A 3xx answer fails with \"The AI service answered with a redirect.\", shown to a person as \"Couldn’t reach <provider>.\"",
+      "The key is not sent to the redirect target",
+      "Anthropic is called with the x-api-key header"
+    ],
+    "refs": [
+      "db:ai-test",
+      "D56"
+    ]
   }
 ]

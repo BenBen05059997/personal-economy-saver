@@ -11,8 +11,12 @@ const nextConfig: NextConfig = {
   // top-left and top-right hold the menu, bell and Add. Bottom-right is the one free corner.
   devIndicators: { position: "bottom-right" },
   // D52: the family view is opened from a shared link: never cached, never indexed, never sent on as a referrer.
+  // D56: no other site may frame the app (the AI key field among it). frame-ancestors alone needs no script nonces.
   async headers() {
-    return [{ source: "/family/:path*", headers: [
+    return [{ source: "/:path*", headers: [
+      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+      { key: "X-Frame-Options", value: "DENY" },
+    ] }, { source: "/family/:path*", headers: [
       { key: "Cache-Control", value: "private, no-store" },
       { key: "Referrer-Policy", value: "no-referrer" },
       { key: "X-Robots-Tag", value: "noindex, nofollow" },

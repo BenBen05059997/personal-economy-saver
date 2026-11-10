@@ -56,7 +56,8 @@ async function test() {
       const url = new URL(request.url);
       if (url.host === "api.anthropic.com") {
         assert.equal(url.pathname, "/v1/messages");
-        assert.equal(request.headers.get("authorization"), "Bearer fictional-test-value");
+        assert.equal(request.headers.get("x-api-key"), "fictional-test-value");
+        assert.equal(request.redirect, "manual");
         const body = await request.json();
         assert.equal(body.model, expectedMime === "message/rfc822" ? "fixture-text" : "fixture-document");
         assert.deepEqual(body.tool_choice, { type: "tool", name: "record_items" });

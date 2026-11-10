@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
+import { KEY_TEXT_WORDS, looksLikeApiKey } from "@/lib/ai/key-text";
 
 export const BRIEF_MAX = 2_000;
 const line = z.string().trim().min(1).max(BRIEF_MAX).refine(value => !/[\r\n]/.test(value), "Keep each entry on one line.");
@@ -31,6 +32,7 @@ export const BriefSchema = BriefFields.superRefine((brief, ctx) => {
   if (briefWords(brief).some(hasLongNumber) || brief.state.some(row => !z.string().uuid().safeParse(row.source).success && hasLongNumber(row.source))) {
     ctx.addIssue({ code: "custom", message: SECRET_REFUSAL });
   }
+  if (looksLikeApiKey(JSON.stringify(brief))) ctx.addIssue({ code: "custom", message: KEY_TEXT_WORDS });
 });
 
 export function briefContext(brief: Brief): string {

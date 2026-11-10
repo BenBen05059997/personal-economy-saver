@@ -1,6 +1,7 @@
 // The reply of one Ask, chosen by code after the model loop (D60): a clarifying question, a decline or an answer. The model never picks
 // the kind; the tools it called do. The fixed sentences and the "Based on" sources live here, each in one place.
 import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { serverHasNoModel } from "./availability";
 import type { LinkSource, TurnSource } from "@/lib/schema/turn";
 import type { Recipe } from "@/lib/canvas/schema";
 
@@ -16,9 +17,11 @@ export const FIXED = {
 } as const;
 
 export const MODEL_HINT = "Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.";
+/** The same line on a server with no model of its own, where the household's key is the only one. */
+export const OWN_MODEL_HINT = "Ask runs on your household’s own AI key, set in Settings → Your AI model.";
 
 /** The line above the question box until the household has an answer. */
-export const firstUse = (host: string) => `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to ${host}. ${MODEL_HINT}`;
+export const firstUse = (host: string, ownOnly = serverHasNoModel()) => `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to ${host}. ${ownOnly ? OWN_MODEL_HINT : MODEL_HINT}`;
 
 /** The page each tool's answer came from. `make_canvas`, `what_if` and `household_snapshot` add none. */
 const TOOL_SOURCES: Record<string, LinkSource> = {

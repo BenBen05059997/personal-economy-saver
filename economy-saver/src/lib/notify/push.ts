@@ -161,7 +161,7 @@ export async function sendReminderPush(
       encryptPush(ENCODER.encode(JSON.stringify(digest)), subscription),
     ]);
     const response = await fetcher(endpoint.href, {
-      method: "POST", redirect: "error", signal: AbortSignal.timeout(10_000),
+      method: "POST", redirect: "manual", signal: AbortSignal.timeout(10_000),
       headers: { Authorization: authorization, "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "3600" },
       body,
     });

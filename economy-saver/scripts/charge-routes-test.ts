@@ -17,16 +17,18 @@ import { createFamilyLink } from "@/db/family-links";
 type Handler = (request: Request) => Promise<Response>;
 const ORIGIN = "http://127.0.0.1:3123";
 
+import { demoCookies } from "./demo-cookie";
 async function main() {
   const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
+  const tokenFor = demoCookies(db); // the Try it cookie is a token (D34)
   let passed = 0;
   const ok = (name: string) => { passed++; console.log(`✓ ${name}`); };
   let cookie: string | null = null;
   const loader = Module as unknown as { _load: (request: string, parent: unknown, isMain: boolean) => unknown; _resolveFilename: (request: string, parent: unknown, isMain: boolean) => string };
   const realLoad = loader._load;
   loader._load = function (request, parent, isMain) {
-    if (request === "next/headers") return { cookies: async () => ({ getAll: () => (cookie ? [{ name: "household", value: cookie }] : []), get: (name: string) => (name === "household" && cookie ? { name, value: cookie } : undefined) }) };
+    if (request === "next/headers") return { cookies: async () => { const value = await tokenFor(cookie); return { getAll: () => (value ? [{ name: "household", value }] : []), get: (n: string) => (n === "household" && value ? { name: n, value } : undefined) }; } };
     const resolved = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
     if (resolved.endsWith("/src/db/client.ts")) return { db: () => db, MissingDatabaseUrl: class extends Error {} };
     return realLoad.call(this, request, parent, isMain);

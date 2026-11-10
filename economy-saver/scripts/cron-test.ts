@@ -28,6 +28,8 @@ async function main() {
   };
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });
+    // Housekeeping sweeps saved-key secrets; Supabase Vault's table is stood in for here.
+    await pg.exec(`create schema vault; create table vault.secrets(id uuid primary key default gen_random_uuid(), name text unique, decrypted_secret text);`);
     const at = (instant: string) => new Date(instant);
     const tokyo = await seedBen(db);
     const pacific = await seedBen(db);

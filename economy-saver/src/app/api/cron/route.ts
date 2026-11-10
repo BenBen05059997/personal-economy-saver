@@ -3,7 +3,8 @@ import { connection } from "next/server";
 import { db } from "@/db/client";
 import { dueHouseholds, logDailyError, runDaily } from "@/db/daily";
 import { pruneIpBuckets } from "@/db/rate-limit";
-import { sweepDemoHouseholds } from "@/db/demo";
+import { dropIdleDemoKeys, sweepDemoHouseholds } from "@/db/demo";
+import { sweepOrphanKeys } from "@/db/ai-key";
 import { CRON_HOUSEHOLD_ID } from "@/lib/cron";
 import { jobError } from "@/lib/job-error";
 
@@ -43,6 +44,8 @@ export async function GET(request: Request) {
   let housekeeping = { swept: 0, failed: 0 };
   try {
     housekeeping = await sweepDemoHouseholds(store, now);
+    housekeeping.failed += (await dropIdleDemoKeys(store, now)).failed;
+    await sweepOrphanKeys(store);
     await pruneIpBuckets(store);
   } catch (error) {
     housekeeping.failed++;

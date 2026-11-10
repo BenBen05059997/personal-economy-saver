@@ -14,7 +14,7 @@ import { listSpaceChoices, listSpaces } from "@/db/spaces";
 import { loadSpending } from "@/db/spending";
 import { openSuggestions } from "@/db/suggestions";
 import { BriefSchema, type BriefRecord } from "@/lib/agent/brief";
-import { askUnavailable, missingAskSetting } from "@/lib/agent/availability";
+import { askMissingWords, missingAskSetting } from "@/lib/agent/availability";
 import { CanvasError, resolveRecipe, type CanvasContext } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
 import { starterRecipes } from "@/lib/canvas/starters";
@@ -28,8 +28,9 @@ function draw(key: string, recipe: Recipe, context: CanvasContext): Drawn | null
 }
 
 /** The serializable Ask view for both the page and the panel. */
-export async function loadAskView(db: Db, householdId: string, { spaceId, legacyId, pinId }: {
-  spaceId?: string; legacyId?: string; pinId?: string;
+/** `owner` chooses the words when no model is set: the owner adds a key, a member asks the owner. */
+export async function loadAskView(db: Db, householdId: string, { spaceId, legacyId, pinId, owner = true }: {
+  spaceId?: string; legacyId?: string; pinId?: string; owner?: boolean;
 } = {}) {
   const hid = requireHousehold(householdId);
   return withHousehold(db, hid, async tx => {
@@ -83,7 +84,7 @@ export async function loadAskView(db: Db, householdId: string, { spaceId, legacy
       pinId: pinId ?? null, pins: pins.map(({ id, title }) => ({ id, title })),
       turns, starters, shown, cloudBrief: brief,
       form: { today, homeCurrency: state.homeCurrency, cards: state.cards.map(({ id, label }) => ({ id, label })) },
-      pin: pinned && shown ? { id: pinned.id, title: pinned.title } : null, firstUse, unavailable: missing ? askUnavailable(missing) : null,
+      pin: pinned && shown ? { id: pinned.id, title: pinned.title } : null, firstUse, unavailable: missing ? askMissingWords(missing, owner) : null,
     };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }

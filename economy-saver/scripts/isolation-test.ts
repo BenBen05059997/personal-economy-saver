@@ -146,6 +146,10 @@ const covered = [
 ];
 
 const notApplicable: Record<string, string> = {
+  issueDemoToken: "gives one demo household a fresh cookie token; sweep-test checks a token opens only its own household",
+  demoHouseholdForToken: "resolves a Try it cookie token to its one demo household; sweep-test checks tokens never cross households",
+  dropIdleDemoKeys: "housekeeping across demo households that removes only an idle demo household's own key; tested in sweep-test",
+  sweepOrphanKeys: "housekeeping over Vault secrets no household points to; sweep-test checks a pointed-to secret is kept",
   foreignFeeBp: "pure parser of a typed fee percentage into basis points, no database (D62)",
   answerQuestion: "calls Claude through the agent runner; the tools it can use are tested through tools.ts below",
   clockForHousehold: "pure date maths on a household row passed in",
@@ -352,7 +356,7 @@ async function main() {
       await F.recordWebhookDelivery(db, hid, { paypalEventId: webhookEvent, eventType: "PAYMENT.SALE.COMPLETED", verified: true, payload: { note: `${T} payload` } });
       const issued = await F.issueMcpToken(db, hid, { name: `${T} token`, scopes: ["read"] });
       const family = await F.createFamilyLink(db, hid);
-      const key = `sk-ant-isolation-${l}-${"k".repeat(24)}`;
+      const key = `fictional-isolation-${l}-${"k".repeat(24)}`;
       await F.saveHouseholdConnection(db, hid, { provider: "openai", baseUrl: "", textModel: `iso-text-${l}`, documentModel: "", sameForDocuments: true, key }, { signedIn: true, check: async () => ({ at: new Date().toISOString(), passed: ["uses_tools", "ignores_injection", "stays_on_money"], failed: [] }) });
       const secret = one(await db.select({ id: schema.households.aiKeySecretId }).from(schema.households).where(eq(schema.households.id, hid))).id!;
       await F.consumeRequest(db, hid, "ask");

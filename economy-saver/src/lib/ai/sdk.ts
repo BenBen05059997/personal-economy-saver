@@ -51,10 +51,15 @@ function bounded(response: Response): Response {
   return new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
 }
 
+/** A redirect answer under redirect: "manual": the 3xx itself (Node, Workers) or an opaque redirect (browsers). */
+export const isRedirect = (response: Response) => response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400);
+
 export function sdkFetch(request: ModelRequest, transform?: (body: string) => string): typeof globalThis.fetch {
   return async (input, init) => {
     const body = transform && typeof init?.body === "string" ? transform(init.body) : init?.body;
-    const response = await (request.fetch ?? globalThis.fetch)(input, { ...init, body, redirect: "error" });
+    // Workers have no redirect: "error"; "manual" hands back the 3xx itself, which is refused here so the key is never re-sent.
+    const response = await (request.fetch ?? globalThis.fetch)(input, { ...init, body, redirect: "manual" });
+    if (isRedirect(response)) throw new ModelError("The AI service answered with a redirect.");
     return request.connection.protocol === "openai" ? bounded(response) : response;
   };
 }

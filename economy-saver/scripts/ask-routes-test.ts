@@ -27,7 +27,7 @@ import { AiKeyError } from "@/db/ai-key";
 import { InputError } from "@/db/input-error";
 import { AgentError } from "@/lib/agent/run";
 import { MissingAuthSetting } from "@/lib/supabase-auth";
-import { askUnavailable, missingAskSetting, serverDefaultHost } from "@/lib/agent/availability";
+import { askUnavailable, missingAskSetting, NEEDS_KEY, serverDefaultHost } from "@/lib/agent/availability";
 import { extractDocument, extractSchema } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
@@ -36,6 +36,7 @@ import { CLOSED_PANEL, readPanelPreferences, writePanelPreferences } from "@/com
 type Handler = (request: Request) => Promise<Response>;
 const ORIGIN = "http://127.0.0.1:3123";
 
+import { demoCookies } from "./demo-cookie";
 async function main() {
   const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
@@ -46,10 +47,15 @@ async function main() {
   let cookie: string | null = null;
   let realAnswerQuestion: typeof import("@/db/ask").answerQuestion;
   let asking: ((...args: unknown[]) => Promise<unknown>) | null = null;
+  // The checks name the Try it household by id; the cookie the routes read is its token (D34).
+  const tokenFor = demoCookies(db);
   const loader = Module as unknown as { _load: (request: string, parent: unknown, isMain: boolean) => unknown; _resolveFilename: (request: string, parent: unknown, isMain: boolean) => string };
   const realLoad = loader._load;
   loader._load = function (request, parent, isMain) {
-    if (request === "next/headers") return { cookies: async () => ({ getAll: () => (cookie ? [{ name: "household", value: cookie }] : []), get: (name: string) => (name === "household" && cookie ? { name, value: cookie } : undefined) }) };
+    if (request === "next/headers") return { cookies: async () => {
+      const value = await tokenFor(cookie);
+      return { getAll: () => (value ? [{ name: "household", value }] : []), get: (name: string) => (name === "household" && value ? { name, value } : undefined) };
+    } };
     if (request === "next/navigation") return { usePathname: () => "/", useRouter: () => ({}) };
     if (request.endsWith(".css")) return {};
     const resolved = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
@@ -167,7 +173,7 @@ async function main() {
     assert.equal(resetResult.status, 204);
     assert.equal(resetResult.headers.get("x-form-redirect"), "/");
     assert.equal(resetResult.headers.get("location"), null);
-    assert.match(resetResult.headers.get("set-cookie") ?? "", /household=[0-9a-f-]{36}/);
+    assert.match(resetResult.headers.get("set-cookie") ?? "", /household=[A-Za-z0-9_-]{43};/);
     ok("Try it Reset uses the fetch form redirect header and sets a fresh demo cookie");
 
     // ------------------------------------------------------------ the guard (all three routes)
@@ -360,8 +366,19 @@ async function main() {
     await mapped(new AgentError("The assistant took too long."), [200, "The assistant took too long."]);
     await mapped(new AiKeyError("That key was not accepted."), [200, "That key was not accepted."]);
     await mapped(new MissingAuthSetting("SUPABASE_URL is not set"), [200, "SUPABASE_URL is not set"]);
-    for (const name of ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY"]) {
-      for (const Kind of [AgentError, AiKeyError, MissingAuthSetting]) await mapped(new Kind(`${name} is not set`), [200, askUnavailable(name)]);
+    // A server with some AI_ setting names the missing one; a server with none (the deployed setup) points to the household's own key.
+    const aiNames = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL", "AI_DOCUMENT_MODEL"] as const;
+    const savedAi = Object.fromEntries(aiNames.map(name => [name, process.env[name]]));
+    try {
+      for (const name of aiNames) delete process.env[name];
+      process.env.AI_DOCUMENT_MODEL = "fixture-document";
+      for (const name of ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY"]) {
+        for (const Kind of [AgentError, AiKeyError, MissingAuthSetting]) await mapped(new Kind(`${name} is not set`), [200, askUnavailable(name)]);
+      }
+      delete process.env.AI_DOCUMENT_MODEL;
+      for (const Kind of [AgentError, AiKeyError, MissingAuthSetting]) await mapped(new Kind("AI_TEXT_MODEL is not set"), [200, NEEDS_KEY]);
+    } finally {
+      for (const name of aiNames) if (savedAi[name] === undefined) delete process.env[name]; else process.env[name] = savedAi[name];
     }
     // an unknown-named or longer message is not rewritten; only exactly `AI_X is not set` is
     await mapped(new AgentError("AI_TEXT_MODEL is not set, sorry"), [200, "AI_TEXT_MODEL is not set, sorry"]);
@@ -379,10 +396,10 @@ async function main() {
     cookie = b;
     const mismatch = await say(await ask(json("/api/ask", question({ memory: [] }))));
     assert.deepEqual([mismatch.status, mismatch.text], [400, "This household keeps its memory in our cloud. Reload the page and ask again."]);
-    // and with no AI setting on this server the real agent path stops with a sentence a person can read (never the key)
+    // and with no AI setting on this server (the deployed setup) the real agent path points to the household's own key (never a key)
     for (const key of Object.keys(process.env)) if (key.startsWith("AI_")) delete process.env[key];
     const unset = await streamed(await ask(json("/api/ask", question())));
-    assert.deepEqual([unset.status, unset.text], [200, askUnavailable("AI_TEXT_MODEL")], "the real path names the first missing setting");
+    assert.deepEqual([unset.status, unset.text], [200, NEEDS_KEY], "the real path points to the household's own key");
     Object.assign(process.env, savedEnv);
     ok("/api/ask, real answerQuestion: a memory/place mismatch is 400 with its sentence; no AI settings is an error line with words");
 
@@ -868,7 +885,7 @@ async function main() {
         assert.deepEqual([big.status, big.text], [400, "Document exceeds the 6 MiB limit."], `${name}: too big is 400`);
         env({}); await reset();
         const noModel = await say(await route(post(path, file(PNG, "a.png", "image/png"))));
-        assert.deepEqual([noModel.status, noModel.text], [503, "Reading documents isn’t available on this server yet (AI_TEXT_MODEL)."], `${name}: no model is 503 naming the setting`);
+        assert.deepEqual([noModel.status, noModel.text], [503, "Reading documents needs an AI key in Settings → Your AI model."], `${name}: with no model on this server, 503 points to the household's own key`);
         env(modelSet);
         const badWithModel = await say(await route(post(path, file("hello", "a.txt", "text/plain"))));
         assert.deepEqual([badWithModel.status, badWithModel.text], [400, bad.text], `${name}: bad-file refusal is the same when a model is configured`);

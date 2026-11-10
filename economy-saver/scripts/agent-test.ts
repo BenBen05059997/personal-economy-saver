@@ -10,6 +10,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq, inArray } from "drizzle-orm";
 import * as schema from "@/db/schema";
+import { looksLikeApiKey } from "@/lib/ai/key-text";
 import { aiConnection } from "@/db/ai-key";
 import { householdDate } from "@/db/account";
 import { addMemory, deleteMemory, listMemory } from "@/db/memory";
@@ -63,7 +64,8 @@ function transport(script: ((bodies: Body[]) => Response)[] | ((bodies: Body[]) 
     const request = new Request(input, init);
     assert.equal(new URL(request.url).host, "api.anthropic.com");
     assert.equal(new URL(request.url).pathname, "/v1/messages");
-    assert.equal(request.headers.get("authorization"), "Bearer " + KEY);
+    assert.equal(request.headers.get("x-api-key"), KEY);
+    assert.equal(request.redirect, "manual");
     bodies.push(await request.json());
     const next = Array.isArray(script) ? script[bodies.length - 1] : script;
     assert.ok(next, "unexpected extra model call");
@@ -1035,6 +1037,17 @@ async function main() {
       answerQuestion(db, hid, askInput.parse({ id: crypto.randomUUID(), conversationId: extra.conversationId ?? crypto.randomUUID(), text: question, source: "manual", canvas: extra.canvas ?? null }), { fetch, at: extra.at });
     const cashCanvas = (extra: unknown[] = []) => JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }, ...extra] });
     const clarifyInput = { question: "Which Acme do you mean?", choices: ["Acme Studio", "Acme Labs"] };
+
+    await check("D56: a question that looks like an API key is refused before any model call or write, with fixed words", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const never = transport(() => assert.fail("a pasted key must never reach a model"));
+      const before = (await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, c))).length;
+      for (const pasted of ["sk-ant-api03-" + "f".repeat(40), "my key is sk-proj-" + "g".repeat(30), "gsk_" + "h".repeat(40), "AIza" + "i".repeat(35)]) {
+        await assert.rejects(conversation(c, pasted, never.fetch), { message: "That looks like an API key. Paste it in Settings → Your AI model. It was not sent or saved." });
+      }
+      assert.equal((await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, c))).length, before, "nothing was saved");
+      assert.equal(looksLikeApiKey("How much should I keep for my risk-management-and-desk-booking costs this month?"), false, "words with sk- inside are fine");
+    });
 
     await check("each kind of reply on the anthropic protocol: answer with a canvas, clarify, both declines and a plain text with no tool", async () => {
       const c = await seedBen(db, { isDemo: true });

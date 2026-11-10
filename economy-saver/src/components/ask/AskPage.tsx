@@ -19,6 +19,8 @@ import type { Brief, BriefRecord } from "@/lib/agent/brief";
 import type { AskView } from "@/db/ask-view";
 import { SessionEnded } from "@/components/ui/SessionEnded";
 import { SESSION_ENDED } from "@/lib/session-ended";
+import { NEEDS_KEY_OWNER } from "@/lib/agent/availability";
+import { KEY_TEXT_WORDS, looksLikeApiKey } from "@/lib/ai/key-text";
 import { drawCanvas } from "@/lib/canvas/draw";
 import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document-card";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
@@ -246,6 +248,8 @@ export function AskPage({
   async function ask(question: string, how: "manual" | "voice") {
     const trimmed = question.trim();
     if (!trimmed || busy || readOnly || !deviceReady) return;
+    // A pasted key never leaves the page: it is not sent, kept in the journal or shown back.
+    if (looksLikeApiKey(trimmed)) { setText(""); setProblem(KEY_TEXT_WORDS); return; }
     setBusy(true);
     setStep("");
     setProblem("");
@@ -491,7 +495,8 @@ export function AskPage({
         </li>)}
       </ol>
       {busy && <p role="status" aria-live="polite" className="ui-hint">{step || "Checking your numbers…"}</p>}
-      {(problem || speech.problem) && <p role="alert" className="ui-problem">{problem === SESSION_ENDED ? <SessionEnded /> : problem || speech.problem}</p>}
+      {(problem || speech.problem) && <p role="alert" className="ui-problem">{problem === SESSION_ENDED ? <SessionEnded /> : problem === NEEDS_KEY_OWNER
+        ? <>{problem} <Link href="/settings#ai-model">Open Settings</Link></> : problem || speech.problem}</p>}
       {!readOnly && intro && <p className="ask-intro ui-hint">{intro}</p>}
       {!readOnly && <form id={panel ? "ask-panel-question" : "ask"} className="ask-form" onSubmit={submit}>
         <label className="ui-field">Your question

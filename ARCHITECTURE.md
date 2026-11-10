@@ -13,7 +13,7 @@ Implemented:
 
 The local test suites run all of this on isolated PGlite data with simulated external results. Next.js dev and the local Worker read a fictional household from the Tokyo project; Vault and the private Storage bucket are verified there.
 
-The Worker is deployed at `https://personal-economy-saver.globalperspectives-app.workers.dev` with its settings uploaded, running `main` at commit ba07f50. Wrangler reported 20,244.51 KiB uncompressed, 5,442.82 KiB gzip and a 20 ms startup. `PAYPAL_WEBHOOK_ID` is set (`/api/health` reports `webhookConfigured: true`) and the webhook is registered with the PayPal sandbox for `/api/paypal/webhook` on that URL. It has no `AI_` settings, so Ask and the reader there answer with the missing setting. Not yet verified live: magic-link delivery (the deployed URL is being added to the Tokyo project's redirect URLs), a live model call, Email Routing, and a real PayPal send-to-webhook round trip (the webhook is registered and configured, but the round trip has not run). The repository and the app are private. Decisions: D18 and D31–D71 in [DECISIONS.md](DECISIONS.md).
+The Worker is deployed at `https://personal-economy-saver.globalperspectives-app.workers.dev` with its settings uploaded, running `main` with Stage 35 on top of bd0073b (not yet committed). Wrangler reported 20,279.81 KiB uncompressed, 5,454.21 KiB gzip and a 21 ms startup. `PAYPAL_WEBHOOK_ID` is set (`/api/health` reports `webhookConfigured: true`) and the webhook is registered with the PayPal sandbox for `/api/paypal/webhook` on that URL. It has no `AI_` settings, so Ask and the reader there answer with the missing setting. Not yet verified live: magic-link delivery (the deployed URL is being added to the Tokyo project's redirect URLs), a live model call, Email Routing, and a real PayPal send-to-webhook round trip (the webhook is registered and configured, but the round trip has not run). The repository and the app are private. Decisions: D18 and D31–D71 in [DECISIONS.md](DECISIONS.md).
 
 ## Who does what: the agent and the code
 
@@ -111,7 +111,7 @@ Cloudflare
         └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0030), 35 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0031), 35 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
 │   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns,
 │   ip_buckets, ai_global_usage, ask_receipts, standing_rules, suggestions, reminder_settings, push_subscriptions, reminders, invites, spaces
@@ -138,7 +138,7 @@ to a native post (no JavaScript, the HTTP suites) the 303 it always sent (`src/l
 
 | Step | What runs | What is read | What is written | What the person sees |
 |---|---|---|---|---|
-| 1. Open | page → `currentHouseholdId` (auth cookie → `getUser()` → `users` → `members`; or the demo cookie → `findDemoHousehold`) → `loadWorkspaceData` | `households`; on Home `refreshPayPal` first | on Home `paypal_connections` (PayPal's status word on tracked invoices, `paypal_fetched_at`, the balance for the bound household; never an invoice's own `status`) | the page opening |
+| 1. Open | page → `currentHouseholdId` (auth cookie → `getUser()` → `users` → `members`; or the demo cookie token → `demoHouseholdForToken`) → `loadWorkspaceData` | `households`; on Home `refreshPayPal` first | on Home `paypal_connections` (PayPal's status word on tracked invoices, `paypal_fetched_at`, the balance for the bound household; never an invoice's own `status`) | the page opening |
 | 2. Engine | `loadMoneyState(db, hid, today)` → `src/lib/money` | paypal_connections, bills, cards, charges (the last 62 days, `CHARGE_LOOKBACK_DAYS`), unpaid card_statements, clients, invoices, pending balance_updates, pots, members and settlements (the split), fx_rates (`usdRateMicro`) | nothing | — |
 | 3. Sentence | `homeSentence` and the panels | the engine's result | nothing; no AI call on open | the sentence with one action, safe to spend, Coming up, the pinned canvases, the events |
 | 4. Approve | tap → `ApiForm` POST /api/approve `{ approve_key, action: send \| remind }` → `approveInvoice` → `runTool` | the invoice by `approve_key` (locked), `SANDBOX_CLIENT_EMAIL`, the USD rate | `invoices.paypal_invoice_id`, `number`, `fx_rate_micro`, then `status = sent`, `sent_on`, `due_on`; an `invoice_sent` event; a reminder stamps `reminder_attempted_at` then `reminded_at` | redirect to /invoices/[id] |
@@ -520,7 +520,7 @@ household is refused; already-paid invoices credit no balance.
 | Step | What runs | What is read | What is written |
 |---|---|---|---|
 | 1. Trigger | Hourly Cron Trigger → GET /api/cron, then one GET /api/cron?household=<id> per result through the Worker’s self binding | The bearer CRON_SECRET is compared in constant time on both requests | worker.ts logs the batch counts |
-| 2. Discovery housekeeping | sweepDemoHouseholds (D49), then pruneIpBuckets | Demo households unchanged for seven days, oldest first, up to 200. Per-address windows over a day old | Each demo is deleted in its own transaction. Vault and Storage are cleared before the household row. Sweeper failures are counted and logged |
+| 2. Discovery housekeeping | sweepDemoHouseholds (D49), then dropIdleDemoKeys and sweepOrphanKeys, then pruneIpBuckets | Demo households unchanged for seven days, oldest first, up to 200. A demo household’s own model after 24 hours with no Activity event (the household stays). Vault secrets named `household:<id>:anthropic` that no household points to. Per-address windows over a day old | Each demo is deleted in its own transaction. Vault and Storage are cleared before the household row. Sweeper failures are counted and logged |
 | 3. Households | dueHouseholds, then runDaily in a separate Worker invocation per household | Non-demo households with a local hour at or after the earliest member hour, including the owner’s hour (08:00 by default), and daily_ran_on before the local date or unset. Least recently served first | runDaily locks the household and advances daily_ran_on only after a successful pass. A failure logs the household id and the error name and message with database details removed. The remaining requests still run |
 | 4. Rate and statements | fetchReferenceRate for real JPY households. closingOnOrAfter and cycle for cards | The ECB daily XML and each card closing today with an open total. On a fetch failure the job logs the outage and uses the latest dated rate already stored for the household | One dated fx_rates row when fetched and one card_statements row per card and closing day. These commit before suggestions so a failed pass can retry |
 | 5. Suggestions | runPass, rulesFor, findSuggestions | Money state and standing rules with their space assignments | New findings, current reasons for open findings, resolved findings and reopened deferrals. Closed rows are pruned after 90 days |
@@ -558,9 +558,9 @@ Under Uploaded documents, `listDocuments` returns each household document's date
 | MCP tokens | `api_tokens`: the hash, the last four characters, name, scopes (`read`, `draft`), revoked and last-used times | the token's hash | whoever holds the token acts as its household; Settings lists name, scopes and last four | revoke; with the household; never in the export |
 | Family links | `family_links`: the SHA-256 of the token, who made it, expiry (seven days of real time), stopped time | the token's hash | anyone with the link, read-only, until it expires or is stopped ("This link has ended") | stop; expiry; with the household; never in the export |
 | Reference rates | `fx_rates` (household, date, base, quote, `rate_micro`) | `household_id` | the engine; the export's household block carries the USD rate and its day | with the household |
-| The household's own model key | Supabase Vault, as a sealed text (`pes-ai1.` + AES-GCM under `AI_KEY_SEAL_KEY`, the household id as associated data; `households.ai_key_secret_id` points at it); `ai_key_hint` is an ellipsis and the last four characters | the household | read for a model call or a model-list request using the same provider and address; never shown again | Settings → Your AI model → default (`deleteHouseholdKey`); Reset; deletion; never in the export or the snapshot tool |
+| The household's own model key | Supabase Vault, as a sealed text (`pes-ai1.` + AES-GCM under `AI_KEY_SEAL_KEY`, the household id as associated data; `households.ai_key_secret_id` points at it); `ai_key_hint` is an ellipsis and the last four characters for a key of 20 or more characters, otherwise “(hidden)” | the household | read for a model call or a model-list request using the same provider and address; never shown again | Settings → Your AI model → default (`deleteHouseholdKey`); Reset; deletion; never in the export or the snapshot tool |
 | Identities | `users` (auth user id → member), `members` | `household_id`, `auth_user_id` unique | the export carries members' names, roles and shares, never auth ids | with the household |
-| Sessions | browser cookies: Supabase `pes-auth` (30 days), `household` (a demo UUID, 30 days), `upgrade-demo` (1 hour) | the browser | — | logout; deletion clears them |
+| Sessions | browser cookies: Supabase `pes-auth` (30 days), `household` (a Try it token of 43 base64url characters; the household stores only its SHA-256 hash, `households.demo_token_hash`; 30 days), `upgrade-demo` (1 hour) | the browser | — | logout; deletion clears them |
 
 Your data counts named spaces with the cloud journal and shows the space count separately when turns are kept on this device. General does not contribute a space to the count.
 Deleting Ask conversations in Your data removes named spaces with their cloud threads, notes, pins and briefs. It clears General’s thread and brief. General and all documents stay.
@@ -601,7 +601,7 @@ external calls. Invoice approval keeps its existing scoped row locks during the 
 
 Owner-role paths and their boundaries:
 
-- **Demo sweep and cron discovery.** Both select across households. Discovery also prunes global per-address counters.
+- **Demo sweep, idle-key drop, orphan-key sweep and cron discovery.** All select across households. Discovery also prunes global per-address counters.
   Each scheduled household run switches to `pes_app` after its id is known. The sweeper retains the owner lifecycle transaction for each deletion.
 - **Verified PayPal webhook delivery lookup.** The sandbox invoice id routes the delivery to a household.
   Its receipt and payment update then run in one scoped transaction. An unmatched verified delivery keeps a global
@@ -626,7 +626,7 @@ database policies directly, with no tenant predicate in its own SQL, and verifie
 
 ### Identities
 
-Try it visitor: a UUID in an httpOnly cookie, a bearer for that demo household (`findDemoHousehold`); Try it makes an anonymous session with its own
+Try it visitor: a random token in an httpOnly cookie, a bearer for that demo household only (`issueDemoToken` stores its SHA-256 hash; `demoHouseholdForToken` resolves it; every Try it, Reset and Start with my numbers issues a fresh one, retiring the last; `findDemoHousehold` only tests whether an id is a demo household and is never a credential); Try it makes an anonymous session with its own
 fictional household (Ben's, on its fixed date, D51) or a blank one (Start with my numbers, D47). Signed-in person: email → magic link (PKCE, the
 callback at the required `APP_URL`) → callback → Supabase auth cookies (`pes-auth`, 30 days, refreshed in middleware, `getUser()` per request) →
 `users` → `members` → household; a Try it household can be upgraded through sign-in (`upgrade-demo`, one hour). MCP client: a token hashed in
@@ -647,21 +647,21 @@ Cancelling an invite invalidates the link. A member can leave in Account, which 
 (a) Owner secrets: `.env.local` locally and Workers secrets in production (encrypted, write-only). (b) A household's own model (D56, D33): the
 provider, protocol, address and model names are columns on `households` (`ai_provider`, `ai_protocol`, `ai_base_url`, `ai_text_model`,
 `ai_document_model`, `ai_check`); the key is sealed in the Worker with AES-GCM under `AI_KEY_SEAL_KEY` (32 bytes as unpadded base64url, a Worker-only secret like `MCP_TOKEN_KEY`; the household id is the associated data; `sealAiKey` and `unsealAiKey` in `src/db/ai-key.ts`) and the sealed text is kept in Supabase Vault (`households.ai_key_secret_id`), read and opened inside a transaction immediately before each
-model call; a key saved before sealing is refused until it is saved again; `ai_key_hint` holds an ellipsis and the last four characters only. The address passes `checkBaseUrl` when it is saved and again on every
+model call; a key saved before sealing is refused until it is saved again; `ai_key_hint` holds an ellipsis and the last four characters only for a key of 20 or more characters, otherwise “(hidden)”. The address passes `checkBaseUrl` when it is saved and again on every
 call. Vault keeps the key out of plain dumps; anyone holding `DATABASE_URL` can read `vault.decrypted_secrets` but gets only the sealed text, which opens only with the Worker's `AI_KEY_SEAL_KEY`. A saved key that cannot be read is
 never replaced by another key. A question or document travels to the host Settings shows; with no model of its own, to the host of `AI_BASE_URL`
 under the owner's key; no call is capped (D33). Saving a model runs `checkConnection` and stores the result in `ai_check`. MCP
-tokens are stored hashed. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
+tokens are stored hashed. On a server with none of the `AI_` settings (the deployed Worker, `serverHasNoModel`), each household’s own key is the only model: Ask names that in `askMissingWords` (owner: “Add your own AI key in Settings to use Ask.” with an Open Settings link to `/settings#ai-model`; member: “Ask the household’s owner to add an AI key in Settings.”; a partly set server keeps the operator sentence `askUnavailable`), `/api/ask`, voice fill and reading answer with “… needs an AI key in Settings → Your AI model.”, `firstUse` ends with the own-key line, and Settings → Your AI model says “Paste your own key below to use Ask and document reading.”, hides the default-model hint, labels the clear button “Remove my key” and adds “Use a key with a spending limit, and remove it here when you’re done.” `looksLikeApiKey` (`src/lib/ai/key-text.ts`) refuses key-shaped text before it is sent or kept: in AskPage (the field is cleared), `answerQuestion` before any read, model call or write, `textOf` in `memory-ops.ts` (every memory and note write, page, tool or device) and `BriefSchema`. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
 
 In Settings, `AiModelForm` calls `providerFromKey` in the browser when the owner pastes a key with Provider still on the app’s default.
 `PROVIDERS` stores the provider key-page metadata and the distinctive prefixes `sk-ant-` (Anthropic), `sk-or-` (OpenRouter),
-`gsk_` (Groq) and `AIza` (Google Gemini). A plain `sk-` key leaves the default selected. An explicit provider choice is preserved.
+`gsk_` (Groq), `AIza` (Google Gemini), and `sk-proj-` and `sk-svcacct-` (OpenAI). A plain `sk-` key leaves the default selected. An explicit provider choice is preserved in the browser. On the server `chosenEndpoint` (`src/db/ai-key.ts`) refuses a new key whose prefix names another listed provider (`keyOwner`, `wrongProviderWords`; a custom address is exempt) before any call, for the model list and Save alike, and the form shows the refusal as an alert without a lookup. A model name that looks like a key is refused with “Enter a model ID in the model fields and the key in Key.”
 Provider inference uses the prefix locally. The model-list request runs separately after the input settles.
 
 The model-list route prepares a one-use connection in `modelListConnection`. A typed key takes precedence. An empty field uses the saved
 Vault key only when the provider and normalised address match. The list request leaves the saved key untouched and keeps the typed key
 out of storage, logs and responses. `listModels` sends a GET to the provider’s fixed models endpoint or the validated custom address.
-The request refuses redirects and shares a 10-second timeout across provider pages. Reported tool and image capability is included when
+Every model call, list request and save check goes through `sdkFetch` or `list-models.ts` with `redirect: "manual"`; any 3xx or opaque redirect throws `ModelError("The AI service answered with a redirect.")`, shown as “Couldn’t reach <provider>.”, so the key is never re-sent (Cloudflare’s runtime rejects `redirect: "error"`). Anthropic authenticates with `apiKey`, the `x-api-key` header. The email and push senders also use `"manual"` and count a 3xx as failed. The list request shares a 10-second timeout across provider pages. Reported tool and image capability is included when
 available. Missing flags stay unknown and model names carry no inferred capability. Entries marked in `TESTED` sort first. Provider
 failures use fixed app wording for the key, credit or connection problem.
 
@@ -704,9 +704,11 @@ The `db` object has `connections` (successful connections), `connectMs` (time to
 
 ### Backups and migrations
 
+Responses carry `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-Options: DENY` (`headers()` in `next.config.ts`, every path). `scripts/check-worker-secrets.mjs` scans the deploy for every server-only secret, including `AI_KEY_SEAL_KEY`, `RESEND_API_KEY`, `WEB_PUSH_PRIVATE_KEY` and `EVAL_API_KEY`. The key input carries `autoComplete="off"` and password-manager ignore attributes.
+
 No automatic database backups are configured; the person's own backup is Export my data, and Import brings that file back into an empty household.
 What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from
-the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. `0028_standing_rules_and_assistant.sql` adds daily suggestions, standing rules with the existing nudge setting copied into the rule, reminder delivery storage, and household invitations. Migration `0029_tenant_wall.sql` adds the app role and its household policies. Migrations 0000–0030 are applied to the Tokyo database. The owner applies `0030_ask_spaces.sql` before running Stage 32 on the owner’s database. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
+the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. `0028_standing_rules_and_assistant.sql` adds daily suggestions, standing rules with the existing nudge setting copied into the rule, reminder delivery storage, and household invitations. Migration `0029_tenant_wall.sql` adds the app role and its household policies. Migrations 0000–0030 are applied to the Tokyo database. `0031_demo_token.sql` (`households.demo_token_hash`, unique) is applied to the Tokyo database (Nov 10, 2026), before the Stage 35 code was deployed. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
 
 ### Not limited yet
 
@@ -718,7 +720,7 @@ One Supabase project and one PayPal sandbox app serve all three places the app r
 
 - **`next dev` on http://127.0.0.1:3123** reads `.env.local`. It can use the Codex bridge on 127.0.0.1:3130 as its model.
 - **The local Worker (`npm run cf:preview`) on http://localhost:8787** reads `.dev.vars`, whose `APP_URL` is `http://localhost:8787`. It cannot use the Codex bridge or any other model on a private address: `wrangler.jsonc` sets `global_fetch_strictly_public`, so the Worker's `fetch` refuses private addresses, and Ask and the reader answer with their "could not reach" errors. Model features are checked on `next dev` with the bridge, or on a Worker with a public provider.
-- **The deployed Worker** at https://personal-economy-saver.globalperspectives-app.workers.dev reads Workers secrets (uploaded with `wrangler secret bulk` from the ignored `economy-saver/.env.worker`). It has `PAYPAL_WEBHOOK_ID` and no `AI_` settings. It runs the code of its last deploy (commit ba07f50), which can be behind `main`.
+- **The deployed Worker** at https://personal-economy-saver.globalperspectives-app.workers.dev reads Workers secrets (uploaded with `wrangler secret bulk` from the ignored `economy-saver/.env.worker`). It has `PAYPAL_WEBHOOK_ID` and no `AI_` settings. It runs the code of its last deploy (`main` with Stage 35 on top of bd0073b, not yet committed; 20,279.81 KiB uncompressed, 5,454.21 KiB gzip, 21 ms startup), which can be behind `main`.
 
 The Worker build runs through `scripts/build-worker.mjs` with the pinned OpenNext adapter. The build hook enables esbuild
 `keepNames` for the server bundle. React stores function names when Next prerenders postponed boundaries. The Worker must

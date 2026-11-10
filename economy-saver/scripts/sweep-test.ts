@@ -7,7 +7,8 @@ import { eq, getTableName } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
-import { DEMO_LIFETIME_DAYS, SWEEP_LIMIT, resetDemoHousehold, sweepDemoHouseholds } from "@/db/demo";
+import { DEMO_KEY_IDLE_HOURS, DEMO_LIFETIME_DAYS, SWEEP_LIMIT, demoHouseholdForToken, dropIdleDemoKeys, issueDemoToken, resetDemoHousehold, sweepDemoHouseholds } from "@/db/demo";
+import { sweepOrphanKeys } from "@/db/ai-key";
 import { recordEvent, type Db } from "@/db/household";
 import { seedBen } from "@/db/seed";
 
@@ -38,6 +39,8 @@ async function main() {
 
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });
+    // Supabase Vault's secrets table, stood in for: the key sweeps read and delete its rows.
+    await pg.exec(`create schema vault; create table vault.secrets(id uuid primary key default gen_random_uuid(), name text unique, decrypted_secret text);`);
 
     await check("the lifetime is seven days and the cap is 200", async () => {
       assert.equal(DEMO_LIFETIME_DAYS, 7);
@@ -116,6 +119,57 @@ async function main() {
       assert.equal(await resetDemoHousehold(store, real), null);
       assert.equal(await exists(real), true);
       await recordEvent(store, fresh, { madeBy: "form", kind: "sweep_probe", title: "A change" });
+    });
+
+    await check("D34: a Try it cookie is a random token that opens only its own demo household, and only its hash is stored", async () => {
+      const [a, b, real] = [await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true }), await seedBen(db)];
+      const tokenA = await issueDemoToken(store, a);
+      const tokenB = await issueDemoToken(store, b);
+      assert.ok(tokenA && tokenB && /^[A-Za-z0-9_-]{43}$/.test(tokenA) && tokenA !== tokenB);
+      assert.equal(await demoHouseholdForToken(store, tokenA), a);
+      assert.equal(await demoHouseholdForToken(store, tokenB), b);
+      assert.equal(await demoHouseholdForToken(store, a), null, "the household id is not a credential");
+      assert.equal(await demoHouseholdForToken(store, "x".repeat(43)), null);
+      assert.equal(await issueDemoToken(store, real), null, "a real household never gets a demo token");
+      const stored = (await db.select({ hash: schema.households.demoTokenHash }).from(schema.households).where(eq(schema.households.id, a)))[0].hash;
+      assert.ok(stored && /^[0-9a-f]{64}$/.test(stored) && stored !== tokenA, "only a SHA-256 hash is stored");
+      const again = await issueDemoToken(store, a);
+      assert.equal(await demoHouseholdForToken(store, tokenA), null, "a new token retires the old one");
+      assert.equal(await demoHouseholdForToken(store, again!), a);
+      await db.update(schema.households).set({ isDemo: false }).where(eq(schema.households.id, b));
+      assert.equal(await demoHouseholdForToken(store, tokenB), null, "an upgraded household no longer opens by token");
+    });
+
+    await check("D34: a demo household's own key goes after a day with no Activity event; a busy demo and a real household keep theirs", async () => {
+      assert.equal(DEMO_KEY_IDLE_HOURS, 24);
+      const [idle, busy, real] = [await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true }), await seedBen(db)];
+      for (const id of [idle, busy, real]) {
+        await quiet(id);
+        const { rows } = await pg.query<{ id: string }>(`insert into vault.secrets(name, decrypted_secret) values ($1, 'sealed-fictional') returning id`, [`household:${id}:anthropic`]);
+        await db.update(schema.households).set({ aiKeySecretId: rows[0].id, aiKeyHint: "…abcd", aiProvider: "anthropic", aiProtocol: "anthropic",
+          aiBaseUrl: "https://api.anthropic.com", aiTextModel: "fictional-model", aiDocumentModel: "fictional-model" }).where(eq(schema.households.id, id));
+        await db.insert(schema.events).values({ householdId: id, kind: "ai_model_changed", title: "Saved", createdAt: new Date(NOW.getTime() - 25 * 3_600_000) });
+      }
+      await db.insert(schema.events).values({ householdId: busy, kind: "sweep_probe", title: "An hour ago", createdAt: new Date(NOW.getTime() - 3_600_000) });
+      assert.deepEqual(await dropIdleDemoKeys(store, NOW), { dropped: 1, failed: 0 });
+      const keyOf = async (id: string) => (await db.select({ secret: schema.households.aiKeySecretId, provider: schema.households.aiProvider }).from(schema.households).where(eq(schema.households.id, id)))[0];
+      assert.deepEqual(await keyOf(idle), { secret: null, provider: null });
+      assert.ok((await keyOf(busy)).secret);
+      assert.ok((await keyOf(real)).secret);
+      assert.equal(await exists(idle), true, "the household itself stays");
+      const { rows } = await pg.query<{ n: number }>(`select count(*)::int as n from vault.secrets where name = $1`, [`household:${idle}:anthropic`]);
+      assert.equal(rows[0].n, 0, "the secret went too");
+      assert.deepEqual(await dropIdleDemoKeys(store, NOW), { dropped: 0, failed: 0 });
+    });
+
+    await check("D34: a saved-key secret no household points to is removed; one a household points to and other Vault rows stay", async () => {
+      const orphan = crypto.randomUUID();
+      await pg.query(`insert into vault.secrets(name, decrypted_secret) values ($1, 'sealed-fictional'), ('some-other-secret', 'kept')`, [`household:${orphan}:anthropic`]);
+      const before = (await pg.query<{ n: number }>(`select count(*)::int as n from vault.secrets`)).rows[0].n;
+      assert.equal(await sweepOrphanKeys(store), 1);
+      assert.equal((await pg.query<{ n: number }>(`select count(*)::int as n from vault.secrets`)).rows[0].n, before - 1);
+      assert.equal((await pg.query<{ n: number }>(`select count(*)::int as n from vault.secrets where name = 'some-other-secret'`)).rows[0].n, 1);
+      assert.equal(await sweepOrphanKeys(store), 0, "the pointed-to secrets of the busy demo and the real household stay");
     });
   } finally {
     await pg.close();

@@ -3,7 +3,8 @@ import { pgSchema, text, uuid } from "drizzle-orm/pg-core";
 import { InputError } from "./input-error";
 import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
 import { readCheck, type ConnectionCheck } from "@/lib/ai/check";
-import { providerById } from "@/lib/ai/providers";
+import { keyOwner, providerById, wrongProviderWords } from "@/lib/ai/providers";
+import { looksLikeApiKey } from "@/lib/ai/key-text";
 import { providerFailureWords } from "@/lib/ai/provider-failure";
 import { isTested } from "@/lib/ai/tested";
 import type { ModelListConnection } from "@/lib/ai/list-models";
@@ -131,10 +132,13 @@ const MODEL_SHAPE = /^[^\s\u0000-\u001f\u007f]{1,200}$/;
 const modelName = (value: string, what: string) => {
   const v = value.trim();
   if (!MODEL_SHAPE.test(v)) throw new AiKeyError(`Enter the model for ${what} (up to 200 characters, no spaces).`);
+  if (looksLikeApiKey(v)) throw new AiKeyError(KEY_IN_MODEL);
   return v;
 };
 const KEY_SHAPE = /^[^\s\u0000-\u001f\u007f]{1,500}$/;
-const hintOf = (key: string) => `…${key.slice(-4)}`;
+const KEY_IN_MODEL = "Enter a model ID in the model fields and the key in Key.";
+/** The last four characters only for a key long enough that they reveal little; a short key shows none. */
+const hintOf = (key: string) => key.length >= 20 ? `…${key.slice(-4)}` : "(hidden)";
 
 function chosenEndpoint(input: Pick<ConnectionInput, "provider" | "baseUrl" | "key">, signedIn: boolean) {
   const provider = providerById(input.provider);
@@ -145,6 +149,9 @@ function chosenEndpoint(input: Pick<ConnectionInput, "provider" | "baseUrl" | "k
   catch (error) { if (error instanceof InputError) throw new AiKeyError(error.message); throw error; }
   const newKey = input.key.trim();
   if (newKey && !KEY_SHAPE.test(newKey)) throw new AiKeyError("The key must be 1 to 500 characters with no spaces.");
+  // The key's own prefix wins: a key made by another listed provider is never sent to the chosen one.
+  const owner = newKey ? keyOwner(newKey) : undefined;
+  if (owner && provider.id !== "custom" && owner !== provider.id) throw new AiKeyError(wrongProviderWords(owner));
   return { provider, baseUrl, newKey };
 }
 
@@ -204,7 +211,7 @@ export async function saveHouseholdConnection(db: Db, householdId: string, input
     // Without a new key, the saved one is kept only for the same provider and address; a key never moves to another host.
     const key = await keyForEndpoint(db, hid, before, provider.id, baseUrl, newKey);
     const connection: Connection = { protocol: provider.protocol, baseUrl, key, textModel, documentModel, own: true };
-    if (key && [textModel, documentModel].includes(key)) throw new AiKeyError("Enter a model ID in the model fields and the key in Key.");
+    if (key && [textModel, documentModel].includes(key)) throw new AiKeyError(KEY_IN_MODEL);
     const check = await opts.check(connection, { testedText: isTested(provider.id, textModel) });
     const label = provider.id === "custom" ? "your provider" : provider.label;
     const result = {
@@ -265,6 +272,16 @@ export async function deleteHouseholdKey(tx: Db, householdId: string) {
     if (error instanceof AiKeyError) throw error;
     throw new AiKeyError("AI key deletion is unavailable. Check Supabase Vault permissions.");
   }
+}
+
+/**
+ * Removes saved-key secrets that no household points to (a household deleted outside these functions, D34). A secret
+ * and its pointer are written in one transaction, so a committed secret without a pointer is never one being saved.
+ */
+export async function sweepOrphanKeys(db: Db): Promise<number> {
+  const removed = await db.delete(secrets).where(and(sql`${secrets.name} like 'household:%:anthropic'`,
+    sql`not exists (select 1 from ${households} where ${households.aiKeySecretId} = ${secrets.id})`)).returning({ id: secrets.id });
+  return removed.length;
 }
 
 /** Settings → "Use this app's default": clears the household's own model and records one event. */

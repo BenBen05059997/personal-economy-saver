@@ -3,6 +3,7 @@ import { checkBaseUrl, localAllowed } from "./endpoint";
 import { providerById } from "./providers";
 import { providerFailureKind } from "./provider-failure";
 import { TESTED } from "./tested";
+import { isRedirect } from "./sdk";
 import { ModelError } from "./types";
 
 const LIST_BUDGET_MS = 10_000;
@@ -47,7 +48,8 @@ export async function listModels(connection: ModelListConnection, opts: { fetch?
   const cursors = new Set<string>();
   try {
     while (true) {
-      const response = await (opts.fetch ?? globalThis.fetch)(endpoint.href, { method: "GET", headers, redirect: "error", cache: "no-store", signal });
+      const response = await (opts.fetch ?? globalThis.fetch)(endpoint.href, { method: "GET", headers, redirect: "manual", cache: "no-store", signal });
+      if (isRedirect(response)) throw new ModelError("The AI service answered with a redirect.");
       const json: unknown = await response.json().catch(() => null);
       if (!response.ok) throw new ModelError("The AI service refused the request.", response.status, false, providerFailureKind(response.status, json));
       // Mistral documents model cards both as a data envelope and as a bare array.

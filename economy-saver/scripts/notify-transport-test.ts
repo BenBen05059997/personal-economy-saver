@@ -57,7 +57,7 @@ export async function runNotifyTransportChecks(check: Check) {
     const to = "person@example.com";
     const send = (status: number) => sendReminderEmail(settings, to, digest, async (url, request) => {
       assert.equal(url, "https://api.resend.com/emails");
-      assert.equal(request?.redirect, "error");
+      assert.equal(request?.redirect, "manual");
       assert.equal(request?.method, "POST");
       const headers = new Headers(request.headers);
       assert.equal(headers.get("authorization"), "Bearer fictional-key");
@@ -80,7 +80,7 @@ export async function runNotifyTransportChecks(check: Check) {
     const send = (status: number) => sendReminderPush(settings, RECEIVER, digest, async (url, request) => {
       assert.equal(url, RECEIVER.endpoint);
       assert.equal(request?.method, "POST");
-      assert.equal(request?.redirect, "error");
+      assert.equal(request?.redirect, "manual");
       const headers = new Headers(request.headers);
       assert.equal(headers.get("content-encoding"), "aes128gcm");
       assert.equal(headers.get("content-type"), "application/octet-stream");

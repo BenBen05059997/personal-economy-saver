@@ -1,10 +1,10 @@
 import { cookies } from "next/headers";
 import { formOf } from "@/lib/door";
-import { z } from "zod";
 import { finishSetup, setupForm } from "@/db/account";
 import { db } from "@/db/client";
 import { privateRedirect, verifiedUid } from "@/lib/auth-request";
 import { sameOrigin } from "@/lib/session";
+import { demoHouseholdForToken } from "@/db/demo";
 import { AiKeyError } from "@/db/ai-key";
 import { InputError } from "@/db/input-error";
 import { ReaderError } from "@/lib/reader/settings";
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   if (!form.success) return new Response("Check your name, timezone, balance and card settings.", { status: 400 });
   const store = await cookies();
   const original = store.get("upgrade-demo")?.value;
-  const demo = original === store.get("household")?.value && z.string().uuid().safeParse(original).success ? original! : null;
+  const demo = original && original === store.get("household")?.value ? await demoHouseholdForToken(db(), original) : null;
   try { await finishSetup(db(), uid, form.data, demo); }
   catch (error) {
     if (error instanceof InputError) return new Response(error.message, { status: 400 });

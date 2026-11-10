@@ -7,7 +7,7 @@ import { consumeRequest } from "@/db/rate-limit";
 import { AgentError } from "@/lib/agent/run";
 import { NO_STORE, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
-import { askUnavailable } from "@/lib/agent/availability";
+import { askUnavailable, NEEDS_KEY, serverHasNoModel } from "@/lib/agent/availability";
 import { MissingAuthSetting } from "@/lib/supabase-auth";
 
 // D59: device questions carry notes, a brief, and a bounded local history.
@@ -56,5 +56,5 @@ function errorWords(error: unknown): string {
   const known = error instanceof AgentError || error instanceof AiKeyError || error instanceof MissingAuthSetting;
   // A missing AI setting keeps its name (so the owner can fix it) inside a sentence a person can read.
   const missing = known ? /^(AI_[A-Z_]+) is not set$/.exec(error.message) : null;
-  return missing ? askUnavailable(missing[1]) : known ? error.message : "Couldn't answer right now. Try again.";
+  return missing ? (serverHasNoModel() ? NEEDS_KEY : askUnavailable(missing[1])) : known ? error.message : "Couldn't answer right now. Try again.";
 }

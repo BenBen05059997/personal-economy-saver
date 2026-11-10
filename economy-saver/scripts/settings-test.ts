@@ -69,8 +69,9 @@ async function main() {
       assert.deepEqual(tokens, []);
       assert.ok(settings.cards.every(card => card.householdId === a));
     });
-    const fictional = "sk-ant-fictional-" + "a".repeat(40);
-    const another = "sk-ant-fictional-" + "b".repeat(40);
+    // No listed provider's prefix: these keys are saved with OpenAI, Mistral and OpenRouter alike.
+    const fictional = "fictional-own-key-" + "a".repeat(40);
+    const another = "fictional-own-key-" + "b".repeat(40);
     process.env.AI_PROTOCOL = "anthropic";
     process.env.AI_API_KEY = fictional;
     process.env.AI_KEY_SEAL_KEY = Buffer.alloc(32, 7).toString("base64url"); // fictional test seal key
@@ -142,6 +143,24 @@ async function main() {
       assert.equal((await aiConnection(db, a, "text")).key, another, "saving the key again seals it");
       await db.transaction(tx => deleteHouseholdKey(tx, a));
       await db.delete(schema.events).where(eq(schema.events.kind, "ai_model_changed")); // keep the later event counts as they were
+    });
+    await check("D56: a key made by another listed provider and a key in a model field are refused before any call; a short key shows no characters", async () => {
+      const cases = [["openai", "sk-ant-fictional-" + "c".repeat(30), "Anthropic"], ["groq", "sk-or-v1-" + "d".repeat(30), "OpenRouter"],
+        ["anthropic", "sk-proj-" + "e".repeat(30), "OpenAI"], ["openrouter", "gsk_" + "f".repeat(30), "Groq"], ["mistral", "AIza" + "g".repeat(35), "Google Gemini"]] as const;
+      for (const [provider, key, owner] of cases) {
+        const { model, done } = own(a, { provider, key });
+        await assert.rejects(done, { message: `That looks like ${/^[AEIOU]/.test(owner) ? "an" : "a"} ${owner} key. Choose ${owner} as the provider.` });
+        assert.equal(model.seen.length, 0, `a ${owner} key is never sent to ${provider}`);
+      }
+      const keyModel = own(a, { textModel: "sk-proj-" + "h".repeat(30) });
+      await assert.rejects(keyModel.done, { message: "Enter a model ID in the model fields and the key in Key." });
+      assert.equal(keyModel.model.seen.length, 0);
+      await own(a, { key: "short-fictional" }).done;
+      assert.equal((await row(a)).aiKeyHint, "(hidden)", "a short key shows none of its characters");
+      await own(a, { key: another }).done;
+      assert.equal((await row(a)).aiKeyHint, "…" + another.slice(-4));
+      await db.transaction(tx => deleteHouseholdKey(tx, a));
+      await db.delete(schema.events).where(eq(schema.events.kind, "ai_model_changed"));
     });
     await check("a listed provider is saved with its own address, checked, and its result stored; the key is only ever a hint", async () => {
       const { model, done } = own(a);
@@ -521,6 +540,9 @@ async function main() {
         assert.equal(missing.status, 400);
         assert.equal(await missing.text(), "Enter the key for this provider.");
         assert.equal(requests.length, 3, "another listed provider cannot use the saved key or the app default");
+        const wrong = await form({ provider: "groq", key: "sk-ant-fictional-" + "c".repeat(30) });
+        assert.deepEqual([wrong.status, await wrong.text()], [400, "That looks like an Anthropic key. Choose Anthropic as the provider."]);
+        assert.equal(requests.length, 3, "a key made by another provider is never sent");
         failKey = true;
         const refused = await form({ key: another });
         assert.deepEqual([refused.status, refused.headers.get("cache-control"), await refused.text()],
