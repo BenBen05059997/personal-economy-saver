@@ -5,6 +5,11 @@
 .ui-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--control-height); padding: 6px var(--space-4); border: 1px solid var(--rule); border-radius: var(--radius-control); background: var(--screen); text-decoration: none; font: 500 14px/1.3 var(--sans); }
 .ui-button:hover { background: var(--wash); }
 .ui-button:disabled { opacity: 0.55; pointer-events: none; } /* also every button of an ApiForm while it posts */
+/* The button an ApiForm was sent with spins until the post and the next page are done; it stays readable while the others dim. */
+[data-pending] { opacity: 1 !important; }
+[data-pending]::after { content: ""; width: 14px; height: 14px; flex: 0 0 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: ui-pending-turn 800ms linear infinite; }
+@keyframes ui-pending-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { [data-pending]::after { animation: none; border-right-color: currentColor; opacity: 0.5; } }
 .ui-button.primary { background: var(--accent); border-color: var(--accent-border); color: var(--on-accent); }
 input:is([type="checkbox"], [type="radio"]) { accent-color: var(--ink); } /* ink, never the browser blue; the browser picks a tick that contrasts with it in both themes */
 .ui-field { display: grid; gap: var(--space-1); margin-block: var(--space-3); }

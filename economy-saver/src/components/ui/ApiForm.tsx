@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
 
@@ -29,16 +29,27 @@ export function ApiForm({ children, action = "/api/settings", secret = false, cl
   const group = useContext(LastSubmitted);
   const navigateAfterSave = useContext(ApiFormNavigation);
   const [busy, setBusy] = useState(false);
+  // Navigation after a post runs as a transition, so the form stays busy until the next page has rendered.
+  const [navigating, startNavigation] = useTransition();
+  const pressed = useRef<HTMLElement | null>(null);
+  const working = busy || navigating;
   const [message, setMessage] = useState("");
   const status = useRef<HTMLParagraphElement>(null);
   const shown = group && group.last !== id ? "" : message;
   // A refusal at phone width can land behind the fixed Ask bar: bring the message into view (the status line's scroll-margin keeps it clear of the bar).
   useEffect(() => { if (shown) status.current?.scrollIntoView({ block: "nearest" }); }, [shown]);
+  // The pressed button shows the spinner (`[data-pending]` in controls.css) until the post and any navigation finish.
+  useEffect(() => { if (!working) { pressed.current?.removeAttribute("data-pending"); pressed.current = null; } }, [working]);
+  // A page kept hidden after navigation (React Activity) drops its spinner too.
+  useEffect(() => () => { pressed.current?.removeAttribute("data-pending"); }, []);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (working) return;
     const form = event.currentTarget;
-    const body = new FormData(form, (event.nativeEvent as SubmitEvent).submitter); // the pressed button's own name and value go along
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const body = new FormData(form, submitter); // the pressed button's own name and value go along
+    pressed.current = submitter ?? form.querySelector<HTMLElement>("button:not([type=button])");
+    pressed.current?.setAttribute("data-pending", "");
     if (secret) form.reset();
     setBusy(true);
     setMessage("");
@@ -50,16 +61,16 @@ export function ApiForm({ children, action = "/api/settings", secret = false, cl
       if (response.ok && navigateAfterSave?.(action, destination)) {
         if (!destination) setMessage(await response.text());
       } else if (destination) {
-        if (destination === window.location.pathname + window.location.search) router.refresh();
-        else router.push(destination);
+        if (destination === window.location.pathname + window.location.search) startNavigation(() => router.refresh());
+        else startNavigation(() => router.push(destination));
       } else {
         setMessage(await response.text());
-        if (response.ok) router.refresh();
+        if (response.ok) startNavigation(() => router.refresh());
       }
     } catch { setMessage("Couldn’t save. Check your connection and try again."); }
     finally { setBusy(false); }
   }
-  return <form onSubmit={submit} action={action} method="post" className={className ? `ui-form ${className}` : "ui-form"} aria-busy={busy} onInput={() => setMessage("")}>
-    <fieldset disabled={busy}>{children}</fieldset><p ref={status} role="status" className="ui-hint ui-form-status">{shown}</p>
+  return <form onSubmit={submit} action={action} method="post" className={className ? `ui-form ${className}` : "ui-form"} aria-busy={working} onInput={() => setMessage("")}>
+    <fieldset disabled={working}>{children}</fieldset><p ref={status} role="status" className="ui-hint ui-form-status">{shown}</p>
   </form>;
 }

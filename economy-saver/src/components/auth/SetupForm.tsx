@@ -10,7 +10,7 @@ const currencies = {
   USD: { symbol: "$", name: "US dollars" },
 } as const;
 
-/** The one setup form: onboarding (a signed-in owner) and Start with my numbers (a blank demo) post the same fields to their own route. A name is all it needs; the bank balance is set on Home (Update): currency and time zone are read from the browser and sit behind "Change", the card behind "Add a card now". */
+/** The one setup form: onboarding (a signed-in owner) and Start with my numbers (a blank demo) post the same fields to their own route. A name is all it needs; the bank balance is set on Home (Update): currency and time zone are read from the browser and sit behind "Change". */
 export function SetupForm({ action, title, hint, button, notice, privacy = false, forwarding }: { action: string; title: string; hint: string; button: string; notice?: string; privacy?: boolean; forwarding: boolean }) {
   // The browser's zone (yen for Tokyo, dollars otherwise) until the person changes it; the server renders Tokyo.
   const detected = useSyncExternalStore(() => () => {}, () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tokyo", () => "Asia/Tokyo");
@@ -27,22 +27,11 @@ export function SetupForm({ action, title, hint, button, notice, privacy = false
       <label className="ui-field">Your name<input name="name" autoComplete="given-name" maxLength={80} required aria-describedby="setup-name-hint" />
         <small id="setup-name-hint" className="ui-hint">It is also the household’s name until you change it in Settings.</small></label>
       <details className="setup-more" data-testid="setup-region">
-        <summary>{name} · {timeZone} · <span className="account-link">Change</span></summary>
+        <summary>Currency: {symbol} {name} · Time zone: {timeZone} · <span className="account-link">Change</span></summary>
         <div className="account-grid">
           <label className="ui-field">Home currency<select name="currency" value={currency} onChange={event => setCurrency(event.target.value as keyof typeof currencies)}><option value="JPY">Japanese yen</option><option value="USD">US dollars</option></select></label>
           <label className="ui-field">Time zone<input name="timeZone" value={timeZone} onChange={event => setTimeZone(event.target.value)} maxLength={80} required /></label>
         </div>
-      </details>
-      <details className="setup-more" data-testid="setup-card">
-        <summary><span className="account-link">Add a card now ›</span></summary>
-        <label className="ui-field">Card name<input name="card" placeholder="e.g. Card A" maxLength={80} /></label>
-        <div className="account-grid">
-          <label className="ui-field">Statement closes on the<input name="closingDay" type="number" min="1" max="31" aria-describedby="setup-closing-hint" />
-            <small id="setup-closing-hint" className="ui-hint">Day of the month, like 15</small></label>
-          <label className="ui-field">Card bill is paid on the<input name="dueDay" type="number" min="1" max="31" aria-describedby="setup-payment-hint" />
-            <small id="setup-payment-hint" className="ui-hint">Day of the next month, like 10</small></label>
-        </div>
-        <label className="ui-field">Credit limit (optional)<span className="account-prefixed"><span aria-hidden="true">{symbol}</span><input name="limit" inputMode="decimal" maxLength={16} /></span></label>
       </details>
       <p className="ui-hint">{forwarding ? "You can add a card, set up bill forwarding and an AI key later." : "You can add a card and an AI key later."}</p>
       <button className="ui-button primary">{button}</button>

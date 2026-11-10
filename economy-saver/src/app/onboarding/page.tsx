@@ -11,7 +11,7 @@ async function Setup() {
   const uid = await verifiedUid();
   if (!uid) redirect("/login");
   if (await accountHousehold(db(), uid)) redirect("/");
-  return <SetupForm forwarding={missingForwardingSetting() === null} action="/api/onboarding" title="Set up your household" button="Open my household"
+  return <SetupForm forwarding={missingForwardingSetting() === null} action="/api/onboarding" title="Set up your household" button="Start planning"
     hint="Start with your name; set your bank balance on Home. Your household starts fresh with the figures you enter here. Demo bills and payments stay out of your accounts." />;
 }
 export default function OnboardingPage() {

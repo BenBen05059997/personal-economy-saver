@@ -15,7 +15,7 @@ async function Start() {
   const kind = demo ? await withHousehold(db(), demo, tx => tryItKind(tx, demo)) : null;
   const notice = kind === "try-it" ? "This replaces the Try it household in this browser. Reset in Settings brings Ben's numbers back."
     : kind === "blank" ? "This replaces your household in this browser and its numbers." : undefined;
-  return <SetupForm notice={notice} action="/api/try/blank" forwarding={missingForwardingSetting() === null} privacy title="Start with my numbers" button="Open my household"
+  return <SetupForm notice={notice} action="/api/try/blank" forwarding={missingForwardingSetting() === null} privacy title="Start with my numbers" button="Start planning"
     hint="A name is all it needs; set your bank balance on Home. No bills, clients or payments are added for you, and nothing here is real money. You can sign in with email later to keep it." />;
 }
 export default function StartPage() {

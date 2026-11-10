@@ -127,7 +127,7 @@ Outside
 └── The ECB daily reference rate (`eurofxref-daily.xml`): the daily job's USD/JPY for real JPY households
 ```
 
-**The forms.** Forms that post to a route use the client component `src/components/ui/ApiForm.tsx` (upload keeps its own: several files, each posted on its own, one after another, with a line per file). The push controls use the browser Push API before posting their device subscription. The shared form posts with
+**The forms.** Forms that post to a route use the client component `src/components/ui/ApiForm.tsx` (upload keeps its own: several files, each posted on its own, one after another, with a line per file). The push controls use the browser Push API before posting their device subscription. The shared form marks the button it was sent with `data-pending` (a small spinning ring, a still ring under reduced motion, `src/styles/controls.css`) and keeps it until the post and any navigation it starts, run in a transition, have finished; the other buttons dim. The shared form posts with
 fetch and the header `x-form-fetch: 1`, shows the route's text answer in its status line when the route refuses (keeping what was typed), refreshes
 the page when the route answers 200, and follows the route's redirect when it answers one. A route that redirects takes the request
 (`redirectTo(location, request)`, with the `NO_REFERRER` option for the sign-in routes): to a fetch with the header it answers 204 with `x-form-redirect: <location>`;

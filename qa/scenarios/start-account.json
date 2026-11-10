@@ -205,8 +205,8 @@
     ],
     "expected": [
       "/start is headed \"Start with my numbers\" with one field, Your name (no bank balance box), and the hint \"A name is all it needs; set your bank balance on Home.\"",
-      "The line reads \"Japanese yen · Asia/Tokyo · Change\" (in Tokyo) and a link \"Add a card now ›\" is closed",
-      "The button reads \"Open my household\" and, under it, \"Your numbers stay in this browser's demo household. Privacy ›\"",
+      "The line reads \"Currency: ¥ Japanese yen · Time zone: Asia/Tokyo · Change\" (in Tokyo) and there is no card link or card field",
+      "The button reads \"Start planning\" and, under it, \"Your numbers stay in this browser's demo household. Privacy ›\"",
       "With no cookie there is no \"This replaces…\" line"
     ],
     "refs": [
@@ -247,7 +247,7 @@
   {
     "id": "START-011",
     "area": "Start with my numbers",
-    "action": "Open my household with only a name and a balance",
+    "action": "Start planning with only a name",
     "user_goal": "I want the fastest start",
     "type": "happy",
     "priority": "P1",
@@ -261,7 +261,7 @@
     ],
     "steps": [
       "Type Mika",
-      "Press Open my household",
+      "Press Start planning",
       "On Home, Bank balance → Update, type 250,000 and Save"
     ],
     "expected": [
@@ -278,7 +278,7 @@
   {
     "id": "START-012",
     "area": "Start with my numbers",
-    "action": "Open my household with a card",
+    "action": "Start planning, then add a card in Settings",
     "user_goal": "I want my card counted from day one",
     "type": "happy",
     "priority": "P1",
@@ -292,9 +292,9 @@
     ],
     "steps": [
       "Type Mika",
-      "Open \"Add a card now ›\" and enter Card N, closing 25, payment 10, no limit",
-      "Press Open my household",
-      "On Home, Bank balance → Update, type 120,000 and Save"
+      "Press Start planning",
+      "On Home, Bank balance → Update, type 120,000 and Save",
+      "Settings → Cards → add Card N, closing 25, payment 10, no limit"
     ],
     "expected": [
       "Home opens in 1.5 s or less with the empty sentence \"Add your rent, your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.\"",
@@ -323,7 +323,7 @@
       "/start open"
     ],
     "steps": [
-      "Leave Your name empty and press Open my household",
+      "Leave Your name empty and press Start planning",
       "Then type Mika and press again"
     ],
     "expected": [
@@ -338,22 +338,22 @@
   {
     "id": "START-014",
     "area": "Start with my numbers",
-    "action": "Give a card name but no days, or closing day 40",
-    "user_goal": "I half-filled the card",
+    "action": "Send a half-filled card to the setup route",
+    "user_goal": "A card name arrives without its days",
     "type": "negative",
     "priority": "P2",
     "needs": [
       "none"
     ],
-    "how": "browser",
+    "how": "http",
     "preconditions": [
       "Private window, no household cookie",
       "/start open"
     ],
     "steps": [
       "Type Mika",
-      "Open the card block, give a name and no days, press Open my household",
-      "Then give a name with closing day 40 and payment day 10"
+      "The form has no card fields; post the setup route directly with a card name and no days",
+      "Then post a card name with closing day 40 and payment day 10"
     ],
     "expected": [
       "The page stays and shows \"Check your name, timezone, balance and card settings.\"",
@@ -900,8 +900,8 @@
     ],
     "steps": [
       "Read /onboarding",
-      "Type name, time zone and a card (the bank balance is set on Home afterwards)",
-      "Press Open my household"
+      "Type a name (the bank balance is set on Home afterwards, a card in Settings)",
+      "Press Start planning"
     ],
     "expected": [
       "/onboarding is headed \"Set up your household\" with the same fields as /start and the hint \"Start with your name; set your bank balance on Home.\"",

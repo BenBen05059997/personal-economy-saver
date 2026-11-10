@@ -978,8 +978,8 @@ await step("page", "stage15a-start-form-has-two-fields-and-folded-card-and-regio
   const html = await page("/start", /Your name/);
   const content = plain(pageContent(html));
   expect(!/in your bank today/.test(content) && !html.includes('name="bank"'), "a-no-bank-field");
-  expect(/Your name/.test(content) && /Add a card now ›/.test(content) && /· Change/.test(content), "a-start-labels");
-  expect(!/Card bill is paid on the[^]*required/.test(html) && !/name="closingDay"[^>]*required/.test(html), "a-card-fields-not-required");
+  expect(/Your name/.test(content) && /· Change/.test(content), "a-start-labels");
+  expect(!/Add a card now/.test(content) && !html.includes('name="card"'), "a-no-card-fields");
 });
 await step("action", "stage15a-start-two-fields", async () => adopt(await request("/api/try/blank", { method: "POST", form: twoFields, session: "" })));
 await step("page", "stage15a-home-has-the-real-date-no-card-and-the-card-step", async () => {
