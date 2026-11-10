@@ -24,6 +24,7 @@ import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
 import { Suggestions } from "./Suggestions";
 import type { openSuggestions } from "@/db/suggestions";
+import type { OwnChoices } from "@/lib/reader/own-choices";
 import { GetStarted, StepsPanel, type GetStartedProgress } from "./GetStarted";
 import "./home.css";
 
@@ -158,7 +159,7 @@ function CancelRow({ notice, state }: { notice: CancelNotice; state: MoneyState 
   </div>;
 }
 
-function ComingUp({ state, people, entryIds, added, addedId }: Props & { people: People; entryIds: EntryIds; added: string | null; addedId: string | null }) {
+function ComingUp({ state, people, entryIds, own, added, addedId }: Props & { people: People; entryIds: EntryIds; own: OwnChoices; added: string | null; addedId: string | null }) {
   const format = formatter(state.homeCurrency);
   const usual = timeline(state, "expected");
   const late = series(state, "worst");
@@ -223,7 +224,7 @@ function ComingUp({ state, people, entryIds, added, addedId }: Props & { people:
     {dated.length === 0 && <PanelHint className="home-empty" href={ADD_BILL} label="Add a bill">Nothing due in the next 30 days.</PanelHint>}
     {dated.slice(0, shown).map((row) => row.node)}
     {dated.length > shown && <details><summary>Later in the month · {dated.length - shown} more</summary>{dated.slice(shown).map((row) => row.node)}</details>}
-    <AddEntry key={entryIds.bill + entryIds.charge} ids={entryIds} returnTo="/" today={state.today} currency={state.homeCurrency} people={people}
+    <AddEntry key={entryIds.bill + entryIds.charge} ids={entryIds} returnTo="/" today={state.today} currency={state.homeCurrency} people={people} own={own}
       cards={state.cards.map(card => ({ id: card.id, label: card.label }))} />
   </section>;
 }
@@ -247,7 +248,7 @@ function addedLine(state: MoneyState, id: string | null): string | null {
   return charge && card ? `Added ${charge.merchant} ${format(charge.amount)} on ${card.label}` : null;
 }
 
-export function HomeView({ state, inbox, notice, people, entryIds, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, spending }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; people: People; entryIds: EntryIds; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; spending: SpendingInput }) {
+export function HomeView({ state, inbox, notice, people, entryIds, own, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, spending }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; people: People; entryIds: EntryIds; own: OwnChoices; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; spending: SpendingInput }) {
   const date = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(state.today)).replace(",", "");
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
@@ -261,7 +262,7 @@ export function HomeView({ state, inbox, notice, people, entryIds, balanceId, de
     <HomeViews state={state} spending={spending} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
     <div className="home-panels">
       <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} /></div>
-      <div className="home-column"><ComingUp state={state} people={people} entryIds={entryIds} added={addedLine(state, added)} addedId={added} /></div>
+      <div className="home-column"><ComingUp state={state} people={people} entryIds={entryIds} own={own} added={addedLine(state, added)} addedId={added} /></div>
     </div>
   </article>;
 }

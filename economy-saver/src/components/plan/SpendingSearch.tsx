@@ -1,6 +1,7 @@
 import { aboutMoney, dayLabel, minorMoney } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
 import { allUncounted, HISTORY_MONTHS, SEARCH_QUERY_MAX, searchLine, type SpendingSearch as SearchResult } from "@/lib/money/spending";
+import { ownLabel } from "@/lib/money/own-category";
 import { whoseName, type MonthPerson } from "./MonthSplit";
 import "./plan.css";
 
@@ -36,7 +37,7 @@ export function SpendingResults({ result, typed, people }: { result: SearchResul
         <p className="ui-hint">{m.byCategory.map(c => `${c.label} ${allUncounted(m.items.filter(i => i.category === c.category)) ? AMOUNT_NOT_KNOWN : money(c.totalMinor)}`).join(" · ")}</p>
         <ul>
           {m.items.map(item => <li key={`${item.kind}-${item.id}-${item.date}`}>
-            <span>{item.label}<small>{dayLabel(item.date)}{together && ` · ${whoseName(item.ownerId, people)}`}{item.documentId !== null && " · from a document"}</small></span>
+            <span>{item.label}<small>{dayLabel(item.date)}{item.own !== null && ` · ${ownLabel(item.category, item.own)}`}{together && ` · ${whoseName(item.ownerId, people)}`}{item.documentId !== null && " · from a document"}</small></span>
             <span className="num">{item.uncounted ? AMOUNT_NOT_KNOWN : item.estimated ? aboutMoney(item.amountMinor, result.currency) : money(item.amountMinor)}</span>
           </li>)}
         </ul>

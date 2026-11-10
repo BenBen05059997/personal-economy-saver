@@ -8,6 +8,7 @@ import { monthYear, moneyInPotsLine, potLine, roomLine, roomNote } from "@/lib/m
 import { ApiForm } from "@/components/ui/ApiForm";
 import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
 import "@/components/household/add-entry.css";
+import type { OwnChoices } from "@/lib/reader/own-choices";
 import { MonthSplit } from "./MonthSplit";
 import { RegularCosts } from "./RegularCosts";
 import { SpendingResults, SpendingSearchForm } from "./SpendingSearch";
@@ -98,7 +99,7 @@ function planHref(month: string, current: string, query: string): string {
   return search ? `/plan?${search}` : "/plan";
 }
 
-export function PlanView({ state, spending, ask, newPotId }: { state: MoneyState; spending: SpendingInput; ask: PlanAsk; newPotId: string }) {
+export function PlanView({ state, spending, ask, own, newPotId }: { state: MoneyState; spending: SpendingInput; ask: PlanAsk; own: OwnChoices; newPotId: string }) {
   const inPots = moneyInPotsLine(state);
   const people = state.split.members.map(({ id, name }) => ({ id, name }));
   const { month, refusal: monthRefusal } = chosenMonth(ask);
@@ -120,7 +121,7 @@ export function PlanView({ state, spending, ask, newPotId }: { state: MoneyState
     {queryRefusal && <p className="plan-line" role="alert">{queryRefusal}</p>}
     {result && <SpendingResults result={result} typed={query} people={people} />}
     {monthRefusal && <p className="plan-line" role="alert">{monthRefusal}</p>}
-    <MonthSplit view={monthByCategory(spending, ask.today, month)} people={people} past={month === ask.current ? undefined : label(month)} nav={nav} />
+    <MonthSplit view={monthByCategory(spending, ask.today, month)} filing={{ entries: spendingItems(spending, monthBounds(month).first, monthBounds(month).last), own }} people={people} past={month === ask.current ? undefined : label(month)} nav={nav} />
     <RegularCosts spending={spending} today={ask.today} />
     {state.pots.length === 0 && <p className="ui-hint">No pots yet. A pot is money set aside with a reason; it stops counting as safe to spend.</p>}
     {state.pots.map(pot => <PotRow key={pot.id} state={state} pot={pot} />)}

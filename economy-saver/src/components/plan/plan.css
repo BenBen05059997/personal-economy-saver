@@ -67,3 +67,12 @@
 .plan-regular-down { color: var(--green); font-weight: 500; }
 .plan-regular-same { color: var(--muted); }
 .plan-uncounted { overflow-wrap: anywhere; margin: var(--space-1) 0 var(--space-3); }
+/* D75: filing under your own category from an item row, and the own-category groups inside a category. */
+.plan-cat li.plan-own-head { margin-top: var(--space-2); border-top: 1px solid var(--rule); font-weight: 500; }
+.plan-cat li.plan-own-item > span:first-child { padding-left: var(--space-3); }
+.plan-file { padding: 0; border: 0; background: none; color: var(--ink); font: 400 13px var(--sans); text-decoration: underline; cursor: pointer; }
+.plan-file:hover, .plan-file:focus-visible { text-decoration-thickness: 2px; }
+.plan-cat small .plan-file-sep { margin-inline: var(--space-1); }
+.plan-file-form { display: block; flex: 0 0 100%; max-width: 24rem; margin-top: var(--space-2); font-size: 14px; color: var(--ink); }
+.plan-file-every { display: flex; align-items: center; gap: var(--space-2); margin-block: var(--space-2); font: 400 14px var(--sans); }
+.plan-file-buttons { display: flex; gap: var(--space-2); }

@@ -25,6 +25,9 @@ import { HouseholdAccess } from "./HouseholdAccess";
 import { InvitePeople, type InviteRow } from "./InvitePeople";
 import { ResetDemo } from "./ResetDemo";
 import { ImportStatement } from "./ImportStatement";
+import { OwnCategories } from "./OwnCategories";
+import { groupOwnCategories } from "@/db/own-categories";
+import type { OwnChoices } from "@/lib/reader/own-choices";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
 import "./settings.css";
 
@@ -64,7 +67,7 @@ function RemoveBill({ bill }: { bill: SettingsData["bills"][number] }) {
  * fields change the whole series. D54: a monthly bill has "Amount changes every month" (its amount is then the estimate before any
  * real bill, with no date); a one-off has "Part of" while this household has an amount-varies monthly bill in its category.
  */
-function EditBill({ bill, bills, people, today }: { bill: SettingsData["bills"][number]; bills: SettingsData["bills"]; people: SettingsData["people"]; today: string }) {
+function EditBill({ bill, bills, people, today, own }: { bill: SettingsData["bills"][number]; bills: SettingsData["bills"]; people: SettingsData["people"]; today: string; own: OwnChoices }) {
   const currency = Currency.parse(bill.currency);
   const repeat = bill.repeatUnit === "month" || bill.repeatUnit === "year" ? bill.repeatUnit : null;
   const series = repeat !== null ? [] : bills.filter(b => b.amountVaries && b.status === "confirmed" && (b.category === bill.category || b.id === bill.seriesBillId));
@@ -88,7 +91,7 @@ function EditBill({ bill, bills, people, today }: { bill: SettingsData["bills"][
         <label className="ui-field">Last day<input name="periodEnd" type="date" defaultValue={bill.periodEnd ?? ""} /></label>
         <small className="ui-hint add-entry-hint">What the bill is for, like “11月分”. Information only: the forecast counts it on the due date.</small>
       </details>}
-      <CategoryFields name={bill.biller} defaultCategory={bill.category} defaultBp={bill.businessBp} />
+      <CategoryFields name={bill.biller} own={own} defaultCategory={bill.category} defaultOwn={bill.ownCategoryId} defaultBp={bill.businessBp} />
       {people.length < 2 ? <><input type="hidden" name="memberId" value={bill.memberId ?? ""} /><input type="hidden" name="paidByMemberId" value={bill.paidByMemberId ?? ""} /></>
         : <><Person people={people} selected={bill.memberId} shared /><PaidBy people={people} selected={bill.paidByMemberId} /></>}
       <button className="ui-button primary">Save bill</button></ApiForm></details>;
@@ -98,10 +101,10 @@ function lastOne(bill: SettingsData["bills"][number], today: string) {
   return bill.due === null || (bill.repeatUnit !== "month" && bill.repeatUnit !== "year") ? null : lastOneWords({ due: bill.due, repeatUnit: bill.repeatUnit, repeatDay: bill.repeatDay, repeatUntil: bill.repeatUntil }, today);
 }
 /** One bill in Settings → Bills: its summary and amount ("about ¥6,000 · varies" for a monthly bill whose amount changes), Edit and Remove. */
-function BillRow({ bill, bills, people, today }: { bill: SettingsData["bills"][number]; bills: SettingsData["bills"]; people: SettingsData["people"]; today: string }) {
+function BillRow({ bill, bills, people, today, own }: { bill: SettingsData["bills"][number]; bills: SettingsData["bills"]; people: SettingsData["people"]; today: string; own: OwnChoices }) {
   const currency = Currency.parse(bill.currency);
   return <div id={`bill-${bill.id}`} className="settings-bill"><p>{billSummary(bill, people)} · {bill.amountMinor === null ? AMOUNT_NOT_KNOWN : bill.amountVaries ? `${aboutMoney(bill.amountMinor, currency)} · varies` : minorMoney(bill.amountMinor, currency)}{bill.due === null ? ` · ${DATE_NOT_KNOWN}` : ""}{lastOne(bill, today) === null ? "" : ` · ${lastOne(bill, today)}`}</p>
-    {bill.status === "confirmed" && <EditBill bill={bill} bills={bills} people={people} today={today} />}<RemoveBill bill={bill} /></div>;
+    {bill.status === "confirmed" && <EditBill bill={bill} bills={bills} people={people} today={today} own={own} />}<RemoveBill bill={bill} /></div>;
 }
 /** Remove for one person who is not the owner: asks first and says where their bills and cards go (the rule is on `removeMember`). */
 function RemovePerson({ person, people, cards }: { person: SettingsData["people"][number]; people: SettingsData["people"]; cards: SettingsData["cards"] }) {
@@ -123,8 +126,8 @@ function CardFields({ data, card }: { data: SettingsData; card?: SettingsData["c
     <button className="ui-button">{card ? "Save card" : "Add card"}</button></>;
 }
 
-export function SettingsView({ data, canImportPayPal = false, familyLinks, reminders, canManage, access }: {
-  data: SettingsData; canImportPayPal?: boolean; familyLinks: FamilyLinkRow[]; reminders: Awaited<ReturnType<typeof reminderView>>;
+export function SettingsView({ data, own, canImportPayPal = false, familyLinks, reminders, canManage, access }: {
+  data: SettingsData; own: OwnChoices; canImportPayPal?: boolean; familyLinks: FamilyLinkRow[]; reminders: Awaited<ReturnType<typeof reminderView>>;
   canManage: boolean; access: { invites: InviteRow[]; tokens: McpTokenInfo[]; invited: string[] } | null;
 }) {
   const { household, people, cards, bills } = data;
@@ -166,11 +169,12 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks, remin
       {cards.map(card => <details key={card.id}><summary>{card.label} · {people.find(p => p.id === card.memberId)?.name ?? "Shared"}{card.foreignFeeBp == null ? "" : ` · Foreign fee ${card.foreignFeeBp / 100}%`}</summary><ApiForm><CardFields data={data} card={card} /></ApiForm></details>)}
       <details><summary>Add a card</summary><ApiForm><CardFields key={cards.length} data={data} /></ApiForm></details>
     </section>
-    <ImportStatement cards={cards.map(card => ({ id: card.id, label: card.label, lastClose: closingBefore({ closingDay: card.closingDay }, data.today) }))} currency={Currency.parse(household.currency)} />
+    <ImportStatement cards={cards.map(card => ({ id: card.id, label: card.label, lastClose: closingBefore({ closingDay: card.closingDay }, data.today) }))} currency={Currency.parse(household.currency)} own={own} />
+    <OwnCategories groups={groupOwnCategories(data.ownCategories)} />
     <section className="ui-panel"><h2>{people.length < 2 ? "Bills" : "Shared & personal bills"}</h2><p className="ui-hint">Every bill stays in the household runway.{people.length > 1 && " Choose who it belongs to."}</p>
-      {bills.length ? <>{current.map(bill => <BillRow key={bill.id} bill={bill} bills={bills} people={people} today={data.today} />)}
+      {bills.length ? <>{current.map(bill => <BillRow key={bill.id} bill={bill} bills={bills} people={people} today={data.today} own={own} />)}
         {past.length > 0 && <details className="settings-past"><summary>Past bills ({past.length})</summary>
-          {past.map(bill => <BillRow key={bill.id} bill={bill} bills={bills} people={people} today={data.today} />)}</details>}</> : <p className="ui-hint">Your bills appear here after you confirm a reading.</p>}
+          {past.map(bill => <BillRow key={bill.id} bill={bill} bills={bills} people={people} today={data.today} own={own} />)}</details>}</> : <p className="ui-hint">Your bills appear here after you confirm a reading.</p>}
     </section>
     {canImportPayPal && <section className="ui-panel" id="paypal-import"><h2>PayPal history</h2>
       <p className="ui-hint">Add the clients and invoices from your PayPal sandbox account. This only reads from PayPal and never changes your balance.</p>

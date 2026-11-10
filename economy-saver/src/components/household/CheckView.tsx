@@ -8,14 +8,15 @@ import type { ReaderInbox } from "@/db/reader-inbox";
 import "@/components/reader/reader.css";
 import "./household.css";
 import { AddEntry, type EntryIds } from "./AddEntry";
+import type { OwnChoices } from "@/lib/reader/own-choices";
 import { missingForwardingSetting } from "@/components/reader/ForwardingSettings";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { ConfirmButton } from "./ConfirmButton";
 import { GapFill } from "./GapFill";
 
-export function CheckView({ state, inbox, people, entryIds, from }: {
+export function CheckView({ state, inbox, people, entryIds, own, from }: {
   from?: "home";
-  state: MoneyState; inbox: ReaderInbox; people: { id: string; name: string }[]; entryIds: EntryIds;
+  state: MoneyState; inbox: ReaderInbox; people: { id: string; name: string }[]; entryIds: EntryIds; own: OwnChoices;
 }) {
   const forwarding = missingForwardingSetting() === null;
   const rows = toCheck(state);
@@ -43,8 +44,8 @@ export function CheckView({ state, inbox, people, entryIds, from }: {
       <ConfirmButton kind={row.kind} id={row.id} title={row.title} onCheckPage returnTo={from === "home" ? "/" : "/to-check"} />
     </div>)}
     {inbox.jobs.some(job => job.status !== "failed") && <p className="ui-hint">Reading the document… usually under 30 seconds</p>}
-    <ReaderReview state={state} inbox={inbox} />
-    <AddEntry key={entryIds.bill + entryIds.charge} ids={entryIds} returnTo="/to-check" today={state.today} currency={state.homeCurrency} people={people}
+    <ReaderReview state={state} inbox={inbox} own={own} />
+    <AddEntry key={entryIds.bill + entryIds.charge} ids={entryIds} returnTo="/to-check" today={state.today} currency={state.homeCurrency} people={people} own={own}
       cards={state.cards.map(card => ({ id: card.id, label: card.label }))} />
   </>;
 }

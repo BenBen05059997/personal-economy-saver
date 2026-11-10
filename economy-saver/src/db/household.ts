@@ -1,6 +1,6 @@
 // The household-scoped data layer validates the id and filters by it. The tenant role also enforces the scope in Postgres.
 
-import { and, count, desc, eq, gt, gte, inArray, isNull, isNotNull, lte, sql } from "drizzle-orm";
+import { and, count, desc, eq, getTableColumns, gt, gte, inArray, isNull, isNotNull, lte, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT, PgTransactionConfig } from "drizzle-orm/pg-core";
 import { Currency } from "@/lib/catalogue/types";
 import { CategoryKeySchema as CategoryKey } from "@/lib/money/categories";
@@ -143,11 +143,15 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
 
   const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows, balanceRows, potRows, split] = await Promise.all([
     db.select().from(s.paypalConnections).where(eq(s.paypalConnections.householdId, hid)),
-    db.select().from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(s.bills.due, s.bills.biller),
+    // D75: the own category by a join scoped to the household (the same composite key the foreign key uses), so it costs no query of its own.
+    db.select({ ...getTableColumns(s.bills), ownName: s.ownCategories.name }).from(s.bills)
+      .leftJoin(s.ownCategories, and(eq(s.ownCategories.householdId, s.bills.householdId), eq(s.ownCategories.id, s.bills.ownCategoryId)))
+      .where(eq(s.bills.householdId, hid)).orderBy(s.bills.due, s.bills.biller),
     db.select().from(s.cards).where(eq(s.cards.householdId, hid)).orderBy(s.cards.createdAt, s.cards.label),
     db
-      .select()
+      .select({ ...getTableColumns(s.charges), ownName: s.ownCategories.name })
       .from(s.charges)
+      .leftJoin(s.ownCategories, and(eq(s.ownCategories.householdId, s.charges.householdId), eq(s.ownCategories.id, s.charges.ownCategoryId)))
       .where(and(eq(s.charges.householdId, hid), gte(s.charges.date, chargesFrom)))
       .orderBy(s.charges.date, s.charges.merchant),
     db
@@ -171,6 +175,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     due: b.due,
     category: CategoryKey.parse(b.category),
     businessBp: b.businessBp,
+    ...(b.ownCategoryId !== null && b.ownName !== null && { own: { id: b.ownCategoryId, name: b.ownName } }),
     status: b.status,
     ...(b.previousAmountMinor !== null && { previousAmount: inHome(b.previousAmountMinor, b.currency) }),
     ...(b.repeatUnit !== null && { repeatUnit: RepeatUnitSchema.parse(b.repeatUnit) }),
@@ -208,6 +213,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     date: c.date,
     category: CategoryKey.parse(c.category),
     businessBp: c.businessBp,
+    ...(c.ownCategoryId !== null && c.ownName !== null && { own: { id: c.ownCategoryId, name: c.ownName } }),
     source: c.source,
     status: c.status,
     ...(c.place !== null && { place: c.place }),

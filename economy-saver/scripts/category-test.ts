@@ -47,7 +47,7 @@ async function main() {
     // ------------------------------------------------------------ the list and the keyword table
     await check("the list: fourteen keys (travel since D53) with their labels in order; the zod enum takes exactly those", () => {
       assert.deepEqual(CATEGORY_KEYS, ["housing", "utilities", "phone_internet", "subscriptions", "food", "transport", "travel", "health", "insurance", "family_shared", "government_tax", "business_tools", "debt", "other"]);
-      assert.deepEqual(CATEGORIES.map(c => c.label), ["Housing", "Utilities", "Phone & internet", "Subscriptions", "Food", "Transport", "Travel", "Health", "Insurance", "Family & shared", "Government & tax", "Business tools", "Debt", "Other"]);
+      assert.deepEqual(CATEGORIES.map(c => c.label), ["Housing", "Utilities", "Phone & internet", "Subscriptions", "Food", "Transport", "Travel", "Health", "Insurance", "Family", "Government & tax", "Business tools", "Debt", "Other"]);
       for (const key of CATEGORY_KEYS) assert.equal(CategoryKeySchema.safeParse(key).success, true);
       for (const bad of ["pets", "Housing", "", " housing", "phone", null, undefined, 3]) assert.equal(CategoryKeySchema.safeParse(bad).success, false, String(bad));
       assert.equal(CategoryKeySchema.safeParse("pets").error!.issues[0].message, "Choose a category from the list.");
@@ -363,7 +363,7 @@ async function main() {
       const state = await stateOf(hid);
       const view = monthByCategory(state, state.today);
       assert.deepEqual(view.categories.find(c => c.category === "housing")!.items.map(i => [i.label, i.amountMinor, i.businessBp]).sort(), [["Fictional studio", 50_000, 4000], ["Rent", 82_000, 3000]]);
-      assert.deepEqual(view.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional bento"), { label: "Fictional bento", date: "2026-11-14", amountMinor: 900, businessBp: 10_000, ownerId: state.cards.find(c => c.id === lunch.cardId)?.ownerId ?? null });
+      assert.deepEqual(view.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional bento"), { label: "Fictional bento", date: "2026-11-14", amountMinor: 900, businessBp: 10_000, own: null, ownerId: state.cards.find(c => c.id === lunch.cardId)?.ownerId ?? null });
       assert.equal(view.categories.find(c => c.category === "food")!.items.filter(i => i.label === "Fictional bento").length, 1);
     });
 
@@ -422,7 +422,7 @@ async function main() {
       assert.equal(await confirmPending(db, hid, "charge", chargeId), true);
       state = await stateOf(hid);
       const after = monthByCategory(state, state.today);
-      assert.deepEqual(after.categories.find(c => c.category === "health")!.items, [{ label: "Fictional gym", date: "2026-11-25", amountMinor: 3000, businessBp: 2500, ownerId: null }]);
+      assert.deepEqual(after.categories.find(c => c.category === "health")!.items, [{ label: "Fictional gym", date: "2026-11-25", amountMinor: 3000, businessBp: 2500, own: null, ownerId: null }]);
       assert.equal(after.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional ramen shop")!.businessBp, 10_000);
 
       const text = await run("month_by_category", {});

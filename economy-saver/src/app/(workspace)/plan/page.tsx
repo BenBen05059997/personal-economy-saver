@@ -16,7 +16,7 @@ async function Plan({ search }: { search: Search }) {
   const { q, month } = await search;
   const hid = await currentHouseholdId();
   if (!hid) redirect("/");
-  const workspace = await loadWorkspace(hid);
+  const workspace = await loadWorkspace(hid, false, true);
   const today = workspace.state.today;
   const current = today.slice(0, 7);
   const oldest = monthsBack(current, HISTORY_MONTHS);
@@ -25,7 +25,7 @@ async function Plan({ search }: { search: Search }) {
     { isolationLevel: "repeatable read", accessMode: "read only" });
   const ask: PlanAsk = { today, current, oldest, month: month ?? null, query: q ?? null };
   return <WorkspaceFrame workspace={workspace} section="plan">
-    <PlanView state={workspace.state} spending={spending} ask={ask} newPotId={crypto.randomUUID()} />
+    <PlanView state={workspace.state} spending={spending} ask={ask} own={workspace.own!} newPotId={crypto.randomUUID()} />
   </WorkspaceFrame>;
 }
 export default function Page({ searchParams }: { searchParams: Search }) {

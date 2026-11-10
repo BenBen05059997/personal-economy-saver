@@ -8,6 +8,7 @@ import { withHousehold } from "@/db/household";
 import { activeInvites } from "@/db/invites";
 import { canImportPayPal } from "@/db/paypal-import";
 import { loadSettings } from "@/db/settings";
+import { ownChoices } from "@/db/own-categories";
 import { reminderView } from "@/db/reminders";
 import { verifiedIdentity } from "@/lib/auth-request";
 import { listFamilyLinks } from "@/db/family-links";
@@ -22,9 +23,9 @@ import { currentHouseholdId } from "@/lib/session";
 async function Settings() {
   const [hid, identity] = await Promise.all([currentHouseholdId(), verifiedIdentity()]);
   if (!hid) redirect("/");
-  const { workspace, data, tokens, canImport, familyLinks, reminders, access, canManage } = await withHousehold(db(), hid, async tx => {
-    const [workspace, data, canImport, reminders, membership] = await Promise.all([
-      loadNavigationData(tx, hid), loadSettings(tx, hid), canImportPayPal(tx, hid),
+  const { workspace, data, own, tokens, canImport, familyLinks, reminders, access, canManage } = await withHousehold(db(), hid, async tx => {
+    const [workspace, data, own, canImport, reminders, membership] = await Promise.all([
+      loadNavigationData(tx, hid), loadSettings(tx, hid), ownChoices(tx, hid), canImportPayPal(tx, hid),
       reminderView(tx, hid, identity), identity ? accountMembership(tx, identity.uid) : null,
     ]);
     const isOwner = identity && membership?.householdId === hid && membership.role === "owner";
@@ -41,10 +42,10 @@ async function Settings() {
       tokens,
       invited: active.map(row => row.memberId),
     };
-    return { workspace, data, tokens, canImport, familyLinks, reminders, access, canManage };
+    return { workspace, data, own, tokens, canImport, familyLinks, reminders, access, canManage };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
   return <WorkspaceFrame workspace={workspace} section="settings"><div className="settings-page">
-    <SettingsView data={data} canImportPayPal={canImport} reminders={reminders}
+    <SettingsView data={data} own={own} canImportPayPal={canImport} reminders={reminders}
       familyLinks={familyLinks} canManage={canManage} access={access} />
     <ForwardingSettings householdId={hid} />
     {canManage && <McpTokens tokens={tokens} />}

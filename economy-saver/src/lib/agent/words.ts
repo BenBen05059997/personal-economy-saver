@@ -17,6 +17,7 @@ export const TOOL_WORDS: Record<string, string> = {
   plan_for: "Working out the plan",
   who_owes_whom: "Checking who owes whom",
   month_by_category: "Adding up the month",
+  own_categories: "Reading your own categories",
   search_spending: "Searching your spending",
   bills_for_month: "Finding the bills for that month",
   suggestions: "Checking what needs your attention",

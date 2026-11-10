@@ -47,6 +47,7 @@ import * as mcpTokens from "@/db/mcp-tokens";
 import * as memoryMod from "@/db/memory"; // D58 memory
 import * as paypalImport from "@/db/paypal-import";
 import * as paypalRefresh from "@/db/paypal-refresh";
+import * as ownCategoriesMod from "@/db/own-categories"; // D75 own categories
 import * as people from "@/db/people";
 import * as potsMod from "@/db/pots";
 import * as rateLimit from "@/db/rate-limit";
@@ -141,6 +142,8 @@ const covered = [
   "storedBytes", "requireStorageRoom", "removeExpiredFiles",
   // D59 data-kinds.ts and restore.ts
   "countKind", "countKinds", "listDocuments", "deleteKind", "deleteOne", "deleteTurn", "deleteConversation", "deleteDocument", "restoreHousehold",
+  // D75 own-categories.ts
+  "listOwnCategories", "listOwnCategoriesGrouped", "ownCategoryRefs", "addOwnCategory", "saveOwnCategory", "mergeOwnCategories", "removeOwnCategory", "resolveOwnCategory", "fileOwnCategory", "guessOwnCategory", "findOwnCategory", "ownChoices",
   // D59 place.ts (24B)
   "readPlaces", "requireCloud", "itemsToMove", "moveToDevice", "moveToCloud",
 ];
@@ -184,6 +187,7 @@ const notApplicable: Record<string, string> = {
   seedBenRows: "writes a new household with a generated id; used by seedBen and the tested Reset flow",
   refreshSuggestions: "delegates the supplied household id to runPass, which is covered here; failure is covered in suggest-test",
   sealAiKey: "pure: seals a key text for the household id it is given; the isolation check below proves a key sealed for one household does not open for another", unsealAiKey: "pure: opens a sealed key for the household id it is given; same check",
+  groupOwnCategories: "pure grouping of a list passed in; listOwnCategoriesGrouped, which reads it, is covered above",
   isDataKind: "pure check that a value is one of the five kind names", readSnapshotFile: "pure parse of a file passed in; restoreHousehold, which calls it, is covered above",
 };
 
@@ -235,6 +239,7 @@ async function main() {
     ...memoryMod, // D58 memory
     ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
     ...askViewMod, ...spacesMod, ...historyMod, // D69 spaces and D70 history
+    ...ownCategoriesMod, // D75 own categories
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
   };
   const F = new Proxy(modules, {
@@ -294,7 +299,7 @@ async function main() {
       // 27E: ip_buckets (hashed client address) and ai_global_usage (one row a day) exist before and outside any household, and hold no household data.
       assert.deepEqual(everyTable.filter(t => !scoped.includes(t)), ["ai_global_usage", "households", "ip_buckets"]);
       for (const table of ["bills", "charges", "pots", "members", "clients", "invoices", "documents", "readings", "cards", "card_statements", "settlements",
-        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules", "standing_rules", "suggestions", "reminder_settings", "push_subscriptions", "reminders", "invites", "spaces"]) {
+        "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules", "standing_rules", "suggestions", "reminder_settings", "push_subscriptions", "reminders", "invites", "spaces", "own_categories"]) {
         assert.ok(scoped.includes(table), table);
       }
     });
@@ -505,6 +510,41 @@ async function main() {
       assert.deepEqual(await fingerprint(B.hid), beforeB);
       assert.equal((await F.requireSpace(store, B.hid, foreign.id)).id, foreign.id);
       await F.deleteSpace(store, B.hid, foreign.id);
+    });
+
+    await check("own categories are household-scoped: lists, filing, merging, saving, removing and the guess never reach another household's, and the wall refuses a foreign link", async () => {
+      const bTea = await F.addOwnCategory(store, B.hid, { kind: "food", name: "Isolation B tea" });
+      const teaCharge = randomUUID();
+      await F.insertCharge(db, B.hid, chargeInput.parse({ id: teaCharge, cardId: B.ids.card, merchant: "Isolation B teahouse", amount: "700", date: "2026-11-12", category: "food", ownCategoryId: bTea.id }), "confirmed", "manual", { madeBy: "form" });
+      const beforeB = await fingerprint(B.hid), beforeA = await fingerprint(A.hid);
+      assert.ok(!(await F.listOwnCategories(store, A.hid)).some(o => o.id === bTea.id || o.name === "Isolation B tea"));
+      assert.ok(!(await F.listOwnCategoriesGrouped(store, A.hid)).some(g => g.categories.some(o => o.id === bTea.id)));
+      assert.ok(!(await F.ownCategoryRefs(store, A.hid)).has(bTea.id));
+      const choicesA = await F.ownChoices(store, A.hid), choicesB = await F.ownChoices(store, B.hid);
+      assert.ok(!choicesA.categories.some(o => o.id === bTea.id) && !Object.values(choicesA.guesses).includes(bTea.id));
+      assert.ok(choicesB.categories.some(o => o.id === bTea.id) && Object.values(choicesB.guesses).includes(bTea.id));
+      assert.deepEqual(await F.findOwnCategory(store, A.hid, "food", "Isolation B tea"), { match: null, names: ["Coffee"] });
+      assert.equal(await F.guessOwnCategory(store, A.hid, "food", "Isolation B teahouse"), null);
+      assert.equal((await F.guessOwnCategory(store, B.hid, "food", "Isolation B teahouse"))?.id, bTea.id);
+      assert.equal(await F.saveOwnCategory(store, A.hid, { id: bTea.id, name: "Blocked" }), null);
+      assert.equal(await F.removeOwnCategory(store, A.hid, { id: bTea.id }), null);
+      assert.equal(await F.fileOwnCategory(store, A.hid, { item: "charge", id: teaCharge, ownCategoryId: null }), null);
+      await assert.rejects(F.fileOwnCategory(store, A.hid, { item: "charge", id: A.ids.charge, ownCategoryId: bTea.id }), InputError);
+      await assert.rejects(F.fileOwnCategory(store, A.hid, { item: "charge", id: A.ids.charge, ownCategoryId: bTea.id, everySame: true }), InputError);
+      await assert.rejects(F.mergeOwnCategories(store, A.hid, { id: bTea.id, into: (await F.findOwnCategory(store, A.hid, "food", "Coffee")).match!.id }), InputError);
+      await assert.rejects(F.mergeOwnCategories(store, A.hid, { id: (await F.findOwnCategory(store, A.hid, "food", "Coffee")).match!.id, into: bTea.id }), InputError);
+      await assert.rejects(F.withHousehold(store, A.hid, tx => F.resolveOwnCategory(tx, A.hid, "food", { ownCategoryId: bTea.id })), InputError);
+      await assert.rejects(F.addOwnCategory(store, "", { kind: "food", name: "No household" }), /household id is required/);
+      assert.deepEqual(await fingerprint(B.hid), beforeB);
+      assert.deepEqual(await fingerprint(A.hid), beforeA);
+      // The database wall, with SQL that leaves out the app's household predicates: no foreign own category, no foreign insert.
+      await assert.rejects(asApp(A.hid, tx => tx.query("update public.charges set own_category_id = $1 where id = $2", [bTea.id, A.ids.charge])), { code: "23503" });
+      await assert.rejects(asApp(A.hid, tx => tx.query("insert into public.own_categories (household_id, kind, name, name_key) values ($1, 'food', 'Blocked', 'blocked')", [B.hid])), { code: "42501" });
+      assert.deepEqual((await asApp(A.hid, tx => tx.query("update public.own_categories set name = 'Blocked' where id = $1 returning id", [bTea.id]))).rows, []);
+      assert.deepEqual((await asApp(A.hid, tx => tx.query("delete from public.own_categories where id = $1 returning id", [bTea.id]))).rows, []);
+      assert.deepEqual(await fingerprint(B.hid), beforeB);
+      assert.deepEqual(await F.removeOwnCategory(store, B.hid, { id: bTea.id }), { cleared: 1 });
+      await F.removeCharge(db, B.hid, teaCharge);
     });
 
     await check("the detectors work: B's own text matches B's needles, A's does not, and a write to B changes B's fingerprint", async () => {

@@ -19,6 +19,7 @@ export type Bill = {
   due: string; // YYYY-MM-DD
   category: CategoryKey; // D46: moves no money; only the month view reads it
   businessBp: number; // D46: business share in basis points (0 personal, 10000 business)
+  own?: { id: string; name: string }; // D75: the person's own category under `category`; absent = none. Moves no money
   status: "confirmed" | "pending"; // pending = read by AI, waiting for the user to confirm
   previousAmount?: number;
   repeatUnit?: RepeatUnit; // D48: absent = one-off; the engine sees one Bill per occurrence
@@ -95,6 +96,7 @@ export type Charge = {
   date: string; // YYYY-MM-DD
   category: CategoryKey; // D46
   businessBp: number; // D46
+  own?: { id: string; name: string }; // D75: the person's own category under `category`; absent = none. Moves no money
   source: "card_email" | "receipt" | "voice" | "manual";
   status: "confirmed" | "pending"; // pending = read by AI, waiting for the user to confirm
   place?: string; // city, when travelling

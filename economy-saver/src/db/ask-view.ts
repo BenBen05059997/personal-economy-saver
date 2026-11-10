@@ -9,6 +9,7 @@ import { clockForHousehold, householdMoment } from "@/db/clock";
 import { loadMoneyState, requireHousehold, withHousehold, type Db } from "@/db/household";
 import { legacyThreads, spaceThread } from "@/db/conversation";
 import { listMemory } from "@/db/memory";
+import { ownChoices } from "@/db/own-categories";
 import { readPlaces } from "@/db/place";
 import { listSpaceChoices, listSpaces } from "@/db/spaces";
 import { loadSpending } from "@/db/spending";
@@ -57,6 +58,7 @@ export async function loadAskView(db: Db, householdId: string, { spaceId, legacy
       connectionView(tx, hid),
     ]);
     const current = today.slice(0, 7);
+    const ownForms = await ownChoices(tx, hid); // D75: for the reading form a bill attached in Ask opens
     const spending = await loadSpending(tx, hid, { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last });
     const context: CanvasContext = { state, spending };
     const nudgeIds = suggestions.flatMap(row => row.action === "remind" && row.refId ? [row.refId] : []);
@@ -83,7 +85,7 @@ export async function loadAskView(db: Db, householdId: string, { spaceId, legacy
       spaces: spaces.map(({ id, name, status }) => ({ id, name, status })), earlier, legacyId: legacyId ?? null,
       pinId: pinId ?? null, pins: pins.map(({ id, title }) => ({ id, title })),
       turns, starters, shown, cloudBrief: brief,
-      form: { today, homeCurrency: state.homeCurrency, cards: state.cards.map(({ id, label }) => ({ id, label })) },
+      form: { today, homeCurrency: state.homeCurrency, cards: state.cards.map(({ id, label }) => ({ id, label })), own: ownForms },
       pin: pinned && shown ? { id: pinned.id, title: pinned.title } : null, firstUse, unavailable: missing ? askMissingWords(missing, owner) : null,
     };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });

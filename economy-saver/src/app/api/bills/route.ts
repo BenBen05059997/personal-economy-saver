@@ -2,6 +2,7 @@ import { db } from "@/db/client";
 import { billEditInput, billInput, fillGapFromText, insertBill, updateBill } from "@/db/bills";
 import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
 import { businessBpFromForm, CategoryKeySchema } from "@/lib/money/categories";
+import { ownChoiceFromForm } from "@/lib/reader/own-choices";
 import { householdRequest } from "@/lib/session";
 
 /**
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
   const businessBp = businessBpFromForm(form.get("businessShare"), form.get("businessPercent"));
   if (businessBp === null) return text("Enter the business share as a percentage from 0 to 100.", 400);
   const dueUnknown = form.get("dueUnknown") === "on";
-  const fields = { ...Object.fromEntries(form), category: category.data, businessBp, amountUnknown: form.get("amountUnknown") === "on", dueUnknown, due: dueUnknown ? null : form.get("due") || null, memberId: form.get("memberId") || null, paidByMemberId: form.get("paidByMemberId") || null };
+  const fields = { ...Object.fromEntries(form), category: category.data, businessBp, ...ownChoiceFromForm(form), /* D75: "Your category" */ amountUnknown: form.get("amountUnknown") === "on", dueUnknown, due: dueUnknown ? null : form.get("due") || null, memberId: form.get("memberId") || null, paidByMemberId: form.get("paidByMemberId") || null };
   try {
     if (kind === "edit") {
       const data = billEditInput.safeParse({

@@ -66,6 +66,7 @@ Cloudflare
     │   ├── /api/voice-fill        Fill by voice (D26): `{ text, fields }` → one forced-tool model call on the household's text model → `{ values, heard, notes }` checked by `checkFill`; writes nothing, no rate limit, 16 KiB cap, 503 names the missing AI setting
     │   ├── /api/bank-balance      the one-line bank balance update on Home (D42)
     │   ├── /api/pots, /api/pots/remove   add or edit a pot; remove a pot (the Plan page, D43)
+    │   ├── /api/own-categories    Settings → Your categories and filing (D75): `kind` add, save, merge, remove or file; any member, 20/min, no Activity event
     │   ├── /api/people, /api/settle      Settings → People (add, rename, shares); Mark settled on Home (D45)
     │   ├── /api/family-links      owner creates a family view link (the full link and the LINE message, once) or stops one (D52)
     │   ├── /api/import            Settings → Import a statement (D53): up to 500 CSV rows the browser parsed, for one card
@@ -89,7 +90,7 @@ Cloudflare
     │   ├── /api/settings/ai-model/models   POST `provider`, `baseUrl`, `key` (URL-encoded form, 4 KiB). Same-origin owner guard, 20/min, private no-store. Returns model ids with reported tools/images flags and a tested flag, or a fixed failure message
     │   ├── /api/invites            owner creates or cancels a link. A verified invitee can accept and a member can leave (D68)
     │   ├── /api/household         delete my data (the signed-in owner, `confirmation=delete`)
-    │   ├── /api/export            Export my data: the version 3 snapshot with events, memory, canvases, spaces and journal, as a JSON download (D44)
+    │   ├── /api/export            Export my data: the version 4 snapshot with events, memory, canvases, spaces and journal, as a JSON download (D44)
     │   ├── /api/data              Settings → Your data (D59): `kind` delete_kind, delete_one or delete_conversation
     │   ├── /api/data/move         where memory, canvases and the journal are kept (D59): `step` read, to_device or to_cloud; JSON at most 2 MB
     │   ├── /api/restore           Import (D59, D44): a household snapshot (JSON, at most 1 MB) into a household that has nothing in it yet
@@ -97,7 +98,7 @@ Cloudflare
     │   └── /api/health            readiness: setting names and reasons, with separate optional email and push results
     └── Core (pure TypeScript, no I/O)
         ├── Engine `src/lib/money`: runway.ts (availableCash, series, low, safeToSpend, roomOnCard, ladder, timeline, statementItems), repeat, window (`stateThrough`, `dayView`), plan,
-        │   split, month, spending, period (the month a bill covers, D63), name-key, categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check, suggest (D64), goals (D66)
+        │   split, month, look-by (D74), spending, period (the month a bill covers, D63), name-key, own-category (D75), categories, categorise, regular, varies, gaps, checks, amount, horizon, whatif, fx-cost (D62), options, ask, to-check, suggest (D64), goals (D66)
         ├── Sentence composer `src/lib/money/sentence.ts`: engine output → "You're fine if … If late, ¥18,780 short on the 27th."
         ├── Agent `src/lib/agent`: one tool catalogue (tools.ts, canvas-tools.ts, memory-tools.ts, check-tools.ts, offer-tools.ts), run.ts, words.ts (the step words), reply.ts, rules.ts, memory-prompt.ts, log.ts
         ├── Model call `src/lib/ai`: `callModel` (Vercel AI SDK core, Anthropic Messages and OpenAI-compatible Chat Completions), `checkBaseUrl`, `unconfirmedAmounts`, `checkConnection`, `listModels`, `PROVIDERS`, the tested list
@@ -111,10 +112,10 @@ Cloudflare
         └── Auth and scope: request → user → household_id; every query carries it (`requireHousehold`)
 
 Supabase
-├── Postgres (Drizzle, Tokyo region, migrations 0000–0031), 35 tables: households, members, users, paypal_connections, clients, invoices, bills,
+├── Postgres (Drizzle, Tokyo region, migrations 0000–0032), 36 tables: households, members, users, paypal_connections, clients, invoices, bills,
 │   cards, card_statements, charges, documents, readings, rules, events, webhook_deliveries,
 │   api_tokens, family_links, fx_rates, request_buckets, balance_updates, pots, settlements, memories, canvases, conversation_turns,
-│   ip_buckets, ai_global_usage, ask_receipts, standing_rules, suggestions, reminder_settings, push_subscriptions, reminders, invites, spaces
+│   ip_buckets, ai_global_usage, ask_receipts, standing_rules, suggestions, reminder_settings, push_subscriptions, reminders, invites, spaces, own_categories
 ├── Auth: magic-link login (PKCE), with invited member acceptance bound to the verified email
 ├── Vault: households' own model keys, each sealed in the Worker first (`AI_KEY_SEAL_KEY`)
 └── Storage: the private bucket named by `SUPABASE_DOCUMENT_BUCKET` (`household-documents` in the owner's project): receipt photos, PDFs and raw forwarded emails
@@ -227,7 +228,7 @@ handlers and routes in both. Both render the canvas through `Canvas`. The panel 
 the thread and canvas, compacts the blocks, and offers Open full to the selected
 `/canvas?space=<id>` when it shows a canvas.
 
-Home’s `HomeViews.tsx` switches between `ForecastChart.tsx`, `CategoryBars.tsx` and `MonthColumns.tsx` (plain SVG, shared scales in `chart-utils.ts`). It renders Forecast from `series`, `timeline` and `forecastCosts` (`src/lib/money/forecast-causes.ts`), and Categories and Trend from `monthByCategory` and the household spending inputs. Chart/Table and view preferences stay in localStorage. `GetStarted.tsx` uses state assembled in `src/db/workspace.ts`; its answer check reads IndexedDB when the journal is on this device, and its Hide preference stays on this device. Blank households retain First steps. The landing’s sign-in card is `LandingSignIn.tsx`.
+Home’s `HomeViews.tsx` switches between `ForecastChart.tsx`, `CategoryBars.tsx` and `MonthColumns.tsx` (plain SVG, shared scales in `chart-utils.ts`). It renders Forecast from `series`, `timeline` and `forecastCosts` (`src/lib/money/forecast-causes.ts`), and Categories and Trend from `monthByCategory` and the household spending inputs. Categories has three controls: View, Display and **Look at it by** (Category · Business or personal · Person, shown only with two or more people); `lookBy` in `src/lib/money/look-by.ts` returns the rows for the month from the same items, so the total is the same in all three, and a category with own categories carries `children` that `CategoryBars.tsx` opens as a disclosure (thinner bars and "Everything else in Food") and the table indents. The choice is stored as `fipa-home-view` = `<view>|<mode>|<by>`. Chart/Table and view preferences stay in localStorage. `GetStarted.tsx` uses state assembled in `src/db/workspace.ts`; its answer check reads IndexedDB when the journal is on this device, and its Hide preference stays on this device. Blank households retain First steps. The landing’s sign-in card is `LandingSignIn.tsx`.
 
 The `src/app/(workspace)/layout.tsx` provider `AskWorkspace` is keyed by the validated
 household. It shares the page’s session lookup through React `cache` for each server
@@ -298,7 +299,7 @@ turns, the brief, document card text and history search results are read again f
 **Model tool payload.** The 38 definitions share the runtime Zod schemas. The model-facing form keeps fields and types, with compact descriptions and bulk item guidance on the matching single-item tool. `db:ai-test` checks the 25,000-character budget and the bulk field sets.
 
 **The tools (one catalogue, `src/lib/agent/tools.ts`).** Read tools return the engine’s numbers and relevant context. `whats_due` answers undated due questions. `timeline` gives the cash flow for a specified day or the next 30 days. The tools include `where_am_i`, `whats_due`, `open_gaps`, `can_i_spend`, `list_clients_and_cards`, `timeline`, `options_when_short`, `list_invoices`,
-`household_snapshot`, `plan_for`, `who_owes_whom`, `month_by_category`, `search_spending`, `bills_for_month`, `regular_costs`, `foreign_costs`, `what_if`, `make_canvas`,
+`household_snapshot`, `plan_for`, `who_owes_whom`, `month_by_category`, `search_spending`, `bills_for_month`, `regular_costs`, `foreign_costs`, `own_categories`, `what_if`, `make_canvas`,
 `recall`, `search_history`, `list_spaces`, `to_check`. `bills_for_month` (input `{ month, text }`, D63) lists the stored bills, confirmed or waiting in To check, past or due later up to two years ahead, whose period overlaps the month ("November's electricity" is the bill that says 11月分, though it is paid in December): `billsForMonth` in `src/lib/money/period.ts` builds the summary in code and the totals per currency, `loadPeriodBills` in `src/db/spending.ts` reads the rows, and its note says a bill with no period counts by its due date and points to `month_by_category`; its step words are "Finding the bills for that month" and its "Based on" source is Plan. `what_if` runs the engine on a copy of the household (`src/lib/money/whatif.ts`), so nothing is written. `make_canvas` takes a
 recipe as JSON text, checks it, has the engine fill it and returns a summary; the last valid recipe of the question becomes the reply's canvas (a
 note's `by` is forced to the assistant). `household_snapshot` gives the whole household as one JSON document for context (the most recent 100 rows of
@@ -412,7 +413,7 @@ to Ask requests from the device.
 when an Origin header is present; the limit is 30 a minute. `mcpRequest` (`src/lib/mcp/server.ts`) builds a stateless SDK server per request with
 `MODEL_RULES` as its `instructions` and registers tools eligible for MCP. Draft tools require the
 `draft` scope. Read tools include where am I, what’s due, `what_if`, `make_canvas` for a text summary, `recall`,
-`search_history`, `list_spaces` and `foreign_costs`. Draft tokens can also draft an invoice, remember or forget. Rows it writes carry `made_by = mcp`. Each tool call writes the same kind of content-free
+`search_history`, `list_spaces`, `own_categories` and `foreign_costs`. Draft tokens can also draft an invoice, remember or forget. Rows it writes carry `made_by = mcp`. Each tool call writes the same kind of content-free
 log line. There is no conversation, no canvas drawing and no reply chooser; sending still needs the tap in the app.
 
 ### 3. The reader loop: a bill arrives
@@ -482,7 +483,7 @@ due date's month and day, 29 Feb on the 28th in a common year) or null for a one
 optional `cancel_by` that is information only, and `repeat_until` for the last payment; `checkSchedule` in `src/db/bills.ts` refuses a schedule that
 does not hang together, and the reader's review card and `add_bill` take the same fields. Every bill and charge carries a `category` key and a
 `business_bp` share (D46): the forms post `category`, `businessShare` and `businessPercent`, the routes refuse a key outside the list with 400, and the
-agent's tools guess the category from the name when none is given. The bill and charge add forms show the guess in the collapsed summary until the person chooses a category. When no keyword matches, the summary shows Other. `fillGap` (`src/db/bills.ts`, `kind=fill`) sets only the missing amount or date
+agent's tools guess the category from the name when none is given. The bill and charge add forms show the guess in the collapsed summary until the person chooses a category. When no keyword matches, the summary shows Other. **Own categories (D75):** `own_categories` (`src/db/own-categories.ts`, rules in `src/lib/money/own-category.ts`, name cap 40, at most 40 a household) hold the person's names under the fourteen; `bills.own_category_id` and `charges.own_category_id` carry the choice through a foreign key `(household_id, own_category_id, category)`, so another household's or another kind's is refused by the database, and removing one clears only the link. `CategoryFields` shows "Your category" (None, that category's own categories, New…) with `ownChoices` from `src/lib/reader/own-choices.ts`; a typed name that matches the latest confirmed item of the same category and has an own category files itself ("Filed like last time, change if wrong"). The bill, charge, confirm and import routes save the choice; `/api/own-categories` adds, renames (and sets the default share), merges, removes and files (`file`, with `everySame` for every item of that name). Plan's `FileControl.tsx` calls it (not on the family link). `add_bill`, `add_bills`, `log_charge` and `log_charges` take the optional `own_category`, which must exist; no tool or MCP call creates one. `fillGap` (`src/db/bills.ts`, `kind=fill`) sets only the missing amount or date
 of a bill and records an event with the old estimate; the bill waits in To check and repeats only once confirmed (D55). A charge goes through the
 statement-charge lock. **Paid in another currency (D62):** the charge form (`AddEntry.tsx`) and `/api/charges` post `originalAmount` and
 `originalCurrency` into `chargeInput` (both or neither); `insertCharge` keeps `amount` as what the issuer billed and stores `original_amount_minor`,
@@ -572,8 +573,8 @@ the space. Device journals delete the turn by id in IndexedDB without a request.
 
 **Export and Import (D44, D59).** `loadHouseholdSnapshot` (`src/db/snapshot.ts`) is the only builder: one read transaction, `requireHousehold`,
 named columns (it never selects a secret or pointer column), and it parses its own result. `/api/export` (a POST form, so nothing is in a URL)
-downloads the version 3 snapshot with `events`, `memory`, `canvases`, `spaces` and `journal`. `ExportData.tsx` adds this device's items to the file in the
-browser before it is saved when a kind is kept on the device. Local brief and update metadata go into their matching space entries. `/api/restore` accepts version 2 and version 3 files (at most 1 MB) into an empty household
+downloads the version 4 snapshot with `events`, `memory`, `canvases`, `spaces` and `journal`. `ExportData.tsx` adds this device's items to the file in the
+browser before it is saved when a kind is kept on the device. Local brief and update metadata go into their matching space entries. `/api/restore` accepts version 2, version 3 and version 4 files (at most 1 MB) into an empty household
 (`restoreHousehold`). It maps imported spaces to destination ids and reconnects their turns, notes and pins. The owner becomes the household's own
 owner, imported records carry `made_by = import`, and one `household_imported` event is recorded. Import refuses truncated files, version 1 files,
 another currency, memory or pins beyond the app limits, a memory item with a long number, and any household that keeps a kind on the device. Not restored, on purpose: events, documents, the PayPal
@@ -710,7 +711,7 @@ Responses carry `Content-Security-Policy: frame-ancestors 'none'` and `X-Frame-O
 
 No automatic database backups are configured; the person's own backup is Export my data, and Import brings that file back into an empty household.
 What is kept on this device only is in no backup of ours: it is in the export only when the export is made from that device. Migrations run from
-the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. `0028_standing_rules_and_assistant.sql` adds daily suggestions, standing rules with the existing nudge setting copied into the rule, reminder delivery storage, and household invitations. Migration `0029_tenant_wall.sql` adds the app role and its household policies. Migrations 0000–0030 are applied to the Tokyo database. `0031_demo_token.sql` (`households.demo_token_hash`, unique) is applied to the Tokyo database (Nov 10, 2026), before the Stage 35 code was deployed. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
+the owner's machine with `npm run db:migrate`, separately from deploys; 0025 (`ip_buckets`, `ai_global_usage`, `documents.bytes` and `file_removed_at`, old webhook payloads trimmed) and 0026 (`bills.period_start` and `period_end`, `ask_receipts`) and 0027 (`ask_receipts.pending` and `links`) add app fields. `0028_standing_rules_and_assistant.sql` adds daily suggestions, standing rules with the existing nudge setting copied into the rule, reminder delivery storage, and household invitations. Migration `0029_tenant_wall.sql` adds the app role and its household policies. Migrations 0000–0030 are applied to the Tokyo database. `0032_own_categories.sql` (`own_categories`, `bills.own_category_id`, `charges.own_category_id`; expand only) is applied to the Tokyo database (Nov 10, 2026), before the Stage 37 code is deployed. `0031_demo_token.sql` (`households.demo_token_hash`, unique) is applied to the Tokyo database (Nov 10, 2026), before the Stage 35 code was deployed. A migration only adds (expand) before the code that uses it ships, and removes (contract) only after no running Worker reads the old shape, so the running Worker keeps working between `db:migrate` and the deploy.
 
 ### Not limited yet
 
@@ -760,9 +761,9 @@ The hardening checklist is phase J in PLAN.md; it is the last build stage by the
   128 KiB for cloud context or 512 KiB for device context, `/api/canvas/resolve` at 100,000 bytes, `/api/data/move` at 2 MB and `/api/restore` at 1 MB; sign-in links return to the required
   `APP_URL`, never to the request's Origin header.
 - No server-side image or PDF processing (Workers' CPU budget); files go to the model as uploaded.
-- **One household schema (D44).** `HouseholdSnapshot` (`src/lib/schema/household.ts`, strict zod, version 3) is the one description of a
+- **One household schema (D44).** `HouseholdSnapshot` (`src/lib/schema/household.ts`, strict zod, version 4) is the one description of a
   household: money as integer minor units plus currency, dates as ISO strings, ids as UUIDs. The export route, the `household_snapshot` tool and
-  the files in `schema/` (`household.v3.json`, `recipe.v1.json`, `memory.v1.json`, `turn.v1.json`, `cash-flow-event.v1.json`, generated by
+  the files in `schema/` (`household.v4.json`, `recipe.v1.json`, `memory.v1.json`, `turn.v1.json`, `cash-flow-event.v1.json`, generated by
   `npm run schema`, each checked for drift by `db:snapshot-test`) all come from the zod definitions. The export carries
   `events`, `memory`, `canvases`, `spaces` and `journal`. The `household_snapshot` tool stays the record. `CashFlowEvent` (`src/lib/schema/cash-flow.ts`, version 1) is one dated
   in or out as `timeline()` returns it; the `timeline` tool's items carry its `direction` and parse against it. The household block carries the

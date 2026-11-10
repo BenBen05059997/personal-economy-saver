@@ -313,6 +313,8 @@ async function main() {
     const ID_KEYS = new Set(["id", "memberId", "paidByMemberId", "fromMemberId", "toMemberId", "cardId", "clientId", "seriesBillId", "conversationId", "spaceId", "documentId", "billId", "madeBy"]);
     const bare = (value: unknown): unknown => Array.isArray(value) ? value.map(bare) : value && typeof value === "object"
       ? Object.fromEntries(Object.entries(value).filter(([k]) => !ID_KEYS.has(k)).map(([k, v]) => [k, bare(v)])) : value;
+    // D75: an own category is compared by what it is, not by its id (every id is new after Import).
+    const ownName = (snap: { ownCategories?: { id: string; name: string }[] }, id: string | null | undefined) => (id ? snap.ownCategories!.find(o => o.id === id)!.name : null);
     const sorted = (rows: unknown[]) => rows.map(r => JSON.stringify(bare(r))).sort();
     const engine = async (hid: string) => {
       const state = await loadMoneyState(db, hid, DEMO_DATE);
@@ -332,15 +334,15 @@ async function main() {
       for (const snap of [back, back2]) {
         assert.deepEqual(
           { household: [snap.household.bankBalanceMinor, snap.household.paypalBalanceMinor, snap.household.splitSince, snap.household.homeCurrency], members: sorted(snap.members), cards: sorted(snap.cards), statements: sorted(snap.statements), clients: sorted(snap.clients),
-            pots: sorted(snap.pots), balanceUpdates: sorted(snap.balanceUpdates), charges: sorted(snap.charges.map(x => ({ ...x, documentId: null }))), bills: sorted(snap.bills.map(x => ({ ...x, documentId: null }))),
-            invoices: sorted(snap.invoices.map(x => ({ ...x, paypalInvoiceId: null, paypalStatus: null }))), settlements: sorted(snap.settlements), memory: sorted(snap.memory!), canvases: sorted(snap.canvases!), journal: sorted(snap.journal!) },
+            pots: sorted(snap.pots), balanceUpdates: sorted(snap.balanceUpdates), charges: sorted(snap.charges.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(snap, x.ownCategoryId) }))), bills: sorted(snap.bills.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(snap, x.ownCategoryId) }))),
+            invoices: sorted(snap.invoices.map(x => ({ ...x, paypalInvoiceId: null, paypalStatus: null }))), settlements: sorted(snap.settlements), memory: sorted(snap.memory!), canvases: sorted(snap.canvases!), journal: sorted(snap.journal!), ownCategories: sorted(snap.ownCategories!) },
           { household: [exported.household.bankBalanceMinor, exported.household.paypalBalanceMinor, exported.household.splitSince, exported.household.homeCurrency], members: sorted(exported.members), cards: sorted(exported.cards), statements: sorted(exported.statements), clients: sorted(exported.clients),
-            pots: sorted(exported.pots), balanceUpdates: sorted(exported.balanceUpdates), charges: sorted(exported.charges.map(x => ({ ...x, documentId: null }))), bills: sorted(exported.bills.map(x => ({ ...x, documentId: null }))),
-            invoices: sorted(exported.invoices.map(x => ({ ...x, paypalInvoiceId: null, paypalStatus: null }))), settlements: sorted(exported.settlements), memory: sorted(exported.memory!), canvases: sorted(exported.canvases!), journal: sorted(exported.journal!) },
+            pots: sorted(exported.pots), balanceUpdates: sorted(exported.balanceUpdates), charges: sorted(exported.charges.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(exported, x.ownCategoryId) }))), bills: sorted(exported.bills.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(exported, x.ownCategoryId) }))),
+            invoices: sorted(exported.invoices.map(x => ({ ...x, paypalInvoiceId: null, paypalStatus: null }))), settlements: sorted(exported.settlements), memory: sorted(exported.memory!), canvases: sorted(exported.canvases!), journal: sorted(exported.journal!), ownCategories: sorted(exported.ownCategories!) },
         );
       }
       // Every id is new, in both households and across them; the owner is the household's own.
-      const idsOf = (snap: typeof back) => [snap.cards, snap.statements, snap.charges, snap.bills, snap.clients, snap.invoices, snap.pots, snap.settlements, snap.balanceUpdates, snap.memory!, snap.canvases!, snap.journal!, snap.spaces!].flatMap(list => list.map(x => x.id));
+      const idsOf = (snap: typeof back) => [snap.ownCategories!, snap.cards, snap.statements, snap.charges, snap.bills, snap.clients, snap.invoices, snap.pots, snap.settlements, snap.balanceUpdates, snap.memory!, snap.canvases!, snap.journal!, snap.spaces!].flatMap(list => list.map(x => x.id));
       const sourceIds = new Set([...idsOf(exported), ...exported.members.map(m => m.id)]);
       const ids1 = idsOf(back), ids2 = idsOf(back2);
       assert.ok(ids1.length > 20);
@@ -419,6 +421,24 @@ async function main() {
       const back = await loadHouseholdSnapshot(db, c.id, { events: true, stored: true });
       assert.ok(back.cards.every(x => x.foreignFeeBp === null));
       assert.ok(back.charges.length > 0 && back.charges.every(x => x.fxEstimated === false));
+    });
+
+    await check("a version 3 file has no own categories (D75) and still imports; the restored version 4 file brought its own categories, filed items and all", async () => {
+      const old = JSON.parse(JSON.stringify(file));
+      old.version = 3;
+      delete old.ownCategories;
+      for (const row of [...old.charges, ...old.bills]) delete row.ownCategoryId;
+      const c = await emptyHousehold("Fictional Importer V3");
+      await restoreHousehold(db, c.id, old);
+      const back = await loadHouseholdSnapshot(db, c.id, { events: true, stored: true });
+      assert.deepEqual(back.ownCategories, []);
+      assert.ok(back.charges.length > 0 && back.charges.every(x => x.ownCategoryId === null));
+      const [filled] = await db.select().from(schema.households).where(eq(schema.households.name, "Fictional Importer Three"));
+      const full = await loadHouseholdSnapshot(db, filled.id, { events: true, stored: true });
+      assert.deepEqual(full.ownCategories!.map(o => [o.kind, o.name]).sort(), [["food", "Coffee"], ["other", "Books & films"], ["other", "Gear"]]);
+      assert.equal(full.charges.filter(x => x.ownCategoryId).length, 7);
+      assert.ok(full.ownCategories!.every(o => !exported.ownCategories!.some(e => e.id === o.id)), "the own categories have new ids");
+      await assert.rejects(restoreHousehold(db, (await emptyHousehold("Fictional Importer Bad Own")).id, { ...file, charges: file.charges.map((x: { category: string; ownCategoryId?: string }) => (x.ownCategoryId ? { ...x, category: "travel" } : x)) }), (e: unknown) => e instanceof InputError && /not consistent with itself/.test(e.message));
     });
 
     await check("the restored household's own data is its own: deleting its kinds works like any other and leaves B alone", async () => {

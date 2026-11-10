@@ -13,7 +13,7 @@ export const CATEGORIES = [
   { key: "travel", label: "Travel" },
   { key: "health", label: "Health" },
   { key: "insurance", label: "Insurance" },
-  { key: "family_shared", label: "Family & shared" },
+  { key: "family_shared", label: "Family" },
   { key: "government_tax", label: "Government & tax" },
   { key: "business_tools", label: "Business tools" },
   { key: "debt", label: "Debt" },

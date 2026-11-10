@@ -12,12 +12,13 @@ import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { amountOn, lastOneWords, nextAmountOf, nextOccurrenceAfter, occurrenceDates, RepeatUnitSchema, resolveBills } from "@/lib/money/repeat";
 import type { RepeatUnit, StoredBill } from "@/lib/money/types";
 import { memberCount } from "./people";
+import { ownChoiceFields, resolveOwnCategory } from "./own-categories";
 import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { AMOUNT_NOT_KNOWN_YET, DATE_NOT_KNOWN, NOT_KNOWN, NOT_KNOWN_YET } from "@/lib/money/gaps";
 import { monthName } from "@/lib/money/spending";
 import { periodLabel, periodProblem } from "@/lib/money/period";
 import { linkPreview, occurrenceInMonth, seriesToJoin, type LinkPreview, type VariesSeries } from "@/lib/money/varies";
-import { bills, households, members } from "./schema";
+import { bills, households, members, ownCategories } from "./schema";
 
 /** "Nov 25", or "Jan 1, 2030" when the due date is in another year than today. */
 export function dueLabel(due: string, today: string) {
@@ -33,6 +34,7 @@ export const billInput = z.object({
   dueUnknown: z.boolean().default(false), // D55: the date is not known yet (a one-off without a last day to cancel); it counts as due today
   category: CategoryKeySchema, // D46: a key from lib/money/categories.ts
   businessBp: BusinessBp.default(0), // D46: business share in basis points
+  ...ownChoiceFields, // D75: an own category of this category (an id, or a new name made in the same save); absent = none
   memberId: z.string().uuid().nullable().default(null), // null = shared
   paidByMemberId: z.string().uuid().nullable().default(null), // D45: who pays a shared bill, for every occurrence; needs memberId null and two or more members
   repeat: RepeatUnitSchema.nullable().default(null), // D48: month = every month on the due date's day (D41), year = every year on its month and day; null = one-off
@@ -154,11 +156,12 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
     if (data.periodStart !== null && data.repeat !== null) throw new InputError("A bill that repeats covers a different month each time; leave its period empty");
     if (amountMinor === null && schedule.nextAmountMinor !== null) throw new InputError("A bill whose amount is not known cannot change to a new amount");
     const { paidByName } = await checkWhose(tx, hid, data.memberId, data.paidByMemberId);
+    const ownCategoryId = (await resolveOwnCategory(tx, hid, data.category, data)) ?? null;
     const repeatDay = due === null ? null : repeatDayFor(due, data.repeat);
     const [existing] = await tx.select().from(bills).where(and(eq(bills.householdId, hid), eq(bills.id, data.id)));
     if (existing) {
       if (existing.biller !== data.biller || existing.amountMinor !== amountMinor || existing.due !== due
-        || existing.category !== data.category || existing.businessBp !== data.businessBp || existing.memberId !== data.memberId || existing.repeatDay !== repeatDay
+        || existing.category !== data.category || existing.businessBp !== data.businessBp || existing.ownCategoryId !== ownCategoryId || existing.memberId !== data.memberId || existing.repeatDay !== repeatDay
         || existing.repeatUnit !== data.repeat || existing.nextAmountMinor !== schedule.nextAmountMinor || existing.nextAmountFrom !== data.nextAmountFrom || existing.cancelBy !== data.cancelBy
         || existing.paidByMemberId !== data.paidByMemberId || existing.amountVaries !== data.amountVaries || existing.repeatUntil !== data.repeatUntil
         || existing.periodStart !== data.periodStart || existing.periodEnd !== data.periodEnd) {
@@ -174,7 +177,7 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     await tx.insert(bills).values({
       id: data.id, householdId: hid, memberId: data.memberId, paidByMemberId: data.paidByMemberId, biller: data.biller, amountMinor,
-      currency: household.currency, due, category: data.category, businessBp: data.businessBp, status, repeatDay,
+      currency: household.currency, due, category: data.category, businessBp: data.businessBp, ownCategoryId, status, repeatDay,
       repeatUnit: data.repeat, nextAmountMinor: schedule.nextAmountMinor, nextAmountFrom: data.nextAmountFrom, cancelBy: data.cancelBy, amountVaries: data.amountVaries, repeatUntil: data.repeatUntil,
       periodStart: data.periodStart, periodEnd: data.periodEnd, madeBy: by.madeBy, askId: by.askId ?? null,
     });
@@ -285,7 +288,7 @@ export async function removeBill(db: Db, householdId: string, id: string): Promi
  * What Settings → Bills → Edit sends: the same fields as `billInput` for what it can change (name, amount, due date, category,
  * business share, whose and who pays, the last day to cancel), plus `amountFrom` for a repeating bill: the occurrence the new amount starts at.
  */
-export const billEditInput = billInput.pick({ id: true, biller: true, amount: true, amountUnknown: true, due: true, dueUnknown: true, category: true, businessBp: true, memberId: true, paidByMemberId: true })
+export const billEditInput = billInput.pick({ id: true, biller: true, amount: true, amountUnknown: true, due: true, dueUnknown: true, category: true, businessBp: true, ownCategoryId: true, ownCategoryNew: true, memberId: true, paidByMemberId: true })
   .extend({
     amountFrom: z.string().date().nullable().default(null),
     amountVaries: z.boolean().optional(), // D54, a monthly bill: absent = unchanged
@@ -337,6 +340,9 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
     if (periodStart !== null && repeat !== null) throw new InputError("A bill that repeats covers a different month each time; leave its period empty");
     const { amountMinor, due } = checkKnown(data, bill.currency, { repeat, cancelBy, amountVaries: varies }, series);
     const { ownerName, paidByName } = await checkWhose(tx, hid, data.memberId, data.paidByMemberId, bill.paidByMemberId);
+    // D75: a new category clears the own category unless the form sends one of the new kind; the same category keeps it unless the form says otherwise.
+    const sentOwn = await resolveOwnCategory(tx, hid, data.category, data);
+    const ownCategoryId = sentOwn !== undefined ? sentOwn : bill.category === data.category ? bill.ownCategoryId : null;
     const { today } = clockForHousehold(household);
     if (due !== null && due > latestDate(today)) throw new InputError(HORIZON_MESSAGE);
     const repeatDay = due === null ? null : repeatDayFor(due, repeat);
@@ -373,6 +379,11 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
     const seriesWords = await checkSeries(tx, hid, { id: data.id, repeat, due, category: data.category }, series, bill.seriesBillId, today);
     if (series !== bill.seriesBillId) parts.push(seriesWords ?? `No longer part of ${await billerOf(tx, hid, bill.seriesBillId!)}`);
     if (bill.category !== data.category) parts.push(`Category ${categoryLabel(CategoryKeySchema.parse(bill.category))} → ${categoryLabel(data.category)}`);
+    if (ownCategoryId !== bill.ownCategoryId) {
+      const names = new Map((await tx.select({ id: ownCategories.id, name: ownCategories.name }).from(ownCategories).where(eq(ownCategories.householdId, hid))).map(o => [o.id, o.name]));
+      const was = bill.ownCategoryId === null ? null : names.get(bill.ownCategoryId) ?? null, now = ownCategoryId === null ? null : names.get(ownCategoryId) ?? null;
+      parts.push(`Your category ${was ?? "none"} → ${now ?? "none"}`);
+    }
     if (bill.businessBp !== data.businessBp) parts.push(`For work ${bpWords(bill.businessBp)} → ${bpWords(data.businessBp)}`);
     if (bill.memberId !== data.memberId || bill.paidByMemberId !== data.paidByMemberId) {
       parts.push(ownerName ? `Now ${ownerName}’s` : paidByName ? `Shared, paid by ${paidByName}` : "Shared");
@@ -399,7 +410,7 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
       if (freed.length > 0) parts.push(`${freed.length} real ${freed.length === 1 ? "bill stays" : "bills stay"} as ${freed.length === 1 ? "a one-off" : "one-offs"}`);
     }
     await tx.update(bills).set({
-      biller: data.biller, amountMinor: base, due, repeatDay, category: data.category, businessBp: data.businessBp,
+      biller: data.biller, amountMinor: base, due, repeatDay, category: data.category, businessBp: data.businessBp, ownCategoryId,
       memberId: data.memberId, paidByMemberId: data.paidByMemberId, nextAmountMinor: schedule.nextAmountMinor, nextAmountFrom: schedule.nextAmountFrom,
       cancelBy, amountVaries: varies, seriesBillId: series, repeatUntil, periodStart, periodEnd,
     }).where(and(eq(bills.householdId, hid), eq(bills.id, data.id)));

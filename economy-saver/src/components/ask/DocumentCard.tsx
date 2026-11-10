@@ -7,10 +7,11 @@ import type { Check, CheckChoice } from "@/lib/money/checks";
 import { DOCUMENT_WORDS, needsForm as readingNeedsForm, type DocumentCard as Card, type DocumentCardItem } from "@/lib/reader/document-card";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { SessionEnded } from "@/components/ui/SessionEnded";
+import { guessedOwn, type OwnChoices } from "@/lib/reader/own-choices";
 import { answerCheck, type CheckAnswers } from "@/components/reader/check-answers";
 import { majorText, ReadingForm } from "@/components/reader/ReadingForm";
 
-export type CardForm = { today: string; homeCurrency: Currency; cards: { id: string; label: string }[] };
+export type CardForm = { today: string; homeCurrency: Currency; cards: { id: string; label: string }[]; own: OwnChoices };
 
 const POLL_MS = 2000, GIVE_UP_MS = 60_000;
 
@@ -94,7 +95,7 @@ function Item({ item, form, returnTo, onDone }: { item: DocumentCardItem; form: 
   const preset = { repeat: answers.repeat ?? value.repeat ?? "", date: answers.date, amountUnknown: answers.amountUnknown, dueUnknown: answers.dueUnknown };
   const reading = { id: item.readingId, value, link: item.link };
   const needsForm = readingNeedsForm(value);
-  const full = (focus?: "amount" | "date") => <ReadingForm key={`${answers.kinds.join()}-${focus ?? ""}`} reading={reading} today={form.today} homeCurrency={form.homeCurrency} cards={form.cards}
+  const full = (focus?: "amount" | "date") => <ReadingForm key={`${answers.kinds.join()}-${focus ?? ""}`} reading={reading} today={form.today} homeCurrency={form.homeCurrency} cards={form.cards} own={form.own}
     hidden={hidden} preset={preset} focus={focus} onDone={onDone} />;
 
   return <>
@@ -108,7 +109,7 @@ function Item({ item, form, returnTo, onDone }: { item: DocumentCardItem; form: 
         </ApiForm> : <Choices check={next} onChoose={answer} />}
       </div>
       : needsForm ? full()
-      : <ConfirmRow item={item} answers={answers} hidden={hidden} onEdit={() => setEditing({})} onDone={onDone} />}
+      : <ConfirmRow item={item} own={form.own} answers={answers} hidden={hidden} onEdit={() => setEditing({})} onDone={onDone} />}
   </>;
 }
 
@@ -118,7 +119,7 @@ function Choices({ check, onChoose }: { check: Check; onChoose: (check: Check, c
     : <button key={choice.label} type="button" className="ui-button" onClick={() => onChoose(check, choice)}>{choice.label}</button>)}</div>;
 }
 
-function ConfirmRow({ item, answers, hidden, onEdit, onDone }: { item: DocumentCardItem; answers: CheckAnswers; hidden: React.ReactNode; onEdit: () => void; onDone: () => void }) {
+function ConfirmRow({ item, own, answers, hidden, onEdit, onDone }: { item: DocumentCardItem; own: OwnChoices; answers: CheckAnswers; hidden: React.ReactNode; onEdit: () => void; onDone: () => void }) {
   const { value } = item;
   const bp = value.businessBp ?? 0;
   const share = bp <= 0 ? "personal" : bp >= 10000 ? "business" : "mixed";
@@ -128,7 +129,7 @@ function ConfirmRow({ item, answers, hidden, onEdit, onDone }: { item: DocumentC
     {field("kind", "reading")}{field("id", item.readingId)}{field("target", value.kind)}{field("name", value.name ?? "")}
     {field("amount", amountUnknown ? "" : majorText(value))}{field("currency", value.currency ?? "")}{field("date", dueUnknown ? "" : answers.date ?? value.date ?? "")}
     {field("category", value.category ?? "")}{field("businessShare", share)}{share === "mixed" && field("businessPercent", String(bp / 100))}
-    {field("cardId", value.cardId ?? "")}{field("repeat", answers.repeat ?? value.repeat ?? "")}
+    {field("ownCategory", guessedOwn(own, value.category ?? "", value.name ?? "")?.id ?? "")}{field("cardId", value.cardId ?? "")}{field("repeat", answers.repeat ?? value.repeat ?? "")}
     {amountUnknown && field("amountUnknown", "on")}{dueUnknown && field("dueUnknown", "on")}
     {hidden}
     <div className="check-line-choices ask-choices">

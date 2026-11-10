@@ -5,41 +5,30 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAskPanel } from "@/components/shell/AskWorkspace";
 import { formatter, minorMoney } from "@/lib/money/format";
+import { formatHomeView, lookBy, parseHomeView, type LookBy } from "@/lib/money/look-by";
 import { monthByCategory } from "@/lib/money/month";
 import { daysBetween, safeToSpend, statementItems } from "@/lib/money/runway";
 import { monthBounds, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import type { MoneyState } from "@/lib/money/types";
 import { longDay } from "./chart-utils";
-import { CategoryBars } from "./CategoryBars";
+import { BUSINESS_SEGMENTS, CategoryBars } from "./CategoryBars";
 import { ForecastChart, forecastModel } from "./ForecastChart";
 import { MonthColumns } from "./MonthColumns";
 import "./home-views.css";
 
-type View = "forecast" | "categories" | "trend";
 type Mode = "chart" | "table";
 const key = "fipa-home-view";
 const changed = "fipa-home-view-change";
-let fallback = "forecast|chart";
+let fallback = "forecast|chart|category";
 function snapshot() { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } }
 function subscribe(callback: () => void) { window.addEventListener(changed, callback); window.addEventListener("storage", callback); return () => { window.removeEventListener(changed, callback); window.removeEventListener("storage", callback); }; }
 function save(value: string) { fallback = value; try { localStorage.setItem(key, value); } catch { /* The controls still work on this page. */ } window.dispatchEvent(new Event(changed)); }
-const serverSnapshot = () => "forecast|chart";
+const serverSnapshot = () => "forecast|chart|category";
 
-function spendingRows(input: SpendingInput, today: string) {
-  const month = today.slice(0, 7), previous = monthsBack(month, 2);
-  const current = monthByCategory(input, today, month), last = monthByCategory(input, today, previous);
-  const { first, last: end } = monthBounds(month);
-  const items = spendingItems(input, first, end);
-  const rows = current.categories.map((category) => {
-    const matches = items.filter((item) => item.category === category.category);
-    const spent = matches.filter((item) => item.date <= today).reduce((sum, item) => sum + item.amountMinor, 0);
-    const coming = matches.filter((item) => item.date > today && item.kind === "bill").reduce((sum, item) => sum + item.amountMinor, 0);
-    const previousAmount = last.categories.find((item) => item.category === category.category)?.totalMinor ?? 0;
-    const unknown = matches.some((item) => item.uncounted);
-    return { key: category.category, label: category.label, note: unknown ? "an amount is not known" : `${matches.length} ${matches.length === 1 ? "item" : "items"}`, spent, coming, total: spent + coming, previous: previousAmount, unknown };
-  }).sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
+function trendRows(input: SpendingInput, today: string) {
+  const month = today.slice(0, 7);
   const months = Array.from({ length: 6 }, (_, index) => monthsBack(month, 6 - index));
-  const trend = months.map((date) => {
+  return months.map((date) => {
     const view = monthByCategory(input, today, date);
     const bounds = monthBounds(date), entries = spendingItems(input, bounds.first, bounds.last);
     const spent = entries.filter((item) => item.date <= today).reduce((sum, item) => sum + item.amountMinor, 0);
@@ -47,8 +36,6 @@ function spendingRows(input: SpendingInput, today: string) {
     const biggest = entries.filter(item => !item.uncounted && (item.kind === "charge" || item.repeat === null)).sort((a, b) => b.amountMinor - a.amountMinor)[0];
     return { month: date, name: view.name, spent, coming, total: spent + coming, current: date === month, hasItems: entries.length > 0, unknown: entries.some((item) => item.uncounted), biggest: biggest ? { label: biggest.label, amount: biggest.amountMinor } : null };
   }).filter((entry) => entry.hasItems || entry.month === month);
-  const spent = rows.reduce((sum, row) => sum + row.spent, 0), coming = rows.reduce((sum, row) => sum + row.coming, 0);
-  return { rows, trend, spent, coming, total: spent + coming, name: current.name, lastName: last.name, lastTotal: last.totalMinor };
 }
 
 function Table({ caption, head, children }: { caption: string; head: string[]; children: ReactNode }) {
@@ -73,22 +60,27 @@ function Forecast({ state, mode, bankBalance }: { state: MoneyState; mode: Mode;
   </>;
 }
 
-function Categories({ input, state, mode }: { input: SpendingInput; state: MoneyState; mode: Mode }) {
-  const data = spendingRows(input, state.today), format = (value: number) => minorMoney(value, input.homeCurrency), money = formatter(state.homeCurrency);
+function Categories({ input, state, mode, by }: { input: SpendingInput; state: MoneyState; mode: Mode; by: LookBy }) {
+  const data = lookBy(input, state.today, by, state.split.members), format = (value: number) => minorMoney(value, input.homeCurrency), money = formatter(state.homeCurrency);
   const month = state.today.slice(0, 7);
   const pending = state.bills.filter(bill => bill.status === "pending" && bill.due.slice(0, 7) === month);
   if (!data.rows.length) return <><Empty />{pending.map(bill => <p className="hv-note" key={bill.id}>{bill.biller} {money(bill.amount)} waits in To check and is not counted yet.</p>)}</>;
+  const business = data.by === "business", person = data.by === "person";
+  const businessNote = (row: { business?: number; personal?: number }) => row.business === 0 ? "all personal" : row.personal === 0 ? "all business" : `business ${format(row.business ?? 0)}`;
   return <>
     <Unknown show={data.rows.some(row => row.unknown)} />
-    {mode === "chart" ? <CategoryBars rows={data.rows} currency={input.homeCurrency} lastName={data.lastName} />
-      : <Table caption={`Where ${data.name} goes, by category`} head={["Category", "Spent", "Still to come", data.name, data.lastName]}>{data.rows.map(row => <tr key={row.key}><th scope="row">{row.label}</th><td className="hv-num">{format(row.spent)}</td><td className="hv-num">{format(row.coming)}</td><td className="hv-num">{format(row.total)}</td><td className="hv-num">{format(row.previous)}</td></tr>)}</Table>}
-    <p className="hv-sentence">{data.name} so far <strong>{format(data.spent)}</strong> spent, <strong>{format(data.coming)}</strong> still to come: <strong>{format(data.total)}</strong> for the month, against {data.lastTotal > 0 ? <strong>{format(data.lastTotal)}</strong> : "nothing recorded"} in {data.lastName}.</p>
+    {business && <div className="hv-strip"><div><span>Business</span><strong>{format(data.businessMinor)}</strong></div><div><span>Personal</span><strong>{format(data.personalMinor)}</strong></div></div>}
+    {mode === "chart" ? <CategoryBars rows={data.rows} currency={input.homeCurrency} lastName={data.lastName} {...(business ? { segments: BUSINESS_SEGMENTS, note: businessNote } : {})} />
+      : business ? <Table caption={`Business and personal in ${data.name}, by category`} head={["Category", "Business", "Personal", "Total"]}>{data.rows.map(row => <tr key={row.key}><th scope="row">{row.label}</th><td className="hv-num">{format(row.business)}</td><td className="hv-num">{format(row.personal)}</td><td className="hv-num">{format(row.total)}</td></tr>)}</Table>
+      : <Table caption={person ? `Who ${data.name}'s spending belongs to` : `Where ${data.name} goes, by category`} head={[person ? "Person" : "Category", "Spent", "Still to come", data.name, data.lastName]}>{data.rows.flatMap(row => [row, ...(row.children ?? [])].map(item => <tr key={item.key} className={item === row ? undefined : "hv-own"}><th scope="row">{item.label}</th><td className="hv-num">{format(item.spent)}</td><td className="hv-num">{format(item.coming)}</td><td className="hv-num">{format(item.total)}</td><td className="hv-num">{format(item.previous)}</td></tr>))}</Table>}
+    {business ? <p className="hv-sentence">{data.businessLine}</p>
+      : <p className="hv-sentence">{data.name} so far <strong>{format(data.spent)}</strong> spent, <strong>{format(data.coming)}</strong> still to come: <strong>{format(data.total)}</strong> for the month, against {data.lastTotal > 0 ? <strong>{format(data.lastTotal)}</strong> : "nothing recorded"} in {data.lastName}.</p>}
     {pending.map(bill => <p className="hv-note" key={bill.id}>{bill.biller} {money(bill.amount)} waits in To check and is not counted yet.</p>)}
   </>;
 }
 
 function Trend({ input, state, mode }: { input: SpendingInput; state: MoneyState; mode: Mode }) {
-  const { trend } = spendingRows(input, state.today), format = (value: number) => minorMoney(value, input.homeCurrency);
+  const trend = trendRows(input, state.today), format = (value: number) => minorMoney(value, input.homeCurrency);
   if (!trend.some(month => month.total > 0)) return <Empty />;
   const past = trend.filter(month => !month.current && month.total > 0), high = past.sort((a, b) => b.total - a.total)[0];
   return <>
@@ -99,10 +91,18 @@ function Trend({ input, state, mode }: { input: SpendingInput; state: MoneyState
   </>;
 }
 
+const LOOK_LABELS: Record<LookBy, string> = { category: "Category", business: "Business or personal", person: "Person" };
+const LOOK_HEADINGS: Record<LookBy, readonly [string, string, string]> = {
+  category: ["Where this month goes", "Spending by category, compared with last month", "Where is my money going this month?"],
+  business: ["Business and personal this month", "Each category split by the business share you set", "How much of this month is business?"],
+  person: ["Who this month's spending belongs to", "Spending by person, compared with last month", "Who spent what this month?"],
+};
+
 export function HomeViews({ state, spending, bankBalance }: { state: MoneyState; spending: SpendingInput; bankBalance: ReactNode }) {
-  const preference = useSyncExternalStore(subscribe, snapshot, serverSnapshot), [rawView, rawMode] = preference.split("|");
-  const view: View = rawView === "categories" || rawView === "trend" ? rawView : "forecast", mode: Mode = rawMode === "table" ? "table" : "chart";
+  const preference = useSyncExternalStore(subscribe, snapshot, serverSnapshot), people = state.split.members.length;
+  const { view, mode, by } = parseHomeView(preference, people);
   const panel = useAskPanel(), router = useRouter();
-  const labels = { forecast: ["Your next 30 days", "Cash if clients pay on time or late", "What does my cash forecast show?"], categories: ["Where this month goes", "Spending by category, compared with last month", "Where is my money going this month?"], trend: ["Spending over time", "Your recent months at a glance", "How has my spending changed over recent months?"] } as const;
-  return <section id="next-30-days" className="home-panel hv-panel"><header><div><h2>{labels[view][0]}</h2><p>{labels[view][1]}</p></div><button type="button" onClick={event => { if (panel) panel.ask(labels[view][2], event.currentTarget); else { try { sessionStorage.setItem("pes-ask-submit", JSON.stringify({ id: crypto.randomUUID(), question: labels[view][2] })); } catch { /* The person can still type the question. */ } router.push("/canvas#ask"); } }}>Ask about this</button></header><div className="hv-controls"><div role="group" aria-label="View">{(["forecast", "categories", "trend"] as const).map(item => <button type="button" key={item} aria-pressed={view === item} onClick={() => save(`${item}|${mode}`)}>{item[0].toUpperCase()+item.slice(1)}</button>)}</div><div role="group" aria-label="Display">{(["chart", "table"] as const).map(item => <button type="button" key={item} aria-pressed={mode === item} onClick={() => save(`${view}|${item}`)}>{item[0].toUpperCase()+item.slice(1)}</button>)}</div></div>{view === "forecast" ? <Forecast state={state} mode={mode} bankBalance={bankBalance}/> : view === "categories" ? <Categories input={spending} state={state} mode={mode}/> : <Trend input={spending} state={state} mode={mode}/>}</section>;
+  const labels = { forecast: ["Your next 30 days", "Cash if clients pay on time or late", "What does my cash forecast show?"], categories: LOOK_HEADINGS[by], trend: ["Spending over time", "Your recent months at a glance", "How has my spending changed over recent months?"] } as const;
+  const choices: LookBy[] = people >= 2 ? ["category", "business", "person"] : ["category", "business"];
+  return <section id="next-30-days" className="home-panel hv-panel"><header><div><h2>{labels[view][0]}</h2><p>{labels[view][1]}</p></div><button type="button" onClick={event => { if (panel) panel.ask(labels[view][2], event.currentTarget); else { try { sessionStorage.setItem("pes-ask-submit", JSON.stringify({ id: crypto.randomUUID(), question: labels[view][2] })); } catch { /* The person can still type the question. */ } router.push("/canvas#ask"); } }}>Ask about this</button></header><div className="hv-controls"><div role="group" aria-label="View">{(["forecast", "categories", "trend"] as const).map(item => <button type="button" key={item} aria-pressed={view === item} onClick={() => save(formatHomeView(item, mode, by))}>{item[0].toUpperCase()+item.slice(1)}</button>)}</div><div role="group" aria-label="Display">{(["chart", "table"] as const).map(item => <button type="button" key={item} aria-pressed={mode === item} onClick={() => save(formatHomeView(view, item, by))}>{item[0].toUpperCase()+item.slice(1)}</button>)}</div>{view === "categories" && <div className="hv-look"><span aria-hidden="true">Look at it by</span><div role="group" aria-label="Look at it by">{choices.map(item => <button type="button" key={item} aria-pressed={by === item} onClick={() => save(formatHomeView(view, mode, item))}>{LOOK_LABELS[item]}</button>)}</div></div>}</div>{view === "forecast" ? <Forecast state={state} mode={mode} bankBalance={bankBalance}/> : view === "categories" ? <Categories input={spending} state={state} mode={mode} by={by}/> : <Trend input={spending} state={state} mode={mode}/>}</section>;
 }

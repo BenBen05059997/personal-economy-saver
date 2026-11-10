@@ -10,9 +10,9 @@ async function CheckList({ search }: { search: Promise<{ from?: string | string[
   const { from } = await search; // the Home summary links here with ?from=home so Confirm returns there
   const hid = await currentHouseholdId();
   if (!hid) redirect("/");
-  const workspace = await loadWorkspace(hid);
+  const workspace = await loadWorkspace(hid, false, true);
   return <WorkspaceFrame workspace={workspace} section="check">
-    <CheckView from={from === "home" ? "home" : undefined} state={workspace.state} inbox={workspace.inbox} people={workspace.people} entryIds={{ bill: crypto.randomUUID(), charge: crypto.randomUUID() }} />
+    <CheckView from={from === "home" ? "home" : undefined} state={workspace.state} inbox={workspace.inbox} people={workspace.people} own={workspace.own!} entryIds={{ bill: crypto.randomUUID(), charge: crypto.randomUUID() }} />
   </WorkspaceFrame>;
 }
 export default function Page({ searchParams }: { searchParams: Promise<{ from?: string | string[] }> }) {

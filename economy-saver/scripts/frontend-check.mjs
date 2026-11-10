@@ -178,6 +178,8 @@ if (args[0] === "--guards") {
     ["confirm-and-remember-cross-origin", "/api/confirm", { method: "POST", session: "", form: { kind: "reading", id: "00000000-0000-4000-8000-000000000000", remember: "on" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["export-without-household", "/api/export", { method: "POST" }, 401],
     ["people-without-household", "/api/people", { method: "POST" }, 401],
+    ["own-categories-without-household", "/api/own-categories", { method: "POST", session: "", form: { kind: "add", category: "food", name: "Probe" } }, 401],
+    ["own-categories-cross-origin", "/api/own-categories", { method: "POST", session: "", form: { kind: "add", category: "food", name: "Probe" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["bill-fill-without-household", "/api/bills", { method: "POST", session: "", form: { kind: "fill", id: "x", amount: "1000", returnTo: "/to-check" } }, 401],
     ["bill-fill-cross-origin", "/api/bills", { method: "POST", session: "", form: { kind: "fill", id: "x", amount: "1000", returnTo: "/to-check" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["bill-with-schedule-without-household", "/api/bills", { method: "POST", form: { id: "x", biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year", cancelBy: "2026-11-20" } }, 401],
@@ -376,6 +378,43 @@ if (args[0] === "--extra") {
       const result = await request("/api/import", { method: "POST", form: { cardId: importCard } });
       expect(result.response.status === 400 && result.body === "Check the required fields and try again.", "s17-form-body");
     });
+    // Stage 37 own categories (D75): add, refuse a duplicate and a category label, file a charge and every same-named one, rename, merge, remove.
+    await step("action", "stage37-own-categories-add-refuse-file-rename-merge-remove", async () => {
+      const own = (form) => request("/api/own-categories", { method: "POST", form });
+      expect((await own({ kind: "rename" })).response.status === 400, "s37-bad-kind");
+      const tea = await own({ kind: "add", category: "food", name: "Fictional tea" });
+      expect(tea.response.status === 200 && tea.body === "Added Fictional tea.", "s37-add");
+      const same = await own({ kind: "add", category: "food", name: "fictional  TEA" });
+      expect(same.response.status === 400 && same.body === "You already have Fictional tea under Food.", "s37-duplicate");
+      const label = await own({ kind: "add", category: "food", name: "Food" });
+      expect(label.response.status === 400 && label.body === "Food is already a category.", "s37-label");
+      const matcha = await own({ kind: "add", category: "food", name: "Fictional matcha", businessShare: "business" });
+      expect(matcha.response.status === 200, "s37-add-with-default-share");
+      const html = await page("/settings", /Your categories/);
+      const idOf = (name) => new RegExp(`id="own-([0-9a-f-]{36})"[^>]*><p>${name}`).exec(html)?.[1];
+      const teaId = idOf("Fictional tea"), matchaId = idOf("Fictional matcha");
+      expect(teaId !== undefined && matchaId !== undefined, "s37-settings-lists-both");
+      const first = randomUUID(), second = randomUUID();
+      for (const [id, date] of [[first, "2026-11-02"], [second, "2026-11-03"]]) {
+        const charge = await request("/api/charges", { method: "POST", form: { id, cardId: importCard, merchant: "Fictional Tea House", amount: "700", date, category: "food", businessShare: "personal", ownCategory: "" } });
+        expect(charge.response.status === 303, "s37-charge");
+      }
+      const filed = await own({ kind: "file", item: "charge", id: first, ownCategoryId: teaId, everySame: "on" });
+      expect(filed.response.status === 200 && filed.body === "Filed 2 items", "s37-file-every-same");
+      const wrongKind = await own({ kind: "file", item: "charge", id: first, ownCategoryId: randomUUID() });
+      expect(wrongKind.response.status === 400 && wrongKind.body === "Choose one of your categories.", "s37-file-foreign-id");
+      const renamed = await own({ kind: "save", id: teaId, name: "Fictional chai" });
+      expect(renamed.response.status === 200 && renamed.body === "Saved", "s37-rename");
+      const taken = await own({ kind: "save", id: teaId, name: "Fictional matcha" });
+      expect(taken.response.status === 400 && taken.body === "You already have Fictional matcha under Food.", "s37-rename-duplicate");
+      await page("/plan", /Fictional chai/);
+      const merged = await own({ kind: "merge", id: teaId, into: matchaId });
+      expect(merged.response.status === 200 && merged.body === "Merged. 2 items moved.", "s37-merge");
+      const removed = await own({ kind: "remove", id: matchaId });
+      expect(removed.response.status === 200 && removed.body === "Removed", "s37-remove");
+      const again = await own({ kind: "remove", id: matchaId });
+      expect(again.response.status === 400 && again.body === "Choose one of your categories.", "s37-remove-twice");
+    });
   }
   // Stage 18 varies (D54): a monthly bill whose amount varies is "about" its estimate on Home until that month's real bill is in;
   // one-offs with the same name key and category link to it (Activity says so) and a real bill for its month is counted once.
@@ -573,7 +612,7 @@ await step("page", "stage17-plan-search-food", async () => {
   expect(content.includes("Food: ¥10,700 in November (3 items), ¥11,440 in October (3 items), ¥5,960 in September (1 item); nothing in the other 9 months. ¥28,100 in all."), "food-summary-line");
   const november = content.slice(content.indexOf("November ¥10,700"), content.indexOf("October ¥11,440"));
   expect(november.includes("Food ¥10,700"), "food-november-by-category");
-  for (const item of ["Minato Fresh Market Nov 13 ¥1,400", "Kissa Midori café Nov 12 ¥1,880", "Minato Fresh Market Nov 8 ¥7,420"]) expect(november.includes(item), "food-november-item");
+  for (const item of ["Minato Fresh Market Nov 13 ¥1,400", "Kissa Midori café Nov 12 · Food › Coffee ¥1,880", "Minato Fresh Market Nov 8 ¥7,420"]) expect(november.includes(item), "food-november-item");
   expect(!content.includes("August ¥0"), "zero-month-block");
   expect(content.includes("Business ¥32,830 of ¥152,230 this month"), "month-view-unchanged-by-search");
 });
@@ -758,7 +797,7 @@ await step("action", "export-my-data", async () => {
   expect(/^attachment; filename="personal-economy-saver-\d{4}-\d{2}-\d{2}\.json"$/.test(headers.get("content-disposition") ?? ""), "export-disposition");
   expect(/no-store/.test(headers.get("cache-control") ?? ""), "export-no-store");
   const data = JSON.parse(result.body);
-  expect(data.version === 3 && Array.isArray(data.spaces) && Array.isArray(data.events) && data.clients.length === 3, "export-shape");
+  expect(data.version === 4 && Array.isArray(data.ownCategories) && Array.isArray(data.spaces) && Array.isArray(data.events) && data.clients.length === 3, "export-shape");
   expect(Array.isArray(data.memory) && Array.isArray(data.canvases) && Array.isArray(data.journal), "export-stored-kinds");
   expect(!/ai_?key|tokenHash|storagePath|payload/i.test(result.body), "export-no-secrets");
   const get = await fetch(new URL("/api/export", base), { headers: { Cookie: cookie, Origin: base.origin }, redirect: "manual" });
@@ -793,7 +832,7 @@ await step("action", "your-data-delete-one-and-delete-all-memory", async () => {
   const bad = await request("/api/data", { method: "POST", form: { kind: "delete_kind", what: "nothing", returnTo: "/settings" } });
   expect(bad.response.status === 400, "data-bad-kind");
 });
-// D59 step 2: Import reads a version 2 or 3 file into an empty household only, and says why when it cannot.
+// D59 step 2: Import reads a version 2, 3 or 4 file into an empty household only, and says why when it cannot.
 await step("action", "import-refuses-a-full-household-an-old-file-and-an-oversize-body", async () => {
   const full = await request("/api/restore", { method: "POST", json: JSON.parse(tryItExport) });
   expect(full.response.status === 400 && full.body === "Import works on an empty household. Start with my numbers first.", "import-full-refused");

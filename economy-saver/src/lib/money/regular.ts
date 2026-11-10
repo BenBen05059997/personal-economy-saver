@@ -4,6 +4,7 @@
 import type { Currency } from "@/lib/catalogue/types";
 import { aboutMoney, minorMoney } from "./format";
 import { categoryLabel, type CategoryKey } from "./categories";
+import { ownLabel } from "./own-category";
 import { monthBounds, monthsBack, nameKey, type SpendItem } from "./spending";
 
 type RegularStatus = "same" | "up" | "down" | "started" | "stopped" | "not_yet";
@@ -13,6 +14,8 @@ export type RegularCost = {
   label: string; // the newest item's own name
   category: CategoryKey;
   categoryLabel: string;
+  own: { id: string; name: string } | null; // D75: the newest item's own category, or none
+  where: string; // "Food › Coffee", or "Food" with none
   kind: SpendItem["kind"]; // the newest item's kind
   months: RegularMonth[]; // every month of the window, oldest first, empty ones at 0
   thisMinor: number;
@@ -109,7 +112,7 @@ export function regularCosts(items: SpendItem[], currency: Currency, today: stri
       status = now.amountMinor < last.amountMinor ? "down" : "same";
     }
     costs.push({
-      key, label: newest.label, category: newest.category, categoryLabel: categoryLabel(newest.category), kind: newest.kind, months: byMonth,
+      key, label: newest.label, category: newest.category, categoryLabel: categoryLabel(newest.category), own: newest.own, where: ownLabel(newest.category, newest.own), kind: newest.kind, months: byMonth,
       thisMinor: now.amountMinor, lastMinor: last.amountMinor, changeMinor: status === "not_yet" ? null : now.amountMinor - last.amountMinor,
       status, soFar: !monthOver && group.some(i => i.kind === "charge"), usualDay,
       ...(now.estimated || last.estimated ? { estimated: true as const } : {}),

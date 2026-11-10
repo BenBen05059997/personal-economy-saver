@@ -58,17 +58,18 @@ function normalise(state: MoneyState): MoneyState {
   const clientName = new Map(state.clients.map((c) => [c.id, c.name]));
   const billId = (b: { biller: string }) => `bill:${b.biller}`;
   const invoiceId = (i: { clientId: string; item: string }) => `inv:${clientName.get(i.clientId)}:${i.item}`;
+  const own = <T extends { own?: { id: string; name: string } }>(row: T): T => (row.own ? { ...row, own: { id: `own:${row.own.name}`, name: row.own.name } } : row); // D75: an own category by its name
   const by = <T,>(key: (t: T) => string) => (a: T, b: T) => key(a).localeCompare(key(b));
   const storedName = new Map(state.storedBills.map((b) => [b.id, b.biller]));
   return {
     ...state,
     storedBills: state.storedBills
-      .map((b) => ({ ...b, id: billId(b), ...(b.seriesBillId !== undefined && { seriesBillId: billId({ biller: storedName.get(b.seriesBillId)! }) }) }))
+      .map((b) => ({ ...own(b), id: billId(b), ...(b.seriesBillId !== undefined && { seriesBillId: billId({ biller: storedName.get(b.seriesBillId)! }) }) }))
       .sort(by((b) => (b.due ?? "") + b.biller)),
-    bills: state.bills.map((b) => ({ ...b, id: billId(b) })).sort(by((b) => b.due + b.biller)),
+    bills: state.bills.map((b) => ({ ...own(b), id: billId(b) })).sort(by((b) => b.due + b.biller)),
     cards: state.cards.map((c) => ({ ...c, id: `card:${c.label}`, ...(c.ownerId && { ownerId: `member:${memberName.get(c.ownerId)}` }) })).sort(by((c) => c.label)),
     charges: state.charges
-      .map((c) => ({ ...c, id: `ch:${cardLabel.get(c.cardId)}:${c.merchant}:${c.date}`, cardId: `card:${cardLabel.get(c.cardId)}` }))
+      .map((c) => ({ ...own(c), id: `ch:${cardLabel.get(c.cardId)}:${c.merchant}:${c.date}`, cardId: `card:${cardLabel.get(c.cardId)}` }))
       .sort(by((c) => c.date + c.id)),
     statements: state.statements
       .map((st) => ({ ...st, cardId: `card:${cardLabel.get(st.cardId)}` }))
@@ -401,7 +402,7 @@ async function main() {
 
   await check("row level security is on for every table and only pes_app has household policies", async () => {
     const tables = allTables().map((t) => getTableConfig(t).name);
-    assert.equal(tables.length, 35);
+    assert.equal(tables.length, 36);
     const on = (await pg.query<{ relname: string }>(`select relname from pg_class where relkind = 'r' and relnamespace = 'public'::regnamespace and relrowsecurity`)).rows.map((r) => r.relname);
     assert.deepStrictEqual(on.sort(), tables.sort());
     const policies = (await pg.query<{ tablename: string; roles: string; cmd: string; qual: string; with_check: string }>(

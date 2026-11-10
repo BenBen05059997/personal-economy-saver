@@ -19,7 +19,7 @@ async function SessionHome({ search }: { search: Search }) {
   const id = await currentHouseholdId();
   if (!id) return <Landing />;
   const { added } = await search;
-  const workspaceRead = loadWorkspace(id, true);
+  const workspaceRead = loadWorkspace(id, true, true);
   const suggestionsRead = withHousehold(db(), id, tx => openSuggestions(tx, id));
   const pins = loadHomePins(id);
   // The pins boundary will read the original promise after the workspace is ready.
@@ -27,7 +27,7 @@ async function SessionHome({ search }: { search: Search }) {
   const [workspace, suggestions] = await Promise.all([workspaceRead, suggestionsRead]);
   const month = workspace.state.today.slice(0, 7);
   const spending = await loadSpending(db(), id, { from: monthBounds(monthsBack(month, 6)).first, to: monthBounds(month).last });
-  return <WorkspaceFrame workspace={workspace} section="home"><HomeView spending={spending} householdId={id} getStarted={workspace.getStarted} suggestions={suggestions} state={workspace.state} people={workspace.people} entryIds={{ bill: crypto.randomUUID(), charge: crypto.randomUUID() }} balanceId={crypto.randomUUID()} inbox={workspace.inbox} notice={workspace.freshness?.stale} demo={workspace.demo} tryIt={workspace.tryIt}
+  return <WorkspaceFrame workspace={workspace} section="home"><HomeView spending={spending} householdId={id} getStarted={workspace.getStarted} suggestions={suggestions} state={workspace.state} people={workspace.people} own={workspace.own!} entryIds={{ bill: crypto.randomUUID(), charge: crypto.randomUUID() }} balanceId={crypto.randomUUID()} inbox={workspace.inbox} notice={workspace.freshness?.stale} demo={workspace.demo} tryIt={workspace.tryIt}
     forwarding={missingForwardingSetting() === null} added={typeof added === "string" ? added : null}
     pins={<Pinned householdId={id} state={workspace.state} pins={pins} />} />
     {workspace.freshness?.asOf && <p className="ui-hint">PayPal balance as of {workspace.freshness.asOf.toLocaleString("en-US", { timeZone: workspace.timeZone })}.</p>}

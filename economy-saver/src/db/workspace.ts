@@ -5,6 +5,7 @@ import { readerInbox } from "./reader-inbox";
 import type { refreshPayPal } from "./paypal-refresh";
 import { observeRunway } from "./runway-events";
 import { eventFeed } from "./event-feed";
+import { ownChoices } from "./own-categories";
 import { CHARGE_LOOKBACK_DAYS, householdOwnerName, loadMoneyState, requireHousehold, type Db } from "./household";
 
 import { addDays } from "@/lib/money/runway";
@@ -35,14 +36,15 @@ export async function loadNavigationData(tx: Db, householdId: string) {
 
 /** The caller owns the transaction; Home must use a writable transaction. */
 export async function loadWorkspaceData(tx: Db, hid: string, home = false,
-  freshness: Awaited<ReturnType<typeof refreshPayPal>> | null = null) {
+  freshness: Awaited<ReturnType<typeof refreshPayPal>> | null = null, withOwn = false) {
   const query = tx.select().from(households).where(eq(households.id, requireHousehold(hid)));
   const [household] = await (home ? query.for("update") : query);
   if (!household) throw new Error("Household not found");
   const { today, timeZone } = clockForHousehold(household);
-  const [state, name, inbox, people] = await Promise.all([
+  const [state, name, inbox, people, own] = await Promise.all([
     loadMoneyState(tx, hid, today, household), householdOwnerName(tx, hid), readerInbox(tx, hid),
     tx.select({ id: members.id, name: members.displayName }).from(members).where(eq(members.householdId, hid)).orderBy(members.createdAt),
+    withOwn ? ownChoices(tx, hid) : null, // D75: three queries, only for the pages that show the Add forms
   ]);
   // Expose only booleans; the key and device journal remain where they are stored.
   const getStarted = home && household.fixedToday !== null ? await (async () => {
@@ -59,5 +61,5 @@ export async function loadWorkspaceData(tx: Db, hid: string, home = false,
   })() : null;
   if (home) await observeRunway(tx, hid, state, household);
   const feed = await eventFeed(tx, hid);
-  return { state, people, name, feed, timeZone, inbox, freshness, getStarted, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length + confirmedGaps(state).length };
+  return { state, people, own, name, feed, timeZone, inbox, freshness, getStarted, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length + confirmedGaps(state).length };
 }

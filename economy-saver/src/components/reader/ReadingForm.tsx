@@ -7,6 +7,7 @@ import type { LinkPreview } from "@/lib/money/varies";
 import { CategoryFields } from "@/components/household/CategoryFields";
 import { ScheduleFields, type Repeat } from "@/components/household/ScheduleFields";
 import { ApiForm } from "@/components/ui/ApiForm";
+import type { OwnChoices } from "@/lib/reader/own-choices";
 import { minorMoney } from "@/lib/money/format";
 import { monthName } from "@/lib/money/spending";
 import { CorrectionOffer } from "./CorrectionOffer";
@@ -35,9 +36,9 @@ function LinkLine({ link, today, homeCurrency }: { link: LinkPreview | null; tod
  * `preset` carries the person’s answers. `focus` puts the cursor in the
  * amount or the date when the form opens.
  */
-export function ReadingForm({ reading, today, homeCurrency, cards, checks, hidden, preset, focus, onDone }: {
+export function ReadingForm({ reading, today, homeCurrency, cards, own, checks, hidden, preset, focus, onDone }: {
   reading: { id: string; value: Extracted; link: LinkPreview | null };
-  today: string; homeCurrency: Currency; cards: { id: string; label: string }[];
+  today: string; homeCurrency: Currency; cards: { id: string; label: string }[]; own: OwnChoices;
   checks?: ReactNode; hidden?: ReactNode;
   preset?: { repeat?: Repeat; date?: string; amountUnknown?: boolean; dueUnknown?: boolean };
   focus?: "amount" | "date";
@@ -72,7 +73,7 @@ export function ReadingForm({ reading, today, homeCurrency, cards, checks, hidde
         <small className="ui-hint add-entry-hint">What the bill is for, like “11月分”. Information only: the forecast counts it on the due date.</small>
       </details>}
       <ScheduleFields id={`reading-${id}`} today={today} chosen={repeat} onChoose={chosen => setSchedule({ preset: repeatPreset, chosen })} />
-      <CategoryFields name={value.name ?? ""} defaultCategory={value.category} defaultBp={value.businessBp ?? 0} />
+      <CategoryFields name={value.name ?? ""} own={own} fileItself defaultCategory={value.category} defaultBp={value.businessBp ?? 0} />
       <label className="ui-field">Card for a charge<select name="cardId" defaultValue={value.cardId ?? ""}><option value="">Choose card</option>{cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
     </div>
     <CorrectionOffer read={{ kind: value.kind, name: value.name, category: value.category, businessBp: value.businessBp, cardId: value.cardId }} cards={cards} />

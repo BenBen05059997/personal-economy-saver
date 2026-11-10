@@ -2,6 +2,7 @@ import { db } from "@/db/client";
 import { chargeInput, insertCharge } from "@/db/charges";
 import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
 import { businessBpFromForm, CategoryKeySchema } from "@/lib/money/categories";
+import { ownChoiceFromForm } from "@/lib/reader/own-choices";
 import { householdRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   const fields = Object.fromEntries(form);
   if (String(fields.originalAmount ?? "").trim() === "") { delete fields.originalAmount; delete fields.originalCurrency; }
   else if (String(fields.originalCurrency ?? "") === "") delete fields.originalCurrency;
-  const data = chargeInput.safeParse({ ...fields, category: category.data, businessBp, shared: form.get("shared") === "on" });
+  const data = chargeInput.safeParse({ ...fields, category: category.data, businessBp, ...ownChoiceFromForm(form), shared: form.get("shared") === "on" });
   if (!data.success) return badFields();
   try {
     await insertCharge(db(), hid, data.data, "confirmed", "manual", { madeBy: "form" });

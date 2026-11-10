@@ -1,5 +1,5 @@
 // The one versioned shape of a household (D44). The database builds it (src/db/snapshot.ts), Settings exports it,
-// the `household_snapshot` tool hands it to the agent and MCP, and schema/household.v3.json is generated from it
+// the `household_snapshot` tool hands it to the agent and MCP, and schema/household.v4.json is generated from it
 // (npm run schema). Every object is strict, so a key that is not listed here is refused.
 //
 // Rules for every field: money is an integer count of minor units (whole yen, cents for USD) next to a 3-letter
@@ -13,8 +13,8 @@ import { MemoryItem } from "@/lib/schema/memory";
 import { BriefSchema } from "@/lib/agent/brief";
 import { ConversationTurn } from "@/lib/schema/turn";
 
-/** Version 3 adds the spaces of the Ask journal (D69), in the export only. */
-export const SNAPSHOT_VERSION = 3;
+/** Version 4 adds the person's own categories (D75) and the one each bill and charge is filed under. Version 3 added the spaces of the Ask journal (D69), in the export only. */
+export const SNAPSHOT_VERSION = 4;
 
 const id = z.string().uuid();
 const day = z.string().date().describe("A calendar day, YYYY-MM-DD.");
@@ -73,6 +73,7 @@ const Charge = z.object({
   shared: z.boolean().describe("true = split between the members by their shares; the owner of the card paid it."),
   category,
   businessBp,
+  ownCategoryId: id.nullable().optional().describe("The id of one of `ownCategories`, of the same kind as `category`; null or absent = filed under the category alone. Moves no money."),
   documentId: id.nullable(),
   madeBy,
 }).strict();
@@ -87,6 +88,7 @@ const Bill = z.object({
   due: day.nullable().describe("The stored due date. A repeating bill is one row here, not one per month. Null = not known yet (a one-off only); it counts as due today."),
   category,
   businessBp,
+  ownCategoryId: id.nullable().optional().describe("The id of one of `ownCategories`, of the same kind as `category`; null or absent = filed under the category alone. Moves no money."),
   status,
   previousAmountMinor: minor.nullable(),
   fxRateMicro: rateMicro.nullable(),
@@ -102,6 +104,14 @@ const Bill = z.object({
   periodEnd: day.nullable().optional().describe("The last day the bill covers; on or after periodStart."),
   documentId: id.nullable(),
   madeBy,
+}).strict();
+
+// D75: a name the person made under one of the fourteen categories ("Coffee" under Food). A category, an own category and a business share move no money.
+const OwnCategory = z.object({
+  id,
+  kind: category.describe("The category it belongs to; never changes."),
+  name: z.string().min(1).max(40),
+  businessBp: businessBp.nullable().describe("The default business share a form pre-fills for an item filed under it; null = none. Never rewrites items already saved."),
 }).strict();
 
 const Client = z.object({
@@ -241,6 +251,7 @@ export const HouseholdSnapshot = z.object({
   invoices: z.array(Invoice),
   pots: z.array(Pot),
   settlements: z.array(Settlement).describe("Every transfer recorded by Mark settled, oldest first."),
+  ownCategories: z.array(OwnCategory).optional().describe("The person's own categories (D75), by category. Absent in a version 2 or 3 file."),
   balanceUpdates: z.array(BalanceUpdate).describe("Bank balances set (confirmed) and waiting in To check (pending). Pending bills, charges and pots carry `status` in their own lists."),
   documents: z.array(Document).describe("References only."),
   truncated: Truncated,
@@ -249,6 +260,6 @@ export const HouseholdSnapshot = z.object({
   canvases: z.array(PinnedCanvasExport).optional().describe("The canvases pinned to Home, in order (D57). Only in the export."),
   journal: z.array(ConversationTurn).optional().describe("The conversation turns, oldest first (D60). Only in the export."),
   spaces: z.array(SpaceExport).optional().describe("The journal’s spaces, with their briefs (D69). Only in the export."),
-}).strict().describe("A whole household at one moment: version 3 of the Personal Economy Saver household schema, including spaces in the export.");
+}).strict().describe("A whole household at one moment: version 4 of the Personal Economy Saver household schema, including the person's own categories and, in the export, spaces.");
 
 export type HouseholdSnapshot = z.infer<typeof HouseholdSnapshot>;

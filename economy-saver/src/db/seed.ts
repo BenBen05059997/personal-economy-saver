@@ -4,7 +4,8 @@ import { refreshSuggestions } from "./suggestions";
 // Seeds a household with Ben's data: the demo household and every "Try it" copy (D34). Each call makes a fresh one.
 // Fictional people and companies only.
 
-import { benMoney, benStoredBills } from "@/lib/sample/ben";
+import { benMoney, benOwnCategories, benStoredBills } from "@/lib/sample/ben";
+import { nameKey } from "@/lib/money/name-key";
 import { addDays } from "@/lib/money/runway";
 import type { Db } from "./household";
 import { DEMO_DATE } from "./clock";
@@ -51,6 +52,7 @@ export async function seedBenRows(tx: Db, opts: SeedOptions): Promise<string> {
   const member = { id: crypto.randomUUID() };
   const clientIds = new Map(m.clients.map(c => [c.id, crypto.randomUUID()]));
   const cardIds = new Map(m.cards.map(c => [c.id, crypto.randomUUID()]));
+  const ownIds = new Map(benOwnCategories.map(o => [o.id, crypto.randomUUID()]));
   const [, , , billRows] = await Promise.all([
     tx.insert(s.fxRates).values({
       householdId: hid, date: m.today, base: "USD", quote: home, rateMicro: toRateMicro(m.fxPerUsd),
@@ -167,6 +169,7 @@ export async function seedBenRows(tx: Db, opts: SeedOptions): Promise<string> {
     eventInsert,
   ]);
 
+  await tx.insert(s.ownCategories).values(benOwnCategories.map(o => ({ id: ownIds.get(o.id)!, householdId: hid, kind: o.kind, name: o.name, nameKey: nameKey(o.name) })));
   await Promise.all([
     tx.insert(s.cardStatements).values(
       m.statements.map((st) => ({
@@ -193,6 +196,7 @@ export async function seedBenRows(tx: Db, opts: SeedOptions): Promise<string> {
         source: c.source,
         status: c.status,
         place: c.place ?? null,
+        ownCategoryId: c.own ? ownIds.get(c.own.id)! : null,
       })),
     ),
   ]);

@@ -1,0 +1,1508 @@
+[
+  {
+    "id": "OWN-001",
+    "area": "Own categories",
+    "action": "Open Your categories",
+    "user_goal": "I want to see my own names for my spending",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings open"
+    ],
+    "steps": [
+      "Scroll to Your categories (between Import a statement and Bills)"
+    ],
+    "expected": [
+      "The intro reads \"Your own names, kept under the fourteen categories. Plan and Home show them inside their category.\"",
+      "Under Food: \"Coffee · 3 items\"; under Other: \"Books & films · 2 items\" and \"Gear · 2 items\"",
+      "Each row has Rename or change default and Remove; \"Add a category\" is closed"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS12",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-002",
+    "area": "Own categories",
+    "action": "Add an own category with a default share",
+    "user_goal": "I want a name for my train spending, and to say how much is work",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Your categories"
+    ],
+    "steps": [
+      "Open Add a category",
+      "Choose Travel, type Trains, choose Part work, enter 30",
+      "Press Add category"
+    ],
+    "expected": [
+      "The form says \"Added Trains.\"",
+      "Travel appears with \"Trains · 30% work · 0 items\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS13",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-003",
+    "area": "Own categories",
+    "action": "Add an own category with no default",
+    "user_goal": "I just want a name",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Your categories"
+    ],
+    "steps": [
+      "Add Travel, Taxis, No default"
+    ],
+    "expected": [
+      "Travel lists \"Taxis · 0 items\" with no share shown"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS13",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-004",
+    "area": "Own categories",
+    "action": "Add a name that is a category",
+    "user_goal": "I try Food as my own name",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Your categories"
+    ],
+    "steps": [
+      "Add Food, name Food"
+    ],
+    "expected": [
+      "The form says \"Food is already a category.\"",
+      "Nothing is added"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS14",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-005",
+    "area": "Own categories",
+    "action": "Add a name I already have",
+    "user_goal": "I try Coffee again",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Your categories"
+    ],
+    "steps": [
+      "Add Food, name coffee"
+    ],
+    "expected": [
+      "The form says \"You already have Coffee under Food.\"",
+      "Nothing is added"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS14",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-006",
+    "area": "Own categories",
+    "action": "Paste an API key as a name",
+    "user_goal": "I paste a key by mistake",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Your categories"
+    ],
+    "steps": [
+      "Add Food, name sk-aaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "expected": [
+      "The form says \"That looks like an API key. Paste it in Settings → Your AI model. It was not sent or saved.\"",
+      "Nothing is added"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS14",
+      "D75",
+      "D56"
+    ]
+  },
+  {
+    "id": "OWN-007",
+    "area": "Own categories",
+    "action": "Add a forty-first category",
+    "user_goal": "The list must stay bounded",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:own-categories-test"
+    ],
+    "expected": [
+      "A 41st own category is refused with \"You can keep up to 40 of your own categories. Remove one first.\"",
+      "A name of 0 or more than 40 characters is refused with \"Give your category a name of 1 to 40 characters.\""
+    ],
+    "refs": [
+      "db:own-categories-test",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-008",
+    "area": "Own categories",
+    "action": "Use the same name under another category",
+    "user_goal": "Coffee can be a name under Travel too",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Your categories"
+    ],
+    "steps": [
+      "Add Travel, name Coffee"
+    ],
+    "expected": [
+      "It is added: Travel lists Coffee",
+      "Food still lists Coffee"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS14",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-009",
+    "area": "Own categories",
+    "action": "Rename an own category and set its default",
+    "user_goal": "I want a better name and a default",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Your categories with Taxis under Travel (OWN-003)"
+    ],
+    "steps": [
+      "Open Rename or change default on Taxis",
+      "Type Cabs, choose Work",
+      "Press Save"
+    ],
+    "expected": [
+      "The row reads \"Cabs · Work · 0 items\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS15",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-010",
+    "area": "Own categories",
+    "action": "Rename to a name I already have",
+    "user_goal": "Two with one name would be confusing",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Travel has Trains and Cabs (OWN-002, OWN-009)"
+    ],
+    "steps": [
+      "Rename Cabs to Trains"
+    ],
+    "expected": [
+      "The form says \"You already have Trains under Travel.\"",
+      "Nothing changes"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS15",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-011",
+    "area": "Own categories",
+    "action": "Change a default share",
+    "user_goal": "A new default must not rewrite what I saved",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:own-categories-test"
+    ],
+    "expected": [
+      "Changing a default share changes no saved bill or charge",
+      "The default only pre-fills a form or a draft"
+    ],
+    "refs": [
+      "db:own-categories-test",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-012",
+    "area": "Own categories",
+    "action": "Merge two own categories",
+    "user_goal": "Gear and Books are really one",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Your categories"
+    ],
+    "steps": [
+      "Open Merge into… on Gear",
+      "Read the hint",
+      "Press Merge"
+    ],
+    "expected": [
+      "Only \"Books & films\" is offered",
+      "The hint reads \"Its 2 items move to the one you choose, and Gear is removed.\"",
+      "The form says \"Merged. 2 items moved.\" and the list shows \"Books & films · 4 items\" with no Gear",
+      "Home's Other still totals ¥48,900"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS16",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-013",
+    "area": "Own categories",
+    "action": "Remove an own category that holds items",
+    "user_goal": "I no longer want it",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Books & films holds 4 items (OWN-012)"
+    ],
+    "steps": [
+      "Press Remove on Books & films",
+      "Read the question",
+      "Press Keep, then Remove again and confirm"
+    ],
+    "expected": [
+      "The question reads \"Remove Books & films? Its 4 items go back to Other.\" with Keep and Remove",
+      "Keep closes it and changes nothing",
+      "After Remove the category is gone, its items are under Other, and Other is still ¥48,900"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS17",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-014",
+    "area": "Own categories",
+    "action": "Remove an own category with nothing in it",
+    "user_goal": "An empty name is easy to drop",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Taxis exists with 0 items (OWN-003)"
+    ],
+    "steps": [
+      "Press Remove on Taxis"
+    ],
+    "expected": [
+      "The question reads \"Remove Taxis? Nothing is filed under it.\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS17",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-015",
+    "area": "Own categories",
+    "action": "Add a bill and file it under my category",
+    "user_goal": "I want my train pass under Trains at 30% work",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Trains exists under Travel with a 30% default (OWN-002)"
+    ],
+    "steps": [
+      "+ Add → A bill: Fictional Trains Pass, 5,000, due Nov 20",
+      "Open More ›, choose Category Travel and Your category Trains",
+      "Press Add bill",
+      "Open Plan"
+    ],
+    "expected": [
+      "Choosing Trains sets For work? to Part work with 30",
+      "Plan lists the bill under Travel, under Trains, with \"30% business\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS18",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-016",
+    "area": "Own categories",
+    "action": "Change the category on a bill form",
+    "user_goal": "Your category must follow the category",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Add a bill form open, More › open"
+    ],
+    "steps": [
+      "Choose Category Food and Your category Coffee",
+      "Change Category to Travel"
+    ],
+    "expected": [
+      "Your category goes back to None"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS18",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-017",
+    "area": "Own categories",
+    "action": "Make a category while adding a bill",
+    "user_goal": "I want to make it in the form",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Add a bill form, More › open"
+    ],
+    "steps": [
+      "Choose Category Travel and Your category \"New…\"",
+      "Type Fares in \"Name of your new category\"",
+      "Add the bill"
+    ],
+    "expected": [
+      "The box \"Name of your new category\" appears and is required",
+      "Settings → Your categories lists Fares under Travel with \"1 item\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS19",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-018",
+    "area": "Own categories",
+    "action": "Make a category with a refused name while adding a bill",
+    "user_goal": "A bad name must not half-save",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Add a bill form, More › open"
+    ],
+    "steps": [
+      "Choose Category Travel and \"New…\", type Travel",
+      "Add the bill"
+    ],
+    "expected": [
+      "The form says \"Travel is already a category.\"",
+      "Neither the bill nor the category is saved"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS19",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-019",
+    "area": "Own categories",
+    "action": "Add a charge that files itself",
+    "user_goal": "The same shop should land in the same place",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "+ Add → A card charge"
+    ],
+    "steps": [
+      "Type Kissa Midori café, amount 900, Card B",
+      "Open More ›",
+      "Add the charge and open Plan"
+    ],
+    "expected": [
+      "The summary line on the form reads \"Food › Coffee\" with the hint \"Filed like last time, change if wrong\" under it",
+      "Under More ›, Category shows Food and Your category shows Coffee",
+      "Plan lists the charge under Food › Coffee"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS20",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-020",
+    "area": "Own categories",
+    "action": "Change a self-filed category",
+    "user_goal": "I can overrule the guess",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Card charge form with Kissa Midori café typed"
+    ],
+    "steps": [
+      "Open More ›",
+      "Choose None in Your category"
+    ],
+    "expected": [
+      "The hint \"Filed like last time, change if wrong\" goes",
+      "The charge saves under Food alone"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS20",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-021",
+    "area": "Own categories",
+    "action": "Add a charge from an unknown shop",
+    "user_goal": "A new shop should not be guessed",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Card charge form"
+    ],
+    "steps": [
+      "Type Fictional Bakery",
+      "Open More ›"
+    ],
+    "expected": [
+      "Your category shows None",
+      "No hint is shown"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS20",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-022",
+    "area": "Own categories",
+    "action": "Pick a category that has a default share",
+    "user_goal": "The default should pre-fill the share",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Cabs exists under Travel with default Work (OWN-009)"
+    ],
+    "steps": [
+      "Card charge form, More ›, Category Travel, Your category Cabs"
+    ],
+    "expected": [
+      "For work? switches to Work"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS21",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-023",
+    "area": "Own categories",
+    "action": "Choose the share before the category",
+    "user_goal": "My own choice wins over a default",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Cabs exists under Travel with default Work"
+    ],
+    "steps": [
+      "Card charge form, More ›, choose Personal in For work?",
+      "Choose Category Travel, then Your category Cabs"
+    ],
+    "expected": [
+      "For work? stays Personal"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS21",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-024",
+    "area": "Own categories",
+    "action": "Make a category while adding a charge",
+    "user_goal": "The charge form offers the same choices",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Card charge form, More › open"
+    ],
+    "steps": [
+      "Choose Your category \"New…\", type a fresh name, add the charge"
+    ],
+    "expected": [
+      "The category is made in the same save and the charge is filed in it"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS22",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-025",
+    "area": "Own categories",
+    "action": "Edit a bill's own category",
+    "user_goal": "I want to file a saved bill",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Bills"
+    ],
+    "steps": [
+      "Edit CloudBox Plus",
+      "Choose Your category \"New…\", type Tools",
+      "Save"
+    ],
+    "expected": [
+      "Settings → Your categories lists Subscriptions with \"Tools · 1 item\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS23",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-026",
+    "area": "Own categories",
+    "action": "Change a saved bill's category",
+    "user_goal": "Its own category must not stay under the wrong one",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "CloudBox Plus filed under Tools (OWN-025)"
+    ],
+    "steps": [
+      "Edit CloudBox Plus",
+      "Change Category to Housing",
+      "Save"
+    ],
+    "expected": [
+      "Your category reset to None when Category changed",
+      "Tools shows \"Tools · 0 items\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS23",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-027",
+    "area": "Own categories",
+    "action": "Confirm a reading with my category",
+    "user_goal": "The reader should file as I do",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "A working AI model; a fictional receipt from Kissa Midori café"
+    ],
+    "steps": [
+      "Upload the receipt",
+      "Open To check",
+      "Confirm the reading"
+    ],
+    "expected": [
+      "The reading form shows Category and Your category, with Coffee and \"Filed like last time, change if wrong\"",
+      "The saved charge reads Food › Coffee"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS24",
+      "D75",
+      "D61"
+    ]
+  },
+  {
+    "id": "OWN-028",
+    "area": "Own categories",
+    "action": "Read a waiting line in To check",
+    "user_goal": "I want to see how the item will be filed",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "A working AI model; a waiting Kissa Midori café charge"
+    ],
+    "steps": [
+      "Open To check"
+    ],
+    "expected": [
+      "The line reads \"Food › Coffee · Personal\" for a bill, or \"Card B · Nov 14 · Food › Coffee · Personal · …\" for a charge"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS24",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-029",
+    "area": "Own categories",
+    "action": "Confirm a bill attached in Ask",
+    "user_goal": "The Ask card files like the reader form",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "A working AI model"
+    ],
+    "steps": [
+      "Attach a fictional café receipt in Ask",
+      "Read the card's form",
+      "Confirm it"
+    ],
+    "expected": [
+      "The card shows Category and Your category",
+      "The saved item is filed under the chosen own category"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS25",
+      "D75",
+      "D61"
+    ]
+  },
+  {
+    "id": "OWN-030",
+    "area": "Own categories",
+    "action": "Preview a statement import",
+    "user_goal": "I want to see how each row will be filed",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Import a statement, Card B, a CSV with Kissa Midori café and Fictional Bakery rows dated in November"
+    ],
+    "steps": [
+      "Choose the file and read the preview"
+    ],
+    "expected": [
+      "The last column reads \"Food › Coffee\" for Kissa Midori café and \"Food\" for Fictional Bakery",
+      "The note reads \"Categories are guessed from the shop names, and a shop you filed before goes under the same category of yours; change any later. A row already on this card (same date, amount and shop) is skipped, so importing a file twice adds nothing.\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS26",
+      "BROWSER-CHECKS T-C",
+      "D75",
+      "D53"
+    ]
+  },
+  {
+    "id": "OWN-031",
+    "area": "Own categories",
+    "action": "Import a statement and keep the filing",
+    "user_goal": "Imported rows should land in my categories",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "The preview of OWN-030 is showing"
+    ],
+    "steps": [
+      "Press Import",
+      "Open Plan"
+    ],
+    "expected": [
+      "Plan lists the café row under Food › Coffee"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS26",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-032",
+    "area": "Own categories",
+    "action": "Read Where the month goes with my categories",
+    "user_goal": "I want to see the month grouped my way",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Plan open"
+    ],
+    "steps": [
+      "Open Food, then Other"
+    ],
+    "expected": [
+      "Food shows \"Coffee ¥1,880\" with Kissa Midori café, then \"Everything else in Food ¥8,820\"",
+      "Other shows \"Gear ¥24,600\" (Tsuki Electronics, Yamabiko Outdoor), then \"Everything else in Other ¥24,300\"",
+      "Housing lists its items plainly",
+      "The business line is \"Business ¥32,830 of ¥152,230 this month\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS27",
+      "BROWSER-CHECKS M1",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-033",
+    "area": "Own categories",
+    "action": "File one item from Plan",
+    "user_goal": "I want to move one item",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "A Fictional Bakery card charge of ¥600 on Card B with no own category"
+    ],
+    "steps": [
+      "Open Food in Plan",
+      "Press File on Fictional Bakery",
+      "Choose Coffee, untick \"Every Fictional Bakery, past and future\", press Save"
+    ],
+    "expected": [
+      "The form opens with \"Your category\" (None, Coffee) and the ticked box \"Every Fictional Bakery, past and future\"",
+      "Only that row moves under Coffee"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS28",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-034",
+    "area": "Own categories",
+    "action": "File every item with the same name",
+    "user_goal": "One tap should file the past and the future",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Two Fictional Bakery charges, no own category"
+    ],
+    "steps": [
+      "Press File on one",
+      "Choose Coffee, leave \"Every Fictional Bakery, past and future\" ticked, press Save"
+    ],
+    "expected": [
+      "Both charges move under Coffee",
+      "A later Fictional Bakery charge files itself under Coffee"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS28",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-035",
+    "area": "Own categories",
+    "action": "Unfile an item",
+    "user_goal": "I filed it wrong",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Kissa Midori café Nov 12 filed under Coffee"
+    ],
+    "steps": [
+      "Press File on it",
+      "Choose None, untick the box, press Save"
+    ],
+    "expected": [
+      "It moves to \"Everything else in Food\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS28",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-036",
+    "area": "Own categories",
+    "action": "Cancel filing",
+    "user_goal": "I changed my mind",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "The File form open"
+    ],
+    "steps": [
+      "Press Cancel"
+    ],
+    "expected": [
+      "The form closes and nothing changes"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS28",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-037",
+    "area": "Own categories",
+    "action": "Look at Plan on the family link",
+    "user_goal": "Family must not be able to refile",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Wife added; a family link made in Settings → People; open it in a private window"
+    ],
+    "steps": [
+      "Read Where the month goes"
+    ],
+    "expected": [
+      "Items are grouped under Coffee and Gear as in Plan",
+      "No File control is shown"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS29",
+      "BROWSER-CHECKS S-B2",
+      "D75",
+      "D52"
+    ]
+  },
+  {
+    "id": "OWN-038",
+    "area": "Own categories",
+    "action": "Search for an own category's name",
+    "user_goal": "I want everything under Coffee",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Plan open"
+    ],
+    "steps": [
+      "Search spending for coffee"
+    ],
+    "expected": [
+      "The line starts \"Food › Coffee: ¥1,880 in November (1 item), ¥2,800 in October (2 items)\" and ends with \"¥4,680 in all.\"",
+      "Rows show \"Food › Coffee\" beside their dates"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS30",
+      "BROWSER-CHECKS T",
+      "D75",
+      "D53"
+    ]
+  },
+  {
+    "id": "OWN-039",
+    "area": "Own categories",
+    "action": "Search for Gear",
+    "user_goal": "I want my gear",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Plan open"
+    ],
+    "steps": [
+      "Search spending for gear"
+    ],
+    "expected": [
+      "Tsuki Electronics and Yamabiko Outdoor are listed with \"Other › Gear\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS30",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-040",
+    "area": "Own categories",
+    "action": "Read Regular costs with my categories",
+    "user_goal": "A regular cost should say where it is filed",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Plan open"
+    ],
+    "steps": [
+      "Read Regular costs"
+    ],
+    "expected": [
+      "A cost with an own category shows it under its name, as \"Food › Coffee\"",
+      "A cost with none shows just its category, as \"Food\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS31",
+      "BROWSER-CHECKS U",
+      "D75",
+      "D54"
+    ]
+  },
+  {
+    "id": "OWN-041",
+    "area": "Own categories",
+    "action": "Export my data with my categories",
+    "user_goal": "My file should hold them",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Your data"
+    ],
+    "steps": [
+      "Press Export my data and open the file"
+    ],
+    "expected": [
+      "The file has \"version\": 4",
+      "It has an ownCategories list with Coffee, Gear and Books & films and their kinds",
+      "Bills and charges filed under one carry ownCategoryId"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS32",
+      "BROWSER-CHECKS AA",
+      "D44",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-042",
+    "area": "Own categories",
+    "action": "Import my file into an empty household",
+    "user_goal": "I want my categories back in a new household",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A file exported in OWN-041",
+      "A household made with Start with my numbers (Mika, ¥120,000)"
+    ],
+    "steps": [
+      "Settings → Your data → Import the file"
+    ],
+    "expected": [
+      "The panel says \"Imported.\"",
+      "Settings → Your categories lists the same three names with the same counts",
+      "Plan shows Food › Coffee"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS32",
+      "BROWSER-CHECKS AA5",
+      "D44",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-043",
+    "area": "Own categories",
+    "action": "Import a version 3 file",
+    "user_goal": "An older export must still import",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:data-test"
+    ],
+    "expected": [
+      "A version 3 file imports with no own categories",
+      "A version 4 file brings its own categories and filed items"
+    ],
+    "refs": [
+      "db:data-test",
+      "db:snapshot-test",
+      "D44",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-044",
+    "area": "Own categories",
+    "action": "Delete the record in Your data",
+    "user_goal": "Deleting everything must delete my categories too",
+    "type": "security",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Settings → Your data"
+    ],
+    "steps": [
+      "Delete everything and start again with Start with my numbers",
+      "Open Settings → Your categories"
+    ],
+    "expected": [
+      "The section shows only \"Your own names for your spending, kept under the fourteen categories, like Coffee under Food. Make one here, or while adding a bill or charge.\" and an open \"Add a category\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS33",
+      "BROWSER-CHECKS AA",
+      "D75",
+      "D59"
+    ]
+  },
+  {
+    "id": "OWN-045",
+    "area": "Own categories",
+    "action": "Ask to file a draft under my category",
+    "user_goal": "I want the assistant to file it for me",
+    "type": "agent",
+    "priority": "P1",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "A working AI model",
+      "Ask open"
+    ],
+    "steps": [
+      "Ask \"I paid ¥900 at Kissa Midori café on Card B, file it under Coffee\""
+    ],
+    "expected": [
+      "A pending charge appears in To check reading \"Food › Coffee · Personal\"",
+      "Settings → Your categories gains nothing",
+      "Nothing is marked paid or sent"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS34",
+      "D75",
+      "D60"
+    ]
+  },
+  {
+    "id": "OWN-046",
+    "area": "Own categories",
+    "action": "Ask to file under a category I do not have",
+    "user_goal": "The assistant must not invent one",
+    "type": "agent",
+    "priority": "P1",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "A working AI model",
+      "Ask open"
+    ],
+    "steps": [
+      "Ask \"Add ¥900 at Kissa Midori café on Card B under Beans\""
+    ],
+    "expected": [
+      "No charge is created",
+      "The answer names Coffee as the one that exists under Food and says a new one is made in Settings → Your categories"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS35",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-047",
+    "area": "Own categories",
+    "action": "Ask what own categories I have",
+    "user_goal": "I want the assistant to list them",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "A working AI model",
+      "Ask open"
+    ],
+    "steps": [
+      "Ask \"What are my own categories?\""
+    ],
+    "expected": [
+      "The answer lists Coffee under Food, and Books & films and Gear under Other, with their item counts",
+      "\"Based on\" lists \"Your categories\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS35",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-048",
+    "area": "Own categories",
+    "action": "Read my categories over MCP",
+    "user_goal": "Another assistant should see the same list",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run mcp:demo"
+    ],
+    "expected": [
+      "The read tool own_categories is offered and returns the household's own categories by category",
+      "No tool offered over MCP creates, renames, merges or removes one"
+    ],
+    "refs": [
+      "mcp:demo",
+      "db:agent-test",
+      "D75",
+      "D40"
+    ]
+  },
+  {
+    "id": "OWN-049",
+    "area": "Own categories",
+    "action": "Draft a bill with a category that does not exist",
+    "user_goal": "A tool call must not create a category",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:agent-test"
+    ],
+    "expected": [
+      "add_bill, add_bills, log_charge and log_charges with an unknown own_category save nothing and return an error that lists the category's own categories and says only the person can make one in Settings → Your categories",
+      "A given name that exists files the draft under it"
+    ],
+    "refs": [
+      "db:agent-test",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-050",
+    "area": "Own categories",
+    "action": "Post to the categories route with no household",
+    "user_goal": "The route must refuse a stranger",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Dev server running",
+      "No session cookie"
+    ],
+    "steps": [
+      "POST /api/own-categories with kind=add, category=food, name=Probe"
+    ],
+    "expected": [
+      "The answer is 401"
+    ],
+    "refs": [
+      "economy-saver/scripts/frontend-check.mjs --guards",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-051",
+    "area": "Own categories",
+    "action": "Post to the categories route from another site",
+    "user_goal": "A page on another site must not change my categories",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Dev server running",
+      "No session cookie"
+    ],
+    "steps": [
+      "POST /api/own-categories with kind=add and the headers Origin: http://cross-origin.test and Sec-Fetch-Site: cross-site"
+    ],
+    "expected": [
+      "The answer is 403"
+    ],
+    "refs": [
+      "economy-saver/scripts/frontend-check.mjs --guards",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-052",
+    "area": "Own categories",
+    "action": "File an item under another household's category",
+    "user_goal": "One household must not touch another's",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "suite",
+    "preconditions": [
+      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
+    ],
+    "steps": [
+      "Run npm run db:own-categories-test and npm run db:isolation-test"
+    ],
+    "expected": [
+      "Another household's own category is refused with \"Choose one of your categories.\" and the database foreign key refuses it too",
+      "An own category of another kind is refused: \"Coffee is a category under Food, not Subscriptions.\""
+    ],
+    "refs": [
+      "db:own-categories-test",
+      "db:isolation-test",
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-053",
+    "area": "Own categories",
+    "action": "Make many changes in a minute",
+    "user_goal": "The route is rate limited",
+    "type": "edge",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Dev server running",
+      "A fresh Try it household's session cookie"
+    ],
+    "steps": [
+      "POST /api/own-categories with kind=add 21 times in a minute"
+    ],
+    "expected": [
+      "The 21st answer is 429 with \"Too many changes. Try again in a minute.\""
+    ],
+    "refs": [
+      "D75"
+    ]
+  },
+  {
+    "id": "OWN-054",
+    "area": "Own categories",
+    "action": "Check the cash numbers after filing",
+    "user_goal": "Filing must not move any money",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Coffee, Gear and Books & films exist (the sample)"
+    ],
+    "steps": [
+      "Read Home, Plan's room line and Cards"
+    ],
+    "expected": [
+      "The numbers equal Expected numbers: the sentence, safe to spend ¥0, Plan's ¥92,220, the cards",
+      "Plan's total for November is ¥152,230"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AS11",
+      "BROWSER-CHECKS AS27",
+      "D75"
+    ]
+  }
+]

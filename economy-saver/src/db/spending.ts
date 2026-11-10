@@ -1,5 +1,5 @@
 // Where did the money go (D53): the rows the spending rule reads for a date range, scoped to one household. Read only.
-import { and, eq, gte, isNotNull, isNull, lte, lt, or, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, gte, isNotNull, isNull, lte, lt, or, sql } from "drizzle-orm";
 import { Currency } from "@/lib/catalogue/types";
 import { CategoryKeySchema as CategoryKey } from "@/lib/money/categories";
 import { RepeatUnitSchema, resolveBills } from "@/lib/money/repeat";
@@ -31,16 +31,21 @@ export async function loadSpending(db: Db, householdId: string, range: { from: s
         .orderBy(sql`(${s.members.role} = 'owner') desc`, s.members.createdAt, s.members.id),
       tx.select({ id: s.cards.id, memberId: s.cards.memberId }).from(s.cards).where(eq(s.cards.householdId, hid)).orderBy(s.cards.createdAt, s.cards.label),
       // A real bill linked to an amount-varies series (D54) is read before `from` too: the series' estimate in range averages it.
-      tx.select().from(s.bills).where(and(eq(s.bills.householdId, hid), eq(s.bills.status, "confirmed"), or(isNull(s.bills.due), and(lte(s.bills.due, to),
+      // D75: the own category by a join scoped to the household, so it costs no query of its own.
+      tx.select({ ...getTableColumns(s.bills), ownName: s.ownCategories.name }).from(s.bills)
+        .leftJoin(s.ownCategories, and(eq(s.ownCategories.householdId, s.bills.householdId), eq(s.ownCategories.id, s.bills.ownCategoryId)))
+        .where(and(eq(s.bills.householdId, hid), eq(s.bills.status, "confirmed"), or(isNull(s.bills.due), and(lte(s.bills.due, to),
         or(isNotNull(s.bills.repeatUnit), isNotNull(s.bills.seriesBillId), gte(s.bills.due, from)))))).orderBy(s.bills.due, s.bills.biller, s.bills.id),
-      tx.select().from(s.charges).where(and(eq(s.charges.householdId, hid), eq(s.charges.status, "confirmed"), gte(s.charges.date, from), lte(s.charges.date, to)))
+      tx.select({ ...getTableColumns(s.charges), ownName: s.ownCategories.name }).from(s.charges)
+        .leftJoin(s.ownCategories, and(eq(s.ownCategories.householdId, s.charges.householdId), eq(s.ownCategories.id, s.charges.ownCategoryId)))
+        .where(and(eq(s.charges.householdId, hid), eq(s.charges.status, "confirmed"), gte(s.charges.date, from), lte(s.charges.date, to)))
         .orderBy(s.charges.date, s.charges.merchant, s.charges.id),
     ]);
     // D55: an estimate averages the real one-off bills before the bill, in range or not.
     const history = inRange.some(b => b.amountMinor === null && b.repeatUnit === null) ? await tx.select().from(s.bills)
       .where(and(eq(s.bills.householdId, hid), eq(s.bills.status, "confirmed"), isNull(s.bills.repeatUnit), isNotNull(s.bills.amountMinor), isNotNull(s.bills.due), lt(s.bills.due, from))) : [];
     const read = new Set(inRange.map(b => b.id));
-    const billRows = [...inRange, ...history.filter(b => !read.has(b.id))];
+    const billRows = [...inRange, ...history.filter(b => !read.has(b.id)).map(b => ({ ...b, ownName: null as string | null }))]; // history only feeds an estimate, so it needs no own category
     // The rate is read only when a row is in another currency; a household with none may have no rate stored.
     const foreign = [...billRows, ...chargeRows].some(row => row.currency !== home);
     const fxPerUsd = foreign ? fromRateMicro((await usdRate(tx, hid, home, to)).rateMicro) : null;
@@ -52,6 +57,7 @@ export async function loadSpending(db: Db, householdId: string, range: { from: s
     const { today } = clockForHousehold(household);
     const stored = billRows.map((b): StoredBill & { documentId?: string } => ({
       id: b.id, biller: b.biller, amount: b.amountMinor === null ? null : inHome(b.amountMinor, b.currency), due: b.due, category: CategoryKey.parse(b.category), businessBp: b.businessBp, status: b.status,
+      ...(b.ownCategoryId !== null && b.ownName !== null && { own: { id: b.ownCategoryId, name: b.ownName } }),
       ...(b.repeatUnit !== null && { repeatUnit: RepeatUnitSchema.parse(b.repeatUnit) }),
       ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
       ...(b.nextAmountMinor !== null && b.nextAmountFrom !== null && { nextAmount: inHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }),
@@ -70,6 +76,7 @@ export async function loadSpending(db: Db, householdId: string, range: { from: s
       charges: chargeRows.map(c => ({
         id: c.id, cardId: c.cardId, merchant: c.merchant, amount: inHome(c.amountMinor, c.currency), date: c.date, category: CategoryKey.parse(c.category),
         businessBp: c.businessBp, source: c.source, status: c.status,
+        ...(c.ownCategoryId !== null && c.ownName !== null && { own: { id: c.ownCategoryId, name: c.ownName } }),
         ...(c.shared && { shared: true as const }),
         ...(c.documentId !== null && { documentId: c.documentId }),
       })),

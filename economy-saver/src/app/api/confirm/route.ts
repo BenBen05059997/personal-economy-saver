@@ -6,6 +6,7 @@ import { CHECK_ORDER, type CheckKind } from "@/lib/money/checks";
 import { reviewReading } from "@/db/readings";
 import { confirmPending } from "@/db/confirm";
 import { redirectTo, returnPath, formOf } from "@/lib/door";
+import { ownChoiceFromForm } from "@/lib/reader/own-choices";
 import { householdRequest } from "@/lib/session";
 import { StatementChargeError } from "@/db/statement-charge";
 
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     if (decision !== "confirm" && decision !== "reject") return new Response("Invalid decision", { status: 400 });
     try {
       await reviewReading(db(), hid, id.data, decision === "reject" ? null : readingForm(form), decision === "reject" ? {} : readingUnknown(form), decision === "confirm" && form.get("remember") === "on",
-        decision === "confirm" && form.get("from") === "ask" ? form.getAll("answered").filter(isCheckKind) : undefined);
+        decision === "confirm" && form.get("from") === "ask" ? form.getAll("answered").filter(isCheckKind) : undefined, decision === "confirm" ? ownChoiceFromForm(form) : {});
     } catch (error) {
       if (error instanceof ReaderError || error instanceof StatementChargeError) return new Response(error.message, { status: 400 });
       return new Response("Reading could not be saved. Try again.", { status: 503 });

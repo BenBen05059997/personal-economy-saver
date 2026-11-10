@@ -4,19 +4,21 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import { ApiForm } from "@/components/ui/ApiForm";
 import { CheckedInput } from "@/components/ui/CheckedInput";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
-import { categoryLabel, CategoryKeySchema } from "@/lib/money/categories";
+import { CategoryKeySchema } from "@/lib/money/categories";
 import { guessCategory, guessRepeat } from "@/lib/money/categorise";
 import { Currency } from "@/lib/catalogue/types";
 import { AmountField } from "./AmountField";
 import { VoiceFill } from "@/components/voice/VoiceFill";
 import { AmountWithUnknown, DueWithUnknown } from "./UnknownFields";
 import { CategoryFields } from "./CategoryFields";
+import type { OwnChoices } from "@/lib/reader/own-choices";
 import { LABELS } from "./labels";
 import { MoreFields } from "./MoreFields";
 import { PayerOptions } from "./PayerOptions";
 import { type Repeat, ScheduleFields } from "./ScheduleFields";
 import "./add-entry.css";
 import { repeatWords } from "@/lib/money/format";
+import { ownLabel } from "@/lib/money/own-category";
 
 export type EntryIds = { bill: string; charge: string };
 type Props = {
@@ -26,12 +28,13 @@ type Props = {
   currency: string;
   people: { id: string; name: string }[];
   cards: { id: string; label: string }[];
+  own: OwnChoices; // D75: the household's own categories and what a typed name files itself under
 };
 
 /** One entry point for typing in a bill or a card charge. The ids are minted per render so a double submit saves once; the caller keys it by them, so an accepted entry leaves a fresh, closed one. Each tab is its own form with its own fields; both stay mounted and the other is hidden, so switching tabs never mixes or loses what was typed. */
-export function AddEntry({ ids, returnTo, today, currency, people, cards }: Props) {
+export function AddEntry({ ids, returnTo, today, currency, people, cards, own }: Props) {
   const [kind, setKind] = useState<"bill" | "charge">("bill");
-  const shared = { returnTo, today, currency };
+  const shared = { returnTo, today, currency, own };
   const [open, setOpen] = useState(false);
   // Links to "#add-bill" and "#add-charge" (the empty panels and First steps on Home; the + Add menu links to "/#add-bill" from any page) open this form on the right tab.
   // A page opened with the hash already in its address (arriving from another page) opens it on load.
@@ -89,14 +92,16 @@ export function AddEntry({ ids, returnTo, today, currency, people, cards }: Prop
 
 
 /** The category key the select shows: the user's choice, else the guess from the name (D46: "Other" when the table is not sure). */
-const categoryWords = (chosen: string | null, name: string) => {
+const categoryWords = (chosen: string | null, name: string, own: OwnApplied) => {
   if (chosen === "") return "No category yet"; // the user picked "Choose a category": the form asks before it saves
   const key = CategoryKeySchema.safeParse(chosen);
-  return categoryLabel(key.success ? key.data : guessCategory(name).category);
+  return ownLabel(key.success ? key.data : guessCategory(name).category, own);
 };
+/** The own category CategoryFields resolved (picked or filed like last time), or null. */
+type OwnApplied = { name: string; guessed: boolean } | null;
 
 /** D51: what the form will save from More ›, said on the main part: "Every month · Health & fitness · Change ›". Change opens More at its first field. */
-function Guess({ words, focus, categoryGuessed }: { words: string[]; focus: string; categoryGuessed: boolean }) {
+function Guess({ words, focus, categoryGuessed, ownGuessed }: { words: string[]; focus: string; categoryGuessed: boolean; ownGuessed: boolean }) {
   function change(event: ReactMouseEvent<HTMLButtonElement>) {
     const more = event.currentTarget.form?.querySelector<HTMLDetailsElement>("details.add-entry-more");
     if (!more) return;
@@ -105,19 +110,20 @@ function Guess({ words, focus, categoryGuessed }: { words: string[]; focus: stri
   }
   return <>
     <p className="ui-hint add-entry-guess"><span className="add-entry-guess-words">{words.join(" · ")}</span><span aria-hidden> · </span><button type="button" className="add-entry-change" onClick={change}>Change ›</button></p>
-    {categoryGuessed && <small className="ui-hint add-entry-hint">{LABELS.categoryGuess}</small>}
+    {(ownGuessed || categoryGuessed) && <small className="ui-hint add-entry-hint">{ownGuessed ? LABELS.filedLikeLast : LABELS.categoryGuess}</small>}
   </>;
 }
 
-type FormProps = { id: string; returnTo: "/" | "/to-check"; today: string; currency: string; people: { id: string; name: string }[] };
+type FormProps = { id: string; returnTo: "/" | "/to-check"; today: string; currency: string; people: { id: string; name: string }[]; own: OwnChoices };
 
-function BillForm({ id, returnTo, today, currency, people }: FormProps) {
+function BillForm({ id, returnTo, today, currency, people, own }: FormProps) {
   const [name, setName] = useState(""); // the name typed so far; the category and the repeat follow it until the user chooses
   const [due, setDue] = useState(today);
   const [whose, setWhose] = useState(""); // "" = shared
   const [repeat, setRepeat] = useState<Repeat | null>(null); // null = not chosen: it follows the name
   const [varies, setVaries] = useState(false); // D54: only saved while the bill repeats every month
   const [category, setCategory] = useState<string | null>(null);
+  const [applied, setApplied] = useState<OwnApplied>(null);
   const [nextAmount, setNextAmount] = useState("");
   const [cancelBy, setCancelBy] = useState("");
   const repeats = repeat ?? guessRepeat(name);
@@ -132,11 +138,11 @@ function BillForm({ id, returnTo, today, currency, people }: FormProps) {
     <label className="ui-field">{LABELS.name}<input name="biller" maxLength={160} required placeholder={LABELS.namePlaceholder} value={name} onChange={event => setName(event.target.value)} /></label>
     <AmountWithUnknown currency={currency} offered={amountOffered} />
     <DueWithUnknown today={today} value={due} onValue={setDue} offered={dueOffered} />
-    <Guess words={[repeatWords(repeats || null), ...(repeats === "month" && varies ? ["varies"] : []), categoryWords(category, name)]} focus="select[name=repeat]" categoryGuessed={category === null} />
+    <Guess words={[repeatWords(repeats || null), ...(repeats === "month" && varies ? ["varies"] : []), categoryWords(category, name, applied)]} focus="select[name=repeat]" categoryGuessed={category === null} ownGuessed={applied?.guessed === true} />
     <button className="ui-button primary">Add bill</button>
     <MoreFields>
       <ScheduleFields id={id} today={today} currency={currency} name={name} due={due} flat chosen={repeat} onChoose={setRepeat} varies={varies} onVaries={setVaries} onNextAmount={setNextAmount} onCancelBy={setCancelBy} />
-      <CategoryFields name={name} guessed chosen={category} onChoose={setCategory} />
+      <CategoryFields name={name} own={own} fileItself guessed chosen={category} onChoose={setCategory} onOwn={setApplied} />
       {split && <label className="ui-field">{LABELS.whoFor}<select name="memberId" value={whose} onChange={event => setWhose(event.target.value)}>
         <option value="">Shared, split by shares</option>{people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select></label>}
       {split && whose === "" && <label className="ui-field">{LABELS.whoPays}<select name="paidByMemberId" defaultValue={people[0].id}>
@@ -145,9 +151,10 @@ function BillForm({ id, returnTo, today, currency, people }: FormProps) {
   </ApiForm>;
 }
 
-function ChargeForm({ id, returnTo, today, currency, people, cards }: FormProps & { cards: { id: string; label: string }[] }) {
+function ChargeForm({ id, returnTo, today, currency, people, cards, own }: FormProps & { cards: { id: string; label: string }[] }) {
   const [name, setName] = useState(""); // what or where, typed so far; the category follows it until the user chooses
   const [category, setCategory] = useState<string | null>(null);
+  const [applied, setApplied] = useState<OwnApplied>(null);
   const split = people.length >= 2;
   const card = <label className="ui-field">{LABELS.card}<select name="cardId" required>{cards.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>;
   const [other, setOther] = useState("");
@@ -160,11 +167,11 @@ function ChargeForm({ id, returnTo, today, currency, people, cards }: FormProps 
     <label className="ui-field">{LABELS.amount}<AmountField name="amount" currency={currency} required /></label>
     <label className="ui-field">{LABELS.date}<CheckedInput name="date" type="date" defaultValue={today} max={latestDate(today)} message={HORIZON_MESSAGE} required /></label>
     {cards.length > 1 && card}
-    <Guess words={[categoryWords(category, name)]} focus="select[name=category]" categoryGuessed={category === null} />
+    <Guess words={[categoryWords(category, name, applied)]} focus="select[name=category]" categoryGuessed={category === null} ownGuessed={applied?.guessed === true} />
     <button className="ui-button primary">Add charge</button>
     <MoreFields>
       {cards.length === 1 && card}
-      <CategoryFields name={name} guessed chosen={category} onChoose={setCategory} />
+      <CategoryFields name={name} own={own} fileItself guessed chosen={category} onChoose={setCategory} onOwn={setApplied} />
       <details className="add-entry-more">
         <summary>Paid in another currency</summary>
         <label className="ui-field">Currency<select name="originalCurrency" value={other} onChange={event => setOther(event.target.value)}>

@@ -6,19 +6,33 @@ import { aboutMoney, dayLabel, minorMoney } from "./format";
 import { AMOUNT_NOT_KNOWN } from "./gaps";
 import { periodLabel } from "./period";
 import { businessPart, CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
+import { ownLabel } from "./own-category";
 import { allUncounted, monthBounds, monthName, spendingItems, type SpendingInput } from "./spending";
 
 /** D52: whose an item is: a member's id, or null for Shared (a bill with no owner, a charge marked shared or on a card nobody owns). */
-type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; ownerId: string | null; periodStart?: string; periodEnd?: string /* 27F: the period a one-off bill covers */; estimated?: true; uncounted?: true /* D55: amount not known: amountMinor is 0 and means nothing */ };
+export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; own: { id: string; name: string } | null /* D75 */; ownerId: string | null; periodStart?: string; periodEnd?: string /* 27F: the period a one-off bill covers */; estimated?: true; uncounted?: true /* D55: amount not known: amountMinor is 0 and means nothing */ };
 /** D52: a total split by whose it is. `byMember` has one entry per household member, in member order. */
 export type WhoseTotals = { sharedMinor: number; byMember: { id: string; minor: number }[] };
-type MonthCategory = {
+/** D75: the items of one category filed under one own category (or, with `id` and `name` null, under none), summed like a category. */
+export type MonthOwn = {
+  id: string | null;
+  name: string | null;
+  totalMinor: number;
+  businessMinor: number;
+  personalMinor: number;
+  items: MonthItem[];
+} & WhoseTotals;
+export type MonthCategory = {
   category: CategoryKey;
   label: string;
   totalMinor: number;
   businessMinor: number;
   personalMinor: number;
   items: MonthItem[];
+  /** D75: the own categories with items this month, largest first then by name; empty when no item of this category is filed under one. */
+  ownCategories: MonthOwn[];
+  /** D75: what is left without an own category ("Everything else in Food"); null unless `ownCategories` is not empty and some item has none. */
+  withoutOwn: MonthOwn | null;
 } & WhoseTotals;
 export type MonthView = {
   month: string; // YYYY-MM
@@ -29,6 +43,12 @@ export type MonthView = {
   personalMinor: number;
   categories: MonthCategory[]; // categories.ts order, only the ones with items
 } & WhoseTotals;
+
+function ownGroup(memberIds: string[], own: { id: string; name: string } | null, items: MonthItem[]): MonthOwn {
+  const totalMinor = items.reduce((sum, i) => sum + i.amountMinor, 0);
+  const businessMinor = items.reduce((sum, i) => sum + businessPart(i.amountMinor, i.businessBp), 0);
+  return { id: own?.id ?? null, name: own?.name ?? null, totalMinor, businessMinor, personalMinor: totalMinor - businessMinor, items, ...whoseTotals(memberIds, items) };
+}
 
 function whoseTotals(memberIds: string[], items: MonthItem[]): WhoseTotals {
   const sum = (ownerId: string | null) => items.filter(i => i.ownerId === ownerId).reduce((total, i) => total + i.amountMinor, 0);
@@ -48,11 +68,17 @@ export function monthByCategory(state: SpendingInput, today: string, month: stri
   const categories: MonthCategory[] = [];
   for (const { key } of CATEGORIES) {
     const items = entries.filter(e => e.category === key)
-      .map(({ label, date, amountMinor, businessBp, ownerId, estimated, uncounted, periodStart, periodEnd }): MonthItem => ({ label, date, amountMinor, businessBp, ownerId, ...(estimated ? { estimated } : {}), ...(uncounted ? { uncounted } : {}), ...(periodStart !== undefined && periodEnd !== undefined ? { periodStart, periodEnd } : {}) }));
+      .map(({ label, date, amountMinor, businessBp, own, ownerId, estimated, uncounted, periodStart, periodEnd }): MonthItem => ({ label, date, amountMinor, businessBp, own, ownerId, ...(estimated ? { estimated } : {}), ...(uncounted ? { uncounted } : {}), ...(periodStart !== undefined && periodEnd !== undefined ? { periodStart, periodEnd } : {}) }));
     if (!items.length) continue;
     const totalMinor = items.reduce((sum, i) => sum + i.amountMinor, 0);
     const businessMinor = items.reduce((sum, i) => sum + businessPart(i.amountMinor, i.businessBp), 0);
-    categories.push({ category: key, label: categoryLabel(key), totalMinor, businessMinor, personalMinor: totalMinor - businessMinor, items, ...whoseTotals(memberIds, items) });
+    const filed = new Map<string, { id: string; name: string }>();
+    for (const i of items) if (i.own) filed.set(i.own.id, i.own);
+    const ownCategories = [...filed.values()].map(own => ownGroup(memberIds, own, items.filter(i => i.own?.id === own.id)))
+      .sort((a, b) => b.totalMinor - a.totalMinor || a.name!.localeCompare(b.name!) || a.id!.localeCompare(b.id!));
+    const rest = items.filter(i => !i.own);
+    categories.push({ category: key, label: categoryLabel(key), totalMinor, businessMinor, personalMinor: totalMinor - businessMinor, items, ownCategories,
+      withoutOwn: ownCategories.length > 0 && rest.length > 0 ? ownGroup(memberIds, null, rest) : null, ...whoseTotals(memberIds, items) });
   }
   const totalMinor = categories.reduce((sum, c) => sum + c.totalMinor, 0);
   const businessMinor = categories.reduce((sum, c) => sum + c.businessMinor, 0);
@@ -90,6 +116,10 @@ export function monthText(view: MonthView, when = monthWhen()): string {
     const split = splitLine(view, c);
     lines.push(`${c.label} ${allUncounted(c.items) ? AMOUNT_NOT_KNOWN : money(view, c.totalMinor)}${split ? ` (${split})` : c.businessMinor ? " (all business)" : ""}: ${c.items.map(i =>
       `${i.label}${i.periodStart !== undefined && i.periodEnd !== undefined ? ` (for ${periodLabel({ start: i.periodStart, end: i.periodEnd })})` : ""} ${dayLabel(i.date)} ${i.uncounted ? AMOUNT_NOT_KNOWN : i.estimated ? aboutMoney(i.amountMinor, view.currency) : money(view, i.amountMinor)}${i.businessBp > 0 && i.businessBp < 10_000 ? ` at ${i.businessBp / 100}% business` : ""}`).join("; ")}.`);
+    if (c.ownCategories.length > 0) {
+      const part = (o: MonthOwn, name: string) => `${name} ${allUncounted(o.items) ? AMOUNT_NOT_KNOWN : money(view, o.totalMinor)}`;
+      lines.push(`In ${c.label}: ${[...c.ownCategories.map(o => part(o, ownLabel(c.category, { name: o.name! }))), ...(c.withoutOwn ? [part(c.withoutOwn, `${c.label} without a category of your own`)] : [])].join("; ")}.`);
+    }
   }
   return lines.join("\n");
 }

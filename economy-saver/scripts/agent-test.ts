@@ -443,6 +443,77 @@ async function main() {
       assert.match(MODEL_RULES, /foreign_costs/);
     });
 
+    await check("own categories (D75): own_category files a draft by name; a name the household lacks is an error the model reads with the list, and nothing is saved; with no name the last like item decides; own_categories reads Ben's three; no tool writes one", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const cState = await stateOf(c);
+      const own = await db.select().from(schema.ownCategories).where(eq(schema.ownCategories.householdId, c));
+      const coffee = own.find(o => o.name === "Coffee")!, gear = own.find(o => o.name === "Gear")!;
+      const base = { cardId: cState.cards[0].id, amount: "480", date: cState.today, category: "food", business_bp: null, original_amount: null, original_currency: null };
+      const rowOf = async (id: string) => (await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.id, id))))[0];
+
+      // A name given: filed under it, and the result says so.
+      const namedId = crypto.randomUUID();
+      const named = transport([() => reply("tool_use", [toolUse("n", "log_charge", { ...base, id: namedId, merchant: "Fictional bean shop", own_category: "coffee" })]), () => reply("end_turn", [text("Waiting in To check.")])]);
+      await ask(c, "480 yen at the bean shop, under Coffee", named.fetch);
+      assert.equal((await rowOf(namedId)).ownCategoryId, coffee.id);
+      assert.match(toolResults(named.bodies[1])[0].content, /Filed under Food › Coffee\./);
+
+      // A name the household lacks: the readable refusal, nothing saved. Under Food there is Coffee; under Health nothing.
+      const lunchId = crypto.randomUUID();
+      const lunch = transport([() => reply("tool_use", [toolUse("l", "log_charge", { ...base, id: lunchId, merchant: "Fictional deli", own_category: "Lunch" })]), () => reply("end_turn", [text("Only you can make that one.")])]);
+      await ask(c, "480 yen at the deli, under Lunch", lunch.fetch);
+      assert.equal(toolResults(lunch.bodies[1])[0].is_error, true);
+      assert.equal(toolResults(lunch.bodies[1])[0].content, `"Lunch" is not one of this household's own categories under Food. Under Food there are: Coffee. Only the person can make a new one, in Settings → Your categories.`);
+      assert.equal(await rowOf(lunchId), undefined, "nothing was saved");
+      const healthId = crypto.randomUUID();
+      const health = transport([() => reply("tool_use", [toolUse("h", "add_bill", { id: healthId, biller: "Fictional clinic", amount: "3000", due: "2026-11-20", category: "health", memberId: null, own_category: "Dental" })]), () => reply("end_turn", [text("ok")])]);
+      await ask(c, "Clinic 3000 under Dental", health.fetch);
+      assert.match(toolResults(health.bodies[1])[0].content, /Under Health there are none yet\. Only the person can make a new one/);
+      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.id, healthId)))).length, 0);
+
+      // One bad item among several: the error names it, and nothing from the call is saved.
+      const okId = crypto.randomUUID(), badId = crypto.randomUUID();
+      const bulk = transport([() => reply("tool_use", [toolUse("b", "log_charges", { items: [{ ...base, id: okId, merchant: "Fictional bean stall", own_category: "Coffee" }, { ...base, id: badId, merchant: "Fictional deli", own_category: "Lunch" }] })]), () => reply("end_turn", [text("ok")])]);
+      await ask(c, "Two charges", bulk.fetch);
+      assert.match(toolResults(bulk.bodies[1])[0].content, /^items\[1\]: "Lunch" is not one of this household's own categories under Food/);
+      assert.deepEqual([await rowOf(okId), await rowOf(badId)], [undefined, undefined]);
+
+      // No name: the latest confirmed item with the same name decides, and the note says so. Another name stays unfiled.
+      const guessId = crypto.randomUUID(), plainId = crypto.randomUUID();
+      const guessed = transport([() => reply("tool_use", [toolUse("g", "log_charges", { items: [{ ...base, id: guessId, merchant: "Kissa Midori café", own_category: null }, { ...base, id: plainId, merchant: "Fictional ramen", own_category: null }] })]), () => reply("end_turn", [text("ok")])]);
+      await ask(c, "Coffee at Kissa Midori and ramen", guessed.fetch);
+      assert.equal((await rowOf(guessId)).ownCategoryId, coffee.id);
+      assert.equal((await rowOf(plainId)).ownCategoryId, null);
+      assert.match(toolResults(guessed.bodies[1])[0].content, /Kissa Midori café \(.*Filed under Food › Coffee, like last time\./);
+      const guessedBill = crypto.randomUUID();
+      const bill = transport([() => reply("tool_use", [toolUse("gb", "add_bill", { id: guessedBill, biller: "Tsuki Electronics", amount: "5000", due: "2026-11-20", category: "other", memberId: null })]), () => reply("end_turn", [text("ok")])]);
+      await ask(c, "Tsuki Electronics 5000", bill.fetch);
+      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.id, guessedBill))))[0].ownCategoryId, gear.id);
+
+      // own_categories: Ben's three, grouped, with counts; a household with none gets a sentence.
+      const listed = transport([() => reply("tool_use", [toolUse("o", "own_categories", {})]), () => reply("end_turn", [text("ok")])]);
+      const answer = await ask(c, "What are my own categories?", listed.fetch);
+      const words = toolResults(listed.bodies[1])[0].content;
+      assert.match(words, /Under Food: Coffee \(no default business share, \d+ items?\)\./);
+      assert.match(words, /Under Other: Books & films \(.*\); Gear \(.*\)\./);
+      assert.deepEqual((answer as { sources: unknown[] }).sources, [{ label: "Your categories", href: "/settings#categories" }]);
+      const bare = await createHousehold(db, crypto.randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "1,200", card: "Card D", limit: "", closingDay: "20", dueDay: "10" }), { isDemo: true });
+      const none = transport([() => reply("tool_use", [toolUse("o", "own_categories", {})]), () => reply("end_turn", [text("ok")])]);
+      await ask(bare, "What are my own categories?", none.fetch);
+      assert.equal(toolResults(none.bodies[1])[0].content, "This household has no categories of its own yet. Only the person can make one, in Settings → Your categories.");
+      assert.equal(TOOL_WORDS.own_categories, "Reading your own categories");
+
+      // The model's schema: a name, never an id, and no tool writes an own category.
+      for (const name of ["add_bill", "log_charge"]) {
+        const schemaOf = toolInputSchema(tools.find(t => t.name === name)!) as { properties: Record<string, unknown>; required: string[] };
+        assert.ok("own_category" in schemaOf.properties && schemaOf.required.includes("own_category"), name);
+        assert.ok(!("ownCategoryId" in schemaOf.properties) && !("ownCategoryNew" in schemaOf.properties), `${name} offers no id or new name`);
+      }
+      assert.equal(tools.find(t => t.name === "own_categories")!.scope, "read");
+      assert.deepEqual(tools.filter(t => /own_categor|categories/.test(t.name) && t.scope !== "read"), [], "no tool that writes an own category");
+      assert.match(MODEL_RULES, /own_category[^.]*never invent one[^.]*Settings → Your categories/);
+    });
+
     await check("add_bill takes repeat, next_amount, next_amount_from and cancel_by (D48): a yearly bill waits in To check with them, and a bad schedule is an error the model can read", async () => {
       const billId = crypto.randomUUID();
       const yearly = { id: billId, biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", memberId: null, repeat: "year", next_amount: "13000", next_amount_from: "2027-12-01", cancel_by: "2026-11-20" };

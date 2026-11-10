@@ -136,7 +136,7 @@ async function main() {
     await check("the journal counts work spaces and threads, and export and import preserve links with new ids", async () => {
       assert.equal(await countKind(store, blank, "journal"), 3, "two turns plus one task space");
       const exported = await loadHouseholdSnapshot(store, blank, snapshotOptions);
-      assert.equal(exported.version, 3);
+      assert.equal(exported.version, 4);
       const saved = exported.spaces?.find(s => s.id === source.space.id);
       assert.deepEqual(saved?.brief, source.brief);
       assert.equal(exported.memory?.find(row => row.id === source.note.id)?.spaceId, source.space.id);

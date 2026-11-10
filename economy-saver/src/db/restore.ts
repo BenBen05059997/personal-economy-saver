@@ -1,4 +1,4 @@
-// D59, D44: import. Reads a version 2 or 3 file into a household that has nothing in it yet, assigning new ids.
+// D59, D44: import. Reads a version 2, 3 or 4 file into a household that has nothing in it yet, assigning new ids.
 // Every restored row is marked made_by = import (memory items keep the maker they had, because a memory item can only be form, ask or mcp),
 // and one event records it. Anything else is refused in words; a refused import changes nothing (one transaction).
 //
@@ -13,6 +13,7 @@ import { MAX_PINS } from "./canvases";
 import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db } from "./household";
 import { MEMORY_LIMIT, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
+import { nameKey } from "@/lib/money/name-key";
 import { generalSpace, SPACE_LIMIT } from "./spaces";
 import { z } from "zod";
 import type { TurnSource } from "@/lib/schema/turn";
@@ -20,17 +21,20 @@ import { BriefSchema } from "@/lib/agent/brief";
 import * as s from "./schema";
 
 export const NOT_EMPTY = "Import works on an empty household. Start with my numbers first.";
-export const OLD_VERSION = "This file is an older export (version 1). Import reads version 2 or 3 files. Export again from the app that made it, then import that file.";
+export const OLD_VERSION = "This file is an older export (version 1). Import reads version 2, 3 or 4 files. Export again from the app that made it, then import that file.";
 
 type RestoreCounts = { members: number; cards: number; bills: number; charges: number; clients: number; invoices: number; pots: number; memory: number; canvases: number; journal: number; other: number };
 
 /** The file's text, parsed with the schema. Anything else is refused with a sentence. */
 export function readSnapshotFile(input: unknown): Snapshot {
   if (input && typeof input === "object" && (input as { version?: unknown }).version === 1) throw new InputError(OLD_VERSION);
-  const version2 = input && typeof input === "object" && (input as { version?: unknown }).version === 2;
-  const parsed = version2
+  // Older files lack what the newer versions added (version 3: ownCategories and ownCategoryId; version 2: also spaces); those fields are optional, so only the version number differs.
+  const version = input && typeof input === "object" ? (input as { version?: unknown }).version : undefined;
+  const parsed = version === 2
     ? HouseholdSnapshot.omit({ spaces: true }).extend({ version: z.literal(2) }).safeParse(input)
-    : HouseholdSnapshot.safeParse(input);
+    : version === 3
+      ? HouseholdSnapshot.extend({ version: z.literal(3) }).safeParse(input)
+      : HouseholdSnapshot.safeParse(input);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const path = issue?.path.map(part => (typeof part === "number" ? `#${part + 1}` : String(part))).join(" > ");
@@ -74,7 +78,7 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       const existing = await tx.select({ id: s.members.id }).from(s.members).where(eq(s.members.householdId, hid));
       if (existing.length !== 1) throw new InputError(NOT_EMPTY);
       const ownerId = existing[0].id;
-      for (const table of [s.bills, s.charges, s.cardStatements, s.clients, s.invoices, s.pots, s.settlements, s.balanceUpdates, s.memories, s.canvases, s.conversationTurns, s.documents] as const) {
+      for (const table of [s.ownCategories, s.bills, s.charges, s.cardStatements, s.clients, s.invoices, s.pots, s.settlements, s.balanceUpdates, s.memories, s.canvases, s.conversationTurns, s.documents] as const) {
         const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(table).where(eq(table.householdId, hid));
         if (n > 0) throw new InputError(NOT_EMPTY);
       }
@@ -104,7 +108,7 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
         if (!sourceSpaceIds.has(id)) throw new InputError("This file refers to a space it does not list.");
         return ref(id);
       };
-      for (const list of [spaces, file.members, file.cards, file.clients, file.bills, file.statements, file.charges, file.invoices, file.pots, file.settlements, file.balanceUpdates, memory, pins, journal]) for (const row of list) next(row.id);
+      for (const list of [spaces, file.ownCategories ?? [], file.members, file.cards, file.clients, file.bills, file.statements, file.charges, file.invoices, file.pots, file.settlements, file.balanceUpdates, memory, pins, journal]) for (const row of list) next(row.id);
       for (const t of journal) next(t.conversationId);
       const briefFor = (raw: unknown) => {
         if (!raw || typeof raw !== "object" || Object.keys(raw).length === 0) return {};
@@ -157,10 +161,12 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       await tx.update(s.paypalConnections).set({ balanceMinor: file.household.paypalBalanceMinor }).where(and(eq(s.paypalConnections.householdId, hid), eq(s.paypalConnections.memberId, ownerId)));
 
       const made = { householdId: hid, madeBy: "import" as const };
+      const ownRef = (id: string | null | undefined) => (id ? ref(id) : null);
+      await insertChunks(tx, s.ownCategories, (file.ownCategories ?? []).map(o => ({ id: ref(o.id), householdId: hid, kind: o.kind, name: o.name, nameKey: nameKey(o.name), businessBp: o.businessBp })));
       await insertChunks(tx, s.clients, file.clients.map(c => ({ ...c, id: ref(c.id), householdId: hid })));
       await insertChunks(tx, s.cardStatements, file.statements.map(x => ({ ...x, id: ref(x.id), cardId: ref(x.cardId), householdId: hid })));
-      await insertChunks(tx, s.charges, file.charges.map(c => ({ ...c, id: ref(c.id), cardId: ref(c.cardId), ...made, documentId: null })));
-      await insertChunks(tx, s.bills, file.bills.map(b => ({ ...b, id: ref(b.id), ...made, memberId: who(b.memberId), paidByMemberId: who(b.paidByMemberId), documentId: null, seriesBillId: null })));
+      await insertChunks(tx, s.charges, file.charges.map(c => ({ ...c, id: ref(c.id), cardId: ref(c.cardId), ...made, ownCategoryId: ownRef(c.ownCategoryId), documentId: null })));
+      await insertChunks(tx, s.bills, file.bills.map(b => ({ ...b, id: ref(b.id), ...made, memberId: who(b.memberId), paidByMemberId: who(b.paidByMemberId), ownCategoryId: ownRef(b.ownCategoryId), documentId: null, seriesBillId: null })));
       for (const b of file.bills) if (b.seriesBillId) await tx.update(s.bills).set({ seriesBillId: ref(b.seriesBillId) }).where(and(eq(s.bills.householdId, hid), eq(s.bills.id, ref(b.id))));
       await insertChunks(tx, s.invoices, file.invoices.map(i => ({ ...i, id: ref(i.id), clientId: ref(i.clientId), ...made, paypalInvoiceId: null, paypalStatus: null, remindedAt: i.remindedAt ? new Date(i.remindedAt) : null })));
       await insertChunks(tx, s.pots, file.pots.map(p => ({ ...p, id: ref(p.id), ...made, memberId: who(p.memberId) })));
@@ -188,7 +194,7 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
   } catch (error) {
     if (error instanceof InputError) throw error;
     const code = dbCode(error);
-    if (code === "23503" || code === "23514" || code === "22P02" || code === "22007") throw new InputError("This file is not consistent with itself (a row refers to something it does not hold, or a value is out of range).");
+    if (code === "23503" || code === "23505" || code === "23514" || code === "22P02" || code === "22007") throw new InputError("This file is not consistent with itself (a row refers to something it does not hold, or a value is out of range).");
     throw error;
   }
 }

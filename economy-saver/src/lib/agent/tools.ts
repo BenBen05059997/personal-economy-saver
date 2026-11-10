@@ -11,6 +11,7 @@ import { billInput, insertBill } from "@/db/bills";
 import { readerInbox } from "@/db/reader-inbox";
 import { chargeInput, insertCharge } from "@/db/charges";
 import { foreignCosts } from "@/db/fx-cost";
+import { findOwnCategory, guessOwnCategory, listOwnCategoriesGrouped } from "@/db/own-categories";
 import { openSuggestions } from "@/db/suggestions";
 import { Currency } from "@/lib/catalogue/types";
 import { catalogueMove } from "@/lib/catalogue/engine";
@@ -27,7 +28,8 @@ import { minorPerUnit } from "@/lib/money/format";
 import { dayView } from "@/lib/money/window";
 import { gapAmountWords, gapDateWords, gapQuestion, openGaps } from "@/lib/money/gaps";
 import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
-import { BusinessBp, CategoryKeySchema, categoryLabel } from "@/lib/money/categories";
+import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
+import { ownLabel } from "@/lib/money/own-category";
 import { guessCategory } from "@/lib/money/categorise";
 import { monthByCategory, monthText, monthWhen } from "@/lib/money/month";
 import { HISTORY_MONTHS, monthBounds, monthsBack, SEARCH_QUERY_MAX, searchLine, searchSpending, spendingItems } from "@/lib/money/spending";
@@ -110,10 +112,13 @@ const none = z.object({});
 // D45: the agent names people, not ids. `shared` and `paidBy` replace the form's member ids.
 const categoryField = CategoryKeySchema.nullable().default(null)
   .describe("Null lets the app guess from the name.");
+// D75: the person's own categories are named, never given by id, and the agent never makes one.
+const ownCategoryField = z.string().trim().min(1).max(80).nullable().default(null)
+  .describe("Name of one of the household's own categories under the category the item gets, from own_categories. Null lets the app file it like the last item with this name. Never invent one.");
 const businessField = BusinessBp.nullable().default(null)
   .describe("Business share in basis points. Null is personal.");
 // D54's "amount varies" is set by the user on the form or in Settings, not by the agent; an agent's one-off still links on confirm.
-const addBillInput = billInput.omit({ paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, repeatUntil: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true, periodStart: true, periodEnd: true }).extend({
+const addBillInput = billInput.omit({ ownCategoryId: true, ownCategoryNew: true, paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, repeatUntil: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true, periodStart: true, periodEnd: true }).extend({
   amount: z.string().trim().nullable().describe("Home-currency number as text. Null if unknown."),
   due: z.string().date().nullable().describe("Null if unknown. Repeating bills and cancel_by need a date."),
   repeat: RepeatUnitSchema.nullable().default(null).describe("Uses the due day. Null for a one-off."),
@@ -124,12 +129,13 @@ const addBillInput = billInput.omit({ paidByMemberId: true, category: true, busi
   period_start: z.string().date().nullable().default(null).describe("Start of the known service period. Use both period dates on one-offs only."),
   period_end: z.string().date().nullable().default(null).describe("End of the known service period, on or after period_start."),
   category: categoryField,
+  own_category: ownCategoryField,
   business_bp: businessField,
   shared: z.boolean().nullable().default(null),
   paidBy: z.string().trim().min(1).max(80).nullable().default(null),
 });
-const logChargeInput = chargeInput.omit({ category: true, businessBp: true, originalAmount: true, originalCurrency: true }).extend({
-  category: categoryField, business_bp: businessField,
+const logChargeInput = chargeInput.omit({ ownCategoryId: true, ownCategoryNew: true, category: true, businessBp: true, originalAmount: true, originalCurrency: true }).extend({
+  category: categoryField, own_category: ownCategoryField, business_bp: businessField,
   original_amount: z.string().trim().nullable().default(null).describe("Number paid in original_currency. amount stays the billed amount."),
   original_currency: Currency.nullable().default(null).describe("Must differ from the card currency."),
 });
@@ -143,9 +149,34 @@ function categoryFor(name: string, given: z.infer<typeof categoryField>): { cate
     : `No category was given and the name matched none, so it is ${categoryLabel(guess.category)}. The user can choose one in To check.` };
 }
 
+/** The refusal for an own category the household does not have: it lists the ones that exist and says only the person can make one. */
+function unknownOwnWords(name: string, category: CategoryKey, names: string[]): string {
+  const label = categoryLabel(category);
+  return `"${name}" is not one of this household's own categories under ${label}. Under ${label} there ${names.length === 0 ? "are none yet" : `are: ${names.join(", ")}`}. Only the person can make a new one, in Settings → Your categories.`;
+}
+
+/**
+ * D75: the own category a draft is filed under. A name given must be one of the household's under `category` (else an InputError the model reads, nothing saved);
+ * with no name, the latest confirmed item with the same name and category decides ("it files itself"). Its default business share fills in only when the model gave none.
+ */
+async function ownFor(ctx: ToolContext, category: CategoryKey, itemName: string, given: string | null, businessGiven: boolean): Promise<{ ownCategoryId: string | null; businessBp: number | null; note: string }> {
+  let own: { id: string; name: string; businessBp: number | null } | null;
+  if (given !== null) {
+    const { match, names } = await findOwnCategory(ctx.db, ctx.householdId, category, given);
+    if (!match) throw new InputError(unknownOwnWords(given, category, names));
+    own = match;
+  } else own = await guessOwnCategory(ctx.db, ctx.householdId, category, itemName);
+  if (!own) return { ownCategoryId: null, businessBp: null, note: "" };
+  const share = !businessGiven && own.businessBp !== null && own.businessBp > 0;
+  return {
+    ownCategoryId: own.id, businessBp: share ? own.businessBp : null,
+    note: ` Filed under ${ownLabel(category, own)}${given === null ? ", like last time" : ""}.${share ? ` Business share ${own.businessBp! / 100}% from its default.` : ""}`,
+  };
+}
+
 /** Checks one add_bill item and turns it into what insertBill takes. Throws an InputError the model can read. */
 async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>) {
-  const { shared, paidBy, category: given, business_bp, next_amount, next_amount_from, cancel_by, repeat_until, period_start, period_end, ...bill } = input;
+  const { shared, paidBy, category: given, own_category, business_bp, next_amount, next_amount_from, cancel_by, repeat_until, period_start, period_end, ...bill } = input;
   let paidByMemberId: string | null = null;
   if (paidBy !== null && !shared) throw new InputError("paidBy names who pays a shared bill; set shared to true");
   if (shared) {
@@ -154,18 +185,20 @@ async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>
     if (await memberCount(ctx.db, ctx.householdId) < 2) throw new InputError("Splitting a bill needs a second person; add one in Settings, People");
     paidByMemberId = (await memberByName(ctx.db, ctx.householdId, paidBy)).id;
   }
-  const { category, note } = categoryFor(bill.biller, given);
+  const { category, note: categoryNote } = categoryFor(bill.biller, given);
+  const own = await ownFor(ctx, category, bill.biller, own_category, business_bp !== null);
   return {
-    biller: bill.biller, note, status: "pending" as const,
-    bill: { ...bill, amount: bill.amount ?? "", amountUnknown: bill.amount === null, dueUnknown: bill.due === null, category, businessBp: business_bp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by, repeatUntil: repeat_until, periodStart: period_start, periodEnd: period_end },
+    biller: bill.biller, note: categoryNote + own.note, status: "pending" as const,
+    bill: { ...bill, amount: bill.amount ?? "", amountUnknown: bill.amount === null, dueUnknown: bill.due === null, category, ...(own.ownCategoryId !== null && { ownCategoryId: own.ownCategoryId }), businessBp: business_bp ?? own.businessBp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by, repeatUntil: repeat_until, periodStart: period_start, periodEnd: period_end },
   };
 }
 
-function prepareCharge(input: z.infer<typeof logChargeInput>) {
-  const { category: given, business_bp, original_amount, original_currency, ...charge } = input;
-  const { category, note } = categoryFor(charge.merchant, given);
-  return { merchant: charge.merchant, note, charge: {
-    ...charge, category, businessBp: business_bp ?? 0,
+async function prepareCharge(ctx: ToolContext, input: z.infer<typeof logChargeInput>) {
+  const { category: given, own_category, business_bp, original_amount, original_currency, ...charge } = input;
+  const { category, note: categoryNote } = categoryFor(charge.merchant, given);
+  const own = await ownFor(ctx, category, charge.merchant, own_category, business_bp !== null);
+  return { merchant: charge.merchant, note: categoryNote + own.note, charge: {
+    ...charge, category, ...(own.ownCategoryId !== null && { ownCategoryId: own.ownCategoryId }), businessBp: business_bp ?? own.businessBp ?? 0,
     ...(original_amount !== null && { originalAmount: original_amount }), ...(original_currency !== null && { originalCurrency: original_currency }),
   } };
 }
@@ -289,7 +322,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "household_snapshot", scope: "read", input: z.object({}).strict(),
-    description: `Version 3 household record for context and IDs. Up to ${SNAPSHOT_TOOL_WINDOW} most recent rows per long list. Check truncated. Pending rows do not count. Use engine tools for answers.`,
+    description: `Version 4 household record for context and IDs. Up to ${SNAPSHOT_TOOL_WINDOW} most recent rows per long list. Check truncated. Pending rows do not count. Use engine tools for answers.`,
     run: async ctx => JSON.stringify(await loadHouseholdSnapshot(ctx.db, ctx.householdId, { events: false, recent: SNAPSHOT_TOOL_WINDOW })),
   }),
   defineTool({
@@ -362,6 +395,16 @@ export const tools: Tool[] = [
       const { first, last } = monthBounds(month);
       const view = monthByCategory(await loadSpending(ctx.db, ctx.householdId, { from: first, to: last }), today, month);
       return monthText(view, monthWhen(month === today.slice(0, 7) ? undefined : view.name));
+    },
+  }),
+  defineTool({
+    name: "own_categories", scope: "read", input: none,
+    description: "The household's own categories under the fourteen, grouped by category, each with its default business share if set and how many bills and charges are filed under it. The only names add_bill and log_charge accept as own_category. Quote the tool's words.",
+    run: async ctx => {
+      const groups = await listOwnCategoriesGrouped(ctx.db, ctx.householdId);
+      if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Settings → Your categories.";
+      const part = (o: (typeof groups)[number]["categories"][number]) => `${o.name} (${o.businessBp === null ? "no default business share" : `default business share ${o.businessBp / 100}%`}, ${o.items} ${o.items === 1 ? "item" : "items"})`;
+      return groups.map(g => `Under ${g.label}: ${g.categories.map(part).join("; ")}.`).join("\n");
     },
   }),
   defineTool({
@@ -476,7 +519,7 @@ export const tools: Tool[] = [
     name: "log_charge", scope: "draft", input: logChargeInput,
     description: "Draft a card purchase for To check. amount is in the household’s home currency. date defaults to today. Get cardId from list_clients_and_cards. Shared requires two people and a member’s card. Ask for the billed amount if only the foreign amount is known. Reuse the UUID on retry.",
     run: async (ctx, input) => {
-      const { charge, merchant, note } = prepareCharge(input);
+      const { charge, merchant, note } = await prepareCharge(ctx, input);
       await insertCharge(ctx.db, ctx.householdId, charge, "pending", ctx.source ?? "manual", by(ctx));
       ctx.onPending?.();
       return `${merchant} is waiting in To check for the user to confirm. ${note}`;
@@ -486,7 +529,8 @@ export const tools: Tool[] = [
     name: "log_charges", scope: "draft", input: z.object({ items: z.array(logChargeInput).min(1).max(10) }),
     description: "Draft 1–10 card purchases atomically. Each item follows log_charge, including retry IDs. An error names the zero-based item.",
     run: async (ctx, input) => {
-      const prepared = input.items.map(prepareCharge);
+      const prepared: Awaited<ReturnType<typeof prepareCharge>>[] = [];
+      for (const [i, item] of input.items.entries()) prepared.push(await atItem(i, () => prepareCharge(ctx, item)));
       const maker = by(ctx);
       await ctx.db.transaction(async tx => {
         for (const [i, p] of prepared.entries()) await atItem(i, () => insertCharge(tx, ctx.householdId, p.charge, "pending", ctx.source ?? "manual", maker));

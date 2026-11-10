@@ -225,6 +225,13 @@
       "when": 1794273195926,
       "tag": "0031_demo_token",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1794289005026,
+      "tag": "0032_own_categories",
+      "breakpoints": true
     }
   ]
 }

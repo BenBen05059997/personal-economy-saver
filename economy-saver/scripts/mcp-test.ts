@@ -66,8 +66,17 @@ async function main() {
     assert.ok(!/\btoday\b|JPY/i.test(instructions!), "the server cannot know the date or currency");
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "bills_for_month", "can_i_spend", "draft_invoice", "foreign_costs", "forget", "goals", "household_snapshot", "list_clients_and_cards", "list_invoices", "list_spaces", "log_charge", "log_charges", "make_canvas", "month_by_category", "open_gaps", "options_when_short", "plan_for", "recall", "regular_costs", "remember", "search_history", "search_spending", "suggestions", "timeline", "to_check", "update_bank_balance", "what_if", "whats_due", "where_am_i", "who_owes_whom"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "bills_for_month", "can_i_spend", "draft_invoice", "foreign_costs", "forget", "goals", "household_snapshot", "list_clients_and_cards", "list_invoices", "list_spaces", "log_charge", "log_charges", "make_canvas", "month_by_category", "open_gaps", "options_when_short", "own_categories", "plan_for", "recall", "regular_costs", "remember", "search_history", "search_spending", "suggestions", "timeline", "to_check", "update_bank_balance", "what_if", "whats_due", "where_am_i", "who_owes_whom"]);
     assert.ok(!list.tools.some(tool => tool.name === "clarify" || tool.name === "out_of_scope"), "the Ask-only tools are never offered over MCP");
+    stage = "own categories over MCP";
+    const ownTool = list.tools.find(tool => tool.name === "own_categories");
+    assert.ok(ownTool, "own_categories is offered");
+    const ownWords = ((await client.callTool({ name: "own_categories", arguments: {} })).content as { text: string }[])[0].text;
+    assert.match(ownWords, /Under Food: Coffee \(/);
+    assert.match(ownWords, /Under Other: Books & films \(.*\); Gear \(/);
+    const billProps = Object.keys((list.tools.find(tool => tool.name === "add_bill")!.inputSchema as { properties: Record<string, unknown> }).properties);
+    assert.ok(billProps.includes("own_category") && !billProps.includes("ownCategoryId") && !billProps.includes("ownCategoryNew"), "a name, never an id or a new one");
+    assert.deepEqual(list.tools.map(tool => tool.name).filter(name => /own_cat|(add|save|rename|merge|remove|delete|file)_.*categor/.test(name)), ["own_categories"], "no tool writes an own category");
     stage = "make_canvas over MCP";
     const drawn = JSON.parse(((await client.callTool({ name: "make_canvas", arguments: { recipe: JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] }) } })).content as { text: string }[])[0].text);
     assert.deepEqual([drawn.blocks.length, drawn.blocks[0].type, drawn.blocks[0].label], [1, "number", "Cash today"]);
@@ -89,7 +98,7 @@ async function main() {
     const snapshotCall = await client.callTool({ name: "household_snapshot", arguments: {} });
     assert.ok(!snapshotCall.isError);
     const snapshot = JSON.parse((snapshotCall.content as { text: string }[])[0].text);
-    assert.equal(snapshot.version, 3);
+    assert.equal(snapshot.version, 4);
     assert.equal(snapshot.household.id, hid);
     assert.equal(snapshot.clients.length, 3);
     assert.ok(!("events" in snapshot) && !JSON.stringify(snapshot).includes(other));
@@ -140,6 +149,7 @@ async function main() {
     try {
       await readClient.connect(new StreamableHTTPClientTransport(endpoint, { requestInit: { headers: { Authorization: "Bearer " + readOnly } } }));
       assert.ok(!(await readClient.listTools()).tools.some(t => t.name === "draft_invoice" || t.name === "add_bills" || t.name === "log_charges" || t.name === "update_bank_balance" || t.name === "add_pot"));
+      assert.ok((await readClient.listTools()).tools.some(t => t.name === "own_categories"), "own_categories is a read tool");
     } finally { await readClient.close(); }
 
     stage = "rate limits";

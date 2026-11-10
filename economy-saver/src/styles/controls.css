@@ -6,6 +6,7 @@
 .ui-button:hover { background: var(--wash); }
 .ui-button:disabled { opacity: 0.55; pointer-events: none; } /* also every button of an ApiForm while it posts */
 .ui-button.primary { background: var(--accent); border-color: var(--accent-border); color: var(--on-accent); }
+input:is([type="checkbox"], [type="radio"]) { accent-color: var(--ink); } /* ink, never the browser blue; the browser picks a tick that contrasts with it in both themes */
 .ui-field { display: grid; gap: var(--space-1); margin-block: var(--space-3); }
 .ui-field :is(input, select, textarea) { min-width: 0; width: 100%; padding: var(--space-2) var(--space-3); border: 1px solid var(--rule); border-radius: var(--radius-control); background: var(--screen); }
 /* Phone: fields, summary rows and back links reach 44px to tap. A summary keeps its look; an invisible ::after grows its hit area. */

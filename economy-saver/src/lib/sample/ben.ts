@@ -33,6 +33,15 @@ export const benStoredBills: Bill[] = ([
   },
 ] as (Omit<Bill, "status"> & { status?: Bill["status"] })[]).map((b): Bill => ({ status: "confirmed", ...b }));
 
+// D75: Ben's own categories (kind and name; the seed gives them real ids). Coffee is the Kissa Midori café charges, Gear the electronics and outdoor
+// shop, Books & films the bookshop and the cinema. They move no money: November still shows the same totals.
+export const benOwnCategories: { id: string; kind: Charge["category"]; name: string }[] = [
+  { id: "oc-coffee", kind: "food", name: "Coffee" },
+  { id: "oc-gear", kind: "other", name: "Gear" },
+  { id: "oc-books", kind: "other", name: "Books & films" },
+];
+const OWN = { coffee: { id: "oc-coffee", name: "Coffee" }, gear: { id: "oc-gear", name: "Gear" }, books: { id: "oc-books", name: "Books & films" } };
+
 const benToday = "2026-11-14";
 
 export const benMoney: MoneyState = {
@@ -59,18 +68,18 @@ export const benMoney: MoneyState = {
     { id: "ch-h2", cardId: "card-a", merchant: "Hotel Kazemachi Hakone", amount: 28_600, date: "2026-09-22", category: "travel", businessBp: 0, source: "card_email" },
     { id: "ch-h3", cardId: "card-a", merchant: "Minato Fresh Market", amount: 5_960, date: "2026-09-27", category: "food", businessBp: 0, source: "card_email" },
     { id: "ch-h4", cardId: "card-a", merchant: "Kaze Taxi", amount: 2_340, date: "2026-10-04", category: "transport", businessBp: 0, source: "receipt" },
-    { id: "ch-h5", cardId: "card-a", merchant: "Kissa Midori café", amount: 1_320, date: "2026-10-10", category: "food", businessBp: 0, source: "receipt" },
-    { id: "ch-h6", cardId: "card-a", merchant: "Hoshizora Cinema", amount: 3_600, date: "2026-10-18", category: "other", businessBp: 0, source: "card_email" },
+    { id: "ch-h5", cardId: "card-a", merchant: "Kissa Midori café", amount: 1_320, date: "2026-10-10", category: "food", businessBp: 0, own: OWN.coffee, source: "receipt" },
+    { id: "ch-h6", cardId: "card-a", merchant: "Hoshizora Cinema", amount: 3_600, date: "2026-10-18", category: "other", businessBp: 0, own: OWN.books, source: "card_email" },
     { id: "ch-a1", cardId: "card-a", merchant: "Sora Cloud Hosting", amount: 3_850, date: "2026-11-04", category: "business_tools", businessBp: 10_000, source: "card_email" },
-    { id: "ch-a2", cardId: "card-a", merchant: "Tsuki Electronics", amount: 18_200, date: "2026-11-09", category: "other", businessBp: 0, source: "card_email" },
-    { id: "ch-a3", cardId: "card-a", merchant: "Yamabiko Outdoor", amount: 6_400, date: "2026-11-12", category: "other", businessBp: 0, source: "receipt" },
+    { id: "ch-a2", cardId: "card-a", merchant: "Tsuki Electronics", amount: 18_200, date: "2026-11-09", category: "other", businessBp: 0, own: OWN.gear, source: "card_email" },
+    { id: "ch-a3", cardId: "card-a", merchant: "Yamabiko Outdoor", amount: 6_400, date: "2026-11-12", category: "other", businessBp: 0, own: OWN.gear, source: "receipt" },
     { id: "ch-b1", cardId: "card-b", merchant: "Minato Fresh Market", amount: 8_640, date: "2026-10-17", category: "food", businessBp: 0, source: "card_email" },
     { id: "ch-b2", cardId: "card-b", merchant: "Metro Line commuter pass", amount: 12_000, date: "2026-10-20", category: "transport", businessBp: 0, source: "card_email" },
-    { id: "ch-b3", cardId: "card-b", merchant: "Kissa Midori café", amount: 1_480, date: "2026-10-25", category: "food", businessBp: 0, source: "receipt" },
-    { id: "ch-b4", cardId: "card-b", merchant: "Page & Lantern Books", amount: 3_880, date: "2026-10-29", category: "other", businessBp: 0, source: "card_email" },
+    { id: "ch-b3", cardId: "card-b", merchant: "Kissa Midori café", amount: 1_480, date: "2026-10-25", category: "food", businessBp: 0, own: OWN.coffee, source: "receipt" },
+    { id: "ch-b4", cardId: "card-b", merchant: "Page & Lantern Books", amount: 3_880, date: "2026-10-29", category: "other", businessBp: 0, own: OWN.books, source: "card_email" },
     { id: "ch-b5", cardId: "card-b", merchant: "Kumo Goods Online", amount: 24_300, date: "2026-11-02", category: "other", businessBp: 0, source: "card_email" },
     { id: "ch-b6", cardId: "card-b", merchant: "Minato Fresh Market", amount: 7_420, date: "2026-11-08", category: "food", businessBp: 0, source: "card_email" },
-    { id: "ch-b7", cardId: "card-b", merchant: "Kissa Midori café", amount: 1_880, date: "2026-11-12", category: "food", businessBp: 0, source: "receipt" },
+    { id: "ch-b7", cardId: "card-b", merchant: "Kissa Midori café", amount: 1_880, date: "2026-11-12", category: "food", businessBp: 0, own: OWN.coffee, source: "receipt" },
     { id: "ch-b8", cardId: "card-b", merchant: "Minato Fresh Market", amount: 1_400, date: "2026-11-13", category: "food", businessBp: 0, source: "card_email" },
   ] as Omit<Charge, "status">[]).map((c): Charge => ({ status: "confirmed", ...c })),
   clients: [

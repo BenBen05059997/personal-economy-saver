@@ -56,16 +56,18 @@ async function main() {
   let passed = 0;
   async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 
-  await check("schema/household.v3.json equals the schema generated from the zod definition, and so do the recipe, memory, turn and cash-flow schemas (drift for all five files)", () => {
+  await check("schema/household.v4.json equals the schema generated from the zod definition, and so do the recipe, memory, turn and cash-flow schemas (drift for all five files)", () => {
     const committed = readFileSync(SCHEMA_FILE, "utf8");
     assert.equal(committed, householdJsonSchema(), `${SCHEMA_FILE} is out of date. Run \`npm run schema\` and commit the result.`);
     const files = schemaFiles();
-    assert.deepEqual(files.map(f => f.file), ["schema/household.v3.json", "schema/recipe.v1.json", "schema/memory.v1.json", "schema/turn.v1.json", "schema/cash-flow-event.v1.json"]);
+    assert.deepEqual(files.map(f => f.file), ["schema/household.v4.json", "schema/recipe.v1.json", "schema/memory.v1.json", "schema/turn.v1.json", "schema/cash-flow-event.v1.json"]);
     for (const { file, text } of files) assert.equal(readFileSync(file, "utf8"), text, `${file} is out of date. Run \`npm run schema\` and commit the result.`);
     assert.equal(existsSync("schema/household.v1.json"), false, "version 1 file is not kept");
     const json = JSON.parse(committed);
     assert.equal(json.additionalProperties, false);
-    assert.equal(json.properties.version.const, 3);
+    assert.equal(json.properties.version.const, 4);
+    assert.equal(json.required.includes("ownCategories"), false, "ownCategories is optional: version 2 and 3 files have none");
+    assert.ok("ownCategories" in json.properties && "ownCategoryId" in json.properties.bills.items.properties && "ownCategoryId" in json.properties.charges.items.properties);
     for (const optional of ["events", "memory", "canvases", "journal", "spaces"]) assert.deepEqual(json.required.includes(optional), false, `${optional} is optional`);
     for (const key of ["memory", "canvases", "journal", "spaces"]) assert.ok(key in json.properties, key);
   });
@@ -116,9 +118,9 @@ async function main() {
     const full = await loadHouseholdSnapshot(db, a, { events: true });
     const json = JSON.stringify(full);
 
-    await check("Ben's household parses with the schema, version 3, and the household block is right", () => {
+    await check("Ben's household parses with the schema, version 4, and the household block is right", () => {
       assert.deepEqual(HouseholdSnapshot.parse(JSON.parse(JSON.stringify(snap))), snap);
-      assert.equal(snap.version, 3);
+      assert.equal(snap.version, 4);
       assert.deepEqual(snap.household, { id: a, name: "Ben", homeCurrency: "JPY", timeZone: "Asia/Tokyo", today: DEMO_DATE, isDemo: true,
         bankBalanceMinor: snap.household.bankBalanceMinor, paypalBalanceMinor: snap.household.paypalBalanceMinor,
         usdRateMicro: snap.household.usdRateMicro, usdRateDate: snap.household.usdRateDate, splitSince: null });
@@ -148,6 +150,14 @@ async function main() {
       assert.deepEqual([usdState.paypal, usdState.fxPerUsd], [0, 1]);
     });
 
+    await check("own categories (D75): the list is in the snapshot, and every filed bill and charge points at one of its category's kind", () => {
+      assert.deepEqual(snap.ownCategories!.map(o => [o.kind, o.name, o.businessBp]).sort(), [["food", "Coffee", null], ["other", "Books & films", null], ["other", "Gear", null]]);
+      const filed = [...snap.charges, ...snap.bills].filter(x => x.ownCategoryId);
+      assert.equal(filed.length, 7);
+      for (const row of filed) assert.equal(snap.ownCategories!.find(o => o.id === row.ownCategoryId)?.kind, row.category);
+      assert.ok(snap.charges.filter(x => !x.ownCategoryId).every(x => x.ownCategoryId === null));
+    });
+
     await check("every Minor field is an integer, every currency is 3 letters, every id a uuid, every day ISO", () => {
       let minors = 0, currencies = 0;
       walk(full, (key, value) => {
@@ -160,7 +170,10 @@ async function main() {
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, household: { ...snap.household, bankBalanceMinor: 12.5 } }));
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, household: { ...snap.household, homeCurrency: "yen" } }));
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 1 }));
-      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 4 }));
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 5 }));
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 3 }), Error, "an older file is read by Import with its own version, not by this schema");
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, ownCategories: [{ id: snap.ownCategories![0].id, kind: "food", name: "x".repeat(41), businessBp: null }] }));
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, ownCategories: [{ ...snap.ownCategories![0], extra: 1 }] }));
     });
 
     await check("unknown keys are refused at every level", () => {
@@ -186,7 +199,7 @@ async function main() {
       assert.equal(snap.bills.filter(bill => bill.biller === "Fictional Cloud").length, 1, "one row, not one per year");
       const rent = snap.bills.find(bill => bill.biller === "Rent")!;
       assert.deepEqual([rent.repeatUnit, rent.repeatDay, rent.nextAmountMinor, rent.nextAmountFrom, rent.cancelBy, rent.repeatUntil ?? null], ["month", 27, null, null, null, null]);
-      assert.equal(snap.version, 3);
+      assert.equal(snap.version, 4);
       // A document written before these fields existed written before these fields existed has none of them and still validates.
       const old: Record<string, unknown> = { ...yearly };
       for (const key of ["repeatUnit", "nextAmountMinor", "nextAmountFrom", "cancelBy", "repeatUntil"]) delete old[key];
@@ -228,7 +241,7 @@ async function main() {
         assert.ok(list.length > 0);
         for (const row of list) assert.ok(["form", "ask", "mcp", "reader", "cron", "paypal", "import"].includes(row.madeBy ?? ""), JSON.stringify(row));
       }
-      assert.equal(snap.version, 3);
+      assert.equal(snap.version, 4);
       const old = JSON.parse(JSON.stringify(snap.pots[0])) as Record<string, unknown>;
       delete old.madeBy;
       assert.deepEqual(HouseholdSnapshot.parse({ ...JSON.parse(JSON.stringify(snap)), pots: [old] }).pots.length, 1, "a snapshot without madeBy still parses");

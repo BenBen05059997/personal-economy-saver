@@ -164,6 +164,7 @@ async function main() {
       returnTo: "/", today: "2026-11-14", currency: "JPY",
       people: [{ id: crypto.randomUUID(), name: "Ben" }],
       cards: [{ id: crypto.randomUUID(), label: "Fictional card" }],
+      own: { categories: [], guesses: {} },
     }));
     const entryForms = [...entry.matchAll(/<form\b[^>]*action="\/api\/(bills|charges)"[^>]*>([\s\S]*?)<\/form>/g)];
     assert.deepEqual(entryForms.map(([, kind]) => kind), ["bills", "charges"]);

@@ -36,7 +36,7 @@ export function RegularCosts({ spending, today }: { spending: SpendingInput; tod
           const { words, tone } = change(cost, result.currency);
           const months = cost.months.map(m => `${monthName(m.month).slice(0, 3)} ${m.month === current && cost.status === "not_yet" ? "not in yet" : money(m.amountMinor, m.estimated)}`);
           return <li key={cost.key} className="plan-regular-row">
-            <span className="plan-regular-name">{cost.label}<small>{cost.categoryLabel}</small></span>
+            <span className="plan-regular-name">{cost.label}<small>{cost.where}</small></span>
             <span className="num">{cost.status === "not_yet" ? "not in yet" : money(cost.thisMinor, cost.months[cost.months.length - 1].estimated)}{cost.soFar && cost.status !== "not_yet" && <small>so far</small>}</span>
             <span className="plan-regular-change">
               {cost.status !== "started" && <>Last month {money(cost.lastMinor, cost.months[cost.months.length - 2].estimated)} · </>}

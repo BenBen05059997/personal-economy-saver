@@ -7,7 +7,7 @@ import { CheckLines } from "./CheckLines";
 import { answerCheck, type CheckAnswers } from "./check-answers";
 import { ReadingForm } from "./ReadingForm";
 
-type Props = Pick<ComponentProps<typeof ReadingForm>, "reading" | "today" | "homeCurrency" | "cards"> & { checks: Check[] };
+type Props = Pick<ComponentProps<typeof ReadingForm>, "reading" | "today" | "homeCurrency" | "cards" | "own"> & { checks: Check[] };
 
 function choiceHint({ step }: CheckChoice): string | null {
   if (step.do === "repeat") return step.repeat === null ? "Repeats is set to one time."

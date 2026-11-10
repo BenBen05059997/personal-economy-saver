@@ -7,6 +7,7 @@ import { observeRunway } from "./runway-events";
 import { clockForHousehold } from "./clock";
 import { AMOUNT_LIMIT, limitMessage } from "@/lib/money/amount";
 import { CategoryKeySchema } from "@/lib/money/categories";
+import { ownChoiceFields, resolveOwnCategory } from "./own-categories";
 import { minorPerUnit } from "@/lib/money/format";
 import { normalise } from "@/lib/money/spending";
 import { IMPORT_BATCH, MERCHANT_MAX } from "@/lib/import/csv";
@@ -17,6 +18,7 @@ const importRow = z.object({
   merchant: z.string().trim().min(1).max(MERCHANT_MAX),
   amountMinor: z.number().int().positive(),
   category: CategoryKeySchema,
+  ...ownChoiceFields, // D75: an own category of the row's category (an id, or a new name made in this import); absent = none
 });
 export const importInput = z.object({ cardId: z.string().uuid(), rows: z.array(importRow).min(1).max(IMPORT_BATCH) });
 
@@ -70,9 +72,11 @@ export async function importCharges(
 
     if (household.runwayShort === null) await observeRunway(tx, hid, undefined, household);
     const ids = fresh.map(() => crypto.randomUUID());
+    const owns: (string | null)[] = [];
+    for (const r of fresh) owns.push((await resolveOwnCategory(tx, hid, r.category, r)) ?? null);
     await tx.insert(charges).values(fresh.map((r, i) => ({
       id: ids[i], householdId: hid, cardId: card.id, merchant: r.merchant, amountMinor: r.amountMinor, currency, date: r.date,
-      shared: false, category: r.category, businessBp: 0, source: "manual" as const, status: "confirmed" as const, madeBy: by.madeBy, askId: by.askId ?? null,
+      shared: false, category: r.category, businessBp: 0, ownCategoryId: owns[i], source: "manual" as const, status: "confirmed" as const, madeBy: by.madeBy, askId: by.askId ?? null,
     })));
 
     const totalMinor = fresh.reduce((sum, r) => sum + r.amountMinor, 0);

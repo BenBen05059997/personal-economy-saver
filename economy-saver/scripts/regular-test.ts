@@ -165,7 +165,7 @@ async function main() {
   await check("the same name in another category is another cost; the newest item gives the label and the kind", () => {
     const mixed: SpendItem[] = [
       ...itemsOf(kenji).filter(i => i.label.startsWith("Fictional Power")),
-      { kind: "charge", id: "x", label: "Fictional Power 11月分", repeat: null, date: "2026-11-26", amountMinor: 100, category: "other", businessBp: 0, ownerId: null, documentId: null, cardId: null },
+      { kind: "charge", id: "x", label: "Fictional Power 11月分", repeat: null, date: "2026-11-26", amountMinor: 100, category: "other", businessBp: 0, own: null, ownerId: null, documentId: null, cardId: null },
     ];
     const r = regularCosts(mixed, "JPY", "2026-11-30");
     assert.deepEqual(r.items.map(c => [c.key, c.label, c.kind]), [["utilities:fictional power", "Fictional Power (2026年11月分)", "bill"]]);

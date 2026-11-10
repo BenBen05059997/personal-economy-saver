@@ -1,12 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "HouseholdSnapshot",
-  "description": "A whole household at one moment: version 3 of the Personal Economy Saver household schema, including spaces in the export.",
+  "description": "A whole household at one moment: version 4 of the Personal Economy Saver household schema, including the person's own categories and, in the export, spaces.",
   "type": "object",
   "properties": {
     "version": {
       "type": "number",
-      "const": 3
+      "const": 4
     },
     "generatedAt": {
       "type": "string",
@@ -411,6 +411,18 @@
             "maximum": 10000,
             "description": "The business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). Categories and shares move no money."
           },
+          "ownCategoryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The id of one of `ownCategories`, of the same kind as `category`; null or absent = filed under the category alone. Moves no money."
+          },
           "documentId": {
             "anyOf": [
               {
@@ -550,6 +562,18 @@
             "minimum": 0,
             "maximum": 10000,
             "description": "The business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). Categories and shares move no money."
+          },
+          "ownCategoryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The id of one of `ownCategories`, of the same kind as `category`; null or absent = filed under the category alone. Moves no money."
           },
           "status": {
             "type": "string",
@@ -1117,6 +1141,65 @@
         "additionalProperties": false
       },
       "description": "Every transfer recorded by Mark settled, oldest first."
+    },
+    "ownCategories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "housing",
+              "utilities",
+              "phone_internet",
+              "subscriptions",
+              "food",
+              "transport",
+              "travel",
+              "health",
+              "insurance",
+              "family_shared",
+              "government_tax",
+              "business_tools",
+              "debt",
+              "other"
+            ],
+            "description": "The category it belongs to; never changes."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "businessBp": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000,
+                "description": "The business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). Categories and shares move no money."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The default business share a form pre-fills for an item filed under it; null = none. Never rewrites items already saved."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "businessBp"
+        ],
+        "additionalProperties": false
+      },
+      "description": "The person's own categories (D75), by category. Absent in a version 2 or 3 file."
     },
     "balanceUpdates": {
       "type": "array",

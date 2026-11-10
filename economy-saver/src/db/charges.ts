@@ -8,6 +8,7 @@ import { observeRunway } from "./runway-events";
 import { clockForHousehold } from "./clock";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { memberCount } from "./people";
+import { ownChoiceFields, resolveOwnCategory } from "./own-categories";
 import { BusinessBp, CategoryKeySchema } from "@/lib/money/categories";
 import { cards, charges, households, members } from "./schema";
 import { syncClosedStatementCharge, unsyncClosedStatementCharge } from "./statement-charge";
@@ -22,6 +23,7 @@ export const chargeInput = z.object({
   date: z.string().date(),
   category: CategoryKeySchema, // D46: a key from lib/money/categories.ts
   businessBp: BusinessBp.default(0), // D46: business share in basis points
+  ...ownChoiceFields, // D75: an own category of this category (an id, or a new name made in the same save); absent = none
   shared: z.boolean().default(false), // D45: split between the members; the card's owner paid it
   // D62: when the purchase was in another currency, the amount paid in `originalCurrency` (a typed amount); `amount` stays what the issuer billed.
   originalAmount: z.string().trim().min(1).optional(),
@@ -67,10 +69,11 @@ export async function insertCharge(
       const rate = (amountMinor / minorPerUnit(Currency.parse(card.currency))) / (originalAmountMinor / minorPerUnit(data.originalCurrency));
       original = { originalAmountMinor, originalCurrency: data.originalCurrency, fxRateMicro: toRateMicro(rate) };
     }
+    const ownCategoryId = (await resolveOwnCategory(tx, hid, data.category, data)) ?? null;
     const [existing] = await tx.select().from(charges).where(and(eq(charges.householdId, hid), eq(charges.id, data.id)));
     if (existing) {
       if (existing.cardId !== data.cardId || existing.merchant !== data.merchant || existing.amountMinor !== amountMinor || existing.date !== data.date || existing.shared !== data.shared
-        || existing.category !== data.category || existing.businessBp !== data.businessBp
+        || existing.category !== data.category || existing.businessBp !== data.businessBp || existing.ownCategoryId !== ownCategoryId
         || existing.originalAmountMinor !== (original?.originalAmountMinor ?? null) || existing.originalCurrency !== (original?.originalCurrency ?? null)) {
         throw new InputError("This charge identifier is already in use");
       }
@@ -80,7 +83,7 @@ export async function insertCharge(
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     const [inserted] = await tx.insert(charges).values({
       id: data.id, householdId: hid, cardId: data.cardId, merchant: data.merchant, amountMinor, currency: card.currency,
-      date: data.date, shared: data.shared, category: data.category, businessBp: data.businessBp, source, status, madeBy: by.madeBy, askId: by.askId ?? null,
+      date: data.date, shared: data.shared, category: data.category, businessBp: data.businessBp, ownCategoryId, source, status, madeBy: by.madeBy, askId: by.askId ?? null,
       ...original,
     }).onConflictDoNothing({ target: charges.id }).returning({ id: charges.id });
     if (!inserted) throw new InputError("Choose a charge of this household");

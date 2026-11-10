@@ -7,6 +7,7 @@ import { minorMoney } from "@/lib/money/format";
 import { Currency } from "@/lib/catalogue/types";
 import { parseMinor } from "./money";
 import { bills, cards, charges, households, members } from "./schema";
+import { listOwnCategories } from "./own-categories";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 import { clockForHousehold } from "./clock";
 
@@ -39,15 +40,16 @@ export async function loadSettings(db: Db, householdId: string) {
     .from(households).where(eq(households.id, hid));
   if (!household) throw new SettingsError("Household no longer exists");
   const { fixedToday, ...shown } = household;
-  const [people, cardRows, billRows] = await Promise.all([
+  const [people, cardRows, billRows, ownCategoryRows] = await Promise.all([
     db.select({ id: members.id, name: members.displayName, role: members.role, shareBp: members.shareBp,
       signedIn: sql<boolean>`${members.authUserId} is not null` }).from(members).where(eq(members.householdId, hid))
       .orderBy(sql`(${members.role} = 'owner') desc`, members.createdAt, members.id),
     db.select().from(cards).where(eq(cards.householdId, hid)).orderBy(cards.createdAt),
-    db.select({ id: bills.id, biller: bills.biller, amountMinor: bills.amountMinor, currency: bills.currency, due: bills.due, category: bills.category, businessBp: bills.businessBp, repeatDay: bills.repeatDay, repeatUnit: bills.repeatUnit, nextAmountMinor: bills.nextAmountMinor, nextAmountFrom: bills.nextAmountFrom, cancelBy: bills.cancelBy, repeatUntil: bills.repeatUntil, periodStart: bills.periodStart, periodEnd: bills.periodEnd, amountVaries: bills.amountVaries, seriesBillId: bills.seriesBillId, status: bills.status, memberId: bills.memberId, paidByMemberId: bills.paidByMemberId }).from(bills).where(eq(bills.householdId, hid)).orderBy(bills.due),
+    db.select({ id: bills.id, biller: bills.biller, amountMinor: bills.amountMinor, currency: bills.currency, due: bills.due, category: bills.category, businessBp: bills.businessBp, repeatDay: bills.repeatDay, repeatUnit: bills.repeatUnit, nextAmountMinor: bills.nextAmountMinor, nextAmountFrom: bills.nextAmountFrom, cancelBy: bills.cancelBy, repeatUntil: bills.repeatUntil, periodStart: bills.periodStart, periodEnd: bills.periodEnd, amountVaries: bills.amountVaries, seriesBillId: bills.seriesBillId, status: bills.status, memberId: bills.memberId, paidByMemberId: bills.paidByMemberId, ownCategoryId: bills.ownCategoryId }).from(bills).where(eq(bills.householdId, hid)).orderBy(bills.due),
+    listOwnCategories(db, hid), // D75: for the "Your category" choice on the bill editor and the Your categories section
   ]);
   // `today` is the household's own date, for the bill edit form's amounts and dates.
-  return { household: shown, today: clockForHousehold({ isDemo: household.demo, fixedToday, timeZone: household.timeZone }).today, people, cards: cardRows, bills: billRows };
+  return { household: shown, today: clockForHousehold({ isDemo: household.demo, fixedToday, timeZone: household.timeZone }).today, people, cards: cardRows, bills: billRows, ownCategories: ownCategoryRows };
 }
 
 export async function updateSettings(db: Db, householdId: string, input: z.infer<typeof settingsInput>) {

@@ -49,7 +49,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
 
     const today = clockForHousehold(household, now).today;
     const rate = await usdRate(tx, hid, household.homeCurrency, today);
-    const [paypalRows, members, cards, statements, charges, bills, clients, invoices, pots, settlements, balanceUpdates, documents, events] = await Promise.all([
+    const [paypalRows, members, cards, statements, charges, bills, clients, invoices, pots, settlements, balanceUpdates, documents, events, ownRows] = await Promise.all([
       tx.select({ balanceMinor: s.paypalConnections.balanceMinor, balanceCurrency: s.paypalConnections.balanceCurrency }).from(s.paypalConnections)
         .where(eq(s.paypalConnections.householdId, hid)),
       tx.select({ id: s.members.id, displayName: s.members.displayName, role: s.members.role, shareBp: s.members.shareBp }).from(s.members)
@@ -65,7 +65,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
       cap(tx.select({
         id: s.charges.id, cardId: s.charges.cardId, merchant: s.charges.merchant, amountMinor: s.charges.amountMinor, currency: s.charges.currency,
         originalAmountMinor: s.charges.originalAmountMinor, originalCurrency: s.charges.originalCurrency, fxRateMicro: s.charges.fxRateMicro, fxEstimated: s.charges.fxEstimated,
-        date: s.charges.date, shared: s.charges.shared, category: s.charges.category, businessBp: s.charges.businessBp, source: s.charges.source, status: s.charges.status, place: s.charges.place, documentId: s.charges.documentId, madeBy: s.charges.madeBy,
+        date: s.charges.date, shared: s.charges.shared, category: s.charges.category, businessBp: s.charges.businessBp, ownCategoryId: s.charges.ownCategoryId, source: s.charges.source, status: s.charges.status, place: s.charges.place, documentId: s.charges.documentId, madeBy: s.charges.madeBy,
       }).from(s.charges).where(eq(s.charges.householdId, hid)).orderBy(desc(s.charges.date), desc(s.charges.createdAt), desc(s.charges.id)).$dynamic()),
       cap(tx.select({
         id: s.bills.id, memberId: s.bills.memberId, paidByMemberId: s.bills.paidByMemberId, biller: s.bills.biller, amountMinor: s.bills.amountMinor, currency: s.bills.currency,
@@ -73,7 +73,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
         fxRateMicro: s.bills.fxRateMicro, repeatDay: s.bills.repeatDay, repeatUnit: s.bills.repeatUnit, nextAmountMinor: s.bills.nextAmountMinor,
         nextAmountFrom: s.bills.nextAmountFrom, cancelBy: s.bills.cancelBy, repeatUntil: s.bills.repeatUntil, amountVaries: s.bills.amountVaries, seriesBillId: s.bills.seriesBillId,
         periodStart: s.bills.periodStart, periodEnd: s.bills.periodEnd,
-        documentId: s.bills.documentId, madeBy: s.bills.madeBy,
+        ownCategoryId: s.bills.ownCategoryId, documentId: s.bills.documentId, madeBy: s.bills.madeBy,
       }).from(s.bills).where(eq(s.bills.householdId, hid)).orderBy(desc(s.bills.due), desc(s.bills.createdAt), desc(s.bills.id)).$dynamic()),
       tx.select({ id: s.clients.id, name: s.clients.name, email: s.clients.email, termsDays: s.clients.termsDays }).from(s.clients)
         .where(eq(s.clients.householdId, hid)).orderBy(s.clients.createdAt, s.clients.id),
@@ -104,6 +104,8 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
           readAt: s.events.readAt, occurredAt: s.events.occurredAt, madeBy: s.events.madeBy,
         }).from(s.events).where(eq(s.events.householdId, hid)).orderBy(desc(s.events.occurredAt), desc(s.events.id))
         : Promise.resolve(undefined),
+      tx.select({ id: s.ownCategories.id, kind: s.ownCategories.kind, name: s.ownCategories.name, businessBp: s.ownCategories.businessBp }).from(s.ownCategories)
+        .where(eq(s.ownCategories.householdId, hid)).orderBy(s.ownCategories.createdAt, s.ownCategories.id),
     ]);
 
     const stored = options.stored
@@ -123,6 +125,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
       members, cards, statements: st.rows, charges: ch.rows, bills: bi.rows, clients,
       invoices: inv.rows.map(i => ({ ...i, remindedAt: isoOrNull(i.remindedAt) })),
       pots,
+      ownCategories: ownRows,
       settlements: settlements.map(x => ({ ...x, settledAt: iso(x.settledAt), createdAt: iso(x.createdAt) })),
       balanceUpdates: bu.rows.map(u => ({ ...u, createdAt: iso(u.createdAt) })),
       documents: doc.rows.map(d => ({ ...d, createdAt: iso(d.createdAt) })),

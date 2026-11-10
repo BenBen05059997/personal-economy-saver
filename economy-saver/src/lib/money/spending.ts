@@ -5,6 +5,7 @@ import type { Currency } from "@/lib/catalogue/types";
 import { minorMoney, minorPerUnit } from "./format";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "./gaps";
 import { CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
+import { ownLabel } from "./own-category";
 import { nameKey, normalise } from "./name-key";
 import { amountOn, datesIn, nextAmountOf, realBillsBySeries, unpricedBySeries, variesOccurrences } from "./repeat";
 import type { Bill, Card, Charge, RepeatUnit, SplitMember } from "./types";
@@ -24,6 +25,7 @@ export type SpendItem = {
   amountMinor: number;
   category: CategoryKey;
   businessBp: number;
+  own: { id: string; name: string } | null; // D75: the person's own category under `category`, or none
   ownerId: string | null; // D52: a member's id, or null for Shared
   documentId: string | null;
   cardId: string | null;
@@ -111,7 +113,7 @@ export function spendingItems(input: SpendingInput, from: string, to: string): S
     const startAmount = bill.startAmount ?? bill.amount;
     const base = (date: string): SpendItem => ({
       kind: "bill", id, label: bill.biller, repeat: bill.repeatUnit ?? null, date, amountMinor: minor(amountOn(startAmount, next, date)), category: bill.category,
-      businessBp: bill.businessBp, ownerId: whose(bill.ownerId), documentId: bill.documentId ?? null, cardId: null,
+      businessBp: bill.businessBp, own: bill.own ?? null, ownerId: whose(bill.ownerId), documentId: bill.documentId ?? null, cardId: null,
       ...(bill.periodStart !== undefined && bill.periodEnd !== undefined && { periodStart: bill.periodStart, periodEnd: bill.periodEnd }),
     });
     const item = (date: string): SpendItem => ({
@@ -135,7 +137,7 @@ export function spendingItems(input: SpendingInput, from: string, to: string): S
     if (charge.status !== "confirmed" || charge.date < from || charge.date > to) continue;
     items.push({
       kind: "charge", id: charge.id, label: charge.merchant, repeat: null, date: charge.date, amountMinor: minor(charge.amount), category: charge.category,
-      businessBp: charge.businessBp, ownerId: charge.shared ? null : whose(owners.get(charge.cardId)), documentId: charge.documentId ?? null, cardId: charge.cardId,
+      businessBp: charge.businessBp, own: charge.own ?? null, ownerId: charge.shared ? null : whose(owners.get(charge.cardId)), documentId: charge.documentId ?? null, cardId: charge.cardId,
     });
   }
   return items.sort(byDateThenLabel);
@@ -146,6 +148,7 @@ type SpendingMonth = {
   name: string; // "November"
   totalMinor: number;
   byCategory: { category: CategoryKey; label: string; totalMinor: number }[]; // categories.ts order, only the ones with items
+  byOwn: { category: CategoryKey; id: string; name: string; totalMinor: number }[]; // D75: the own categories with items, in categories.ts order then by name
   items: SpendItem[]; // newest first
 };
 export type SpendingSearch = {
@@ -154,6 +157,8 @@ export type SpendingSearch = {
   currency: Currency;
   /** The category the query names exactly ("travel", "Phone & internet"), or null. */
   category: CategoryKey | null;
+  /** D75: the own category the query names exactly ("coffee"), when exactly one matching item set is filed under that name; else null. */
+  own: { id: string; name: string; category: CategoryKey } | null;
   totalMinor: number;
   months: SpendingMonth[]; // every month of the range, newest first, empty ones included
 };
@@ -161,7 +166,8 @@ export type SpendingSearch = {
 /**
  * The items that match a query, grouped by month over the range `from`..`to` (newest month first; a month with nothing is
  * listed at 0). A query matches when each of its words is in the item's name, its category key or its category label, so
- * "hotel" and "travel" both find a hotel and a bare "food" lists the Food category. An empty query matches everything.
+ * "hotel" and "travel" both find a hotel and a bare "food" lists the Food category. An item's own category name (D75) is searched too, so
+ * "coffee" finds what is filed under Coffee; a query that names one exactly totals it by month as a category name does. An empty query matches everything.
  * Items count up to `to` (today); a bill whose amount is not known is listed up to `uncountedTo` (the month's end) as well, since it is owed and not yet known (D55).
  */
 export function searchSpending(items: SpendItem[], query: string, currency: Currency, range: { from: string; to: string; uncountedTo?: string }): SpendingSearch {
@@ -169,17 +175,23 @@ export function searchSpending(items: SpendItem[], query: string, currency: Curr
   const terms = q.split(/\s+/).filter(Boolean);
   const matching = items.filter(item => {
     if (item.date < range.from || item.date > (item.uncounted ? range.uncountedTo ?? range.to : range.to)) return false;
-    const haystack = `${normalise(item.label)} ${item.category} ${item.category.replace(/_/g, " ")} ${normalise(categoryLabel(item.category))}`;
+    const haystack = `${normalise(item.label)} ${item.category} ${item.category.replace(/_/g, " ")} ${normalise(categoryLabel(item.category))}${item.own ? ` ${normalise(item.own.name)}` : ""}`;
     return terms.every(term => haystack.includes(term));
   });
   const named = CATEGORIES.find(c => q !== "" && (c.key === q || c.key.replace(/_/g, " ") === q || normalise(c.label) === q));
+  const ownNamedById = new Map<string, { id: string; name: string; category: CategoryKey }>();
+  if (q !== "") for (const i of matching) if (i.own !== null && normalise(i.own.name) === q) ownNamedById.set(i.own.id, { id: i.own.id, name: i.own.name, category: i.category });
+  const ownNamed = [...ownNamedById.values()];
   const months = monthsBetween(range.from, range.to).map((month): SpendingMonth => {
     const inMonth = matching.filter(i => i.date.startsWith(month)).sort((a, b) => byDateThenLabel(b, a));
     const byCategory = CATEGORIES.map(({ key }) => ({ category: key, label: categoryLabel(key), totalMinor: inMonth.filter(i => i.category === key).reduce((sum, i) => sum + i.amountMinor, 0) }))
       .filter(c => inMonth.some(i => i.category === c.category));
-    return { month, name: monthName(month), totalMinor: inMonth.reduce((sum, i) => sum + i.amountMinor, 0), byCategory, items: inMonth };
+    const owns = new Map<string, { category: CategoryKey; id: string; name: string; totalMinor: number }>();
+    for (const i of inMonth) if (i.own) owns.set(i.own.id, { category: i.category, id: i.own.id, name: i.own.name, totalMinor: (owns.get(i.own.id)?.totalMinor ?? 0) + i.amountMinor });
+    const byOwn = [...owns.values()].sort((a, b) => CATEGORIES.findIndex(c => c.key === a.category) - CATEGORIES.findIndex(c => c.key === b.category) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    return { month, name: monthName(month), totalMinor: inMonth.reduce((sum, i) => sum + i.amountMinor, 0), byCategory, byOwn, items: inMonth };
   });
-  return { query: q, currency, uncounted: matching.filter(i => i.uncounted).map(i => i.label), category: named?.key ?? null, totalMinor: months.reduce((sum, m) => sum + m.totalMinor, 0), months };
+  return { query: q, currency, uncounted: matching.filter(i => i.uncounted).map(i => i.label), category: named?.key ?? null, own: named ? null : ownNamed.length === 1 ? ownNamed[0] : null, totalMinor: months.reduce((sum, m) => sum + m.totalMinor, 0), months };
 }
 
 /**
@@ -188,7 +200,7 @@ export function searchSpending(items: SpendItem[], query: string, currency: Curr
  */
 export function searchLine(result: SpendingSearch): string {
   const money = (minor: number) => minorMoney(minor, result.currency);
-  const what = result.category !== null ? categoryLabel(result.category) : result.query === "" ? "Everything" : `"${result.query}"`;
+  const what = result.category !== null ? categoryLabel(result.category) : result.own !== null ? ownLabel(result.own.category, result.own) : result.query === "" ? "Everything" : `"${result.query}"`;
   const latestYear = result.months[0]?.month.slice(0, 4);
   const part = (m: SpendingSearch["months"][number]) => {
     const name = m.month.slice(0, 4) === latestYear ? m.name : `${m.name} ${m.month.slice(0, 4)}`;

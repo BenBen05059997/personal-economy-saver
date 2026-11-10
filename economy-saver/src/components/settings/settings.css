@@ -76,3 +76,7 @@
 .settings-access h3 { margin: var(--space-4) 0 var(--space-1); font: 500 15px/1.4 var(--sans); }
 .settings-access ul { padding-inline-start: var(--space-4); margin-block: var(--space-2); }
 .settings-access li + li { margin-top: var(--space-2); }
+/* Settings → Your categories (D75): a clear gap above each group heading, and even gaps between a row's disclosures. */
+.settings-own-group h3 { margin: var(--space-5) 0 var(--space-1); font: 500 15px/1.3 var(--sans); }
+.settings-page .settings-own-group .settings-bill details.settings-edit { padding-block: 0; }
+.settings-own-group .ui-remove > summary { padding-block: 12px 0; }

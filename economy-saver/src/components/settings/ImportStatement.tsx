@@ -4,7 +4,8 @@ import { useMemo, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { decodeStatement, IMPORT_BATCH, readRows, readStatement, type Encoding, type Picks, type Statement } from "@/lib/import/csv";
-import { categoryLabel } from "@/lib/money/categories";
+import { ownLabel } from "@/lib/money/own-category";
+import { guessedOwn, type OwnChoices } from "@/lib/reader/own-choices";
 import { dayLabel, minorMoney } from "@/lib/money/format";
 import type { Currency } from "@/lib/catalogue/types";
 
@@ -17,7 +18,7 @@ const COLUMN_WORDS: Record<keyof Picks, string> = { date: "Date column", name: "
  * shows the three guessed columns as choices, the first 20 rows and the counts, and "Import N charges" posts the readable
  * rows to /api/import in batches of 500. Categories are the keyword table's guesses; the person changes them afterwards.
  */
-export function ImportStatement({ cards, currency }: { cards: { id: string; label: string; lastClose: string }[]; currency: Currency }) {
+export function ImportStatement({ cards, currency, own }: { cards: { id: string; label: string; lastClose: string }[]; currency: Currency; own: OwnChoices }) {
   const router = useRouter();
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const [file, setFile] = useState<{ name: string; encoding: Encoding; statement: Statement } | null>(null);
@@ -42,9 +43,12 @@ export function ImportStatement({ cards, currency }: { cards: { id: string; labe
     setPicks(statement.picks);
   }
 
+  /** D75: a shop whose name matches the latest confirmed item with an own category files itself under it; the preview shows it. */
+  const ownFor = (category: string, merchant: string) => { const found = guessedOwn(own, category, merchant); return found ? { ownCategoryId: found.id } : {}; };
+
   async function importRows() {
     if (busy || !read) return;
-    const rows = read.rows.filter(r => !r.problem && !r.skipped).map(({ date, merchant, amountMinor, category }) => ({ date, merchant, amountMinor, category }));
+    const rows = read.rows.filter(r => !r.problem && !r.skipped).map(({ date, merchant, amountMinor, category }) => ({ date, merchant, amountMinor, category, ...ownFor(category, merchant) }));
     setBusy(true); setProblem(""); setDone(null);
     let added = 0, skipped = 0;
     try {
@@ -89,11 +93,11 @@ export function ImportStatement({ cards, currency }: { cards: { id: string; labe
         <tbody>{read.rows.slice(0, PREVIEW_ROWS).map(row => <tr key={row.line} className={row.problem || row.skipped ? "settings-import-out" : undefined}>
           <td>{row.line}</td><td>{row.date}</td><td>{row.merchant}</td>
           <td>{row.problem || row.skipped ? "" : minorMoney(row.amountMinor, currency)}</td>
-          <td>{row.problem ?? (row.skipped ? "Skipped: credit or no amount" : categoryLabel(row.category))}</td>
+          <td>{row.problem ?? (row.skipped ? "Skipped: credit or no amount" : ownLabel(row.category, guessedOwn(own, row.category, row.merchant)))}</td>
         </tr>)}</tbody>
       </table></div>
       {read.rows.length > PREVIEW_ROWS && <p className="ui-hint">The first {PREVIEW_ROWS} of {read.rows.length.toLocaleString("en-US")} rows.</p>}
-      <p className="ui-hint">Categories are guessed from the shop names; change any later. A row already on this card (same date, amount and shop) is skipped, so importing a file twice adds nothing.</p>
+      <p className="ui-hint">Categories are guessed from the shop names, and a shop you filed before goes under the same category of yours; change any later. A row already on this card (same date, amount and shop) is skipped, so importing a file twice adds nothing.</p>
       <p className="ui-hint">{card ? `Charges after ${card.label}’s last statement (closed ${dayLabel(card.lastClose)}) count toward what you owe now; older ones are history only.` : ""}</p>
       <button type="button" className="ui-button primary" disabled={busy || count === 0} onClick={importRows}>{busy ? "Importing…" : `Import ${count.toLocaleString("en-US")} ${count === 1 ? "charge" : "charges"}`}</button>
     </div>}

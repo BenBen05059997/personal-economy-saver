@@ -83,7 +83,7 @@ async function main() {
     assert.deepEqual(rows(august), [["bill", "rent", "Fictional Heights rent", "2026-08-25", 90_000, null], ["bill", "tax", "Fictional ward tax", "2026-08-31", 12_000, "ren"]]);
     assert.deepEqual(spendingItems(mio, "2026-11-01", "2026-11-30").find(i => i.id === "rent")!.date, "2026-11-25", "the rest of the month is in when the range says so");
     const inn = spendingItems(mio, "2026-10-10", "2026-10-10")[0];
-    assert.deepEqual(inn, { kind: "charge", id: "inn", label: "Hakone Yumoto Hotel", repeat: null, date: "2026-10-10", amountMinor: 32_000, category: "travel", businessBp: 0, ownerId: "mio", documentId: null, cardId: "card-mio" });
+    assert.deepEqual(inn, { kind: "charge", id: "inn", label: "Hakone Yumoto Hotel", repeat: null, date: "2026-10-10", amountMinor: 32_000, category: "travel", businessBp: 0, own: null, ownerId: "mio", documentId: null, cardId: "card-mio" });
     assert.equal(spendingItems(mio, "2026-08-25", "2026-08-25")[0].cardId, null, "a bill has no card");
     assert.deepEqual(spendingItems(mio, "2026-08-01", "2026-10-31").map(i => [i.id, i.repeat]),
       [["rent", "month"], ["tax", null], ["flight", null], ["rent", "month"], ["cover", "year"], ["inn", null], ["rent", "month"]], "D54: the bill's repeat unit; null for one-offs and charges");

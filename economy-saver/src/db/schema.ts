@@ -297,6 +297,28 @@ export const cardStatements = pgTable(
   ],
 ).enableRLS();
 
+// D75: the person's own categories, each under one of the fourteen kinds. A category, an own category and a business share move no money.
+export const ownCategories = pgTable(
+  "own_categories",
+  {
+    id: id(),
+    householdId: householdId(),
+    kind: text("kind").notNull(), // one of the fourteen keys from lib/money/categories.ts; never changes
+    name: text("name").notNull(),
+    nameKey: text("name_key").notNull(), // nameKey(name): one per kind in a household
+    businessBp: integer("business_bp"), // the default business share a form pre-fills; null = none
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("own_categories_household_idx").on(t.householdId),
+    unique("own_categories_name_uq").on(t.householdId, t.kind, t.nameKey),
+    unique("own_categories_household_id_uq").on(t.householdId, t.id, t.kind),
+    check("own_categories_kind_valid", sql`${t.kind} in (${categoryList})`),
+    check("own_categories_name_valid", sql`char_length(${t.name}) between 1 and 40`),
+    check("own_categories_business_valid", sql`${t.businessBp} is null or ${t.businessBp} between 0 and 10000`),
+  ],
+).enableRLS();
+
 export const charges = pgTable(
   "charges",
   {
@@ -313,6 +335,7 @@ export const charges = pgTable(
     shared: boolean("shared").notNull().default(false), // D45: split between the members; the card's owner paid it
     category: text("category").notNull().default("other"), // D46: a key from lib/money/categories.ts
     businessBp: integer("business_bp").notNull().default(0), // D46: business share in basis points; 0 = personal, 10000 = business
+    ownCategoryId: uuid("own_category_id"), // D75: one of the household's own categories of this category's kind, or none
     date: date("date", { mode: "string" }).notNull(),
     source: chargeSource("source").notNull(),
     status: confirmStatus("status").notNull().default("confirmed"),
@@ -330,6 +353,8 @@ export const charges = pgTable(
     check("charges_original_pair", sql`(${t.originalAmountMinor} is null) = (${t.originalCurrency} is null)`),
     check("charges_category_valid", sql`${t.category} in (${categoryList})`),
     check("charges_business_valid", sql`${t.businessBp} between 0 and 10000`),
+    // D75: an own category of this household and this category's kind; removing it clears only own_category_id (see migration 0032).
+    foreignKey({ columns: [t.householdId, t.ownCategoryId, t.category], foreignColumns: [ownCategories.householdId, ownCategories.id, ownCategories.kind], name: "charges_own_category_fk" }).onDelete("set null"),
   ],
 ).enableRLS();
 
@@ -346,6 +371,7 @@ export const bills = pgTable(
     due: date("due", { mode: "string" }), // D55: null = not known yet (a one-off bill only)
     category: text("category").notNull(), // D46: a key from lib/money/categories.ts
     businessBp: integer("business_bp").notNull().default(0), // D46: business share in basis points; 0 = personal, 10000 = business
+    ownCategoryId: uuid("own_category_id"), // D75: one of the household's own categories of this category's kind, or none
     status: confirmStatus("status").notNull().default("confirmed"),
     previousAmountMinor: minor("previous_amount_minor"),
     fxRateMicro: bigint("fx_rate_micro", { mode: "number" }),
@@ -381,6 +407,8 @@ export const bills = pgTable(
     foreignKey({ columns: [t.householdId, t.seriesBillId], foreignColumns: [t.householdId, t.id], name: "bills_series_household_fk" }).onDelete("set null"),
     check("bills_category_valid", sql`${t.category} in (${categoryList})`),
     check("bills_business_valid", sql`${t.businessBp} between 0 and 10000`),
+    // D75: an own category of this household and this category's kind; removing it clears only own_category_id (see migration 0032).
+    foreignKey({ columns: [t.householdId, t.ownCategoryId, t.category], foreignColumns: [ownCategories.householdId, ownCategories.id, ownCategories.kind], name: "bills_own_category_fk" }).onDelete("set null"),
     foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "bills_member_household_fk" }),
     foreignKey({ columns: [t.householdId, t.paidByMemberId], foreignColumns: [members.householdId, members.id], name: "bills_paid_by_household_fk" }),
     check("bills_paid_by_shared_only", sql`${t.paidByMemberId} is null or ${t.memberId} is null`),

@@ -16,6 +16,7 @@ import { checksFor, readingProposal, type CheckKind } from "@/lib/money/checks";
 import { refreshSuggestions } from "./suggestions";
 import { DOCUMENT_WORDS } from "@/lib/reader/document-card";
 import { estimatedDue, periodProblem } from "@/lib/money/period";
+import { resolveOwnCategory, type OwnChoice } from "./own-categories";
 
 const ruleKey = (entry: Extracted) => entry.name ? entry.kind + ":" + nameKey(entry.name) : null;
 const patchSchema = extractSchema.pick({ name: true, kind: true, category: true, businessBp: true, cardId: true }).partial();
@@ -58,9 +59,10 @@ export async function proposeReadings(db: Db, id: string, documentId: string, it
  * Confirms a reading with the fields as the user corrected them, or dismisses it (`fields` null). A bill (never a charge) may be
  * confirmed with its amount and/or its date not known yet (D55) when the caller says so in `unknown`; those fields are then null.
  * With `remember` (the card's ticked box, D58) a changed name, category, share or card is also kept as a correction in memory, in the same transaction.
+ * With `own` (D75) the bill or charge is filed under an own category of its category: an id, or a new name made in the same transaction; absent = none.
  * With `answered` (D61, a Confirm from Ask) a check the card asked, which still fails on the final fields, must be among the kinds answered or the confirm is refused.
  */
-export async function reviewReading(db: Db, id: string, readingId: string, fields: Extracted | null, unknown: { amount?: boolean; date?: boolean } = {}, remember = false, answered?: readonly CheckKind[]) {
+export async function reviewReading(db: Db, id: string, readingId: string, fields: Extracted | null, unknown: { amount?: boolean; date?: boolean } = {}, remember = false, answered?: readonly CheckKind[], own: OwnChoice = {}) {
   const hid = requireHousehold(id);
   const saved = await withHousehold(db, hid, async tx => {
     const previous = await lockRunway(tx, hid);
@@ -109,7 +111,10 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     }
     const amounts = { madeBy: "reader" as const, householdId: hid, documentId: row.documentId, amountMinor: amount, currency: row.currency, fxRateMicro: fx };
     if (!value.category) throw new ReaderError("Choose a category.");
-    const category = { category: value.category, businessBp: value.businessBp ?? 0 };
+    let ownCategoryId: string | null;
+    try { ownCategoryId = (await resolveOwnCategory(tx, hid, value.category, own)) ?? null; }
+    catch (error) { throw error instanceof InputError ? new ReaderError(error.message) : error; }
+    const category = { category: value.category, businessBp: value.businessBp ?? 0, ownCategoryId };
     let targetId: string;
     let linked: string | null = null;
     if (value.kind === "charge") {
