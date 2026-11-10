@@ -147,15 +147,15 @@
     ],
     "how": "suite",
     "preconditions": [
-      "A named Ask space with a starter canvas"
+      "A named Ask space with a brief"
     ],
     "steps": [
       "Run npm run db:ask-routes-test",
       "Render the full and panel presentations from the same Ask view"
     ],
     "expected": [
-      "Both render the question form, space controls, brief and canvas",
-      "Only the panel renders Open full for the selected space"
+      "Both render the question form and space controls; the full page also renders the brief, notes and starter canvases",
+      "Only the panel renders Open full for the selected space, and it leaves out the brief, notes, delete control and starter canvases"
     ],
     "refs": [
       "BROWSER-CHECKS AQ4",
@@ -170,7 +170,7 @@
     "type": "happy",
     "priority": "P2",
     "needs": [
-      "none"
+      "model"
     ],
     "how": "browser",
     "preconditions": [
@@ -179,10 +179,11 @@
     "steps": [
       "At 1440px open the Ask panel from Home",
       "Select March paperwork",
+      "Ask \"Where did last month go?\"",
       "Choose Open full above the canvas"
     ],
     "expected": [
-      "The question form and compact starter canvas stack and fit the panel. Any horizontal scrolling stays inside its table block.",
+      "The panel is one column with the composer docked at the bottom, no brief, notes or starter chips; the compact table fits and any horizontal scrolling stays inside its table block",
       "Open full opens the named space’s /canvas?space=<id> page with March paperwork selected"
     ],
     "refs": [
@@ -208,8 +209,9 @@
       "Check the initial workspace rendering and the panel preference round trip"
     ],
     "expected": [
-      "The initial workspace renders without an Ask panel or a view request",
-      "Panel preferences round-trip only the open flag and selected space and are separate by household"
+      "The initial server-rendered workspace has no panel or view request",
+      "At 1200px or wider an absent preference defaults to open; an explicit close stays closed",
+      "Preferences contain only the open flag and selected space and are separate by household"
     ],
     "refs": [
       "BROWSER-CHECKS AQ6",
@@ -561,11 +563,11 @@
       "Ask panel open on Home"
     ],
     "steps": [
-      "Choose Ask from the sidebar",
+      "Choose Open full in the Ask panel",
       "Return to Home from the sidebar"
     ],
     "expected": [
-      "Full Ask has one question box and no separate Ask panel",
+      "Open full shows one question box and no separate Ask panel",
       "On returning to Home the panel is open"
     ],
     "refs": [

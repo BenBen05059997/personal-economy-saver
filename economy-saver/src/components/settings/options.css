@@ -8,8 +8,8 @@
 .options-page h2 { font: 500 17px/1.4 var(--sans); }
 .option-cost { flex: none; text-align: right; font: 400 27px/1.1 var(--serif); }
 .option-cost small { display: block; margin-top: 5px; color: var(--muted); font: 400 12px/1.3 var(--sans); }
-.option-pick { border-color: var(--accent); }
-.option-label { color: var(--accent); font-size: 10px; letter-spacing: .08em; font-weight: 600; margin-bottom: 6px; }
+.option-pick { border-color: var(--accent-border); }
+.option-label { color: var(--ink); font-size: 10px; letter-spacing: .08em; font-weight: 600; margin-bottom: 6px; }
 .option-row .ui-button { justify-self: start; }
 .option-row summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 .option-row details a { font-size: 13px; }

@@ -98,7 +98,7 @@ export function Directory({ state, section, selected, newClientId }: { state: Mo
       })}
       {isCards && state.cards.length === 0 && <PanelHint className="directory-empty" href={SETTINGS_CARDS} label="Add one in Settings">No card yet.</PanelHint>}
       {!isCards && state.clients.length === 0 && <PanelHint className="directory-empty" href="#add-client" label="Add a client">No clients yet.</PanelHint>}
-      {!isCards && <div id="add-client"><AddClientForm id={newClientId} /></div>}
+      {!isCards && <AddClientForm id={newClientId} />}
     </div>
     {card && <CardPanel state={state} card={card} />}
     {client && <ClientPanel state={state} client={client} />}

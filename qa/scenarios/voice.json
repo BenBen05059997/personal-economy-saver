@@ -2,7 +2,7 @@
   {
     "id": "VOICE-001",
     "area": "Voice",
-    "action": "Use the top bar's microphone",
+    "action": "Use the microphone in the top bar field or the composer",
     "user_goal": "I want to ask by speaking instead of typing",
     "type": "happy",
     "priority": "P2",
@@ -12,14 +12,14 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14)",
-      "Home open at 1440px, then 375px",
+      "Home open at 1100px, then 375px",
       "Before the tap, define window.webkitSpeechRecognition as a class whose start() calls this.onresult({ results: [[{ transcript }]] }) then this.onend() with the transcript \"Can I afford ¥4,000 tonight?\""
     ],
     "steps": [
-      "Tap the mic button beside the Ask link in the top bar (the phone bar at 375px)"
+      "Tap the mic button beside the Ask field in the top bar (the phone bar at 375px)"
     ],
     "expected": [
-      "The desktop panel opens on Home at 1440px, and the full Ask page opens at /canvas#ask at 375px",
+      "The Ask panel opens as an overlay on Home at 1100px, and the full Ask page opens at /canvas#ask at 375px",
       "The composer has \"Can I afford ¥4,000 tonight?\" with the cursor at the end",
       "Nothing is sent: no turn appears until Ask or Enter",
       "The mic button is 44px tall at 375px"
@@ -42,15 +42,16 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14)",
-      "A browser without speech recognition (Firefox, or delete window.webkitSpeechRecognition and window.SpeechRecognition before the tap)"
+      "A browser without speech recognition (Firefox, or delete window.webkitSpeechRecognition and window.SpeechRecognition before the tap)",
+      "Home open at 1100px"
     ],
     "steps": [
       "Tap the mic button in the top bar",
-      "Click the Ask link"
+      "Click the Ask field"
     ],
     "expected": [
       "The bar says \"This browser doesn’t offer speech recognition. Type your question below.\"",
-      "The Ask link still opens Ask and typing a character on it still starts a question"
+      "The Ask field still opens Ask and typing a character on it still starts a question"
     ],
     "refs": [
       "BROWSER-CHECKS K5",

@@ -8,6 +8,7 @@ import { useEffect } from "react";
  */
 export function ScrollToHash() {
   useEffect(() => {
+    function scroll() {
     const id = window.location.hash.slice(1);
     if (!id) return;
     const target = document.getElementById(id);
@@ -16,6 +17,10 @@ export function ScrollToHash() {
       if (node instanceof HTMLDetailsElement) node.open = true;
     }
     target.scrollIntoView({ block: "center" });
+    }
+    scroll();
+    window.addEventListener("hashchange", scroll);
+    return () => window.removeEventListener("hashchange", scroll);
   }, []);
   return null;
 }

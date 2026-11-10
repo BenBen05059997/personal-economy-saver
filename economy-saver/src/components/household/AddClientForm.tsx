@@ -4,7 +4,7 @@ import { LABELS } from "./labels";
 import "./add-entry.css";
 
 export function AddClientForm({ id }: { id: string }) {
-  return <details className="add-entry">
+  return <details className="add-entry" id="add-client">
     <summary>Add a client</summary>
     <ApiForm action="/api/clients">
       <VoiceFill />

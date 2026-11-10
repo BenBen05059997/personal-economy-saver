@@ -29,7 +29,7 @@
 .settings-bill:last-child { border-bottom: 0; }
 .settings-documents { list-style: none; margin: 0; padding: 0; }
 .settings-documents > li { border-top: 1px solid var(--rule); padding-block: var(--space-3); }
-.account-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 4px; }
+.account-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--chart); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .settings-family { display: grid; gap: var(--space-2); justify-items: start; margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--rule); }
 .settings-family > * { margin: 0; }
 .settings-family-date { white-space: nowrap; }

@@ -31,7 +31,7 @@ import { askUnavailable, missingAskSetting, NEEDS_KEY, serverDefaultHost } from 
 import { extractDocument, extractSchema } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
-import { CLOSED_PANEL, readPanelPreferences, writePanelPreferences } from "@/components/ask/panel-preferences";
+import { CLOSED_PANEL, readPanelChoice, readPanelPreferences, writePanelChoice, writePanelPreferences } from "@/components/ask/panel-preferences";
 
 type Handler = (request: Request) => Promise<Response>;
 const ORIGIN = "http://127.0.0.1:3123";
@@ -110,11 +110,22 @@ async function main() {
       assert.deepEqual(readPanelPreferences(firstTab, a), { open: true, spaceId });
       assert.deepEqual(readPanelPreferences(firstTab, b), CLOSED_PANEL);
       assert.deepEqual(readPanelPreferences(secondTab, a), CLOSED_PANEL);
+      assert.deepEqual(readPanelPreferences(secondTab, a, true), { open: true, spaceId: null });
+      // An untouched open/closed setting follows the viewport, even when a selected space is saved.
+      writePanelChoice(secondTab, a, { open: null, spaceId });
+      assert.deepEqual(readPanelChoice(secondTab, a), { open: null, spaceId });
+      assert.deepEqual(readPanelPreferences(secondTab, a, false), { open: false, spaceId });
+      assert.deepEqual(readPanelPreferences(secondTab, a, true), { open: true, spaceId });
+      writePanelChoice(secondTab, a, { open: false, spaceId });
+      assert.deepEqual(readPanelPreferences(secondTab, a, true), { open: false, spaceId });
+      writePanelChoice(secondTab, a, { open: true, spaceId });
+      assert.deepEqual(readPanelPreferences(secondTab, a, false), { open: true, spaceId });
       writePanelPreferences(firstTab, b, { open: true, spaceId: null });
       const secondPreference = { open: true, spaceId: crypto.randomUUID() };
       writePanelPreferences(secondTab, a, secondPreference);
       writePanelPreferences(firstTab, a, { open: false, spaceId });
       assert.deepEqual(readPanelPreferences(firstTab, a), { open: false, spaceId });
+      assert.deepEqual(readPanelPreferences(firstTab, a, true), { open: false, spaceId });
       assert.deepEqual(readPanelPreferences(firstTab, b), { open: true, spaceId: null });
       assert.deepEqual(readPanelPreferences(secondTab, a), secondPreference);
       ok("Ask panel preferences store only open and space, separately by household and tab");
@@ -247,18 +258,19 @@ async function main() {
       const panel = renderToStaticMarkup(createElement(AskPage, { ...selected, variant: "panel" }));
       assert.match(full, /class="ask-page"/);
       assert.match(panel, /class="ask-page is-panel"/);
-      assert.doesNotMatch(full, />Open full</);
-      const openFull = `<a class="ui-button ask-open-full" href="/canvas?space=${project.id}">Open full</a>`;
-      assert.ok(panel.includes(openFull), "Open full points to the current space");
-      for (const part of [askTurn.question, askTurn.reply, "Helpful", "Incognito", "Attach a bill", "Show the recipe", recipe.blocks[0].text]) {
+      assert.doesNotMatch(full, /aria-label="Open full"|aria-label="Close Ask"/);
+      assert.match(panel, new RegExp(`<a class="ask-icon-button ask-open-full" aria-label="Open full" href="/canvas\\?space=${project.id}"`), "Open full points to the current space");
+      assert.match(panel, /aria-label="Close Ask"/);
+      for (const part of [askTurn.question, askTurn.reply, "Helpful", "Incognito", "Attach a bill", "Ask a question", 'aria-label="Use microphone"', recipe.blocks[0].text]) {
         assert.ok(full.includes(part) && panel.includes(part), part);
       }
+      assert.ok(!full.includes("Your question"), "one composer wording");
+      // The full page keeps the brief, the notes link and the starter canvases; the panel leaves them to Open full.
       assert.match(full, /href="#space-notes"/);
-      assert.match(panel, /href="#ask-panel-space-notes"/);
-      assert.equal(panel.replace(openFull, "").replace('class="ask-page is-panel"', 'class="ask-page"')
-        .replace('<h2 class="ui-title">Ask</h2>', '<h1 class="ui-title">Ask</h1>').replace('id="ask-panel-question"', 'id="ask"')
-        .replace(/((?:id|href|aria-labelledby)="#?)ask-panel-(?=(?:space-notes|memory-))/g, "$1"), full);
-      ok("AskPage renders the same thread, composer and canvas in both layouts; the panel adds Open full for the current space");
+      assert.match(full, /Show the recipe/);
+      assert.doesNotMatch(panel, /space-notes|Space brief|Canvases to start from/);
+      assert.ok(full.includes('id="ask"') && panel.includes('id="ask-panel-question"'));
+      ok("AskPage renders the same thread and composer in both layouts; the panel adds the header with Open full and Close Ask and leaves out the brief, notes link and starter canvases");
 
       // Keep rows deliberately to prove the view obeys placement rather than returning an already empty cloud.
       await db.update(schema.households).set({ memoryPlace: "device", canvasPlace: "device", journalPlace: "device" })

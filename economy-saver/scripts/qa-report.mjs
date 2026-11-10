@@ -14,7 +14,7 @@ const PRIORITIES = ["P1", "P2", "P3"];
 const NEEDS = ["none", "model", "deploy", "paypal_webhook", "email", "microphone", "owner"];
 const HOWS = ["browser", "http", "suite", "eval"];
 const STATUSES = ["pass", "fail", "blocked", "skipped"];
-const WIDTHS = ["375", "1024", "1280", "1440", "both", "n/a"];
+const WIDTHS = ["375", "1024", "1100", "1280", "1440", "both", "n/a"];
 const MAIN = ["results-scripted.json", "results-browser.json"]; // one run; every other results-*.json is one environment run
 const ID = /^[A-Z]+-\d{3}$/;
 

@@ -1,5 +1,5 @@
 .directory-next { margin: var(--space-4) 0 0; }
-.directory-next a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.directory-next a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--chart); text-decoration-thickness: 2px; text-underline-offset: 3px; font-weight: 500; }
 .directory-next a:hover { text-decoration: underline; }
 .directory { display: grid; gap: var(--space-6); }
 .directory.detail-open { grid-template-columns: minmax(0, 1fr) minmax(270px, var(--detail-width)); align-items: start; }
@@ -7,7 +7,8 @@
 .directory-list > .ui-hint { margin-bottom: var(--space-5); }
 .directory .ui-row { align-items: center; }
 .directory-link { text-decoration: none; overflow-wrap: anywhere; }
-.directory-link[aria-current="page"], .directory-link:hover { background: var(--wash); }
+.directory-link:hover { background: var(--wash); }
+.directory-link[aria-current="page"] { background: var(--nav-current); }
 .directory-list .directory-link { padding-inline: var(--space-2); }
 .directory-list .directory-link > :last-child, .directory-detail dd { text-align: right; }
 .directory-list .directory-link > :first-child { min-width: 0; }

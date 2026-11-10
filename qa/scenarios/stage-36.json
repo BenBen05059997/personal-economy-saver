@@ -1,0 +1,1524 @@
+[
+  {
+    "id": "VIEW-001",
+    "area": "Stage 36",
+    "action": "Open the landing sign-in card",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open / without a session and choose Sign in"
+    ],
+    "expected": [
+      "The email sign-in card is in view; it offers Email me a sign-in link and Invited to a household?"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-002",
+    "area": "Stage 36",
+    "action": "Send a fictional sign-in link",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Enter a fictional email and submit Email me a sign-in link"
+    ],
+    "expected": [
+      "The page says Check your inbox"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-003",
+    "area": "Stage 36",
+    "action": "Inspect the landing preview",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Read the sample Home preview"
+    ],
+    "expected": [
+      "The sentence, forecast and safe to spend match Expected numbers and the action names Beacon Studio"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-004",
+    "area": "Stage 36",
+    "action": "Open People from the sidebar",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Select People in the sidebar"
+    ],
+    "expected": [
+      "Settings opens at People and the person form is available"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-005",
+    "area": "Stage 36",
+    "action": "Open the bill form from Add",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Add then A bill"
+    ],
+    "expected": [
+      "Home opens with the add form on its Bill tab"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-006",
+    "area": "Stage 36",
+    "action": "Open the card charge form from Add",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Add then A card charge"
+    ],
+    "expected": [
+      "Home opens with the add form on its Card charge tab"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-007",
+    "area": "Stage 36",
+    "action": "Open the client form from Add",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Add then A client who pays you"
+    ],
+    "expected": [
+      "Clients opens with its add-client form"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-008",
+    "area": "Stage 36",
+    "action": "Open the person form from Add",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Add then A person who shares costs"
+    ],
+    "expected": [
+      "Settings opens at the add-person form"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-009",
+    "area": "Stage 36",
+    "action": "Open upload from Add",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Add then Upload a receipt or bill"
+    ],
+    "expected": [
+      "Upload opens"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-010",
+    "area": "Stage 36",
+    "action": "Open the default desktop Ask panel",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open a fresh Try it at 1440px without a saved panel preference"
+    ],
+    "expected": [
+      "The Ask panel is docked on the right and the top Ask button is pressed"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-011",
+    "area": "Stage 36",
+    "action": "Toggle Ask from the sidebar",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Ask in the sidebar twice"
+    ],
+    "expected": [
+      "The first tap closes the panel and the second opens it"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-012",
+    "area": "Stage 36",
+    "action": "Remember the closed Ask panel",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Close the panel and reload the page in the same tab"
+    ],
+    "expected": [
+      "The panel stays closed; opening it restores the thread"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-013",
+    "area": "Stage 36",
+    "action": "Read the Ask screen chip",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open the panel on Home and navigate to Plan"
+    ],
+    "expected": [
+      "The chip changes from Looking at Home to Looking at Plan"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-014",
+    "area": "Stage 36",
+    "action": "Read owner key guidance",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open the panel as the owner on a server with no model configured"
+    ],
+    "expected": [
+      "The bold \"Add your own AI key in Settings to use Ask.\", then \"fipa has no AI of its own here. Paste a key from Anthropic, OpenAI, Google Gemini, OpenRouter, Groq or Mistral. It is sealed when you save it and never shown in full again.\", the yellow \"Add your AI key\" button and \"Where do I get one?\"",
+      "The starters, the question field and the microphone are disabled"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-015",
+    "area": "Stage 36",
+    "action": "Read member key guidance",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open the panel as a household member when no model is configured"
+    ],
+    "expected": [
+      "\"Ask the household’s owner to add an AI key in Settings.\" with no button",
+      "The starters, the question field and the microphone are disabled"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-016",
+    "area": "Stage 36",
+    "action": "Open a provider key page list",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "In the owner key guidance expand Where do I get one?"
+    ],
+    "expected": [
+      "The provider key-page links appear without navigating away"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-017",
+    "area": "Stage 36",
+    "action": "Read Get started",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "On a fresh Ben Try it read Get started"
+    ],
+    "expected": [
+      "Five steps and an n of 5 progress indicator reflect the current household state"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-018",
+    "area": "Stage 36",
+    "action": "Hide Get started",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Select Hide on Get started and reload"
+    ],
+    "expected": [
+      "The panel remains hidden on this device"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-019",
+    "area": "Stage 36",
+    "action": "Complete the invoice step",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "paypal_webhook"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Approve Beacon’s invoice and arrange sandbox payment"
+    ],
+    "expected": [
+      "The invoice step becomes complete when the paid state is recorded"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-020",
+    "area": "Stage 36",
+    "action": "Complete the bill step",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Confirm the Hikari Denki reading in To check"
+    ],
+    "expected": [
+      "The Hikari step becomes complete and the To check count drops"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-021",
+    "area": "Stage 36",
+    "action": "Complete the AI question step",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Save a fictional test model key and ask one question"
+    ],
+    "expected": [
+      "The step is complete after a key is saved and an answer is recorded"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-022",
+    "area": "Stage 36",
+    "action": "Complete the person step",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Add a fictional person who shares costs"
+    ],
+    "expected": [
+      "The person step becomes complete"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-023",
+    "area": "Stage 36",
+    "action": "Choose the forecast chart",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Select Forecast then Chart"
+    ],
+    "expected": [
+      "The step chart shows late and on-time series, zero line, low point and the area labelled Depends on when they pay"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-024",
+    "area": "Stage 36",
+    "action": "Read a forecast day with keyboard",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Focus a day in the forecast chart"
+    ],
+    "expected": [
+      "The date, late and on-time balances and events for that date are shown"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-025",
+    "area": "Stage 36",
+    "action": "Read the pending bill on the chart",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Focus Nov 27 on a fresh Ben forecast"
+    ],
+    "expected": [
+      "Hikari Denki waits in To check and is not counted yet; the late balance is short ¥18,780"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-026",
+    "area": "Stage 36",
+    "action": "Choose the forecast table",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Select Forecast then Table"
+    ],
+    "expected": [
+      "The table has day, what happens, balance if late and balance if on time"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-027",
+    "area": "Stage 36",
+    "action": "Choose categories chart",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Select Categories then Chart"
+    ],
+    "expected": [
+      "Ranked bars distinguish spent and still to come, with last-month marks and totals matching Expected numbers"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-028",
+    "area": "Stage 36",
+    "action": "Choose categories table",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Select Categories then Table"
+    ],
+    "expected": [
+      "The category rows show spent, still to come, this month and last month and the total matches Expected numbers"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-029",
+    "area": "Stage 36",
+    "action": "Choose trend chart",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Select Trend then Chart"
+    ],
+    "expected": [
+      "Monthly columns show up to six months with data and split the current month into spent and still to come"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-030",
+    "area": "Stage 36",
+    "action": "Choose trend table",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Select Trend then Table"
+    ],
+    "expected": [
+      "The monthly table shows the same totals as the trend chart"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-031",
+    "area": "Stage 36",
+    "action": "Remember Home view controls",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Categories and Table, then reload Home"
+    ],
+    "expected": [
+      "Categories and Table remain selected on this device"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-032",
+    "area": "Stage 36",
+    "action": "Ask about a Home view",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Ask about this on the selected Home view"
+    ],
+    "expected": [
+      "Ask opens and sends the view question once; the thread keeps its answer"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR",
+      "D25",
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-033",
+    "area": "Stage 36",
+    "action": "Read the top bar at 1440px",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open Home, then Plan"
+    ],
+    "expected": [
+      "The top bar shows \"Sample household · fixed date Nov 14\", a bell with a \"1\" badge, \"+ Add\" and \"Ask\" on both pages",
+      "There is no \"Ask or say:\" field"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR9",
+      "D25"
+    ]
+  },
+  {
+    "id": "VIEW-034",
+    "area": "Stage 36",
+    "action": "Toggle Ask with the top bar button",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "With the panel open, look at the Ask button",
+      "Click it"
+    ],
+    "expected": [
+      "The Ask button has a dark 2px border and a pale-yellow fill while the panel is open",
+      "Clicking it closes the panel and the border and fill go away"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR9",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-035",
+    "area": "Stage 36",
+    "action": "Read the sidebar current page",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open Home with the panel open, then Plan"
+    ],
+    "expected": [
+      "The current page is the only row with a grey fill, never yellow",
+      "Ask shows a small orange dot at its right edge while the panel is open"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR9",
+      "D25"
+    ]
+  },
+  {
+    "id": "VIEW-036",
+    "area": "Stage 36",
+    "action": "Read the Add menu order",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open + Add"
+    ],
+    "expected": [
+      "The menu reads A bill, A card charge, A client who pays you, A person who shares costs, a line, Upload a receipt or bill, New invoice",
+      "Forward a bill appears before New invoice only when the forwarding settings exist"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR10",
+      "D25"
+    ]
+  },
+  {
+    "id": "VIEW-037",
+    "area": "Stage 36",
+    "action": "Read the top bar at 1100px",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Resize to 1100px and open Home"
+    ],
+    "expected": [
+      "The mic and the \"Ask or say: Can I afford ¥4,000 tonight?\" field are back",
+      "The Ask button opens the same column as an overlay"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR9",
+      "D25"
+    ]
+  },
+  {
+    "id": "VIEW-038",
+    "area": "Stage 36",
+    "action": "Read the top bar on the full Ask page",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open /canvas at 1440px"
+    ],
+    "expected": [
+      "The bar shows the chip, the bell and \"+ Add\" and no Ask button"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR9",
+      "D25"
+    ]
+  },
+  {
+    "id": "VIEW-039",
+    "area": "Stage 36",
+    "action": "Tab through the shell in dark mode",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Switch to dark mode",
+      "Tab through the sidebar and the top bar"
+    ],
+    "expected": [
+      "A light focus ring shows on each control"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR9",
+      "D72"
+    ]
+  },
+  {
+    "id": "VIEW-040",
+    "area": "Stage 36",
+    "action": "Read the Home order",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open Home"
+    ],
+    "expected": [
+      "Top to bottom: the date \"Sat Nov 14\", the sentence \"You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th.\", the demo line, the \"Invoice Beacon $400\" and \"Upload a receipt\" buttons, \"Get started\", the \"Your next 30 days\" panel, then To check, Cards and Coming up"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR11",
+      "D25"
+    ]
+  },
+  {
+    "id": "VIEW-041",
+    "area": "Stage 36",
+    "action": "Read the Home columns",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open Home at 1100px or wider with the Ask panel closed"
+    ],
+    "expected": [
+      "To check, Suggestions, Cards and Shared costs are in the left column and Coming up is in the right column"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR11",
+      "D25"
+    ]
+  },
+  {
+    "id": "VIEW-042",
+    "area": "Stage 36",
+    "action": "Read the Get started rows",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open Home and read Get started"
+    ],
+    "expected": [
+      "It shows \"1 of 5 done\" with a short orange bar and Hide",
+      "\"Read the sentence and the forecast\" is struck through with a green check",
+      "The other four have empty rings and link to /invoices, /to-check, /settings#ai-model and /settings#people with the words \"Approve Beacon’s invoice and watch the sentence change\", \"Check the Hikari Denki bill in To check\", \"Add your AI key, then ask a question\" and \"Add a person who shares costs\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR11",
+      "D47"
+    ]
+  },
+  {
+    "id": "VIEW-043",
+    "area": "Stage 36",
+    "action": "Read the forecast legend and axes",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open Home views on Forecast and Chart"
+    ],
+    "expected": [
+      "The view switch is on the left and Chart/Table on the right with Forecast and Chart pressed (yellow with dark text)",
+      "The legend reads \"If clients pay late (what safe to spend uses)\", \"If they pay on time\", \"Depends on when they pay\"",
+      "Gridlines are solid; y labels −¥100k, ¥0, ¥100k … ¥500k; x labels Today, Nov 21, Nov 28, Dec 5, Dec 12; the direct labels \"If on time\" and \"If late\" sit at the widest gap"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR5",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-044",
+    "area": "Stage 36",
+    "action": "Read the forecast low point",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Read the red label on the chart"
+    ],
+    "expected": [
+      "It reads \"Short ¥18,780 on Fri, Nov 27\" with \"Card A ¥58,000 on the 26th, then rent ¥82,000\" under it",
+      "The label and the grey line stay inside the plot, clear of the y-axis labels, also with the Ask panel open, and the gridline does not show through the text",
+      "After confirming Hikari Denki they read \"Short ¥30,000 on Fri, Nov 27\" and \"Card A ¥58,000 on the 26th, then Hikari Denki ¥11,220, then rent ¥82,000\"",
+      "The grey line wraps at \", then\" when the chart is narrow and is left out when the wrapped lines have no room under the low point (phone width); the day's tooltip and the table still carry it"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR5",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-045",
+    "area": "Stage 36",
+    "action": "Hover the forecast at Nov 27",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Hover the plot at Nov 27"
+    ],
+    "expected": [
+      "A crosshair and a tooltip show Fri, Nov 27, −¥18,780 if late, ¥281,220 if on time, \"Hikari Denki ¥11,220 waits in To check and is not counted yet\" and \"Rent −¥82,000\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR5",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-046",
+    "area": "Stage 36",
+    "action": "Move the forecast tooltip with the keyboard",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Tab to the plot",
+      "Press ArrowRight, Home and End"
+    ],
+    "expected": [
+      "The tooltip moves day by day"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR5",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-047",
+    "area": "Stage 36",
+    "action": "Read the forecast summary strip",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Read the strip under the chart"
+    ],
+    "expected": [
+      "Safe to spend now ¥0 with \"Includes ¥61,000 on Card B not yet billed.\"",
+      "Lowest if clients pay late −¥18,780 in red with \"Fri, Nov 27\"",
+      "Lowest if they pay on time ¥121,220 with \"Fri, Nov 20\"",
+      "\"The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late.\" and Bank balance ¥67,000 with Update"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR5",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-048",
+    "area": "Stage 36",
+    "action": "Read the forecast table rows",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Table on Forecast"
+    ],
+    "expected": [
+      "Columns: Day, What happens, If clients pay late, If they pay on time",
+      "Rows: Nov 14 (¥128,000), Nov 18, 20, 22, 25, 26, 27 (−¥18,780 late, ¥281,220 on time), 29, Dec 3 and Dec 10"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR5",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-049",
+    "area": "Stage 36",
+    "action": "Read the Categories figures and sentence",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Categories"
+    ],
+    "expected": [
+      "Ranked bars this month and last month: Housing ¥82,000 and ¥82,000; Other ¥48,900 and ¥7,480; Food ¥10,700 and ¥11,440; Phone & internet ¥4,800 and ¥4,800; Business tools ¥3,850 and ¥0; Subscriptions ¥1,980 and ¥1,980",
+      "The legend reads \"Spent so far\", \"Still to come (bills and statements you know of)\", \"October\"",
+      "The sentence reads \"November so far ¥63,450 spent, ¥88,780 still to come: ¥152,230 for the month, against ¥132,060 in October.\" then \"Hikari Denki ¥11,220 waits in To check and is not counted yet.\"",
+      "The table columns are Category, Spent, Still to come, November, October"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR6",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-050",
+    "area": "Stage 36",
+    "action": "Read the Trend figures and sentence",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Choose Trend"
+    ],
+    "expected": [
+      "Columns: Aug ¥88,780, Sep ¥150,380, Oct ¥132,060, Nov ¥152,230; November is stacked, ¥63,450 spent plus ¥88,780 still to come",
+      "The sentence reads \"September was the highest month (¥150,380), mostly because of Hotel Kazemachi Hakone (¥28,600).\"",
+      "The table columns are Month, Spent, Still to come, Total"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR7",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-051",
+    "area": "Stage 36",
+    "action": "Read the Home views in dark mode",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Switch to dark mode and step through Forecast, Categories and Trend"
+    ],
+    "expected": [
+      "Everything stays readable; the late line is orange and the band is a neutral dark grey"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR7",
+      "D72",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-052",
+    "area": "Stage 36",
+    "action": "Read the Ask panel header and starters",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open the Ask panel on Home"
+    ],
+    "expected": [
+      "The header reads \"Ask\", a \"General ▾\" chooser, an expand icon (Open full) and a ✕ (Close Ask), and its bottom line lines up with the top bar's",
+      "A \"Looking at Home\" pill with an eye, then \"Try asking\" with \"Am I OK until the end of the month?\", \"What if a client pays two weeks late?\" and \"Where did last month go?\"",
+      "The starters show only while the thread is empty"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR12",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-053",
+    "area": "Stage 36",
+    "action": "Read the Ask panel composer",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Read the bottom of the screen with the panel open"
+    ],
+    "expected": [
+      "The label \"Ask a question\", one box with the question field (placeholder \"What’s due this week? Can I spend ¥4,000?\"), a microphone icon named \"Use microphone\" (\"Stop listening\" while listening) and a yellow Ask button",
+      "Under it Incognito and Attach a bill",
+      "At the very bottom the model line \"A model words the answers; every number is the app's own, …\" clamped to two lines with \"More\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR12",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-054",
+    "area": "Stage 36",
+    "action": "Check what the Ask panel leaves out",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open the Ask panel on Home before any answer"
+    ],
+    "expected": [
+      "No big \"Ask\" heading, no Space brief or notes, no starter canvas chips and no \"Show the recipe\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR12",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-055",
+    "area": "Stage 36",
+    "action": "Ask for last month in the panel",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Ask \"Where did last month go?\" in the panel"
+    ],
+    "expected": [
+      "The middle scrolls and the answer is a compact table \"Where October went\" with Total ¥132,060 (Housing ¥82,000, Utilities ¥10,020 …), then Open full, Show the recipe and Pin to Home",
+      "The composer stays at the bottom of the screen and the Home page behind it does not scroll"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR12",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-056",
+    "area": "Stage 36",
+    "action": "Read the full Ask page composer",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Open /canvas at 1440px"
+    ],
+    "expected": [
+      "The same \"Ask a question\" box, Incognito and Attach a bill sit at the bottom of the conversation column",
+      "The brief, \"Space notes ↓\", the starters and the thread scroll above it and the canvas is on the right"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR13",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-057",
+    "area": "Stage 36",
+    "action": "Open the Ask panel as an overlay at 1100px",
+    "user_goal": "I want to use the new desktop workspace confidently",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
+    ],
+    "steps": [
+      "Resize to 1100px and click the Ask button"
+    ],
+    "expected": [
+      "The same column opens as an overlay"
+    ],
+    "refs": [
+      "BROWSER-CHECKS AR2",
+      "D60"
+    ]
+  }
+]

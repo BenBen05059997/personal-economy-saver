@@ -1,12 +1,12 @@
 .add-entry { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--rule); }
-details.add-entry > summary { cursor: pointer; font: 500 14px var(--sans); color: var(--accent); }
+details.add-entry > summary { cursor: pointer; font: 500 14px var(--sans); color: var(--ink); }
 details.add-entry[open] > summary { margin-bottom: var(--space-3); }
 .add-entry-kind { display: flex; gap: var(--space-2); }
-.add-entry-kind .ui-button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.add-entry-kind .ui-button[aria-pressed="true"] { border-color: var(--accent-border); background: var(--accent); color: var(--on-accent); }
 .add-entry form { max-width: 28rem; }
 .add-entry-repeat { display: flex; align-items: center; gap: var(--space-2); margin-block: var(--space-3); font: 400 14px var(--sans); }
 details.add-entry-more { margin-block: var(--space-3); }
-details.add-entry-more > summary { cursor: pointer; font: 400 14px var(--sans); color: var(--accent); }
+details.add-entry-more > summary { cursor: pointer; font: 400 14px var(--sans); color: var(--ink); }
 details.add-entry-more[open] > summary { margin-bottom: var(--space-3); }
 .add-entry-hint { display: block; margin: calc(-1 * var(--space-2)) 0 var(--space-3) 0; }
 .share-choice { margin: var(--space-3) 0; padding: 0; border: 0; min-width: 0; }
@@ -18,7 +18,7 @@ details.add-entry-more[open] > summary { margin-bottom: var(--space-3); }
 .add-entry-repeat-hint { min-height: 2lh; } /* the hint under Repeats changes with the guess; two lines are always reserved */
 .add-entry-repeat:has(input:disabled) { color: var(--muted); cursor: not-allowed; }
 .add-entry-repeat input:disabled { cursor: not-allowed; }
-.add-entry-change { flex: none; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; }
+.add-entry-change { flex: none; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; cursor: pointer; }
 @media (max-width: 760px) {
   .share-choice label:not(.ui-field) { min-height: 44px; }
   .add-entry-change { position: relative; }

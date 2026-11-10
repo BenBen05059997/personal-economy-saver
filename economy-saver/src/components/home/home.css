@@ -13,7 +13,7 @@
 }
 .money-home .home-short, .home-low-label.is-short { color: var(--red); }
 .money-home .home-demo { margin: 8px 0 0; color: var(--muted); font: 400 13px/1.45 var(--sans); }
-.home-demo a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; white-space: nowrap; }
+.home-demo a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--chart); text-decoration-thickness: 2px; text-underline-offset: 3px; white-space: nowrap; }
 .home-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
 .home-button, .home-confirm {
   display: inline-flex;
@@ -29,7 +29,7 @@
   text-decoration: none;
 }
 .home-button:hover, .home-confirm:hover { background: var(--wash); }
-.home-button.home-primary { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+.home-button.home-primary { border-color: var(--accent-border); background: var(--accent); color: var(--on-accent); }
 .home-primary:hover { filter: brightness(.93); }
 .home-options {
   display: inline-block;
@@ -57,7 +57,7 @@
 .home-balance summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; list-style: none; }
 .home-balance summary::-webkit-details-marker { display: none; }
 .home-balance b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
-.home-balance-edit { color: var(--accent); }
+.home-balance-edit { color: var(--ink); }
 .home-pots { list-style: none; margin: 6px 0 0; padding: 0; font: 400 13px/1.45 var(--sans); }
 .home-pots a { display: block; padding-block: 3px; color: var(--muted); text-decoration: none; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .home-pots a:hover { color: var(--ink); }
@@ -68,7 +68,7 @@
 .home-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .home-plot svg path { fill: none; vector-effect: non-scaling-stroke; }
 .home-baseline { stroke: var(--rule); }
-.home-runway-line { stroke: var(--ink); stroke-linejoin: round; stroke-width: 1.6px; }
+.home-runway-line { stroke: var(--chart); stroke-linejoin: round; stroke-width: 1.6px; }
 .home-zero, .home-low-dot, .home-low-label { position: absolute; }
 .home-zero { left: 1%; transform: translateY(-100%); font-size: 11px; color: var(--muted); }
 .home-low-dot {
@@ -99,7 +99,7 @@
   overflow-wrap: anywhere;
 }
 .home-row:last-child { padding-bottom: 2px; }
-.home-row a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+.home-row a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--chart); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 .home-row small { display: block; margin-top: 2px; color: var(--muted); font: 400 12.5px/1.4 var(--sans); }
 .home-number { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .home-check-row { grid-template-columns: minmax(0, 1fr) auto auto; }
@@ -108,24 +108,14 @@
 .home-card-row .home-card-limit, .home-card-row .home-card-next:last-child { grid-column: 1 / -1; }
 .home-card-row .home-card-status { grid-column: 2; text-align: right; white-space: nowrap; }
 .home-settle { padding-top: 11px; border-top: 1px solid var(--rule); }
-.home-confirm { min-height: 30px; padding: 4px 11px; border-color: var(--accent); color: var(--accent); font-size: 13px; cursor: pointer; }
+.home-confirm { min-height: 30px; padding: 4px 11px; border-color: var(--accent-border); color: var(--ink); font-size: 13px; cursor: pointer; }
 .home-covered { display: inline-block; padding: 1px 8px 2px; border-radius: 9px; background: var(--green-wash); color: var(--green); font-size: 12px; font-weight: 600; }
 .home-dated { grid-template-columns: 45px minmax(0, 1fr) auto; }
 .home-dated time, .home-empty, .home-upcoming summary { color: var(--muted); font-size: 13px; }
 .home-covered-tick { color: var(--green); }
 .home-empty, .home-upcoming details { margin: 0; padding-top: 10px; border-top: 1px solid var(--rule); }
 .home-upcoming summary { cursor: pointer; }
-.home-empty a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; white-space: nowrap; }
-.home-steps ol { margin: 0; padding: 0; list-style: none; }
-.home-steps li { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--rule); font-size: 14px; }
-.home-steps li > a, .home-steps li > span:last-child { flex: 1; min-width: 0; }
-.home-steps li { min-height: 44px; }
-.home-steps li > a { display: flex; flex-direction: column; justify-content: center; min-height: 44px; color: var(--ink); text-decoration: none; }
-.home-steps li > a > span { text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
-.home-steps li small { display: block; margin-top: 2px; color: var(--muted); font: 400 12.5px/1.4 var(--sans); }
-.home-step-tick { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1.5px solid var(--faint); border-radius: 50%; color: var(--green); font-size: 12px; font-weight: 700; }
-.home-step-done { color: var(--muted); }
-.home-step-done .home-step-tick { border-color: var(--green); background: var(--green-wash); }
+.home-empty a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--chart); text-decoration-thickness: 2px; text-underline-offset: 3px; white-space: nowrap; }
 .home-upcoming details[open] summary { padding-bottom: 10px; }
 
 @media (min-width: 761px) and (max-width: 1150px) {
@@ -148,8 +138,6 @@
   .home-plot { height: 100px; }
   .home-amount { font-size: 44px; line-height: 1.05; }
   .home-review { order: 1; }
-  .home-steps li { min-height: 44px; }
-  .home-steps li > a { display: flex; flex-direction: column; justify-content: center; min-height: 44px; }
   .home-empty a { position: relative; }
   .home-empty a::after { content: ""; position: absolute; inset: -14px -8px; }
   .home-cards { order: 2; }
@@ -174,14 +162,12 @@
   .home-demo a, .home-note a { position: relative; }
   .home-demo a::after, .home-note a::after { content: ""; position: absolute; inset: -14px -8px; }
   /* A blank household (D51): First steps is the first panel on a phone, above the runway. */
-  .home-steps { order: -1; border-top: 0; padding-top: 0; }
-  .home-panels:has(.home-steps) .home-runway { border-top: 1px solid var(--rule); padding-top: 18px; }
 }
 .money-home h1 a {
   color: inherit;
   text-decoration: underline;
-  text-decoration-color: var(--faint);
-  text-decoration-thickness: .075em;
+  text-decoration-color: var(--chart);
+  text-decoration-thickness: 2px;
   text-underline-offset: .08em;
 }
 

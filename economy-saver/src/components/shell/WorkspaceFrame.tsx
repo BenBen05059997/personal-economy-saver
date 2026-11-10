@@ -18,10 +18,11 @@ export async function loadNavigation(hid: string) {
 }
 
 export function WorkspaceFrame({ workspace, section, children }: {
-  workspace: Awaited<ReturnType<typeof loadNavigationData>>;
+  workspace: Awaited<ReturnType<typeof loadNavigationData>> | Awaited<ReturnType<typeof loadWorkspaceData>>;
   section: Section;
   children: ReactNode;
 }) {
-  const { pending, feed, name } = workspace;
-  return <Shell name={name} pending={pending} feed={feed} section={section} forwarding={missingForwardingSetting() === null}>{children}</Shell>;
+  const { pending, feed, name, tryIt } = workspace;
+  const today = "state" in workspace ? workspace.state.today : workspace.today;
+  return <Shell name={name} pending={pending} feed={feed} section={section} forwarding={missingForwardingSetting() === null} tryIt={tryIt} today={today}>{children}</Shell>;
 }

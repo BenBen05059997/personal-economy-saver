@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Personal Economy Saver",
+  title: "fipa",
   description: "See what you can spend, what’s due, and who can pay you through PayPal.",
 };
 

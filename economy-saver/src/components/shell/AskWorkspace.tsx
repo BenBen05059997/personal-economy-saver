@@ -3,7 +3,8 @@
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { Activity, createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { CLOSED_PANEL, readPanelPreferences, writePanelPreferences } from "@/components/ask/panel-preferences";
+import { storeDraft } from "@/components/ask/draft";
+import { readPanelChoice, writePanelChoice, type PanelChoice } from "@/components/ask/panel-preferences";
 import { ApiFormNavigation } from "@/components/ui/ApiForm";
 import { LoadingIndicator } from "@/components/ui/LoadingState";
 import { SessionEnded } from "@/components/ui/SessionEnded";
@@ -23,9 +24,16 @@ function subscribeDesktop(onChange: () => void) {
 }
 const isDesktop = () => window.matchMedia(PANEL_WIDTH).matches;
 const serverDesktop = () => false;
+const WIDE_WIDTH = "(min-width: 1200px)";
+function subscribeWide(onChange: () => void) {
+  const media = window.matchMedia(WIDE_WIDTH);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+const isWide = () => window.matchMedia(WIDE_WIDTH).matches;
 
 const AskPanel = createContext<{
-  available: boolean; visible: boolean; revision: number; open: (trigger: HTMLElement) => void; invalidate: () => void;
+  available: boolean; wide: boolean; visible: boolean; revision: number; open: (trigger: HTMLElement) => void; close: () => void; ask: (question: string, trigger: HTMLElement) => void; invalidate: () => void;
 } | null>(null);
 
 export const useAskPanel = () => useContext(AskPanel);
@@ -35,29 +43,34 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
   const pathname = usePathname();
   const router = useRouter();
   const desktop = useSyncExternalStore(subscribeDesktop, isDesktop, serverDesktop);
+  const wide = useSyncExternalStore(subscribeWide, isWide, serverDesktop);
   const available = desktop && pathname !== "/canvas";
-  const [preferences, setPreferences] = useState(CLOSED_PANEL);
+  const [preferences, setPreferences] = useState<PanelChoice>({ open: null, spaceId: null });
+  const [ready, setReady] = useState(false);
   const [view, setView] = useState<AskView | null>(null);
   const [loading, setLoading] = useState(false);
   const [problem, setProblem] = useState<"missing" | "ended" | "other" | null>(null);
   const [focusRequest, setFocusRequest] = useState(0);
   const [revision, setRevision] = useState(0);
+  const [handoff, setHandoff] = useState<{ id: string; question: string } | null>(null);
   const restored = useRef(false);
   const opener = useRef<HTMLElement | null>(null);
   const request = useRef<AbortController | null>(null);
-  const visible = available && preferences.open;
+  const visible = ready && available && (preferences.open ?? wide);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       if (restored.current) return;
       restored.current = true;
-      try { setPreferences(readPanelPreferences(window.sessionStorage, householdId)); } catch { /* Browser storage can be blocked. */ }
+      try { setPreferences(readPanelChoice(window.sessionStorage, householdId)); } catch { /* Browser storage can be blocked. */ }
+      setReady(true);
     });
     return () => cancelAnimationFrame(frame);
   }, [householdId]);
 
-  function remember(next: typeof CLOSED_PANEL) {
+  function remember(next: PanelChoice) {
     restored.current = true;
+    setReady(true);
     setPreferences(next);
   }
 
@@ -104,9 +117,9 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
   }, [load, loading, preferences.spaceId, problem, view, visible]);
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
-    if (!restored.current) return;
-    try { writePanelPreferences(window.sessionStorage, householdId, preferences); } catch { /* Browser storage can be blocked. */ }
-  }, [householdId, preferences]);
+    if (!ready || !restored.current) return;
+    try { writePanelChoice(window.sessionStorage, householdId, preferences); } catch { /* Browser storage can be blocked. */ }
+  }, [householdId, preferences, ready]);
 
   function open(trigger: HTMLElement) {
     if (!available) return;
@@ -115,7 +128,20 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
     setFocusRequest(current => current + 1);
   }
 
+  function ask(question: string, trigger: HTMLElement) {
+    if (!question.trim()) return;
+    if (!available) {
+      try { window.sessionStorage.setItem("pes-ask-submit", JSON.stringify({ id: crypto.randomUUID(), question })); } catch { storeDraft({ text: question, source: "manual" }); }
+      router.push("/canvas#ask");
+      return;
+    }
+    open(trigger);
+    setHandoff({ id: crypto.randomUUID(), question });
+  }
+
   const close = useCallback(() => {
+    restored.current = true;
+    setReady(true);
     setPreferences(current => ({ ...current, open: false }));
     if (opener.current?.isConnected) opener.current.focus();
     else document.getElementById("shell-top-ask")?.focus();
@@ -167,14 +193,19 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
     return true;
   }
 
-  return <AskPanel.Provider value={{ available, visible, revision, open, invalidate }}>
+  return <AskPanel.Provider value={{ available, wide, visible, revision, open, close, ask, invalidate }}>
     <div className="ask-workspace" data-ask-open={visible || undefined}>
       <div className="ask-workspace-page"><ApiFormNavigation.Provider value={pageFormSaved}>
         {children}
       </ApiFormNavigation.Provider></div>
       {(visible || view) && <Activity mode={visible ? "visible" : "hidden"}>
         <aside id="shell-ask-panel" className="ask-workspace-panel" aria-label="Ask panel">
-          <button type="button" className="ui-button ask-panel-close" onClick={close}>Close</button>
+          {!view && <header className="ask-panel-head">
+            <h2 className="ask-panel-title">Ask</h2>
+            <button type="button" className="ask-icon-button ask-panel-close" aria-label="Close Ask" onClick={close}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+            </button>
+          </header>}
           {loading && <LoadingIndicator label="Opening Ask…" />}
           {problem && <div className="ask-panel-problem" role="alert">
             {problem === "ended" ? <SessionEnded /> : <>
@@ -186,7 +217,8 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
           </div>}
           {view && <ApiFormNavigation.Provider value={formSaved}>
             <AskPage key={view.space.id} {...view} variant="panel" screen={askScreenForPath(pathname)} focusRequest={focusRequest}
-              chooseSpace={chooseSpace} onPanelChange={changed} />
+              chooseSpace={chooseSpace} onPanelChange={changed} onClose={close} handoff={handoff}
+              onHandoffHandled={id => setHandoff(current => current?.id === id ? null : current)} />
           </ApiFormNavigation.Provider>}
         </aside>
       </Activity>}

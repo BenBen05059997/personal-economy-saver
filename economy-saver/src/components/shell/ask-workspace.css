@@ -9,17 +9,20 @@
   z-index: 4;
   inset: 0 0 0 auto;
   width: min(100%, var(--ask-panel-width));
-  padding: var(--space-4);
-  overflow: auto;
-  overscroll-behavior: contain;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
   border-left: 1px solid var(--rule);
   background: var(--screen);
   color: var(--ink);
   font: 14px/1.45 var(--sans);
   overflow-wrap: anywhere;
 }
-.ask-panel-close { display: flex; margin: 0 0 var(--space-3) auto; }
-.ask-panel-problem { margin-block: var(--space-3); }
+.ask-workspace-panel > :is(.ask-panel-problem, [role=status]) { margin: var(--space-4); }
+.ask-workspace-panel > .ask-page { flex: 1 1 auto; min-height: 0; }
+.ask-panel-close { margin-left: auto; }
 @media (min-width: 1200px) {
   .ask-workspace[data-ask-open] { grid-template-columns: minmax(0, 1fr) var(--ask-panel-width); }
   .ask-workspace-panel {
@@ -28,7 +31,6 @@
     top: 0;
     align-self: start;
     width: auto;
-    height: 100dvh;
   }
   .ask-workspace[data-ask-open] .shell-content { container: ask-docked / inline-size; }
 }
@@ -39,5 +41,5 @@
   .directory-list .directory-link { align-items: start; flex-wrap: wrap; }
   .directory-list .directory-link > :last-child { white-space: normal; }
   .household-table .event-kind { display: none; }
-  .household-table .kind-line { display: block; }
+  .ask-workspace .household-table .kind-line { display: block; } /* outranks the hide rule in household.css, which loads later */
 }

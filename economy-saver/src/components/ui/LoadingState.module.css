@@ -15,6 +15,6 @@
   border-radius: 50%;
   animation: turn 850ms linear infinite;
 }
-.page .spinner { color: var(--accent); }
+.page .spinner { color: var(--ink); }
 @keyframes turn { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

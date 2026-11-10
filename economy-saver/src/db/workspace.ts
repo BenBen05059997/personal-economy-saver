@@ -1,6 +1,6 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { clockForHousehold } from "./clock";
-import { balanceUpdates, bills, charges, households, members, pots, readings } from "./schema";
+import { balanceUpdates, bills, charges, clients, conversationTurns, events, households, invoices, members, pots, readings } from "./schema";
 import { readerInbox } from "./reader-inbox";
 import type { refreshPayPal } from "./paypal-refresh";
 import { observeRunway } from "./runway-events";
@@ -30,7 +30,7 @@ export async function loadNavigationData(tx: Db, householdId: string) {
       + (select count(*) from ${bills} where ${bills.householdId} = ${hid} and ${bills.status} = 'confirmed' and (${bills.amountMinor} is null or ${bills.due} is null))
     `.mapWith(Number) }).from(households).where(eq(households.id, hid)),
   ]);
-  return { name, feed, pending: totals.pending, timeZone };
+  return { name, feed, pending: totals.pending, timeZone, today, tryIt: household.fixedToday !== null };
 }
 
 /** The caller owns the transaction; Home must use a writable transaction. */
@@ -44,7 +44,20 @@ export async function loadWorkspaceData(tx: Db, hid: string, home = false,
     loadMoneyState(tx, hid, today, household), householdOwnerName(tx, hid), readerInbox(tx, hid),
     tx.select({ id: members.id, name: members.displayName }).from(members).where(eq(members.householdId, hid)).orderBy(members.createdAt),
   ]);
+  // Expose only booleans; the key and device journal remain where they are stored.
+  const getStarted = home && household.fixedToday !== null ? await (async () => {
+    const [paid, confirmed, answer] = await Promise.all([
+      tx.select({ id: invoices.id }).from(invoices).innerJoin(clients, and(eq(clients.id, invoices.clientId), eq(clients.householdId, hid)))
+        .where(and(eq(invoices.householdId, hid), eq(clients.name, "Beacon Studio"), eq(invoices.item, "Brand refresh, milestone 2"), eq(invoices.status, "paid"))).limit(1),
+      tx.select({ id: bills.id }).from(events).innerJoin(bills, and(eq(bills.id, events.refId), eq(bills.householdId, hid)))
+        .where(and(eq(events.householdId, hid), eq(events.kind, "to_check"), eq(events.refType, "bill"), eq(events.title, "Hikari Denki bill is higher than last month"), eq(bills.status, "confirmed"))).limit(1),
+      household.journalPlace === "cloud" ? tx.select({ id: conversationTurns.id }).from(conversationTurns)
+        .where(and(eq(conversationTurns.householdId, hid), eq(conversationTurns.kind, "answer"))).limit(1) : Promise.resolve([]),
+    ]);
+    return { invoicePaid: paid.length > 0, billConfirmed: confirmed.length > 0, hasKey: household.aiKeySecretId !== null,
+      answered: answer.length > 0, journalOnDevice: household.journalPlace === "device" };
+  })() : null;
   if (home) await observeRunway(tx, hid, state, household);
   const feed = await eventFeed(tx, hid);
-  return { state, people, name, feed, timeZone, inbox, freshness, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length + confirmedGaps(state).length };
+  return { state, people, name, feed, timeZone, inbox, freshness, getStarted, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length + confirmedGaps(state).length };
 }

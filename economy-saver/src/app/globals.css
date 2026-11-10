@@ -26,11 +26,11 @@ body {
   font: 15px/1.45 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
-a { color: inherit; }
+a { color: var(--ink); text-decoration-color: var(--chart); text-decoration-thickness: 2px; text-underline-offset: 3px; }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: default; }
 h1, h2, h3, p { margin: 0; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .num { font-variant-numeric: tabular-nums; }
 code { font-family: var(--mono); }

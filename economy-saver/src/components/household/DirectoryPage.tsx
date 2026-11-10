@@ -1,3 +1,4 @@
+import { ScrollToHash } from "@/components/ui/ScrollToHash";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
@@ -17,5 +18,5 @@ async function DirectoryContent({ section, params }: Props) {
 }
 
 export function DirectoryPage(props: Props) {
-  return <Suspense fallback={<LoadingState label={"Opening " + props.section + "…"} />}><DirectoryContent {...props} /></Suspense>;
+  return <Suspense fallback={<LoadingState label={"Opening " + props.section + "…"} />}><DirectoryContent {...props} /><ScrollToHash /></Suspense>;
 }

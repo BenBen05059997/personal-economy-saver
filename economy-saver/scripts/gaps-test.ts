@@ -543,6 +543,24 @@ async function main() {
     assert.equal(nav, work, "the navigation count (SQL) and the workspace count (state) are the same number");
   });
 
+  await check("Get started uses the seeded targets, answered turns and the current household", async () => {
+    const a = await seedBen(db, { isDemo: true });
+    const b = await seedBen(db, { isDemo: true });
+    const get = (id: string) => db.transaction(tx => loadWorkspaceData(tx as unknown as Db, id, true)).then(result => result.getStarted!);
+    assert.deepEqual(await get(a), { invoicePaid: false, billConfirmed: false, hasKey: false, answered: false, journalOnDevice: false });
+    const [target] = await db.select().from(schema.invoices).where(and(eq(schema.invoices.householdId, a), eq(schema.invoices.item, "Brand refresh, milestone 2")));
+    const [notice] = await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), eq(schema.events.title, "Hikari Denki bill is higher than last month")));
+    await db.update(schema.invoices).set({ status: "paid" }).where(eq(schema.invoices.id, target.id));
+    await db.update(schema.bills).set({ status: "confirmed", biller: "Edited fictional bill" }).where(eq(schema.bills.id, notice.refId!));
+    await db.insert(schema.conversationTurns).values({ id: randomUUID(), householdId: a, conversationId: randomUUID(), question: "What is due?", kind: "clarify", reply: "Which month?" });
+    assert.deepEqual(await get(a), { invoicePaid: true, billConfirmed: true, hasKey: false, answered: false, journalOnDevice: false });
+    assert.deepEqual(await get(b), { invoicePaid: false, billConfirmed: false, hasKey: false, answered: false, journalOnDevice: false });
+    await db.insert(schema.conversationTurns).values({ id: randomUUID(), householdId: a, conversationId: randomUUID(), question: "What is due?", kind: "answer", reply: "The bill is due." });
+    assert.equal((await get(a)).answered, true);
+    await db.update(schema.households).set({ journalPlace: "device" }).where(eq(schema.households.id, a));
+    assert.deepEqual([(await get(a)).journalOnDevice, (await get(a)).answered], [true, false]);
+  });
+
   // ---------------------------------------------------------------- the agent tools
   await check("open_gaps is a read tool that returns each gap with its words; add_bill takes amount null and due null as not known yet", async () => {
     const ctx: ToolContext = { madeBy: "ask", db: store, householdId: hid, state: () => loadMoneyState(store, hid, TODAY), appUrl: new URL("http://127.0.0.1:3123") };

@@ -262,7 +262,7 @@
       "First steps · 4 to go shows one open step \"Add your rent, so the day it leaves shows up\" above To check (on a phone under the runway panel, above Cards)",
       "The rent step opens the Add a bill or charge form on the Bill tab, scrolled into view; the client step opens Clients; the share step opens Settings → People",
       "Each done step becomes a ticked line with no link and the next step opens in order",
-      "After the fourth the panel is gone; Try it never shows it; no Shared costs panel appears with one person",
+      "After the fourth the panel is gone; Try it instead shows Get started; no Shared costs panel appears with one person",
       "Rows are at least 44px tall at 375px"
     ],
     "refs": [
@@ -449,7 +449,7 @@
       "Wait for the redirect"
     ],
     "expected": [
-      "While it runs the button is disabled and 'Sending through PayPal sandbox…' shows",
+      "While it runs the button is disabled and dimmed and 'Sending through PayPal sandbox…' shows",
       "The page opens the invoice as 'Invoice sent. Awaiting payment.'",
       "Activity gains 'Invoice sent to Beacon Studio' within about 2 s of the response"
     ],
@@ -2302,8 +2302,9 @@
       "Open + Add on Home and again from Plan"
     ],
     "expected": [
-      "Order is Add a bill, Add a card charge, Forward a bill when forwarding is set up, Upload a receipt, New invoice",
-      "From Plan the items go to Home with the form open on the right tab and scrolled into view"
+      "The menu lists A bill, A card charge, A client who pays you, A person who shares costs, a line, then Upload a receipt or bill, Forward a bill (only when forwarding is set up) and New invoice, in that order",
+      "Each opens its existing form; from Plan the bill and charge forms open on the correct tab",
+      "At 1200px and wider the menu and the notifications open directly under their own top-bar buttons with the Ask panel closed, with it open (they do not cover the panel) and on the Ask page, where the top bar has no Ask button"
     ],
     "refs": [
       "BROWSER-CHECKS C0"
@@ -2405,7 +2406,8 @@
     ],
     "expected": [
       "Newest first with dates like \"Nov 14\"; every row says in words what changed, with no raw ids or ISO dates",
-      "Type reads in words, such as \"Waiting in To check\" and \"Invoice sent\", never a name with underscores"
+      "Type reads in words, such as \"Waiting in To check\" and \"Invoice sent\", never a name with underscores",
+      "With the Ask panel docked the Type column is hidden and each row shows its type words as a line under the title; with the panel closed the Type column shows"
     ],
     "refs": [
       "BROWSER-CHECKS F1"

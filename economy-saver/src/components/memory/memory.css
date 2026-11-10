@@ -8,7 +8,7 @@
 .memory-item p { margin: 0; }
 .memory-item .ui-hint { margin-top: var(--space-1); }
 .memory-actions { display: flex; flex-wrap: wrap; gap: var(--space-5); margin-top: var(--space-2); }
-.memory-edit summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; font: 500 14px var(--sans); color: var(--accent); }
+.memory-edit summary { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; font: 500 14px var(--sans); color: var(--ink); }
 .memory-edit[open] { flex-basis: 100%; }
 .memory-edit form { max-width: 28rem; margin-top: var(--space-2); }
 .memory-edit fieldset, .memory-add fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
@@ -18,7 +18,7 @@
 
 .memory-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-5); }
 .memory-tabs .ui-button { min-height: 44px; }
-.memory-tabs [aria-current="page"] { border-color: var(--accent); color: var(--accent); }
+.memory-tabs [aria-current="page"] { border-color: var(--accent-border); background: var(--accent); color: var(--on-accent); }
 .memory-goals { display: grid; gap: var(--space-4); }
 .memory-goal p { margin: var(--space-2) 0; }
 

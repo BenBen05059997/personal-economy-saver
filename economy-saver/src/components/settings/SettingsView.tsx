@@ -154,7 +154,7 @@ export function SettingsView({ data, canImportPayPal = false, familyLinks, remin
         <button className="ui-button">Save people</button></ApiForm>
       <ApiForm action="/api/people"><input type="hidden" name="kind" value="add" />
         <p className="ui-hint">{people.length > 1 ? "Adding someone splits the shared costs equally again." : "Add a partner or housemate to split shared bills and charges. You start equal and can change the shares afterwards."}</p>
-        <label key={people.length} className="ui-field">Add a person<input name="name" maxLength={80} required /></label>
+        <label id="add-person" key={people.length} className="ui-field">Add a person<input name="name" maxLength={80} required /></label>
         <button className="ui-button">Add person</button></ApiForm></ApiFormGroup>
       {canManage && people.length > 1 && <div className="settings-remove-people"><p className="ui-hint">A person can be removed once they owe nobody and nobody owes them.</p>
         {people.filter(person => person.role !== "owner").map(person => <RemovePerson key={person.id} person={person} people={people} cards={cards} />)}</div>}

@@ -1,4 +1,5 @@
 .money-shell {
+  --nav-current: light-dark(#e6e3dc, #2a2825);
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   min-height: 100dvh;
@@ -33,7 +34,7 @@
 }
 .shell-brand .logo-mark, .shell-mobile-brand .logo-mark { flex: none; display: block; }
 .shell-links { display: flex; flex-direction: column; gap: 2px; }
-.shell-links a, .shell-footer a, .shell-person {
+.shell-links a, .shell-links button, .shell-footer a, .shell-person {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -44,13 +45,17 @@
   font-weight: 500;
   text-decoration: none;
 }
-.shell-links a:hover, .shell-footer a:hover, .shell-popover a:hover {
-  background: color-mix(in srgb, var(--sel) 55%, transparent);
+.shell-links button { width: 100%; border: 0; background: transparent; text-align: left; font-family: inherit; cursor: pointer; }
+.shell-links a:hover, .shell-links button:hover, .shell-footer a:hover, .shell-popover a:hover {
+  background: color-mix(in srgb, var(--nav-current) 60%, transparent);
 }
 .shell-links a[aria-current="page"], .shell-footer a[aria-current="page"] {
-  background: var(--sel);
+  background: var(--nav-current);
+  color: var(--ink);
   font-weight: 600;
 }
+.shell-dot { display: none; width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--chart); }
+.shell-links button[aria-pressed="true"] .shell-dot { display: block; }
 .shell-links .shell-icon, .shell-footer .shell-icon { color: var(--muted); }
 .shell-links [aria-current="page"] .shell-icon, .shell-footer [aria-current="page"] .shell-icon { color: var(--ink); }
 .shell-badge {
@@ -80,7 +85,8 @@
   height: 24px;
   flex: none;
   border-radius: 50%;
-  background: var(--sel);
+  background: var(--accent);
+  color: var(--on-accent);
   font: 600 12px/1 var(--sans);
 }
 .shell-workspace { min-width: 0; }
@@ -143,6 +149,21 @@
   color: var(--screen);
   font-weight: 500;
 }
+.shell-bar.is-wide { gap: 8px; }
+.shell-bar.is-wide button { height: 44px; }
+.shell-sample { margin: 0 auto 0 0; padding: 6px 10px; border-radius: 999px; background: var(--wash); color: var(--muted); font-size: 13px; font-weight: 600; }
+.shell-bar.is-wide .shell-bell { margin-left: auto; }
+.shell-sample + .shell-bell { margin-left: 0; }
+.shell-bar.is-wide .shell-add, .shell-bar.is-wide .shell-ask-button {
+  padding: 0 14px;
+  border: 1px solid var(--rule);
+  background: var(--screen);
+  color: var(--ink);
+  font: 600 14px/1 var(--sans);
+  cursor: pointer;
+}
+.shell-bar.is-wide .shell-ask-button[aria-pressed="true"] { border: 2px solid var(--ink); background: var(--accent-wash); }
+.shell-add-menu .shell-add-rule { margin-top: 5px; border-top: 1px solid var(--rule); border-radius: 0 0 6px 6px; }
 .shell-bell { margin-left: auto; }
 .shell-bell:hover, .shell-nav-close:hover { background: var(--wash); }
 .shell-bar .shell-mobile-toggle, .shell-mobile-brand, .shell-phone-ask { display: none; }
@@ -251,7 +272,15 @@
 .shell-notification-list { list-style: none; margin: 10px 0; padding: 0 10px; }
 .shell-notification-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); }
 .shell-notification-list small { display: block; color: var(--muted); }
-.shell-notification-list button, .shell-read-all { min-height: 30px; flex: none; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--screen); color: var(--accent); cursor: pointer; }
+.shell-notification-list button, .shell-read-all { min-height: 30px; flex: none; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--screen); color: var(--ink); cursor: pointer; }
 .shell-read-all { margin: 0 10px; }
 
 .shell-ask-menu form { padding: 0 var(--space-3) var(--space-3); }
+.money-shell:has(.shell-bar.is-wide) .shell-add-menu { top: 58px; right: 108px; }
+.money-shell:has(.shell-bar.is-wide) .shell-notifications { top: 58px; right: 200px; }
+/* No Ask button on the Ask page: both menus sit one button further right. */
+.money-shell:has(.shell-bar.is-wide):not(:has(#shell-top-ask)) .shell-add-menu { right: 24px; }
+.money-shell:has(.shell-bar.is-wide):not(:has(#shell-top-ask)) .shell-notifications { right: 110px; }
+/* The docked Ask panel takes its width off the right of the page, and the buttons move with it. */
+.ask-workspace[data-ask-open] .money-shell:has(.shell-bar.is-wide) .shell-add-menu { right: calc(108px + var(--ask-panel-width)); }
+.ask-workspace[data-ask-open] .money-shell:has(.shell-bar.is-wide) .shell-notifications { right: calc(200px + var(--ask-panel-width)); }

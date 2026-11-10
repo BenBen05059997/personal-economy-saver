@@ -1,0 +1,18 @@
+.get-started { margin: 28px 0 16px; padding: 20px 24px; border: 1px solid var(--rule); border-radius: var(--radius-panel); background: var(--screen); display: flex; flex-direction: column; gap: 12px; }
+.get-started-heading { display: flex; align-items: center; gap: 12px; }
+.get-started-heading h2 { margin: 0; font-size: 17px; font-weight: 600; color: var(--ink); text-transform: none; letter-spacing: 0; }
+.get-started-meta { font-size: 13px; color: var(--muted); }
+.get-started-bar { flex: 0 1 120px; height: 6px; border-radius: 999px; background: var(--wash); overflow: hidden; }
+.get-started-bar > div { height: 100%; border-radius: 999px; background: var(--chart); }
+.get-started-heading button { margin-left: auto; min-height: 44px; padding: 0 8px; border: 0; background: none; color: var(--ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.get-started-heading button:hover { text-decoration: underline; }
+.get-started-heading button:focus-visible, .get-started li a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+.get-started ol { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 4px 24px; }
+.get-started li a, .get-started-row { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 15px; color: var(--ink); text-decoration: none; }
+.get-started li a:hover { text-decoration: underline; }
+.get-started-tick { flex: none; box-sizing: border-box; width: 22px; height: 22px; border: 1.5px solid var(--faint); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+.get-started-done .get-started-tick { border-color: var(--green); background: var(--green); color: var(--screen); }
+.get-started-done .get-started-label { text-decoration: line-through; }
+.get-started-done a, .get-started-done .get-started-row { color: var(--muted); }
+.get-started .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 760px) { .get-started { padding: 18px 0; border: 0; border-top: 1px solid var(--rule); border-radius: 0; background: none; } }

@@ -2,7 +2,7 @@
   {
     "id": "ASK-001",
     "area": "Ask",
-    "action": "Open Ask from the top bar",
+    "action": "Open Ask from the top bar field below 1200px",
     "user_goal": "I want to ask something without hunting for the page",
     "type": "happy",
     "priority": "P2",
@@ -12,14 +12,15 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "Home open at 1440px"
+      "Home open at 1100px"
     ],
     "steps": [
-      "Click the top bar's Ask box (a link reading \"Ask or say: …\")"
+      "Click the top bar's Ask field (a link reading \"Ask or say: Can I afford ¥4,000 tonight?\")"
     ],
     "expected": [
-      "The desktop Ask panel opens while the URL stays on Home",
-      "The cursor is in the Your question box"
+      "The Ask panel opens as an overlay while the URL stays on Home",
+      "The cursor is in the \"Ask a question\" box",
+      "At 1440px the top bar has no such field; its Ask button toggles the docked panel"
     ],
     "refs": [
       "BROWSER-CHECKS K0",
@@ -29,7 +30,7 @@
   {
     "id": "ASK-002",
     "area": "Ask",
-    "action": "Type a letter on the top bar and have it carried to Ask",
+    "action": "Type a letter on the top bar field and have it carried to Ask",
     "user_goal": "I start typing and expect my first letter not to be lost",
     "type": "happy",
     "priority": "P2",
@@ -39,10 +40,10 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "Home open at 1440px"
+      "Home open at 1100px"
     ],
     "steps": [
-      "Tab to the top bar's Ask link",
+      "Tab to the top bar's Ask field",
       "Type the letter w"
     ],
     "expected": [
@@ -68,16 +69,16 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "Home open at 1440px with the Ask link focused and the composer empty"
+      "Home open at 1100px with the Ask field focused and the composer empty"
     ],
     "steps": [
       "Press Space",
-      "Close the panel, focus the link and press Enter",
-      "Close the panel, focus the link and press Ctrl+A or Cmd+A",
+      "Close the panel, focus the field and press Enter",
+      "Close the panel, focus the field and press Ctrl+A or Cmd+A",
       "At phone width repeat with the Ask row, returning to Home each time"
     ],
     "expected": [
-      "Space and Enter open and focus an empty question box in the panel at 1440px, and the full Ask page at phone width",
+      "Space and Enter open and focus an empty question box in the panel at 1100px, and the full Ask page at phone width",
       "Ctrl+A and Cmd+A keep their browser behavior and leave the app on Home"
     ],
     "refs": [
@@ -194,7 +195,7 @@
     "expected": [
       "Heading \"Ask\" and the hint \"Ask in your own words about your money. Every number comes from your records.\"",
       "Three example buttons: \"Am I OK until the end of the month?\", \"What if a client pays two weeks late?\", \"Where did last month go?\"",
-      "The box \"Your question\" with the placeholder \"What’s due this week? Can I spend ¥4,000?\", \"Use microphone\" and \"Ask\"",
+      "From 900px the composer is docked at the bottom of the conversation column: the label \"Ask a question\", one box with the placeholder \"What’s due this week? Can I spend ¥4,000?\", \"Use microphone\" and \"Ask\", then Incognito and Attach a bill",
       "Four starter buttons above the canvas with \"This month\" selected"
     ],
     "refs": [
@@ -3457,10 +3458,10 @@
     ],
     "steps": [
       "Open full Ask at /canvas and switch through all four starters. Show the recipe on each to see its outlines.",
-      "Open the Ask panel from Home and repeat the same checks"
+      "Open the Ask panel from Home and read its header, the Looking at chip, Try asking and the composer"
     ],
     "expected": [
-      "Text, bars, the chart and dotted recipe outlines are readable and do not overlap in either presentation",
+      "Text, bars, the chart and dotted recipe outlines are readable and do not overlap on the full page; the panel's header, chip, starters and composer are readable",
       "In Regular costs, CloudBox Plus and Hikari Denki wrap at word boundaries if needed",
       "Biggest changes and Regular costs keep all columns reachable. If a table is wider than its block, only its own region scrolls horizontally."
     ],
@@ -4947,13 +4948,13 @@
       "Ask open at /canvas"
     ],
     "steps": [
-      "Read the line under the question box",
-      "Choose Open Settings"
+      "Read the card above the question box",
+      "Choose Add your AI key"
     ],
     "expected": [
-      "The red line reads \"Add your own AI key in Settings to use Ask.\" with an Open Settings link",
-      "The link opens Settings → Your AI model (#ai-model)",
-      "The example buttons and Ask are disabled; no request is made to /api/ask"
+      "The card shows the bold \"Add your own AI key in Settings to use Ask.\", a paragraph, a yellow \"Add your AI key\" button and \"Where do I get one?\"",
+      "The button opens Settings → Your AI model (#ai-model)",
+      "The example buttons, the question field and Ask are disabled; no request is made to /api/ask"
     ],
     "refs": [
       "BROWSER-CHECKS Y28",
@@ -4977,11 +4978,11 @@
     ],
     "steps": [
       "Open Ask",
-      "Read the line under the question box"
+      "Read the card above the question box"
     ],
     "expected": [
-      "The line reads \"Ask the household’s owner to add an AI key in Settings.\"",
-      "There is no Open Settings link",
+      "The card reads \"Ask the household’s owner to add an AI key in Settings.\"",
+      "There is no Add your AI key button",
       "Ask is disabled"
     ],
     "refs": [

@@ -17,9 +17,13 @@ import "./shell.css";
 const iconPaths = {
   home: "M2.5 7.2 8 2.8l5.5 4.4V13h-11z M6.5 13V9.5h3V13",
   check: "M2.5 9.5 4 3.5h8l1.5 6 M2.5 9.5V13h11V9.5H10l-1 1.5H7l-1-1.5z",
-  activity: "M3 4.5h10 M3 8h10 M3 11.5h10",
+  ask: "M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z",
+  activity: "M1.5 8h3l2-4.5 3 9 2-4.5h3",
+  menu: "M3 4.5h10 M3 8h10 M3 11.5h10",
   cards: "M3.5 3.5h9a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11V5a1.5 1.5 0 0 1 1.5-1.5z M2 6.8h12",
-  clients: "M8.2 6A2.2 2.2 0 1 1 3.8 6a2.2 2.2 0 0 1 4.4 0z M2 13c.3-2.4 2-3.6 4-3.6s3.7 1.2 4 3.6 M10.5 4.2a2.2 2.2 0 0 1 0 3.6 M12 9.6c1 .5 1.8 1.5 2 3.4",
+  clients: "M2.5 5.5h11v7h-11z M6 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5 M2.5 9h11",
+  people: "M8.2 6A2.2 2.2 0 1 1 3.8 6a2.2 2.2 0 0 1 4.4 0z M2 13c.3-2.4 2-3.6 4-3.6s3.7 1.2 4 3.6 M10.5 4.2a2.2 2.2 0 0 1 0 3.6 M12 9.6c1 .5 1.8 1.5 2 3.4",
+  memory: "M4 2.5h8v11l-4-2.5-4 2.5z",
   plan: "M3 12.5V9 M7 12.5V5.5 M11 12.5V3 M2.5 12.5h11",
   settings: "M3 5h2 M8 5h5 M3 11h6 M12 11h1 M8 5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z M12 11a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z",
   mic: "M6 4a2 2 0 0 1 4 0v3.5a2 2 0 0 1-4 0z M3.5 7.8a4.5 4.5 0 0 0 9 0 M8 12.3V14",
@@ -34,26 +38,28 @@ function Icon({ name }: { name: keyof typeof iconPaths }) {
 
 const destinations = [
   { section: "home", icon: "home", label: "Home", href: "/" },
-  { section: "canvas", icon: "plan", label: "Ask", href: "/canvas" }, // no icon of its own: the bars icon is the closest to a drawn chart
+  { section: "canvas", icon: "ask", label: "Ask", href: "/canvas" },
   { section: "check", icon: "check", label: "To check", href: "/to-check" },
   { section: "activity", icon: "activity", label: "Activity", href: "/activity" },
   { section: "cards", icon: "cards", label: "Cards", href: "/cards" },
   { section: "clients", icon: "clients", label: "Clients", href: "/clients" },
+  { section: "settings", icon: "people", label: "People", href: "/settings#people" },
   { section: "plan", icon: "plan", label: "Plan", href: "/plan" },
 ] as const;
 
 export type Section = AskScreen;
 
 function Navigation({ pending, name, section }: { pending: number; name: string; section: Section }) {
+  const panel = useAskPanel();
   return <>
     <Link prefetch={false} className="shell-brand" href="/"><LogoMark />fipa</Link>
     <nav className="shell-links" aria-label="Main navigation">
-      {destinations.map(({ section: target, icon, label, href }) => <Link prefetch={false} key={target} href={href} aria-current={target === section ? "page" : undefined}>
+      {destinations.map(({ section: target, icon, label, href }) => target === "canvas" && section !== "canvas" && panel?.wide ? <button type="button" key={target} aria-pressed={panel.visible} onClick={event => panel.visible ? panel.close() : panel.open(event.currentTarget)}><Icon name={icon} />{label}<i className="shell-dot" aria-hidden="true" /></button> : <Link prefetch={false} key={target} href={href} aria-current={target !== "settings" && target === section ? "page" : undefined}>
         <Icon name={icon} />{label}{target === "check" && pending > 0 && <span className="shell-badge">{pending}</span>}
       </Link>)}
     </nav>
     <footer className="shell-footer">
-      <Link prefetch={false} aria-current={section === "memory" ? "page" : undefined} href="/memory"><Icon name="activity" />Memory</Link>
+      <Link prefetch={false} aria-current={section === "memory" ? "page" : undefined} href="/memory"><Icon name="memory" />Memory</Link>
       <Link prefetch={false} aria-current={section === "settings" ? "page" : undefined} href="/settings"><Icon name="settings" />Settings</Link>
       <div className="shell-person"><span aria-hidden="true">{name.slice(0, 1)}</span>{name}</div>
     </footer>
@@ -62,9 +68,17 @@ function Navigation({ pending, name, section }: { pending: number; name: string;
 
 const askPrompt = "Can I afford ¥4,000 tonight?";
 
-export function Shell({ children, name, pending, feed, section, forwarding }: {
-  forwarding: boolean; // false when email forwarding is not set up on this server: the + Add menu then has no Forward entry
+const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function shortDate(iso: string) {
+  const [, month, day] = iso.split("-").map(Number);
+  return month >= 1 && month <= 12 && day ? `${months[month - 1]} ${day}` : iso;
+}
+
+export function Shell({ children, name, pending, feed, section, forwarding = false, tryIt = false, today }: {
   children: ReactNode;
+  forwarding?: boolean;
+  tryIt?: boolean;
+  today?: string;
   name: string;
   pending: number;
   feed: EventFeed;
@@ -75,6 +89,7 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
   const router = useRouter();
   const panel = useAskPanel();
   const openPanel = panel?.available && section !== "canvas" ? panel.open : null;
+  const topWide = !!panel?.wide;
   const micTrigger = React.useRef<HTMLElement | null>(null);
 
   function handOver(trigger: HTMLElement, text?: string, source: "manual" | "voice" = "manual") {
@@ -83,7 +98,7 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
     else router.push("/canvas#ask");
     if (text) window.dispatchEvent(new Event(DRAFT_EVENT));
   }
-  function typedOnBar(event: React.KeyboardEvent<HTMLAnchorElement>) {
+  function typedOnBar(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
     handOver(event.currentTarget, event.key === " " ? undefined : event.key);
@@ -111,9 +126,17 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
     <Link prefetch={false} className="shell-skip" href="#shell-main">Skip to content</Link>
     <aside className="shell-sidebar"><Navigation name={name} pending={pending} section={section} /></aside>
     <div className="shell-workspace">
-      <header className="shell-bar">
-        <button className="shell-mobile-toggle" popoverTarget="shell-nav" aria-label="Open navigation"><Icon name="activity" /></button>
+      <header className={`shell-bar${topWide ? " is-wide" : ""}`}>
+        <button className="shell-mobile-toggle" popoverTarget="shell-nav" aria-label="Open navigation"><Icon name="menu" /></button>
         <Link prefetch={false} className="shell-mobile-brand" href="/"><LogoMark />fipa</Link>
+        {topWide && tryIt && <p className="shell-sample">Sample household{today ? ` · fixed date ${shortDate(today)}` : ""}</p>}
+        {topWide ? <>
+          <button className="shell-bell" popoverTarget="shell-notifications" aria-label={`Notifications, ${unread} unread`}>
+            <Icon name="bell" />{unread > 0 && <span className="shell-badge">{unread}</span>}
+          </button>
+          <button type="button" className="shell-add" popoverTarget="shell-add"><Icon name="plus" />Add</button>
+          {section !== "canvas" && <button type="button" id="shell-top-ask" className="shell-ask-button" aria-pressed={panel!.visible} onKeyDown={event => { if (event.key !== " ") typedOnBar(event); }} onClick={event => panel!.visible ? panel!.close() : panel!.open(event.currentTarget)}><Icon name="ask" />Ask</button>}
+        </> : <>
         <div className="shell-ask-row">
           <button {...micProps} className={`shell-ask-mic${speech.listening ? " is-listening" : ""}`}><Icon name="mic" /></button>
           <Link prefetch={false} id="shell-top-ask" className="shell-ask" href="/canvas#ask" onKeyDown={typedOnBar}
@@ -130,6 +153,7 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
           <Icon name="bell" />{unread > 0 && <span className="shell-badge">{unread}</span>}
         </button>
         <button className="shell-add" popoverTarget="shell-add"><Icon name="plus" />Add</button>
+        </>}
       </header>
       <main id="shell-main" className="shell-main" tabIndex={-1}>
         <div className="shell-content">{children}</div>
@@ -157,10 +181,12 @@ export function Shell({ children, name, pending, feed, section, forwarding }: {
       <Link prefetch={false} href="/activity">View activity</Link>
     </section>
     <nav id="shell-add" popover="auto" className="shell-popover shell-add-menu" aria-label="Add to household">
-      <Link prefetch={false} href="/#add-bill">Add a bill</Link>
-      <Link prefetch={false} href="/#add-charge">Add a card charge</Link>
+      <Link prefetch={false} href="/#add-bill">A bill</Link>
+      <Link prefetch={false} href="/#add-charge">A card charge</Link>
+      <Link prefetch={false} href="/clients#add-client">A client who pays you</Link>
+      <Link prefetch={false} href="/settings#add-person">A person who shares costs</Link>
+      <Link prefetch={false} className="shell-add-rule" href="/upload">Upload a receipt or bill</Link>
       {forwarding && <Link prefetch={false} href="/settings#forwarding">Forward a bill</Link>}
-      <Link prefetch={false} href="/upload">Upload a receipt</Link>
       <Link prefetch={false} href="/invoices/new">New invoice</Link>
     </nav>
   </div>;

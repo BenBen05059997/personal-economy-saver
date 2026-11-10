@@ -5,7 +5,7 @@ import { categoryLabel } from "@/lib/money/categories";
 import type { CancelNotice, MoneyState } from "@/lib/money/types";
 import { aboutMoney, dayLabel, formatter, minorPerUnit, repeatWords, usd } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN, confirmedGaps, gapAmountWords, gapDateWords, gapMeanwhileWords, gapQuestion, openGaps } from "@/lib/money/gaps";
-import { addDays, arrivals, daysBetween, safeToSpend, series, statementItems, timeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { addDays, arrivals, daysBetween, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { fundingOptions } from "@/lib/money/options";
 import { potSummary } from "@/lib/money/plan";
 import { toCheck } from "@/lib/money/to-check";
@@ -14,7 +14,8 @@ import { datesIn, lastOneWords } from "@/lib/money/repeat";
 import { ADD_BILL, ADD_CHARGE, SETTINGS_CARDS, SETTINGS_PEOPLE, hrefFor } from "@/lib/links";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { BankBalance } from "./BankBalance";
-import { RunwayChart } from "./RunwayChart";
+import { HomeViews } from "./HomeViews";
+import type { SpendingInput } from "@/lib/money/spending";
 import { homeSentence } from "@/lib/money/sentence";
 import { Suspense, type ReactNode } from "react";
 import { Sentence } from "./Sentence";
@@ -23,6 +24,7 @@ import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
 import { Suggestions } from "./Suggestions";
 import type { openSuggestions } from "@/db/suggestions";
+import { GetStarted, StepsPanel, type GetStartedProgress } from "./GetStarted";
 import "./home.css";
 
 type Props = { state: MoneyState };
@@ -31,9 +33,6 @@ type People = { id: string; name: string }[];
 // What the ✓ marks mean in the engine: a bill's tick is "the worst-case balance on its due day is at least zero";
 // a card's is "the statement is paid from the bank, or once client payments land by its due date, with every other bill still paid".
 const DAY_COVERED = "Covered: your balance stays above zero on this day, even if clients pay late.";
-// What safeToSpend counts (runway.ts): the lowest point of the clients-late balance over the next 30 days, from today's cash
-// (bank and PayPal, less pots) after every confirmed bill and card statement, unbilled card spend included.
-const SAFE_MEANS = "The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late.";
 const STATEMENT_COVERED = "Covered: this statement can be paid on its due date from your bank or from client payments due by then.";
 
 function Actions({ state, forwarding }: Props & { forwarding: boolean }) {
@@ -51,25 +50,6 @@ function Actions({ state, forwarding }: Props & { forwarding: boolean }) {
     </div>
     {options.gap > 0 && <Link className="home-options" prefetch={false} href="/options">{pick ? "Other options" : "Compare options"} ›</Link>}
   </div>;
-}
-
-function Next30Days({ state, balanceId }: Props & { balanceId: string }) {
-  const format = formatter(state.homeCurrency);
-  // Only the amount is displayed. The essentials threshold affects the optional spending verdict.
-  const safe = safeToSpend(state, 0);
-  const end = addDays(state.today, WINDOW_DAYS);
-  const open = statementItems(state).filter((st) => st.open && st.dueOn >= state.today && st.dueOn < end);
-  const unbilled = open.map((st) => `${format(st.amount)} on ${state.cards.find((c) => c.id === st.cardId)!.label}`);
-  return <section id="next-30-days" className="home-panel home-runway">
-    <h2>Next 30 days, if clients pay late</h2>
-    <p className="home-label">Safe to spend now</p>
-    <div className="home-amount">{format(safe.amount)}</div>
-    <p className="home-note">{SAFE_MEANS}</p>
-    <p className="home-note">{unbilled.length ? `Includes ${unbilled.join(" and ")} not yet billed` : "No unbilled card spend due in the next 30 days."}</p>
-    <BankBalance key={balanceId} currency={state.homeCurrency} balance={format(state.bank)} balanceId={balanceId} />
-    {state.pots.length > 0 && <ul className="home-pots">{state.pots.map((pot) => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}
-    <RunwayChart balances={series(state, "worst")} format={format} focusDate={homeSentence(state).day ?? undefined} />
-  </section>;
 }
 
 function ToCheck({ state, inbox, forwarding }: Props & { inbox: ReaderInbox; forwarding: boolean }) {
@@ -106,14 +86,8 @@ function FirstSteps({ state, tryIt }: Props & { tryIt: boolean }) {
   const current = steps.find(step => !step.done);
   if (!current) return null;
   const left = steps.filter(step => !step.done).length;
-  return <section id="first-steps" className="home-panel home-steps">
-    <h2>First steps · {left} to go</h2>
-    <ol>{steps.filter(step => step.done).map(step => <li key={step.closed} className="home-step-done">
-      <span className="home-step-tick" aria-hidden="true">✓</span><span>{step.closed}</span></li>)}
-      <li key={current.open}><span className="home-step-tick" aria-hidden="true"></span>
-        <Link prefetch={false} href={current.href}><span>{current.open}</span></Link></li>
-    </ol>
-  </section>;
+  return <StepsPanel sectionId="first-steps" id="first-steps-title" title={`First steps · ${left} to go`}
+    rows={[...steps.filter(step => step.done).map(step => ({ done: true, label: step.closed })), { done: false, label: current.open, href: current.href }]} />;
 }
 
 function Cards({ state }: Props) {
@@ -273,7 +247,7 @@ function addedLine(state: MoneyState, id: string | null): string | null {
   return charge && card ? `Added ${charge.merchant} ${format(charge.amount)} on ${card.label}` : null;
 }
 
-export function HomeView({ state, inbox, notice, people, entryIds, balanceId, demo, tryIt, forwarding, added, suggestions, pins }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; people: People; entryIds: EntryIds; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode }) {
+export function HomeView({ state, inbox, notice, people, entryIds, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, spending }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; people: People; entryIds: EntryIds; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; spending: SpendingInput }) {
   const date = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(state.today)).replace(",", "");
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
@@ -283,9 +257,11 @@ export function HomeView({ state, inbox, notice, people, entryIds, balanceId, de
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} forwarding={forwarding} />
     <Suspense fallback={null}>{pins}</Suspense>
+    {tryIt && getStarted ? <GetStarted key={householdId} householdId={householdId} progress={getStarted} peopleCount={state.split.members.length} /> : <FirstSteps state={state} tryIt={tryIt} />}
+    <HomeViews state={state} spending={spending} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
     <div className="home-panels">
-      <div className="home-column"><Next30Days state={state} balanceId={balanceId} /><Cards state={state} /><SharedCosts state={state} /></div>
-      <div className="home-column"><FirstSteps state={state} tryIt={tryIt} /><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><ComingUp state={state} people={people} entryIds={entryIds} added={addedLine(state, added)} addedId={added} /></div>
+      <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} /></div>
+      <div className="home-column"><ComingUp state={state} people={people} entryIds={entryIds} added={addedLine(state, added)} addedId={added} /></div>
     </div>
   </article>;
 }

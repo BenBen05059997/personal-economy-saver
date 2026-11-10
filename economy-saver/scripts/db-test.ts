@@ -1,6 +1,7 @@
 // Database layer check against in-process Postgres (PGlite): no credential needed.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/db-test.ts
 import assert from "node:assert/strict";
+import "./forecast-causes-test";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq, getTableName, is, sql } from "drizzle-orm";
@@ -175,7 +176,7 @@ async function main() {
     const full = await loadWorkspaceData(db, hid);
     const narrow = await db.transaction(tx => loadNavigationData(tx, hid),
       { isolationLevel: "repeatable read", accessMode: "read only" });
-    assert.deepEqual(narrow, { name: full.name, feed: full.feed, pending: full.pending, timeZone: full.timeZone });
+    assert.deepEqual(narrow, { name: full.name, feed: full.feed, pending: full.pending, timeZone: full.timeZone, today: full.state.today, tryIt: full.tryIt });
     assert.equal(narrow.pending, beforeOther.pending + 4, "two recent pending charges, one bill and one reading count");
     assert.deepEqual(await loadNavigationData(db, other), beforeOther);
     await db.delete(schema.fxRates).where(eq(schema.fxRates.householdId, hid));

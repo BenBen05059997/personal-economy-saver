@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LoadingIndicator } from "@/components/ui/LoadingState";
 
-export function TryItForm() {
+export function TryItForm({ label = "Try it", className }: { label?: string; className?: string }) {
   const submitting = useRef(false);
   const [pending, setPending] = useState(false);
 
@@ -25,8 +25,8 @@ export function TryItForm() {
     submitting.current = true;
     setPending(true);
   }}>
-    <button type="submit" disabled={pending}>
-      {pending ? <LoadingIndicator label="Creating your household…" /> : "Try it"}
+    <button type="submit" className={className} disabled={pending}>
+      {pending ? <LoadingIndicator label="Creating your household…" /> : label}
     </button>
   </form>;
 }

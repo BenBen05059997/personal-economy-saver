@@ -445,15 +445,17 @@ await step("page", "phone-links-keep-their-own-home-and-canvas-destinations", as
   const clients = ["Acme", "Northwind"].map(name => hrefForLink(sentence, name)[0]);
   expect(clients.every(href => /^\/clients\/[0-9a-f-]{36}$/.test(href ?? "")) && clients[0] !== clients[1], "canvas-client-links");
 });
-// D47: Try it arrives with every step true, so the First steps panel never shows and the demo numbers are untouched.
-await step("page", "home-try-it-has-no-first-steps", async () => {
+// D47: Try it shows its five-step Get started panel while retaining Ben’s numbers.
+await step("page", "home-try-it-get-started", async () => {
   const html = await page("/", /18,780/);
-  expect(!/First steps/.test(pageContent(html)), "first-steps-shown");
+  expect(/Get started/.test(pageContent(html)) && /Read the sentence and the forecast/.test(pageContent(html)) && /Hikari Denki bill in To check/.test(pageContent(html)), "try-it-get-started");
   expect(!/Add your rent\s*,\s*your bills and the clients/.test(pageContent(html)), "empty-sentence-shown");
   // Any demo household says so on Home and links to Start with my numbers.
   expect(/A fictional household that lives in this browser/.test(plain(pageContent(html))) && /href="\/start"/.test(html), "demo-line-missing");
-  // The + Add menu offers the two things people add most, linking to the Home anchors the entry form opens from.
-  expect(/href="\/#add-bill"[^>]*>Add a bill</.test(html) && /href="\/#add-charge"[^>]*>Add a card charge</.test(html), "add-menu-bill-and-charge");
+  // The five Add actions lead to their existing forms.
+  for (const [href, label] of [["/#add-bill", "A bill"], ["/#add-charge", "A card charge"], ["/clients#add-client", "A client who pays you"], ["/settings#add-person", "A person who shares costs"], ["/upload", "Upload a receipt or bill"]]) {
+    expect(html.includes(`href="${href}">${label}</a>`), `add-menu-${label}`);
+  }
 });
 // Nov 5 walk: every Coming up row up to the day the sentence names (Nov 27 on Try it) is on screen, not under "Later in the month".
 await step("page", "home-coming-up-keeps-the-sentence-day-above-the-fold", async () => {
@@ -707,7 +709,7 @@ await step("action", "typed-ask-read-only", async () => {
 });
 // The Ask page (D60): without the owner's AI settings it shows the missing setting's name; with them, the box. Pins (D57): pin a canvas, Home draws it, unpin.
 await step("page", "ask-page-opens-with-the-box-or-the-missing-setting", async () => {
-  const html = await page("/canvas", /Your question|Ask isn(’|&#x27;|')t available on this server yet \(AI_[A-Z_]+\)/);
+  const html = await page("/canvas", /Ask a question|Ask isn(’|&#x27;|')t available on this server yet \(AI_[A-Z_]+\)/);
   expect(/New conversation|Am I OK until the end of the month/.test(pageContent(html)) || /Ask isn/.test(pageContent(html)), "ask-page-content");
   expect(/This month|Safe to spend/.test(pageContent(html)), "ask-page-starters");
 });
@@ -967,10 +969,10 @@ await step("guard", "stage15a-half-a-card-refused", async () => {
   const result = await request("/api/try/blank", { method: "POST", form: { ...twoFields, card: "Card Q" }, session: "" });
   expect(result.response.status === 400 && !result.response.headers.get("set-cookie"), "a-half-card");
 });
-await step("action", "stage15a-try-it-keeps-nov-14-and-has-no-first-steps", async () => {
+await step("action", "stage15a-try-it-keeps-nov-14-and-shows-get-started", async () => {
   adopt(await request("/api/try", { session: "" })); // a fresh session: with a cookie, /api/try keeps the current household
   const html = await page("/", /short on the 27th/);
-  expect(html.includes('dateTime="2026-11-14"') && /18,780/.test(pageContent(html)) && !/First steps/.test(pageContent(html)), "a-try-it-date");
+  expect(html.includes('dateTime="2026-11-14"') && /18,780/.test(pageContent(html)) && /Get started/.test(pageContent(html)) && /Read the sentence and the forecast/.test(pageContent(html)), "a-try-it-date");
 });
 await step("page", "stage15a-start-notice-names-ben-for-try-it", () => page("/start", /This replaces the Try it household in this browser\. Reset in Settings brings Ben(?:'|&#x27;|’)s numbers back\./));
 

@@ -227,18 +227,20 @@ handlers and routes in both. Both render the canvas through `Canvas`. The panel 
 the thread and canvas, compacts the blocks, and offers Open full to the selected
 `/canvas?space=<id>` when it shows a canvas.
 
+Home’s `HomeViews.tsx` switches between `ForecastChart.tsx`, `CategoryBars.tsx` and `MonthColumns.tsx` (plain SVG, shared scales in `chart-utils.ts`). It renders Forecast from `series`, `timeline` and `forecastCosts` (`src/lib/money/forecast-causes.ts`), and Categories and Trend from `monthByCategory` and the household spending inputs. Chart/Table and view preferences stay in localStorage. `GetStarted.tsx` uses state assembled in `src/db/workspace.ts`; its answer check reads IndexedDB when the journal is on this device, and its Hide preference stays on this device. Blank households retain First steps. The landing’s sign-in card is `LandingSignIn.tsx`.
+
 The `src/app/(workspace)/layout.tsx` provider `AskWorkspace` is keyed by the validated
 household. It shares the page’s session lookup through React `cache` for each server
-render. The desktop bar opens and focuses the panel. At 1200px and up the grid reserves
+render. At 1200px and up the panel opens by default unless this household and tab saved it closed; the top-bar and sidebar Ask controls toggle it. The panel shows the current screen, starter questions and owner/member key guidance when no model is available. The grid reserves
 380px on the right, with directory detail to its left. At 900–1199px the panel overlays
 the page. Below 900px the Ask bar opens the full page. The panel is hidden on
 `/canvas`. Public pages, including login, start, join and family view, sit outside
 the provider. Account uses the workspace shell.
 
-The first open fetches the view. Space changes and saves refresh it as needed. There
+The first open fetches the view. Home’s Ask about this hands the view question to the panel (or full Ask below 900px), and submits it once when the selected view and device journal are ready; unavailable Ask retains it as a draft. Space changes and saves refresh it as needed. There
 is no view request from a fresh closed panel. React `Activity` hides a mounted panel
 while preserving its question and in-flight reply across workspace navigation. Panel preferences in per-tab
-`sessionStorage` keep only the open flag and selected space for each household.
+`sessionStorage` keep the selected space and an optional explicit open or closed choice for each household. Without a choice the panel follows the 1200px breakpoint as the viewport changes.
 Esc and Close hide the panel and restore focus. Panel mutations refresh the screen
 behind it, including form saves, drafts and attachments. AQ in BROWSER-CHECKS and
 qa/scenarios/ask-view.json cover the desktop panel. `db:test` validates the scenario
@@ -651,7 +653,7 @@ model call; a key saved before sealing is refused until it is saved again; `ai_k
 call. Vault keeps the key out of plain dumps; anyone holding `DATABASE_URL` can read `vault.decrypted_secrets` but gets only the sealed text, which opens only with the Worker's `AI_KEY_SEAL_KEY`. A saved key that cannot be read is
 never replaced by another key. A question or document travels to the host Settings shows; with no model of its own, to the host of `AI_BASE_URL`
 under the owner's key; no call is capped (D33). Saving a model runs `checkConnection` and stores the result in `ai_check`. MCP
-tokens are stored hashed. On a server with none of the `AI_` settings (the deployed Worker, `serverHasNoModel`), each household’s own key is the only model: Ask names that in `askMissingWords` (owner: “Add your own AI key in Settings to use Ask.” with an Open Settings link to `/settings#ai-model`; member: “Ask the household’s owner to add an AI key in Settings.”; a partly set server keeps the operator sentence `askUnavailable`), `/api/ask`, voice fill and reading answer with “… needs an AI key in Settings → Your AI model.”, `firstUse` ends with the own-key line, and Settings → Your AI model says “Paste your own key below to use Ask and document reading.”, hides the default-model hint, labels the clear button “Remove my key” and adds “Use a key with a spending limit, and remove it here when you’re done.” `looksLikeApiKey` (`src/lib/ai/key-text.ts`) refuses key-shaped text before it is sent or kept: in AskPage (the field is cleared), `answerQuestion` before any read, model call or write, `textOf` in `memory-ops.ts` (every memory and note write, page, tool or device) and `BriefSchema`. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
+tokens are stored hashed. On a server with none of the `AI_` settings (the deployed Worker, `serverHasNoModel`), each household’s own key is the only model: Ask names that in `askMissingWords` (owner: the no-key card with “Add your own AI key in Settings to use Ask.” and an “Add your AI key” button to `/settings#ai-model`, the same card in the panel and on the full page; member: “Ask the household’s owner to add an AI key in Settings.”; a partly set server keeps the operator sentence `askUnavailable`), `/api/ask`, voice fill and reading answer with “… needs an AI key in Settings → Your AI model.”, `firstUse` ends with the own-key line, and Settings → Your AI model says “Paste your own key below to use Ask and document reading.”, hides the default-model hint, labels the clear button “Remove my key” and adds “Use a key with a spending limit, and remove it here when you’re done.” `looksLikeApiKey` (`src/lib/ai/key-text.ts`) refuses key-shaped text before it is sent or kept: in AskPage (the field is cleared), `answerQuestion` before any read, model call or write, `textOf` in `memory-ops.ts` (every memory and note write, page, tool or device) and `BriefSchema`. (c) Sessions: httpOnly, SameSite=Lax, Secure in production, same-origin check on every browser-facing mutating route.
 
 In Settings, `AiModelForm` calls `providerFromKey` in the browser when the owner pastes a key with Provider still on the app’s default.
 `PROVIDERS` stores the provider key-page metadata and the distinctive prefixes `sk-ant-` (Anthropic), `sk-or-` (OpenRouter),
