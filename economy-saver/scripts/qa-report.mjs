@@ -14,7 +14,8 @@ const PRIORITIES = ["P1", "P2", "P3"];
 const NEEDS = ["none", "model", "deploy", "paypal_webhook", "email", "microphone", "owner"];
 const HOWS = ["browser", "http", "suite", "eval"];
 const STATUSES = ["pass", "fail", "blocked", "skipped"];
-const WIDTHS = ["375", "1440", "both", "n/a"];
+const WIDTHS = ["375", "1024", "1280", "1440", "both", "n/a"];
+const MAIN = ["results-scripted.json", "results-browser.json"]; // one run; every other results-*.json is one environment run
 const ID = /^[A-Z]+-\d{3}$/;
 
 const args = new Set(process.argv.slice(2));
@@ -73,7 +74,7 @@ for (const file of files) {
 let results = [];
 if (!args.has("--check")) {
   const seen = new Map();
-  const resultFiles = readdirSync(qaDir).filter((name) => /^results-[a-z]+\.json$/.test(name)).sort();
+  const resultFiles = readdirSync(qaDir).filter((name) => /^results-[a-z-]+\.json$/.test(name)).sort();
   for (const name of resultFiles) {
     const data = readJson(join(qaDir, name));
     if (data && !Array.isArray(data.results)) problems.push(`${name}: results must be a list`);
@@ -81,8 +82,9 @@ if (!args.has("--check")) {
   }
   results = results.map(({ r, where, name }) => {
     if (!scenarios.has(r?.id)) problems.push(`${where}: no scenario with this id`);
-    if (seen.has(r?.id)) problems.push(`${where}: also recorded in ${seen.get(r.id)}`);
-    seen.set(r?.id, name);
+    const key = `${MAIN.includes(name) ? "main" : name}/${r?.id}`;
+    if (seen.has(key)) problems.push(`${where}: also recorded in ${seen.get(key)}`);
+    seen.set(key, name);
     if (!STATUSES.includes(r?.status)) problems.push(`${where}: status must be one of ${STATUSES.join(", ")}`);
     if (r?.width !== undefined && !WIDTHS.includes(String(r.width))) problems.push(`${where}: width must be one of ${WIDTHS.join(", ")}`);
     if (r?.status !== "pass" && !(typeof r?.actual === "string" && r.actual.trim())) problems.push(`${where}: a ${r?.status} entry says what happened in actual`);
@@ -115,6 +117,8 @@ if (args.has("--failures")) {
   process.exit(0);
 }
 
+const all = results;
+results = all.filter((r) => MAIN.includes(r.file));
 const count = { pass: 0, fail: 0, blocked: 0, skipped: 0 };
 for (const r of results) count[r.status] += 1;
 const notRun = [...scenarios.keys()].filter((id) => !results.some((r) => r.id === id));
@@ -129,11 +133,17 @@ for (const s of scenarios.values()) {
 for (const [area, a] of Object.entries(areas)) {
   console.log(`  ${area}: ${a.total} (${a.pass} pass, ${a.fail} fail, ${a.blocked} blocked)`);
 }
-const failing = results.filter((r) => r.status === "fail").sort((a, b) => scenarios.get(a.id).priority.localeCompare(scenarios.get(b.id).priority));
-if (failing.length > 0) {
-  console.log("\nFailing:");
-  for (const r of failing) {
-    const s = scenarios.get(r.id);
-    console.log(`  ${r.id} [${s.priority}] ${s.action}: ${r.actual}`);
-  }
+const listFailing = (list, title) => {
+  const failing = list.filter((r) => r.status === "fail").sort((a, b) => scenarios.get(a.id).priority.localeCompare(scenarios.get(b.id).priority));
+  if (failing.length === 0) return;
+  console.log(title);
+  for (const r of failing) console.log(`  ${r.id} [${scenarios.get(r.id).priority}] ${scenarios.get(r.id).action}: ${r.actual}`);
+};
+listFailing(results, "\nFailing:");
+for (const name of [...new Set(all.map((r) => r.file))].filter((n) => !MAIN.includes(n))) {
+  const env = all.filter((r) => r.file === name);
+  const c = { pass: 0, fail: 0, blocked: 0, skipped: 0 };
+  for (const r of env) c[r.status] += 1;
+  console.log(`${name}: ${env.length} run: ${c.pass} pass, ${c.fail} fail, ${c.blocked} blocked, ${c.skipped} skipped`);
+  listFailing(env, "  Failing:");
 }

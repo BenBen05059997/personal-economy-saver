@@ -3,7 +3,7 @@
 What a person does in Personal Economy Saver, what they expect, and whether it works today. One scenario is one user action with one expected outcome, so a failure points to one behaviour. Codex runs them (two runs, one with scripts and one in Chrome with computer use), writes the results files, and a second Codex run fixes the failures.
 
 - `scenarios/*.json` — the checklist, one file per area. Each file is a JSON array of scenarios.
-- `results-scripted.json` (the `suite` and `http` scenarios) and `results-browser.json` (the `browser` scenarios) — the latest run, one entry per scenario run. A full run overwrites its file; a partial run updates only the entries it ran.
+- `results-scripted.json` (the `suite` and `http` scenarios) and `results-browser.json` (the `browser` scenarios) — the latest run, one entry per scenario run. A full run overwrites its file; a partial run updates only the entries it ran. `results-live.json` (the deployed Worker) and `results-worker-local.json` (the local Worker preview) hold one entry per scenario run in that environment, kept separate from the main run, so a scenario may also appear in them.
 - `evidence/` (git-ignored) — a screenshot for each browser fail (`<id>.png`) and a screen recording per area (`<area>.mov`).
 - `node economy-saver/scripts/qa-report.mjs` — checks the scenario files, merges the results files, then prints the counts and the failures. `--failures` prints the failing and blocked entries as JSON (what the fixing run reads). `--check` only checks the scenario files.
 
@@ -66,7 +66,7 @@ The expected numbers for a fresh Try it household are in [BROWSER-CHECKS.md](../
 }
 ```
 
-`status` is `pass`, `fail` (it ran and an `expected` line is wrong: `actual` says which), `skipped` (not run here: a need this machine lacks, such as the owner's keys or accounts, a sign-in, the deploy, email, a microphone or a PDF on the Codex bridge, or a rule forbids it, such as `/api/cron`; `actual` says which) or `blocked` (it should have run here but something in the app stopped it first, such as an earlier step failing; `actual` says what). `width` is `375`, `1440`, `both` or `n/a`.
+`status` is `pass`, `fail` (it ran and an `expected` line is wrong: `actual` says which), `skipped` (not run here: a need this machine lacks, such as the owner's keys or accounts, a sign-in, the deploy, email, a microphone or a PDF on the Codex bridge, or a rule forbids it, such as `/api/cron`; `actual` says which) or `blocked` (it should have run here but something in the app stopped it first, such as an earlier step failing; `actual` says what). `width` is `375`, `1024`, `1280`, `1440`, `both` or `n/a` (`1024` checks the Ask panel as an overlay, `1280` the docked panel).
 
 ## Before a run
 
