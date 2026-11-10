@@ -20,7 +20,7 @@ type AuthUser = { id: string; email: string; email_confirmed_at?: string };
 
 export async function runInviteAuthChecks(db: Db, check: Check) {
   const owner = randomUUID();
-  const hid = await finishSetup(db, owner, setupForm.parse({ name: "Fictional Wren", timeZone: "Asia/Tokyo", currency: "USD", bank: "1250" }), null);
+  const hid = await finishSetup(db, owner, setupForm.parse({ name: "Fictional Wren", timeZone: "Asia/Tokyo", currency: "USD" }), null);
   const { token } = await createInvite(db, hid, owner, { email: EMAIL, name: "Fictional Finch" });
   const join = "/join/" + token;
   const refuse = join + "?refused=1";

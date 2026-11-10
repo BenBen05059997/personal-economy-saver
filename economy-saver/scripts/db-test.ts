@@ -15,6 +15,7 @@ import { convertMinor, fromMinor, toMinor } from "@/db/money";
 import * as schema from "@/db/schema";
 import { randomUUID } from "node:crypto";
 import { accountHousehold, createHousehold, deleteOwnedHousehold, finishSetup, householdClock, setupForm } from "@/db/account";
+import { settingsInput, updateSettings } from "@/db/settings";
 import { runDaily } from "@/db/daily";
 import { parseReferenceRate } from "@/db/reference-rate";
 import { confirmPending } from "@/db/confirm";
@@ -465,14 +466,15 @@ async function main() {
     const fromDemo = await seedBen(db, { isDemo: true });
     const uid = randomUUID();
     const setup = setupForm.parse({
-      name: "Kiko", currency: "USD", timeZone: "Asia/Tokyo", bank: "-12.37",
-      card: "Card C", limit: "501.10", closingDay: "15", dueDay: "10",
+      name: "Kiko", currency: "USD", timeZone: "Asia/Tokyo",
     });
     assert.equal(await accountHousehold(db, uid), null);
     await Promise.all([finishSetup(db, uid, setup, fromDemo), finishSetup(db, uid, setup, fromDemo)]);
     assert.equal(await findDemoHousehold(db, fromDemo), null);
     assert.equal(await findDemoHousehold(db, uid), null);
     assert.equal(await accountHousehold(db, uid), uid);
+    await updateSettings(db, uid, settingsInput.parse({ kind: "household", name: "Kiko", bank: "-12.37" }));
+    await updateSettings(db, uid, settingsInput.parse({ kind: "card", id: "", label: "Card C", memberId: "", closingDay: 15, dueDay: 10, limit: "501.10" }));
     const state = await loadMoneyState(db, uid, today);
     assert.equal(state.cards.length, 1);
     assert.equal(state.cards[0].limit, 501.10);
@@ -487,20 +489,20 @@ async function main() {
     assert.equal(await findDemoHousehold(db, a), a);
   });
 
-  await check("onboarding without a bank balance creates a household with balance 0; a typed one is still read", async () => {
+  await check("onboarding creates a household with balance 0 and no card", async () => {
     const none = setupForm.parse({ name: "Mika", currency: "JPY", timeZone: "Asia/Tokyo" });
-    assert.equal(none.bank, undefined);
     const hid = await createHousehold(db, randomUUID(), none, { isDemo: true });
     const [row] = await db.select().from(schema.households).where(eq(schema.households.id, hid));
     assert.equal(row.bankBalanceMinor, 0);
-    const typed = await createHousehold(db, randomUUID(), setupForm.parse({ name: "Mika", currency: "JPY", timeZone: "Asia/Tokyo", bank: "1,200" }), { isDemo: true });
-    assert.equal((await db.select().from(schema.households).where(eq(schema.households.id, typed)))[0].bankBalanceMinor, 1200);
+    assert.equal((await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid))).length, 0);
   });
 
   await check("a blank demo says what to add, never that it is fine; a pending bill changes nothing, a confirmed one gives the normal sentence (D47)", async () => {
     const blank = await createHousehold(db, randomUUID(), setupForm.parse({
-      name: "Mika", currency: "USD", timeZone: "Asia/Tokyo", bank: "1,200", card: "Card D", limit: "", closingDay: "20", dueDay: "10",
+      name: "Mika", currency: "USD", timeZone: "Asia/Tokyo",
     }), { isDemo: true });
+    await updateSettings(db, blank, settingsInput.parse({ kind: "household", name: "Mika", bank: "1200" }));
+    await updateSettings(db, blank, settingsInput.parse({ kind: "card", id: "", label: "Card D", memberId: "", closingDay: 20, dueDay: 10, limit: "" }));
     assert.equal(await findDemoHousehold(db, blank), blank);
     assert.equal(await accountHousehold(db, blank), null);
     assert.notEqual((await householdClock(db, blank)).today, today, "a blank demo lives on the real date (D51)");

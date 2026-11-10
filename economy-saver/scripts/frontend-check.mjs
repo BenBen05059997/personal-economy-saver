@@ -842,7 +842,7 @@ await step("action", "import-refuses-a-full-household-an-old-file-and-an-oversiz
   expect(big.response.status === 413, "import-oversize");
 });
 await step("action", "import-fills-an-empty-household-from-an-export", async () => {
-  const start = await request("/api/try/blank", { method: "POST", form: { name: "Fictional importer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "1", card: "Card I", closingDay: "25", dueDay: "10", limit: "" }, session: "" });
+  const start = await request("/api/try/blank", { method: "POST", form: { name: "Fictional importer", currency: "JPY", timeZone: "Asia/Tokyo" }, session: "" });
   const blank = start.response.headers.get("set-cookie")?.match(/(?:^|,\s*)household=([^;]+)/)?.[1];
   expect(start.response.status === 303 && start.response.headers.get("location") === SETUP_START && blank, "import-blank-session");
   const old = await request("/api/restore", { method: "POST", session: "household=" + blank, json: { ...JSON.parse(tryItExport), version: 1 } });
@@ -901,12 +901,22 @@ await step("read", "reset-invalidates-old-session", async () => {
 // D47: Start with my numbers. A blank demo says what to add (never "You're fine"), shows three open first steps, and
 // changes to the normal sentence and two open steps once a bill is added through the same door the form uses.
 cookie = "";
-const setup = { name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "120,000", card: "Card N", closingDay: "25", dueDay: "10", limit: "" };
+const setup = { name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo" };
 await step("guard", "start-blank-bad-form-refused", async () => {
-  const result = await request("/api/try/blank", { method: "POST", form: { ...setup, closingDay: "40" }, session: "" });
+  const result = await request("/api/try/blank", { method: "POST", form: { ...setup, timeZone: "Nowhere/Land" }, session: "" });
   expect(result.response.status === 400 && !result.response.headers.get("set-cookie"), "blank-bad-form");
 });
-await step("action", "start-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" }), false, SETUP_START));
+// A blank household starts with no balance and no card; the person adds both after it, as the setup pages do.
+async function addBankAndCard() {
+  const bank = await request("/api/bank-balance", { method: "POST", form: { id: randomUUID(), amount: "120,000", returnTo: "/setup?step=bank" } });
+  expect(bank.response.status === 303, "blank-bank-set");
+  const card = await request("/api/settings", { method: "POST", form: { kind: "card", id: "", label: "Card N", memberId: "", closingDay: "25", dueDay: "10", limit: "" } });
+  expect(card.response.status === 200, "blank-card-set");
+}
+await step("action", "start-blank-session", async () => {
+  adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" }), false, SETUP_START);
+  await addBankAndCard();
+});
 if (cookie === "") process.exit(1);
 await step("page", "start-blank-home-empty-sentence", async () => {
   const content = plain(pageContent(await page("/", /Add your bills and the clients who pay you to see your next 30 days/)));
@@ -927,6 +937,7 @@ await step("page", "start-form-says-it-replaces-the-demo", async () => {
 await step("action", "start-blank-second-post-replaces-the-demo", async () => {
   const old = cookie;
   adopt(await request("/api/try/blank", { method: "POST", form: setup }), false, SETUP_START);
+  await addBankAndCard();
   expect(cookie !== old, "blank-second-fresh-cookie");
   expect((await request("/api/events", { session: old })).response.status === 401, "blank-old-demo-gone");
   expect((await request("/api/events")).response.status === 200, "blank-new-demo-works");
@@ -970,7 +981,6 @@ await step("action", "start-blank-fetch-form-gets-redirect-header", async () => 
   expect(/household=[A-Za-z0-9_-]{43};/.test(result.response.headers.get("set-cookie") ?? ""), "blank-fetch-cookie");
 });
 // Stage 15 A: Start asks only for a name (the bank balance is set on Home); the household lives on the real date; Home asks for one thing at a time.
-const twoFields = { name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo" };
 await step("page", "stage15a-start-form-has-two-fields-and-folded-card-and-region", async () => {
   const html = await page("/start", /Your name/);
   const content = plain(pageContent(html));
@@ -978,7 +988,7 @@ await step("page", "stage15a-start-form-has-two-fields-and-folded-card-and-regio
   expect(/Your name/.test(content) && /· Change/.test(content), "a-start-labels");
   expect(!/Add a card now/.test(content) && !html.includes('name="card"'), "a-no-card-fields");
 });
-await step("action", "stage15a-start-two-fields", async () => adopt(await request("/api/try/blank", { method: "POST", form: twoFields, session: "" }), false, SETUP_START));
+await step("action", "stage15a-start-two-fields", async () => adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" }), false, SETUP_START));
 // The setup steps after "Start planning": one question per page, with a progress line, Back, Skip and Next (Finish on the last).
 const SETUP_STEPS = [
   { step: "bank", question: /What(?:'|&#x27;|’)s in your bank today\?/, why: /So the forecast starts from today(?:'|&#x27;|’)s money\./, back: false, next: "Next", to: "/setup?step=income", control: 'name="amount"' },
@@ -988,7 +998,7 @@ const SETUP_STEPS = [
 ];
 for (const [index, item] of SETUP_STEPS.entries()) {
   await step("page", `setup-${item.step}-step-has-its-question-and-controls`, async () => {
-    adopt(await request("/api/try/blank", { method: "POST", form: twoFields, session: "" }), false, SETUP_START); // a fresh blank household
+    adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" }), false, SETUP_START); // a fresh blank household
     const html = await page(`/setup?step=${item.step}`, item.question);
     const content = plain(pageContent(html));
     expect(new RegExp(`Step ${index + 1} of 4`).test(content), "setup-progress");
@@ -1021,7 +1031,7 @@ await step("guard", "setup-without-a-household-goes-to-start", async () => {
   const result = await request("/setup?step=bank", { session: "" });
   expect(result.response.status === 307 || result.response.status === 303 || /\/start/.test(result.body), "setup-needs-household");
 });
-await step("action", "setup-checks-leave-a-fresh-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: twoFields, session: "" }), false, SETUP_START));
+await step("action", "setup-checks-leave-a-fresh-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" }), false, SETUP_START));
 await step("page", "stage15a-home-has-the-real-date-no-card", async () => {
   const html = await page("/", /Bank balance/);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -1035,14 +1045,6 @@ await step("action", "stage15a-add-rent-shows-on-home", async () => {
   expect(result.response.status === 303, "a-bill-result");
   await page("/", /Fictional rent/);
 });
-await step("action", "stage15a-start-with-card-block", async () => {
-  adopt(await request("/api/try/blank", { method: "POST", form: { ...twoFields, card: "Card Q", closingDay: "25", dueDay: "10", limit: "" }, session: "" }), false, SETUP_START);
-  await page("/", /Card Q/);
-});
-await step("guard", "stage15a-half-a-card-refused", async () => {
-  const result = await request("/api/try/blank", { method: "POST", form: { ...twoFields, card: "Card Q" }, session: "" });
-  expect(result.response.status === 400 && !result.response.headers.get("set-cookie"), "a-half-card");
-});
 await step("action", "stage15a-try-it-keeps-nov-14-and-shows-get-started", async () => {
   adopt(await request("/api/try", { session: "" })); // a fresh session: with a cookie, /api/try keeps the current household
   const html = await page("/", /short on the 27th/);
@@ -1051,7 +1053,10 @@ await step("action", "stage15a-try-it-keeps-nov-14-and-shows-get-started", async
 await step("page", "stage15a-start-notice-names-ben-for-try-it", () => page("/start", /This replaces the Try it household in this browser\. Reset in Settings brings Ben(?:'|&#x27;|’)s numbers back\./));
 
 // Stage 15 C: every empty panel names what fills it and links there; rows lead to what they are about.
-await step("action", "stage15c-blank-session", async () => adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" }), false, SETUP_START));
+await step("action", "stage15c-blank-session", async () => {
+  adopt(await request("/api/try/blank", { method: "POST", form: setup, session: "" }), false, SETUP_START);
+  await addBankAndCard();
+});
 await step("page", "stage15c-empty-panel-hints-link-to-what-fills-them", async () => {
   const html = await page("/", /Nothing due in the next 30 days/);
   const content = plain(pageContent(html));

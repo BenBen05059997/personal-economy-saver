@@ -25,6 +25,7 @@ import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { dueAnswer, statusAnswer } from "@/lib/money/ask";
 import { addDays, low, medianLow, safeToSpend, series } from "@/lib/money/runway";
 import { createHousehold, setupForm } from "@/db/account";
+import { setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
 import { MODEL_RULES } from "@/lib/agent/rules";
 import { THINKING_WORDS, TOOL_WORDS, toolWords } from "@/lib/agent/words";
@@ -497,7 +498,7 @@ async function main() {
       assert.match(words, /Under Food: Coffee \(no default business share, \d+ items?\)\./);
       assert.match(words, /Under Other: Books & films \(.*\); Gear \(.*\)\./);
       assert.deepEqual((answer as { sources: unknown[] }).sources, [{ label: "Your categories", href: "/settings#categories" }]);
-      const bare = await createHousehold(db, crypto.randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "1,200", card: "Card D", limit: "", closingDay: "20", dueDay: "10" }), { isDemo: true });
+      const bare = await createHousehold(db, crypto.randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo" }), { isDemo: true });
       const none = transport([() => reply("tool_use", [toolUse("o", "own_categories", {})]), () => reply("end_turn", [text("ok")])]);
       await ask(bare, "What are my own categories?", none.fetch);
       assert.equal(toolResults(none.bodies[1])[0].content, "This household has no categories of its own yet. Only the person can make one, in Settings → Your categories.");
@@ -973,7 +974,8 @@ async function main() {
       }
     });
     await check("a US household: the timeline and plan_for tools speak cents ($12.50 is 1250, a $1,500 target is 150000)", async () => {
-      const usd = await createHousehold(db, crypto.randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo", bank: "1,200", card: "Card D", limit: "", closingDay: "20", dueDay: "10" }), { isDemo: true });
+      const usd = await createHousehold(db, crypto.randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo" }), { isDemo: true });
+      await setBankBalance(db, usd, { id: crypto.randomUUID(), amount: "1,200" }, "confirmed", { madeBy: "form" });
       const today = (await stateOf(usd)).today;
       await insertBill(db, usd, billInput.parse({ id: crypto.randomUUID(), biller: "Fictional landlord", amount: "12.50", due: addDays(today, 5), category: "housing" }), "confirmed", { madeBy: "form" });
       const { fetch, bodies } = transport([

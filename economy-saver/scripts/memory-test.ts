@@ -172,7 +172,7 @@ async function main() {
 
       const e = await seedBen(db, { isDemo: true });
       await addMemory(db, e, { kind: "goal", text: "Fictional goal for start over" }, form);
-      const setup = setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo", bank: "1,200", card: "", limit: "", closingDay: "", dueDay: "" });
+      const setup = setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo" });
       const real = await createHousehold(db, randomUUID(), setup, { isDemo: false, replaceDemo: e });
       assert.equal(await findDemoHousehold(db, e), null);
       assert.equal(await count(e), 0);

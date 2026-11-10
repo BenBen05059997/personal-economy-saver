@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const body = await formOf(request);
     if (body instanceof Response) return body;
     const form = setupForm.safeParse(Object.fromEntries(body));
-    if (!form.success) return text("Check your name, timezone, balance and card settings.", 400);
+    if (!form.success) return text("Check your name, currency and time zone.", 400);
     const old = (await cookies()).get("household")?.value;
     const replaceDemo = old ? await demoHouseholdForToken(db(), old) : null; // createHousehold deletes it only if it is a demo household
     return await demoResponse(await createHousehold(db(), crypto.randomUUID(), form.data, { isDemo: true, replaceDemo }), request, "/setup?step=bank");

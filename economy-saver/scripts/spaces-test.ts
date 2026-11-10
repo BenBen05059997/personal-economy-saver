@@ -19,7 +19,7 @@ import { seedBen } from "@/db/seed";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { archiveSpace, createSpace, deleteSpace, generalSpace, listSpaces, renameSpace, saveBrief } from "@/db/spaces";
 
-const settings = { name: "Fictional owner", timeZone: "Asia/Tokyo", currency: "USD" as const, bank: "1000", limit: "" };
+const settings = { name: "Fictional owner", timeZone: "Asia/Tokyo", currency: "USD" as const };
 const recipe = { version: 1, title: "Cash now", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] };
 const snapshotOptions = { events: false, stored: true };
 const turn = (conversationId: string, question: string): NewTurn => ({

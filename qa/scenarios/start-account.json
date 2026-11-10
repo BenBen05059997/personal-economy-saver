@@ -308,7 +308,7 @@
       "Then type Mika and press again"
     ],
     "expected": [
-      "The browser stops the first submit on the required field (or the page shows \"Check your name, timezone, balance and card settings.\")",
+      "The browser stops the first submit on the required field (or the page shows \"Check your name, currency and time zone.\")",
       "No household is created and no cookie is set by the first attempt",
       "The second attempt makes a household and opens setup at /setup?step=bank; after Skip through to Finish, Home reads \"Bank balance ¥0.\""
     ],
@@ -335,7 +335,7 @@
       "Then post a card name with closing day 40 and payment day 10"
     ],
     "expected": [
-      "The page stays and shows \"Check your name, timezone, balance and card settings.\"",
+      "The page stays and shows \"Check your name, currency and time zone.\"",
       "Neither attempt makes a household",
       "A card with days but no name is refused the same way"
     ],
@@ -442,7 +442,7 @@
       "POST with no Origin header"
     ],
     "expected": [
-      "The first two answer 400 \"Check your name, timezone, balance and card settings.\"",
+      "The first two answer 400 \"Check your name, currency and time zone.\"",
       "The post without Origin is 403 \"Same-origin request required\"",
       "No household is created"
     ],
@@ -893,7 +893,7 @@
       "Submit a closing day of 40"
     ],
     "expected": [
-      "Each shows \"Check your name, timezone, balance and card settings.\" and creates nothing"
+      "Each shows \"Check your name, currency and time zone.\" and creates nothing"
     ],
     "refs": []
   },

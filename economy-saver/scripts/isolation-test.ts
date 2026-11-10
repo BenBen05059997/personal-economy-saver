@@ -209,7 +209,7 @@ type Tenant = {
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SETUP = { name: "Isolation R", timeZone: "Asia/Tokyo", currency: "USD" as const, bank: "1000", card: "R card", closingDay: 25, dueDay: 10, limit: "" };
+const SETUP = { name: "Isolation R", timeZone: "Asia/Tokyo", currency: "USD" as const };
 
 function walkStrings(value: unknown, out: Set<string>) {
   if (typeof value === "string") out.add(value);
@@ -1066,7 +1066,7 @@ async function main() {
     await check("an invited member's login can act in its own household and cannot reach another household's invitations or records", async () => {
       const own = randomUUID(), other = randomUUID(), uid = randomUUID();
       await F.finishSetup(store, own, { ...SETUP, name: "Fictional Orchid Household" }, null);
-      await F.finishSetup(store, other, { ...SETUP, name: "Fictional Linden Household", bank: "4321" }, null);
+      await F.finishSetup(store, other, { ...SETUP, name: "Fictional Linden Household" }, null);
       const email = "orchid-member@example.test", otherEmail = "linden-member@example.test";
       const now = new Date("2026-11-14T00:00:00Z");
       const invitation = await F.createInvite(store, own, own, { email, name: "Fictional Orchid Member" }, now);
@@ -1093,7 +1093,7 @@ async function main() {
       assert.equal(await F.deleteOwnedHousehold(store, uid), false);
       const sessionHousehold = await F.accountHousehold(store, uid);
       assert.equal(sessionHousehold, own);
-      assert.equal((await F.loadMoneyState(store, sessionHousehold!, DEMO_DATE)).bank, 1000);
+      assert.equal((await F.loadMoneyState(store, sessionHousehold!, DEMO_DATE)).bank, 0);
       await F.insertClient(store, sessionHousehold!, { id: randomUUID(), name: "Fictional Orchid Client", email: "orchid-client@example.test", termsDays: 14 });
       assert.equal((await fingerprint(other)).text, otherBefore.text);
       assert.equal(await F.leaveHousehold(store, own, uid), true);
@@ -1133,7 +1133,7 @@ async function main() {
       assert.equal(await F.tryItKind(store, A.hid), "try-it");
       assert.equal(await F.tryItKind(store, randomUUID()), null, "an unknown id is no demo");
       assert.deepEqual((await pg.query("select count(*)::int as n from users where household_id = $1", [blank])).rows[0], { n: 0 });
-      assert.deepEqual((await pg.query("select count(*)::int as n from cards where household_id = $1", [blank])).rows[0], { n: 1 });
+      assert.deepEqual((await pg.query("select count(*)::int as n from cards where household_id = $1", [blank])).rows[0], { n: 0 });
       assert.deepEqual((await pg.query("select count(*)::int as n from bills where household_id = $1", [blank])).rows[0], { n: 0 }, "no Ben data");
       await assert.rejects(F.createHousehold(store, A.hid, SETUP, { isDemo: true }), /Household unavailable/, "an id that already names a household is never taken over");
       await assert.rejects(F.createHousehold(store, B.hid, SETUP, { isDemo: false, authUserId: randomUUID() }), /Household unavailable/);

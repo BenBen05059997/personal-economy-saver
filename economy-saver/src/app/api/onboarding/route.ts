@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   const body = await formOf(request);
   if (body instanceof Response) return body;
   const form = setupForm.safeParse(Object.fromEntries(body));
-  if (!form.success) return text("Check your name, timezone, balance and card settings.", 400);
+  if (!form.success) return text("Check your name, currency and time zone.", 400);
   const store = await cookies();
   const original = store.get("upgrade-demo")?.value;
   const demo = original && original === store.get("household")?.value ? await demoHouseholdForToken(db(), original) : null;

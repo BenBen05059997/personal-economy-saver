@@ -32,7 +32,7 @@ import { loadNavigationData } from "@/db/workspace";
 import { draftedLabel, toCheck } from "@/lib/money/to-check";
 import { clientPace, paceLine } from "@/lib/money/pace";
 import { publicEvent } from "@/db/event-feed";
-import { settingsInput } from "@/db/settings";
+import { settingsInput, updateSettings } from "@/db/settings";
 import { homeSentence } from "@/lib/money/sentence";
 /** The two strings a sentence is made of (its other parts are tested in pots-test). */
 const lines = (sentence: ReturnType<typeof homeSentence>) => ({ lead: sentence.lead, emphasis: sentence.emphasis });
@@ -207,7 +207,8 @@ async function main() {
     });
 
     await check("a blank household reads the empty sentence, then the normal one after its first confirmed bill (D47)", async () => {
-      const blank = await createHousehold(db, randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo", bank: "1,200", card: "Card D", limit: "", closingDay: "20", dueDay: "10" }), { isDemo: true });
+      const blank = await createHousehold(db, randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo" }), { isDemo: true });
+      await setBankBalance(db, blank, { id: randomUUID(), amount: "1200" }, "confirmed", { madeBy: "form" });
       const empty = { lead: "Add your bills and the clients who pay you to see your next 30 days.", emphasis: "Bank balance $1,200." };
       assert.deepEqual(lines(homeSentence(await loadMoneyState(db, blank, TODAY))), empty);
       await insertClient(db, blank, clientInput.parse({ id: randomUUID(), name: "Fictional Paper Co", email: "ap@paper.example", termsDays: "14" }));
@@ -221,25 +222,22 @@ async function main() {
       assert.equal(after.lead, "You're fine for the next 30 days. Lowest point", "one bill and no invoices: nothing to be late, so the sentence does not say 'even if clients pay late'");
       assert.equal(after.emphasis, "$900 on the 20th.");
       // a card charge alone is enough to leave the empty sentence too
-      const other = await createHousehold(db, randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo", bank: "50", card: "Card E", limit: "", closingDay: "20", dueDay: "10" }), { isDemo: true });
+      const other = await createHousehold(db, randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo" }), { isDemo: true });
+      await updateSettings(db, other, settingsInput.parse({ kind: "card", id: "", label: "Card E", memberId: "", closingDay: 20, dueDay: 10, limit: "" }));
       const [card] = await cardsOf(other);
       await insertCharge(db, other, charge({ cardId: card.id, amount: "20" }) as never, "confirmed", "manual", { madeBy: "form" });
       assert.notDeepEqual(homeSentence(await loadMoneyState(db, other, TODAY)).lead, empty.lead);
     });
 
-    await check("the two-field start makes a household with no card, the real date and the nudge rule at 3 days; Try it keeps Nov 14 with the same rule (D66)", async () => {
-      const bare = setupForm.parse({ name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "250,000" });
+    await check("the name-only start makes a household with no card, a zero bank balance, the real date and the nudge rule at 3 days; Try it keeps Nov 14 with the same rule (D66)", async () => {
+      const bare = setupForm.parse({ name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo" });
       const id = await createHousehold(db, randomUUID(), bare, { isDemo: true });
       const [row] = await db.select().from(schema.households).where(eq(schema.households.id, id));
-      assert.equal(row.fixedToday, null); assert.deepEqual((await rulesFor(db, id)).nudge_after, { enabled: true, threshold: 3, currency: null }); assert.equal(row.bankBalanceMinor, 250_000);
+      assert.equal(row.fixedToday, null); assert.deepEqual((await rulesFor(db, id)).nudge_after, { enabled: true, threshold: 3, currency: null }); assert.equal(row.bankBalanceMinor, 0);
       assert.equal((await cardsOf(id)).length, 0, "no card block, no card");
       const real = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
       assert.equal(await householdDate(db, id), real, "a blank household lives on the real date in its zone");
       assert.ok((await db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, id))).length === 1);
-      const withCard = await createHousehold(db, randomUUID(), setupForm.parse({ ...bare, card: "Card D", closingDay: "20", dueDay: "10" }), { isDemo: true });
-      assert.equal((await cardsOf(withCard)).length, 1, "the card block makes one card");
-      for (const half of [{ card: "Card D" }, { closingDay: "20", dueDay: "10" }, { card: "Card D", closingDay: "20" }]) assert.equal(setupForm.safeParse({ ...bare, ...half }).success, false);
-      assert.equal(setupForm.safeParse({ ...bare, card: "", closingDay: "", dueDay: "", limit: "" }).success, true, "blank card fields count as absent");
       assert.equal(await tryItKind(db, id), "blank");
       const ben = await seedBen(db, { isDemo: true });
       const [tryIt] = await db.select().from(schema.households).where(eq(schema.households.id, ben));

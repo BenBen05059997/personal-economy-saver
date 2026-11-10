@@ -454,7 +454,7 @@ async function main() {
       assert.equal(await aiKey(db, b), fictional);
       const upgrade = await seedBen(db, { isDemo: true });
       await own(upgrade).done;
-      await finishSetup(db, randomUUID(), setupForm.parse({ name: "Fictional owner", currency: "USD", timeZone: "Asia/Tokyo", bank: "12.37", card: "Card C", closingDay: 15, dueDay: 10, limit: "" }), upgrade);
+      await finishSetup(db, randomUUID(), setupForm.parse({ name: "Fictional owner", currency: "USD", timeZone: "Asia/Tokyo" }), upgrade);
       const upgraded = await pg.query<{ n: number }>("select count(*)::integer as n from vault.secrets where name=$1", [`household:${upgrade}:anthropic`]);
       assert.equal(upgraded.rows[0].n, 0);
       const previousFetch = globalThis.fetch;
@@ -491,7 +491,7 @@ async function main() {
     await check("the model list POST uses typed keys once, reuses a saved key only at its endpoint, and caps its own requests", async () => {
       process.env.APP_URL = APP.href;
       const hid = await finishSetup(db, randomUUID(), setupForm.parse({
-        name: "Fictional Catalogue Owner", currency: "USD", timeZone: "Asia/Tokyo", bank: "12.37",
+        name: "Fictional Catalogue Owner", currency: "USD", timeZone: "Asia/Tokyo",
       }), null);
       const baseUrl = "https://catalogue.example/v1";
       await own(hid, { provider: "custom", baseUrl }).done;
