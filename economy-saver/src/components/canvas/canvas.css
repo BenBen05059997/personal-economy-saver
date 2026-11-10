@@ -58,10 +58,11 @@
 .canvas-amount.is-in { color: var(--green); }
 .canvas-balance { color: var(--muted); min-width: 5.5em; }
 /* table */
+.canvas-table-scroll { min-width: 0; overflow-x: auto; }
 .canvas-table { width: 100%; border-collapse: collapse; font: 400 13px/1.4 var(--sans); font-variant-numeric: tabular-nums; }
 .canvas-table :is(th, td) { padding: var(--space-2) var(--space-2); border-top: 1px solid var(--rule); text-align: right; vertical-align: baseline; }
 .canvas-table thead th { border-top: 0; color: var(--muted); font-weight: 500; }
-.canvas-table :is(th, td):first-child { padding-left: 0; text-align: left; overflow-wrap: anywhere; }
+.canvas-table :is(th, td):first-child { min-width: 8rem; padding-left: 0; text-align: left; overflow-wrap: break-word; }
 .canvas-table :is(th, td):last-child { padding-right: 0; }
 .canvas-table tbody th { font-weight: 400; }
 .canvas-table td { white-space: nowrap; }

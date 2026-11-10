@@ -66,11 +66,13 @@ export function TableBlock({ data }: { data: TableData }) {
   return <>
     {data.title && <p className="canvas-label">{data.title}</p>}
     {data.caption && <p className="canvas-note">{data.caption}</p>}
-    {data.empty ? <p className="canvas-note">{data.empty}</p> : <table className="canvas-table">
-      <thead><tr>{data.head.map((cell, i) => <th key={i} scope="col">{cell}</th>)}</tr></thead>
-      <tbody>{data.rows.map((row, r) => <tr key={r} className={row.tone === "plain" ? undefined : `is-${row.tone}`}>{row.cells.map((cell, i) => (i === 0 ? <th key={i} scope="row">{cell}</th> : <td key={i}>{cell}</td>))}</tr>)}</tbody>
-      {data.foot && <tfoot><tr>{data.foot.map((cell, i) => (i === 0 ? <th key={i} scope="row">{cell}</th> : <td key={i}>{cell}</td>))}</tr></tfoot>}
-    </table>}
+    {data.empty ? <p className="canvas-note">{data.empty}</p> : <div className="canvas-table-scroll" role="region" aria-label={data.title ?? "Canvas table"} tabIndex={0}>
+      <table className="canvas-table">
+        <thead><tr>{data.head.map((cell, i) => <th key={i} scope="col">{cell}</th>)}</tr></thead>
+        <tbody>{data.rows.map((row, r) => <tr key={r} className={row.tone === "plain" ? undefined : `is-${row.tone}`}>{row.cells.map((cell, i) => (i === 0 ? <th key={i} scope="row">{cell}</th> : <td key={i}>{cell}</td>))}</tr>)}</tbody>
+        {data.foot && <tfoot><tr>{data.foot.map((cell, i) => (i === 0 ? <th key={i} scope="row">{cell}</th> : <td key={i}>{cell}</td>))}</tr></tfoot>}
+      </table>
+    </div>}
   </>;
 }
 

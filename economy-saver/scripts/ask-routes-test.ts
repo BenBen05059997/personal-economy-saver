@@ -141,6 +141,26 @@ async function main() {
       ok("AskWorkspace server-renders the closed shell without a panel or a fetch");
     }
 
+    const { AddEntry } = await import("@/components/household/AddEntry");
+    const entry = renderToStaticMarkup(createElement(AddEntry, {
+      ids: { bill: crypto.randomUUID(), charge: crypto.randomUUID() },
+      returnTo: "/", today: "2026-11-14", currency: "JPY",
+      people: [{ id: crypto.randomUUID(), name: "Ben" }],
+      cards: [{ id: crypto.randomUUID(), label: "Fictional card" }],
+    }));
+    const entryForms = [...entry.matchAll(/<form\b[^>]*action="\/api\/(bills|charges)"[^>]*>([\s\S]*?)<\/form>/g)];
+    assert.deepEqual(entryForms.map(([, kind]) => kind), ["bills", "charges"]);
+    for (const [, kind, form] of entryForms) {
+      const more = /<details\b[^>]*class="add-entry-more"[^>]*>/.exec(form);
+      assert.ok(more, kind);
+      assert.doesNotMatch(more[0], /\sopen(?:[\s=>])/);
+      const visible = form.slice(0, more.index);
+      assert.match(visible, /class="add-entry-guess-words">(?:One-off · )?Other<\/span>/, kind);
+      assert.match(visible, /Guessed from the name, change if wrong/, kind);
+      assert.equal((form.match(/Guessed from the name, change if wrong/g) ?? []).length, 1, kind);
+    }
+    ok("Add bill and Add charge show one category guess hint above the closed More details");
+
     const resetDemo = (await import("@/app/api/try/reset/route")).POST as Handler;
     cookie = await seedBen(db, { isDemo: true });
     const resetResult = await resetDemo(post("/api/try/reset", null, { "x-form-fetch": "1" }));
@@ -802,6 +822,21 @@ async function main() {
     set({ ...full, AI_BASE_URL: undefined }); assert.equal(serverDefaultHost(), null);
     set({ ...full, AI_PROTOCOL: "other" }); assert.equal(serverDefaultHost(), null);
     ok("missingAskSetting: every branch and the order (own connection, model, protocol, openai address, key, daily limit; blanks count as unset); askUnavailable and serverDefaultHost");
+
+    const { UploadLines } = await import("@/components/reader/UploadForm");
+    const uploadLines = renderToStaticMarkup(createElement(UploadLines, { lines: [
+      { name: "Fictional receipt.png", result: "sent" },
+      { name: "Fictional note.txt", result: "Select a PDF, JPEG, PNG or WebP file.", refused: true },
+      { name: "Fictional invoice.pdf", result: "waiting" },
+    ] }));
+    const announcements = [...uploadLines.matchAll(/<li\b[^>]*><span role="(alert|status)">([^<]+)<\/span><\/li>/g)];
+    assert.deepEqual(announcements.map(([, role, content]) => [role, content]), [
+      ["status", "Fictional receipt.png — sent"],
+      ["alert", "Fictional note.txt — Select a PDF, JPEG, PNG or WebP file."],
+      ["status", "Fictional invoice.pdf — waiting"],
+    ]);
+    assert.doesNotMatch(uploadLines, /\baria-live=/, "the list does not announce the per-file messages again");
+    ok("Upload announces refused files as alerts and other files as individual statuses");
 
     // ------------------------------------------------------------ status codes: the person's file is 400, the server's side is 502 or 503
     const upload = (await import("@/app/api/upload/route")).POST as Handler;

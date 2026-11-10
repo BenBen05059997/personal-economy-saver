@@ -1887,7 +1887,7 @@
     "expected": [
       "The app's error page \"Something went wrong\" with \"Reference: \" under the text (the digest under next dev)",
       "A Try again button calls retry and no private text is shown",
-      "The operator log line (Worker only) has the method, the route with ids as :id, a household id or null, the status and milliseconds, and no query, cookie, address or text"
+      "The Worker log line has the method, the route with ids as :id, a household id or null, the status, milliseconds and the db timings. It excludes the URL query, cookie, address, SQL text, parameters and results."
     ],
     "refs": [
       "BROWSER-CHECKS AF7",
@@ -2125,7 +2125,8 @@
       "Tap Upload and read"
     ],
     "expected": [
-      "The big file's line reads \"name — Document exceeds the 6 MiB limit.\"; the other two lines read \"sent\"",
+      "The big file's line reads \"name — Document exceeds the 6 MiB limit.\" with role alert",
+      "The other two lines read \"sent\" and each has role status. The list has no live announcement of its own.",
       "The page stays on Upload with the button usable again (a refused file keeps the person here); the two good files are in To check"
     ],
     "refs": [
@@ -2351,7 +2352,7 @@
   {
     "id": "SEC-002",
     "area": "Security",
-    "action": "Edit another household's bill, card, charge or client by id",
+    "action": "Use another household's ids in write requests",
     "user_goal": "a stolen id must not work",
     "type": "security",
     "priority": "P1",
@@ -2364,16 +2365,24 @@
       "Ids copied from a second household"
     ],
     "steps": [
-      "POST /api/bills (edit), /api/charges, /api/clients and /api/remove with the other household's id",
-      "POST /api/settings kind=card with the other household's card id",
-      "POST /api/family-links kind=stop with the other household's link id"
+      "With household A's session, POST /api/bills (kind=edit), /api/charges, and /api/clients with household B's bill, charge, and client ids. Use A's own card in the charge form.",
+      "POST /api/remove kind=bill and kind=charge with B's bill and charge ids",
+      "POST /api/settings kind=card with B's card id",
+      "POST /api/family-links kind=stop with B's live link id"
     ],
     "expected": [
-      "Each is refused (\"Choose a bill of this household\", \"Card no longer exists\", invalid, or the link is not found) and neither household changes"
+      "/api/bills returns 400 \"Choose a bill of this household\"",
+      "/api/charges returns 400 \"Choose a charge of this household\"",
+      "/api/clients returns 400 \"Choose a client of this household\"",
+      "/api/remove kind=bill returns 400 \"Choose a bill of this household\"",
+      "/api/remove kind=charge returns 400 \"Choose a charge of this household\"",
+      "/api/settings returns 400 \"Card no longer exists\"",
+      "/api/family-links returns 200 \"That link has already ended.\" and B’s link stays live",
+      "Neither household's records or Activity change"
     ],
     "refs": [
+      "db:charge-routes-test",
       "db:isolation-test",
-      "frontend-check --run",
       "AGENTS.md rule 6"
     ]
   },
@@ -2609,14 +2618,16 @@
       "The Worker deployed or run locally with cf:preview"
     ],
     "steps": [
-      "Make a few requests (one with a query string and a cookie), then read the Worker log of those requests"
+      "Use the Worker to make several requests. Include a streamed Home request with a query string and a Try it session cookie. Read the Worker log after the response ends."
     ],
     "expected": [
-      "A line holds only at, ray, method, route with ids as :id, household id or null, status and ms",
-      "No query string, cookie, address, user agent, body or text"
+      "Each request writes one line with at, ray, method, route with ids as :id, householdId or null, status, ms and db",
+      "The db object holds only connections, connectMs, connectFailures, sqlCommands, sqlMs, busyMs, firstMs and lastMs",
+      "No URL query string, cookie, address, user agent, body, SQL text, parameters or results appear"
     ],
     "refs": [
       "BROWSER-CHECKS AF7",
+      "db:doors-test",
       "D50"
     ]
   },
@@ -2636,12 +2647,15 @@
       "The Worker deployed or run locally with cf:preview"
     ],
     "steps": [
-      "Request /cards/<uuid> and /api/readings/retry, then read the log lines"
+      "Request /cards/<uuid> and a path with a numeric segment",
+      "Request /family/<token> and /join/<token> with fictional opaque tokens and read the log lines"
     ],
     "expected": [
-      "/cards/<uuid> logs as /cards/:id and numeric segments as :id"
+      "/cards/<uuid> logs as /cards/:id and numeric segments as :id",
+      "The link paths log as /family/:token and /join/:token without their tokens"
     ],
     "refs": [
+      "db:doors-test",
       "D50"
     ]
   },

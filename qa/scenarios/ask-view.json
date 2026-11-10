@@ -182,7 +182,7 @@
       "Choose Open full above the canvas"
     ],
     "expected": [
-      "The question form and compact starter canvas stack and fit the panel without sideways scrolling",
+      "The question form and compact starter canvas stack and fit the panel. Any horizontal scrolling stays inside its table block.",
       "Open full opens the named space’s /canvas?space=<id> page with March paperwork selected"
     ],
     "refs": [

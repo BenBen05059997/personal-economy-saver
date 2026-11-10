@@ -96,14 +96,17 @@ const categoryWords = (chosen: string | null, name: string) => {
 };
 
 /** D51: what the form will save from More ›, said on the main part: "Every month · Health & fitness · Change ›". Change opens More at its first field. */
-function Guess({ words, focus }: { words: string[]; focus: string }) {
+function Guess({ words, focus, categoryGuessed }: { words: string[]; focus: string; categoryGuessed: boolean }) {
   function change(event: ReactMouseEvent<HTMLButtonElement>) {
     const more = event.currentTarget.form?.querySelector<HTMLDetailsElement>("details.add-entry-more");
     if (!more) return;
     more.open = true;
     more.querySelector<HTMLElement>(focus)?.focus();
   }
-  return <p className="ui-hint add-entry-guess"><span className="add-entry-guess-words">{words.join(" · ")}</span><span aria-hidden> · </span><button type="button" className="add-entry-change" onClick={change}>Change ›</button></p>;
+  return <>
+    <p className="ui-hint add-entry-guess"><span className="add-entry-guess-words">{words.join(" · ")}</span><span aria-hidden> · </span><button type="button" className="add-entry-change" onClick={change}>Change ›</button></p>
+    {categoryGuessed && <small className="ui-hint add-entry-hint">{LABELS.categoryGuess}</small>}
+  </>;
 }
 
 type FormProps = { id: string; returnTo: "/" | "/to-check"; today: string; currency: string; people: { id: string; name: string }[] };
@@ -129,7 +132,7 @@ function BillForm({ id, returnTo, today, currency, people }: FormProps) {
     <label className="ui-field">{LABELS.name}<input name="biller" maxLength={160} required placeholder={LABELS.namePlaceholder} value={name} onChange={event => setName(event.target.value)} /></label>
     <AmountWithUnknown currency={currency} offered={amountOffered} />
     <DueWithUnknown today={today} value={due} onValue={setDue} offered={dueOffered} />
-    <Guess words={[repeatWords(repeats || null), ...(repeats === "month" && varies ? ["varies"] : []), categoryWords(category, name)]} focus="select[name=repeat]" />
+    <Guess words={[repeatWords(repeats || null), ...(repeats === "month" && varies ? ["varies"] : []), categoryWords(category, name)]} focus="select[name=repeat]" categoryGuessed={category === null} />
     <button className="ui-button primary">Add bill</button>
     <MoreFields>
       <ScheduleFields id={id} today={today} currency={currency} name={name} due={due} flat chosen={repeat} onChoose={setRepeat} varies={varies} onVaries={setVaries} onNextAmount={setNextAmount} onCancelBy={setCancelBy} />
@@ -157,7 +160,7 @@ function ChargeForm({ id, returnTo, today, currency, people, cards }: FormProps 
     <label className="ui-field">{LABELS.amount}<AmountField name="amount" currency={currency} required /></label>
     <label className="ui-field">{LABELS.date}<CheckedInput name="date" type="date" defaultValue={today} max={latestDate(today)} message={HORIZON_MESSAGE} required /></label>
     {cards.length > 1 && card}
-    <Guess words={[categoryWords(category, name)]} focus="select[name=category]" />
+    <Guess words={[categoryWords(category, name)]} focus="select[name=category]" categoryGuessed={category === null} />
     <button className="ui-button primary">Add charge</button>
     <MoreFields>
       {cards.length === 1 && card}

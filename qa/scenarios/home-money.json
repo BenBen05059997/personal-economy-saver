@@ -1879,7 +1879,7 @@
     "id": "CHG-011",
     "area": "Charges",
     "action": "Remove the same charge twice",
-    "user_goal": "A second tap is not an error",
+    "user_goal": "A retry must not record a second removal",
     "type": "edge",
     "priority": "P3",
     "needs": [
@@ -1893,9 +1893,10 @@
       "POST /api/remove kind charge twice with the same id"
     ],
     "expected": [
-      "Both redirect; nothing breaks and only one removed event exists"
+      "The first request redirects and the second returns 400 \"Choose a charge of this household\". Only one removed event exists."
     ],
     "refs": [
+      "db:charge-routes-test",
       "db:doors-test"
     ]
   },
@@ -1917,9 +1918,10 @@
       "As household A, POST /api/remove with B's charge id"
     ],
     "expected": [
-      "B's charge is untouched"
+      "/api/remove returns 400 \"Choose a charge of this household\" and B’s charge is untouched"
     ],
     "refs": [
+      "db:charge-routes-test",
       "db:isolation-test"
     ]
   },
@@ -1988,13 +1990,16 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Type merchant 'Minato Fresh Market', open More ›"
+      "Type merchant 'Minato Fresh Market' with More › closed",
+      "Open More ›, choose Part work and enter 25, then save"
     ],
     "expected": [
-      "Category is pre-selected as Food; choose Part work 25 and Plan's Food row follows with '25% business'"
+      "The collapsed summary shows Food with 'Guessed from the name, change if wrong'",
+      "Category is pre-selected as Food and Plan's Food row includes the saved charge with '25% business'"
     ],
     "refs": [
-      "BROWSER-CHECKS M3"
+      "BROWSER-CHECKS M3",
+      "db:ask-routes-test"
     ]
   },
   {
@@ -2164,15 +2169,19 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Type 'Fictional power', open More ›",
-      "Replace with 'Zebra Supplies'"
+      "Type 'Fictional power' with More › closed",
+      "Replace it with 'Zebra Supplies' with More › still closed",
+      "Open More › and choose a different category"
     ],
     "expected": [
-      "First shows Utilities with 'Guessed from the name, change if wrong'",
-      "Second shows Other with the same hint and the form still submits"
+      "The summary first shows Utilities with 'Guessed from the name, change if wrong'",
+      "The summary then shows Other with the same hint and the form can submit",
+      "The summary shows the selected category and the hint disappears"
     ],
     "refs": [
-      "BROWSER-CHECKS C2"
+      "BROWSER-CHECKS C2",
+      "db:ask-routes-test",
+      "db:category-test"
     ]
   },
   {
@@ -2345,10 +2354,11 @@
       "POST with id 'x'"
     ],
     "expected": [
-      "The first twice redirects with no error",
-      "The bad id answers 400 'Check the required fields and try again.'"
+      "The first request redirects and the second returns 400 \"Choose a bill of this household\"",
+      "The bad id answers 400 \"Check the required fields and try again.\""
     ],
     "refs": [
+      "frontend-check --run",
       "db:doors-test"
     ]
   },

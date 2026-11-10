@@ -742,8 +742,8 @@ async function main() {
         await mustThrow("insertBill paid by the other's member", () => F.insertBill(store, X.hid, exactBill({ paidByMemberId: y.aki }), "pending", { madeBy: "form" }), /member of this household/);
         const charge = (over: object) => chargeInput.parse({ id: randomUUID(), cardId: x.card, merchant: "Isolation probe", amount: "100", date: "2026-11-13", category: "other", ...over });
         await mustThrow("insertCharge on the other's card", () => F.insertCharge(store, X.hid, charge({ cardId: y.card }), "confirmed", "manual", { madeBy: "form" }), /card of this household/);
-        await mustThrow("insertCharge with the other's charge id", () => F.insertCharge(store, X.hid, charge({ id: y.charge }), "pending", "manual", { madeBy: "form" }));
-        await mustThrow("insertClient with the other's client id", () => F.insertClient(store, X.hid, { id: y.client, name: "Isolation probe", email: "isolation-probe@example.test", termsDays: 0 }));
+        await mustThrow("insertCharge with the other's charge id", () => F.insertCharge(store, X.hid, charge({ id: y.charge }), "pending", "manual", { madeBy: "form" }), /^Choose a charge of this household$/);
+        await mustThrow("insertClient with the other's client id", () => F.withHousehold(store, X.hid, tx => F.insertClient(tx, X.hid, { id: y.client, name: "Isolation probe", email: "isolation-probe@example.test", termsDays: 0 })), /^Choose a client of this household$/);
         await mustThrow("saveInvoiceDraft for the other's client", () => F.saveInvoiceDraft(store, X.hid, { id: randomUUID(), clientId: y.client, item: "probe", amount: "1", note: "" }, { madeBy: "form" }), /Client not found/);
         await mustThrow("saveInvoiceDraft with the other's invoice id", () => F.saveInvoiceDraft(store, X.hid, { id: y.invoiceDraft, clientId: x.client, item: "probe", amount: "1", note: "" }, { madeBy: "form" }), /already in use/);
         await mustThrow("setBankBalance with the other's update id (pending)", () => F.setBankBalance(store, X.hid, { id: y.balancePending, amount: "1" }, "pending", { madeBy: "form" }));

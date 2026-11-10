@@ -2,6 +2,7 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/doors-test.ts
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { tracingChannel } from "node:diagnostics_channel";
 import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
@@ -21,6 +22,7 @@ import { InputError } from "@/db/input-error";
 import { parseAmountMinor, parseMinor } from "@/db/money";
 import { amountProblem } from "@/lib/money/amount";
 import { returnPath } from "@/lib/door";
+import { logged, noteHousehold } from "@/lib/request-log";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { changeStandingRule, rulesFor } from "@/db/rules";
 import { seedBen } from "@/db/seed";
@@ -62,6 +64,87 @@ async function main() {
       billInput.parse({ id: randomUUID(), biller: "Fictional landlord", amount: "3800", due: "2026-11-25", category: "housing", ...over });
     const charge = (over: Record<string, unknown> = {}) =>
       ({ id: randomUUID(), cardId: cardA.id, merchant: "Fictional bakery", amount: "540", date: TODAY, category: "food", ...over });
+
+    await check("request log keeps DB timings with the originating request through the end of a stream", async () => {
+      const connect = tracingChannel("postgres:connect");
+      const query = tracingChannel("postgres:query");
+      const privateText = "fictional-private-content";
+      const firstQuery = { query: privateText, parameters: [privateText] };
+      const laterQuery = { result: { value: privateText } };
+      const otherQuery = { user: privateText };
+      const connection = { host: privateText, user: privateText };
+      const failedConnection = { host: privateText, error: new Error(privateText) };
+      const completeStream = Promise.withResolvers<void>();
+      const start = Math.ceil(performance.now()) + 100;
+      const finishQuery = (context: object, sent: number, complete: number) =>
+        query.asyncEnd.publish(Object.assign(context, { sent: start + sent, complete: start + complete }));
+      const captured: string[] = [];
+      const realInfo = console.info;
+      console.info = (line: string) => { captured.push(line); };
+      try {
+        const firstRequest = new Request(`http://example.test/cards/${randomUUID()}?q=${privateText}`, {
+          method: "POST", body: privateText,
+          headers: { "cf-ray": "fictional-ray", cookie: privateText, "user-agent": privateText, "x-forwarded-for": privateText },
+        });
+        const response = await logged(firstRequest, async () => {
+          noteHousehold(a);
+          connect.start.publish(connection);
+          query.start.publish(firstQuery);
+          return new Response(new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("First chunk"));
+              void completeStream.promise.then(() => {
+                query.start.publish(laterQuery);
+                finishQuery(laterQuery, 20, 45);
+                controller.close();
+              });
+            },
+          }));
+        });
+        const body = response.body!.getReader();
+        const firstChunk = await body.read();
+        assert.equal(new TextDecoder().decode(firstChunk.value), "First chunk");
+        assert.equal(captured.length, 0, "headers and the first chunk do not end the request log");
+
+        await logged(new Request(`http://example.test/join/${privateText}`), async () => {
+          noteHousehold(b);
+          // Driver events can finish in a different async context from where they started.
+          connect.asyncEnd.publish(connection);
+          finishQuery(firstQuery, 10, 30);
+          connect.start.publish(failedConnection);
+          connect.asyncEnd.publish(failedConnection);
+          query.start.publish(otherQuery);
+          finishQuery(otherQuery, 0, 5);
+          return new Response(null, { status: 204 });
+        });
+
+        assert.equal(captured.length, 1, "only the request without a stream has completed");
+        completeStream.resolve();
+        assert.equal((await body.read()).done, true);
+        assert.equal(captured.length, 2, "one line per request");
+        await logged(new Request(`http://example.test/family/${privateText}`), async () => new Response(null, { status: 204 }));
+        assert.equal(captured.length, 3);
+        assert.ok(captured.every(line => !line.includes(privateText)), "SQL, parameters, results, credentials and request content stay out");
+
+        const [short, streamed, family] = captured.map(line => JSON.parse(line));
+        assert.deepEqual([short.route, short.householdId, short.status], ["/join/:token", b, 204]);
+        assert.deepEqual([family.route, family.householdId, family.status], ["/family/:token", null, 204]);
+        assert.deepEqual(family.db, {
+          connections: 0, connectMs: [], connectFailures: 0, sqlCommands: 0, sqlMs: 0, busyMs: 0, firstMs: null, lastMs: null,
+        });
+        assert.deepEqual([short.db.connections, short.db.connectMs, short.db.connectFailures, short.db.sqlCommands, short.db.sqlMs], [0, [], 1, 1, 5]);
+        assert.deepEqual([streamed.route, streamed.ray, streamed.householdId, streamed.status], ["/cards/:id", "fictional-ray", a, 200]);
+        const database = streamed.db;
+        assert.deepEqual([database.connections, database.connectFailures, database.sqlCommands, database.sqlMs], [1, 0, 2, 45]);
+        assert.equal(database.connectMs.length, 1);
+        assert.ok(database.connectMs[0] >= 0);
+        assert.ok(database.busyMs >= 35 && database.busyMs <= 36 + database.connectMs[0], "overlapping SQL intervals count once in busyMs");
+        assert.ok(database.firstMs >= 0 && database.lastMs > database.firstMs);
+      } finally {
+        completeStream.resolve();
+        console.info = realInfo;
+      }
+    });
 
     await check("parseAmountMinor accepts plain numbers, thousands separators and full-width digits, and rejects everything else", async () => {
       assert.equal(parseAmountMinor("3800", "JPY"), 3800);

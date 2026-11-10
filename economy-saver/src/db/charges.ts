@@ -78,11 +78,12 @@ export async function insertCharge(
     }
     if (data.date > latestDate(clockForHousehold(household).today)) throw new InputError(HORIZON_MESSAGE);
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
-    await tx.insert(charges).values({
+    const [inserted] = await tx.insert(charges).values({
       id: data.id, householdId: hid, cardId: data.cardId, merchant: data.merchant, amountMinor, currency: card.currency,
       date: data.date, shared: data.shared, category: data.category, businessBp: data.businessBp, source, status, madeBy: by.madeBy, askId: by.askId ?? null,
       ...original,
-    });
+    }).onConflictDoNothing({ target: charges.id }).returning({ id: charges.id });
+    if (!inserted) throw new InputError("Choose a charge of this household");
     if (status === "pending") {
       await recordEvent(tx, hid, { kind: "to_check", ...by, title: `${data.merchant} charge to check`, ref: { type: "charge", id: data.id }, notify: true });
     } else {
