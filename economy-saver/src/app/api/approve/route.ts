@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { logSettingProblem } from "@/lib/operator-log";
 import { ApprovalError, approveInvoice } from "@/db/approval";
 import { householdClock } from "@/db/account";
 import { db } from "@/db/client";
@@ -23,10 +24,13 @@ export async function POST(request: Request) {
   try {
     recipient = env().SANDBOX_CLIENT_EMAIL;
   } catch (error) {
-    // env() reports only setting names and validation messages.
-    return text((error as Error).message, 503);
+    logSettingProblem("approve_env_not_ready", (error as Error).message, householdId);
+    return text("PayPal is not available right now. Try again later.", 503);
   }
-  if (!recipient) return text("SANDBOX_CLIENT_EMAIL is not set", 503);
+  if (!recipient) {
+    logSettingProblem("approve_env_not_ready", "SANDBOX_CLIENT_EMAIL is not set", householdId);
+    return text("PayPal is not available right now. Try again later.", 503);
+  }
   const { today, rateMicro } = await withHousehold(connection, householdId, async tx => {
     const { today, currency } = await householdClock(tx, householdId);
     return { today, ...await usdRate(tx, householdId, currency, today) };

@@ -63,14 +63,19 @@ async function test() {
 
     // Gate.
     delete process.env.PAYPAL_BALANCE_HOUSEHOLD_ID;
-    await assert.rejects(importPayPalHistory(db, designated, read), (e: Error) => e instanceof ImportSetupError && /PAYPAL_BALANCE_HOUSEHOLD_ID/.test(e.message));
+    const logged: string[] = [], realError = console.error;
+    console.error = (...args: unknown[]) => { logged.push(args.join(" ")); };
+    try {
+      await assert.rejects(importPayPalHistory(db, designated, read), (e: Error) => e instanceof ImportSetupError && !/PAYPAL_BALANCE_HOUSEHOLD_ID/.test(e.message));
+    } finally { console.error = realError; }
+    assert.ok(logged.some(l => /PAYPAL_BALANCE_HOUSEHOLD_ID is not set/.test(l)));
     process.env.PAYPAL_BALANCE_HOUSEHOLD_ID = designated.toUpperCase();
     await assert.rejects(importPayPalHistory(db, other, read), ImportRefused);
     process.env.PAYPAL_BALANCE_HOUSEHOLD_ID = demo;
     await assert.rejects(importPayPalHistory(db, demo, read), ImportRefused);
     process.env.PAYPAL_BALANCE_HOUSEHOLD_ID = designated;
     assert.equal(calls.length, 0, "refused imports must not read PayPal");
-    console.log("✓ Missing setting named; other and demo households refused before any PayPal read");
+    console.log("✓ Missing setting logged for the operator, not shown; other and demo households refused before any PayPal read");
 
     // Import.
     const paypalBefore = await paypalBalance(designated), before = await bank(designated), clientsBefore = (await db.select().from(s.clients).where(eq(s.clients.householdId, designated))).length;

@@ -6,6 +6,7 @@ import { paypalFetch } from "@/lib/paypal/client";
 import { type Db, requireHousehold, withHousehold } from "./household";
 import { convertMinor, fromRateMicro, toMinor } from "./money";
 import { fxRates, households, invoices, members, paypalConnections } from "./schema";
+import { logSettingProblem } from "@/lib/operator-log";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 
 const remoteInvoice = z.object({ id: z.string(), status: z.string().min(1), detail: z.object({
@@ -84,15 +85,20 @@ export async function refreshPayPal(db: Db, id: string, read: ReadRemote = sandb
     const bound = process.env.PAYPAL_BALANCE_HOUSEHOLD_ID?.trim().toLowerCase();
     const balanceEnabled = !connection.demo && bound === hid;
     let stale: string | null = null;
-    if (!connection.demo && !bound) stale = "PAYPAL_BALANCE_HOUSEHOLD_ID is not set. Showing the stored PayPal balance.";
-    else if (!connection.demo && !z.string().uuid().safeParse(bound).success) stale = "PAYPAL_BALANCE_HOUSEHOLD_ID must be a household UUID.";
+    // Households other than the designated one use their own verified credits; the stored balance is normal for them.
+    if (!connection.demo && bound && !z.string().uuid().safeParse(bound).success) {
+      logSettingProblem("paypal_balance_household_invalid", "PAYPAL_BALANCE_HOUSEHOLD_ID must be a household UUID.", hid);
+    }
     const tracked = await withHousehold(db, hid, async tx =>
       tx.select({ id: invoices.id, remote: invoices.paypalInvoiceId }).from(invoices)
         .where(and(eq(invoices.householdId, hid), inArray(invoices.status, ["draft", "sent"]), isNotNull(invoices.paypalInvoiceId))));
     // Fictional seeded invoices have no PayPal id. Never enumerate the merchant’s invoices.
     const signal = AbortSignal.timeout(8000);
     if (balanceEnabled || tracked.length) {
-      try { env(); } catch (error) { throw new FreshnessError((error as Error).message); }
+      try { env(); } catch (error) {
+        logSettingProblem("paypal_env_not_ready", (error as Error).message, hid);
+        throw new FreshnessError("PayPal is not available right now. Showing the last stored household data.");
+      }
     }
     const snapshots: { id: string; data: InvoiceReport }[] = [];
     for (let start = 0; start < tracked.length; start += 3) {

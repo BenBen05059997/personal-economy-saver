@@ -7,6 +7,7 @@ import { clientInput, insertClient } from "./clients";
 import { type Db, recordEvent, requireHousehold, withHousehold } from "./household";
 import { InputError } from "./input-error";
 import { parseAmountMinor } from "./money";
+import { logSettingProblem } from "@/lib/operator-log";
 import { sandboxRead, type ReadRemote } from "./paypal-refresh";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 import { clients, households, invoices } from "./schema";
@@ -15,6 +16,7 @@ import { clients, households, invoices } from "./schema";
 export class ImportRefused extends Error {}
 /** A server setting is missing or wrong. The message names the setting, never a value. */
 export class ImportSetupError extends Error {}
+const importUnavailable = "PayPal import is not available right now.";
 /** The merchant invoice belongs to another household, so this insert is rolled back. */
 class NotOurs extends Error {}
 
@@ -32,8 +34,14 @@ function mapStatus(paypal: string | null): Status | null {
 
 async function requireDesignated(db: Db, hid: string, lock = false) {
   const bound = process.env.PAYPAL_BALANCE_HOUSEHOLD_ID?.trim().toLowerCase();
-  if (!bound) throw new ImportSetupError("PAYPAL_BALANCE_HOUSEHOLD_ID is not set.");
-  if (!z.string().uuid().safeParse(bound).success) throw new ImportSetupError("PAYPAL_BALANCE_HOUSEHOLD_ID must be a household UUID.");
+  if (!bound) {
+    logSettingProblem("paypal_import_setup", "PAYPAL_BALANCE_HOUSEHOLD_ID is not set.", hid);
+    throw new ImportSetupError(importUnavailable);
+  }
+  if (!z.string().uuid().safeParse(bound).success) {
+    logSettingProblem("paypal_import_setup", "PAYPAL_BALANCE_HOUSEHOLD_ID must be a household UUID.", hid);
+    throw new ImportSetupError(importUnavailable);
+  }
   const query = db.select({ demo: households.isDemo }).from(households).where(eq(households.id, hid));
   const [household] = await (lock ? query.for("update") : query);
   if (!household) throw new Error("Household not found");
@@ -57,7 +65,10 @@ export async function importPayPalHistory(db: Db, householdId: string, read: Rea
   const hid = requireHousehold(householdId);
   await withHousehold(db, hid, tx => requireDesignated(tx, hid));
   if (read === sandboxRead) {
-    try { env(); } catch (error) { throw new ImportSetupError((error as Error).message); }
+    try { env(); } catch (error) {
+      logSettingProblem("paypal_import_setup", (error as Error).message, hid);
+      throw new ImportSetupError(importUnavailable);
+    }
   }
   const remote = await readMerchantInvoices(read);
 

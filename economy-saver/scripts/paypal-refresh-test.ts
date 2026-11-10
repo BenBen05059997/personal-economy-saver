@@ -130,8 +130,16 @@ async function test() {
     assert.equal(attempts,2);
     assert.equal((await loadMoneyState(db,other,"2026-11-14")).invoices.find(i=>i.number==="1042")?.status,"closed");
     delete process.env.PAYPAL_BALANCE_HOUSEHOLD_ID;
-    assert.match((await refreshPayPal(db,other,async()=>invoiceData("INV2-OTHER-REAL"),later(12))).stale!,/PAYPAL_BALANCE_HOUSEHOLD_ID/);
-    console.log("✓ Stored data survives failures; retry waits five minutes, cancelled invoices leave the forecast, missing binding named");
+    assert.equal((await refreshPayPal(db,other,async()=>invoiceData("INV2-OTHER-REAL"),later(12))).stale,null);
+    process.env.PAYPAL_BALANCE_HOUSEHOLD_ID = owner;
+    assert.equal((await refreshPayPal(db,other,async()=>invoiceData("INV2-OTHER-REAL"),later(18))).stale,null);
+    process.env.PAYPAL_BALANCE_HOUSEHOLD_ID = "not-a-uuid";
+    const logged: string[] = [], realError = console.error;
+    console.error = (...args: unknown[]) => { logged.push(args.join(" ")); };
+    try { assert.equal((await refreshPayPal(db,other,async()=>invoiceData("INV2-OTHER-REAL"),later(24))).stale,null); } finally { console.error = realError; }
+    assert.ok(logged.some(l=>/PAYPAL_BALANCE_HOUSEHOLD_ID must be a household UUID/.test(l)&&l.includes(other)));
+    process.env.PAYPAL_BALANCE_HOUSEHOLD_ID = owner;
+    console.log("✓ Stored data survives failures; retry waits five minutes, cancelled invoices leave the forecast; a household that is not the designated one sees no notice, and a malformed setting is logged for the operator");
 
     await db.transaction(async tx=>{await observeRunway(tx,b)});
     await updateSettings(db,b,{kind:"household",name:"Ben",bank:"950000"});

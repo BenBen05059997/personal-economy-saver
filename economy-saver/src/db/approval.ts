@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { fromMinor, toRateMicro } from "./money";
+import { logSettingProblem } from "@/lib/operator-log";
 import { clients, invoices } from "./schema";
 
 export class ApprovalError extends Error {
@@ -146,6 +147,9 @@ async function remind(ctx: ApprovalContext) {
 
 export async function approveInvoice(ctx: ApprovalContext, action: ApprovalAction) {
   requireHousehold(ctx.householdId);
-  if (!ctx.recipient.trim()) throw new ApprovalError("SANDBOX_CLIENT_EMAIL is not set", 503);
+  if (!ctx.recipient.trim()) {
+    logSettingProblem("approve_env_not_ready", "SANDBOX_CLIENT_EMAIL is not set", ctx.householdId);
+    throw new ApprovalError("PayPal is not available right now. Try again later.", 503);
+  }
   return action === "remind" ? remind(ctx) : sendInvoice(ctx);
 }
