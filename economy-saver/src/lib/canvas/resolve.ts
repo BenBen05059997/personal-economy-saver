@@ -2,6 +2,7 @@
 // number here comes from an engine function (runway, sentence, month, spending, regular) run on the state the query's scenario names,
 // and is written with the app's own money and date helpers. The only arithmetic is what a query names (the difference in
 // compare_months). Throws `CanvasError` with words a person can read when the recipe cannot be drawn.
+import { plural } from "@/lib/plural";
 import { dayLabel, minorMoney, minorPerUnit, money, ordinal, aboutMoney } from "@/lib/money/format";
 import { goalPaces } from "@/lib/money/goals";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "@/lib/money/gaps";
@@ -209,12 +210,11 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       if (exact > 0 || card.unknownCount === 0) return minor(exact);
       return "—";
     };
-    const noun = (n: number) => (n === 1 ? "purchase" : "purchases");
     const clientRows: TableRow[] = costs.perClient.map(client => ({
-      cells: [client.clientName, minor(client.costMinor), `${client.count} ${client.count === 1 ? "invoice" : "invoices"}: ${minor(client.receiveFeeMinor)} in fees, ${minor(client.markupMinor)} in the rate, ${minor(client.landedMinor)} reached your bank`], tone: "plain",
+      cells: [client.clientName, minor(client.costMinor), `${client.count} ${plural(client.count, "invoice")}: ${minor(client.receiveFeeMinor)} in fees, ${minor(client.markupMinor)} in the rate, ${minor(client.landedMinor)} reached your bank`], tone: "plain",
     }));
     const cardRows: TableRow[] = costs.perCard.map(card => ({
-      cells: [card.label, cardCost(card), `${card.count} ${noun(card.count)} in another currency, ${card.estimatedMinor > 0 ? "estimated from the card's fee" : card.unknownCount > 0 && card.exactMinor === 0 ? "no cost yet" : "statement amount known"}${card.unknownCount > 0 && (card.exactMinor > 0 || card.estimatedMinor > 0) ? `; ${card.unknownCount} with no cost yet` : ""}`], tone: "plain",
+      cells: [card.label, cardCost(card), `${card.count} ${plural(card.count, "purchase")} in another currency, ${card.estimatedMinor > 0 ? "estimated from the card's fee" : card.unknownCount > 0 && card.exactMinor === 0 ? "no cost yet" : "statement amount known"}${card.unknownCount > 0 && (card.exactMinor > 0 || card.estimatedMinor > 0) ? `; ${card.unknownCount} with no cost yet` : ""}`], tone: "plain",
     }));
     const total = costs.payoutTotals.costMinor + costs.chargeTotals.exactMinor + costs.chargeTotals.estimatedMinor;
     const rows = [...clientRows, ...cardRows];

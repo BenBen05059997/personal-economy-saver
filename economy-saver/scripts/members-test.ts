@@ -246,6 +246,19 @@ async function main() {
       demoCookie = null;
     });
 
+    await check("issuing MCP tokens is limited to 10 a minute per household, and the live-token cap answers 400 in its own words", async () => {
+      signedIn = null;
+      demoCookie = await seedBen(db, { isDemo: true });
+      for (let made = 0; made < 10; made++) assert.equal((await changeToken(issue)).status, 201);
+      const busy = await changeToken(issue);
+      assert.deepEqual([busy.status, busy.headers.get("retry-after"), busy.headers.get("cache-control")], [429, "60", "private, no-store"]);
+      await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.purpose, "mcp-tokens"));
+      const capped = await changeToken(issue);
+      assert.equal(capped.status, 400);
+      assert.match(await capped.text(), /already has 10 live access tokens/);
+      demoCookie = null;
+    });
+
     await check("the invitation route reveals a link to the owner once and protects cancellation and verified acceptance", async () => {
       const post = (fields: Record<string, string>) => invitations(form("/api/invites", fields));
       const pending = identity("route-pending");

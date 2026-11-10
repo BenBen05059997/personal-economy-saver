@@ -1,17 +1,17 @@
 import { withHousehold } from "@/db/household";
 import { db } from "@/db/client";
 import { AiKeyError, deleteHouseholdConnection, saveHouseholdConnection } from "@/db/ai-key";
-import { consumeRequest } from "@/db/rate-limit";
 import { households } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { checkConnection } from "@/lib/ai/check";
-import { boundedForm, formText, NO_STORE, text, tooMany } from "@/lib/door";
+import { boundedForm, formText, limited, NO_STORE, text } from "@/lib/door";
 import { ownerRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
   const hid = await ownerRequest(request);
   if (hid instanceof Response) return hid;
-  if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "ai-model", 6))) return tooMany("Too many changes. Try again in a minute.");
+  const busy = await limited(hid, "ai-model", 6, "Too many changes. Try again in a minute.");
+  if (busy) return busy;
   const form = await boundedForm(request, 4096);
   if (!form) return text("That request is too large", 413);
   try {

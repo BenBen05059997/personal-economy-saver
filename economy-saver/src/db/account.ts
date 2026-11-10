@@ -42,7 +42,7 @@ export const setupForm = z.object({
     try { new Intl.DateTimeFormat("en", { timeZone: zone }); return true; } catch { return false; }
   }),
   currency,
-  bank: z.string().trim().min(1).max(16), // read by parseMinor: separators and full-width digits are fine; the limit and the decimals are checked there
+  bank: z.string().trim().min(1).max(16).optional(), // absent = 0 (the person sets it from Home); // read by parseMinor: separators and full-width digits are fine; the limit and the decimals are checked there
   // D51: the card is optional. The label, closing day and payment day come together or not at all; a blank field counts as absent.
   card: z.preprocess(blank, z.string().trim().min(1).max(80).optional()),
   closingDay: z.preprocess(blank, z.coerce.number().int().min(1).max(31).optional()),
@@ -62,7 +62,7 @@ type Setup = z.output<typeof setupForm>;
 export async function createHousehold(db: Db, id: string, data: Setup, opts: { isDemo: boolean; authUserId?: string; replaceDemo?: string | null }) {
   requireHousehold(id);
   const reference = data.currency === "JPY" ? await fetchReferenceRate() : null;
-  const bank = parseMinor(data.bank, data.currency);
+  const bank = data.bank === undefined ? 0 : parseMinor(data.bank, data.currency);
   const limit = data.limit ? parseMinor(data.limit, data.currency) : null;
   if (limit !== null && limit < 0) throw new InputError("Credit limit cannot be negative");
   return db.transaction(async tx => {

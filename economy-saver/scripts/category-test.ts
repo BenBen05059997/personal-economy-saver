@@ -24,7 +24,7 @@ import { BusinessBp, CATEGORIES, CATEGORY_KEYS, businessBpFromForm, businessPart
 import { guessCategory, guessRepeat } from "@/lib/money/categorise";
 import { businessLine, monthByCategory, monthText, monthWhen, splitLine } from "@/lib/money/month";
 import { expandBills } from "@/lib/money/repeat";
-import { addDays, cycle, safeToSpend, statementItems } from "@/lib/money/runway";
+import { addDays, cycle, low, safeToSpend, series, statementItems } from "@/lib/money/runway";
 import { monthlyRoom } from "@/lib/money/plan";
 import { homeSentence } from "@/lib/money/sentence";
 import { toCheck } from "@/lib/money/to-check";
@@ -501,6 +501,25 @@ async function main() {
       await updateBill(db, one, edit({ cancelBy: null }), { madeBy: "form" });
       assert.equal(await cancelBy(), null);
       assert.deepEqual(await bodies(), ["Last day to cancel Nov 20", "Last day to cancel Nov 20 → Nov 25", "No last day to cancel"]);
+    });
+
+    await check("engine rounding and statements: USD cents never drift below zero; a later stored statement keeps an earlier unpaid computed one; a paid stored statement is not counted twice", () => {
+      const bill = (id: string, amount: number, due: string): Bill => ({ id, biller: id, amount, due, category: "other", businessBp: 0, status: "confirmed" });
+      const usd: MoneyState = { ...benMoney, homeCurrency: "USD", fxPerUsd: 1, today: "2026-11-10", bank: 0.3, paypal: 0, bills: [bill("a", 0.1, "2026-11-12"), bill("b", 0.2, "2026-11-13")], charges: [], statements: [], pots: [], invoices: [], cancelNotices: [], storedBills: [] };
+      const expected = series(usd, "expected");
+      assert.equal(expected[3], 0, "bank $0.30 less $0.10 and $0.20 is exactly zero");
+      assert.equal(low(expected).amount, 0);
+      assert.equal(safeToSpend(usd, 0).verdict === "hold", false);
+      assert.ok(!homeSentence(usd).short, "not short by float noise");
+
+      const charge = (date: string, amount: number): Charge => ({ id: randomUUID(), cardId: "card-a", merchant: "M", amount, date, category: "other", businessBp: 0, source: "manual", status: "confirmed" });
+      const card = { id: "card-a", label: "Card A", closingDay: 5, dueDay: 27, limit: 500_000, revolving: false, ownerId: "m-ben" };
+      const base: MoneyState = { ...benMoney, today: "2026-11-10", cards: [card], bills: [], storedBills: [], charges: [charge("2026-09-20", 30_000)], statements: [] };
+      const nov = { cardId: "card-a", amount: 5_000, closedOn: "2026-11-05", dueOn: "2026-12-27" };
+      const items = (statements: MoneyState["statements"], charges = base.charges) => statementItems({ ...base, charges, statements }).map(i => [i.amount, i.closesOn, i.dueOn]);
+      assert.deepEqual(items([nov]), [[30_000, "2026-10-05", "2026-11-27"], [5_000, "2026-11-05", "2026-12-27"]], "the Oct 5 cycle has no stored statement, so it stays");
+      assert.deepEqual(items([{ ...nov, closedOn: "2026-10-05", dueOn: "2026-11-27", amount: 30_000 }]), [[30_000, "2026-10-05", "2026-11-27"]], "a stored statement for that exact close covers its charges once");
+      assert.deepEqual(items([{ ...nov, closedOn: "2026-10-05", dueOn: "2026-11-27", amount: 30_000, paid: true }]), [], "a paid stored statement covers its charges and is not an out-flow");
     });
 
     await check("household scope: one household's items, categories and shares never appear in another's month", async () => {

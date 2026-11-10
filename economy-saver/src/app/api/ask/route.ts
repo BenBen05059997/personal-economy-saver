@@ -1,11 +1,9 @@
 import { AiKeyError } from "@/db/ai-key";
 import { answerQuestion, askInput } from "@/db/ask";
 import { db } from "@/db/client";
-import { withHousehold } from "@/db/household";
 import { InputError } from "@/db/input-error";
-import { consumeRequest } from "@/db/rate-limit";
 import { AgentError } from "@/lib/agent/run";
-import { NO_STORE, text, tooMany } from "@/lib/door";
+import { NO_STORE, limited, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 import { askUnavailable, NEEDS_KEY, serverHasNoModel } from "@/lib/agent/availability";
 import { MissingAuthSetting } from "@/lib/supabase-auth";
@@ -28,14 +26,19 @@ export async function POST(request: Request) {
   if (bytes > MAX_BODY && (!data.success || (data.data.memory === undefined && data.data.recent === undefined))) return tooLarge();
   if (!data.success) return text("Enter a question of up to 320 characters.", 400);
   const connection = db();
-  if (!await withHousehold(connection, hid, tx => consumeRequest(tx, hid, "ask"))) return tooMany("Ask again in a minute.");
+  const busy = await limited(hid, "ask", undefined, "Ask again in a minute.", connection);
+  if (busy) return busy;
   // After these checks the answer is one stream of JSON lines: `{"step":"…"}` lines, then `{"reply": AskReply}` or `{"error": "…"}`.
   // An InputError raised before the first model call (the question does not fit the household) is still a plain 400.
   const encoder = new TextEncoder();
   let controller!: ReadableStreamDefaultController<Uint8Array>;
-  const stream = new ReadableStream<Uint8Array>({ start(c) { controller = c; } });
   let closed = false;
-  const send = (line: object) => { if (!closed) controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`)); };
+  // A client that leaves mid-answer cancels the stream: from then on nothing is written, and the run still finishes and saves the turn.
+  const stream = new ReadableStream<Uint8Array>({ start(c) { controller = c; }, cancel() { closed = true; } });
+  const send = (line: object) => {
+    if (closed) return;
+    try { controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`)); } catch { closed = true; }
+  };
   let began!: (value: "began") => void;
   const start = new Promise<"began">(resolve => { began = resolve; });
   const finished = answerQuestion(connection, hid, data.data, { onStep: step => { began("began"); send({ step }); } })
@@ -44,8 +47,9 @@ export async function POST(request: Request) {
   if (first !== "began" && "error" in first && first.error instanceof InputError) return text(first.error.message, 400);
   void finished.then(last => {
     send("reply" in last ? { reply: last.reply } : { error: errorWords(last.error) });
+    if (closed) return;
     closed = true;
-    controller.close();
+    try { controller.close(); } catch { /* the client already left */ }
   });
   return new Response(stream, { headers: { ...NO_STORE, "Content-Type": "application/x-ndjson" } });
 }

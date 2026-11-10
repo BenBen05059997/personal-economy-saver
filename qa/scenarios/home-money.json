@@ -18,7 +18,7 @@
     ],
     "expected": [
       "The sentence matches BROWSER-CHECKS Expected numbers: fine if Acme and Northwind pay as usual, short on the 27th if they are late",
-      "Acme and Northwind are links to their client pages and the date jumps to the runway day",
+      "Acme and Northwind are links to their client pages and the date links to the Next 30 days panel",
       "Under the sentence is the quiet line 'A fictional household that lives in this browser for seven days after your last change. Start with my numbers ›'"
     ],
     "refs": [
@@ -197,7 +197,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household started with /start (Mika, ¥120,000, no bills)"
+      "Blank household started with /start (Mika, bank balance ¥120,000 set on Home, no bills)"
     ],
     "steps": [
       "Open Home"
@@ -248,7 +248,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household as in HOME-008 (Mika, 120,000, Card N closing 25, payment 10)"
+      "Blank household as in HOME-008 (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
       "Read First steps under the sentence",
@@ -3173,7 +3173,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
       "Add \"Fictional Cloud\" ¥12,000 due Dec 1 2026, Every year, More › Changes to 13,000 from Dec 1 2027, Last day to cancel Nov 20 2026, Subscriptions, Personal",
@@ -3204,7 +3204,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
       "Add \"Fictional Gym\" ¥5,000 due Aug 14 2026, Every month, Changes to 6,000 from Sep 1 2026, Subscriptions",
@@ -3230,7 +3230,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)",
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)",
       "Add bill form open; Due Nov 20 2026"
     ],
     "steps": [

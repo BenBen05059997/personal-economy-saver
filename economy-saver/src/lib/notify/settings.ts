@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** How long one outgoing email or push request may take. */
+export const NOTIFY_TIMEOUT_MS = 10_000;
+
 type EmailSettings = { apiKey: string; from: string };
 type PushSettings = { publicKey: string; privateKey: string; subject: string };
 

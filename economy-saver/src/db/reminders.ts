@@ -5,7 +5,7 @@ import { isPushSubscription, sendReminderPush } from "@/lib/notify/push";
 import { reminderSettings as deliverySettings } from "@/lib/notify/settings";
 import { appUrl } from "@/lib/supabase-auth";
 import { clockForHousehold } from "./clock";
-import { requireHousehold, withHousehold, type Db } from "./household";
+import { householdClockRow, requireHousehold, withHousehold, type Db } from "./household";
 import { InputError } from "./input-error";
 import { openSuggestions } from "./suggestions";
 import { households, members, pushSubscriptions, reminderSettings, reminders, spaces, suggestions, users } from "./schema";
@@ -150,8 +150,7 @@ function hourOf(timeZone: string, now: Date) {
 export async function runReminders(db: Db, id: string, now = new Date(), fetcher = fetch) {
   const hid = requireHousehold(id);
   const snapshot = await withHousehold(db, hid, async tx => {
-    const [household] = await tx.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-      .from(households).where(eq(households.id, hid));
+    const household = await householdClockRow(tx, hid);
     if (!household) return null;
     await tx.delete(reminders).where(and(eq(reminders.householdId, hid), lt(reminders.createdAt, new Date(now.getTime() - 30 * 86_400_000))));
     const { today } = clockForHousehold(household, now);

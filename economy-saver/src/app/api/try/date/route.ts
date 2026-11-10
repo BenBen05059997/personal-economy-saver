@@ -1,14 +1,12 @@
 import { db } from "@/db/client";
 import { advanceTryItDate } from "@/db/demo";
-import { badFields, failure, formOf, NO_STORE, text } from "@/lib/door";
-import { householdRequest } from "@/lib/session";
+import { badFields, failure, householdForm, NO_STORE, text } from "@/lib/door";
 
 export async function POST(request: Request) {
   if (process.env.NEXT_PUBLIC_QA_TOOLS !== "1") return text("Not found", 404);
-  const hid = await householdRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
+  const ctx = await householdForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
   const date = form.get("date");
   if (typeof date !== "string" || form.getAll("date").length !== 1) return badFields();
   try {

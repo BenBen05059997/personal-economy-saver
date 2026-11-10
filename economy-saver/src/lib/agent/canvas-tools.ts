@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { CanvasError, resolveRecipe } from "@/lib/canvas/resolve";
-import { ChangeSchema, MAX_CHANGES, problemWords, RecipeSchema, type Recipe } from "@/lib/canvas/schema";
+import { CASE_KIND, ChangeSchema, MAX_CHANGES, problemWords, RecipeSchema, type Recipe } from "@/lib/canvas/schema";
 import { canvasSummary } from "@/lib/canvas/summary";
 import { InputError } from "@/db/input-error";
 import { homeSentence } from "@/lib/money/sentence";
@@ -20,8 +20,6 @@ function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
 }): Tool {
   return tool as unknown as Tool;
 }
-
-const KINDS = { usual: "expected", late: "worst" } as const;
 
 function figures(state: MoneyState, kind: "expected" | "worst") {
   const unit = minorPerUnit(state.homeCurrency);
@@ -55,7 +53,7 @@ export const canvasTools: Tool[] = [
       let changed: MoneyState;
       try { changed = whatIf(state, input.changes); }
       catch (error) { if (error instanceof WhatIfError) throw new InputError(error.message); throw error; }
-      const kind = KINDS[input.case];
+      const kind = CASE_KIND[input.case];
       const after = figures(changed, kind), before = figures(state, kind);
       const note = homeSentence(changed).note;
       return JSON.stringify({

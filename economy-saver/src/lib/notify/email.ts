@@ -1,4 +1,5 @@
 import type { ReminderDigest } from "./digest";
+import { NOTIFY_TIMEOUT_MS } from "./settings";
 
 type EmailSettings = { apiKey: string; from: string };
 
@@ -9,7 +10,7 @@ export async function sendReminderEmail(
   if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   try {
     const response = await fetcher("https://api.resend.com/emails", {
-      method: "POST", headers, redirect: "manual", signal: AbortSignal.timeout(10_000),
+      method: "POST", headers, redirect: "manual", signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
       body: JSON.stringify({ from: settings.from, to: [to], subject: digest.title, text: digest.body + "\n\n" + digest.url }),
     });
     return response.ok;

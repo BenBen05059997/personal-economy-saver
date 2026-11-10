@@ -1,11 +1,9 @@
 import { AiKeyError, modelListConnection } from "@/db/ai-key";
 import { db } from "@/db/client";
-import { withHousehold } from "@/db/household";
-import { consumeRequest } from "@/db/rate-limit";
 import { listModels, markListedModels } from "@/lib/ai/list-models";
 import { providerFailureOf, providerFailureWords } from "@/lib/ai/provider-failure";
 import { providerById } from "@/lib/ai/providers";
-import { boundedForm, formText, NO_STORE, text, tooMany } from "@/lib/door";
+import { boundedForm, formText, limited, NO_STORE, text } from "@/lib/door";
 import { ownerRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -15,9 +13,8 @@ export async function POST(request: Request) {
     return hid;
   }
   const connection = db();
-  if (!await withHousehold(connection, hid, tx => consumeRequest(tx, hid, "ai-model-list", 20))) {
-    return tooMany("Too many model list requests. Try again in a minute.");
-  }
+  const busy = await limited(hid, "ai-model-list", 20, "Too many model list requests. Try again in a minute.", connection);
+  if (busy) return busy;
   const form = await boundedForm(request, 4096);
   if (!form) return text("That request is too large", 413);
   const provider = formText(form, "provider");

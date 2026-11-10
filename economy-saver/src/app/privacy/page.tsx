@@ -5,7 +5,7 @@ import { serverDefaultHost } from "@/lib/agent/availability";
 import { RAW_FILE_RETENTION_DAYS, STORAGE_CAP_BYTES, DEMO_STORAGE_CAP_BYTES } from "@/db/document-cleanup";
 import { AccountFrame } from "@/components/auth/AccountFrame";
 
-export const metadata: Metadata = { title: "Privacy · Personal Economy Saver" };
+export const metadata: Metadata = { title: "Privacy" };
 
 /** Read when the page is requested, never at build time: the server default's host comes from the server's settings. */
 async function DefaultHost() {

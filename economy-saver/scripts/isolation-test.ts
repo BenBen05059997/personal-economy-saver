@@ -149,6 +149,8 @@ const covered = [
 ];
 
 const notApplicable: Record<string, string> = {
+  lockHousehold: "locks the one household row it is given and returns its id; every caller passes a validated id, and the lock is the scope (tested through bills, charges, clients, rules and mcp-tokens)",
+  householdClockRow: "reads the three clock columns of the one household id it is given (requireHousehold throws without one)",
   issueDemoToken: "gives one demo household a fresh cookie token; sweep-test checks a token opens only its own household",
   demoHouseholdForToken: "resolves a Try it cookie token to its one demo household; sweep-test checks tokens never cross households",
   dropIdleDemoKeys: "housekeeping across demo households that removes only an idle demo household's own key; tested in sweep-test",
@@ -166,10 +168,12 @@ const notApplicable: Record<string, string> = {
   scheduleWords: "pure formatter of a bill's schedule passed in",
   checkKnown: "pure check of the amount and date a bill is saved with, passed in; insertBill and updateBill, which call it, are covered above",
   checkAmountMinor: "pure check of an amount in minor units passed in; fillGap, which calls it, is covered below",
-  toMinor: "pure money maths", fromMinor: "pure money maths", toRateMicro: "pure money maths", fromRateMicro: "pure money maths",
-  convertMinor: "pure money maths", parseMinor: "pure money maths", parseAmountMinor: "pure money maths",
+  toRateMicro: "pure money maths", fromRateMicro: "pure money maths",
+  parseMinor: "pure money maths", parseAmountMinor: "pure money maths",
   parseShareBp: "pure text parser", equalShares: "pure share maths", parseFillBp: "pure text parser", percent: "pure formatter",
   clientIp: "pure reader of a request header; no database", hashIp: "pure SHA-256 of an address; no database",
+  tooMany: "builds a 429 response from a fixed message; reads no household rows",
+  limited: "runs consumeRequest, which is covered above, inside withHousehold for the supplied household id",
   consumeIpRequest: "counts per hashed client address before any household exists; no household id, no household rows (limits-test)",
   pruneIpBuckets: "deletes old per-address windows app-wide; touches no household's rows (limits-test)",
   readDocumentInBackground: "opens its own connection and calls readDocument, which is tested here",

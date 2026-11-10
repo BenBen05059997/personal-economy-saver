@@ -94,7 +94,7 @@ function logRequest(entry: RequestLog): void {
   console.info(JSON.stringify(entry));
 }
 
-export function startRequestLog(method: string, pathname: string, ray: string | null) {
+function startRequestLog(method: string, pathname: string, ray: string | null) {
   if (SKIPPED.test(pathname)) return;
   const started = performance.now();
   const route = routePattern(pathname);

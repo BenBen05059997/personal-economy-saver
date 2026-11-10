@@ -790,8 +790,8 @@ async function main() {
     await check("the canvas, memory and rules routes start with the same-origin and session guard, and the return path lists /memory and /canvas", async () => {
       for (const route of ["./src/app/api/canvas/resolve/route.ts", "./src/app/api/memory/route.ts", "./src/app/api/rules/route.ts"]) {
         const source = readFileSync(route, "utf8");
-        const guard = source.indexOf("await householdRequest(request)");
-        assert.ok(guard > 0 && source.includes("hid instanceof Response"), `${route} must call the household guard and return its response`);
+        const guard = Math.max(source.indexOf("await householdRequest(request)"), source.indexOf("await householdForm(request)"));
+        assert.ok(guard > 0 && (source.includes("hid instanceof Response") || source.includes("ctx instanceof Response")), `${route} must call the household guard and return its response`);
         for (const later of ["request.text()", "request.formData()", "formOf(request)", "db()"]) {
           const at = source.indexOf(later);
           assert.ok(at === -1 || at > guard, `${route} reads ${later} before the guard`);

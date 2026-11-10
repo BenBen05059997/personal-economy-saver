@@ -1,3 +1,4 @@
+import { modelFailureWords } from "@/lib/ai/provider-failure";
 import PostalMime from "postal-mime";
 import { z } from "zod";
 import { InputError } from "@/db/input-error";
@@ -121,12 +122,10 @@ export async function extractDocument(bytes: ArrayBuffer, mime: string, context:
       forceTool: RECORD_ITEMS,
     });
   } catch (error) {
-    if (error instanceof ModelError && error.status !== undefined) {
-      if ([400, 415, 422].includes(error.status) && c.protocol === "openai" && parts.some(p => p.type === "pdf")) {
-        throw new ReaderError("This model could not read the PDF. Upload a photo of it, or choose another model in Settings.");
-      }
-      throw new ReaderError(`AI reader returned HTTP ${error.status}.`, 502);
+    if (error instanceof ModelError && error.status !== undefined && [400, 415, 422].includes(error.status) && c.protocol === "openai" && parts.some(p => p.type === "pdf")) {
+      throw new ReaderError("This model could not read the PDF. Upload a photo of it, or choose another model in Settings.");
     }
+    if (error instanceof ModelError) throw new ReaderError(modelFailureWords(error, "The AI service took too long. Try again."), 502);
     // The address rule (checkBaseUrl) runs on every call; its message is written for a person.
     if (error instanceof InputError) throw new ReaderError(error.message, 503);
     throw new ReaderError("AI reader could not be reached.", 502);

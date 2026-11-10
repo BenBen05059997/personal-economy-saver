@@ -1,4 +1,5 @@
 import { MonthSplit } from "@/components/plan/MonthSplit";
+import { homeDateLabel } from "@/components/ui/dates";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { Sentence } from "@/components/home/Sentence";
 import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
@@ -13,7 +14,7 @@ import "./family.css";
 
 /** D52: the read-only family page. No buttons, no forms, no links into the signed-in app, nothing from PayPal and no emails. */
 export function FamilyView({ name, state }: { name: string; state: MoneyState }) {
-  const date = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(state.today)).replace(",", "");
+  const date = homeDateLabel(state.today);
   const bills = sharedBillsComing(state);
   const { transfers } = splitBalance(state.split, state.today);
   const together = state.split.members.length >= 2;

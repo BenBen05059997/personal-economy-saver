@@ -4,7 +4,7 @@ import { householdDate } from "@/db/account";
 import { loadMoneyState, withHousehold, type Db } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { authenticateMcpToken } from "@/db/mcp-tokens";
-import { consumeRequest } from "@/db/rate-limit";
+import { limited } from "@/db/rate-limit";
 import { logCall } from "@/lib/agent/log";
 import { MODEL_RULES } from "@/lib/agent/rules";
 import { tools } from "@/lib/agent/tools";
@@ -40,9 +40,8 @@ export async function mcpRequest(request: Request, connection: () => Db) {
   const caller = await authenticateMcpToken(db, token);
   if (!caller) return unauthorized();
   const { householdId: hid, scopes } = caller;
-  if (!await withHousehold(db, hid, tx => consumeRequest(tx, hid, "mcp"))) {
-    return new Response("Request limit reached", { status: 429, headers: { "Retry-After": "60" } });
-  }
+  const busy = await limited(db, hid, "mcp", undefined, "Request limit reached");
+  if (busy) return busy;
   const server = new McpServer({ name: "personal-economy-saver", version: "1.0.0" }, { instructions: MODEL_RULES });
   for (const tool of tools) {
     // Ask-only tools (clarify, out_of_scope) end an Ask turn and mean nothing to another client: never offered, whatever the token holds.

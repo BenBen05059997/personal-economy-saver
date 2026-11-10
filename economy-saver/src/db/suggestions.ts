@@ -6,7 +6,7 @@ import { FINDING_RULE, type Finding } from "@/lib/money/suggestion-types";
 import { monthsBack } from "@/lib/money/spending";
 import { REGULAR_MONTHS } from "@/lib/money/regular";
 import { clockForHousehold } from "./clock";
-import { CHARGE_LOOKBACK_DAYS, loadMoneyState, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
+import { CHARGE_LOOKBACK_DAYS, householdClockRow, loadMoneyState, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { rulesFor } from "./rules";
 import { events, households, invoices, spaces, standingRules, suggestions } from "./schema";
 
@@ -108,8 +108,7 @@ export async function dismiss(db: Db, id: string, suggestionId: string, now = ne
 
 export async function notNow(db: Db, id: string, suggestionId: string, now = new Date()) {
   const hid = requireHousehold(id);
-  const [household] = await db.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-    .from(households).where(eq(households.id, hid));
+  const household = await householdClockRow(db, hid);
   if (!household) return false;
   const [row] = await db.update(suggestions).set({ status: "not_now", snoozedOn: clockForHousehold(household, now).today })
     .where(and(eq(suggestions.householdId, hid), eq(suggestions.id, suggestionId), eq(suggestions.status, "open")))

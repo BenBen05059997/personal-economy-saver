@@ -2,7 +2,7 @@ import { z } from "zod";
 import { hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
 import { KEY_TEXT_WORDS, looksLikeApiKey } from "@/lib/ai/key-text";
 
-export const BRIEF_MAX = 2_000;
+const BRIEF_MAX = 2_000;
 const line = z.string().trim().min(1).max(BRIEF_MAX).refine(value => !/[\r\n]/.test(value), "Keep each entry on one line.");
 const source = z.string().trim().min(1).max(80).refine(value =>
   /^[a-z][a-z0-9_]*$/.test(value) || z.string().uuid().safeParse(value).success, "Use a tool name or a memory note ID as the source.");
@@ -18,8 +18,12 @@ export const BriefFields = z.object({
   refs: z.object({ bills: ids.default([]), clients: ids.default([]), pots: ids.default([]), documents: ids.default([]) }).strict().default({}),
 }).strict();
 
+/** Who last wrote a brief: the assistant's proposal or the person's form. */
+export const BriefAuthor = z.enum(["ask", "form"]);
+export type BriefAuthor = z.infer<typeof BriefAuthor>;
+
 export type Brief = z.infer<typeof BriefFields>;
-export type BriefRecord = { brief: Brief; updatedAt: string; updatedBy: "ask" | "form" };
+export type BriefRecord = { brief: Brief; updatedAt: string; updatedBy: BriefAuthor };
 
 export function briefWords(brief: Brief): string[] {
   return [brief.about, brief.goal, ...brief.state.map(row => row.text), ...brief.decisions, ...brief.open_questions, ...brief.check_next];

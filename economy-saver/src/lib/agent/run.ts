@@ -1,6 +1,7 @@
 // The in-app agent (D40): Claude chooses tools over the engine and phrases their results. Plain manual loop on the
 // provider-neutral model call (lib/ai). It logs one content-free line per Ask (log.ts) and nothing else: never the key, the question, a tool
 // argument or result, or the answer.
+import { modelFailureWords } from "@/lib/ai/provider-failure";
 import { householdDate } from "@/db/account";
 import { loadMoneyState, requireHousehold, withHousehold, type Db } from "@/db/household";
 import { InputError } from "@/db/input-error";
@@ -78,12 +79,7 @@ const failure = (key: keyof typeof fail) => new AgentError(fail[key], key);
 
 function apiFailure(error: unknown): AgentError {
   if (error instanceof InputError) return new AgentError(error.message, "api_error"); // the address rule, written for a person
-  if (error instanceof ModelError) {
-    if (error.timeout) return new AgentError(fail.budget, "api_error");
-    if (error.status === 401 || error.status === 403) return new AgentError("The AI key was not accepted. Check it in Settings.", "api_error");
-    if (error.status === 429) return new AgentError("The AI service is busy. Try again in a minute.", "api_error");
-    if (error.status !== undefined) return new AgentError(`The AI service returned HTTP ${error.status}. Try again.`, "api_error");
-  }
+  if (error instanceof ModelError) return new AgentError(modelFailureWords(error, fail.budget), "api_error");
   return new AgentError("Couldn't reach the AI service. Try again.", "api_error");
 }
 

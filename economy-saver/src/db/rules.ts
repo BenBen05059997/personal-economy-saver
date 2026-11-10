@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { Currency } from "@/lib/catalogue/types";
 import { RULE_KINDS, type RuleKind, type StandingRule, type StandingRules } from "@/lib/money/suggestion-types";
 import { readRule, ruleWords } from "@/lib/money/rules";
-import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
+import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { households, standingRules } from "./schema";
 import { InputError } from "./input-error";
 import { requireSpace } from "./spaces";
@@ -35,8 +35,7 @@ function readRules(db: Db, hid: string) {
 
 async function initializeRules(db: Db, hid: string) {
   return db.transaction(async tx => {
-    const [household] = await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
-    if (!household) throw new InputError("Household not found");
+    await lockHousehold(tx, hid);
     const rows = await readRules(tx, hid);
     if (rows.length) return rows;
     await seedRules(tx, hid);

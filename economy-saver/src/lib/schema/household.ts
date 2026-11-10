@@ -10,7 +10,8 @@ import { z } from "zod";
 import { CategoryKeySchema } from "@/lib/money/categories";
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { MemoryItem } from "@/lib/schema/memory";
-import { BriefSchema } from "@/lib/agent/brief";
+import { BriefAuthor, BriefSchema } from "@/lib/agent/brief";
+import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { ConversationTurn } from "@/lib/schema/turn";
 
 /** Version 4 adds the person's own categories (D75) and the one each bill and charge is filed under. Version 3 added the spaces of the Ask journal (D69), in the export only. */
@@ -93,7 +94,7 @@ const Bill = z.object({
   previousAmountMinor: minor.nullable(),
   fxRateMicro: rateMicro.nullable(),
   repeatDay: z.number().int().min(1).max(31).nullable().describe("Day of the month a monthly bill falls due; null unless repeatUnit is month."),
-  repeatUnit: z.enum(["month", "year"]).nullable().optional().describe("month = every month on repeatDay, year = every year on the due date's month and day (29 Feb becomes 28 Feb in a common year); null or absent = one-off."),
+  repeatUnit: RepeatUnitSchema.nullable().optional().describe("month = every month on repeatDay, year = every year on the due date's month and day (29 Feb becomes 28 Feb in a common year); null or absent = one-off."),
   nextAmountMinor: minor.nullable().optional().describe("The amount an occurrence on or after nextAmountFrom costs, in the bill's currency; null or absent = the amount never changes. Set together with nextAmountFrom."),
   nextAmountFrom: day.nullable().optional().describe("The first date nextAmountMinor applies on."),
   cancelBy: day.nullable().optional().describe("Information only: the last day to cancel or change the bill before its next occurrence charges. The app never cancels anything."),
@@ -209,7 +210,7 @@ const PinnedCanvasExport = z.object({
 const SpaceExport = z.object({
   id, name: z.string().trim().min(1).max(60), isGeneral: z.boolean(),
   status: z.enum(["open", "archived"]), brief: z.union([z.object({}).strict(), BriefSchema]),
-  briefUpdatedAt: moment.nullable(), briefUpdatedBy: z.enum(["ask", "form"]).nullable(), createdAt: moment,
+  briefUpdatedAt: moment.nullable(), briefUpdatedBy: BriefAuthor.nullable(), createdAt: moment,
 }).strict().superRefine((space, ctx) => {
   const missing = (space.briefUpdatedAt === null) || (space.briefUpdatedBy === null);
   if (missing && (Object.keys(space.brief).length !== 0 || space.briefUpdatedAt !== space.briefUpdatedBy)) {

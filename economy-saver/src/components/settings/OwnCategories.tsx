@@ -12,7 +12,7 @@ import type { OwnCategoryGroup } from "@/db/own-categories";
 type Choice = "none" | "personal" | "business" | "mixed";
 const choiceOf = (bp: number | null): Choice => bp === null ? "none" : bp === 0 ? "personal" : bp === 10_000 ? "business" : "mixed";
 /** "Work", "Personal", "30% work": a default share in words; null when there is none. */
-export function shareWords(bp: number | null): string | null {
+function shareWords(bp: number | null): string | null {
   const choice = choiceOf(bp);
   return choice === "none" ? null : choice === "mixed" ? `${(bp! / 100).toString()}% work` : LABELS.work[choice];
 }

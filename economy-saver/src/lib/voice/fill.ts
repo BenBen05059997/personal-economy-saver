@@ -1,6 +1,7 @@
 // Voice fill (28B), server side: the words a person said and the form's fields in, checked values out. One model call, forced to one
 // tool whose input is built from the fields; the model only proposes, `checkFill` decides. Nothing is written to any table: the
 // form's own route saves after the person's tap.
+import { modelFailureWords } from "@/lib/ai/provider-failure";
 import { householdClock } from "@/db/account";
 import { AiKeyError, aiConnection } from "@/db/ai-key";
 import { withHousehold, type Db } from "@/db/household";
@@ -53,7 +54,7 @@ export async function fillByVoice(db: Db, householdId: string, request: VoiceFil
   } catch (error) {
     // Fixed words only: a provider's message, a URL or a key never reaches the person.
     if (error instanceof AiKeyError || error instanceof InputError) throw new VoiceFillError(error.message, 503);
-    if (error instanceof ModelError) throw new VoiceFillError(error.timeout ? "The AI model took too long. Type the fields instead." : "The AI model could not read that. Type the fields instead.", 502);
+    if (error instanceof ModelError) throw new VoiceFillError(modelFailureWords(error, "The AI model took too long. Type the fields instead."), 502);
     throw error;
   }
   const call = reply.calls.find(c => c.name === FILL_FIELDS);

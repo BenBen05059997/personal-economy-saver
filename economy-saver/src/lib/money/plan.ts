@@ -1,22 +1,15 @@
 // Planning maths for pots (D43). Pure functions over a MoneyState: no React, no clock, no I/O.
 // Amounts are in the state's home currency units, as everywhere in the engine (whole yen; dollars with cents for USD).
 
+import { addMonths } from "./dates";
 import { MONTHS, minorMoney, minorPerUnit } from "./format";
 import { availableCash, moneyInPots, series } from "./runway";
 import { expectsClientPayment } from "./sentence";
 import type { MoneyState, Pot } from "./types";
 
-const unit = (state: MoneyState) => minorPerUnit(state.homeCurrency);
+export { addMonths };
 
-/** `iso` plus `n` calendar months; a day that does not exist in the target month (Jan 31 + 1) falls on the month's last day. */
-export function addMonths(iso: string, n: number): string {
-  const total = Number(iso.slice(0, 4)) * 12 + (Number(iso.slice(5, 7)) - 1) + n;
-  const year = Math.floor(total / 12);
-  const month = total % 12;
-  const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const day = Math.min(Number(iso.slice(8, 10)), last);
-  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
+const unit = (state: MoneyState) => minorPerUnit(state.homeCurrency);
 
 /** Whole months from `from` to `to` (the most whole months that fit), never less than 1. */
 export function monthsUntil(from: string, to: string): number {

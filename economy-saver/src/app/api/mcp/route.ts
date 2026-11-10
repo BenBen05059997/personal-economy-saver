@@ -1,3 +1,4 @@
+import { text } from "@/lib/door";
 import { db } from "@/db/client";
 import { mcpRequest } from "@/lib/mcp/server";
 
@@ -6,7 +7,7 @@ async function handle(request: Request) {
   catch (error) {
     const message = error instanceof Error && /^(MCP_TOKEN_KEY |DATABASE_URL is not set)/.test(error.message)
       ? error.message : "MCP request failed";
-    return new Response(message, { status: 503 });
+    return text(message, 503);
   }
 }
 

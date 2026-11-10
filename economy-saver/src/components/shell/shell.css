@@ -199,7 +199,6 @@
 .shell-popover h2 { margin: 8px 10px; font: 600 15px/1.4 var(--sans); }
 .shell-popover p { margin: 4px 10px; color: var(--muted); }
 .shell-popover a { display: block; padding: 8px 10px; border-radius: 6px; text-decoration: none; }
-.shell-ask-menu { left: 254px; right: auto; width: 330px; }
 .shell-notifications { right: 110px; }
 .shell-nav-popover {
   position: fixed;
@@ -265,7 +264,6 @@
   .shell-phone-ask .shell-icon { width: 21px; height: 21px; }
   .shell-links a, .shell-footer a { min-height: 44px; }
   .shell-popover { inset: 46px 12px auto auto; }
-  .shell-ask-menu { inset: auto 12px calc(68px + env(safe-area-inset-bottom)) 12px; width: auto; }
   .shell-popover a { min-height: 44px; }
 }
 .shell-notifications { width: min(360px, calc(100vw - 24px)); max-height: min(500px, 80dvh); overflow-y: auto; }
@@ -275,7 +273,6 @@
 .shell-notification-list button, .shell-read-all { min-height: 30px; flex: none; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--screen); color: var(--ink); cursor: pointer; }
 .shell-read-all { margin: 0 10px; }
 
-.shell-ask-menu form { padding: 0 var(--space-3) var(--space-3); }
 .money-shell:has(.shell-bar.is-wide) .shell-add-menu { top: 58px; right: 108px; }
 .money-shell:has(.shell-bar.is-wide) .shell-notifications { top: 58px; right: 200px; }
 /* No Ask button on the Ask page: both menus sit one button further right. */

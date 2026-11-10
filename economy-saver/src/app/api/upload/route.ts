@@ -4,7 +4,7 @@ import { requireReaderModel, storeDocument } from "@/db/reader-job";
 import { readDocumentInBackground } from "@/db/reader-background";
 import { readUpload } from "@/lib/reader/accept";
 import { ReaderError } from "@/lib/reader/settings";
-import { redirectTo } from "@/lib/door";
+import { redirectTo, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -17,6 +17,6 @@ export async function POST(request: Request) {
     after(() => readDocumentInBackground(hid, doc));
     return redirectTo("/to-check", request);
   } catch (error) {
-    return new Response(error instanceof ReaderError ? error.message : "Upload failed.", { status: error instanceof ReaderError ? error.status : 500 });
+    return text(error instanceof ReaderError ? error.message : "Upload failed.", error instanceof ReaderError ? error.status : 500);
   }
 }

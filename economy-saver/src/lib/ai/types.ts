@@ -30,4 +30,7 @@ export type Reply = {
 /** Messages are fixed and free of secrets, URLs and model output; `status` is the HTTP status when the provider answered. */
 export class ModelError extends Error {
   constructor(message: string, readonly status?: number, readonly timeout = false, readonly providerFailure?: ProviderFailureKind) { super(message); }
+  static timedOut() { return new ModelError("The AI service took too long.", undefined, true); }
+  static unreachable() { return new ModelError("Couldn't reach the AI service."); }
+  static redirected() { return new ModelError("The AI service answered with a redirect."); }
 }

@@ -1,11 +1,9 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { createFamilyLink, loadFamilyView, stopFamilyLink } from "@/db/family-links";
-import { consumeRequest } from "@/db/rate-limit";
-import { badFields, failure, formOf, NO_STORE, text, tooMany } from "@/lib/door";
+import { badFields, failure, limited, NO_STORE, ownerForm, text } from "@/lib/door";
 import { homeSentence } from "@/lib/money/sentence";
 import { appUrl, MissingAuthSetting } from "@/lib/supabase-auth";
-import { ownerRequest } from "@/lib/session";
 import { z } from "zod";
 
 /**
@@ -13,14 +11,14 @@ import { z } from "zod";
  * hash is stored), and the message for LINE (the sentence, then the link and its last day). `kind=stop` (with `id`) stops one.
  */
 export async function POST(request: Request) {
-  const hid = await ownerRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
+  const ctx = await ownerForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
   const kind = form.get("kind");
   try {
     if (kind !== "create" && kind !== "stop") return badFields();
-    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "family-links", 20))) return tooMany("Too many changes. Try again in a minute.");
+    const busy = await limited(hid, "family-links", 20, "Too many changes. Try again in a minute.");
+    if (busy) return busy;
     if (kind === "stop") {
       const id = z.string().uuid().safeParse(form.get("id"));
       if (!id.success) return badFields();

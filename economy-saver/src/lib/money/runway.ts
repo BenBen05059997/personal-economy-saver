@@ -7,46 +7,22 @@
 // - Paid invoices are not arrivals: paying moves the money into the PayPal balance.
 // - Pending bills, pending charges and pending pots (read by the AI, not yet confirmed) are left out of the series.
 // - The series starts from availableCash: bank + PayPal less the money in confirmed pots (D43).
-// - A closed card statement is an out-flow on its due date. Confirmed charges after the latest stored statement
+// - A closed card statement is an out-flow on its due date. Confirmed charges in a cycle no stored statement covers
 //   are grouped by the cycle they close in: a cycle that has closed with no stored statement is a computed closed
 //   statement, and the open cycle (up to the next closing day) is an out-flow on the due date of the statement it
 //   will become: dueDay of the month after the one it closes in.
 // - Dates are YYYY-MM-DD strings and are handled in UTC, so the maths does not depend on the time zone.
 
 import type { Context, Currency, Moment, Profile } from "@/lib/catalogue/types";
-import { dayLabel as label, formatter, money, usd } from "./format";
+import { addDays, dateIn, daysBetween } from "./dates";
+import { dayLabel as label, formatter, minorPerUnit, money, plural, usd } from "./format";
 import type { Bill, Card, Charge, Client, Invoice, MoneyState } from "./types";
 
 // ---------------------------------------------------------------- dates
 
-const DAY_MS = 86_400_000;
-
-function toUtc(iso: string): number {
-  const [y, m, d] = iso.split("-").map(Number);
-  return Date.UTC(y, m - 1, d);
-}
-
-export function addDays(iso: string, n: number): string {
-  return new Date(toUtc(iso) + n * DAY_MS).toISOString().slice(0, 10);
-}
-
-/** Whole days from a to b (b minus a). */
-export function daysBetween(a: string, b: string): number {
-  return Math.round((toUtc(b) - toUtc(a)) / DAY_MS);
-}
+export { addDays, daysBetween };
 
 // ---------------------------------------------------------------- cards
-
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/** The date `day` falls on in the given month (month 1-12, may overflow), clamped to the month's length (31 = month end). */
-function dateIn(year: number, month: number, day: number): string {
-  const first = new Date(Date.UTC(year, month - 1, 1));
-  const y = first.getUTCFullYear();
-  const m = first.getUTCMonth() + 1;
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return `${y}-${pad(m)}-${pad(Math.min(Math.max(1, day), last))}`;
-}
 
 /** Closing date of the cycle a date falls in: the first closing day on or after `iso`. */
 export function closingOnOrAfter(card: Card, iso: string): string {
@@ -104,28 +80,33 @@ export function pendingCharges(state: MoneyState, cardId?: string): Charge[] {
   return state.charges.filter((c) => c.status === "pending" && (!cardId || c.cardId === cardId)).sort(byDate);
 }
 
-/** The close of the latest stored statement of a card: every charge on or before it is inside a stored statement. Empty when the card has none. */
-function storedLine(state: MoneyState, cardId: string): string {
-  return state.statements.reduce((line, st) => (st.cardId === cardId && st.closedOn > line ? st.closedOn : line), "");
+/**
+ * Whether a charge is already inside a stored statement of the card (paid ones included): the statement for its own cycle is
+ * stored, or it is dated on or before a stored close that is not a closing date of the card's current closing day (the day was
+ * changed since). A cycle with no stored statement (a missed day, imported history) stays a computed one.
+ */
+function inStored(state: MoneyState, card: Card, date: string): boolean {
+  const closes = state.statements.filter((st) => st.cardId === card.id).map((st) => st.closedOn);
+  return closes.includes(closingOnOrAfter(card, date)) || closes.some((close) => close >= date && closingOnOrAfter(card, close) !== close);
 }
 
 /**
  * Every statement still to be paid, soonest first: the stored ones, then one per cycle that holds confirmed charges
- * after the latest stored statement. A cycle that has closed and has no stored statement is a computed closed
+ * in a cycle no stored statement covers. A cycle that has closed and has no stored statement is a computed closed
  * statement (open: false); a cycle that can still take charges is open. A computed one whose due date has passed is paid.
  */
 export function statementItems(state: MoneyState): StatementItem[] {
   const out: StatementItem[] = [];
   for (const card of state.cards) {
     for (const st of state.statements) {
-      if (st.cardId === card.id && st.dueOn >= state.today) {
+      if (st.cardId === card.id && !st.paid && st.dueOn >= state.today) {
         out.push({ cardId: card.id, label: `${card.label} statement`, amount: st.amount, closedOn: st.closedOn, closesOn: st.closedOn, dueOn: st.dueOn, open: false });
       }
     }
-    const line = storedLine(state, card.id);
     const byClose = new Map<string, number>();
     for (const c of state.charges) {
-      if (c.cardId !== card.id || c.status !== "confirmed" || c.date <= line) continue;
+      if (c.cardId !== card.id || c.status !== "confirmed") continue;
+      if (inStored(state, card, c.date)) continue;
       const close = closingOnOrAfter(card, c.date);
       byClose.set(close, (byClose.get(close) ?? 0) + c.amount);
     }
@@ -235,7 +216,7 @@ export function series(state: MoneyState, kind: SeriesKind, days = WINDOW_DAYS):
   const out: Series = [];
   let bal = availableCash(state);
   for (let i = 0; i < days; i++) {
-    bal += delta[i];
+    bal = roundHome(state, bal + delta[i]);
     out.push(bal);
   }
   out.startDate = state.today;
@@ -367,7 +348,6 @@ const ADVANCE_TERMS: Record<Currency, AdvanceTerms> = {
 
 const short = (name: string) => name.split(" ")[0];
 const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s);
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 /** Cost of a card cash advance for `gap` home-currency units over `days` days. */
 function advanceCost(gap: number, days: number, currency: Currency = "JPY"): number {
@@ -529,7 +509,7 @@ export function timeline(state: MoneyState, kind: SeriesKind, days = WINDOW_DAYS
   drafts.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : rank[x.kind] - rank[y.kind]));
   let bal = availableCash(state);
   return drafts.map((d) => {
-    if (!d.pending) bal += d.amount;
+    if (!d.pending) bal = roundHome(state, bal + d.amount);
     const i = daysBetween(state.today, d.date);
     return { ...d, balance: bal, covered: (d.pending ? dayAll[i] : day[i]) >= 0 };
   });
@@ -587,7 +567,7 @@ export function paybackFor(state: MoneyState, cardId: string): Payback | undefin
   for (const a of all.filter((x) => x.worstOn <= st.dueOn)) {
     if (bal >= 0) break;
     need.push(a);
-    bal += a.amountHome;
+    bal = roundHome(state, bal + a.amountHome);
   }
   return bal >= 0 ? { ...base, source: "clients", arrivals: need } : { ...base, source: "short", arrivals: all };
 }
@@ -607,5 +587,6 @@ export function context(state: MoneyState, profile: Profile, moment: Moment, eve
 
 /** Rounds to the home currency's smallest unit: whole yen, or cents for a USD household. */
 function roundHome(state: MoneyState, amount: number): number {
-  return state.homeCurrency === "JPY" ? Math.round(amount) : Math.round(amount * 100) / 100;
+  const u = minorPerUnit(state.homeCurrency);
+  return Math.round(amount * u) / u;
 }

@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { mediumDate } from "@/components/ui/dates";
 import { withHousehold } from "@/db/household";
 import { connectionView } from "@/db/ai-key";
 import { askUnavailable, missingAskSetting, serverDefaultHost, serverHasNoModel } from "@/lib/agent/availability";
@@ -12,7 +13,7 @@ import { AiModelForm } from "./AiModelForm";
 const CHECK_WORDS: Record<(typeof CHECK_NAMES)[number], string> = {
   uses_tools: "Uses the app’s tools", ignores_injection: "Ignores instructions hidden in bills", stays_on_money: "Stays on money questions", reads_images: "Reads images",
 };
-const dateOf = (iso: string) => new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(iso));
+const dateOf = (iso: string) => mediumDate(iso);
 
 function CheckLine({ tested, check }: { tested: boolean; check: ConnectionCheck | null }) {
   const label = tested ? "Tested" : "Custom, untested";

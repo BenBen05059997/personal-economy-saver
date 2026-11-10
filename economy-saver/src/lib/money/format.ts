@@ -22,6 +22,39 @@ export const usd = (n: number) => minorMoney(Math.round(n * minorPerUnit("USD"))
 /** The decimal places a currency keeps in minor units: the one table (JPY has none, USD has cents). */
 export const MINOR_PLACES: Record<string, number> = { JPY: 0, USD: 2 };
 
+/** The decimal places of a currency; stops on one we do not hold. */
+export function minorPlaces(currency: string): number {
+  const d = MINOR_PLACES[currency];
+  if (d === undefined) throw new Error(`Unknown currency: ${currency}`);
+  return d;
+}
+
+/** Whole major units to integer minor units (the one bridge between the engine's units and the database's). */
+export function toMinor(amount: number, currency: string): number {
+  const minor = Math.round(amount * 10 ** minorPlaces(currency));
+  if (!Number.isSafeInteger(minor)) throw new Error(`Amount out of range: ${amount} ${currency}`);
+  return minor;
+}
+
+export function fromMinor(minor: number, currency: string): number {
+  return minor / 10 ** minorPlaces(currency);
+}
+
+/** Convert between the two currencies we hold. `perUsd` is units of the non-USD currency per 1 USD. */
+export function convertMinor(minor: number, from: string, to: string, perUsd: number): number {
+  if (from === to) return minor;
+  const major = fromMinor(minor, from);
+  if (from === "USD") return toMinor(major * perUsd, to);
+  if (to === "USD") return toMinor(major / perUsd, to);
+  throw new Error(`No conversion from ${from} to ${to}`);
+}
+
+/** "3 days", "1 day": a count with its word. */
+export const plural = (n: number, one: string, many = one + "s") => `${n} ${n === 1 ? one : many}`;
+
+/** Basis points as the percent number the screens print: 3000 -> "30", 50 -> "0.5". */
+export const percentText = (bp: number): string => String(bp / 100);
+
 /** Whole minor units per unit of a currency (cents for USD, yen for JPY). */
 export const minorPerUnit = (currency: Currency) => 10 ** MINOR_PLACES[currency];
 

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ApiForm } from "@/components/ui/ApiForm";
+import { ConfirmDo } from "@/components/ui/ConfirmRemove";
 import { FAMILY_LINK_DAYS, MAX_LIVE_FAMILY_LINKS } from "@/lib/family-links";
 import { FORM_FETCH_HEADER } from "@/lib/form-fetch";
 
@@ -70,16 +70,6 @@ export function FamilyShare({ links }: { links: FamilyLinkRow[] }) {
 
 /** Stop sharing asks first: a second step in the row, like ConfirmRemove does for bills. */
 function StopSharing({ id, onStopped }: { id: string; onStopped: () => void }) {
-  const panel = useRef<HTMLDetailsElement>(null);
-  return <details ref={panel} className="ui-remove">
-    <summary aria-label="Stop sharing this link">Stop sharing</summary>
-    <ApiForm action="/api/family-links" onDone={onStopped}>
-      <input type="hidden" name="kind" value="stop" /><input type="hidden" name="id" value={id} />
-      <p>The link stops working for everyone who has it.</p>
-      <div className="ui-remove-buttons">
-        <button type="button" className="ui-button" onClick={() => { if (panel.current) panel.current.open = false; }}>Keep</button>
-        <button className="ui-button">Stop sharing</button>
-      </div>
-    </ApiForm>
-  </details>;
+  return <ConfirmDo summary="Stop sharing" summaryLabel="Stop sharing this link" button="Stop sharing" action="/api/family-links" onDone={onStopped}
+    fields={{ kind: "stop", id }} question={<p>The link stops working for everyone who has it.</p>} />;
 }

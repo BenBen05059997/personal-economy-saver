@@ -1,14 +1,12 @@
 import { db } from "@/db/client";
 import { potInput, savePot } from "@/db/pots";
-import { badFields, failure, redirectTo, returnPath, formOf } from "@/lib/door";
-import { householdRequest } from "@/lib/session";
+import { badFields, failure, householdForm, redirectTo, returnPath } from "@/lib/door";
 
 /** Add a pot, or edit one by its id (D43). A field left empty is not set. */
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
+  const ctx = await householdForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
   const field = (name: string) => String(form.get(name) ?? "").trim() || null;
   const data = potInput.safeParse({
     id: form.get("id"), name: form.get("name"), target: field("target"), targetDate: field("targetDate"),

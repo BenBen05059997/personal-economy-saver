@@ -25,7 +25,7 @@ async function Plan({ search }: { search: Search }) {
     { isolationLevel: "repeatable read", accessMode: "read only" });
   const ask: PlanAsk = { today, current, oldest, month: month ?? null, query: q ?? null };
   return <WorkspaceFrame workspace={workspace} section="plan">
-    <PlanView state={workspace.state} spending={spending} ask={ask} own={workspace.own!} newPotId={crypto.randomUUID()} />
+    <PlanView state={workspace.state} spending={spending} ask={ask} own={workspace.own} newPotId={crypto.randomUUID()} />
   </WorkspaceFrame>;
 }
 export default function Page({ searchParams }: { searchParams: Search }) {

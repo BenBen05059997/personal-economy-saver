@@ -1,9 +1,10 @@
 import { cookies } from "next/headers";
 import { accountHousehold } from "@/db/account";
+import { NO_REFERRER, redirectTo } from "@/lib/door";
 import { db } from "@/db/client";
 import { InputError } from "@/db/input-error";
 import { INVITE_TOKEN, acceptInvite } from "@/db/invites";
-import { privateRedirect, routeAuth } from "@/lib/auth-request";
+import { routeAuth } from "@/lib/auth-request";
 import { INVITE_COOKIE, inviteCookiePolicy } from "@/lib/invite-auth";
 
 export async function GET(request: Request) {
@@ -15,9 +16,9 @@ export async function GET(request: Request) {
   const refused = invite ? "/join/" + invite + "?refused=1" : "/login?expired=1";
   const params = new URL(request.url).searchParams;
   const code = params.get("code");
-  if (!code || (rawInvite !== undefined && !invite)) return privateRedirect(refused);
+  if (!code || (rawInvite !== undefined && !invite)) return redirectTo(refused, undefined, NO_REFERRER);
 
-  const response = privateRedirect(invite ? refused : "/onboarding");
+  const response = redirectTo(invite ? refused : "/onboarding", undefined, NO_REFERRER);
   const client = await routeAuth(response);
   const flowId = params.get("sb_flow_id");
   const { data, error } = await client.auth.exchangeCodeForSession(code, flowId ? { flowId } : undefined);

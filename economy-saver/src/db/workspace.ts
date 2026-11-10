@@ -6,7 +6,7 @@ import type { refreshPayPal } from "./paypal-refresh";
 import { observeRunway } from "./runway-events";
 import { eventFeed } from "./event-feed";
 import { ownChoices } from "./own-categories";
-import { CHARGE_LOOKBACK_DAYS, householdOwnerName, loadMoneyState, requireHousehold, type Db } from "./household";
+import { CHARGE_LOOKBACK_DAYS, householdClockRow, householdOwnerName, loadMoneyState, requireHousehold, type Db } from "./household";
 
 import { addDays } from "@/lib/money/runway";
 import { confirmedGaps } from "@/lib/money/gaps";
@@ -15,8 +15,7 @@ import { toCheck } from "@/lib/money/to-check";
 /** Navigation needs counts, not money conversions or reader payloads. Caller owns the read transaction. */
 export async function loadNavigationData(tx: Db, householdId: string) {
   const hid = requireHousehold(householdId);
-  const [household] = await tx.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-    .from(households).where(eq(households.id, hid));
+  const household = await householdClockRow(tx, hid);
   if (!household) throw new Error("Household not found");
   const { today, timeZone } = clockForHousehold(household);
   const [name, feed, [totals]] = await Promise.all([

@@ -6,7 +6,7 @@
 
 import type { Currency } from "@/lib/catalogue/types";
 import type { CategoryKey } from "./categories";
-import { dayLabel, minorMoney, minorPerUnit } from "./format";
+import { dayLabel, minorMoney, minorPerUnit, plural } from "./format";
 import { nameKey } from "./name-key";
 import { daysBetween, low, series, WINDOW_DAYS } from "./runway";
 import type { Bill, GapBasis, MoneyState, RealBill, RepeatUnit } from "./types";
@@ -212,5 +212,5 @@ export function gapUrgencyWords(gap: Pick<Gap, "why">): string | null {
 /** The muted line under a month category or a search result group: "1 bill not counted: Minato Gas (amount not known)"; null for none. */
 export function gapUncountedWords(names: readonly string[]): string | null {
   if (names.length === 0) return null;
-  return `${names.length} ${names.length === 1 ? "bill" : "bills"} not counted: ${names.map(name => `${name} (${AMOUNT_NOT_KNOWN})`).join(", ")}`;
+  return `${plural(names.length, "bill")} not counted: ${names.map(name => `${name} (${AMOUNT_NOT_KNOWN})`).join(", ")}`;
 }

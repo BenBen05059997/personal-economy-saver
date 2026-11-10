@@ -3,9 +3,7 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { DATA_KINDS, deleteConversation, deleteKind, deleteOne } from "@/db/data-kinds";
 import { isMovable, requireCloud } from "@/db/place";
-import { consumeRequest } from "@/db/rate-limit";
-import { badFields, failure, formOf, redirectTo, returnPath, text, tooMany } from "@/lib/door";
-import { householdRequest } from "@/lib/session";
+import { badFields, failure, householdForm, limited, redirectTo, returnPath, text } from "@/lib/door";
 
 const What = z.enum(DATA_KINDS);
 
@@ -14,10 +12,9 @@ const What = z.enum(DATA_KINDS);
  * delete_conversation (`id` = the conversation's id; Ask's "Delete this conversation"). A real delete, never undone. Goes back to `returnTo`.
  */
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
+  const ctx = await householdForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
   const kind = form.get("kind");
   const what = What.safeParse(form.get("what"));
   const id = z.string().uuid().safeParse(form.get("id"));
@@ -27,7 +24,8 @@ export async function POST(request: Request) {
   if (kind === "delete_conversation" && !id.success) return badFields();
   const by = { madeBy: "form" } as const;
   try {
-    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "data", 10))) return tooMany("Too many requests. Try again in a minute.");
+    const busy = await limited(hid, "data", 10, "Too many requests. Try again in a minute.");
+    if (busy) return busy;
     return await withHousehold(db(), hid, async tx => {
       // A kind kept on the device is deleted in the browser; the server has none of it.
       if (kind !== "delete_conversation" && isMovable(what.data)) await requireCloud(tx, hid, what.data);

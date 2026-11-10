@@ -1,9 +1,6 @@
 import { db } from "@/db/client";
 import { billEditInput, billInput, fillGapFromText, insertBill, updateBill } from "@/db/bills";
-import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
-import { businessBpFromForm, CategoryKeySchema } from "@/lib/money/categories";
-import { ownChoiceFromForm } from "@/lib/reader/own-choices";
-import { householdRequest } from "@/lib/session";
+import { badFields, categoryFieldsFromForm, failure, householdForm, redirectTo, returnPath, text } from "@/lib/door";
 
 /**
  * Adds a bill (no `kind`, or `kind=add`), or edits one from Settings → Bills (`kind=edit`: name, amount, due date, category, business
@@ -13,10 +10,9 @@ import { householdRequest } from "@/lib/session";
  * bill whose amount or date is not known yet (the field itself is then ignored). `kind=fill` gives a bill its missing `amount` and/or `due`.
  */
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
+  const ctx = await householdForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
   const kind = form.get("kind") ?? "add";
   if (kind !== "add" && kind !== "edit" && kind !== "fill") return badFields();
   if (kind === "fill") {
@@ -31,12 +27,10 @@ export async function POST(request: Request) {
       return failure(error);
     }
   }
-  const category = CategoryKeySchema.safeParse(form.get("category"));
-  if (!category.success) return text(category.error.issues[0].message, 400);
-  const businessBp = businessBpFromForm(form.get("businessShare"), form.get("businessPercent"));
-  if (businessBp === null) return text("Enter the business share as a percentage from 0 to 100.", 400);
+  const categoryFields = categoryFieldsFromForm(form);
+  if (categoryFields instanceof Response) return categoryFields;
   const dueUnknown = form.get("dueUnknown") === "on";
-  const fields = { ...Object.fromEntries(form), category: category.data, businessBp, ...ownChoiceFromForm(form), /* D75: "Your category" */ amountUnknown: form.get("amountUnknown") === "on", dueUnknown, due: dueUnknown ? null : form.get("due") || null, memberId: form.get("memberId") || null, paidByMemberId: form.get("paidByMemberId") || null };
+  const fields = { ...Object.fromEntries(form), ...categoryFields, /* D75: "Your category" */ amountUnknown: form.get("amountUnknown") === "on", dueUnknown, due: dueUnknown ? null : form.get("due") || null, memberId: form.get("memberId") || null, paidByMemberId: form.get("paidByMemberId") || null };
   try {
     if (kind === "edit") {
       const data = billEditInput.safeParse({

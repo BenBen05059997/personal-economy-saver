@@ -91,25 +91,3 @@ export function suggest(p: Profile, c: Context, limit = 3): Suggestion[] {
   const pinned = (x: Suggestion) => (x.move.pinAt.includes(c.moment) ? 1 : 0);
   return out.sort((a, b) => pinned(b) - pinned(a) || b.score - a.score).slice(0, limit);
 }
-
-// Every move that applies to this user over the year, with its value. Used for "Found for you".
-// The free-cash gate is left out here: it decides when to say a move, not whether it applies.
-export function allFor(p: Profile, c: Context): Suggestion[] {
-  const out: Suggestion[] = [];
-  const roomy = { ...c, worstLow: Number.POSITIVE_INFINITY };
-  for (const m of catalogue(p.region)) {
-    const f = formulas[m.id];
-    if (!f || blocked(m, p, roomy) || f.eligible(p, c) !== true) continue;
-    const value = f.value(p, c);
-    if (value.amount <= 0) continue;
-    const dueIn = due(m, c.today);
-    out.push({ move: m, value, score: score(m, value, dueIn), dueInDays: dueIn });
-  }
-  return out.sort((a, b) => b.score - a.score);
-}
-
-// New money found this year: recurring gains per year plus one-off gains. Timing and protected moves
-// are left out because they are not new money.
-export function yearlyTotal(list: Suggestion[]): number {
-  return Math.round(list.filter((x) => x.move.valueKind === "gain").reduce((s, x) => s + perYear(x.value), 0));
-}

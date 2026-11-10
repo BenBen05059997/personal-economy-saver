@@ -1,4 +1,5 @@
 // Voice fill (28B): the model reads, the code checks (D61). Pure. Nothing here invents a value: a proposal is kept as it is, or dropped.
+import { isCalendarDay } from "@/lib/calendar-day";
 import { numbersSaid } from "@/lib/ai/number-check";
 import { latestDate } from "@/lib/money/horizon";
 import { readAmount } from "@/lib/money/amount";
@@ -41,8 +42,7 @@ function amountValue(proposed: unknown, spec: Extract<FieldSpec, { kind: "amount
 function dateValue(proposed: unknown, spec: Extract<FieldSpec, { kind: "date" }>, today: string, notes: string[]): string | null {
   if (typeof proposed !== "string") return null;
   const date = proposed.trim();
-  const real = /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(`${date}T00:00:00Z`)) && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
-  if (!real) return null;
+  if (!isCalendarDay(date)) return null;
   const max = spec.max && spec.max < latestDate(today) ? spec.max : latestDate(today);
   if ((spec.min && date < spec.min) || date > max) {
     notes.push(`${spec.label}: that date is outside what this field takes, so it is left empty.`);

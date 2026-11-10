@@ -9,7 +9,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import type { db as clientDb } from "@/db/client";
-import { deleteHousehold, listEvents, loadMoneyState, markRead, recordEvent, recordWebhookDelivery, unreadCount, type Db } from "@/db/household";
+import { CHARGE_LOOKBACK_DAYS, deleteHousehold, listEvents, loadMoneyState, markRead, recordEvent, recordWebhookDelivery, unreadCount, type Db } from "@/db/household";
 import { householdMoment } from "@/db/clock";
 import { convertMinor, fromMinor, toMinor } from "@/db/money";
 import * as schema from "@/db/schema";
@@ -28,6 +28,7 @@ import { eventFeed, publicEvent } from "@/db/event-feed";
 import { applyVerifiedDelivery, recentDeliveries } from "@/lib/events";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import { expandBills } from "@/lib/money/repeat";
+import { statementItems } from "@/lib/money/runway";
 import { ladder, low, paybackFor, planWindow, roomOnCard, safeToSpend, series, dueItems, timeline } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
 import { loadNavigationData, loadWorkspaceData } from "@/db/workspace";
@@ -158,8 +159,8 @@ async function main() {
     const beforeOther = await loadNavigationData(db, other);
     const [card] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid));
     await db.insert(schema.charges).values([
-      { date: addDays(today, -63), status: "pending" as const },
-      { date: addDays(today, -62), status: "pending" as const },
+      { date: addDays(today, -(CHARGE_LOOKBACK_DAYS + 1)), status: "pending" as const },
+      { date: addDays(today, -CHARGE_LOOKBACK_DAYS), status: "pending" as const },
       { date: addDays(today, 20), status: "pending" as const },
       { date: today, status: "confirmed" as const },
     ].map(row => ({ householdId: hid, cardId: card.id, merchant: "Fictional test shop",
@@ -185,6 +186,18 @@ async function main() {
     await assert.rejects(loadWorkspaceData(db, hid), /No USD\/JPY rate/);
     await db.delete(schema.households).where(eq(schema.households.id, hid));
     await db.delete(schema.households).where(eq(schema.households.id, other));
+  });
+
+  await check("a closed cycle whose statement is still due keeps its old charges (close on the 5th, due on the 27th of the next month)", async () => {
+    const hid = await seedBen(db, { isDemo: true });
+    const [card] = await db.insert(schema.cards).values({ householdId: hid, label: "Fictional long-gap card", closingDay: 5, dueDay: 27, currency: "JPY" }).returning();
+    await db.insert(schema.charges).values({ householdId: hid, cardId: card.id, merchant: "Fictional Sep shop", date: "2026-09-20",
+      amountMinor: 30_000, currency: "JPY", source: "manual", status: "confirmed" });
+    const state = await loadMoneyState(db, hid, "2026-11-22");
+    assert.ok(state.charges.some(c => c.merchant === "Fictional Sep shop"), "the Sep 20 charge is loaded on Nov 22");
+    const item = statementItems(state).find(i => i.cardId === card.id && !i.open);
+    assert.equal(item?.dueOn, "2026-11-27");
+    assert.equal(item?.amount, 30_000, "the closed cycle (Sep 6 to Oct 5) counts the charge");
   });
 
   await check("navigation requires a valid household and its owner", async () => {
@@ -472,6 +485,16 @@ async function main() {
     assert.equal(await deleteOwnedHousehold(db, uid), true);
     assert.equal(await accountHousehold(db, uid), null);
     assert.equal(await findDemoHousehold(db, a), a);
+  });
+
+  await check("onboarding without a bank balance creates a household with balance 0; a typed one is still read", async () => {
+    const none = setupForm.parse({ name: "Mika", currency: "JPY", timeZone: "Asia/Tokyo" });
+    assert.equal(none.bank, undefined);
+    const hid = await createHousehold(db, randomUUID(), none, { isDemo: true });
+    const [row] = await db.select().from(schema.households).where(eq(schema.households.id, hid));
+    assert.equal(row.bankBalanceMinor, 0);
+    const typed = await createHousehold(db, randomUUID(), setupForm.parse({ name: "Mika", currency: "JPY", timeZone: "Asia/Tokyo", bank: "1,200" }), { isDemo: true });
+    assert.equal((await db.select().from(schema.households).where(eq(schema.households.id, typed)))[0].bankBalanceMinor, 1200);
   });
 
   await check("a blank demo says what to add, never that it is fine; a pending bill changes nothing, a confirmed one gives the normal sentence (D47)", async () => {

@@ -13,7 +13,10 @@ import { observeRunway } from "./runway-events";
 import { remindersDue, runReminders } from "./reminders";
 import { runPass } from "./suggestions";
 
-/** Start the pass at the earliest member reminder hour and return for later deliveries. */
+/**
+ * Start the pass at the earliest member reminder hour and return for later deliveries. At most CRON_BATCH_SIZE households come back,
+ * in an order that changes every hour, so a household that fails each run cannot keep the same slots and starve the others.
+ */
 export async function dueHouseholds(db: Db, now = new Date()) {
   const local = sql`timezone(${households.timeZone}, ${now.toISOString()}::timestamptz)`;
   const ownerHour = sql`coalesce((
@@ -30,7 +33,7 @@ export async function dueHouseholds(db: Db, now = new Date()) {
   );
   const rows = await db.select({ id: households.id }).from(households)
     .where(and(eq(households.isDemo, false), or(passDue, remindersDue(db, local))))
-    .orderBy(sql`${households.dailyRanOn} asc nulls first`, households.createdAt, households.id).limit(CRON_BATCH_SIZE);
+    .orderBy(sql`md5(${households.id}::text || ${now.toISOString().slice(0, 13)})`, households.id).limit(CRON_BATCH_SIZE);
   return rows.map(row => row.id);
 }
 

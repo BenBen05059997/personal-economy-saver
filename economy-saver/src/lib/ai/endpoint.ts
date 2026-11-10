@@ -12,9 +12,12 @@ export const localAllowed = (appUrl: URL) => {
   return LOCAL_NAMES.has(host) || host.endsWith(".localhost");
 };
 
-function privateV4(a: number, b: number): boolean {
-  return a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254)
-    || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || a >= 224; // 224+ is multicast, reserved, broadcast
+function privateV4(a: number, b: number, c = 1): boolean {
+  return (a === 192 && b === 0 && c <= 2) // 192.0.0.0/24 and 192.0.2.0/24
+    || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113) // documentation ranges
+    || a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254)
+    || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 198 && (b === 18 || b === 19)) // 198.18.0.0/15 benchmarking
+    || a >= 224; // 224+ is multicast, reserved, broadcast
 }
 
 /** The eight 16-bit groups of a WHATWG-normalised IPv6 literal (compressed, hex; an embedded dotted v4 is already hex). */
@@ -29,7 +32,7 @@ function groupsOf(bare: string): number[] {
 /** True for loopback, private, link-local, CGNAT, unspecified and multicast addresses, v4 and v6 (mapped, compatible, NAT64, 6to4, site-local). */
 function privateIp(host: string): boolean {
   const bare = host.replace(/^\[|\]$/g, "").toLowerCase();
-  if (isIP(bare) === 4) { const [a, b] = bare.split(".").map(Number); return privateV4(a, b); }
+  if (isIP(bare) === 4) { const [a, b, c] = bare.split(".").map(Number); return privateV4(a, b, c); }
   if (isIP(bare) !== 6) return false;
   const g = groupsOf(bare);
   if (g.length !== 8 || g.some(Number.isNaN)) return true; // unreadable: refuse

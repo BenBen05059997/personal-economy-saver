@@ -204,7 +204,7 @@
       "Open / and press \"Start with my numbers\""
     ],
     "expected": [
-      "/start is headed \"Start with my numbers\" with two fields: Your name and \"What's in your bank today?\" (¥ in front, placeholder 420,000)",
+      "/start is headed \"Start with my numbers\" with one field, Your name (no bank balance box), and the hint \"A name is all it needs; set your bank balance on Home.\"",
       "The line reads \"Japanese yen · Asia/Tokyo · Change\" (in Tokyo) and a link \"Add a card now ›\" is closed",
       "The button reads \"Open my household\" and, under it, \"Your numbers stay in this browser's demo household. Privacy ›\"",
       "With no cookie there is no \"This replaces…\" line"
@@ -260,12 +260,13 @@
       "/start open"
     ],
     "steps": [
-      "Type Mika and 250,000",
-      "Press Open my household"
+      "Type Mika",
+      "Press Open my household",
+      "On Home, Bank balance → Update, type 250,000 and Save"
     ],
     "expected": [
       "Home opens with today's real date in the date line, not Sat Nov 14",
-      "The sentence includes \"Bank balance ¥250,000.\" and Cards says \"No card yet.\"",
+      "Before the update the sentence reads \"Bank balance ¥0.\"; after it, it includes \"Bank balance ¥250,000.\" and Cards says \"No card yet.\"",
       "First steps · 5 to go with one open step \"Add your rent, so the day it leaves shows up\"",
       "Settings, Late-client nudge shows 3"
     ],
@@ -290,9 +291,10 @@
       "/start open"
     ],
     "steps": [
-      "Type Mika and 120,000",
+      "Type Mika",
       "Open \"Add a card now ›\" and enter Card N, closing 25, payment 10, no limit",
-      "Press Open my household"
+      "Press Open my household",
+      "On Home, Bank balance → Update, type 120,000 and Save"
     ],
     "expected": [
       "Home opens in 1.5 s or less with the empty sentence \"Add your rent, your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.\"",
@@ -308,7 +310,7 @@
   {
     "id": "START-013",
     "area": "Start with my numbers",
-    "action": "Submit with an empty name or empty balance",
+    "action": "Submit with an empty name",
     "user_goal": "I forgot a field",
     "type": "negative",
     "priority": "P2",
@@ -321,12 +323,13 @@
       "/start open"
     ],
     "steps": [
-      "Leave Your name empty, type 120,000, press Open my household",
-      "Then type Mika with the balance empty and press again"
+      "Leave Your name empty and press Open my household",
+      "Then type Mika and press again"
     ],
     "expected": [
-      "The browser stops the submit on the required field (or the page shows \"Check your name, timezone, balance and card settings.\")",
-      "No household is created and no cookie is set"
+      "The browser stops the first submit on the required field (or the page shows \"Check your name, timezone, balance and card settings.\")",
+      "No household is created and no cookie is set by the first attempt",
+      "The second attempt makes a household whose Home reads \"Bank balance ¥0.\""
     ],
     "refs": [
       "BROWSER-CHECKS N2"
@@ -348,7 +351,7 @@
       "/start open"
     ],
     "steps": [
-      "Type Mika and 120,000",
+      "Type Mika",
       "Open the card block, give a name and no days, press Open my household",
       "Then give a name with closing day 40 and payment day 10"
     ],
@@ -364,7 +367,7 @@
   {
     "id": "START-015",
     "area": "Start with my numbers",
-    "action": "Type an unreadable or over-limit balance",
+    "action": "Type an unreadable or over-limit bank balance on Home",
     "user_goal": "I typed it wrong",
     "type": "edge",
     "priority": "P2",
@@ -373,14 +376,14 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Private window, no household cookie",
-      "/start open"
+      "Blank household from Start with my numbers (Mika)",
+      "Home open"
     ],
     "steps": [
-      "Type Mika and a balance of abc, press Open my household",
+      "Bank balance → Update, type abc and Save",
       "Try 100,000,001 in yen",
-      "Try 1,000,000.50 with US dollars chosen",
-      "Try 1,000,001 with US dollars chosen"
+      "In a household made with US dollars chosen, try 1,000,000.50",
+      "In the same dollar household, try 1,000,001"
     ],
     "expected": [
       "abc is refused with the app's amount words (whole number of yen, like 5000 or 5,000)",
@@ -396,7 +399,7 @@
   {
     "id": "START-016",
     "area": "Start with my numbers",
-    "action": "Use full-width digits and separators in the balance",
+    "action": "Use full-width digits and separators in the bank balance on Home",
     "user_goal": "I type on a Japanese keyboard",
     "type": "edge",
     "priority": "P3",
@@ -405,12 +408,12 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Private window, no household cookie",
-      "/start open"
+      "Blank household from Start with my numbers (Mika)",
+      "Home open"
     ],
     "steps": [
-      "Type Mika and 120,000 in full-width digits and commas",
-      "Press Open my household"
+      "On Home, Bank balance → Update, type 120,000 in full-width digits and commas",
+      "Save"
     ],
     "expected": [
       "The balance is read as ¥120,000 and Home shows \"Bank balance ¥120,000.\""
@@ -492,7 +495,7 @@
     "steps": [
       "Open /start directly",
       "Read the line above the form",
-      "Submit Mika, 120,000 and the card of START-012",
+      "Submit Mika and the card of START-012, then set the bank balance to 120,000 on Home",
       "Press Back to the old pages"
     ],
     "expected": [
@@ -516,7 +519,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
       "Open /start",
@@ -597,7 +600,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household with no card (Mika, 250,000)",
+      "Blank household with no card (Mika, bank balance 250,000 set on Home)",
       "A bill waiting in To check"
     ],
     "steps": [
@@ -625,7 +628,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
       "Read Coming up, Cards, To check and Clients on Home"
@@ -653,7 +656,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
       "Open Add a bill or charge, More ›",
@@ -897,11 +900,11 @@
     ],
     "steps": [
       "Read /onboarding",
-      "Type name, time zone, bank balance and a card",
+      "Type name, time zone and a card (the bank balance is set on Home afterwards)",
       "Press Open my household"
     ],
     "expected": [
-      "/onboarding is headed \"Set up your household\" with the same fields as /start",
+      "/onboarding is headed \"Set up your household\" with the same fields as /start and the hint \"Start with your name; set your bank balance on Home.\"",
       "Home shows your own sentence with no Ben data and no PayPal demo bills"
     ],
     "refs": [
@@ -1785,7 +1788,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
       "Add a bill with amount abc",
@@ -2615,7 +2618,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)",
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)",
       "A file exported from a Try it household with one memory and one pin"
     ],
     "steps": [
@@ -2643,7 +2646,7 @@
     ],
     "how": "http",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
       "POST /api/restore with a body over 1 MB (and a content-length header)",
@@ -3269,7 +3272,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)"
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
       "Open Settings → People → Share a family view and press Make a link",
@@ -3294,7 +3297,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Blank household from Start with my numbers (Mika, 120,000, Card N closing 25, payment 10)",
+      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)",
       "A link"
     ],
     "steps": [
@@ -3327,10 +3330,37 @@
     "expected": [
       "It opens without a household cookie, headed \"Privacy\" with a \"Last updated\" line and a \"‹ Home\" link at the top",
       "Sections: What is stored, Where your data lives, Who processes it (Supabase, Cloudflare, the AI model provider, PayPal), Clients' details, Try it and Start with my numbers (mentions seven days), How long, and how to delete, and Contact",
-      "It is about 450 words"
+      "It is about 450 words",
+      "The tab title reads \"Privacy · fipa\""
     ],
     "refs": [
       "BROWSER-CHECKS P1"
+    ]
+  },
+  {
+    "id": "PRIV-010",
+    "area": "Privacy",
+    "action": "Open the landing footer and /terms with no cookie",
+    "user_goal": "I want to read the terms before I sign up",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open /",
+      "Read the footer, then follow Terms"
+    ],
+    "expected": [
+      "The footer links read Privacy, Terms, Sign in in that order",
+      "/terms opens headed \"Terms\" without a household cookie and the tab title reads \"Terms · fipa\""
+    ],
+    "refs": [
+      "BROWSER-CHECKS P4"
     ]
   },
   {

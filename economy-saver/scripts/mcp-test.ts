@@ -13,7 +13,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { and, eq, inArray, like } from "drizzle-orm";
 import { seedBen } from "@/db/seed";
 import * as s from "@/db/schema";
-import { issueMcpToken, listMcpTokens, revokeMcpToken } from "@/db/mcp-tokens";
+import { MCP_TOKEN_LIMIT, issueMcpToken, listMcpTokens, revokeMcpToken } from "@/db/mcp-tokens";
 import { consumeRequest } from "@/db/rate-limit";
 import { mcpRequest } from "@/lib/mcp/server";
 import { MODEL_RULES } from "@/lib/agent/rules";
@@ -151,6 +151,15 @@ async function main() {
       assert.ok(!(await readClient.listTools()).tools.some(t => t.name === "draft_invoice" || t.name === "add_bills" || t.name === "log_charges" || t.name === "update_bank_balance" || t.name === "add_pot"));
       assert.ok((await readClient.listTools()).tools.some(t => t.name === "own_categories"), "own_categories is a read tool");
     } finally { await readClient.close(); }
+
+    stage = "token cap";
+    const capHousehold = await seedBen(db, { isDemo: true });
+    for (let i = 0; i < MCP_TOKEN_LIMIT; i++) await issueMcpToken(db, capHousehold, { name: `Cap ${i}`, scopes: ["read"] });
+    await assert.rejects(issueMcpToken(db, capHousehold, { name: "One too many", scopes: ["read"] }), /already has 10 live access tokens/);
+    const [capped] = await listMcpTokens(db, capHousehold);
+    assert.equal(await revokeMcpToken(db, capHousehold, capped.id), true);
+    await issueMcpToken(db, capHousehold, { name: "After a revoke", scopes: ["read"] });
+    assert.equal((await listMcpTokens(db, other)).length, 1, "another household's tokens do not count");
 
     stage = "rate limits";
     const results = await Promise.all([consumeRequest(db, hid, "ask", 1), consumeRequest(db, hid, "ask", 1)]);

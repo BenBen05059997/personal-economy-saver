@@ -5,6 +5,8 @@ export const MEMORY_LIMIT = 200;
 export const MEMORY_TEXT_MAX = 400;
 /** The most JSON characters of memory the agent reads at the start of a question (whole items only). */
 export const MEMORY_PROMPT_MAX = 6_000;
+/** The cap, in characters, on the current space's notes in the prompt. */
+export const NOTES_PROMPT_MAX = 3_000;
 /** A run of this many digits (spaces and hyphens between digits count as part of the run) is a card or account number. */
 const SECRET_DIGITS = 12;
 export const SECRET_REFUSAL = "The assistant doesn't keep card or account numbers.";

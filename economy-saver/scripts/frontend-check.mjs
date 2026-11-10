@@ -971,11 +971,12 @@ await step("action", "start-blank-fetch-form-gets-redirect-header", async () => 
   expect(result.response.status === 204 && result.response.headers.get("x-form-redirect") === "/", "blank-fetch-redirect");
   expect(/household=[A-Za-z0-9_-]{43};/.test(result.response.headers.get("set-cookie") ?? ""), "blank-fetch-cookie");
 });
-// Stage 15 A: Start asks for a name and a bank balance (D51); the household lives on the real date; Home asks for one thing at a time.
-const twoFields = { name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo", bank: "250,000" };
+// Stage 15 A: Start asks only for a name (the bank balance is set on Home); the household lives on the real date; Home asks for one thing at a time.
+const twoFields = { name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo" };
 await step("page", "stage15a-start-form-has-two-fields-and-folded-card-and-region", async () => {
-  const html = await page("/start", /What’s in your bank today\?|What&#x27;s in your bank today\?|What’s in your bank today/);
+  const html = await page("/start", /Your name/);
   const content = plain(pageContent(html));
+  expect(!/in your bank today/.test(content) && !html.includes('name="bank"'), "a-no-bank-field");
   expect(/Your name/.test(content) && /Add a card now ›/.test(content) && /· Change/.test(content), "a-start-labels");
   expect(!/Card bill is paid on the[^]*required/.test(html) && !/name="closingDay"[^>]*required/.test(html), "a-card-fields-not-required");
 });
@@ -986,7 +987,7 @@ await step("page", "stage15a-home-has-the-real-date-no-card-and-the-card-step", 
   expect(html.includes(`dateTime="${today}"`), "a-real-date");
   const content = plain(pageContent(html));
   expect(/Add your rent, so the day it leaves shows up/.test(content) && html.includes('href="/#add-bill"'), "a-first-step-is-rent");
-  expect(/Bank balance ¥250,000\./.test(content), "a-bank");
+  expect(/Bank balance ¥0\./.test(content), "a-bank");
   expect(/No card yet\./.test(content), "a-no-card");
 });
 await step("action", "stage15a-add-rent-collapses-step-and-asks-for-a-client", async () => {
@@ -1043,7 +1044,7 @@ await step("page", "stage15c-coming-up-row-carries-a-link-to-its-bill", async ()
 await step("action", "stage15c-try-it-session", async () => adopt(await request("/api/try", { session: "" })));
 await step("page", "stage15c-activity-invoice-row-links-to-the-invoice", async () => {
   const home = await page("/", /short on the 27th/);
-  expect(/<a [^>]*href="#runway-day"[^>]*>on the 27th</.test(home), "c-sentence-date-link");
+  expect(/<a [^>]*href="#next-30-days"[^>]*>on the 27th</.test(home), "c-sentence-date-link");
   const id = /href="\/invoices\/([0-9a-f-]{36})"/.exec(home)?.[1];
   expect(id !== undefined, "c-invoice-id");
   const paid = await request("/api/invoices/paid", { method: "POST", form: { id } });

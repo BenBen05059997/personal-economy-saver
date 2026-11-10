@@ -1,11 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
-import { requireHousehold, type Db } from "./household";
+import { requireHousehold, withHousehold, type Db } from "./household";
 import { ipBuckets, requestBuckets } from "./schema";
 
 /** The length of a counting window: a minute (the default) or an hour (the sign-in link limit). */
 type Window = "minute" | "hour";
 
-export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp" | "draft" | "approve" | "import" | "statement-import" | "export" | "people" | "settle" | "remove" | "family-links" | "canvas" | "ai-model" | "ai-model-list" | "thumb" | "pins" | "data" | "restore" | "move" | "suggestions" | "reminders" | "rules" | "invites" | "spaces" | "own-categories", limit = 30, per: Window = "minute") {
+export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp" | "draft" | "approve" | "import" | "statement-import" | "export" | "people" | "settle" | "remove" | "family-links" | "canvas" | "ai-model" | "ai-model-list" | "thumb" | "pins" | "data" | "restore" | "move" | "suggestions" | "reminders" | "rules" | "invites" | "spaces" | "own-categories" | "mcp-tokens", limit = 30, per: Window = "minute") {
   const window = sql`date_trunc(${sql.raw(`'${per}'`)}, now())`;
   const sameWindow = sql`${requestBuckets.window} = ${window}`;
   const rows = await db.insert(requestBuckets).values({ householdId: requireHousehold(hid), purpose, window, count: 1 })
@@ -15,6 +15,16 @@ export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp"
       setWhere: sql`not (${sameWindow}) or ${requestBuckets.count} < ${limit}`,
     }).returning({ count: requestBuckets.count });
   return rows.length === 1;
+}
+
+/** The answer to a request over its rate limit: 429 with the message, a one-minute Retry-After and no caching. */
+export function tooMany(message: string) {
+  return new Response(message, { status: 429, headers: { "Cache-Control": "private, no-store", "Retry-After": "60" } });
+}
+
+/** Spends one request of a purpose for this household. Null when there is room; otherwise the 429 to return, with `message`. */
+export async function limited(connection: Db, hid: string, purpose: Parameters<typeof consumeRequest>[2], limit: number | undefined, message: string): Promise<Response | null> {
+  return await withHousehold(connection, hid, tx => consumeRequest(tx, hid, purpose, limit)) ? null : tooMany(message);
 }
 
 /** Sliders and Ask view loads share one canvas request limit. */
@@ -56,7 +66,7 @@ export async function hashIp(ip: string): Promise<string> {
 
 /** Spends one request of a purpose for one client address in the current window; false when the limit is reached. */
 
-export async function consumeIpRequest(db: Db, ip: string, purpose: "magic-link", limit: number, per: Window = "hour") {
+export async function consumeIpRequest(db: Db, ip: string, purpose: "magic-link" | "webhook", limit: number, per: Window = "hour") {
   const ipHash = await hashIp(ip);
   const window = sql`date_trunc(${sql.raw(`'${per}'`)}, now())`;
   const sameWindow = sql`${ipBuckets.window} = ${window}`;

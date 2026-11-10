@@ -2,12 +2,12 @@
 import { nameKey } from "@/lib/money/name-key";
 
 /** One own category as a form offers it. */
-export type OwnOption = { id: string; kind: string; name: string; businessBp: number | null };
+type OwnOption = { id: string; kind: string; name: string; businessBp: number | null };
 /** The household's own categories and, for each category and name key, the own category of the latest confirmed item that has one ("it files itself"). */
 export type OwnChoices = { categories: OwnOption[]; guesses: Record<string, string> };
 
 export const NEW_OWN = "new"; // the select's value for "New…"
-export const guessKey = (kind: string, name: string): string => `${kind}|${nameKey(name)}`;
+const guessKey = (kind: string, name: string): string => `${kind}|${nameKey(name)}`;
 
 /** The own category a typed name files itself under, or null (the name matches the latest confirmed item of the same category that has one). */
 export function guessedOwn(own: OwnChoices | undefined, kind: string, name: string): OwnOption | null {

@@ -27,9 +27,12 @@ export async function settleUp(db: Db, householdId: string): Promise<{ fromId: s
     const split = await loadSplitState(tx, hid, household.splitSince, today, (minor, currency) => convertMinor(minor, currency, home, fxPerUsd));
     if (split.members.length < 2) throw new InputError("Settling needs a second person; add one in Settings, People");
     const { transfers } = splitBalance(split, today);
+    // One instant for every transfer of this settle-up, read from the database clock after the lock (shared items stamp created_at the same way).
+    const [{ at }] = await tx.select({ at: sql<string>`clock_timestamp()` }).from(households).where(eq(households.id, hid));
+    const settledAt = new Date(at);
     for (const t of transfers) {
       const [row] = await tx.insert(settlements).values({
-        householdId: hid, fromMemberId: t.fromId, toMemberId: t.toId, amountMinor: t.amountMinor, currency: home, through: today, settledAt: sql`now()`, // the database clock, the one that stamps created_at
+        householdId: hid, fromMemberId: t.fromId, toMemberId: t.toId, amountMinor: t.amountMinor, currency: home, through: today, settledAt,
       }).returning({ id: settlements.id });
       await recordEvent(tx, hid, { madeBy: "form",
         kind: "settled", title: `${t.fromName} paid ${t.toName} ${minorMoney(t.amountMinor, home)}`, body: `Shared costs settled through ${dayLabel(today)}`,

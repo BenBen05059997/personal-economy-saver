@@ -1,24 +1,18 @@
 import { db } from "@/db/client";
 import { chargeInput, insertCharge } from "@/db/charges";
-import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
-import { businessBpFromForm, CategoryKeySchema } from "@/lib/money/categories";
-import { ownChoiceFromForm } from "@/lib/reader/own-choices";
-import { householdRequest } from "@/lib/session";
+import { badFields, categoryFieldsFromForm, failure, householdForm, redirectTo, returnPath } from "@/lib/door";
 
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
-  const category = CategoryKeySchema.safeParse(form.get("category"));
-  if (!category.success) return text(category.error.issues[0].message, 400);
-  const businessBp = businessBpFromForm(form.get("businessShare"), form.get("businessPercent"));
-  if (businessBp === null) return text("Enter the business share as a percentage from 0 to 100.", 400);
+  const ctx = await householdForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
+  const categoryFields = categoryFieldsFromForm(form);
+  if (categoryFields instanceof Response) return categoryFields;
   // D62: both original fields travel only when an amount was typed; an amount with no currency stays, so insertCharge refuses it.
   const fields = Object.fromEntries(form);
   if (String(fields.originalAmount ?? "").trim() === "") { delete fields.originalAmount; delete fields.originalCurrency; }
   else if (String(fields.originalCurrency ?? "") === "") delete fields.originalCurrency;
-  const data = chargeInput.safeParse({ ...fields, category: category.data, businessBp, ...ownChoiceFromForm(form), shared: form.get("shared") === "on" });
+  const data = chargeInput.safeParse({ ...fields, ...categoryFields, shared: form.get("shared") === "on" });
   if (!data.success) return badFields();
   try {
     await insertCharge(db(), hid, data.data, "confirmed", "manual", { madeBy: "form" });

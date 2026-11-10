@@ -16,6 +16,7 @@ import { MEMORY_LIMIT, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory
 import { nameKey } from "@/lib/money/name-key";
 import { generalSpace, SPACE_LIMIT } from "./spaces";
 import { z } from "zod";
+import { Currency } from "@/lib/catalogue/types";
 import type { TurnSource } from "@/lib/schema/turn";
 import { BriefSchema } from "@/lib/agent/brief";
 import * as s from "./schema";
@@ -74,6 +75,20 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       const [household] = await tx.select({ currency: s.households.homeCurrency }).from(s.households).where(eq(s.households.id, hid)).for("update");
       if (!household) throw new InputError("Household not found");
       if (household.currency !== file.household.homeCurrency) throw new InputError(`This file is in ${file.household.homeCurrency} and this household uses ${household.currency}.`);
+
+      // Every amount in the file must be in the household's currency (invoices may also be USD, and a charge may name a foreign original); the engine adds minor units across rows.
+      const wrong = (kind: string, currency: string | null | undefined, extra?: string) => {
+        if (currency === null || currency === undefined) return;
+        if (currency !== household.currency && currency !== extra) throw new InputError(`A ${kind} in this file is in ${currency} and this household uses ${household.currency}.`);
+      };
+      for (const c of file.cards) wrong("card", c.currency);
+      for (const b of file.bills) wrong("bill", b.currency);
+      for (const c of file.charges) { wrong("charge", c.currency); if (c.originalCurrency && !Currency.safeParse(c.originalCurrency).success) throw new InputError(`A charge in this file is in ${c.originalCurrency}, which the app does not know.`); }
+      for (const x of file.statements) wrong("card statement", x.currency);
+      for (const i of file.invoices) wrong("invoice", i.currency, "USD");
+      for (const p of file.pots) wrong("pot", p.currency);
+      for (const x of file.settlements) wrong("settlement", x.currency);
+      for (const u of file.balanceUpdates) wrong("balance update", u.currency);
 
       const existing = await tx.select({ id: s.members.id }).from(s.members).where(eq(s.members.householdId, hid));
       if (existing.length !== 1) throw new InputError(NOT_EMPTY);
@@ -158,7 +173,9 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       await insertChunks(tx, s.cards, file.cards.map(c => ({ ...c, id: ref(c.id), householdId: hid, memberId: who(c.memberId) })));
 
       await tx.update(s.households).set({ bankBalanceMinor: file.household.bankBalanceMinor, splitSince: file.members.length > 1 ? file.household.splitSince : null }).where(eq(s.households.id, hid));
-      await tx.update(s.paypalConnections).set({ balanceMinor: file.household.paypalBalanceMinor }).where(and(eq(s.paypalConnections.householdId, hid), eq(s.paypalConnections.memberId, ownerId)));
+      const connection = await tx.update(s.paypalConnections).set({ balanceMinor: file.household.paypalBalanceMinor })
+        .where(and(eq(s.paypalConnections.householdId, hid), eq(s.paypalConnections.memberId, ownerId))).returning({ id: s.paypalConnections.id });
+      if (connection.length === 0 && file.household.paypalBalanceMinor !== 0) throw new InputError("This household has no PayPal connection to hold the PayPal balance in this file.");
 
       const made = { householdId: hid, madeBy: "import" as const };
       const ownRef = (id: string | null | undefined) => (id ? ref(id) : null);

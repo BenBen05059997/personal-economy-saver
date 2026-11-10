@@ -5,7 +5,7 @@
 import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { FAMILY_LINK_DAYS, MAX_LIVE_FAMILY_LINKS } from "@/lib/family-links";
 import { InputError } from "./input-error";
-import { loadMoneyState, recordEvent, requireHousehold, type Db } from "./household";
+import { householdClockRow, loadMoneyState, recordEvent, requireHousehold, type Db } from "./household";
 import { clockForHousehold, householdMoment, type ClockHousehold } from "./clock";
 import { familyLinks, households, members } from "./schema";
 
@@ -30,8 +30,7 @@ export function linkDay(date: Date, household: ClockHousehold, now = new Date())
 }
 
 async function clockRow(db: Db, hid: string): Promise<ClockHousehold> {
-  const [household] = await db.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-    .from(households).where(eq(households.id, hid));
+  const household = await householdClockRow(db, hid);
   if (!household) throw new InputError("Household not found");
   return household;
 }

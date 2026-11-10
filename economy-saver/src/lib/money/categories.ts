@@ -2,6 +2,7 @@
 // Stored as the key on bills.category and charges.category; every input is validated with the zod enum built from this list.
 // A category and a business share move no money: the runway, safe to spend and the sentence never read them.
 import { z } from "zod";
+import { percentText } from "./format";
 
 export const CATEGORIES = [
   { key: "housing", label: "Housing" },
@@ -39,7 +40,7 @@ export const businessPart = (amountMinor: number, businessBp: number): number =>
 export function shareLabel(businessBp: number): string {
   if (businessBp === 0) return "Personal";
   if (businessBp === 10_000) return "Business";
-  return `${businessBp / 100}% business`;
+  return `${percentText(businessBp)}% business`;
 }
 
 /**

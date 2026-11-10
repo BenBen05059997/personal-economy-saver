@@ -1,5 +1,6 @@
 // Read-only view of the sandbox merchant's invoices (D39). Nothing here sends, reminds or creates.
 import { z } from "zod";
+import { PAYPAL_TIMEOUT_MS } from "./client";
 import type { ReadRemote } from "@/db/paypal-refresh";
 
 // Written from PayPal Invoicing v2 as documented: the list response is { total_items, total_pages, items[], links }
@@ -72,7 +73,7 @@ export async function readMerchantInvoices(read: ReadRemote, maxPages = 5): Prom
   const items: RemoteInvoice[] = [];
   let pages = 1;
   for (let page = 1; page <= Math.min(pages, maxPages); page++) {
-    const list = invoiceList.parse(await read(`/v2/invoicing/invoices?page=${page}&page_size=${PAGE_SIZE}&total_required=true`, AbortSignal.timeout(8000)));
+    const list = invoiceList.parse(await read(`/v2/invoicing/invoices?page=${page}&page_size=${PAGE_SIZE}&total_required=true`, AbortSignal.timeout(PAYPAL_TIMEOUT_MS)));
     if (page === 1) pages = list.total_pages ?? 1;
     items.push(...(list.items ?? []));
   }
@@ -81,7 +82,7 @@ export async function readMerchantInvoices(read: ReadRemote, maxPages = 5): Prom
   for (let start = 0; start < unique.length; start += DETAIL_BATCH) {
     full.push(...await Promise.all(unique.slice(start, start + DETAIL_BATCH).map(async item => {
       if (!needsDetail(item)) return item;
-      const detail = invoice.parse(await read("/v2/invoicing/invoices/" + encodeURIComponent(item.id), AbortSignal.timeout(8000)));
+      const detail = invoice.parse(await read("/v2/invoicing/invoices/" + encodeURIComponent(item.id), AbortSignal.timeout(PAYPAL_TIMEOUT_MS)));
       if (detail.id !== item.id) throw new Error("PayPal returned a different invoice");
       return detail;
     })));

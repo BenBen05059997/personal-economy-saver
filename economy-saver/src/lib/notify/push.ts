@@ -1,7 +1,8 @@
 import type { ReminderDigest } from "./digest";
+import { NOTIFY_TIMEOUT_MS } from "./settings";
 
 type Bytes = Uint8Array<ArrayBuffer>;
-export type PushSubscriptionData = { endpoint: string; p256dh: string; auth: string };
+type PushSubscriptionData = { endpoint: string; p256dh: string; auth: string };
 type PushSettings = { publicKey: string; privateKey: string; subject: string };
 type PushResult = "sent" | "gone" | "failed";
 
@@ -161,7 +162,7 @@ export async function sendReminderPush(
       encryptPush(ENCODER.encode(JSON.stringify(digest)), subscription),
     ]);
     const response = await fetcher(endpoint.href, {
-      method: "POST", redirect: "manual", signal: AbortSignal.timeout(10_000),
+      method: "POST", redirect: "manual", signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
       headers: { Authorization: authorization, "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "3600" },
       body,
     });

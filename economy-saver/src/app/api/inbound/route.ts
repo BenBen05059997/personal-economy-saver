@@ -1,3 +1,4 @@
+import { text } from "@/lib/door";
 import { timingSafeEqual } from "node:crypto";
 import { after } from "next/server";
 import { db } from "@/db/client";
@@ -30,6 +31,6 @@ export async function POST(request: Request) {
   } catch (error) {
     // The caller is the Worker, which has proved the secret; a missing setting still goes to the log by name.
     if (error instanceof ReaderError && error.status === 503) console.error(`/api/inbound: ${error.message}`);
-    return new Response(error instanceof ReaderError ? error.message : "Could not accept email.", { status: 503 });
+    return text(error instanceof ReaderError ? error.message : "Could not accept email.", 503);
   }
 }

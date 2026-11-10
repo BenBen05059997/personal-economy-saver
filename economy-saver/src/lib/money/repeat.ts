@@ -4,23 +4,13 @@
 
 import { z } from "zod";
 import type { Currency } from "@/lib/catalogue/types";
+import { addDays, dateIn } from "./dates";
 import { dayLabel, minorPerUnit } from "./format";
 import { estimatedFields, gapEstimate, nameHistory } from "./gaps";
 import type { Bill, CancelNotice, RealBill, RepeatUnit, StoredBill } from "./types";
 
 /** The repeat units a stored bill may have; no repeat at all (a one-off) is null in storage. */
 export const RepeatUnitSchema = z.enum(["month", "year"]);
-
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/** The date `day` falls on in the given month (month 1-12, may overflow), clamped to the month's last day. */
-function monthDay(year: number, month: number, day: number): string {
-  const first = new Date(Date.UTC(year, month - 1, 1));
-  const y = first.getUTCFullYear();
-  const m = first.getUTCMonth() + 1;
-  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  return `${y}-${pad(m)}-${pad(Math.min(day, last))}`;
-}
 
 /**
  * The dates a repeating bill falls due on from `today` to `through`, both ends included: the stored due date when it is
@@ -35,7 +25,7 @@ export function occurrenceDates(due: string, unit: RepeatUnit, repeatDay: number
   const month = Number(due.slice(5, 7));
   if (unit === "month" && repeatDay === null) throw new Error("A monthly bill needs its day of the month");
   for (let k = 0; ; k++) {
-    const date = k === 0 ? due : unit === "month" ? monthDay(year, month + k, repeatDay!) : monthDay(year + k, month, Number(due.slice(8, 10)));
+    const date = k === 0 ? due : unit === "month" ? dateIn(year, month + k, repeatDay!) : dateIn(year + k, month, Number(due.slice(8, 10)));
     if (date > through) break;
     if (date >= today) dates.push(date);
   }
@@ -60,14 +50,12 @@ export function datesIn(bill: { due: string; repeatUnit?: RepeatUnit | null; rep
   return occurrenceDates(bill.due, bill.repeatUnit, bill.repeatDay ?? null, from, to, bill.repeatUntil ?? null);
 }
 
-const bump = (iso: string, days: number) => new Date(Date.parse(iso + "T00:00:00Z") + days * 86_400_000).toISOString().slice(0, 10);
-
 /** The first date after `after` that a stored bill falls due on, or null when it never does (a one-off already past). */
 export function nextOccurrenceAfter(bill: Pick<Bill, "due" | "repeatUnit" | "repeatDay" | "repeatUntil">, after: string): string | null {
   if (bill.repeatUnit === undefined) return bill.due > after ? bill.due : null;
   // The series starts at the stored due date; a yearly one has an occurrence within 13 months, a monthly one within 32 days.
-  const through = bump(after, bill.repeatUnit === "year" ? 400 : 40);
-  return occurrenceDates(bill.due, bill.repeatUnit, bill.repeatDay ?? null, bump(after, 1), through, bill.repeatUntil ?? null)[0] ?? null;
+  const through = addDays(after, bill.repeatUnit === "year" ? 400 : 40);
+  return occurrenceDates(bill.due, bill.repeatUnit, bill.repeatDay ?? null, addDays(after, 1), through, bill.repeatUntil ?? null)[0] ?? null;
 }
 
 /** The last occurrence of a repeating bill on or before its last payment day (D41); never empty, because `repeatUntil >= due`. */

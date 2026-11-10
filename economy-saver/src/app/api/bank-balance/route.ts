@@ -1,14 +1,12 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
-import { badFields, failure, redirectTo, returnPath, formOf } from "@/lib/door";
-import { householdRequest } from "@/lib/session";
+import { badFields, failure, householdForm, redirectTo, returnPath } from "@/lib/door";
 
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
+  const ctx = await householdForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
   const data = bankBalanceInput.safeParse(Object.fromEntries(form));
   if (!data.success) return badFields();
   try {

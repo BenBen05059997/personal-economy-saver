@@ -1159,7 +1159,7 @@
     "how": "browser",
     "preconditions": [
       "A file exported in OWN-041",
-      "A household made with Start with my numbers (Mika, ¥120,000)"
+      "A household made with Start with my numbers (Mika, bank balance ¥120,000 set on Home)"
     ],
     "steps": [
       "Settings → Your data → Import the file"

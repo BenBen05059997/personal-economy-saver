@@ -1,10 +1,9 @@
 import { z } from "zod";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
-import { consumeRequest } from "@/db/rate-limit";
 import { saveReminderSettings, sendTestReminder, subscribeReminder, unsubscribeReminder } from "@/db/reminders";
 import { verifiedIdentity } from "@/lib/auth-request";
-import { badFields, failure, formOf, text, tooMany } from "@/lib/door";
+import { badFields, failure, formOf, limited, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 const endpoint = z.string().min(1).max(2048);
@@ -15,7 +14,8 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   const store = db();
-  if (!await withHousehold(store, hid, tx => consumeRequest(tx, hid, "reminders", 10))) return tooMany("Too many reminder requests. Try again in a minute.");
+  const busy = await limited(hid, "reminders", 10, "Too many reminder requests. Try again in a minute.", store);
+  if (busy) return busy;
   const form = await formOf(request);
   if (form instanceof Response) return form;
   try {

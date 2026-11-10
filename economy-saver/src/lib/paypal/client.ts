@@ -1,5 +1,8 @@
 import { env, PAYPAL_API_BASE } from "@/lib/env";
 
+/** How long one PayPal call may take. */
+export const PAYPAL_TIMEOUT_MS = 8000;
+
 export class PayPalError extends Error {
   constructor(
     message: string,
@@ -27,7 +30,7 @@ export async function getAccessToken(): Promise<string> {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: "grant_type=client_credentials",
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(PAYPAL_TIMEOUT_MS),
     cache: "no-store",
   });
   const body = await res.json().catch(() => ({}));

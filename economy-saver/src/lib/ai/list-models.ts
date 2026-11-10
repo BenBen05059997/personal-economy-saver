@@ -8,7 +8,7 @@ import { ModelError } from "./types";
 
 const LIST_BUDGET_MS = 10_000;
 
-export type ListedModel = { id: string; tools?: boolean; images?: boolean };
+type ListedModel = { id: string; tools?: boolean; images?: boolean };
 export type ModelChoice = ListedModel & { tested: boolean };
 export type ModelListConnection = { provider: string; baseUrl: string; key: string | null };
 
@@ -49,7 +49,7 @@ export async function listModels(connection: ModelListConnection, opts: { fetch?
   try {
     while (true) {
       const response = await (opts.fetch ?? globalThis.fetch)(endpoint.href, { method: "GET", headers, redirect: "manual", cache: "no-store", signal });
-      if (isRedirect(response)) throw new ModelError("The AI service answered with a redirect.");
+      if (isRedirect(response)) throw ModelError.redirected();
       const json: unknown = await response.json().catch(() => null);
       if (!response.ok) throw new ModelError("The AI service refused the request.", response.status, false, providerFailureKind(response.status, json));
       // Mistral documents model cards both as a data envelope and as a bare array.
@@ -69,6 +69,6 @@ export async function listModels(connection: ModelListConnection, opts: { fetch?
     }
   } catch (error) {
     if (error instanceof ModelError) throw error;
-    throw signal.aborted ? new ModelError("The AI service took too long.", undefined, true) : new ModelError("Couldn't reach the AI service.");
+    throw signal.aborted ? ModelError.timedOut() : ModelError.unreachable();
   }
 }

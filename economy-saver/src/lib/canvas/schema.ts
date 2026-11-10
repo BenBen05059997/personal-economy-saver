@@ -2,6 +2,7 @@
 // at the route, and the JSON Schema the agent is shown are all this file. Version 1. Every object is strict: a key that is not listed is
 // refused, so a block that shows money can never carry an amount of its own (the one exception is a progress block's target, which is the
 // person's own number). Amounts in a change are positive integer minor units of the household's home currency (whole yen, cents for USD).
+import { isCalendarDay } from "@/lib/calendar-day";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { InputError } from "@/db/input-error";
@@ -10,9 +11,11 @@ export const RECIPE_VERSION = 1;
 const MAX_BLOCKS = 12;
 export const MAX_CHANGES = 10;
 const MAX_SLIDER_DAYS = 60;
+/** The engine's scenario for each way the tools spell a case (`usual` in what_if and the canvas, `as_usual` in timeline). */
+export const CASE_KIND = { usual: "expected", as_usual: "expected", late: "worst" } as const;
 
 const day = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "A date is YYYY-MM-DD")
-  .refine(value => new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value, "That day is not on the calendar")
+  .refine(isCalendarDay, "That day is not on the calendar")
   .describe("A calendar day, YYYY-MM-DD, within the app's two-year horizon.");
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "A month is YYYY-MM").describe("A calendar month, YYYY-MM, within the last twelve months or this one.");
 const id = z.string().min(1).max(80);

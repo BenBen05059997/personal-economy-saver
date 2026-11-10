@@ -1,12 +1,10 @@
 import { z } from "zod";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
-import { consumeRequest } from "@/db/rate-limit";
 import { archiveSpace, createSpace, deleteSpace, renameSpace, saveBrief } from "@/db/spaces";
 import { briefFromForm } from "@/lib/agent/brief-form";
-import { badFields, failure, formOf, NO_STORE, redirectTo, tooMany } from "@/lib/door";
+import { NO_STORE, badFields, failure, householdForm, limited, redirectTo } from "@/lib/door";
 import { FORM_REDIRECT_HEADER, postedByForm } from "@/lib/form-fetch";
-import { householdRequest } from "@/lib/session";
 
 const name = z.string().trim().min(1).max(60);
 const id = z.string().uuid();
@@ -19,18 +17,16 @@ const fields = z.discriminatedUnion("kind", [
 ]);
 
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
+  const ctx = await householdForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
   const parsed = fields.safeParse(Object.fromEntries(form));
   if (!parsed.success) return badFields();
 
   const connection = db();
   try {
-    if (!await withHousehold(connection, hid, tx => consumeRequest(tx, hid, "spaces", 20))) {
-      return tooMany("Too many space changes. Try again in a minute.");
-    }
+    const busy = await limited(hid, "spaces", 20, "Too many space changes. Try again in a minute.", connection);
+    if (busy) return busy;
     const action = parsed.data;
     return await withHousehold(connection, hid, async tx => {
       switch (action.kind) {

@@ -14,6 +14,6 @@ export function PinCard({ id, title, recipe, blocks, words, note, actions }: {
     <h2>{title} <Link prefetch={false} href={`/canvas?pin=${id}`}>Open ›</Link></h2>
     {note && <p className="ui-hint">{note}</p>}
     <div className="home-pin-actions">{actions}</div>
-    {blocks ? <Canvas recipe={recipe} initial={blocks} /> : <p role="alert" className="ui-problem">{words === SESSION_ENDED ? <SessionEnded /> : `This canvas can't be drawn: ${words}`}</p>}
+    {blocks ? <Canvas key={JSON.stringify(blocks)} recipe={recipe} initial={blocks} /> : <p role="alert" className="ui-problem">{words === SESSION_ENDED ? <SessionEnded /> : `This canvas can't be drawn: ${words}`}</p>}
   </article>;
 }

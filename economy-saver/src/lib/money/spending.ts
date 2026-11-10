@@ -2,7 +2,8 @@
 // already stores, used by the month view (D46), the search over months and the assistant's tools. Reads bills and charges
 // only; it moves no money and nothing in the runway reads it. Amounts are integer minor units of the home currency.
 import type { Currency } from "@/lib/catalogue/types";
-import { minorMoney, minorPerUnit } from "./format";
+import { addMonths, dateIn } from "./dates";
+import { minorMoney, minorPerUnit, plural } from "./format";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "./gaps";
 import { CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
 import { ownLabel } from "./own-category";
@@ -65,15 +66,13 @@ export function monthName(month: string): string {
 export function monthBounds(month: string): { first: string; last: string } {
   const match = MONTH.exec(month);
   if (!match) throw new Error(`A month is YYYY-MM, not "${month}"`);
-  const lastDay = new Date(Date.UTC(Number(match[1]), Number(match[2]), 0)).getUTCDate();
-  return { first: `${month}-01`, last: `${month}-${String(lastDay).padStart(2, "0")}` };
+  return { first: `${month}-01`, last: dateIn(Number(match[1]), Number(match[2]), 31) };
 }
 
 /** The month `count - 1` months before `month` (YYYY-MM), so `monthsBack(m, 1)` is `m` itself. */
 export function monthsBack(month: string, count: number): string {
   if (!MONTH.test(month)) throw new Error(`A month is YYYY-MM, not "${month}"`);
-  const index = Number(month.slice(0, 4)) * 12 + Number(month.slice(5, 7)) - 1 - (count - 1);
-  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
+  return addMonths(`${month}-01`, -(count - 1)).slice(0, 7);
 }
 
 /** Every month from `from`'s to `to`'s (dates or months), newest first. */
@@ -204,12 +203,12 @@ export function searchLine(result: SpendingSearch): string {
   const latestYear = result.months[0]?.month.slice(0, 4);
   const part = (m: SpendingSearch["months"][number]) => {
     const name = m.month.slice(0, 4) === latestYear ? m.name : `${m.name} ${m.month.slice(0, 4)}`;
-    return `${allUncounted(m.items) ? AMOUNT_NOT_KNOWN : money(m.totalMinor)} in ${name}${m.items.length ? ` (${m.items.length} ${m.items.length === 1 ? "item" : "items"})` : ""}`;
+    return `${allUncounted(m.items) ? AMOUNT_NOT_KNOWN : money(m.totalMinor)} in ${name}${m.items.length ? ` (${plural(m.items.length, "item")})` : ""}`;
   };
   const used = result.months.filter(m => m.items.length);
   const listed = used.length ? used : result.months;
   const empty = used.length ? result.months.length - used.length : 0;
   const uncounted = gapUncountedWords(result.uncounted);
   const total = used.length > 0 && used.every(m => allUncounted(m.items)) ? "" : ` ${money(result.totalMinor)} in all.`;
-  return `${what}: ${listed.map(part).join(", ")}${empty ? `; nothing in the other ${empty} ${empty === 1 ? "month" : "months"}` : ""}.${total}${uncounted ? ` ${uncounted}.` : ""}`;
+  return `${what}: ${listed.map(part).join(", ")}${empty ? `; nothing in the other ${plural(empty, "month")}` : ""}.${total}${uncounted ? ` ${uncounted}.` : ""}`;
 }

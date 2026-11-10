@@ -73,7 +73,7 @@ function composeSentence(safe: SafeToSpend, usualLow: LowPoint, currency: Curren
 function hasNothingToForecast(state: MoneyState) {
   return !state.bills.some(bill => bill.status === "confirmed")
     && !state.charges.some(charge => charge.status === "confirmed")
-    && state.statements.length === 0
+    && !state.statements.some(statement => !statement.paid)
     && !state.invoices.some(invoice => invoice.status !== "paid" && invoice.status !== "closed");
 }
 

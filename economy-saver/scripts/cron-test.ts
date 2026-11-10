@@ -31,6 +31,7 @@ async function main() {
     // Housekeeping sweeps saved-key secrets; Supabase Vault's table is stood in for here.
     await pg.exec(`create schema vault; create table vault.secrets(id uuid primary key default gen_random_uuid(), name text unique, decrypted_secret text);`);
     const at = (instant: string) => new Date(instant);
+    const seedMany = async (n: number) => { const ids: string[] = []; for (let i = 0; i < n; i++) ids.push(await seedBen(db)); return ids; };
     const tokyo = await seedBen(db);
     const pacific = await seedBen(db);
     const demo = await seedBen(db, { isDemo: true });
@@ -43,6 +44,18 @@ async function main() {
       assert.deepEqual(new Set(await dueHouseholds(db, at("2026-11-21T00:00:00Z"))), new Set([tokyo, pacific]));
       assert.deepEqual(await dueHouseholds(db, at("2026-11-21T10:00:00Z")), [tokyo]); // Pacific 02:00
       assert.equal((await dueHouseholds(db, at("2026-11-21T18:00:00Z"))).includes(demo), false);
+    });
+
+    await check("more households due than one batch: the order rotates by the hour, so no household is held back for good", async () => {
+      const crowd = await seedMany(CRON_BATCH_SIZE + 10);
+      const seen = new Set<string>();
+      for (let hour = 0; hour < 12 && !crowd.every(id => seen.has(id)); hour++) {
+        const ids = await dueHouseholds(db, at(`2026-12-05T${String(hour).padStart(2, "0")}:00:00Z`)); // all of them have never run
+        assert.ok(ids.length <= CRON_BATCH_SIZE);
+        for (const id of ids) seen.add(id);
+      }
+      assert.ok(crowd.every(id => seen.has(id)), "every due household is reached within a few hours");
+      await db.delete(schema.households).where(sql`${schema.households.id} in (${sql.join(crowd.map(id => sql`${id}`), sql`, `)})`);
     });
 
     await check("the daily pass stamps the local date once and prunes only its own old Ask receipts", async () => {
@@ -133,12 +146,12 @@ async function main() {
       assert.equal(row.dailyRanOn, "2026-11-23");
     });
 
-    await check("already-scanned reminder households share the same oldest-first order as daily passes", async () => {
+    await check("already-scanned reminder households are selected next to daily passes", async () => {
       const [member] = await db.select().from(schema.members).where(eq(schema.members.householdId, pacific));
       await db.insert(schema.reminderSettings).values({ householdId: pacific, memberId: member.id, hour: 8, emailOn: true, email: "cron@example.test" });
       await db.update(schema.households).set({ createdAt: new Date("2026-10-01") }).where(eq(schema.households.id, pacific));
       const due = await dueHouseholds(db, at("2026-11-24T00:00:00Z")); // Tokyo Nov 24, Pacific Nov 23
-      assert.deepEqual(due.filter(id => id === tokyo || id === pacific), [pacific, tokyo]);
+      assert.deepEqual(new Set(due.filter(id => id === tokyo || id === pacific)), new Set([pacific, tokyo]));
     });
 
     await check("the selector caps a run and prioritizes households still waiting", async () => {

@@ -1,8 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db } from "./household";
-import { clients, households } from "./schema";
+import { lockHousehold, recordEvent, requireHousehold, type Db } from "./household";
+import { clients } from "./schema";
 
 export const clientInput = z.object({
   id: z.string().uuid(),
@@ -16,8 +16,7 @@ export async function insertClient(db: Db, householdId: string, input: z.infer<t
   const hid = requireHousehold(householdId);
   const data = clientInput.parse(input);
   return db.transaction(async tx => {
-    const [household] = await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
-    if (!household) throw new InputError("Household not found");
+    await lockHousehold(tx, hid);
     const [existing] = await tx.select().from(clients).where(and(eq(clients.householdId, hid), eq(clients.id, data.id)));
     if (existing) {
       if (existing.name !== data.name || existing.email !== data.email || existing.termsDays !== data.termsDays) {

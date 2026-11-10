@@ -1,5 +1,5 @@
 // The hand-over from the top bar to the Ask page: a character typed on the bar waits in sessionStorage until the page takes it.
-export const DRAFT_KEY = "pes-ask-draft";
+const DRAFT_KEY = "pes-ask-draft";
 export const DRAFT_EVENT = "pes-ask-draft";
 
 // What waits there: a typed character as a plain string, spoken words as JSON with their source. Both forms are read.

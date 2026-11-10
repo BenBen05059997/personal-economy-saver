@@ -4,7 +4,7 @@
 
 ## What exists now
 
-- **Foundation (D31–D37).** The Supabase project in Tokyo has migrations 0000–0030 applied (34 tables, listed in [ARCHITECTURE.md](ARCHITECTURE.md)); one fictional Ben household seeded, Vault create/read/delete passing, the private Storage bucket `household-documents` verified (a test object was refused to the publishable key and its public URL), no readable rows in `households` for the publishable key. The app builds as a Cloudflare Worker through OpenNext (its size and the limits: box S below) with the hourly Cron Trigger; the local Worker preview renders the Tokyo household.
+- **Foundation (D31–D37).** The Supabase project in Tokyo has migrations 0000–0032 applied (36 tables, listed in [ARCHITECTURE.md](ARCHITECTURE.md)); one fictional Ben household seeded, Vault create/read/delete passing, the private Storage bucket `household-documents` verified (a test object was refused to the publishable key and its public URL), no readable rows in `households` for the publishable key. The app builds as a Cloudflare Worker through OpenNext (its size and the limits: box S below) with the hourly Cron Trigger; the local Worker preview renders the Tokyo household.
 - **Screens (D25).** Shell with sidebar, top bar (Ask with a microphone, bell, Add) and phone layout; Home (sentence, actions, pinned canvases, safe to spend, runway, To check, Cards, Coming up); Ask (`/canvas`, and the same Ask as a panel on every workspace screen, D60); Memory; To check; Activity; Cards and Clients with a right-hand panel; Plan; invoice review; Upload; Options; Settings; Privacy. Checked at 375px and 1440px, light and dark.
 - **Sessions (D34).** Try it makes an anonymous fictional household whose cookie is a random token (only its hash is stored) and a demo-only reset, anchored at Nov 14, 2026. Magic-link routes, session refresh, scoped membership and onboarding are implemented and tested on PGlite; a real magic link is not verified yet.
 - **PayPal (D12–D15, D37).** Sandbox guard, REST client, toolkit split (the agent drafts, the approve route sends), invoice review and approve/send/remind, verified webhook persisted in Postgres, scoped refresh with a five-minute cooldown, `npm run smoke`, read-only history import (`/api/paypal/import`, built and tested, not run live). A real sandbox send and paid webhook have not run on a deployed URL.
@@ -90,7 +90,7 @@ Every box below is ticked; the code is the truth (decision numbers say why). "St
 - [x] Stage 12 (D47). A normal user's first week: Start with my numbers, the empty sentence, First steps, empty panels, a Haiku newcomer run fixed
 - [x] Stage 13 (D48). Yearly bills, amount changes, cancel-by dates: migration 0013, `repeat.ts`, Coming up rows, forms and tools
 - [x] Stage 14 (D50). Traceable agent work: `made_by` (migration 0014), client pace, the nudge rule, the model's brief, bulk tools, the content-free log line
-- [x] Stage 15 (D51). The first ten minutes: two-field start, `fixed_today` (migration 0015), First steps one at a time, three-field forms with More, the user's words, every row leads somewhere
+- [x] Stage 15 (D51). The first ten minutes: name-only start (the bank balance is set on Home), `fixed_today` (migration 0015), First steps one at a time, three-field forms with More, the user's words, every row leads somewhere
 - [x] Stage 16 (D52). Family: the month by whose, the read-only family link (`family_links`, migration 0016, `db:family-test`), BROWSER-CHECKS S walked
 - [x] Nov 5 test round: Coming up above "Later in the month", Edit on every Settings bill, robustness and mobile fixes, the wording pass, a browser walk of T-E and U
 - [x] Stage 17 (D53). Where the money went: `spending.ts` and `db/spending.ts`, the statement CSV import, Plan search, Travel category (migration 0017)
@@ -101,11 +101,22 @@ Every box below is ticked; the code is the truth (decision numbers say why). "St
 - [x] Stage 25 (D61, D41, D60, D57). Here's my bill: `repeat_until` and migration 0023, `checksFor` (`src/lib/money/checks.ts`) and the `to_check` tool, a conversation turn of kind `document`, and Ask's Attach a bill (`readUpload`, `document-card.ts`, `/api/ask/document`, `DocumentCard.tsx`, `ReadingForm.tsx`, the optional `mark` on a chart or timeline)
 - [x] Browser checks: full run on dev at 375px and 1440px, light and dark (A–L), and in the owner's Chrome with a page crawl at four settings (Nov 4)
 - [x] Foundation and hardening J: tenant-isolation test in `db:test`; demo sweeper in the daily job (D49, `sweepDemoHouseholds`, `db:sweep-test`); privacy page `/privacy` (D49; BROWSER-CHECKS P)
-- [x] Migrations 0000–0030 applied to the Tokyo dev database
+- [x] Migrations 0000–0032 applied to the Tokyo dev database
 
 ## Open work
 
 Rules for builders: own only the files your box lists; never edit `package.json`, its lock file, `eslint.config.mjs` or the docs (report what to add; the lead adds it); no new package without the lead (mind the Worker's size and startup, S); one migration per wave, generated by the one box named for it, applied by the owner; `scripts/isolation-test.ts` and `scripts/frontend-check.mjs` have one owner per wave; every new tool's input goes through `toolInputSchema`; Ben's demo numbers must not change. "Done" is in AGENTS.md.
+
+*Review round (Nov 10): every finding of the code review fixed by Sonnet builders, one owner per set of files. The tests are in the existing suites.*
+
+- [x] R1. Engine. Running balances are rounded to the currency's minor unit, so $0.30 less $0.10 and $0.20 is exactly 0 and the verdict is not "hold". A later stored statement no longer hides an earlier unpaid computed one. A paid stored statement is not an out-flow but still covers its cycle's charges. Date and money helpers are shared (`dates.ts`, `format.ts`: `plural`, `percentText`, `toMinor`).
+- [x] R2. Data. Charges are loaded 100 days back (a 31-day cycle plus the close-to-due gap). Import refuses a row not in the household currency and a PayPal balance with no PayPal connection. A document's Storage object is removed last. The daily pass rotates its 30-household batch hourly, so none starves. The demo sweeper loops up to ten batches in 20 seconds. At most 10 live MCP tokens per household. Settling and new items stamp one clock reading after the household lock. Days to pay is never negative. The setup form no longer asks for the bank balance (it starts at 0; Home → Bank balance → Update sets it).
+- [x] R3. Routes. Ask cancel stops the run. The PayPal webhook reads at most 64KB with a 120-a-minute per-address limit, and its GET names a missing setting. Restore reads a bounded body. `formOf` caps a form at 256KB (413). The MCP token route has a limit and answers 400 for a refused token. Shared helpers: `limited`, `householdForm`, `ownerForm`, `text`, `redirectTo` with `NO_REFERRER`.
+- [x] R4. Screens. A pinned canvas redraws when its blocks change. The sentence's date links to the Next 30 days panel. Duplicate keys in the forecast tooltip are gone. `RunwayChart` and unused CSS are removed. Shared `ConfirmDo` and `ui/dates.ts`.
+- [x] R5. Libraries. One calendar-day check (`calendar-day.ts`), one wording for a failed model call in Ask, reading and voice (`modelFailureWords`), one `CASE_KIND` map, `draftOne` and `draftMany` for the plural draft tools, `plural.ts`. The model address check also refuses the documentation and benchmarking ranges. Dead exports removed.
+- [x] R6. Release. `npm audit fix` and overrides take the high findings from 12 to 7. Security headers (CSP, HSTS, nosniff, Referrer-Policy, Permissions-Policy), metadata, `/terms`, robots, sitemap and manifest, icons and `og.png`, and `.github/workflows/ci.yml` (tsc, lint, db:test). The landing footer links Terms after Privacy and the Privacy tab reads "Privacy · fipa".
+- [ ] R7. Zod 4 migration. The PayPal toolkit pins zod 3 and `ai@4` / `openai@4`; the 7 high audit findings that remain (zod below 4.6.6 and `@ai-sdk/provider-utils` 3.0.27 or below) need it. A trial upgrade gave about 118 type errors (`env.ts`, `canvas/schema.ts`, `brief.ts`, the tool and canvas schemas handed to the toolkit and MCP).
+- [ ] R8. USD sentence amounts are rounded to whole dollars today (`money()` in the sentence). Showing cents for USD households changes every USD sentence and the pinned wording in tests; the owner decides.
 
 *Stage 37: Own categories and three ways to look at a month (D74, D75, D46, D73), agreed Nov 10. Built on the `stage-37` worktree by Sonnet builders. The decisions are written; the boxes below are the build. Ben's demo numbers must not change.*
 
@@ -272,7 +283,11 @@ Phase A, the OK before the first deploy and before the repo goes public, answers
 - [x] Confirm the Worker starts within 1 s on the deploy (S): Wrangler reported 39 ms on the Nov 9 deploy
 - [ ] Forwarding settings in `.env.local`: `FORWARDING_DOMAIN` (the Cloudflare domain), `INBOUND_ADDRESS_KEY`, `INBOUND_WORKER_SECRET`
 - [ ] Check `AI_KEY_SEAL_KEY` for sealed household AI keys, `MCP_TOKEN_KEY` for MCP, and `CRON_SECRET` for the daily job. For live PayPal history import and merchant balance, set `PAYPAL_BALANCE_HOUSEHOLD_ID` to a signed-in household.
+- [ ] In Supabase Authentication → URL Configuration → Redirect URLs, list `<APP_URL>/api/auth/callback` for each origin in use (the deployed Worker URL, `http://127.0.0.1:3123`, `http://localhost:8787`). Without it the magic link lands on `/?code=…` and does not sign in.
 - [ ] Sign in at `/login` and verify a real magic link, onboarding and session refresh (V9 and BROWSER-CHECKS A5).
+- [ ] Auth email sender: Supabase's default SMTP is rate-limited, so magic links may not arrive. Set a custom SMTP such as Resend in Supabase Authentication (owner).
+- [ ] Run Supabase's Security Advisor on the Tokyo project and read its findings (owner).
+- [ ] Set up an uptime monitor on the deployed URL and error alerting on the Worker (owner).
 - [ ] Reminders by email (D65): a Resend account, the sending domain verified (the forwarding domain), then `RESEND_API_KEY` and `REMINDER_FROM` in `.env.local` and `.dev.vars`
 - [ ] Reminders by push (D65). Run `npm run push:keys` to write the key pair, and set `WEB_PUSH_SUBJECT` to the owner’s `mailto:` address in `economy-saver/.env.local` and `economy-saver/.dev.vars`.
 - [x] Migration 0028 (Stages 29 and 30) applied to the owner's database

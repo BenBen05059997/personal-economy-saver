@@ -1,4 +1,4 @@
-// D59: the operations on what the assistant remembers, as pure functions over a list. The browser's device store (index.ts) runs them on its
+// D59: the operations on what the assistant remembers, as pure functions over a list. The browser's device store (src/lib/store/device.ts) runs them on its
 // own copy; the server runs them on the list that came with a question (the household keeps its memory on one device) and sends the change
 // back in the reply. The same rules as src/db/memory.ts: 400 characters, no run of 12 digits, 200 items, the same text under the same kind and scope is one item.
 import { z } from "zod";
@@ -16,8 +16,10 @@ export const MemoryChange = z.discriminatedUnion("op", [
 ]);
 export type MemoryChange = z.infer<typeof MemoryChange>;
 
-/** The memory a question carried from the device (`items`, changed in place as the tools run) and what the tools changed (`changes`, returned in the reply). */
-/** `moment` is the household's now (householdMoment, D34), so an item made by a question is dated like the cloud's. */
+/**
+ * The memory a question carried from the device (`items`, changed in place as the tools run) and what the tools changed (`changes`, returned in the reply).
+ * `moment` is the household's now (householdMoment, D34), so an item made by a question is dated like the cloud's.
+ */
 export type DeviceMemory = { items: MemoryItem[]; changes: MemoryChange[]; moment: Date };
 
 export const inMemoryScope = (item: MemoryItem, spaceId?: string | null) => spaceId === undefined || (item.spaceId ?? null) === spaceId;

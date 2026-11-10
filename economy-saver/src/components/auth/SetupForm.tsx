@@ -6,11 +6,11 @@ import { ApiForm } from "@/components/ui/ApiForm";
 import { AccountFrame } from "./AccountFrame";
 
 const currencies = {
-  JPY: { symbol: "¥", example: "420,000", name: "Japanese yen" },
-  USD: { symbol: "$", example: "2,800", name: "US dollars" },
+  JPY: { symbol: "¥", name: "Japanese yen" },
+  USD: { symbol: "$", name: "US dollars" },
 } as const;
 
-/** The one setup form: onboarding (a signed-in owner) and Start with my numbers (a blank demo) post the same fields to their own route. A name and today's bank balance are all it needs (D51): currency and time zone are read from the browser and sit behind "Change", the card behind "Add a card now". */
+/** The one setup form: onboarding (a signed-in owner) and Start with my numbers (a blank demo) post the same fields to their own route. A name is all it needs; the bank balance is set on Home (Update): currency and time zone are read from the browser and sit behind "Change", the card behind "Add a card now". */
 export function SetupForm({ action, title, hint, button, notice, privacy = false, forwarding }: { action: string; title: string; hint: string; button: string; notice?: string; privacy?: boolean; forwarding: boolean }) {
   // The browser's zone (yen for Tokyo, dollars otherwise) until the person changes it; the server renders Tokyo.
   const detected = useSyncExternalStore(() => () => {}, () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tokyo", () => "Asia/Tokyo");
@@ -19,15 +19,13 @@ export function SetupForm({ action, title, hint, button, notice, privacy = false
   const currency = picked.currency ?? (detected === "Asia/Tokyo" ? "JPY" : "USD");
   const setCurrency = (value: keyof typeof currencies) => setPicked(previous => ({ ...previous, currency: value }));
   const setTimeZone = (value: string) => setPicked(previous => ({ ...previous, timeZone: value }));
-  const { symbol, example, name } = currencies[currency];
+  const { symbol, name } = currencies[currency];
   return <AccountFrame title={title}>
     {notice && <p role="note" className="ui-hint"><strong>{notice}</strong></p>}
     <p className="ui-hint">{hint}</p>
     <ApiForm action={action}>
       <label className="ui-field">Your name<input name="name" autoComplete="given-name" maxLength={80} required aria-describedby="setup-name-hint" />
         <small id="setup-name-hint" className="ui-hint">It is also the household’s name until you change it in Settings.</small></label>
-      <label className="ui-field">What’s in your bank today?
-        <span className="account-prefixed"><span aria-hidden="true">{symbol}</span><input name="bank" type="text" inputMode="decimal" maxLength={16} required placeholder={`e.g. ${example}`} /></span></label>
       <details className="setup-more" data-testid="setup-region">
         <summary>{name} · {timeZone} · <span className="account-link">Change</span></summary>
         <div className="account-grid">

@@ -3,7 +3,7 @@
 import type { Currency } from "@/lib/catalogue/types";
 import type { CategoryKey } from "./categories";
 import { guessCategory } from "./categorise";
-import { dayLabel, minorMoney, ordinal } from "./format";
+import { dayLabel, minorMoney, ordinal, plural } from "./format";
 import { AMOUNT_NOT_KNOWN } from "./gaps";
 import { normalise } from "./name-key";
 import { monthBounds, monthName } from "./spending";
@@ -101,6 +101,6 @@ export function billsForMonth(bills: readonly PeriodBill[], month: string, text 
   const known = totals.map(t => `${minorMoney(t.totalMinor, t.currency)} in all`).join(", ");
   const summary = items.length === 0
     ? `No bill names ${when} as the month it is for${q === "" ? "" : ` and matches "${q}"`}.`
-    : `${items.length} ${items.length === 1 ? "bill" : "bills"} for ${when}${known ? `, ${known}` : ""}: ${items.map(line).join("; ")}.`;
+    : `${plural(items.length, "bill")} for ${when}${known ? `, ${known}` : ""}: ${items.map(line).join("; ")}.`;
   return { month, text: q, items, totals, summary, note: NO_PERIOD_NOTE };
 }

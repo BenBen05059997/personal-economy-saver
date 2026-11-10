@@ -1,8 +1,8 @@
 import { closeByRef, refreshSuggestions } from "./suggestions";
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
+import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import { checkAmountMinor, fromMinor, parseAmountMinor } from "./money";
 import { Currency } from "@/lib/catalogue/types";
 import { dayLabel, minorMoney, minorPerUnit, repeatWords } from "@/lib/money/format";
@@ -176,6 +176,7 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
     }
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     await tx.insert(bills).values({
+      createdAt: sql`clock_timestamp()`, // read after the household lock, so a settlement made before the lock stamps earlier (D45)
       id: data.id, householdId: hid, memberId: data.memberId, paidByMemberId: data.paidByMemberId, biller: data.biller, amountMinor,
       currency: household.currency, due, category: data.category, businessBp: data.businessBp, ownCategoryId, status, repeatDay,
       repeatUnit: data.repeat, nextAmountMinor: schedule.nextAmountMinor, nextAmountFrom: data.nextAmountFrom, cancelBy: data.cancelBy, amountVaries: data.amountVaries, repeatUntil: data.repeatUntil,
@@ -264,8 +265,7 @@ export async function removeBill(db: Db, householdId: string, id: string): Promi
   const hid = requireHousehold(householdId);
   const billId = z.string().uuid().parse(id);
   return withHousehold(db, hid, async tx => {
-    const [household] = await tx.select({ id: households.id, previous: households.runwayShort }).from(households).where(eq(households.id, hid)).for("update");
-    if (!household) throw new InputError("Household not found");
+    const household = await lockHousehold(tx, hid);
     const target = and(eq(bills.householdId, hid), eq(bills.id, billId));
     if (household.previous === null) {
       const [exists] = await tx.select({ id: bills.id }).from(bills).where(target);

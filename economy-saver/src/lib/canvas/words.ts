@@ -1,4 +1,5 @@
 // "Show the recipe": each block in plain words. Pure.
+import { plural } from "@/lib/plural";
 import { monthName, SEARCH_QUERY_MAX } from "@/lib/money/spending";
 import type { Block, Query, ScenarioRef } from "./schema";
 
@@ -8,7 +9,7 @@ function scenarioWords(ref: ScenarioRef): string {
   if (ref === undefined) return "";
   if (ref === "canvas") return ", on this canvas's what-if";
   const n = ref.changes.length;
-  return `, ${ref.case === "usual" ? "clients paying as usual" : "clients paying late"}${n ? `, with ${n} what-if ${n === 1 ? "change" : "changes"}` : ""}`;
+  return `, ${ref.case === "usual" ? "clients paying as usual" : "clients paying late"}${n ? `, with ${n} what-if ${plural(n, "change")}` : ""}`;
 }
 
 /** What a query asks the engine, as a phrase. */
@@ -46,7 +47,7 @@ export function blockWords(block: Block): string {
       : `Goals: ${queryWords(block.query)}`;
     case "note": return `Note (${block.by === "you" ? "yours" : "written by the assistant"})`;
     case "letter": return "Letter written by the assistant";
-    case "sliders": return `Sliders: ${block.controls.length} ${block.controls.length === 1 ? "client" : "clients"} that can pay late`;
+    case "sliders": return `Sliders: ${block.controls.length} ${plural(block.controls.length, "client")} that can pay late`;
     case "action": return `Link: "${block.label}", to a page in the app`;
   }
 }

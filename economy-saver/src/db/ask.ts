@@ -1,7 +1,7 @@
 import { and, desc, eq, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { aiConnection, connectionView } from "./ai-key";
-import { requireHousehold, withHousehold, type Db } from "./household";
+import { householdClockRow, requireHousehold, withHousehold, type Db } from "./household";
 import { householdMoment } from "./clock";
 import { InputError } from "./input-error";
 import { KEY_TEXT_WORDS, looksLikeApiKey } from "@/lib/ai/key-text";
@@ -66,7 +66,7 @@ export type AskReply = {
 
 /** The household's current moment (a Try it household's fixed date at the real time of day). */
 async function clockMoment(db: Db, hid: string, at?: Date): Promise<Date> {
-  const [household] = await db.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone }).from(households).where(eq(households.id, hid));
+  const household = await householdClockRow(db, hid);
   if (!household) throw new InputError("Household not found");
   return householdMoment(household, at);
 }

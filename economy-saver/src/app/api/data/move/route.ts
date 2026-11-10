@@ -3,8 +3,7 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { itemsToMove, JournalMoveChanged, MOVABLE, moveToCloud, moveToDevice } from "@/db/place";
-import { consumeRequest } from "@/db/rate-limit";
-import { NO_STORE, text, tooMany } from "@/lib/door";
+import { limited, NO_STORE, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 // Memory, canvases or conversations with a year of use stay well under this; a body over it is not a move.
@@ -30,7 +29,8 @@ export async function POST(request: Request) {
   const body = Body.safeParse(json);
   if (!body.success) return text("Choose what to move and where.", 400);
   try {
-    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "move", 10))) return tooMany("Too many requests. Try again in a minute.");
+    const busy = await limited(hid, "move", 10, "Too many requests. Try again in a minute.");
+    if (busy) return busy;
     const by = { madeBy: "form" } as const;
     const data = body.data;
     if (data.step === "read") {

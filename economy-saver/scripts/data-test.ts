@@ -243,6 +243,15 @@ async function main() {
       await db.delete(schema.documents).where(eq(schema.documents.id, stray));
     });
 
+    await check("a database failure after the document rows are changed leaves the Storage object alone", async () => {
+      const spy = fakeStore();
+      const bad = { madeBy: "not-a-maker" } as unknown as typeof form;
+      await assert.rejects(deleteDocument(db, a, docs[1], bad, spy.store));
+      await assert.rejects(deleteKind(db, a, "documents", bad, spy.store));
+      assert.deepEqual(spy.removed, [], "no Storage call when the transaction fails first");
+      assert.equal(await rowCount(schema.documents, a), 1);
+    });
+
     await check("delete a kind: memory, canvases, journal and documents go for good; counts hit zero; the record and B are untouched; documents leave Storage", async () => {
       const recordBefore = await countKind(db, a, "record");
       removed.length = 0;
@@ -303,6 +312,8 @@ async function main() {
       await assert.rejects(restoreHousehold(db, c.id, "text"), InputError);
       await assert.rejects(restoreHousehold(db, c.id, { ...file, truncated: { ...file.truncated, bills: true } }), /only part of a household/);
       await assert.rejects(restoreHousehold(db, c.id, { ...file, household: { ...file.household, homeCurrency: "USD" } }), /in USD and this household uses JPY/);
+      await assert.rejects(restoreHousehold(db, c.id, { ...file, bills: [{ ...file.bills[0], currency: "EUR" }, ...file.bills.slice(1)] }), (e: unknown) => e instanceof InputError && /A bill in this file is in EUR/.test(e.message));
+      await assert.rejects(restoreHousehold(db, c.id, { ...file, charges: [{ ...file.charges[0], currency: "USD" }, ...file.charges.slice(1)] }), (e: unknown) => e instanceof InputError && /A charge in this file is in USD/.test(e.message));
       await assert.rejects(restoreHousehold(db, c.id, { ...file, memory: [{ ...file.memory[0], text: "Card 4111 1111 1111 1111" }] }), /card or account numbers/);
       await assert.rejects(restoreHousehold(db, c.id, { ...file, members: file.members.map((m: { shareBp: number }) => ({ ...m, shareBp: 1 })) }), /shares/);
       assert.equal(await countKind(db, c.id, "record"), 0, "a refusal changes nothing");

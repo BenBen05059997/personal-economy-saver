@@ -6,11 +6,14 @@ import { loadNavigationData, loadWorkspaceData } from "@/db/workspace";
 import { missingForwardingSetting } from "@/components/reader/ForwardingSettings";
 import { Shell, type Section } from "./Shell";
 
-/** `withOwn` also loads the household's own categories and guesses (D75) for the pages that show the Add forms or the reader. */
-export async function loadWorkspace(hid: string, home = false, withOwn = false) {
+type WorkspaceData = Awaited<ReturnType<typeof loadWorkspaceData>>;
+
+/** `withOwn` also loads the household's own categories and guesses (D75) for the pages that show the Add forms or the reader; `own` is then never null. */
+export async function loadWorkspace<Own extends boolean = false>(hid: string, home = false, withOwn: Own = false as Own):
+  Promise<Own extends true ? WorkspaceData & { own: NonNullable<WorkspaceData["own"]> } : WorkspaceData> {
   const freshness = home ? await refreshPayPal(db(), hid) : null;
   return withHousehold(db(), hid, tx => loadWorkspaceData(tx, hid, home, freshness, withOwn),
-    home ? undefined : { isolationLevel: "repeatable read", accessMode: "read only" });
+    home ? undefined : { isolationLevel: "repeatable read", accessMode: "read only" }) as never;
 }
 
 export async function loadNavigation(hid: string) {

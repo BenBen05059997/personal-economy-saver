@@ -3,6 +3,7 @@
 // The steps: decode the bytes (UTF-8, or Shift_JIS which Japanese issuers use, and the preview says which), split the text
 // into rows, find the header and guess the date, name and amount columns from their words (the person can change the
 // picks), then read each row as a charge, a skipped credit or an unreadable row with the reason.
+import { isCalendarDay } from "@/lib/calendar-day";
 import { readAmount } from "@/lib/money/amount";
 import { guessCategory } from "@/lib/money/categorise";
 import type { CategoryKey } from "@/lib/money/categories";
@@ -109,9 +110,8 @@ type ReadResult = { rows: ReadRow[]; readable: number; skipped: number; unreadab
 
 const validDate = (y: number, m: number, d: number) => {
   if (m < 1 || m > 12 || d < 1 || y < 1900 || y > 2999) return null;
-  const date = new Date(Date.UTC(y, m - 1, d));
-  if (date.getUTCMonth() !== m - 1) return null;
-  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const iso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  return isCalendarDay(iso) ? iso : null;
 };
 
 const YEAR_FIRST = /^(\d{4})[/\-.年](\d{1,2})[/\-.月](\d{1,2})日?$/;

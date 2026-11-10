@@ -5,7 +5,7 @@ import { ModelError, type ModelRequest } from "./types";
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 
-export function sdkOptions(request: ModelRequest): Omit<LanguageModelV4CallOptions, "abortSignal"> {
+function sdkOptions(request: ModelRequest): Omit<LanguageModelV4CallOptions, "abortSignal"> {
   const prompt: LanguageModelV4Prompt = [{ role: "system", content: request.system }];
   for (const [index, turn] of request.turns.entries()) {
     if (turn.role === "user") {
@@ -59,7 +59,7 @@ export function sdkFetch(request: ModelRequest, transform?: (body: string) => st
     const body = transform && typeof init?.body === "string" ? transform(init.body) : init?.body;
     // Workers have no redirect: "error"; "manual" hands back the 3xx itself, which is refused here so the key is never re-sent.
     const response = await (request.fetch ?? globalThis.fetch)(input, { ...init, body, redirect: "manual" });
-    if (isRedirect(response)) throw new ModelError("The AI service answered with a redirect.");
+    if (isRedirect(response)) throw ModelError.redirected();
     return request.connection.protocol === "openai" ? bounded(response) : response;
   };
 }
@@ -70,7 +70,7 @@ export async function generate(model: LanguageModelV4, request: ModelRequest) {
   try {
     return await model.doGenerate({ ...sdkOptions(request), abortSignal: controller.signal });
   } catch (error) {
-    if (controller.signal.aborted) throw new ModelError("The AI service took too long.", undefined, true);
+    if (controller.signal.aborted) throw ModelError.timedOut();
     if (error instanceof ModelError) throw error;
     if (APICallError.isInstance(error)) {
       if (error.cause instanceof ModelError) throw error.cause;
@@ -84,7 +84,7 @@ export async function generate(model: LanguageModelV4, request: ModelRequest) {
       if (error.statusCode) throw new ModelError("The AI service sent a reply the app could not read.");
     }
     if (InvalidResponseDataError.isInstance(error)) throw new ModelError("The AI service sent a reply the app could not read.");
-    throw new ModelError("Couldn't reach the AI service.");
+    throw ModelError.unreachable();
   } finally {
     clearTimeout(timer);
   }

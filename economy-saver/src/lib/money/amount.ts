@@ -3,17 +3,18 @@
 // Accepted: digits with an optional decimal part, thousands separators ("1,000.50"), full-width digits (NFKC),
 // and a leading minus where the field allows one. Never accepted: a plus sign, spaces inside, an exponent.
 
+import type { Currency } from "@/lib/catalogue/types";
 import { MINOR_PLACES, minorMoney, minorPerUnit } from "./format";
 
 /** The largest amount any form takes, in whole units: ¥100,000,000 or $1,000,000. */
-export const AMOUNT_LIMIT: Record<"JPY" | "USD", number> = { JPY: 100_000_000, USD: 1_000_000 };
+export const AMOUNT_LIMIT: Record<Currency, number> = { JPY: 100_000_000, USD: 1_000_000 };
 
 const SHAPE = /^(-?)(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?$/;
 
 type ReadAmount = { minor: number } | { problem: string };
 
 /** The message for an amount over the limit: "Enter an amount up to ¥100,000,000". */
-export function limitMessage(currency: "JPY" | "USD"): string {
+export function limitMessage(currency: Currency): string {
   return `Enter an amount up to ${minorMoney(AMOUNT_LIMIT[currency] * minorPerUnit(currency), currency)}`;
 }
 
@@ -46,9 +47,10 @@ export function readAmount(text: string, currency: string, signed = true): ReadA
   if (minus && !signed) return { problem: "Enter an amount without a minus sign" };
   if (fraction.length > places) return { problem: places ? `${currency} amounts have at most ${places} decimal places` : `${currency} amounts are whole numbers` };
   const whole = digits.replaceAll(",", "");
-  if (whole.length > 12 || Number(whole) > AMOUNT_LIMIT[currency as "JPY" | "USD"]) return { problem: limitMessage(currency as "JPY" | "USD") };
+  const cur = currency as Currency;
+  if (whole.length > 12 || Number(whole) > AMOUNT_LIMIT[cur]) return { problem: limitMessage(cur) };
   const minor = Number(whole + fraction.padEnd(places, "0"));
-  if (minor > AMOUNT_LIMIT[currency as "JPY" | "USD"] * minorPerUnit(currency as "JPY" | "USD")) return { problem: limitMessage(currency as "JPY" | "USD") };
+  if (minor > AMOUNT_LIMIT[cur] * minorPerUnit(cur)) return { problem: limitMessage(cur) };
   return { minor: minus ? 0 - minor : minor };
 }
 

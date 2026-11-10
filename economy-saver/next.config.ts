@@ -11,11 +11,32 @@ const nextConfig: NextConfig = {
   // top-left and top-right hold the menu, bell and Add. Bottom-right is the one free corner.
   devIndicators: { position: "bottom-right" },
   // D52: the family view is opened from a shared link: never cached, never indexed, never sent on as a referrer.
-  // D56: no other site may frame the app (the AI key field among it). frame-ancestors alone needs no script nonces.
+  // D56: no other site may frame the app (the AI key field among it).
+  // The policy has no nonce: a nonce forces every page to render per request, which cacheComponents and partial
+  // prerendering exist to avoid. Next's own inline bootstrap needs 'unsafe-inline'; React refresh needs 'unsafe-eval' in dev only.
   async headers() {
+    const dev = process.env.NODE_ENV === "development";
+    const csp = [
+      "default-src 'self'",
+      `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "worker-src 'self'",
+      "manifest-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join("; ");
     return [{ source: "/:path*", headers: [
-      { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+      { key: "Content-Security-Policy", value: csp },
       { key: "X-Frame-Options", value: "DENY" },
+      { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "microphone=(self), camera=(), geolocation=(), payment=()" },
     ] }, { source: "/family/:path*", headers: [
       { key: "Cache-Control", value: "private, no-store" },
       { key: "Referrer-Policy", value: "no-referrer" },

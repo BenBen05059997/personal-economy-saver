@@ -96,5 +96,12 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "wrangler": "^4.156.0"
+  },
+  "overrides": {
+    "mathjs": "15.2.0",
+    "uuid": "^11.1.1",
+    "jsondiffpatch": "0.7.7",
+    "langsmith": "0.12.0",
+    "@langchain/core": "1.3.6"
   }
 }

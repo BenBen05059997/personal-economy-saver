@@ -10,7 +10,7 @@ export type CategoryRow = { key: string; label: string; note?: string; spent: nu
 /** One of the two parts of a bar: `tone` picks the colour class, `word` is how a sentence says it, `legend` the legend text. */
 export type BarSegment = { tone: "late" | "coming" | "personal"; word: string; legend: string; value: (row: CategoryRow) => number };
 
-export const SPENT_SEGMENTS: [BarSegment, BarSegment] = [
+const SPENT_SEGMENTS: [BarSegment, BarSegment] = [
   { tone: "late", word: "spent", legend: "Spent so far", value: row => row.spent },
   { tone: "coming", word: "still to come", legend: "Still to come (bills and statements you know of)", value: row => row.coming },
 ];

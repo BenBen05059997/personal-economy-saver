@@ -25,6 +25,7 @@ import { fakeModel, type FakeMode } from "./ai-fake";
 import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
 import { unconfirmedAmounts } from "@/lib/ai/number-check";
 import { PROVIDERS, providerFromKey, tokenParamFor } from "@/lib/ai/providers";
+import { modelFailureWords } from "@/lib/ai/provider-failure";
 import { ModelError, type Connection, type ModelRequest } from "@/lib/ai/types";
 
 let passed = 0;
@@ -86,12 +87,22 @@ async function main() {
       "https://[::127.0.0.1]/v1", "https://[::7f00:1]/v1", "https://[::10.0.0.1]/v1", "https://[::169.254.169.254]/v1",
       "https://[64:ff9b::7f00:1]/v1", "https://[64:ff9b::8.8.8.8]/v1", "https://[2002:7f00:1::1]/v1", "https://[2002::1]/v1",
       "https://[fec0::1]/v1", "https://[feff::1]/v1", "https://[::ffff:169.254.169.254]/v1", "https://[::ffff:a9fe:a9fe]/v1", "https://[ff02::1]/v1",
+      "https://192.0.0.1/v1", "https://192.0.2.7/v1", "https://198.18.0.1/v1", "https://198.19.255.255/v1", "https://198.51.100.9/v1", "https://203.0.113.5/v1", "https://240.0.0.1/v1", "https://0.1.2.3/v1", "https://[::ffff:100.64.0.1]/v1", "https://[fe90::1]/v1", "https://[febf::1]/v1", "https://[fdff::1]/v1",
     ];
     for (const address of bad) assert.throws(() => checkBaseUrl(address, { allowLocal: false }), /That address can't be used/, address);
     // not private: just outside the ranges
-    for (const ok of ["https://172.15.0.1/v1", "https://172.32.0.1/v1", "https://100.63.0.1/v1", "https://100.128.0.1/v1", "https://169.253.0.1/v1", "https://192.169.0.1/v1"]) {
+    for (const ok of ["https://172.15.0.1/v1", "https://172.32.0.1/v1", "https://100.63.0.1/v1", "https://100.128.0.1/v1", "https://169.253.0.1/v1", "https://192.169.0.1/v1", "https://192.0.3.1/v1", "https://198.17.0.1/v1", "https://198.20.0.1/v1"]) {
       assert.equal(checkBaseUrl(ok, { allowLocal: false }), ok);
     }
+  });
+
+  await check("modelFailureWords words a timeout, a refused key, a busy service, an HTTP status and an unreachable service", () => {
+    assert.equal(modelFailureWords(new ModelError("x", undefined, true), "slow"), "slow");
+    assert.equal(modelFailureWords(new ModelError("x", 401), "slow"), "The AI key was not accepted. Check it in Settings.");
+    assert.equal(modelFailureWords(new ModelError("x", 403), "slow"), "The AI key was not accepted. Check it in Settings.");
+    assert.equal(modelFailureWords(new ModelError("x", 429), "slow"), "The AI service is busy. Try again in a minute.");
+    assert.equal(modelFailureWords(new ModelError("x", 500), "slow"), "The AI service returned HTTP 500. Try again.");
+    assert.equal(modelFailureWords(new ModelError("x"), "slow"), "Couldn't reach the AI service. Try again.");
   });
 
   await check("http localhost is allowed only with allowLocal, and only for the local names", () => {

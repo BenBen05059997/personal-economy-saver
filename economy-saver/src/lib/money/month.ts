@@ -2,7 +2,7 @@
 // its business and personal parts. Reads bills and charges only; it moves no money and nothing in the runway reads it.
 // Amounts are integer minor units of the home currency (whole yen, cents for USD).
 import type { Currency } from "@/lib/catalogue/types";
-import { aboutMoney, dayLabel, minorMoney } from "./format";
+import { aboutMoney, dayLabel, minorMoney, percentText } from "./format";
 import { AMOUNT_NOT_KNOWN } from "./gaps";
 import { periodLabel } from "./period";
 import { businessPart, CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
@@ -115,7 +115,7 @@ export function monthText(view: MonthView, when = monthWhen()): string {
   for (const c of view.categories) {
     const split = splitLine(view, c);
     lines.push(`${c.label} ${allUncounted(c.items) ? AMOUNT_NOT_KNOWN : money(view, c.totalMinor)}${split ? ` (${split})` : c.businessMinor ? " (all business)" : ""}: ${c.items.map(i =>
-      `${i.label}${i.periodStart !== undefined && i.periodEnd !== undefined ? ` (for ${periodLabel({ start: i.periodStart, end: i.periodEnd })})` : ""} ${dayLabel(i.date)} ${i.uncounted ? AMOUNT_NOT_KNOWN : i.estimated ? aboutMoney(i.amountMinor, view.currency) : money(view, i.amountMinor)}${i.businessBp > 0 && i.businessBp < 10_000 ? ` at ${i.businessBp / 100}% business` : ""}`).join("; ")}.`);
+      `${i.label}${i.periodStart !== undefined && i.periodEnd !== undefined ? ` (for ${periodLabel({ start: i.periodStart, end: i.periodEnd })})` : ""} ${dayLabel(i.date)} ${i.uncounted ? AMOUNT_NOT_KNOWN : i.estimated ? aboutMoney(i.amountMinor, view.currency) : money(view, i.amountMinor)}${i.businessBp > 0 && i.businessBp < 10_000 ? ` at ${percentText(i.businessBp)}% business` : ""}`).join("; ")}.`);
     if (c.ownCategories.length > 0) {
       const part = (o: MonthOwn, name: string) => `${name} ${allUncounted(o.items) ? AMOUNT_NOT_KNOWN : money(view, o.totalMinor)}`;
       lines.push(`In ${c.label}: ${[...c.ownCategories.map(o => part(o, ownLabel(c.category, { name: o.name! }))), ...(c.withoutOwn ? [part(c.withoutOwn, `${c.label} without a category of your own`)] : [])].join("; ")}.`);

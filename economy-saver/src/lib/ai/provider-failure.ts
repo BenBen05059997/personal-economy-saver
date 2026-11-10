@@ -29,3 +29,12 @@ export function providerFailureWords(kind: ProviderFailureKind, label: string, m
   if (kind === "model" && model) return `${label} has no model called ${model}.`;
   return `Couldn’t reach ${label}.`;
 }
+
+/** A failed model call in a person's words (Ask, the reader and voice fill share them). `timeoutWords` is the surface's own sentence for a call that ran out of time. */
+export function modelFailureWords(error: ModelError, timeoutWords: string): string {
+  if (error.timeout) return timeoutWords;
+  if (error.status === 401 || error.status === 403) return "The AI key was not accepted. Check it in Settings.";
+  if (error.status === 429) return "The AI service is busy. Try again in a minute.";
+  if (error.status !== undefined) return `The AI service returned HTTP ${error.status}. Try again.`;
+  return "Couldn't reach the AI service. Try again.";
+}

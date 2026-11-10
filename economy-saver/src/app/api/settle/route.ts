@@ -1,18 +1,16 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
-import { consumeRequest } from "@/db/rate-limit";
 import { settleUp } from "@/db/settle";
-import { failure, formOf, redirectTo, returnPath, tooMany } from "@/lib/door";
-import { householdRequest } from "@/lib/session";
+import { failure, householdForm, limited, redirectTo, returnPath } from "@/lib/door";
 
 /** Mark settled (D45): records what is owed now as paid, from the stored rows; the browser sends no amounts. */
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
+  const ctx = await householdForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
   try {
-    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "settle", 10))) return tooMany("Too many settlements. Try again in a minute.");
+    const busy = await limited(hid, "settle", 10, "Too many settlements. Try again in a minute.");
+    if (busy) return busy;
     await withHousehold(db(), hid, tx => settleUp(tx, hid));
     return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {

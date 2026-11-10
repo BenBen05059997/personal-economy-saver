@@ -1,17 +1,16 @@
 import { ZodError } from "zod";
 import { db } from "@/db/client";
-import { withHousehold } from "@/db/household";
 import { ImportRefused, ImportSetupError, importPayPalHistory } from "@/db/paypal-import";
-import { consumeRequest } from "@/db/rate-limit";
 import { PayPalError } from "@/lib/paypal/client";
-import { redirectTo, text, tooMany } from "@/lib/door";
+import { limited, redirectTo, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   const store = db();
-  if (!await withHousehold(store, hid, tx => consumeRequest(tx, hid, "import", 2))) return tooMany("Import limit reached. Try again in a minute.");
+  const busy = await limited(hid, "import", 2, "Import limit reached. Try again in a minute.", store);
+  if (busy) return busy;
   try {
     await importPayPalHistory(store, hid);
     return redirectTo("/settings");

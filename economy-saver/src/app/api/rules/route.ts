@@ -1,9 +1,8 @@
 import { z } from "zod";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
-import { consumeRequest } from "@/db/rate-limit";
 import { changeStandingRule } from "@/db/rules";
-import { badFields, failure, formOf, redirectTo, returnPath, tooMany } from "@/lib/door";
+import { badFields, failure, formOf, limited, redirectTo, returnPath } from "@/lib/door";
 import { RULE_KINDS } from "@/lib/money/suggestion-types";
 import { householdRequest } from "@/lib/session";
 
@@ -18,7 +17,8 @@ export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
   const store = db();
-  if (!await withHousehold(store, hid, tx => consumeRequest(tx, hid, "rules", 20))) return tooMany("Too many rule changes. Try again in a minute.");
+  const busy = await limited(hid, "rules", 20, "Too many rule changes. Try again in a minute.", store);
+  if (busy) return busy;
   const form = await formOf(request);
   if (form instanceof Response) return form;
   const parsed = fields.safeParse(Object.fromEntries(form));

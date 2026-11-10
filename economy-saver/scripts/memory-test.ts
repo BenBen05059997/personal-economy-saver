@@ -23,11 +23,12 @@ import type { ContextTurn } from "@/lib/agent/context";
 import { aiConnection } from "@/db/ai-key";
 import { householdDate } from "@/db/account";
 import { loadMoneyState } from "@/db/household";
-import { memoryContext } from "@/lib/agent/memory-prompt";
+import { memoryBlock } from "@/lib/agent/memory-prompt";
 import { memoryTools } from "@/lib/agent/memory-tools";
 import { runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools, type ToolContext } from "@/lib/agent/tools";
 import { MEMORY_KINDS, MEMORY_LIMIT, MEMORY_PROMPT_MAX, MemoryItem } from "@/lib/schema/memory";
+const memoryContext = async (db: Parameters<typeof listMemory>[0], householdId: string) => memoryBlock((await listMemory(db, householdId)).filter(item => !item.spaceId));
 
 const form = { madeBy: "form" } as const;
 

@@ -639,6 +639,26 @@ async function main() {
     assert.deepEqual(late.last, { error: "Reload the page and ask again." }, "an InputError after the stream started is an error line");
     asking = async () => replyObject; // a reply with no model call (a kept turn) is still a stream
     assert.deepEqual((await streamed(await ask(json("/api/ask", question())))).steps, []);
+    // a client that leaves mid-answer: later steps and the reply must not throw into the run, which still finishes
+    let finishedAfterCancel = false, stepThrew: unknown = null;
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    asking = async (...args: unknown[]) => {
+      const deps = args[3] as Deps;
+      deps.onStep!("Thinking about your question");
+      await gate;
+      try { deps.onStep!("Reading what's due"); } catch (error) { stepThrew = error; }
+      finishedAfterCancel = true;
+      return replyObject;
+    };
+    const leaving = await ask(json("/api/ask", question()));
+    const leavingReader = leaving.body!.getReader();
+    await leavingReader.read();
+    await leavingReader.cancel();
+    release();
+    for (let tries = 0; tries < 50 && !finishedAfterCancel; tries++) await new Promise(resolve => setTimeout(resolve, 10));
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.deepEqual([finishedAfterCancel, stepThrew], [true, null], "a cancelled stream never throws into the agent run, and the run finishes");
     asking = null;
     ok("/api/ask stream: step lines then the exact reply; an error line after steps; InputError after a step is an error line; no steps still streams the reply");
 
@@ -913,8 +933,10 @@ async function main() {
         try { await extractDocument(PNG.buffer as ArrayBuffer, "image/png", context, async () => ({ ...connection, ...over }), fetchImpl); return null; }
         catch (e) { return e instanceof ReaderError ? [e.status, e.message] : String(e); }
       };
-      assert.deepEqual(await statusOf(failing(500)), [502, "AI reader returned HTTP 500."]);
-      assert.deepEqual(await statusOf((async () => { throw new TypeError("network"); }) as typeof fetch), [502, "AI reader could not be reached."]);
+      assert.deepEqual(await statusOf(failing(500)), [502, "The AI service returned HTTP 500. Try again."]);
+      assert.deepEqual(await statusOf((async () => { throw new TypeError("network"); }) as typeof fetch), [502, "Couldn't reach the AI service. Try again."]);
+      assert.deepEqual(await statusOf(failing(401)), [502, "The AI key was not accepted. Check it in Settings."]);
+      assert.deepEqual(await statusOf(failing(429)), [502, "The AI service is busy. Try again in a minute."]);
       assert.deepEqual(await statusOf(undefined, { documentModel: null }), [503, "AI_DOCUMENT_MODEL is not set"]);
       await reset();
       ok("/api/upload and /api/ask/document: a bad, mismatched or oversize file is 400; no model is 503 naming the setting; a missing reader setting is 503; the model failing or unreachable is 502 (extractDocument)");
@@ -942,6 +964,46 @@ async function main() {
       assert.equal(await docs(), docsBefore, "nothing stored in any case");
       assert.equal((await db.select().from(schema.requestBuckets)).length, 0, "no limit counted for a refused or failed call");
       ok("/api/inbound: no origin or a wrong secret is 403 with no body (even when the server lacks the setting); a missing setting is 503 with no body and one log line naming the variable; nothing is stored");
+
+      // ---- body caps and the webhook door (before any PayPal call)
+      {
+        const webhook = (await import("@/app/api/paypal/webhook/route"));
+        const restore = (await import("@/app/api/restore/route")).POST as Handler;
+        const pots = (await import("@/app/api/pots/route")).POST as Handler;
+        const savedIp = process.env.CLIENT_IP_HEADER;
+        const savedPaypal = Object.fromEntries(["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_ENVIRONMENT"].map(key => [key, process.env[key]]));
+        const realWarn = console.warn;
+        console.warn = () => {};
+        try {
+          process.env.CLIENT_IP_HEADER = "x-test-ip";
+          const hook = (body: string, ip = "203.0.113.9") => webhook.POST(post("/api/paypal/webhook", body, { "x-test-ip": ip }));
+          assert.equal((await hook("x".repeat(70 * 1024))).status, 413, "a webhook body over 64 KB is refused whatever Content-Length says");
+          assert.equal((await webhook.POST(new Request(`${ORIGIN}/api/paypal/webhook`, { method: "POST", body: "{}", headers: { "content-length": String(70 * 1024), "x-test-ip": "203.0.113.9" } }))).status, 413, "and by its declared length");
+          assert.equal((await webhook.POST(post("/api/paypal/webhook", "{}"))).status, 400, "no address header: the request cannot be counted");
+          let last = 0;
+          for (let sent = 0; sent < 121; sent++) last = (await hook("{}", "203.0.113.50")).status;
+          assert.equal(last, 429, "the 121st delivery from one address in a minute is 429 before PayPal is asked");
+          assert.equal((await hook("{}", "203.0.113.51")).status, 400, "another address is counted on its own and an unsigned body is 400");
+          for (const key of Object.keys(savedPaypal)) delete process.env[key];
+          cookie = a;
+          const diagnostics = await webhook.GET();
+          assert.equal(diagnostics.status, 503, "GET with the PayPal settings missing is a 503, not an empty 500");
+          assert.match(await diagnostics.text(), /PAYPAL_/, "and it names the setting");
+          ok("/api/paypal/webhook: 64 KB body cap, per-address limit before the PayPal call, GET names a missing setting");
+
+          cookie = a;
+          const padded = (bytes: number, headers: Record<string, string> = {}) => post("/api/pots", `name=${"x".repeat(bytes)}`, { "content-type": "application/x-www-form-urlencoded", ...headers });
+          const bigForm = await pots(padded(300 * 1024));
+          assert.deepEqual([bigForm.status, bigForm.headers.get("cache-control")], [413, "private, no-store"], "a form over 256 KB is 413 even with no Content-Length");
+          assert.notEqual((await pots(padded(1024))).status, 413, "an ordinary form still goes through");
+          assert.equal((await restore(json("/api/restore", `{"pad":"${"x".repeat(1_100_000)}"}`))).status, 413, "Import reads at most 1 MB even with no Content-Length");
+          ok("form bodies are capped at 256 KB (413) and Import is capped at 1 MB while reading");
+        } finally {
+          console.warn = realWarn;
+          if (savedIp === undefined) delete process.env.CLIENT_IP_HEADER; else process.env.CLIENT_IP_HEADER = savedIp;
+          for (const [key, value] of Object.entries(savedPaypal)) if (value !== undefined) process.env[key] = value;
+        }
+      }
     } finally {
       console.error = realError;
     }

@@ -1,6 +1,7 @@
 // Home's Categories view (D74): one month looked at three ways, from the same items (the month's confirmed bills and charges).
 // Pure: the screen only draws these rows. Amounts are integer minor units of the home currency.
 import { businessPart } from "./categories";
+import { plural } from "./format";
 import { businessLine, monthByCategory } from "./month";
 import { monthBounds, monthsBack, spendingItems, type SpendingInput } from "./spending";
 
@@ -27,7 +28,7 @@ export type LookByView = {
 export type LookMember = { id: string; name: string };
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
-const noteFor = (count: number, unknown: boolean) => unknown ? "an amount is not known" : `${count} ${count === 1 ? "item" : "items"}`;
+const noteFor = (count: number, unknown: boolean) => unknown ? "an amount is not known" : plural(count, "item");
 
 /** The rows for a month (the one `today` is in) and a choice. `person` needs two or more members; with fewer it gives the category rows. */
 export function lookBy(input: SpendingInput, today: string, by: LookBy, members: LookMember[]): LookByView {

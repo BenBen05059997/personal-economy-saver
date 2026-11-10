@@ -54,7 +54,7 @@ import { offerTools } from "./offer-tools";
 import type { KeepOffer } from "./keep-offer";
 import { checkTools } from "./check-tools";
 import { splitBalance, splitSummary } from "@/lib/money/split";
-import type { Recipe } from "@/lib/canvas/schema";
+import { CASE_KIND, type Recipe } from "@/lib/canvas/schema";
 import type { DeviceMemory } from "@/lib/store/memory-ops";
 import type { MoneyState } from "@/lib/money/types";
 
@@ -211,9 +211,30 @@ async function atItem<T>(index: number, run: () => Promise<T> | T): Promise<T> {
     throw failure;
   }
 }
+/** One draft: prepare it, insert it, and tell the screen something is pending. */
+async function draftOne<I, P>(ctx: ToolContext, input: I, prepare: (ctx: ToolContext, item: I) => Promise<P>, insert: (db: Db, prepared: P) => Promise<unknown>): Promise<P> {
+  const prepared = await prepare(ctx, input);
+  await insert(ctx.db, prepared);
+  ctx.onPending?.();
+  return prepared;
+}
+
+/** Several drafts atomically: every item is prepared first, then all are inserted in one transaction; an error names the zero-based item. */
+async function draftMany<I, P>(ctx: ToolContext, items: I[], prepare: (ctx: ToolContext, item: I) => Promise<P>, insert: (db: Db, prepared: P) => Promise<unknown>): Promise<P[]> {
+  const prepared: P[] = [];
+  for (const [i, item] of items.entries()) prepared.push(await atItem(i, () => prepare(ctx, item)));
+  await ctx.db.transaction(async tx => {
+    for (const [i, p] of prepared.entries()) await atItem(i, () => insert(tx as unknown as Db, p));
+  });
+  ctx.onPending?.();
+  return prepared;
+}
+
 /** The most recent rows of each long list that the agent's snapshot carries (the export has them all). */
 export const SNAPSHOT_TOOL_WINDOW = 100;
-const SCENARIOS = { as_usual: "expected", late: "worst" } as const;
+
+const insertPreparedBill = (ctx: ToolContext) => (db: Db, p: Awaited<ReturnType<typeof prepareBill>>) => insertBill(db, ctx.householdId, p.bill, p.status, by(ctx));
+const insertPreparedCharge = (ctx: ToolContext) => (db: Db, p: Awaited<ReturnType<typeof prepareCharge>>) => insertCharge(db, ctx.householdId, p.charge, "pending", ctx.source ?? "manual", by(ctx));
 
 export const tools: Tool[] = [
   defineTool({
@@ -264,7 +285,7 @@ export const tools: Tool[] = [
     description: "Cash flow for one specified day or the next 30 days, with running balances and the lowest point. Use whats_due for “what is due” questions without a date. Signed home-currency minor units. as_usual uses each client’s usual pay day and late uses their slowest day. Set on for one day, including end-of-day balance, or null for the next 30 days.",
     run: async (ctx, input) => {
       const state = await ctx.state();
-      const kind = SCENARIOS[input.scenario];
+      const kind = CASE_KIND[input.scenario];
       const minor = (amount: number) => toMinor(amount, state.homeCurrency);
       const eventOut = (event: ReturnType<typeof engineTimeline>[number]) => ({
         date: event.date, label: event.label, kind: event.kind, amountMinor: minor(event.amount),
@@ -495,9 +516,7 @@ export const tools: Tool[] = [
     name: "add_bill", scope: "draft", input: addBillInput,
     description: "Draft a bill for To check. Use a new UUID and reuse it on retry. A shared bill needs two people, paidBy by display name, and memberId null. Otherwise leave shared and paidBy null. Only confirmed bills count.",
     run: async (ctx, input) => {
-      const { bill, status, biller, note } = await prepareBill(ctx, input);
-      await insertBill(ctx.db, ctx.householdId, bill, status, by(ctx));
-      ctx.onPending?.();
+      const { biller, note } = await draftOne(ctx, input, prepareBill, insertPreparedBill(ctx));
       return `${biller} is waiting in To check for the user to confirm. ${note}`;
     },
   }),
@@ -505,13 +524,7 @@ export const tools: Tool[] = [
     name: "add_bills", scope: "draft", input: z.object({ items: z.array(addBillInput).min(1).max(10) }),
     description: "Draft 1–10 bills atomically. Each item follows add_bill, including retry IDs. An error names the zero-based item.",
     run: async (ctx, input) => {
-      const prepared: Awaited<ReturnType<typeof prepareBill>>[] = [];
-      for (const [i, item] of input.items.entries()) prepared.push(await atItem(i, () => prepareBill(ctx, item)));
-      const maker = by(ctx);
-      await ctx.db.transaction(async tx => {
-        for (const [i, p] of prepared.entries()) await atItem(i, () => insertBill(tx, ctx.householdId, p.bill, p.status, maker));
-      });
-      ctx.onPending?.();
+      const prepared = await draftMany(ctx, input.items, prepareBill, insertPreparedBill(ctx));
       return `${prepared.length} bills are waiting in To check for the user to confirm: ${prepared.map(p => `${p.biller} (${p.note})`).join(" ")}`;
     },
   }),
@@ -519,9 +532,7 @@ export const tools: Tool[] = [
     name: "log_charge", scope: "draft", input: logChargeInput,
     description: "Draft a card purchase for To check. amount is in the household’s home currency. date defaults to today. Get cardId from list_clients_and_cards. Shared requires two people and a member’s card. Ask for the billed amount if only the foreign amount is known. Reuse the UUID on retry.",
     run: async (ctx, input) => {
-      const { charge, merchant, note } = await prepareCharge(ctx, input);
-      await insertCharge(ctx.db, ctx.householdId, charge, "pending", ctx.source ?? "manual", by(ctx));
-      ctx.onPending?.();
+      const { merchant, note } = await draftOne(ctx, input, prepareCharge, insertPreparedCharge(ctx));
       return `${merchant} is waiting in To check for the user to confirm. ${note}`;
     },
   }),
@@ -529,13 +540,7 @@ export const tools: Tool[] = [
     name: "log_charges", scope: "draft", input: z.object({ items: z.array(logChargeInput).min(1).max(10) }),
     description: "Draft 1–10 card purchases atomically. Each item follows log_charge, including retry IDs. An error names the zero-based item.",
     run: async (ctx, input) => {
-      const prepared: Awaited<ReturnType<typeof prepareCharge>>[] = [];
-      for (const [i, item] of input.items.entries()) prepared.push(await atItem(i, () => prepareCharge(ctx, item)));
-      const maker = by(ctx);
-      await ctx.db.transaction(async tx => {
-        for (const [i, p] of prepared.entries()) await atItem(i, () => insertCharge(tx, ctx.householdId, p.charge, "pending", ctx.source ?? "manual", maker));
-      });
-      ctx.onPending?.();
+      const prepared = await draftMany(ctx, input.items, prepareCharge, insertPreparedCharge(ctx));
       return `${prepared.length} charges are waiting in To check for the user to confirm: ${prepared.map(p => `${p.merchant} (${p.note})`).join(" ")}`;
     },
   }),

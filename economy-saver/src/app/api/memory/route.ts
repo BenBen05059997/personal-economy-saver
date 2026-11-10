@@ -4,15 +4,13 @@ import { withHousehold } from "@/db/household";
 import { requireCloud } from "@/db/place";
 import { requireSpace } from "@/db/spaces";
 import { addMemory, deleteMemory, editMemory, forgetEverything } from "@/db/memory";
-import { badFields, failure, formOf, redirectTo, returnPath, text } from "@/lib/door";
-import { householdRequest } from "@/lib/session";
+import { badFields, failure, householdForm, redirectTo, returnPath, text } from "@/lib/door";
 
 /** Profile or space notes (D58, D70): add, edit, delete one thing, or clear the selected scope. */
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
+  const ctx = await householdForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
   const scope = z.string().uuid().nullable().safeParse(form.get("spaceId"));
   if (!scope.success) return badFields();
   const spaceId = scope.data;

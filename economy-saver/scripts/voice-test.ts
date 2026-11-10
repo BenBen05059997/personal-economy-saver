@@ -233,7 +233,7 @@ async function main() {
     const down = await call(rent);
     assert.equal(down.status, 502);
     const downText = await down.text();
-    assert.equal(downText, "The AI model could not read that. Type the fields instead.");
+    assert.equal(downText, "The AI key was not accepted. Check it in Settings.");
     assert.ok(!downText.includes("sk-secret") && !downText.includes("provider detail"), "never the provider's message");
     modelStatus = 200;
     proposal = {};

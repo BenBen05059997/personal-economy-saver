@@ -8,7 +8,7 @@ import { ReaderError } from "@/lib/reader/settings";
 import { deleteMemory, forgetEverything } from "./memory";
 import { unpinCanvas } from "./canvases";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
+import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import * as s from "./schema";
 
 export const DATA_KINDS = ["record", "memory", "canvases", "journal", "documents", "reminders", "push_subscriptions"] as const;
@@ -96,8 +96,7 @@ async function removeObjects(hid: string, paths: string[], store?: DocumentStore
 }
 
 async function lock(tx: Db, hid: string) {
-  const [row] = await tx.select({ id: s.households.id }).from(s.households).where(eq(s.households.id, hid)).for("update");
-  if (!row) throw new InputError("Household not found");
+  await lockHousehold(tx, hid);
 }
 
 /** Deletes one uploaded or forwarded document: its Storage object, its readings (waiting or done) and the row. Bills and charges made from it stay in the record and lose the link. False when it is not this household's. */
@@ -108,11 +107,12 @@ export async function deleteDocument(db: Db, householdId: string, id: string, by
     await lock(tx, hid);
     const [doc] = await tx.select({ path: s.documents.storagePath }).from(s.documents).where(and(eq(s.documents.householdId, hid), eq(s.documents.id, id)));
     if (!doc) return false;
-    await removeObjects(hid, [doc.path], store);
     await tx.update(s.bills).set({ documentId: null }).where(and(eq(s.bills.householdId, hid), eq(s.bills.documentId, id)));
     await tx.update(s.charges).set({ documentId: null }).where(and(eq(s.charges.householdId, hid), eq(s.charges.documentId, id)));
     await tx.delete(s.documents).where(and(eq(s.documents.householdId, hid), eq(s.documents.id, id))); // the readings go with it
     await recordEvent(tx, hid, { ...by, kind: "data_deleted", title: "Deleted an uploaded document" });
+    // Last, so a failing row or event leaves the file alone, and a Storage failure rolls the rows back.
+    await removeObjects(hid, [doc.path], store);
     return true;
   });
 }
@@ -185,11 +185,11 @@ export async function deleteKind(db: Db, householdId: string, kind: DataKind, by
         await lock(tx, hid);
         const rows = await tx.select({ id: s.documents.id, path: s.documents.storagePath }).from(s.documents).where(eq(s.documents.householdId, hid));
         if (rows.length === 0) return 0;
-        await removeObjects(hid, rows.map(r => r.path), store);
         await tx.update(s.bills).set({ documentId: null }).where(eq(s.bills.householdId, hid));
         await tx.update(s.charges).set({ documentId: null }).where(eq(s.charges.householdId, hid));
         await tx.delete(s.documents).where(eq(s.documents.householdId, hid));
         await recordEvent(tx, hid, { ...by, kind: "data_deleted", title: `Deleted ${rows.length} uploaded document${rows.length === 1 ? "" : "s"}` });
+        await removeObjects(hid, rows.map(r => r.path), store); // last, as in deleteDocument
         return rows.length;
       });
   }

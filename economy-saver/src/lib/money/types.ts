@@ -110,6 +110,7 @@ export type ClosedStatement = {
   amount: number;
   closedOn: string;
   dueOn: string;
+  paid?: true; // already paid: it is not an out-flow, but its cycle's charges are still inside it and are not counted again
 };
 
 // Money set aside with a reason (D43). `saved` is not spendable. `fillPct` is the share of each client payment added to it.

@@ -1,8 +1,8 @@
 import { refreshSuggestions } from "./suggestions";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
+import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import { fromMinor, parseAmountMinor, toRateMicro } from "./money";
 import { observeRunway } from "./runway-events";
 import { clockForHousehold } from "./clock";
@@ -82,6 +82,7 @@ export async function insertCharge(
     if (data.date > latestDate(clockForHousehold(household).today)) throw new InputError(HORIZON_MESSAGE);
     if (status === "confirmed" && household.previous === null) await observeRunway(tx, hid);
     const [inserted] = await tx.insert(charges).values({
+      createdAt: sql`clock_timestamp()`, // read after the household lock, so a settlement made before the lock stamps earlier (D45)
       id: data.id, householdId: hid, cardId: data.cardId, merchant: data.merchant, amountMinor, currency: card.currency,
       date: data.date, shared: data.shared, category: data.category, businessBp: data.businessBp, ownCategoryId, source, status, madeBy: by.madeBy, askId: by.askId ?? null,
       ...original,
@@ -113,8 +114,7 @@ export async function removeCharge(db: Db, householdId: string, id: string): Pro
   const hid = requireHousehold(householdId);
   const chargeId = z.string().uuid().parse(id);
   return withHousehold(db, hid, async tx => {
-    const [household] = await tx.select({ id: households.id, previous: households.runwayShort }).from(households).where(eq(households.id, hid)).for("update");
-    if (!household) throw new InputError("Household not found");
+    const household = await lockHousehold(tx, hid);
     const [row] = await tx.select().from(charges).where(and(eq(charges.householdId, hid), eq(charges.id, chargeId)));
     if (!row) return false;
     if (household.previous === null) await observeRunway(tx, hid);

@@ -4,7 +4,7 @@
 
 import { HORIZON_MESSAGE, latestDate } from "./horizon";
 import { expandBills } from "./repeat";
-import { addDays, daysBetween, planWindow, series, timeline } from "./runway";
+import { daysBetween, planWindow, series, timeline } from "./runway";
 import type { MoneyState } from "./types";
 
 type SeriesKind = Parameters<typeof series>[1];
@@ -16,9 +16,6 @@ export function stateThrough(state: MoneyState, through: string): MoneyState {
   if (daysBetween(state.today, through) < planWindow(state)) return state;
   return { ...state, bills: expandBills(state.storedBills, state.today, through, state.homeCurrency) };
 }
-
-/** The day `days` from today is the last of a window of `days` days (`series(state, kind, days)` ends there). */
-export const lastDayOf = (today: string, days: number) => addDays(today, days - 1);
 
 export type DayView = {
   date: string;

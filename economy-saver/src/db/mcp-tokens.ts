@@ -1,11 +1,13 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { requireHousehold, type Db } from "./household";
+import { lockHousehold, requireHousehold, type Db } from "./household";
+import { InputError } from "./input-error";
 import { apiTokens } from "./schema";
 
 const mcpScope = z.enum(["read", "draft"]);
 export const tokenInput = z.object({ name: z.string().trim().min(1).max(80), scopes: z.array(mcpScope).min(1).max(2) });
 
+export const MCP_TOKEN_LIMIT = 10;
 const prefix = "pes1.";
 const associatedData = new TextEncoder().encode("personal-economy-saver/mcp/v1");
 async function cipherKey() {
@@ -36,6 +38,10 @@ export async function issueMcpToken(db: Db, hid: string, input: z.infer<typeof t
   const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: associatedData },
     await cipherKey(), new TextEncoder().encode(householdId));
   const token = prefix + Buffer.concat([iv, new Uint8Array(ciphertext)]).toString("base64url");
+  // The household row is the lock, so two issues at once cannot both pass the count.
+  await lockHousehold(db, householdId);
+  const [{ live }] = await db.select({ live: count() }).from(apiTokens).where(and(eq(apiTokens.householdId, householdId), isNull(apiTokens.revokedAt)));
+  if (live >= MCP_TOKEN_LIMIT) throw new InputError(`This household already has ${MCP_TOKEN_LIMIT} live access tokens. Revoke one before making another.`);
   const [info] = await db.insert(apiTokens).values({
     householdId, name: data.name, scopes: [...new Set(data.scopes)], last4: token.slice(-4), tokenHash: await digest(token),
   }).returning(publicColumns);

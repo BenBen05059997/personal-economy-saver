@@ -103,14 +103,14 @@ export function ForecastChart({ model }: { model: ForecastModel }) {
         {weekly.map(i => <text className="hv-axis" key={i} x={x(i)} y={H - 8} textAnchor={i === 0 ? "start" : "middle"}>{i === 0 ? "Today" : longDay(model.date(i)).slice(5)}</text>)}
         <circle className={short ? "hv-dot-short" : "hv-dot-low"} cx={lowX} cy={lowY} r="5" />
         <text className={short ? "hv-low hv-low-short" : "hv-low"} x={labelX} y={labelY}>{lowText}</text>
-        {subLines.map((line, index) => <text className="hv-low-sub" key={line} x={labelX} y={labelY + 16 * (index + 1)}>{line}</text>)}
+        {subLines.map((line, index) => <text className="hv-low-sub" key={`${index}-${line}`} x={labelX} y={labelY + 16 * (index + 1)}>{line}</text>)}
         {selected !== null && <><line className="hv-cross" x1={x(selected)} x2={x(selected)} y1={M.top} y2={M.top + plotH} /><circle className="hv-pt-usual" cx={x(selected)} cy={y(usual[selected])} r="4" /><circle className="hv-pt-late" cx={x(selected)} cy={y(late[selected])} r="4.5" /></>}
       </svg>
       {selected !== null && w && <div className="hv-tip" style={{ left: tipLeft, top: 6 }}>
         <strong>{longDay(model.date(selected))}</strong>
         <p><i className="hv-sw-late" /><b className={late[selected] < 0 ? "hv-neg" : undefined}>{format(late[selected])}</b> <span>if late</span></p>
         <p><i className="hv-sw-usual" /><b>{format(usual[selected])}</b> <span>if on time</span></p>
-        <div className="hv-tip-what">{"same" in w ? (w.same.length ? w.same.map(line => <p key={line}>{line}</p>) : <p>Nothing scheduled</p>) : <><p>If late: {w.late.join("; ") || "nothing"}</p><p>If on time: {w.usual.join("; ") || "nothing"}</p></>}</div>
+        <div className="hv-tip-what">{"same" in w ? (w.same.length ? w.same.map((line, index) => <p key={`${index}-${line}`}>{line}</p>) : <p>Nothing scheduled</p>) : <><p>If late: {w.late.join("; ") || "nothing"}</p><p>If on time: {w.usual.join("; ") || "nothing"}</p></>}</div>
       </div>}
     </div>
     <div className="hv-sr" aria-live="polite">{selected === null ? "" : `${longDay(model.date(selected))}: if late ${format(late[selected])}; if on time ${format(usual[selected])}. ${model.text(selected)}.`}</div>

@@ -7,8 +7,8 @@
 // USD-home household would convert a JPY purchase as original / rate. What it does not cover: payout sides other than USD
 // invoices (a household whose home currency is USD has no conversion to price, so its payouts are empty), withdrawal fees,
 // refunds, custom PayPal rates, and any currency other than JPY and USD.
-import { MINOR_PLACES, minorMoney } from "./format";
-import { addDays } from "./runway";
+import { convertMinor, minorMoney, percentText, plural } from "./format";
+import { addDays } from "./dates";
 import type { Currency } from "@/lib/catalogue/types";
 
 /** PayPal Japan's published standard business rates, in one place. 3.60% + 0.50% cross-border + $0.30 to receive; 3.00% over the base rate to convert. */
@@ -60,21 +60,6 @@ export type FxCosts = {
   perClient: (PayoutTotals & { clientId: string; clientName: string })[];
 };
 
-const places = (currency: string): number => {
-  const d = MINOR_PLACES[currency];
-  if (d === undefined) throw new Error(`Unknown currency: ${currency}`);
-  return d;
-};
-
-/** Converts minor units between JPY and USD at `perUsd`, rounded to whole minor units the way src/db/money.ts convertMinor does. */
-function convert(minor: number, from: string, to: string, perUsd: number): number {
-  if (from === to) return minor;
-  const major = minor / 10 ** places(from);
-  if (from === "USD") return Math.round(major * perUsd * 10 ** places(to));
-  if (to === "USD") return Math.round(major / perUsd * 10 ** places(to));
-  throw new Error(`No conversion from ${from} to ${to}`);
-}
-
 /** The reference rate on a date: the latest one on or before it; null when none exists. */
 export function rateOn(rates: readonly FxRate[], date: string): number | null {
   let best: FxRate | null = null;
@@ -117,7 +102,7 @@ export function foreignCosts(input: FxInput): FxCosts {
   const charges: ChargeCost[] = input.charges.map(charge => {
     const card = cardOf.get(charge.cardId);
     const rate = rateOn(input.rates, charge.date);
-    const referenceMinor = rate === null ? null : convert(charge.original.amountMinor, charge.original.currency, homeCurrency, rate);
+    const referenceMinor = rate === null ? null : convertMinor(charge.original.amountMinor, charge.original.currency, homeCurrency, rate);
     let costMinor: number | null = null, costKind: CostKind = "unknown";
     if (referenceMinor !== null) {
       if (!charge.fxEstimated) { costMinor = charge.amountMinor - referenceMinor; costKind = "exact"; }
@@ -144,9 +129,9 @@ export function foreignCosts(input: FxInput): FxCosts {
   // Only a household that converts USD into its home currency has a payout side.
   const payouts: PayoutCost[] = homeCurrency === "USD" ? [] : input.invoices.filter(i => inWindow(i.paidOn)).map(invoice => {
     const { receiveFee, markup } = payoutFeesUsd(invoice.amountUsdMinor);
-    const grossMinor = convert(invoice.amountUsdMinor, "USD", homeCurrency, invoice.perUsd);
-    const receiveFeeMinor = convert(receiveFee, "USD", homeCurrency, invoice.perUsd);
-    const markupMinor = convert(markup, "USD", homeCurrency, invoice.perUsd);
+    const grossMinor = convertMinor(invoice.amountUsdMinor, "USD", homeCurrency, invoice.perUsd);
+    const receiveFeeMinor = convertMinor(receiveFee, "USD", homeCurrency, invoice.perUsd);
+    const markupMinor = convertMinor(markup, "USD", homeCurrency, invoice.perUsd);
     return {
       id: invoice.id, clientId: invoice.clientId, clientName: invoice.clientName, paidOn: invoice.paidOn, amountUsdMinor: invoice.amountUsdMinor, perUsd: invoice.perUsd,
       grossMinor, receiveFeeMinor, markupMinor, landedMinor: grossMinor - receiveFeeMinor - markupMinor,
@@ -174,16 +159,15 @@ export function foreignCostWords(costs: FxCosts): { charges: string | null; payo
   const home = costs.homeCurrency as Currency;
   const money = (minor: number) => minorMoney(minor, home);
   const t = costs.chargeTotals;
-  const noun = (n: number) => n === 1 ? "purchase" : "purchases";
   const inWindowOf = (kind: CostKind) => costs.charges.filter(c => c.inWindow && c.costKind === kind).length;
   const exactCount = inWindowOf("exact"), estimatedCount = inWindowOf("estimated");
   const parts: string[] = [];
-  if (exactCount > 0) parts.push(`${money(t.exactMinor)} above the reference rate on ${exactCount} ${noun(exactCount)} with the statement amount known`);
-  if (estimatedCount > 0) parts.push(`about ${money(t.estimatedMinor)} on ${estimatedCount} ${noun(estimatedCount)}, estimated from the card's fee`);
+  if (exactCount > 0) parts.push(`${money(t.exactMinor)} above the reference rate on ${plural(exactCount, "purchase")} with the statement amount known`);
+  if (estimatedCount > 0) parts.push(`about ${money(t.estimatedMinor)} on ${plural(estimatedCount, "purchase")}, estimated from the card's fee`);
   const charges = parts.length === 0 ? null : `In the last 12 months, paying in another currency cost you ${parts.join(" and ")}.`;
   const p = costs.payoutTotals;
   const payouts = p.count === 0 ? null
-    : `In the last 12 months, ${p.count} paid ${p.count === 1 ? "invoice" : "invoices"} cost ${money(p.costMinor)} to receive and convert through PayPal: ${money(p.receiveFeeMinor)} in fees to receive and ${money(p.markupMinor)} in the conversion rate, out of ${money(p.grossMinor)}. ${money(p.landedMinor)} reached your bank. This uses PayPal's published business rates (${PAYPAL_RATES.receiveBp / 100}% + ${PAYPAL_RATES.crossBorderBp / 100}% + $0.30 to receive, then ${PAYPAL_RATES.conversionBp / 100}% over the base rate to convert).`;
-  const unknown = t.unknownCount > 0 ? `${t.unknownCount} ${noun(t.unknownCount)} in another currency ${t.unknownCount === 1 ? "has" : "have"} no cost yet. ${FX_WORDS.unknown}` : null;
+    : `In the last 12 months, ${p.count} paid ${p.count === 1 ? "invoice" : "invoices"} cost ${money(p.costMinor)} to receive and convert through PayPal: ${money(p.receiveFeeMinor)} in fees to receive and ${money(p.markupMinor)} in the conversion rate, out of ${money(p.grossMinor)}. ${money(p.landedMinor)} reached your bank. This uses PayPal's published business rates (${percentText(PAYPAL_RATES.receiveBp)}% + ${percentText(PAYPAL_RATES.crossBorderBp)}% + $0.30 to receive, then ${percentText(PAYPAL_RATES.conversionBp)}% over the base rate to convert).`;
+  const unknown = t.unknownCount > 0 ? `${plural(t.unknownCount, "purchase")} in another currency ${t.unknownCount === 1 ? "has" : "have"} no cost yet. ${FX_WORDS.unknown}` : null;
   return { charges, payouts, unknown };
 }

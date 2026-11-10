@@ -1,9 +1,8 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { MOVABLE, requireCloud } from "@/db/place";
-import { consumeRequest } from "@/db/rate-limit";
 import { restoreHousehold } from "@/db/restore";
-import { failure, NO_STORE, text, tooMany } from "@/lib/door";
+import { boundedText, NO_STORE, failure, limited, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 const MAX_BYTES = 1_000_000;
@@ -15,9 +14,10 @@ export async function POST(request: Request) {
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > MAX_BYTES) return text("This file is over 1 MB, which is more than Import takes.", 413);
   try {
-    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "restore", 2))) return tooMany("Import limit reached. Try again in a minute.");
-    const body = await request.text();
-    if (new TextEncoder().encode(body).length > MAX_BYTES) return text("This file is over 1 MB, which is more than Import takes.", 413);
+    const busy = await limited(hid, "restore", 2, "Import limit reached. Try again in a minute.");
+    if (busy) return busy;
+    const body = await boundedText(request, MAX_BYTES);
+    if (body === null) return text("This file is over 1 MB, which is more than Import takes.", 413);
     let file: unknown;
     try { file = JSON.parse(body); } catch { return text("This is not a JSON file.", 400); }
     // The file's memory, canvases and conversations go to the cloud, so a household that keeps any of them on this device (D59) moves them back first.

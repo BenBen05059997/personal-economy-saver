@@ -3,31 +3,12 @@ import { connectionView } from "@/db/ai-key";
 import { withHousehold } from "@/db/household";
 import { missingAskSetting, serverHasNoModel } from "@/lib/agent/availability";
 import { logVoice } from "@/lib/agent/log";
-import { NO_STORE, text } from "@/lib/door";
+import { boundedText, NO_STORE, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 import { fillByVoice, VoiceFillError } from "@/lib/voice/fill";
 import { VoiceFillRequest } from "@/lib/voice/schema";
 
 const MAX_BODY = 16 * 1024;
-
-/** Reads at most MAX_BODY bytes of the body as the stream arrives; null when it is longer. */
-async function readCapped(request: Request): Promise<string | null> {
-  if (!request.body) return "";
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > MAX_BODY) { await reader.cancel(); return null; }
-    chunks.push(value);
-  }
-  const bytes = new Uint8Array(size);
-  let at = 0;
-  for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
-  return new TextDecoder().decode(bytes);
-}
 
 /**
  * Voice fill (28B): `{ text, fields }` in (`VoiceFillRequest`), `{ values, heard, notes }` out. It only proposes values the code has
@@ -36,7 +17,7 @@ async function readCapped(request: Request): Promise<string | null> {
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  const raw = await readCapped(request);
+  const raw = await boundedText(request, MAX_BODY);
   if (raw === null) return text("That is too long to fill a form from. Say less, or type the fields.", 413);
   let body: unknown = null;
   try { body = JSON.parse(raw); } catch { /* answered below */ }

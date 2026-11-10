@@ -124,24 +124,34 @@ const noRecentEvent = (cutoff: Date) => sql`not exists (select 1 from ${events} 
 
 // Deletes demo households created and last changed more than seven days before `now`, oldest first, each in its own
 // transaction. A failing deletion is counted and does not stop the others. Non-demo households are never selected.
-export async function sweepDemoHouseholds(db: Db, now = new Date(), limit = SWEEP_LIMIT): Promise<{ swept: number; failed: number }> {
+// It works in batches of `limit` until a batch is short, nothing in a batch could be deleted, `maxBatches` batches
+// have run or SWEEP_BUDGET_MS has passed, so a run keeps up with creation faster than one batch a day.
+export const SWEEP_MAX_BATCHES = 10;
+export const SWEEP_BUDGET_MS = 20_000;
+export async function sweepDemoHouseholds(db: Db, now = new Date(), limit = SWEEP_LIMIT, maxBatches = SWEEP_MAX_BATCHES): Promise<{ swept: number; failed: number }> {
   const cutoff = new Date(now.getTime() - DEMO_LIFETIME_DAYS * 86_400_000);
-  const stale = await db.select({ id: households.id }).from(households)
-    .where(and(eq(households.isDemo, true), lt(households.createdAt, cutoff), noRecentEvent(cutoff)))
-    .orderBy(asc(households.createdAt), asc(households.id)).limit(limit);
+  const started = Date.now();
   let swept = 0, failed = 0;
-  for (const { id } of stale) {
-    try {
-      const done = await db.transaction(async tx => {
-        const [still] = await tx.select({ id: households.id }).from(households)
-          .where(and(eq(households.id, id), eq(households.isDemo, true), lt(households.createdAt, cutoff), noRecentEvent(cutoff)));
-        return still ? deleteDemoHousehold(tx, id) : false;
-      });
-      if (done) swept++;
-    } catch (error) {
-      failed++;
-      console.error("[sweep] could not delete a demo household", error instanceof Error ? error.message : "unknown error");
+  for (let batch = 0; batch < maxBatches && Date.now() - started < SWEEP_BUDGET_MS; batch++) {
+    const stale = await db.select({ id: households.id }).from(households)
+      .where(and(eq(households.isDemo, true), lt(households.createdAt, cutoff), noRecentEvent(cutoff)))
+      .orderBy(asc(households.createdAt), asc(households.id)).limit(limit);
+    let sweptHere = 0;
+    for (const { id } of stale) {
+      try {
+        const done = await db.transaction(async tx => {
+          const [still] = await tx.select({ id: households.id }).from(households)
+            .where(and(eq(households.id, id), eq(households.isDemo, true), lt(households.createdAt, cutoff), noRecentEvent(cutoff)));
+          return still ? deleteDemoHousehold(tx, id) : false;
+        });
+        if (done) sweptHere++;
+      } catch (error) {
+        failed++;
+        console.error("[sweep] could not delete a demo household", error instanceof Error ? error.message : "unknown error");
+      }
     }
+    swept += sweptHere;
+    if (stale.length < limit || sweptHere === 0) break;
   }
   return { swept, failed };
 }

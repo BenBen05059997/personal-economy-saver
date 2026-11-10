@@ -87,9 +87,16 @@ async function main() {
     await check("the cap holds and the oldest go first", async () => {
       const ids: string[] = [];
       for (let i = 0; i < 5; i++) { const id = await seedBen(db, { isDemo: true }); await quiet(id); await age(id, 10 + i); ids.push(id); } // ids[4] is oldest
-      assert.deepEqual(await sweepDemoHouseholds(store, NOW, 2), { swept: 2, failed: 0 });
+      assert.deepEqual(await sweepDemoHouseholds(store, NOW, 2, 1), { swept: 2, failed: 0 });
       assert.deepEqual(await Promise.all(ids.map(exists)), [true, true, true, false, false], "the two oldest");
       assert.deepEqual(await sweepDemoHouseholds(store, NOW), { swept: 3, failed: 0 });
+      assert.deepEqual(await Promise.all(ids.map(exists)), [false, false, false, false, false]);
+    });
+
+    await check("one run keeps going in batches, so more than one batch of old demos goes at once", async () => {
+      const ids: string[] = [];
+      for (let i = 0; i < 5; i++) { const id = await seedBen(db, { isDemo: true }); await quiet(id); await age(id, 10 + i); ids.push(id); }
+      assert.deepEqual(await sweepDemoHouseholds(store, NOW, 2), { swept: 5, failed: 0 }, "three batches of 2, 2 and 1");
       assert.deepEqual(await Promise.all(ids.map(exists)), [false, false, false, false, false]);
     });
 

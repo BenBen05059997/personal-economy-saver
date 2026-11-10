@@ -1,13 +1,10 @@
 import { db } from "@/db/client";
-import { withHousehold } from "@/db/household";
 import {
   addOwnCategory, addOwnCategoryInput, fileOwnCategory, fileOwnCategoryInput, mergeOwnCategories, mergeOwnCategoryInput,
   removeOwnCategory, removeOwnCategoryInput, saveOwnCategory, saveOwnCategoryInput,
 } from "@/db/own-categories";
-import { consumeRequest } from "@/db/rate-limit";
-import { badFields, failure, formOf, text, tooMany } from "@/lib/door";
+import { badFields, failure, householdForm, limited, text } from "@/lib/door";
 import { businessBpFromForm } from "@/lib/money/categories";
-import { householdRequest } from "@/lib/session";
 
 const NOT_YOURS = "Choose one of your categories.";
 
@@ -26,14 +23,14 @@ function defaultShare(form: FormData): number | null | undefined {
  * for every item with the same name too when `everySame=on`.
  */
 export async function POST(request: Request) {
-  const hid = await householdRequest(request);
-  if (hid instanceof Response) return hid;
-  const form = await formOf(request);
-  if (form instanceof Response) return form;
+  const ctx = await householdForm(request);
+  if (ctx instanceof Response) return ctx;
+  const { hid, form } = ctx;
   const kind = form.get("kind");
   try {
     if (kind !== "add" && kind !== "save" && kind !== "merge" && kind !== "remove" && kind !== "file") return badFields();
-    if (!await withHousehold(db(), hid, tx => consumeRequest(tx, hid, "own-categories", 20))) return tooMany("Too many changes. Try again in a minute.");
+    const busy = await limited(hid, "own-categories", 20, "Too many changes. Try again in a minute.");
+    if (busy) return busy;
     if (kind === "add") {
       const share = defaultShare(form);
       if (share === undefined && form.get("businessShare") !== null) return text("Enter the business share as a percentage from 0 to 100.", 400);

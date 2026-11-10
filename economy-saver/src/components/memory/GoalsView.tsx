@@ -1,9 +1,9 @@
 import Link from "next/link";
+import { mediumDate } from "@/components/ui/dates";
 import { hrefFor } from "@/lib/links";
 import { minorMoney } from "@/lib/money/format";
 import type { GoalPace } from "@/lib/money/goals";
 
-const targetDate = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" });
 
 export function GoalsView({ goals }: { goals: readonly GoalPace[] }) {
   return <article className="memory-page">
@@ -17,7 +17,7 @@ export function GoalsView({ goals }: { goals: readonly GoalPace[] }) {
     </section> : <ul className="memory-goals">
       {goals.map(goal => <li className="ui-panel memory-goal" key={goal.id}>
         <h2>{goal.name}</h2>
-        <p className="ui-hint">{minorMoney(goal.savedMinor, goal.currency)} of {minorMoney(goal.targetMinor, goal.currency)} saved · by <time dateTime={goal.targetDate}>{targetDate.format(new Date(goal.targetDate + "T00:00:00Z"))}</time></p>
+        <p className="ui-hint">{minorMoney(goal.savedMinor, goal.currency)} of {minorMoney(goal.targetMinor, goal.currency)} saved · by <time dateTime={goal.targetDate}>{mediumDate(goal.targetDate + "T00:00:00Z")}</time></p>
         <p>{goal.summary}</p>
         <Link className="ui-button" href={hrefFor({ type: "pot", id: goal.id })} prefetch={false} aria-label={"Edit " + goal.name + " in Plan"}>Edit in Plan</Link>
       </li>)}

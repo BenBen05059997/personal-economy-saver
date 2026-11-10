@@ -10,9 +10,10 @@ import { addDays, planWindow } from "@/lib/money/runway";
 import type { Card, Charge, Client, ClosedStatement, Invoice, MoneyState, Pot, SplitState, StoredBill } from "@/lib/money/types";
 import { convertMinor, fromMinor, fromRateMicro, toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
+import { InputError } from "./input-error";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
-import { clockForHousehold, householdMoment } from "./clock";
+import { clockForHousehold, householdMoment, type ClockHousehold } from "./clock";
 
 // Both the postgres.js client and PGlite (tests) fit this.
 export type Db = PgDatabase<PgQueryResultHKT, typeof s>;
@@ -46,6 +47,21 @@ export async function withHousehold<T>(db: Db, id: string, work: (tx: Db) => Pro
   }, options);
 }
 
+/** The three columns a household's clock reads, or undefined when the household is gone. The caller words what to do about that. */
+export async function householdClockRow(db: Db, householdId: string): Promise<ClockHousehold | undefined> {
+  const [household] = await db.select({ isDemo: s.households.isDemo, fixedToday: s.households.fixedToday, timeZone: s.households.timeZone })
+    .from(s.households).where(eq(s.households.id, requireHousehold(householdId)));
+  return household;
+}
+
+/** Locks the household row for the rest of the transaction (so two writers of one household take turns) and returns its id and the last runway reading. Throws InputError when the household is gone. */
+export async function lockHousehold(tx: Db, householdId: string) {
+  const [household] = await tx.select({ id: s.households.id, previous: s.households.runwayShort }).from(s.households)
+    .where(eq(s.households.id, requireHousehold(householdId))).for("update");
+  if (!household) throw new InputError("Household not found");
+  return household;
+}
+
 export async function householdOwnerName(db: Db, householdId: string): Promise<string> {
   const [owner] = await db.select({ name: s.members.displayName }).from(s.members)
     .where(and(eq(s.members.householdId, requireHousehold(householdId)), eq(s.members.role, "owner")));
@@ -53,8 +69,9 @@ export async function householdOwnerName(db: Db, householdId: string): Promise<s
   return owner.name;
 }
 
-// A closed cycle is at most a month, so charges older than this cannot belong to an open cycle.
-export const CHARGE_LOOKBACK_DAYS = 62;
+// A closed cycle whose statement is still unpaid can be old: a cycle runs up to 31 days, the close-to-due gap up to about 61
+// (close on the 1st, due on the 31st of the next month), so 31 + 61 = 92 days, plus a margin. Older charges cannot belong to an unpaid cycle.
+export const CHARGE_LOOKBACK_DAYS = 100;
 // Invoices paid this recently stay in the state (for the Activity view); older paid ones only feed days to pay.
 const PAID_KEEP_DAYS = 7;
 
@@ -157,7 +174,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     db
       .select()
       .from(s.cardStatements)
-      .where(and(eq(s.cardStatements.householdId, hid), isNull(s.cardStatements.paidOn)))
+      .where(eq(s.cardStatements.householdId, hid))
       .orderBy(s.cardStatements.dueOn),
     db.select().from(s.clients).where(eq(s.clients.householdId, hid)).orderBy(s.clients.createdAt, s.clients.name),
     db.select().from(s.invoices).where(eq(s.invoices.householdId, hid)).orderBy(s.invoices.sentOn, s.invoices.createdAt),
@@ -226,13 +243,14 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     amount: inHome(st.amountMinor, st.currency),
     closedOn: st.closedOn,
     dueOn: st.dueOn,
+    ...(st.paidOn !== null && { paid: true as const }),
   }));
 
   // Days to pay comes from paid invoices, oldest first.
   const daysToPay = new Map<string, number[]>();
   for (const i of invoiceRows) {
     if (i.status !== "paid" || !i.sentOn || !i.paidOn) continue;
-    const days = Math.round((Date.parse(i.paidOn) - Date.parse(i.sentOn)) / 86_400_000);
+    const days = Math.max(0, Math.round((Date.parse(i.paidOn) - Date.parse(i.sentOn)) / 86_400_000));
     daysToPay.set(i.clientId, [...(daysToPay.get(i.clientId) ?? []), days]);
   }
   const clients: Client[] = clientRows.map((c) => ({

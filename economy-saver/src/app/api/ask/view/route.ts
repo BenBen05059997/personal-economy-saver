@@ -1,8 +1,6 @@
 import { askSpaceId, loadAskView } from "@/db/ask-view";
 import { db } from "@/db/client";
-import { withHousehold } from "@/db/household";
-import { consumeCanvasRequest } from "@/db/rate-limit";
-import { NO_STORE, text, tooMany } from "@/lib/door";
+import { limited, NO_STORE, text } from "@/lib/door";
 import { hasHouseholdOwnerAccess, householdRequest } from "@/lib/session";
 
 export async function GET(request: Request) {
@@ -12,9 +10,8 @@ export async function GET(request: Request) {
     return hid;
   }
   const connection = db();
-  if (!await withHousehold(connection, hid, tx => consumeCanvasRequest(tx, hid))) {
-    return tooMany("Too many canvas requests. Try again in a minute.");
-  }
+  const busy = await limited(hid, "canvas", 120, "Too many canvas requests. Try again in a minute.", connection);
+  if (busy) return busy;
   const param = new URL(request.url).searchParams.get("space");
   const space = askSpaceId.optional().safeParse(param ?? undefined);
   if (!space.success) return text("That space could not be found.", 404);

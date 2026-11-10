@@ -1,4 +1,5 @@
 import type { ReaderInbox } from "@/db/reader-inbox";
+import { homeDateLabel } from "@/components/ui/dates";
 import Link from "next/link";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { categoryLabel } from "@/lib/money/categories";
@@ -249,7 +250,7 @@ function addedLine(state: MoneyState, id: string | null): string | null {
 }
 
 export function HomeView({ state, inbox, notice, people, entryIds, own, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, spending }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; people: People; entryIds: EntryIds; own: OwnChoices; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; spending: SpendingInput }) {
-  const date = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", weekday: "short", timeZone: "UTC" }).format(new Date(state.today)).replace(",", "");
+  const date = homeDateLabel(state.today);
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
     <h1><Sentence state={state} linked /></h1>
