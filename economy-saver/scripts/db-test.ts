@@ -394,6 +394,24 @@ async function main() {
     return logged;
   }
 
+  await check("a Try it household's payment through the link is dated on its own day, first in Activity, and credited once", async () => {
+    const d = await seedBen(db, { isDemo: true });
+    const inv = await orderedInvoice(d, "ORDER-DB-FIXED");
+    await db.transaction(tx => recordEvent(tx, d, { madeBy: "form", kind: "invoice_sent", title: "Payment link made for Fixed", ref: { type: "invoice", id: inv.id } }));
+    // The balance was read after the Try it day's real date but before this payment: it must not hide the credit.
+    const before = (await moneyOf(d)).balance;
+    await db.update(schema.paypalConnections).set({ balanceAsOf: new Date("2026-12-10T00:00:00Z") }).where(eq(schema.paypalConnections.householdId, d));
+    const paid = { ...completed("WH-FIXED-PAID", "ORDER-DB-FIXED", { custom: inv.id }), create_time: "2026-12-20T03:00:00Z" };
+    await applyVerifiedDelivery(db, paid, noCapture);
+    await applyVerifiedDelivery(db, paid, noCapture);
+    assert.equal((await invoiceRow(inv.id)).paidOn, "2026-11-14", "the paid date is the household's day");
+    assert.equal((await moneyOf(d)).balance, before + 37_500, "credited once, in the balance currency");
+    const feed = await listEvents(db, d);
+    assert.equal(feed[0].kind, "invoice_paid", "the payment is the newest entry");
+    assert.equal(feed[0].occurredAt.toISOString().slice(0, 10), "2026-11-14");
+    assert.ok(feed.findIndex(e => e.kind === "invoice_paid") < feed.findIndex(e => e.kind === "invoice_sent"), "after the link was made");
+  });
+
   await check("approved order webhook: only PayPal's named final refusals are kept; a 401 or 403 is refused so PayPal sends it again", async () => {
     const inv = await orderedInvoice(a, "ORDER-DB-REFUSE");
     let failure: unknown;
@@ -518,7 +536,7 @@ async function main() {
     const paid = await status();
     assert.equal(paid.status, "paid");
     assert.equal(paid.paypalCaptureId, "CAP-WH-PAY-OK", "the capture id is stored");
-    assert.equal(paid.paidOn, "2026-11-15", "paid date uses Tokyo, not UTC");
+    assert.equal(paid.paidOn, "2026-11-14", "a Try it household is paid on its own day (D34)");
     assert.equal(await credit(), start + 37_500, "the gross amount, credited once");
     assert.equal((await listEvents(db, a)).filter(e => e.kind === "invoice_paid" && e.refId === inv.id).length, 1);
     assert.equal((await listEvents(db, b)).filter(e => e.refId === inv.id).length, 0);
@@ -667,6 +685,7 @@ async function main() {
     await applyVerifiedDelivery(db, completed("WH-ENDED-PAID", "ORDER-DB-ENDED", { custom: inv.id }), noCapture);
     const paid = await invoiceRow(inv.id);
     assert.deepEqual([paid.status, paid.paypalCaptureId], ["paid", "CAP-WH-ENDED-PAID"]);
+    assert.equal(paid.paidOn, "2026-11-15", "an ordinary household is paid on PayPal's instant in its own zone (Tokyo, 16:00 UTC is already the 15th)");
     assert.equal((await moneyOf(b)).balance, before.balance + 37_500, "the money did arrive: $250 at the invoice's rate, in the yen balance");
   });
 

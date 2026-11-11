@@ -157,6 +157,7 @@ export type MoneyState = {
   homeCurrency: Currency;
   fxPerUsd: number; // home currency per 1 USD; 1 when homeCurrency is "USD"
   paypal: number; // home currency; live from the sandbox in M2
+  paypalHeld?: { amount: number; currency: Currency }; // the same balance in the currency PayPal holds it in, for Home to show; absent when no PayPal connection row exists
   bank: number; // home currency; typed in by the user
   bills: Bill[]; // non-card bills (rent, utilities, phone, subscriptions)
   cards: Card[];

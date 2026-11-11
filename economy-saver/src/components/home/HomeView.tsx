@@ -53,6 +53,14 @@ function Actions({ state, forwarding }: Props & { forwarding: boolean }) {
   </div>;
 }
 
+/** D25/D76: the PayPal balance in one quiet line under the bank balance, so a payment that lands is seen arriving. It comes from PayPal (or Try it's demo record), so it has no Update. */
+function PayPalBalance({ state, asOf }: { state: MoneyState; asOf: string | null }) {
+  const held = state.paypalHeld;
+  if (!held) return null;
+  const own = formatter(held.currency)(held.amount);
+  return <p className="home-balance home-paypal">PayPal balance <b>{own}</b>{held.currency !== state.homeCurrency && <> (≈{formatter(state.homeCurrency)(state.paypal)})</>}{asOf && <> · as of {asOf}</>}</p>;
+}
+
 function ToCheck({ state, inbox, forwarding }: Props & { inbox: ReaderInbox; forwarding: boolean }) {
   const rows = toCheck(state);
   const missing = confirmedGaps(state); // D55: confirmed bills with a gap count here and are filled in on To check
@@ -254,7 +262,7 @@ export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forward
     <Actions state={state} forwarding={forwarding} />
     <Suspense fallback={null}>{pins}</Suspense>
     {tryIt && getStarted ? <GetStarted key={householdId} householdId={householdId} progress={getStarted} peopleCount={state.split.members.length} invoiceHref={(inv => inv ? `/invoices/${inv.id}` : "/clients")(state.invoices.find(i => i.status === "unbilled") ?? state.invoices.find(i => i.status === "sent"))} /> : <HintsPanel state={state} inbox={inbox} tryIt={tryIt} householdId={householdId} />}
-    <HomeViews state={state} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
+    <HomeViews state={state} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{(tryIt || connection.state === "connected") && <PayPalBalance state={state} asOf={connection.state === "connected" ? asOf : null} />}{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
     <div className="home-panels">
       <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} /></div>
       <div className="home-column"><ComingUp state={state} added={addedLine(state, added)} addedId={added} /></div>

@@ -17,7 +17,7 @@ async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();
   const [review, workspace, candidates] = await Promise.all([
-    withHousehold(db(), hid, tx => invoiceReview(tx, hid, id)), loadWorkspace(hid, false, false, await verifiedIdentity()), readPaymentCandidates(db(), hid, id),
+    withHousehold(db(), hid, tx => invoiceReview(tx, hid, id)), verifiedIdentity().then(viewer => loadWorkspace(hid, false, false, viewer)), readPaymentCandidates(db(), hid, id),
   ]);
   if (!review) notFound();
   return <WorkspaceFrame workspace={workspace} section="invoices"><InvoiceReview review={review} state={workspace.state} canApprove={workspace.role.canManage} connection={workspace.connection} candidates={candidates} /></WorkspaceFrame>;

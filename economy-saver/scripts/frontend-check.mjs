@@ -779,6 +779,23 @@ await step("page", "seeded-invoice-review-read-only", async () => {
   // Paying another way is offered to everyone and says what it does to the bank balance.
   expect(review.includes("Paid another way (bank, cash)") && /Use this if Beacon Studio paid you another way\. It adds ¥[\d,]+ to your bank balance\./.test(review), "invoice-review-paid-another-way");
 });
+await step("page", "sent-invoice-shows-its-link-field", async () => {
+  // D12: while an invoice is sent and unpaid the person can always see and copy the link, late or not.
+  // Home links only the draft; each client page lists that client's invoices, including the sent one.
+  const clientsHtml = await page("/clients", /Beacon/);
+  const clientIds = [...new Set([...clientsHtml.matchAll(/\/clients\/([0-9a-f-]{36})/gi)].map(m => m[1]))];
+  const sources = [home ?? "", ...(await Promise.all(clientIds.map(id => page("/clients/" + id, /Work and invoices/))))];
+  const ids = [...new Set(sources.flatMap(html => [...html.matchAll(/\/invoices\/([0-9a-f-]{36})/gi), ...flight(html).matchAll(/\/invoices\/([0-9a-f-]{36})/gi)].map(m => m[1])))];
+  let seen = 0;
+  for (const id of ids) {
+    const html = await page("/invoices/" + id, /Invoice|Review invoice/);
+    if (!pageContent(html).includes("Link made")) continue;
+    seen++;
+    expect(/<input[^>]*class="invoice-link"[^>]*value="[^"]*\/pay\/[^"]+"/.test(html) || /<input[^>]*value="[^"]*\/pay\/[^"]+"[^>]*class="invoice-link"/.test(html), "sent-invoice-link-field");
+    expect(html.includes("Copy link for"), "sent-invoice-copy-button");
+  }
+  expect(seen > 0, "sent-invoice-seen");
+});
 const initial = await step("read", "events-before-actions", events);
 await step("action", "mark-notification-read", async () => {
   const notification = initial?.events.find(event => event.notify && !event.readAt);

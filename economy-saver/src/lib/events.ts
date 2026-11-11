@@ -1,10 +1,11 @@
 import { refreshSuggestions } from "@/db/suggestions";
-import { and, desc, eq, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lte, max, or, sql, type SQL } from "drizzle-orm";
 import { type Db, recordEvent, recordWebhookDelivery, usdRateMicro, withHousehold } from "@/db/household";
 import { beginMoneyChange, lockRunway, observeRunway } from "@/db/runway-events";
 import { convertMinor, fromMinor, fromRateMicro, parseMinor } from "@/db/money";
+import { householdMoment } from "@/db/clock";
 import { fillPots } from "@/db/pots";
-import { clients, fxRates, households, invoices, paypalConnections, webhookDeliveries } from "@/db/schema";
+import { clients, events, fxRates, households, invoices, paypalConnections, webhookDeliveries } from "@/db/schema";
 import { applyMerchantEvent, ownerPayPal } from "@/db/paypal-connection";
 import { InvoiceMatchError, readPaymentByCapture, settleReadPaymentInTx } from "@/db/invoice-match";
 import { paidTitle } from "@/lib/money/paid-title";
@@ -232,6 +233,18 @@ async function settleByRead(tx: Db, hid: string, invoiceId: string, paymentId: s
   }
 }
 
+/**
+ * The moment Activity shows for a payment. An ordinary household shows PayPal's instant. A Try it household shows its own
+ * clock (D34), and never earlier than the invoice's last event, so the payment sorts after "Payment link made".
+ */
+async function shownAt(tx: Db, owner: { householdId: string; timeZone: string; fixedToday: string | null }, invoiceId: string, paypalAt: Date): Promise<Date> {
+  if (!owner.fixedToday) return paypalAt;
+  const moment = householdMoment({ isDemo: true, ...owner }, paypalAt);
+  const [last] = await tx.select({ at: max(events.occurredAt) }).from(events)
+    .where(and(eq(events.householdId, owner.householdId), eq(events.refType, "invoice"), eq(events.refId, invoiceId)));
+  return last?.at && last.at >= moment ? new Date(last.at.getTime() + 1) : moment;
+}
+
 /** The states a completed payment for the invoice's own order may still mark paid. */
 const OPEN: ("sent" | "draft" | "closed")[] = ["sent", "draft", "closed"];
 
@@ -257,8 +270,8 @@ async function settle(
 
     await beginMoneyChange(tx, owner.householdId);
     const actualPaidOn = sql<string>`timezone(${owner.timeZone}, ${event.create_time}::timestamptz)::date`;
-    // A Try it household runs on its fixed business date even when the sandbox is paid earlier.
-    const paidOn = owner.fixedToday ? sql<string>`greatest(${actualPaidOn}, ${owner.fixedToday}::date, ${invoices.sentOn})` : actualPaidOn;
+    // D34: a Try it household runs on its fixed date, so a payment is dated that day (never before the link was made), whenever the sandbox client pays.
+    const paidOn = owner.fixedToday ? sql<string>`greatest(${owner.fixedToday}::date, ${invoices.sentOn})` : actualPaidOn;
     const paid = await mark(tx, paidOn);
     if (!paid) return false;
     // The household owner's PayPal connection holds the balance (D31). A payment is credited at its gross amount.
@@ -277,6 +290,7 @@ async function settle(
       }
       credit = convertMinor(paid.amount, paid.currency, connection.balanceCurrency, fromRateMicro(rate));
     }
+    // `effective` is PayPal's own instant: it is compared with the balance read's instant, which is PayPal's clock too.
     const effective = new Date(event.create_time);
     const [client] = await tx.select({ name: clients.name }).from(clients)
       .where(and(eq(clients.householdId, owner.householdId), eq(clients.id, paid.clientId)));
@@ -291,7 +305,7 @@ async function settle(
       title: paidTitle(client.name, paid.amount, paid.currency),
       amount: { value: fromMinor(paid.amount, paid.currency), currency: paid.currency },
       ref: { type: "invoice", id: paid.id },
-      notify: true, occurredAt: effective,
+      notify: true, occurredAt: await shownAt(tx, owner, paid.id, effective),
     });
     // D43: a payment that credits the balance also fills the pots that have a rule; the credit is counted in the home currency.
     if (increment > 0) {

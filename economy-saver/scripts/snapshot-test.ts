@@ -135,6 +135,7 @@ async function main() {
       const { paypalBalanceMinor, usdRateMicro, usdRateDate } = snap.household;
       assert.ok(paypalBalanceMinor > 0, "Ben has a PayPal balance");
       assert.equal(fromMinor(paypalBalanceMinor, "JPY"), state.paypal);
+      assert.ok(state.paypalHeld && state.paypalHeld.amount > 0, "Home shows the balance in the currency PayPal holds it in");
       assert.equal(fromRateMicro(usdRateMicro), state.fxPerUsd);
       assert.ok(Number.isInteger(usdRateMicro) && usdRateDate !== null && usdRateDate <= DEMO_DATE);
       const [{ date }] = await db.select({ date: schema.fxRates.date }).from(schema.fxRates).where(eq(schema.fxRates.householdId, a));

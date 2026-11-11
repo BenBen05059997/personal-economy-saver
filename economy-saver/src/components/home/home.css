@@ -57,6 +57,7 @@
 .home-balance summary::-webkit-details-marker { display: none; }
 .home-balance b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
 .home-balance-edit { color: var(--ink); }
+.home-balance.home-paypal { margin-block: 0; padding-top: 4px; border-top: 0; }
 .home-pots { list-style: none; margin: 6px 0 0; padding: 0; font: 400 13px/1.45 var(--sans); }
 .home-pots a { display: block; padding-block: 3px; color: var(--muted); text-decoration: none; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 .home-pots a:hover { color: var(--ink); }

@@ -1678,5 +1678,36 @@
     "refs": [
       "D68"
     ]
+  },
+  {
+    "id": "HOME-114",
+    "area": "Home",
+    "action": "See a client's payment arrive in Home's PayPal balance",
+    "user_goal": "I want to see the money arrive when a client pays",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner",
+      "paypal_webhook"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "Beacon's invoice approved (PAY-003) and its link paid as the client (PAY-041)"
+    ],
+    "steps": [
+      "At 1440px, read the PayPal balance line under Bank balance on Home before the client pays",
+      "After the payment, open Home again"
+    ],
+    "expected": [
+      "Under Bank balance ¥67,000 a quiet line reads PayPal balance ¥61,000 (held in yen, so no bracket), with no Update beside it",
+      "After the payment lands the PayPal line is higher by the payment ($400, about ¥60,000) and the Bank balance is unchanged",
+      "The Activity entry for the payment is the newest one, dated Nov 14, after Payment link made for Beacon Studio, and opens the invoice"
+    ],
+    "refs": [
+      "D25",
+      "D34",
+      "D76"
+    ]
   }
 ]

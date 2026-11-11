@@ -49,6 +49,7 @@ export const benMoney: MoneyState = {
   homeCurrency: "JPY",
   fxPerUsd: 150,
   paypal: 61_000,
+  paypalHeld: { amount: 61_000, currency: "JPY" }, // the seed stores the balance in the home currency
   bank: 67_000,
   storedBills: benStoredBills,
   bills: [], // set below: the stored bills expanded into their occurrences

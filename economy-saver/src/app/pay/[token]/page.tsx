@@ -40,7 +40,7 @@ async function Pay({ params }: { params: Promise<{ token: string }> }) {
       <input type="hidden" name="token" value={token} />
       <button type="submit" className="ui-button primary">Pay</button>
     </form>
-    <p className="pay-note">You pay on PayPal’s own page, by PayPal or by card.</p>
+    <p className="pay-note">You pay on PayPal’s own page.</p>
   </main>;
 }
 
