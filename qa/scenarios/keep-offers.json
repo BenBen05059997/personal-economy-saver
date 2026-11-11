@@ -137,32 +137,5 @@
     "refs": [
       "D67"
     ]
-  },
-  {
-    "id": "KEEP-006",
-    "area": "Keep this?",
-    "action": "Check offer validation and write boundaries",
-    "user_goal": "I want the assistant to suggest only valid and new items",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "Run on PGlite with the fake model"
-    ],
-    "steps": [
-      "Run npm run db:agent-test"
-    ],
-    "expected": [
-      "The Ask-only tool offers at most three distinct items and writes none of them",
-      "Previously kept items and invalid offers stay out of the reply",
-      "The journal stores no offers"
-    ],
-    "refs": [
-      "db:agent-test",
-      "D67"
-    ]
   }
 ]

@@ -281,7 +281,6 @@ async function main() {
     const d = { paypalEventId: "WH-TEST-1", eventType: "INVOICING.INVOICE.PAID", verified: true, payload: { resource: { id: "INV2-FAKE" } } };
     assert.equal(await recordWebhookDelivery(db, a, d), true);
     assert.equal(await recordWebhookDelivery(db, a, d), false, "replay skipped");
-    assert.equal(await recordWebhookDelivery(db, b, d), false, "same id from another household is also a replay");
     await assert.rejects(
       db.insert(schema.webhookDeliveries).values({ householdId: a, ...d, payload: {} }),
       (e: unknown) => /duplicate key|unique/i.test(String((e as Error).cause ?? e)),

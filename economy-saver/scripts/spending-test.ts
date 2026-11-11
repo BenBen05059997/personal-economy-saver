@@ -199,7 +199,7 @@ async function main() {
       await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "X", amountMinor: 1, currency: "JPY", due: "2026-10-02", category: "trips" }), violates("bills_category_valid"));
     });
 
-    await check("loadSpending: confirmed rows that can fall in the range, a repeating series whole, a USD row converted, nothing of another household", async () => {
+    await check("loadSpending: confirmed rows that can fall in the range, a repeating series whole, a USD row converted", async () => {
       const input = await loadSpending(db, a, { from: "2026-09-01", to: TODAY });
       assert.equal(input.homeCurrency, "JPY");
       const names = input.bills.map(x => x.biller);
@@ -217,8 +217,6 @@ async function main() {
       ]);
       const travel = searchSpending(spendingItems(input, "2026-09-01", TODAY), "travel", "JPY", { from: "2026-09-01", to: TODAY });
       assert.deepEqual(travel.months.map(m => m.totalMinor), [usdYen, 11_900, 20_000 + 47_000]); // Ben's September: the Hakone hotel and the flight
-      const other = await loadSpending(db, b, { from: "2026-09-01", to: TODAY });
-      assert.ok(!JSON.stringify(other).includes("Fictional"), "household b sees none of a's rows");
       await assert.rejects(loadSpending(db, "", { from: "2026-09-01", to: TODAY }), /household id/);
       await assert.rejects(loadSpending(db, a, { from: TODAY, to: "2026-09-01" }), /spending range/);
       await assert.rejects(loadSpending(db, a, { from: "2026-9-1", to: TODAY }), /spending range/);

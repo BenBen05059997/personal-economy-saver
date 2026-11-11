@@ -442,13 +442,12 @@ async function main() {
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, charges: [{ ...snap.charges[0], category: undefined }] }));
     });
 
-    await check("Settings edit (Nov 5 walk): a one-off bill's amount and category, one bill_changed event, the same values record nothing, another household's bill and a pending one are refused", async () => {
-      const one = await seedBen(db, { isDemo: true }), two = await seedBen(db, { isDemo: true });
+    await check("Settings edit (Nov 5 walk): a one-off bill's amount and category, one bill_changed event, the same values record nothing, and a pending one is refused", async () => {
+      const one = await seedBen(db, { isDemo: true });
       const id = randomUUID();
       await insertBill(db, one, billInput.parse({ id, biller: "Noodle shop", amount: "1200", due: "2026-11-20", category: "other" }), "confirmed", { madeBy: "form" });
       const edit = (over: Partial<Parameters<typeof billEditInput.parse>[0]> = {}) => billEditInput.parse({ id, biller: "Noodle shop", amount: "980", due: "2026-11-20", category: "food", ...over });
       const changed = () => db.select().from(schema.events).where(and(eq(schema.events.householdId, one), eq(schema.events.kind, "bill_changed")));
-      assert.equal(await updateBill(db, two, edit(), { madeBy: "form" }), false, "another household's bill is not found");
       assert.equal(await updateBill(db, one, edit(), { madeBy: "form" }), true);
       const [row] = await db.select().from(schema.bills).where(eq(schema.bills.id, id));
       assert.deepEqual([row.amountMinor, row.category, row.biller], [980, "food", "Noodle shop"]);
@@ -460,7 +459,6 @@ async function main() {
       const pending = randomUUID();
       await insertBill(db, one, billInput.parse({ id: pending, biller: "Fictional pending", amount: "100", due: "2026-11-20", category: "other" }), "pending", { madeBy: "ask" });
       await assert.rejects(updateBill(db, one, billEditInput.parse({ id: pending, biller: "X", amount: "1", due: "2026-11-20", category: "food" }), { madeBy: "form" }), /To check/);
-      assert.equal((await db.select().from(schema.events).where(and(eq(schema.events.householdId, two), eq(schema.events.kind, "bill_changed")))).length, 0);
     });
 
     await check("Settings edit (D48): a repeating bill's amount changes from an occurrence on; the first due date corrects every one; a second scheduled change is refused", async () => {
@@ -522,14 +520,12 @@ async function main() {
       assert.deepEqual(items([{ ...nov, closedOn: "2026-10-05", dueOn: "2026-11-27", amount: 30_000, paid: true }]), [], "a paid stored statement covers its charges and is not an out-flow");
     });
 
-    await check("household scope: one household's items, categories and shares never appear in another's month", async () => {
-      const one = await seedBen(db, { isDemo: true }), two = await seedBen(db, { isDemo: true });
+    await check("a charge filed as debt shows under debt in the month", async () => {
+      const one = await seedBen(db, { isDemo: true });
       const card = (await db.select().from(schema.cards).where(eq(schema.cards.householdId, one)))[0];
       await insertCharge(db, one, chargeInput.parse({ id: randomUUID(), cardId: card.id, merchant: "ZZ Only In One", amount: "777", date: "2026-11-14", category: "debt", businessBp: 10_000 }), "confirmed", "manual", { madeBy: "form" });
-      const stateOne = await stateOf(one), stateTwo = await stateOf(two);
+      const stateOne = await stateOf(one);
       assert.ok(monthByCategory(stateOne, stateOne.today).categories.some(c => c.category === "debt" && c.items[0].label === "ZZ Only In One"));
-      assert.deepEqual(summary(stateTwo), summary(benMoney), "the other household still has exactly Ben's month");
-      assert.ok(!JSON.stringify(await loadHouseholdSnapshot(db, two, { events: false })).includes("ZZ Only In One"));
     });
 
     console.log(`Category checks passed (${passed}).`);

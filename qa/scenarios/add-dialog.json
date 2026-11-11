@@ -220,34 +220,5 @@
     "refs": [
       "D25"
     ]
-  },
-  {
-    "id": "ADD-008",
-    "area": "Add dialog",
-    "action": "Add view is refused without a household or from another site",
-    "user_goal": "a stranger must not read my choices",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "No household cookie"
-    ],
-    "steps": [
-      "GET /api/add/view with no cookie",
-      "GET /api/add/view with Origin: http://cross-origin.test and Sec-Fetch-Site: cross-site",
-      "GET /api/add/view with a household cookie",
-      "GET /add/bill?back=//evil.test"
-    ],
-    "expected": [
-      "No cookie is 401; cross-origin is 403",
-      "A household cookie gets that household's today, currency, people, cards and own categories only, no-store",
-      "/add/bill with a foreign back address returns to Home when saved, never to another host"
-    ],
-    "refs": [
-      "frontend-check"
-    ]
   }
 ]

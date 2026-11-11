@@ -27,88 +27,6 @@
     ]
   },
   {
-    "id": "GOAL-002",
-    "area": "Goals",
-    "action": "Open Plan from the empty Goals tab",
-    "user_goal": "I want to create a pot from Goals",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Separate test app with migration 0028",
-      "375px and 1440px widths",
-      "Fresh Ben Try it on Nov 14"
-    ],
-    "steps": [
-      "Open Memory → Goals and tap Open Plan"
-    ],
-    "expected": [
-      "Plan opens at /plan"
-    ],
-    "refs": [
-      "D66"
-    ]
-  },
-  {
-    "id": "GOAL-003",
-    "area": "Goals",
-    "action": "Save a new dated pot",
-    "user_goal": "I want to see how a new savings goal starts",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Separate test app with migration 0028",
-      "375px and 1440px widths",
-      "Fresh Ben Try it on Nov 14"
-    ],
-    "steps": [
-      "In Plan add Camera with ¥0 saved and a ¥120,000 target by Dec 14, 2026",
-      "Open Goals"
-    ],
-    "expected": [
-      "Plan and Goals say By today: ¥0. On pace. A date at this pace is not available yet.",
-      "Goals shows ¥120,000 a month"
-    ],
-    "refs": [
-      "D66"
-    ]
-  },
-  {
-    "id": "GOAL-004",
-    "area": "Goals",
-    "action": "View a goal already underway",
-    "user_goal": "I want to know how far behind my target I am",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Separate test app with migration 0028",
-      "375px and 1440px widths",
-      "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026"
-    ],
-    "steps": [
-      "Open Memory → Goals"
-    ],
-    "expected": [
-      "Camera shows ¥30,000 of ¥120,000 saved by Dec 14, 2026",
-      "By today is ¥60,000, behind pace is ¥30,000, and the projection is Feb 12, 2027",
-      "The monthly amount still needed is ¥90,000"
-    ],
-    "refs": [
-      "D66"
-    ]
-  },
-  {
     "id": "GOAL-005",
     "area": "Goals",
     "action": "Open a goal’s exact pot form",
@@ -211,35 +129,6 @@
     ],
     "expected": [
       "The goal pin shows Camera at ¥30,000 of ¥120,000 and 25%"
-    ],
-    "refs": [
-      "D66"
-    ]
-  },
-  {
-    "id": "GOAL-009",
-    "area": "Goals",
-    "action": "Update saving after pinning goal progress",
-    "user_goal": "I want a saved change to appear in the same Home pin",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Separate test app with migration 0028",
-      "375px and 1440px widths",
-      "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
-      "Home already has the goal pin from AJ5"
-    ],
-    "steps": [
-      "In Plan edit Camera and save 60000 under Saved so far",
-      "Return to Home and then check Goals"
-    ],
-    "expected": [
-      "The same Home pin now shows ¥60,000 of ¥120,000 and 50%",
-      "Goals shows ¥60,000 expected, On pace, Dec 14, 2026 at the current pace and ¥60,000 a month"
     ],
     "refs": [
       "D66"

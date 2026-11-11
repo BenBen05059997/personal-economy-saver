@@ -1,34 +1,5 @@
 [
   {
-    "id": "SPACE-001",
-    "area": "Ask spaces",
-    "action": "Open the default General space",
-    "user_goal": "I want a starting place for ordinary questions",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it after migration 0030"
-    ],
-    "steps": [
-      "Open Ask from the sidebar",
-      "Open Memory → Spaces",
-      "Return to Home"
-    ],
-    "expected": [
-      "General is selected by default",
-      "Memory has Profile, Spaces and Goals",
-      "General has no Rename, Archive or Delete controls",
-      "Ben still has ¥0 safe to spend and is ¥18,780 short on Nov 27 if clients pay late"
-    ],
-    "refs": [
-      "D69"
-    ]
-  },
-  {
     "id": "SPACE-002",
     "area": "Ask spaces",
     "action": "Create a space",
@@ -276,85 +247,6 @@
     ]
   },
   {
-    "id": "SPACE-011",
-    "area": "Ask spaces",
-    "action": "Reach the open-space limit",
-    "user_goal": "I want a clear result when I already have many spaces",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "PGlite fixtures with no credentials"
-    ],
-    "steps": [
-      "Run npm run db:spaces-test"
-    ],
-    "expected": [
-      "The household can keep 20 open spaces including General",
-      "The next create is refused and archiving frees a slot"
-    ],
-    "refs": [
-      "db:spaces-test",
-      "D69"
-    ]
-  },
-  {
-    "id": "SPACE-012",
-    "area": "Ask spaces",
-    "action": "Try to open another household’s space",
-    "user_goal": "I want my spaces private to my household",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "Two PGlite households with space fixtures"
-    ],
-    "steps": [
-      "Run npm run db:isolation-test and npm run db:spaces-test"
-    ],
-    "expected": [
-      "The tenant role sees no other household’s spaces",
-      "A request by another household cannot access or mutate the space"
-    ],
-    "refs": [
-      "db:isolation-test",
-      "db:spaces-test",
-      "D69"
-    ]
-  },
-  {
-    "id": "SPACE-013",
-    "area": "Ask spaces",
-    "action": "Delete a space and its saved context together",
-    "user_goal": "I want deleting a task to remove its saved context",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "A PGlite space with a thread, notes, pins, brief and attached documents"
-    ],
-    "steps": [
-      "Run npm run db:spaces-test"
-    ],
-    "expected": [
-      "One deletion removes the space, notes, thread, pins and brief",
-      "The household keeps the documents"
-    ],
-    "refs": [
-      "db:spaces-test",
-      "D69"
-    ]
-  },
-  {
     "id": "SPACE-014",
     "area": "Ask spaces",
     "action": "Write the space brief by hand",
@@ -437,60 +329,6 @@
       "Ask continues the same task and reads current tool results before quoting money"
     ],
     "refs": [
-      "D71"
-    ]
-  },
-  {
-    "id": "SPACE-017",
-    "area": "Ask spaces",
-    "action": "Check amounts and cited notes in a proposed brief",
-    "user_goal": "I want the space summary to keep verified amounts",
-    "type": "negative",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "PGlite household with a saved brief and simulated model replies"
-    ],
-    "steps": [
-      "Run npm run db:agent-test"
-    ],
-    "expected": [
-      "An amount absent from this question’s tool results refuses the proposed update",
-      "The existing brief stays in place when an amount or source is invalid, and the trace contains only a fixed reason",
-      "A note from another space is accepted as a source after recall or search_history returns it"
-    ],
-    "refs": [
-      "db:agent-test",
-      "D69"
-    ]
-  },
-  {
-    "id": "SPACE-018",
-    "area": "Ask spaces",
-    "action": "Fit a long thread and its document cards into the context",
-    "user_goal": "I want a long-running task to keep the right context",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "PGlite fixture with older turns and a document turn in the recent suffix"
-    ],
-    "steps": [
-      "Run npm run db:conversation-test and npm run db:agent-test"
-    ],
-    "expected": [
-      "The recent turns fit the 12,000-character budget with oldest turns omitted first",
-      "The document card for an included turn travels with the question and the earlier turns stay in the thread"
-    ],
-    "refs": [
-      "db:conversation-test",
-      "db:agent-test",
       "D71"
     ]
   },
@@ -799,59 +637,6 @@
       "The current statement amount is ¥58,000 due Nov 26"
     ],
     "refs": [
-      "D70"
-    ]
-  },
-  {
-    "id": "SPACE-030",
-    "area": "Ask spaces",
-    "action": "Search Japanese and English history",
-    "user_goal": "I want to find either language in what I kept",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "PGlite households with both Japanese and English saved text"
-    ],
-    "steps": [
-      "Run npm run db:memory-test and npm run db:agent-test"
-    ],
-    "expected": [
-      "An English search and a Japanese search each hit",
-      "A space filter limits results to that space",
-      "The ten newest hits carry matching lines, space names and dates"
-    ],
-    "refs": [
-      "db:memory-test",
-      "db:agent-test",
-      "D70"
-    ]
-  },
-  {
-    "id": "SPACE-031",
-    "area": "Ask spaces",
-    "action": "Search history without crossing households",
-    "user_goal": "I want the search to keep our history private",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "Two PGlite households with matching fictional words in their own turns and notes"
-    ],
-    "steps": [
-      "Run npm run db:memory-test"
-    ],
-    "expected": [
-      "The caller sees only the matches from its own household"
-    ],
-    "refs": [
-      "db:memory-test",
       "D70"
     ]
   },
@@ -1177,61 +962,6 @@
     "refs": [
       "D65",
       "db:notify-test"
-    ]
-  },
-  {
-    "id": "SPACE-043",
-    "area": "Ask spaces",
-    "action": "Retry an Incognito request id",
-    "user_goal": "I want a private retry to stay private",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "PGlite household and simulated model replies"
-    ],
-    "steps": [
-      "Run npm run db:ask-routes-test"
-    ],
-    "expected": [
-      "The request leaves only the retry key and no saved private turn",
-      "A repeat id after a completed run does not call the model again or write to the brief, memory or money record",
-      "After a model failure or an unconfirmed amount, the same id runs again and still saves no private turn"
-    ],
-    "refs": [
-      "db:ask-routes-test",
-      "D71"
-    ]
-  },
-  {
-    "id": "SPACE-044",
-    "area": "Ask spaces",
-    "action": "Deliver a simulated digest across spaces",
-    "user_goal": "I want each finding labelled without duplicate deliveries",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "PGlite household with scoped findings and simulated delivery"
-    ],
-    "steps": [
-      "Run npm run db:suggest-test and npm run db:notify-test"
-    ],
-    "expected": [
-      "The group and delivery labels match the assigned spaces",
-      "Delivery is still deduplicated by member, local day and channel"
-    ],
-    "refs": [
-      "db:suggest-test",
-      "db:notify-test",
-      "D64",
-      "D65"
     ]
   },
   {

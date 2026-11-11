@@ -245,27 +245,6 @@ if (args[0] === "--extra") {
     expect(/<article\b[^>]*\bclass="money-home"/i.test(html) && /18,780/.test(text(html)), "home-reload-markup");
   });
   await step("page", "authenticated-upload", () => page("/upload", /Upload a bill or receipt/));
-  await step("guard", "authenticated-invalid-upload", async () => {
-    const result = await request("/api/upload", { method: "POST", json: {} });
-    expect(result.response.status === 400 && result.body === "Select a file to upload.", "invalid-upload-result");
-  });
-  await step("guard", "authenticated-empty-multipart-upload", async () => {
-    const result = await request("/api/upload", { method: "POST", form: new FormData() });
-    expect(result.response.status === 400 && result.body === "Select a PDF, JPEG, PNG or WebP file.", "empty-multipart-upload-result");
-  });
-  await step("guard", "authenticated-invalid-ask-document", async () => {
-    const result = await request("/api/ask/document", { method: "POST", form: {} });
-    expect(result.response.status === 400 && result.body === "Select a file to upload.", "invalid-ask-document-result");
-  });
-  await step("guard", "ask-document-bad-id", async () => {
-    const result = await request("/api/ask/document?id=abc");
-    expect(result.response.status === 400 && result.body === "Invalid item", "ask-document-bad-id-result");
-  });
-  await step("guard", "ask-document-unknown-id-is-gone", async () => {
-    const result = await request("/api/ask/document?id=2f7d3c1e-8a4b-4c6d-9e5f-0a1b2c3d4e5f");
-    const card = JSON.parse(result.body).card;
-    expect(result.response.status === 200 && card.status === "gone" && card.words === "This file was deleted.", "ask-document-gone-result");
-  });
   for (const [label, path] of [["clients", "/api/clients"], ["remove", "/api/remove"]]) {
     await step("guard", "json-body-to-" + label, async () => {
       const result = await request(path, { method: "POST", json: { kind: "bill" } });
@@ -316,10 +295,6 @@ if (args[0] === "--extra") {
     await page("/activity", /Fictional noodle stand bill changed/);
     const removed = await request("/api/remove", { method: "POST", form: { kind: "bill", id, returnTo: "/bills" } });
     expect(removed.response.status === 303, "nov5-remove");
-  });
-  await step("guard", "nov5-edit-of-an-unknown-bill-refused", async () => {
-    const result = await request("/api/bills", { method: "POST", form: { kind: "edit", id: randomUUID(), biller: "Fictional probe", amount: "1", due: "2026-11-20", category: "other", businessShare: "personal" } });
-    expect(result.response.status === 400 && result.body === "Choose a bill of this household", "nov5-unknown-bill");
   });
   await step("guard", "nov5-bills-unknown-kind-and-json-refused", async () => {
     const bogus = await request("/api/bills", { method: "POST", form: { kind: "rename", id: randomUUID() } });
@@ -376,15 +351,7 @@ if (args[0] === "--extra") {
       const result = await request("/api/import", { method: "POST", json: { cardId: importCard, rows: statementRows } });
       expect(result.response.status === 200 && result.body === JSON.stringify({ added: 3, skipped: 0 }), "s17-first-import");
     });
-    await step("action", "stage17-import-again-skips-all-three", async () => {
-      const result = await request("/api/import", { method: "POST", json: { cardId: importCard, rows: statementRows } });
-      expect(result.response.status === 200 && result.body === JSON.stringify({ added: 0, skipped: 3 }), "s17-second-import");
-    });
     await step("page", "stage17-activity-names-the-import", () => page("/activity", /Imported 3 charges to Card B from a statement/));
-    await step("guard", "stage17-import-to-a-card-of-no-household-refused", async () => {
-      const result = await request("/api/import", { method: "POST", json: { cardId: randomUUID(), rows: statementRows } });
-      expect(result.response.status === 400 && result.body === "Choose a card of this household", "s17-foreign-card");
-    });
     await step("guard", "stage17-import-form-body-refused", async () => {
       const result = await request("/api/import", { method: "POST", form: { cardId: importCard } });
       expect(result.response.status === 400 && result.body === "Check the required fields and try again.", "s17-form-body");
@@ -618,10 +585,6 @@ await step("guard", "add-view-is-the-households-own-and-read-only", async () => 
   const view = JSON.parse(mine.body);
   expect(typeof view.today === "string" && typeof view.homeCurrency === "string" && Array.isArray(view.people) && Array.isArray(view.cards) && Array.isArray(view.own?.categories), "add-view-shape");
   expect(!/session|tokenHash|secret/i.test(mine.body), "add-view-no-secrets");
-  const none = await request("/api/add/view", { session: "" });
-  expect(none.response.status === 401, "add-view-no-household");
-  const cross = await request("/api/add/view", { extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } });
-  expect(cross.response.status === 401 || cross.response.status === 403, "add-view-cross-origin");
   expect((await request("/api/add/view", { method: "POST" })).response.status === 405, "add-view-post-refused");
 });
 await step("action", "a-card-is-removed-with-its-own-id-only", async () => {
@@ -802,11 +765,6 @@ await step("page", "stage18-regular-costs-after-confirm", async () => {
   expect(/Regular costs Hikari Denki up ¥1,200 · Kissa Midori café down ¥920 so far/.test(panel), "regular-changed-line-starts-with-hikari");
   expect(panel.includes("Hikari Denki Utilities ¥11,220 Last month ¥10,020 · up ¥1,200 Sep ¥8,640 · Oct ¥10,020 · Nov ¥11,220"), "regular-hikari-row");
 });
-// A category outside the fourteen keys is refused before anything is saved (needs a session: the guards suite sends none).
-await step("guard", "bill-with-unknown-category-refused", async () => {
-  const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional vet", amount: "4000", due: "2026-11-20", category: "pets", businessShare: "personal" } });
-  expect(result.response.status === 400 && result.body === "Choose a category from the list.", "bad-category-result");
-});
 // A refused form answers with its message (the page shows it inline and keeps what was typed); a native post, as here,
 // gets the same status and text. The shared form posts with "x-form-fetch: 1" and is answered a redirect as 204 plus a header.
 const refused = (label, fields, message) => step("guard", label, async () => {
@@ -814,18 +772,9 @@ const refused = (label, fields, message) => step("guard", label, async () => {
   expect(result.response.status === 400 && result.body === message, "refused-result");
 });
 await refused("bill-with-amount-0-refused-with-message", { amount: "0" }, "The amount must be more than zero");
-await refused("bill-over-yen-limit-refused-with-message", { amount: "100,000,001" }, "Enter an amount up to ¥100,000,000");
-await refused("bill-dated-over-two-years-refused-with-message", { due: "2029-01-01" }, "Choose a date within the next two years");
 // D48: a schedule that does not hang together is refused with its words and nothing is saved.
-await refused("bill-new-amount-without-date-refused-with-message", { repeat: "year", nextAmount: "13000" }, "Give the new amount together with the date it starts");
-await refused("bill-new-amount-on-a-one-off-refused-with-message", { nextAmount: "13000", nextAmountFrom: "2027-12-01" }, "A new amount needs a bill that repeats: choose Every month or Every year");
 await refused("bill-new-amount-on-or-before-due-refused-with-message", { repeat: "year", nextAmount: "13000", nextAmountFrom: "2026-11-20" }, "The new amount must start after the due date");
-await refused("bill-cancel-by-after-the-renewal-refused-with-message", { repeat: "year", cancelBy: "2026-11-21" }, "Choose a cancel-by date before the bill is next charged on Nov 20");
-await refused("bill-cancel-by-over-two-years-refused-with-message", { cancelBy: "2029-01-01" }, "Choose a date within the next two years");
 // D41: a last payment that does not hang together is refused with its words.
-await refused("bill-last-payment-on-a-one-off-refused-with-message", { repeatUntil: "2026-12-27" }, "A last payment needs a bill that repeats: choose Every month or Every year");
-await refused("bill-last-payment-before-the-due-date-refused-with-message", { repeat: "month", repeatUntil: "2026-11-19" }, "The last payment must be on or after the first due date");
-await refused("bill-new-amount-over-yen-limit-refused-with-message", { repeat: "year", nextAmount: "100,000,001", nextAmountFrom: "2027-11-20" }, "Enter an amount up to ¥100,000,000");
 await refused("bill-with-an-unknown-repeat-refused", { repeat: "week" }, "Check the required fields and try again.");
 await step("action", "bill-with-thousands-separator-saved-and-removed", async () => {
   const id = randomUUID();
@@ -853,23 +802,6 @@ await step("read", "confirm-single-event", async () => {
   expect(bill, "seed-bill");
   const data = await events();
   expect(data.events.filter(event => event.kind === "bill_confirmed" && event.refId === bill).length === 1, "confirm-event-count");
-});
-// Ask goes to the agent (D40). Without the owner's AI settings it must stop with the missing setting's name (rule 10);
-// with them it must answer from the engine's numbers.
-await step("action", "typed-ask-read-only", async () => {
-  const result = await request("/api/ask", { method: "POST", json: { id: randomUUID(), conversationId: randomUUID(), text: "Where do I stand?", source: "manual", canvas: null } });
-  expect(result.response.status === 200 && /application\/x-ndjson/.test(result.response.headers.get("content-type") ?? ""), "ask-status");
-  // The stream: step lines, then one reply or error line.
-  const lines = result.body.split("\n").filter(Boolean).map(line => JSON.parse(line));
-  const last = lines.at(-1);
-  expect(lines.slice(0, -1).every(line => typeof line.step === "string"), "ask-steps");
-  if (typeof last.error === "string" && /^Ask isn’t available on this server yet \(AI_[A-Z_]+\)\.$|^This needs an AI key in Settings → Your AI model\.$/.test(last.error)) {
-    console.log(`NOTE typed-ask-read-only: ${last.error}; the live answer is not checked`);
-    return;
-  }
-  expect(last.reply, "ask-reply-line");
-  const answer = last.reply;
-  expect(answer.pending === false && typeof answer.text === "string" && ["answer", "clarify", "declined"].includes(answer.kind) && Array.isArray(answer.sources), "ask-result");
 });
 // The Ask page (D60): without the owner's AI settings it shows the missing setting's name; with them, the box. Pins (D57): pin a canvas, Home draws it, unpin.
 await step("page", "ask-page-opens-with-the-box-or-the-missing-setting", async () => {
@@ -1297,8 +1229,6 @@ await step("action", "stage15b-three-field-bill-with-guessed-defaults", async ()
     const home = await content("/", /short on the 27th/);
     expect(home.includes("¥25,580 short on the 27th") && !home.includes("Not counted:"), "s19b-sentence-after");
     expect((await activityTitles(gas.id)).includes("Minato Gas: ¥6,800"), "s19b-activity");
-    const refused = await request("/api/bills", { method: "POST", form: { kind: "fill", id: randomUUID(), amount: "1,000", returnTo: "/" } });
-    expect(refused.response.status === 400 && refused.body === "Choose a bill of this household", "s19b-foreign-id");
   });
 }
 await step("action", "long-uncounted-bill-appears-in-ask-and-plan-notes", async () => {

@@ -103,76 +103,6 @@
     "refs": []
   },
   {
-    "id": "START-005",
-    "area": "Try it",
-    "action": "Open /api/try with an existing demo cookie",
-    "user_goal": "I came back to the same browser",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "A Try it household cookie exists"
-    ],
-    "steps": [
-      "GET /api/try with the cookie, the same-origin headers"
-    ],
-    "expected": [
-      "303 to / and the same household cookie is kept",
-      "No new household is made"
-    ],
-    "refs": []
-  },
-  {
-    "id": "START-006",
-    "area": "Try it",
-    "action": "Open /api/try from another site",
-    "user_goal": "A hostile page tries to make demos for me",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Private window, no household cookie"
-    ],
-    "steps": [
-      "GET /api/try with an Origin or Sec-Fetch-Site header of another site"
-    ],
-    "expected": [
-      "403 \"Same-origin navigation required\"",
-      "No household is created and no cookie is set"
-    ],
-    "refs": []
-  },
-  {
-    "id": "START-007",
-    "area": "Try it",
-    "action": "Start many demos from one address",
-    "user_goal": "Trying the app again and again is never refused",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Dev server; each call sends a different x-forwarded-for only in the last step"
-    ],
-    "steps": [
-      "GET /api/try 35 times with no cookie from one address (same-origin headers as frontend-check.mjs; clear the cookie between calls)",
-      "POST Start with my numbers (/api/try/blank) from the same address"
-    ],
-    "expected": [
-      "Every call answers a redirect and makes a new demo household; none answers 429",
-      "Start with my numbers is also accepted"
-    ],
-    "refs": []
-  },
-  {
     "id": "START-009",
     "area": "Start with my numbers",
     "action": "Open the start form",
@@ -315,64 +245,6 @@
     "refs": []
   },
   {
-    "id": "START-014",
-    "area": "Start with my numbers",
-    "action": "Send a half-filled card to the setup route",
-    "user_goal": "A card name arrives without its days",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Private window, no household cookie",
-      "/start open"
-    ],
-    "steps": [
-      "Type Mika",
-      "The form has no card fields; post the setup route directly with a card name and no days",
-      "Then post a card name with closing day 40 and payment day 10"
-    ],
-    "expected": [
-      "The page stays and shows \"Check your name, currency and time zone.\"",
-      "Neither attempt makes a household",
-      "A card with days but no name is refused the same way"
-    ],
-    "refs": []
-  },
-  {
-    "id": "START-015",
-    "area": "Start with my numbers",
-    "action": "Type an unreadable or over-limit bank balance on Home",
-    "user_goal": "I typed it wrong",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Blank household from Start with my numbers (Mika)",
-      "Home open"
-    ],
-    "steps": [
-      "Bank balance → Update, type abc and Save",
-      "Try 100,000,001 in yen",
-      "In a household made with US dollars chosen, try 1,000,000.50",
-      "In the same dollar household, try 1,000,001"
-    ],
-    "expected": [
-      "abc is refused with the app's amount words (whole number of yen, like 5000 or 5,000)",
-      "Over the limit is refused with \"Enter an amount up to ¥100,000,000\" (or $1,000,000 in dollars)",
-      "Dollars with cents under the limit are accepted",
-      "Nothing is created for a refused attempt and what was typed stays"
-    ],
-    "refs": [
-      "DECISIONS D31"
-    ]
-  },
-  {
     "id": "START-016",
     "area": "Start with my numbers",
     "action": "Use full-width digits and separators in the bank balance on Home",
@@ -419,32 +291,6 @@
       "The name field stops at 80 characters or the form refuses it, and nothing is created for an over-long name",
       "A name with markup is shown as plain text everywhere (Home, Household), never as formatting",
       "A long unbroken name wraps and nothing scrolls sideways at 375px"
-    ],
-    "refs": []
-  },
-  {
-    "id": "START-018",
-    "area": "Start with my numbers",
-    "action": "Submit a bad time zone or currency by hand",
-    "user_goal": "A hand-made post",
-    "type": "security",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Private window, no household cookie"
-    ],
-    "steps": [
-      "POST /api/try/blank (same origin, form) with timeZone=Nowhere/Land",
-      "POST with currency=EUR",
-      "POST with no Origin header"
-    ],
-    "expected": [
-      "The first two answer 400 \"Check your name, currency and time zone.\"",
-      "The post without Origin is 403 \"Same-origin request required\"",
-      "No household is created"
     ],
     "refs": []
   },
@@ -676,52 +522,6 @@
     "refs": []
   },
   {
-    "id": "AUTH-003",
-    "area": "Sign in",
-    "action": "Ask for a link with an invalid email",
-    "user_goal": "I mistyped my address",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Private window, no household cookie"
-    ],
-    "steps": [
-      "POST /api/auth/link (same origin) with email=not-an-email, then an empty email, then an address of 255 characters"
-    ],
-    "expected": [
-      "Each answers 400 \"Enter a valid email address\"",
-      "No link is sent and no limit is used"
-    ],
-    "refs": []
-  },
-  {
-    "id": "AUTH-004",
-    "area": "Sign in",
-    "action": "Post the sign-in form from another site",
-    "user_goal": "A hostile page asks Supabase to email me",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Private window, no household cookie"
-    ],
-    "steps": [
-      "POST /api/auth/link with an Origin of another site"
-    ],
-    "expected": [
-      "403 \"Same-origin request required\"",
-      "Nothing is sent"
-    ],
-    "refs": []
-  },
-  {
     "id": "AUTH-005",
     "area": "Sign in",
     "action": "Hit the sign-in link limit",
@@ -923,54 +723,6 @@
     "refs": []
   },
   {
-    "id": "AUTH-013",
-    "area": "Sign in",
-    "action": "Leave a Try it household",
-    "user_goal": "I want to leave the demo on this computer",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "Open /settings/account",
-      "Read the page",
-      "Press Leave this household"
-    ],
-    "expected": [
-      "The page says it is a Try it household and offers Sign in with email, Privacy › and \"Leave this household\"",
-      "Pressing it returns to the landing and clears the cookie; the demo is swept after seven days",
-      "There is no Delete household on a Try it household"
-    ],
-    "refs": []
-  },
-  {
-    "id": "AUTH-014",
-    "area": "Security",
-    "action": "Open /account and /settings/account without any session",
-    "user_goal": "I came with no cookie",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Private window, no household cookie"
-    ],
-    "steps": [
-      "GET /account, then GET /settings/account"
-    ],
-    "expected": [
-      "Each redirects to /login (/account first moves to /settings/account)"
-    ],
-    "refs": []
-  },
-  {
     "id": "AUTH-018",
     "area": "Layout",
     "action": "Use the menu on every page",
@@ -1016,30 +768,6 @@
     "expected": [
       "The household, documents, key, memory and sessions are gone and I land on the landing",
       "Signing in again starts onboarding as a new person"
-    ],
-    "refs": []
-  },
-  {
-    "id": "AUTH-020",
-    "area": "Settings",
-    "action": "Delete household without ticking the box, or as a demo",
-    "user_goal": "I pressed delete by accident",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Try it household; then a signed-in one"
-    ],
-    "steps": [
-      "POST /api/household with no confirmation (signed in)",
-      "POST /api/household as a Try it household"
-    ],
-    "expected": [
-      "The first answers 400 \"Confirm household deletion\" and deletes nothing; the checkbox is required in the browser",
-      "The Try it post answers 403 \"Authenticated owner required\""
     ],
     "refs": []
   },
@@ -1095,36 +823,6 @@
     ],
     "refs": [
       "qa/README Expected numbers"
-    ]
-  },
-  {
-    "id": "SET-003",
-    "area": "Settings",
-    "action": "Save a negative or odd bank balance",
-    "user_goal": "My account is overdrawn",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "On Home open Bank balance → Update, type -5,000 and press Save",
-      "Type 100,000,001",
-      "Type abc",
-      "Clear the box"
-    ],
-    "expected": [
-      "A negative balance is accepted (the field allows a minus)",
-      "Over ¥100,000,000 shows \"Enter an amount up to ¥100,000,000\"; abc shows the whole-number words",
-      "An empty box is stopped by the browser; nothing saves in a refused case",
-      "Put 67,000 back afterwards"
-    ],
-    "refs": [
-      "DECISIONS D31"
     ]
   },
   {
@@ -1472,113 +1170,6 @@
     "refs": []
   },
   {
-    "id": "SET-022",
-    "area": "Settings",
-    "action": "Edit and clear a last payment, then remove the bill",
-    "user_goal": "My contract was extended",
-    "type": "happy",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "State after PLAN-034 (Kawa Gym with last payment Dec 27 added)"
-    ],
-    "steps": [
-      "Edit Kawa Gym's last payment to Jan 27 and save",
-      "Edit it, clear the field and save",
-      "Press Remove beside Kawa Gym and confirm"
-    ],
-    "expected": [
-      "Activity says \"Last payment Dec 27 → Jan 27\" then \"No last payment\"",
-      "Coming up then shows only \"Every month\"",
-      "After Remove the shortfall is back to ¥18,780"
-    ],
-    "refs": [
-      "D41"
-    ]
-  },
-  {
-    "id": "SET-023",
-    "area": "Settings",
-    "action": "Edit cancel-by and amount-varies on a bill",
-    "user_goal": "I changed my mind about the reminder",
-    "type": "edge",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "State after PLAN-030 (Fictional Cloud, yearly, cancel by Nov 20, added)"
-    ],
-    "steps": [
-      "Edit Fictional Cloud and clear the cancel-by date",
-      "Set a cancel-by date on or after the next charge date"
-    ],
-    "expected": [
-      "Clearing removes the Nov 20 reminder row from Coming up",
-      "A cancel-by after the next charge is refused with the \"before the bill is next charged\" words"
-    ],
-    "refs": []
-  },
-  {
-    "id": "SET-024",
-    "area": "Settings",
-    "action": "Remove a yearly bill",
-    "user_goal": "I cancelled the subscription",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "State after PLAN-030 and SET-023 (Fictional Cloud added)"
-    ],
-    "steps": [
-      "Press Remove beside Fictional Cloud",
-      "Read the question",
-      "Press Keep, then Remove and Remove"
-    ],
-    "expected": [
-      "The question says \"It repeats every year, so every year goes.\"",
-      "Coming up loses both rows and Activity says \"Removed bill Fictional Cloud ¥12,000\" with \"Every year, so every occurrence is gone\""
-    ],
-    "refs": []
-  },
-  {
-    "id": "SET-025",
-    "area": "Settings",
-    "action": "Remove a bill twice or another household's bill",
-    "user_goal": "A retry or forged id must leave other records alone",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "POST /api/remove kind=bill with a bill id twice",
-      "POST it with a bill id of another household",
-      "POST with a non-UUID id"
-    ],
-    "expected": [
-      "The first removal redirects and the second returns 400 \"Choose a bill of this household\"",
-      "The other household’s id returns 400 \"Choose a bill of this household\" and its bill stays",
-      "A bad id answers 400 \"Check the required fields and try again.\""
-    ],
-    "refs": [
-      "frontend-check --run",
-      "db:charge-routes-test",
-      "db:isolation-test"
-    ]
-  },
-  {
     "id": "SET-026",
     "area": "Settings",
     "action": "Set the month a one-off bill covers",
@@ -1600,35 +1191,6 @@
       "Activity reads \"Period 10月分\" and the block reopens with both dates",
       "Home's sentence and numbers do not move",
       "The two date fields and Save are at least 44px tall at 375px"
-    ],
-    "refs": [
-      "D63"
-    ]
-  },
-  {
-    "id": "SET-027",
-    "area": "Settings",
-    "action": "Refuse a bad bill period and clear it",
-    "user_goal": "I gave one date",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "Give only First day and save",
-      "Give a Last day before the First day",
-      "Clear both and save",
-      "Edit a repeating bill (Rent)"
-    ],
-    "expected": [
-      "The words are \"Give both the first and the last day of the period, or neither.\" and \"The period must start on or before its last day.\"; neither saves",
-      "Clearing both saves and Activity says \"No period\"",
-      "A repeating bill has no \"Month this bill covers\" in its Edit"
     ],
     "refs": [
       "D63"
@@ -1659,34 +1221,6 @@
     "refs": []
   },
   {
-    "id": "SET-030",
-    "area": "Settings",
-    "action": "Add a bill with an unreadable amount or date",
-    "user_goal": "I typed a bad bill",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
-    ],
-    "steps": [
-      "Add a bill with amount abc",
-      "Add a bill with a due date more than two years away",
-      "Add a bill with a blank name"
-    ],
-    "expected": [
-      "The words under the form are the app's amount words or \"Choose a date within the next two years\"",
-      "A blank name is stopped by the browser",
-      "Nothing is saved"
-    ],
-    "refs": [
-      "DECISIONS D31"
-    ]
-  },
-  {
     "id": "SET-031",
     "area": "Settings",
     "action": "Read the AI panel with no server model",
@@ -1708,29 +1242,6 @@
       "On a server with some but not all AI_ settings it reads \"Ask isn’t set up on this server yet.\" and \"Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.\"; with no AI_ settings it reads \"Paste your own key below to use Ask and document reading.\" and the default-model hint is hidden; there is no allowance or \"default calls recorded\" line",
       "There is no \"go to\" host line and no clear button",
       "With a server model the first line is \"Your questions and documents go to {host}.\""
-    ],
-    "refs": []
-  },
-  {
-    "id": "SET-032",
-    "area": "Settings",
-    "action": "Read the provider list",
-    "user_goal": "I want to pick my provider",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "Open the Provider select"
-    ],
-    "expected": [
-      "The order is This app's default, Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Mistral, Other (OpenAI-compatible address)",
-      "On the default there is a Key password field with \"Paste a key or choose a provider to use your own model.\" and no Save and check button"
     ],
     "refs": []
   },
@@ -1839,58 +1350,6 @@
     "refs": []
   },
   {
-    "id": "SET-037",
-    "area": "Settings",
-    "action": "Save a listed provider and check the result",
-    "user_goal": "I want to use my own model",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "A fictional provider transport and document model that reads the Kawa Gym total"
-    ],
-    "steps": [
-      "Run npm run db:settings-test",
-      "Save a provider, question model, document model and fictional key"
-    ],
-    "expected": [
-      "The saved check records all four results, including reads_images",
-      "The connection view reports the listed provider’s host and only a key hint"
-    ],
-    "refs": [
-      "db:settings-test"
-    ]
-  },
-  {
-    "id": "SET-038",
-    "area": "Settings",
-    "action": "Save a model that does not call tools",
-    "user_goal": "My model cannot use tools",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "A simulated question model that does not call tools"
-    ],
-    "steps": [
-      "Run npm run db:settings-test",
-      "Attempt to save the simulated model"
-    ],
-    "expected": [
-      "The refusal says the model did not call the app’s tools",
-      "The existing connection is unchanged"
-    ],
-    "refs": [
-      "db:settings-test"
-    ]
-  },
-  {
     "id": "SET-039",
     "area": "Settings",
     "action": "Never see the key again, keep it on re-save",
@@ -1946,32 +1405,6 @@
     "refs": []
   },
   {
-    "id": "SET-041",
-    "area": "Settings",
-    "action": "Post a huge or malformed model form",
-    "user_goal": "A hand-made post",
-    "type": "security",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "POST /api/settings/ai-model with a body over 4 KB",
-      "POST with kind=other",
-      "POST seven times in a minute"
-    ],
-    "expected": [
-      "The big body answers 413 \"That request is too large\"",
-      "kind=other answers 400 \"Check the fields and try again.\"",
-      "The seventh answers 429 \"Too many changes. Try again in a minute.\""
-    ],
-    "refs": []
-  },
-  {
     "id": "SET-043",
     "area": "Settings",
     "action": "Revoke an MCP key",
@@ -1993,30 +1426,6 @@
     "expected": [
       "After Revoke the key is gone from the list",
       "The client is refused with 401"
-    ],
-    "refs": []
-  },
-  {
-    "id": "SET-044",
-    "area": "Settings",
-    "action": "Create an MCP key with no name or without the server key",
-    "user_goal": "I forgot the name",
-    "type": "negative",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "POST /api/mcp/tokens with an empty name",
-      "POST with scopes of write"
-    ],
-    "expected": [
-      "Each answers 400 \"Choose a token name and scopes.\"",
-      "With MCP_TOKEN_KEY unset a valid request answers 503 naming MCP_TOKEN_KEY"
     ],
     "refs": []
   },
@@ -2045,31 +1454,6 @@
       "Reset returns to Home with Ben’s expected numbers and Get started",
       "Network shows one Reset POST with x-form-fetch: 1, a 204 with x-form-redirect: /, and one navigation to Home",
       "The line “Puts Ben’s fictional starting numbers back.” shows under the button"
-    ],
-    "refs": []
-  },
-  {
-    "id": "SET-046",
-    "area": "Settings",
-    "action": "Reset with no household or after it is swept",
-    "user_goal": "My demo expired",
-    "type": "negative",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Private window, no household cookie"
-    ],
-    "steps": [
-      "POST /api/try/reset with no cookie",
-      "POST it from another origin"
-    ],
-    "expected": [
-      "No cookie answers 403 \"Demo session required\"",
-      "Another origin answers 403 \"Same-origin request required\"",
-      "A swept household answers 409 \"Demo session has expired\""
     ],
     "refs": []
   },
@@ -2258,61 +1642,6 @@
     ]
   },
   {
-    "id": "DATA-005",
-    "area": "Your data",
-    "action": "Delete the numbers record by hand",
-    "user_goal": "I try to delete my money",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "POST /api/data kind=delete_kind what=record",
-      "POST kind=delete_kind with no what",
-      "POST kind=delete_one what=memory with no id"
-    ],
-    "expected": [
-      "The record is refused (400) and nothing is deleted; the row has no Delete",
-      "The other two answer 400 \"Check the required fields and try again.\""
-    ],
-    "refs": [
-      "D59"
-    ]
-  },
-  {
-    "id": "DATA-006",
-    "area": "Your data",
-    "action": "Delete one item twice or another household's item",
-    "user_goal": "The second tap or a forged id",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben)",
-      "One memory item id"
-    ],
-    "steps": [
-      "POST /api/data kind=delete_one what=memory id=<id> twice",
-      "POST with an id from another household"
-    ],
-    "expected": [
-      "The second answers 404 \"That is already gone.\"",
-      "The other household's item is untouched"
-    ],
-    "refs": [
-      "db:isolation-test",
-      "D59"
-    ]
-  },
-  {
     "id": "DATA-007",
     "area": "Your data",
     "action": "Export my data on Try it",
@@ -2356,54 +1685,6 @@
     ],
     "expected": [
       "memory has one item (id, kind, text, source, dates) and canvases one item (id, title, position, recipe, createdAt; no numbers)"
-    ],
-    "refs": []
-  },
-  {
-    "id": "DATA-009",
-    "area": "Your data",
-    "action": "Export from another origin or too often",
-    "user_goal": "A hostile page or a loop",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "POST /api/export with another Origin",
-      "POST /api/export seven times in a minute"
-    ],
-    "expected": [
-      "The first answers 403",
-      "The seventh answers 429 \"Export limit reached. Try again in a minute.\"",
-      "Responses carry no-store and the filename holds the household's date"
-    ],
-    "refs": []
-  },
-  {
-    "id": "DATA-010",
-    "area": "Your data",
-    "action": "Import into a household that has data",
-    "user_goal": "I try to import over my numbers",
-    "type": "negative",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)",
-      "An exported file"
-    ],
-    "steps": [
-      "Choose the exported file in \"Import a file you exported from here\""
-    ],
-    "expected": [
-      "Under it \"Import works on an empty household. Start with my numbers first.\" shows and counts are unchanged"
     ],
     "refs": []
   },
@@ -2457,34 +1738,6 @@
       "Home shows Ben's sentence with the pin \"What if clients pay late\" under it",
       "Activity has one import event, \"Imported a household file\" (Type \"Imported from a file\"); the file's own events are not brought over",
       "A second import is refused as in DATA-010"
-    ],
-    "refs": []
-  },
-  {
-    "id": "DATA-013",
-    "area": "Your data",
-    "action": "Import a forged or oversized file by hand",
-    "user_goal": "A hand-made import",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
-    ],
-    "steps": [
-      "POST /api/restore with a body over 1 MB (and a content-length header)",
-      "POST a JSON that is valid JSON but not a household",
-      "POST from another origin",
-      "POST three times in a minute"
-    ],
-    "expected": [
-      "413 with the over-1 MB words",
-      "A non-household answers 400 with a sentence and imports nothing",
-      "403 for another origin",
-      "The third answers 429 \"Import limit reached. Try again in a minute.\""
     ],
     "refs": []
   },
@@ -2547,31 +1800,6 @@
     "refs": []
   },
   {
-    "id": "DATA-016",
-    "area": "Your data",
-    "action": "Post cloud memory while it is on the device",
-    "user_goal": "Two places for one thing",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben)",
-      "Memory kept on this device"
-    ],
-    "steps": [
-      "POST /api/memory (form) to add a memory",
-      "Choose the exported file in Import"
-    ],
-    "expected": [
-      "Each is refused with \"You keep what the assistant remembers on this device only. Change that in Settings, Your data, to use it here.\"",
-      "Nothing is written"
-    ],
-    "refs": []
-  },
-  {
     "id": "DATA-017",
     "area": "Your data",
     "action": "Move canvases and conversations to the device",
@@ -2624,31 +1852,6 @@
     "refs": []
   },
   {
-    "id": "DATA-019",
-    "area": "Your data",
-    "action": "Export from this device",
-    "user_goal": "My export should hold everything",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)",
-      "Memory or a pin on this device"
-    ],
-    "steps": [
-      "Press \"Export from this device\"",
-      "Open the file"
-    ],
-    "expected": [
-      "The message \"Saved, with what you keep on this device added.\" shows",
-      "The file is version 3 with the device's items in memory, canvases and journal; with nothing on the device the button reads \"Export my data\""
-    ],
-    "refs": []
-  },
-  {
     "id": "DATA-020",
     "area": "Your data",
     "action": "Move back to the cloud",
@@ -2673,37 +1876,6 @@
       "Import and cloud memory work again"
     ],
     "refs": []
-  },
-  {
-    "id": "DATA-021",
-    "area": "Your data",
-    "action": "Move with a forged request",
-    "user_goal": "A hand-made move",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "POST /api/data/move step=to_device what=memory with ids of another household",
-      "POST step=to_cloud with items that break the schema",
-      "POST step=read with what=record",
-      "POST a body over 2 MB"
-    ],
-    "expected": [
-      "Another household's ids move nothing",
-      "Invalid items are refused with a sentence and nothing is inserted",
-      "record answers 400 \"Choose what to move and where.\"",
-      "The big body answers 413 \"That is more than can be moved in one go.\""
-    ],
-    "refs": [
-      "db:data-test",
-      "D59"
-    ]
   },
   {
     "id": "DATA-022",
@@ -2856,60 +2028,6 @@
     "refs": []
   },
   {
-    "id": "FAM-004",
-    "area": "Family",
-    "action": "Check the family page's headers",
-    "user_goal": "I do not want it cached or indexed",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A live family link"
-    ],
-    "steps": [
-      "GET the link with no cookie and read the headers"
-    ],
-    "expected": [
-      "Cache-Control is no-store, Referrer-Policy is no-referrer and X-Robots-Tag is noindex, nofollow",
-      "The page has robots noindex"
-    ],
-    "refs": [
-      "D52"
-    ]
-  },
-  {
-    "id": "FAM-005",
-    "area": "Family",
-    "action": "Open a made-up or altered link",
-    "user_goal": "Someone guesses an address",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A live link"
-    ],
-    "steps": [
-      "GET /family/ with a random token",
-      "Change one character of a real token",
-      "GET /family/ with a very long token"
-    ],
-    "expected": [
-      "Each returns HTTP 200 with “This link has ended. Ask for a new one.” and no household information",
-      "The response headers include Cache-Control: no-store, Referrer-Policy: no-referrer and X-Robots-Tag: noindex, nofollow"
-    ],
-    "refs": [
-      "D52"
-    ]
-  },
-  {
     "id": "FAM-006",
     "area": "Family",
     "action": "Stop sharing",
@@ -2961,62 +2079,6 @@
       "Stopping one allows a new link"
     ],
     "refs": []
-  },
-  {
-    "id": "FAM-008",
-    "area": "Family",
-    "action": "Stop a link twice or someone else's link",
-    "user_goal": "A second tap or a forged id",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben)",
-      "One link id and another household's link id"
-    ],
-    "steps": [
-      "POST /api/family-links kind=stop id=<id> twice",
-      "POST with the other household's id",
-      "POST with a non-UUID id",
-      "POST kind=create from another origin"
-    ],
-    "expected": [
-      "The second answers \"That link has already ended.\"",
-      "The other household's link keeps working",
-      "A bad id answers 400; another origin answers 403"
-    ],
-    "refs": [
-      "db:family-test"
-    ]
-  },
-  {
-    "id": "FAM-009",
-    "area": "Family",
-    "action": "Expire a link",
-    "user_goal": "I want links to end by themselves",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:family-test"
-    ],
-    "expected": [
-      "A link opens only up to seven days after it was made, by the real clock, and never uses a household's fixed demo date",
-      "Stopped and expired links do not resolve"
-    ],
-    "refs": [
-      "db:family-test",
-      "D52"
-    ]
   },
   {
     "id": "FAM-010",
@@ -3145,30 +2207,6 @@
     "refs": []
   },
   {
-    "id": "PRIV-002",
-    "area": "Privacy",
-    "action": "Read the AI provider line",
-    "user_goal": "I want to know where my questions go",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Private window, no household cookie"
-    ],
-    "steps": [
-      "Open /privacy and wait a moment",
-      "Open it again signed in or with an own model saved"
-    ],
-    "expected": [
-      "The line reads \"By default, questions and documents go to {host}.\" or \"This server has no AI model set up.\" and says a model chosen in Settings sends them to the host shown there",
-      "After a model is saved Settings shows that host"
-    ],
-    "refs": []
-  },
-  {
     "id": "PRIV-003",
     "area": "Privacy",
     "action": "Follow every link to Privacy",
@@ -3241,118 +2279,6 @@
       "It reads the same signed in"
     ],
     "refs": []
-  },
-  {
-    "id": "PRIV-008",
-    "area": "Privacy",
-    "action": "Never show secrets back",
-    "user_goal": "I want no secret in any screen",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "Fetch Settings → Your AI model, Home and the export",
-      "Search each for AI key, token and service key text"
-    ],
-    "expected": [
-      "No key, token, sign-in email or service secret appears in any page or export",
-      "Only the last four characters of a saved key of 20 or more characters can appear in Settings → Your AI model; a shorter key shows (hidden)"
-    ],
-    "refs": [
-      "AGENTS hard rule 2"
-    ]
-  },
-  {
-    "id": "START-027",
-    "area": "Start",
-    "action": "Open a Try it page and read its cookie",
-    "user_goal": "I want my demo session not to expose the household id",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Migration 0031 applied",
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "POST /api/try with the same-origin headers",
-      "Read the household cookie in the Set-Cookie header"
-    ],
-    "expected": [
-      "The cookie value is 43 base64url characters",
-      "It is not the household's id and not a UUID",
-      "Reusing the earlier token after another Try it, Reset or Start with my numbers opens nothing",
-      "A cookie holding a household id opens nothing and the visitor starts fresh"
-    ],
-    "refs": [
-      "db:sweep-test",
-      "D34",
-      "db:isolation-test"
-    ]
-  },
-  {
-    "id": "SEC-023",
-    "area": "Security",
-    "action": "Check that pages cannot be framed",
-    "user_goal": "I want no other site to frame the key field",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "The app is running"
-    ],
-    "steps": [
-      "GET / and GET /settings",
-      "Read the response headers"
-    ],
-    "expected": [
-      "Content-Security-Policy is frame-ancestors 'none'",
-      "X-Frame-Options is DENY"
-    ],
-    "refs": [
-      "D56"
-    ]
-  },
-  {
-    "id": "SEC-024",
-    "area": "Security",
-    "action": "Leave a Try it household idle for 24 hours with its own key",
-    "user_goal": "I want a demo's key gone when I stop using it",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "db:sweep-test"
-    ],
-    "steps": [
-      "Run npm run db:sweep-test",
-      "Read its checks on idle demo keys and orphan secrets"
-    ],
-    "expected": [
-      "A demo household's own model is removed after 24 hours with no Activity event; the household stays",
-      "A key used within 24 hours is kept",
-      "A Vault secret named household:<id>:anthropic that no household points to is deleted"
-    ],
-    "refs": [
-      "db:sweep-test",
-      "D34",
-      "D56"
-    ]
   },
   {
     "id": "SETUP-001",
@@ -3675,62 +2601,6 @@
     ]
   },
   {
-    "id": "SETUP-012",
-    "area": "Setup",
-    "action": "Press the Rent chip",
-    "user_goal": "I want my rent started for me",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Private window, no household cookie",
-      "/start open",
-      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
-    ],
-    "steps": [
-      "Skip to step 3",
-      "Press Rent"
-    ],
-    "expected": [
-      "The Add a bill form opens with Name \"Rent\", category Housing and Repeats every month",
-      "The Rent chip is shown as pressed"
-    ],
-    "refs": [
-      "D47"
-    ]
-  },
-  {
-    "id": "SETUP-013",
-    "area": "Setup",
-    "action": "Press the Electricity chip",
-    "user_goal": "I want a bill that changes each month",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Private window, no household cookie",
-      "/start open",
-      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
-    ],
-    "steps": [
-      "Skip to step 3",
-      "Press Electricity"
-    ],
-    "expected": [
-      "The form opens with Name \"Electricity\", category Utilities and Repeats every month",
-      "The amount is marked as varying (the guess line says varies)"
-    ],
-    "refs": [
-      "D47"
-    ]
-  },
-  {
     "id": "SETUP-014",
     "area": "Setup",
     "action": "Press the Gas & water chip",
@@ -3781,37 +2651,6 @@
     "expected": [
       "The form opens with an empty Name and category Other, repeating every month",
       "Typing a name works as in Home's Add a bill form"
-    ],
-    "refs": [
-      "D47"
-    ]
-  },
-  {
-    "id": "SETUP-016",
-    "area": "Setup",
-    "action": "Add a bill from a chip and stay",
-    "user_goal": "I want my rent in the plan",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Private window, no household cookie",
-      "/start open",
-      "Name Mika typed and Start planning pressed (setup opens at /setup?step=bank)"
-    ],
-    "steps": [
-      "Skip to step 3",
-      "Press Rent",
-      "Type 82,000 and a due date",
-      "Press Add bill"
-    ],
-    "expected": [
-      "The page stays on Step 3 of 4",
-      "A list \"Bills so far\" shows \"Rent\" with ¥82,000 and \"every month\"",
-      "The form is gone until another chip is pressed"
     ],
     "refs": [
       "D47"
@@ -3927,32 +2766,6 @@
     "expected": [
       "Home shows \"Bank balance ¥250,000\" and Rent in Coming up and Card N in Cards",
       "On Home the cards Set today’s bank balance, Add a bill and Add a client are ticked"
-    ],
-    "refs": [
-      "D47"
-    ]
-  },
-  {
-    "id": "SETUP-021",
-    "area": "Setup",
-    "action": "Open a setup address without a session or with a wrong step",
-    "user_goal": "I want a bad link to land somewhere sensible",
-    "type": "negative",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Private window, no household cookie"
-    ],
-    "steps": [
-      "Open /setup?step=bank with no household cookie",
-      "With a household, open /setup and /setup?step=nowhere"
-    ],
-    "expected": [
-      "With no household the page redirects to /start",
-      "/setup and an unknown step both redirect to /setup?step=bank"
     ],
     "refs": [
       "D47"

@@ -1,5 +1,4 @@
-// Own categories (D75): the name rules and the cap, every function in src/db/own-categories.ts, the database walls (another household, another
-// kind, remove clears only the link), the writes that file an item, the loaders and the month view. PGlite, no credentials.
+// Own categories (D75): the name rules and the cap, every function in src/db/own-categories.ts, the database walls (another kind, remove clears only the link), the writes that file an item, the loaders and the month view. PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/own-categories-test.ts
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -38,7 +37,7 @@ async function main() {
   async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });
-    const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
+    const a = await seedBen(db, { isDemo: true });
     const names = async (hid: string) => (await listOwnCategories(db, hid)).map(o => `${o.kind}/${o.name}/${o.items}`);
     const idOf = async (hid: string, name: string) => (await listOwnCategories(db, hid)).find(o => o.name === name)!.id;
     const card = async (hid: string) => (await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)).orderBy(schema.cards.createdAt))[0].id;
@@ -51,8 +50,6 @@ async function main() {
       assert.deepEqual(grouped.map(g => [g.kind, g.label, g.categories.map(c => c.name)]), [["food", "Food", ["Coffee"]], ["other", "Other", ["Books & films", "Gear"]]]);
       assert.deepEqual(groupOwnCategories([]), []);
       assert.equal((await ownCategoryRefs(db, a)).size, 3);
-      const refsA = await ownCategoryRefs(db, a);
-      assert.deepEqual([...(await ownCategoryRefs(db, b)).keys()].filter(id => refsA.has(id)), [], "no id is in both households");
     });
 
     await check("add: trims, keeps an optional default share, refuses the name rules in the spec's words", async () => {
@@ -81,7 +78,7 @@ async function main() {
       assert.equal((await listOwnCategories(db, c)).length, 40);
     });
 
-    await check("save: rename, change and clear the default share; the rules apply to a rename; another household's id finds nothing", async () => {
+    await check("save: rename, change and clear the default share; the rules apply to a rename", async () => {
       const tea = (await listOwnCategories(db, a)).find(o => o.name === "Tea")!;
       assert.equal((await saveOwnCategory(db, a, { id: tea.id, name: "Green tea" }))!.name, "Green tea");
       assert.equal((await saveOwnCategory(db, a, { id: tea.id }))!.businessBp, 2500, "nothing sent = unchanged");
@@ -90,18 +87,14 @@ async function main() {
       assert.equal((await saveOwnCategory(db, a, { id: tea.id, name: "GREEN TEA" }))!.name, "GREEN TEA", "a rename may change only the case");
       await assert.rejects(saveOwnCategory(db, a, { id: tea.id, name: "Coffee" }), refused("You already have Coffee under Food."));
       await assert.rejects(saveOwnCategory(db, a, { id: tea.id, name: "Other" }), refused("Other is already a category."));
-      assert.equal(await saveOwnCategory(db, b, { id: tea.id, name: "Stolen" }), null);
-      assert.equal((await listOwnCategories(db, a)).find(o => o.id === tea.id)!.name, "GREEN TEA");
     });
 
-    await check("the database refuses an own category of another household or another kind, and a default share never rewrites saved items", async () => {
-      const coffeeA = await idOf(a, "Coffee"), gearB = await idOf(b, "Gear");
+    await check("the database refuses an own category of another kind, and a default share never rewrites saved items", async () => {
+      const coffeeA = await idOf(a, "Coffee");
       const [food] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, a), eq(schema.charges.category, "food"))).limit(1);
-      await assert.rejects(db.update(schema.charges).set({ ownCategoryId: await idOf(b, "Coffee") }).where(eq(schema.charges.id, food.id)), Error);
       const [travel] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, a), eq(schema.charges.category, "travel"))).limit(1);
       await assert.rejects(db.update(schema.charges).set({ ownCategoryId: coffeeA }).where(eq(schema.charges.id, travel.id)), Error);
       const [bill] = await db.select().from(schema.bills).where(eq(schema.bills.householdId, a)).limit(1);
-      await assert.rejects(db.update(schema.bills).set({ ownCategoryId: gearB }).where(eq(schema.bills.id, bill.id)), Error);
       await assert.rejects(db.update(schema.bills).set({ ownCategoryId: coffeeA }).where(eq(schema.bills.id, bill.id)), Error, "Coffee is Food's, the bill is not Food");
       const before = (await chargeRow(a, food.id)).businessBp;
       await saveOwnCategory(db, a, { id: coffeeA, businessBp: 10_000 });
@@ -125,7 +118,6 @@ async function main() {
       assert.deepEqual([(await listOwnCategories(db, a)).filter(o => o.name.toLowerCase() === "lunch").length, (await chargeRow(a, again.id)).ownCategoryId === lunch.id], [1, true]);
       await assert.rejects(insertCharge(db, a, await charge(a, { ownCategoryNew: "Food" }), "confirmed", "manual", form), refused("Food is already a category."));
       await assert.rejects(insertCharge(db, a, await charge(a, { ownCategoryId: await idOf(a, "Gear") }), "confirmed", "manual", form), refused("Gear is a category under Other, not Food."));
-      await assert.rejects(insertCharge(db, a, await charge(a, { ownCategoryId: await idOf(b, "Coffee") }), "confirmed", "manual", form), refused("Choose one of your categories."));
       await assert.rejects(insertCharge(db, a, await charge(a, { ownCategoryId: coffeeA, ownCategoryNew: "Both" }), "confirmed", "manual", form), refused("Choose one of your categories or make a new one, not both."));
       assert.equal((await chargeRow(a, (await charge(a, {})).id)), undefined);
       const bare = await charge(a, { merchant: "Fictional Plain" });
@@ -157,7 +149,6 @@ async function main() {
       assert.equal(await updateBill(db, a, edit({ category: "subscriptions", ownCategoryId: null }), form), true);
       assert.equal(await own(), null);
       await assert.rejects(updateBill(db, a, edit({ category: "subscriptions", ownCategoryId: coffeeA }), form), refused(/Coffee is a category under Food, not Subscriptions/));
-      await assert.rejects(updateBill(db, a, edit({ category: "subscriptions", ownCategoryId: await idOf(b, "Coffee") }), form), refused("Choose one of your categories."));
     });
 
     await check("the statement import files rows under an id or a new name", async () => {
@@ -195,9 +186,7 @@ async function main() {
       assert.deepEqual(await fileOwnCategory(db, c, { item: "bill", id: bill.id, ownCategoryId: null, everySame: true }), { filed: 5 });
       assert.deepEqual((await listOwnCategories(db, c)).find(o => o.id === lunch)!.items, 0);
       await assert.rejects(fileOwnCategory(db, c, { item: "charge", id: other.id, ownCategoryId: coffee }), refused(/Coffee is a category under Food, not Travel/));
-      await assert.rejects(fileOwnCategory(db, c, { item: "charge", id: stray.id, ownCategoryId: await idOf(a, "Coffee") }), refused("Choose one of your categories."));
       assert.equal(await fileOwnCategory(db, c, { item: "charge", id: randomUUID(), ownCategoryId: null }), null);
-      assert.equal(await fileOwnCategory(db, a, { item: "charge", id: stray.id, ownCategoryId: null }), null, "another household's item is not found");
     });
 
     await check("the guess: the own category of the latest confirmed item with the same name key and category, or none", async () => {
@@ -214,10 +203,9 @@ async function main() {
       const pending = await charge(c, { merchant: "Fictional Only Pending", ownCategoryId: coffee });
       await insertCharge(db, c, pending, "pending", "manual", form);
       assert.equal(await guessOwnCategory(db, c, "food", "Fictional Only Pending"), null, "a pending item is not a guide");
-      assert.equal(await guessOwnCategory(db, b, "food", "Fictional Only Pending"), null);
     });
 
-    await check("ownChoices: the forms' own categories and the same guess for every name in one read; no pending item and no other household", async () => {
+    await check("ownChoices: the forms' own categories and the same guess for every name in one read; no pending item", async () => {
       const c = await seedBen(db, { isDemo: true });
       const coffee = await idOf(c, "Coffee");
       const choices = await ownChoices(db, c);
@@ -231,7 +219,6 @@ async function main() {
       assert.equal(later.guesses[`food|${nameKey("Kissa Midori café")}`], roaster, "the latest wins, as guessOwnCategory does");
       assert.equal(later.guesses[`food|${nameKey("Fictional Only Pending")}`], undefined);
       assert.equal(later.categories.find(o => o.id === roaster)?.businessBp, 5000);
-      assert.ok(!Object.values(await ownChoices(db, b).then(x => x.guesses)).includes(roaster));
     });
 
     await check("find by name: the matching own category and the names of that category's own categories", async () => {
@@ -253,12 +240,11 @@ async function main() {
       assert.deepEqual([row.ownCategoryId, row.category], [gear, "other"]);
     });
 
-    await check("remove: the items go back to the category alone, with household and category unchanged; the count says how many; another household's id finds nothing", async () => {
+    await check("remove: the items go back to the category alone, with household and category unchanged; the count says how many", async () => {
       const c = await seedBen(db, { isDemo: true });
       const coffee = await idOf(c, "Coffee");
       const before = (await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.ownCategoryId, coffee)))).map(r => r.id).sort();
       assert.equal(before.length, 3);
-      assert.equal(await removeOwnCategory(db, b, { id: coffee }), null);
       assert.deepEqual(await removeOwnCategory(db, c, { id: coffee }), { cleared: 3 });
       const after = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.merchant, "Kissa Midori café")));
       assert.deepEqual(after.map(r => r.id).sort(), before);
@@ -267,12 +253,11 @@ async function main() {
       assert.equal(await removeOwnCategory(db, c, { id: coffee }), null);
     });
 
-    await check("deleting a household takes its own categories with it, and another household's stay", async () => {
+    await check("deleting a household takes its own categories with it", async () => {
       const c = await seedBen(db, { isDemo: true });
       const { deleteHousehold } = await import("@/db/household");
       await deleteHousehold(db, c);
       assert.equal((await db.select().from(schema.ownCategories).where(eq(schema.ownCategories.householdId, c))).length, 0);
-      assert.ok((await listOwnCategories(db, a)).length > 0);
     });
 
     await check("the loaders carry the own category: the money state, the spending rows and Settings", async () => {

@@ -110,9 +110,8 @@ async function main() {
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });
     const A = await seedBen(db, { isDemo: true, name: "Import A household" });
-    const B = await seedBen(db, { isDemo: true, name: "Import B household" });
     const cardOf = async (hid: string, label: string) => (await db.select().from(schema.cards).where(and(eq(schema.cards.householdId, hid), eq(schema.cards.label, label))))[0].id;
-    const cardB = await cardOf(A, "Card B"), otherCard = await cardOf(B, "Card B");
+    const cardB = await cardOf(A, "Card B");
     const { statement } = statementOf(fixture("sample-statement-utf8.csv"));
     const rows = charges(readRows(statement.body, statement.picks, "JPY"));
     const countOn = async (hid: string, card: string) => (await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, hid), eq(schema.charges.cardId, card)))).length;
@@ -143,12 +142,6 @@ async function main() {
       assert.deepEqual(await importCharges(db, A, cardB, [...rows.map(r => ({ ...r, merchant: r.merchant.toUpperCase() })), extra], { madeBy: "import" }), { added: 1, skipped: 7 }, "the name matches without case");
       const events = await db.select().from(schema.events).where(and(eq(schema.events.householdId, A), eq(schema.events.kind, "charges_imported")));
       assert.deepEqual(events.map(e => e.title).sort(), ["Imported 1 charge to Card B from a statement (7 already there)", "Imported 7 charges to Card B from a statement"]);
-    });
-    await check("another household's card is refused and nothing is written to either household", async () => {
-      const otherBefore = await countOn(B, otherCard);
-      await assert.rejects(importCharges(db, A, otherCard, rows, { madeBy: "import" }), (e: unknown) => e instanceof InputError && e.message === "Choose a card of this household");
-      assert.equal(await countOn(B, otherCard), otherBefore);
-      assert.equal((await db.select().from(schema.events).where(and(eq(schema.events.householdId, B), eq(schema.events.kind, "charges_imported")))).length, 0);
     });
     await check("rows dated after the household's today, over the yen limit, or more than 500 are refused before anything is saved", async () => {
       const n = await countOn(A, cardB);

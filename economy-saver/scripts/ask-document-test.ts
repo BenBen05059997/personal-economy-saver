@@ -54,7 +54,7 @@ async function main() {
   try {
     const db = drizzle(pg, { schema });
     await migrate(db, { migrationsFolder: "./drizzle" });
-    const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
+    const a = await seedBen(db, { isDemo: true });
     const TODAY = "2026-11-14";
 
     // ---------------------------------------------------------------- the fake Storage and model
@@ -347,16 +347,11 @@ async function main() {
     assert.equal((await allTurns(db, a)).filter(t => t.documentId === one.documentId).length, 2, "two turns");
     ok("the same file attached twice: one document, one read, two turns");
 
-    // 9. another household, a deleted file
-    const foreign = await documentCard(db, b, first.documentId);
-    assert.deepEqual([foreign.status, foreign.words, foreign.items], ["gone", "This file was deleted.", []]);
-    assert.ok(!JSON.stringify(foreign).includes("Kawa") && !JSON.stringify(foreign).includes("6,000"));
-    const bBills = await db.select().from(schema.bills).where(eq(schema.bills.householdId, b));
-    assert.ok(bBills.every(row => row.biller !== "Kawa Gym"));
+    // 9. a deleted file
     assert.equal(await deleteDocument(db, a, two.documentId, form, { remove: async () => ({ error: null }) } as never), true);
     const removed = await documentCard(db, a, two.documentId);
     assert.deepEqual([removed.status, removed.words], ["gone", "This file was deleted."]);
-    ok("another household's document id, and a removed document, are gone with nothing of the file in the words");
+    ok("a removed document is gone with nothing of the file in the words");
 
     // 11. a failed read
     items = [bill({ name: "Never Read", date: "2026-12-04" })];

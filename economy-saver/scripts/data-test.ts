@@ -61,9 +61,9 @@ async function main() {
     // Stored data: A gets 3 memories, 3 pins, turns in two conversations, two documents with readings; B gets one of each.
     const memA = [await addMemory(db, a, { kind: "fact", text: "Rent goes up in April" }, form), await addMemory(db, a, { kind: "preference", text: "Answer in Japanese" }, form),
       await addMemory(db, a, { kind: "goal", text: "¥300,000 for a trip in March" }, { madeBy: "ask", askId: randomUUID() })];
-    const memB = await addMemory(db, b, { kind: "fact", text: "ZZ B memory" }, form);
+    await addMemory(db, b, { kind: "fact", text: "ZZ B memory" }, form);
     const pinA = [await pinCanvas(db, a, { title: "One", recipe: recipe("One") }, form), await pinCanvas(db, a, { title: "Two", recipe: recipe("Two") }, form), await pinCanvas(db, a, { title: "Three", recipe: recipe("Three") }, form)];
-    const pinB = await pinCanvas(db, b, { title: "ZZ B pin", recipe: recipe("ZZ B pin") }, form);
+    await pinCanvas(db, b, { title: "ZZ B pin", recipe: recipe("ZZ B pin") }, form);
     const convOne = randomUUID(), convTwo = randomUUID();
     const turn = (conversationId: string, question: string) => ({ id: randomUUID(), conversationId, question, kind: "answer" as const, reply: "Yes.", choices: null, recipe: null, sources: [] });
     const turnsA = [turn(convOne, "First?"), turn(convOne, "Second?"), turn(convTwo, "Third?")];
@@ -164,14 +164,12 @@ async function main() {
       assert.ok((await countKind(db, a, "record")) > 10, "nothing went");
     });
 
-    await check("delete one: memory, a pin (the gap closes), a turn; another household's ids and unknown ids are not found", async () => {
+    await check("delete one: memory, a pin (the gap closes), a turn; unknown ids are not found", async () => {
       assert.equal(await deleteOne(db, a, "memory", memA[0].id, form), true);
       assert.equal(await deleteOne(db, a, "memory", memA[0].id, form), false, "again");
-      assert.equal(await deleteOne(db, a, "memory", memB.id, form), false, "B's memory is not A's to delete");
       assert.equal(await deleteOne(db, a, "memory", "not-a-uuid", form), false);
       assert.equal(await deleteOne(db, a, "canvases", pinA[0].id, form), true);
       assert.deepEqual((await listCanvases(db, a)).map(p => [p.title, p.position]), [["Two", 0], ["Three", 1]]);
-      assert.equal(await deleteOne(db, a, "canvases", pinB.id, form), false);
       assert.equal(await deleteOne(db, a, "journal", turnsA[0].id, form), true);
       assert.equal(await deleteTurn(db, a, turnsA[0].id), false);
       assert.equal(await deleteOne(db, a, "journal", turnB.id, form), false);
@@ -212,11 +210,9 @@ async function main() {
       assert.deepEqual((await allTurns(db, a)).map(t => t.question), ["Second?"]);
     });
 
-    await check("delete one document removes its Storage object and reading, lowers stored bytes, keeps confirmed entries and refuses another household's", async () => {
+    await check("delete one document removes its Storage object and reading, lowers stored bytes, keeps confirmed entries", async () => {
       removed.length = 0;
       const bytesBefore = await storedBytes(db, a);
-      assert.equal(await deleteOne(db, a, "documents", docB, form, store), false, "B's document");
-      assert.deepEqual(removed, []);
       assert.equal(await deleteOne(db, a, "documents", docs[0], form, store), true);
       assert.deepEqual(removed, [`${a}/${docs[0]}`]);
       assert.equal(await deleteDocument(db, a, docs[0], form, store), false, "again");

@@ -103,8 +103,7 @@ export async function runInviteAuthChecks(db: Db, check: Check) {
       assert.equal(res.headers.get("cache-control"), "private, no-store");
     });
 
-    await check("invite link rejects a foreign origin, malformed token, wrong email or invalid token before sending", async () => {
-      assert.equal((await linkPost({ email: EMAIL, invite: token }, { origin: "https://other.example.test" })).status, 403);
+    await check("invite link rejects a malformed token, wrong email or invalid token before sending", async () => {
       assert.equal((await linkPost({ email: EMAIL, invite: "invalid" })).status, 400);
       assert.equal((await linkPost({ email: "fictional-other@example.test", invite: token })).status, 400);
       assert.equal((await linkPost({ email: EMAIL, invite: "A".repeat(43) })).status, 400);

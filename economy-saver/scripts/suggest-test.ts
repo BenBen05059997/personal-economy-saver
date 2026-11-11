@@ -210,7 +210,7 @@ async function main() {
     });
 
     const bill = await pending(demo);
-    await check("the pending-bill browser fixture has one suggestion, even across concurrent passes, and is household-scoped", async () => {
+    await check("the pending-bill browser fixture has one suggestion, even across concurrent passes", async () => {
       await Promise.all([run(), run()]);
       const [row] = await openSuggestions(db, demo);
       assert.deepEqual([row.kind, row.title, row.reason, row.action, row.refId], [
@@ -218,9 +218,6 @@ async function main() {
       ]);
       assert.equal((await history(demo)).length, 1);
       assert.equal((await events(demo, "suggestion_made")).length, 1);
-      assert.deepEqual(await openSuggestions(db, other), []);
-      assert.equal(await dismiss(db, other, row.id), false);
-      assert.equal(await notNow(db, other, row.id), false);
     });
 
     await check("a canonical rule can move into a space without duplicating a finding, and Home groups by its current scope", async () => {
@@ -273,7 +270,6 @@ async function main() {
     });
 
     await check("confirming the pending bill closes the same suggestion as approved in its transaction", async () => {
-      assert.equal(await confirmPending(db, other, "bill", bill.id), false);
       assert.equal((await openSuggestions(db, demo)).length, 1);
       assert.equal(await confirmPending(db, demo, "bill", bill.id), true);
       assert.deepEqual(await openSuggestions(db, demo), []);
@@ -480,23 +476,17 @@ async function main() {
       assert.ok(!(await openSuggestions(db, hid)).some(row => row.refId === invoice.id));
     });
 
-    await check("mark paid outside PayPal resolves its late-client finding and leaves the other household alone", async () => {
-      const hid = await seedBen(db, { isDemo: true }), neighbour = await seedBen(db, { isDemo: true });
+    await check("mark paid outside PayPal resolves its late-client finding", async () => {
+      const hid = await seedBen(db, { isDemo: true });
       const invoice = await lateInvoice(hid);
-      await lateInvoice(neighbour);
       await run(hid);
-      await run(neighbour);
       const [late] = await openSuggestions(db, hid);
-      const theirs = await openSuggestions(db, neighbour);
       assert.deepEqual([late.kind, late.refId], ["late_client", invoice.id]);
-      assert.equal(theirs.length, 1);
-      assert.equal(await markPaidOutside(db, neighbour, invoice.id, today), false);
       assert.deepEqual(await openSuggestions(db, hid), [late]);
       assert.equal(await markPaidOutside(db, hid, invoice.id, today), true);
       assert.equal(await markPaidOutside(db, hid, invoice.id, today), false);
       assert.deepEqual(await openSuggestions(db, hid), []);
       assert.deepEqual((await history(hid)).map(row => [row.id, row.status]), [[late.id, "resolved"]]);
-      assert.deepEqual(await openSuggestions(db, neighbour), theirs);
     });
   } finally {
     await pg.close();

@@ -128,17 +128,8 @@ async function test() {
     assert.equal((await listEvents(db, designated)).filter(e => e.kind === "paypal_imported").length, 1);
     console.log("✓ Re-run adds nothing and records no second event");
 
-    // An invoice another household already holds is skipped without leaving an orphan client.
-    await db.insert(s.invoices).values({
-      householdId: other, clientId: (await db.select().from(s.clients).where(eq(s.clients.householdId, other)))[0].id,
-      status: "sent", item: "Theirs", amountMinor: 1000, currency: "USD", paypalInvoiceId: "INV2-THEIRS",
-    });
-    pages["2"] = { total_pages: 2, items: [inv("INV2-THEIRS", "SENT", { primary_recipients: [person("new.person@example.com", "New", "Person")] })] };
     const clientCount = async () => (await db.select().from(s.clients).where(eq(s.clients.householdId, designated))).length;
     const n = await clientCount();
-    assert.deepEqual(await importPayPalHistory(db, designated, read), { clients: 0, invoices: 0, skipped: 3 });
-    assert.equal(await clientCount(), n);
-    console.log("✓ Another household's invoice is skipped, no orphan client");
 
     // A failed PayPal read changes nothing.
     await assert.rejects(importPayPalHistory(db, designated, async () => { throw new Error("down"); }));

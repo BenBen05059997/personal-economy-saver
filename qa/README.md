@@ -1,6 +1,6 @@
 # QA scenarios
 
-One scenario is one user action with one expected outcome, so a failure points to one behaviour. A testing agent runs the scenarios and records results, and a fixing agent fixes the failures. The automated suites (`npm run db:test` and the HTTP suites in `economy-saver/scripts/frontend-check.mjs`) cover the maths, household scope and refused requests; the scenarios cover what only a screen shows.
+One scenario is one user action with one expected outcome, so a failure points to one behaviour. A testing agent runs the scenarios and records results, and a fixing agent fixes the failures. The automated checks (`npm run db:test` and `economy-saver/scripts/frontend-check.mjs`) are the record of how the app behaves. A scenario is written only for what a script can't see in a browser: dialogs and focus, look and layout, the chat feel, voice, and real email, PayPal or model round trips that need the owner.
 
 ## Files
 

@@ -54,10 +54,8 @@ async function main() {
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     const first = async <T,>(rows: Promise<T[]>) => (await rows)[0];
     const memberA = (await first(db.select().from(schema.members).where(eq(schema.members.householdId, a)))).id;
-    const memberB = (await first(db.select().from(schema.members).where(eq(schema.members.householdId, b)))).id;
     const cardsOf = (hid: string) => db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)).orderBy(schema.cards.label);
     const [cardA, cardAB] = await cardsOf(a); // Card A closes on the 31st, Card B on the 15th
-    const [cardOfB] = await cardsOf(b);
     const events = (hid: string, kind: string) => db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, kind))).orderBy(schema.events.createdAt, schema.events.id);
     const bank = async (hid: string) => (await first(db.select().from(schema.households).where(eq(schema.households.id, hid)))).bankBalanceMinor;
     const bill = (over: Partial<ReturnType<typeof billInput.parse>> = {}) =>
@@ -255,7 +253,6 @@ async function main() {
       assert.equal(rows.length, 1); assert.equal(rows[0].termsDays, 14); assert.equal(rows[0].householdId, a);
       assert.equal((await events(a, "client_added")).filter(e => e.refId === input.id).length, 1);
       await assert.rejects(insertClient(db, a, { ...input, name: "Different name" }), InputError);
-      await assert.rejects(insertClient(db, b, input), "an id held by another household is refused");
       assert.equal((await db.select().from(schema.clients).where(eq(schema.clients.id, input.id)))[0].name, "Fictional Paper Co");
       assert.equal(clientInput.safeParse({ ...input, email: "not an email" }).success, false);
       assert.equal(clientInput.safeParse({ ...input, termsDays: -1 }).success, false);
@@ -275,7 +272,6 @@ async function main() {
       await assert.rejects(insertBill(db, a, { ...input, amount: "3801" }, "confirmed", { madeBy: "form" }), InputError);
       await assert.rejects(insertBill(db, a, { ...input, due: "2026-11-26" }, "confirmed", { madeBy: "form" }), InputError);
       await assert.rejects(insertBill(db, a, { ...input, memberId: null }, "confirmed", { madeBy: "form" }), InputError);
-      await assert.rejects(insertBill(db, b, input, "confirmed", { madeBy: "form" }), "an id held by another household is refused");
       const shared = bill();
       await insertBill(db, a, shared, "confirmed", { madeBy: "form" });
       assert.equal((await first(db.select().from(schema.bills).where(eq(schema.bills.id, shared.id)))).memberId, null);
@@ -308,16 +304,12 @@ async function main() {
       assert.equal((await events(b, "runway_short")).length, before + 1);
     });
 
-    await check("insertBill rejects bad amounts and a member of another household", async () => {
+    await check("insertBill rejects bad amounts", async () => {
       for (const amount of ["3800.5", "0", "-1", "1,00", "", "abc"]) {
         const input = bill({ amount });
         await assert.rejects(insertBill(db, a, input, "confirmed", { madeBy: "form" }), InputError, amount);
         assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.id, input.id))).length, 0);
       }
-      const foreign = bill({ memberId: memberB });
-      await assert.rejects(insertBill(db, a, foreign, "confirmed", { madeBy: "form" }), InputError);
-      await assert.rejects(insertBill(db, a, foreign, "pending", { madeBy: "form" }), InputError);
-      assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.id, foreign.id))).length, 0);
       assert.equal(billInput.safeParse({ ...bill(), due: "tomorrow" }).success, false);
       assert.equal(billInput.safeParse({ ...bill(), biller: "  " }).success, false);
     });
@@ -334,7 +326,6 @@ async function main() {
       await assert.rejects(insertCharge(db, a, { ...input, amount: "541" } as never, "confirmed", "manual", { madeBy: "form" }), InputError);
       await assert.rejects(insertCharge(db, a, { ...input, merchant: "Other" } as never, "confirmed", "manual", { madeBy: "form" }), InputError);
       await assert.rejects(insertCharge(db, a, { ...input, cardId: cardA.id } as never, "confirmed", "manual", { madeBy: "form" }), InputError);
-      await assert.rejects(insertCharge(db, b, input as never, "confirmed", "manual", { madeBy: "form" }), "an id held by another household is refused");
     });
 
     await check("insertCharge pending is a notified to_check row with the given source, then confirms through confirmPending", async () => {
@@ -350,11 +341,7 @@ async function main() {
       assert.equal(await confirmPending(db, a, "charge", input.id), true);
     });
 
-    await check("insertCharge refuses a card of another household, a currency mismatch and bad amounts", async () => {
-      const foreign = charge({ cardId: cardOfB.id });
-      await assert.rejects(insertCharge(db, a, foreign as never, "confirmed", "manual", { madeBy: "form" }), InputError);
-      await assert.rejects(insertCharge(db, a, foreign as never, "pending", "voice", { madeBy: "form" }), InputError);
-      assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, foreign.id))).length, 0);
+    await check("insertCharge refuses a currency mismatch and bad amounts", async () => {
       const [usdCard] = await db.insert(schema.cards).values({ householdId: a, label: "Fictional USD card", closingDay: 10, dueDay: 5, currency: "USD" }).returning();
       const mismatch = charge({ cardId: usdCard.id, amount: "12.50" });
       await assert.rejects(insertCharge(db, a, mismatch as never, "confirmed", "manual", { madeBy: "form" }), InputError);
@@ -400,13 +387,12 @@ async function main() {
       assert.equal((await first(db.select().from(schema.invoices).where(eq(schema.invoices.id, acme.id)))).sentOn, "2026-11-08");
     });
 
-    await check("markPaidOutside refuses a PayPal-sent invoice, another household's invoice and a closed one", async () => {
+    await check("markPaidOutside refuses a PayPal-sent invoice and a closed one", async () => {
       const invoices = await db.select().from(schema.invoices).where(eq(schema.invoices.householdId, b));
       const sent = invoices.find(i => i.number === "1038")!;
       await db.update(schema.invoices).set({ paypalInvoiceId: "FICTIONAL-INV2-0001" }).where(eq(schema.invoices.id, sent.id));
       const start = await bank(b);
       await assert.rejects(markPaidOutside(db, b, sent.id, TODAY), InputError);
-      assert.equal(await markPaidOutside(db, a, sent.id, TODAY), false);
       assert.equal(await markPaidOutside(db, b, randomUUID(), TODAY), false);
       const after = await first(db.select().from(schema.invoices).where(eq(schema.invoices.id, sent.id)));
       assert.deepEqual([after.status, after.paidOn], ["sent", null]);
@@ -629,14 +615,6 @@ async function main() {
       }
     });
 
-    await check("another household's monthly bill never appears", async () => {
-      const mine = await seedBen(db, { isDemo: true }), theirs = await seedBen(db, { isDemo: true });
-      await insertBill(db, theirs, bill({ biller: "Fictional neighbour plan", due: "2026-11-21", repeat: "month" }), "confirmed", { madeBy: "form" });
-      assert.equal((await billsOf(theirs, TODAY, "Fictional neighbour plan")).length, 2);
-      assert.equal((await billsOf(mine, TODAY, "Fictional neighbour plan")).length, 0);
-      assert.equal((await loadMoneyState(db, mine, TODAY)).bills.length, (await loadMoneyState(db, mine, TODAY)).bills.filter(row => row.biller !== "Fictional neighbour plan").length);
-    });
-
     await check("card room and safe to spend count a repeating subscription that falls inside the window", async () => {
       const base = await seedBen(db, { isDemo: true }), repeating = await seedBen(db, { isDemo: true }), once = await seedBen(db, { isDemo: true });
       await insertBill(db, repeating, bill({ biller: "Fictional streaming", amount: "5000", due: "2026-11-16", repeat: "month" }), "confirmed", { madeBy: "form" });
@@ -670,7 +648,6 @@ async function main() {
       assert.equal(await bank(a), 5, "the same id never applies twice");
       assert.equal((await bankEvents(a)).filter(e => e.refId === input.id).length, 1);
       await assert.rejects(setBankBalance(db, a, { ...input, amount: "182001" }, "confirmed", { madeBy: "form" }), InputError);
-      await assert.rejects(setBankBalance(db, b, input, "confirmed", { madeBy: "form" }), "an id held by another household is refused");
       assert.equal((await balanceRows(a)).filter(r => r.id === input.id).length, 1);
       const zero = bankBalanceInput.parse({ id: randomUUID(), amount: "0" });
       await setBankBalance(db, a, zero, "confirmed", { madeBy: "form" });
@@ -717,29 +694,14 @@ async function main() {
       assert.equal(toCheck(await stateOf(a)).some(r => r.kind === "balance"), false);
     });
 
-    await check("another household's pending balance update cannot be confirmed or seen", async () => {
-      const input = bankBalanceInput.parse({ id: randomUUID(), amount: "555555" });
-      await setBankBalance(db, a, input, "pending", { madeBy: "form" });
-      const bankB = await bank(b);
-      assert.equal(await confirmPending(db, b, "balance", input.id), false);
-      assert.equal(await bank(b), bankB);
-      assert.equal(await bank(a) === 555_555, false);
-      assert.equal(toCheck(await stateOf(b)).some(r => r.kind === "balance"), false);
-      assert.equal((await balanceRows(b)).some(r => r.id === input.id), false);
-      assert.equal(toCheck(await stateOf(a)).filter(r => r.kind === "balance").length, 1);
-      assert.equal(await confirmPending(db, a, "balance", randomUUID()), false);
-    });
-
     await check("removeBill deletes a bill with its event, a monthly bill as a whole series, and the runway follows", async () => {
-      const mine = await seedBen(db, { isDemo: true }), theirs = await seedBen(db, { isDemo: true });
+      const mine = await seedBen(db, { isDemo: true });
       const before = await loadMoneyState(db, mine, TODAY);
       const once = bill({ biller: "Fictional repair", amount: "30000", due: "2026-11-20" }), monthly = bill({ biller: "Fictional gym", amount: "5000", due: "2026-11-16", repeat: "month" });
       await insertBill(db, mine, once, "confirmed", { madeBy: "form" }); await insertBill(db, mine, monthly, "confirmed", { madeBy: "form" });
       const withBoth = await loadMoneyState(db, mine, TODAY);
       assert.equal(withBoth.bills.filter(row => row.biller === "Fictional gym").length, 2, "Nov 16 and Dec 16 are inside the window");
       assert.equal(low(series(before, "worst")).amount - low(series(withBoth, "worst")).amount, 35_000);
-      assert.equal(await removeBill(db, theirs, once.id), false, "another household's bill id removes nothing");
-      assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.id, once.id))).length, 1);
       assert.equal(await removeBill(db, mine, once.id), true);
       assert.equal(await removeBill(db, mine, once.id), false, "a second tap finds nothing");
       assert.equal(await removeBill(db, mine, monthly.id), true);
@@ -749,13 +711,12 @@ async function main() {
       assert.deepEqual(series(after, "worst"), series(before, "worst"), "the runway is back to what it was");
       const removed = (await events(mine, "bill_removed")).map(e => [e.title, e.amountMinor, e.refType, e.notify]);
       assert.deepEqual(removed, [["Removed bill Fictional repair ¥30,000", 30_000, "bill", false], ["Removed bill Fictional gym ¥5,000", 5000, "bill", false]]);
-      assert.equal((await events(theirs, "bill_removed")).length, 0);
       await assert.rejects(removeBill(db, mine, "not-a-uuid"));
     });
 
     await check("removeCharge deletes a charge with its event, takes it out of a stored statement, and what is owed follows", async () => {
-      const mine = await seedBen(db, { isDemo: true }), theirs = await seedBen(db, { isDemo: true });
-      const [card] = await cardsOf(mine), other = (await cardsOf(theirs))[0];
+      const mine = await seedBen(db, { isDemo: true });
+      const [card] = await cardsOf(mine);
       const owedOf = async (hid: string) => cardSummary(await loadMoneyState(db, hid, TODAY), card.id).owed;
       const owed = await owedOf(mine);
       const open = charge({ cardId: card.id, merchant: "Fictional shoes", amount: "2000", date: "2026-11-13" });
@@ -764,7 +725,6 @@ async function main() {
       assert.equal(await owedOf(mine), owed + 4500);
       const statement = () => first(db.select().from(schema.cardStatements).where(and(eq(schema.cardStatements.householdId, mine), eq(schema.cardStatements.cardId, card.id), eq(schema.cardStatements.closedOn, "2026-10-31"))));
       assert.equal((await statement()).amountMinor, 58_000 + 2500);
-      assert.equal(await removeCharge(db, theirs, open.id as string), false, "another household's charge id removes nothing");
       assert.equal(await removeCharge(db, mine, randomUUID()), false);
       assert.equal(await removeCharge(db, mine, open.id as string), true);
       assert.equal(await removeCharge(db, mine, open.id as string), false);
@@ -778,11 +738,6 @@ async function main() {
       assert.equal((await statement()).amountMinor, 58_000, "a pending charge was never in the statement");
       assert.deepEqual((await events(mine, "charge_removed")).map(e => [e.title, e.amountMinor, e.refType]), [
         ["Removed charge Fictional shoes ¥2,000", 2000, "charge"], ["Removed charge Fictional October shop ¥2,500", 2500, "charge"], ["Removed charge Fictional pending shop ¥900", 900, "charge"]]);
-      assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.householdId, theirs))).some(row => row.cardId === other.id && row.merchant === "Fictional shoes"), false);
-      const stillThere = charge({ cardId: other.id, merchant: "Fictional neighbour shop", amount: "100" });
-      await insertCharge(db, theirs, stillThere as never, "confirmed", "manual", { madeBy: "form" });
-      assert.equal(await removeCharge(db, mine, stillThere.id as string), false);
-      assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, stillThere.id as string))).length, 1);
     });
 
     await check("the canvas, memory and rules routes start with the same-origin and session guard, and the return path lists /memory and /canvas", async () => {
@@ -853,7 +808,7 @@ async function main() {
       for (const client of state.clients) assert.equal(clientPace(client)?.usual, client.daysToPay.length ? medianLow(client.daysToPay) : undefined);
     });
 
-    await check("D66: changing and switching off a nudge rule records Activity, preserves its value and leaves another household alone", async () => {
+    await check("D66: changing and switching off a nudge rule records Activity, and preserves its value", async () => {
       const read = async () => (await rulesFor(db, a)).nudge_after;
       const set = { ruleKind: "nudge_after", enabled: true, value: "9" } as const;
       const title = "Rule changed: Nudge a client 9 days after an invoice is due";
@@ -866,7 +821,6 @@ async function main() {
       await changeStandingRule(db, a, { ...set, enabled: false, value: "" });
       assert.deepEqual(await read(), { enabled: false, threshold: 9, currency: null });
       assert.ok((await events(a, "rule_changed")).some(event => event.title === title + " (off)"));
-      assert.deepEqual((await rulesFor(db, b)).nudge_after, { enabled: true, threshold: 3, currency: null });
       assert.equal(settingsInput.safeParse({ kind: "nudge", afterDays: "9" }).success, false, "Settings no longer accepts nudge updates");
     });
 

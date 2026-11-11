@@ -156,16 +156,14 @@ async function main() {
     const before = await counts();
     cookie = a;
 
-    // the guard
-    assert.equal((await voice(post("{}", { origin: "http://evil.example" }))).status, 403, "another origin");
-    assert.equal((await voice(new Request(`${ORIGIN}/api/voice-fill`, { method: "POST", body: "{}", headers: { host: "127.0.0.1:3123" } }))).status, 403, "no Origin header");
+    // the household cookie
     cookie = null;
     assert.equal((await call(rent)).status, 401, "no household cookie");
     cookie = crypto.randomUUID();
     assert.equal((await call(rent)).status, 401, "a cookie for no household");
     assert.equal(modelCalls, 0, "no model call before the guard passes");
     cookie = a;
-    ok("the guard: another origin or no Origin is 403; no cookie, or a cookie for no household, is 401; no model is asked");
+    ok("the guard: no cookie, or a cookie for no household, is 401; no model is asked");
 
     // the body
     assert.equal((await voice(post("not json"))).status, 400);

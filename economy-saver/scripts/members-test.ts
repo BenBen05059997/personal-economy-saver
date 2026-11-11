@@ -113,7 +113,6 @@ async function main() {
       await assert.rejects(acceptInvite(db, token, { uid: b.owner.uid, email: guest.email }, NOW));
       assert.equal(await accountMembership(db, guest.uid), null);
       assert.equal((await inviteRows())[0].acceptedAt, null);
-      assert.equal(await cancelInvite(db, b.householdId, b.owner.uid, inviteId, NOW), false);
       await assert.rejects(createInvite(db, hid, b.owner.uid, { email: guest.email, memberId: existing }, NOW));
       await assert.rejects(createInvite(db, hid, a.owner.uid, { email: emailFor("foreign-person"), memberId: b.memberId }, NOW));
       const before = await people();

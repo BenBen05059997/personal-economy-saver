@@ -114,33 +114,6 @@
     ]
   },
   {
-    "id": "RULE-005",
-    "area": "Rules",
-    "action": "Save a minimum safe-to-spend amount",
-    "user_goal": "I want the assistant to notice when my spending room drops",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Separate test app with migration 0028",
-      "375px and 1440px widths",
-      "Fresh Ben Try it on Nov 14"
-    ],
-    "steps": [
-      "Turn on the Safe to spend rule at ¥50,000 and save",
-      "Reload and attempt ¥100,000,001"
-    ],
-    "expected": [
-      "The rule remains on at ¥50,000 and the excessive amount is refused"
-    ],
-    "refs": [
-      "D66"
-    ]
-  },
-  {
     "id": "RULE-006",
     "area": "Rules",
     "action": "Toggle the goal pace rule",
@@ -224,60 +197,6 @@
       "The old value can be turned off as-is. Turning it on requires a valid new number and 30 saves."
     ],
     "refs": [
-      "D66"
-    ]
-  },
-  {
-    "id": "RULE-009",
-    "area": "Rules",
-    "action": "Refuse unauthenticated or cross-origin rule writes",
-    "user_goal": "I want only my signed-in household to change rules",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Separate test app with migration 0028"
-    ],
-    "steps": [
-      "POST /api/rules without a household session",
-      "Repeat with a valid session and an unrelated Origin"
-    ],
-    "expected": [
-      "The first request is refused with 401 and the second with 403",
-      "No rule or Activity row changes"
-    ],
-    "refs": [
-      "db:doors-test",
-      "D66"
-    ]
-  },
-  {
-    "id": "RULE-010",
-    "area": "Rules",
-    "action": "Enforce the household rule write limit",
-    "user_goal": "I want repeated requests bounded per household",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Separate test app with migration 0028",
-      "A household session with a fresh rate-limit window"
-    ],
-    "steps": [
-      "Send 21 valid same-origin rule saves in one minute"
-    ],
-    "expected": [
-      "The 21st request is refused with 429",
-      "The limit is scoped to that household"
-    ],
-    "refs": [
-      "db:doors-test",
       "D66"
     ]
   },

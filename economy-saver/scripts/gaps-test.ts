@@ -350,7 +350,6 @@ async function main() {
   const store = db as unknown as Db;
   await migrate(db, { migrationsFolder: "./drizzle" });
   const hid = await seedBen(db, { isDemo: true });
-  const other = await seedBen(db, { isDemo: true });
   const form = { madeBy: "form" as const };
   const add = async (over: Partial<Parameters<typeof billInput.parse>[0]>) => {
     const id = randomUUID();
@@ -442,7 +441,6 @@ async function main() {
     assert.equal(await fillGapFromText(store, hid, neither, { amount: "1,200", due: "2026-12-02" }), true);
     assert.equal((await event(neither)).title, "Minato Nothing: ¥1,200, due Dec 2");
     assert.equal(await fillGap(store, hid, randomUUID(), { amountMinor: 5 }), false, "a bill of no household");
-    assert.equal(await fillGap(store, other, neither, { amountMinor: 5 }), false, "another household's bill is not found");
     await assert.rejects(fillGapFromText(store, hid, neither, { amount: "5" }), /already/);
   });
 

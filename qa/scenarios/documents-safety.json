@@ -22,9 +22,7 @@
       "A file field, an \"Upload and read\" button and a \"To check\" link",
       "Nothing scrolls sideways at 375px and 1440px"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "DOC-002",
@@ -79,167 +77,7 @@
       "Each returns a redirect to /to-check (303) or 204 for a form post, never an error",
       "Each shows as a document in To check"
     ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "DOC-004",
-    "area": "Upload",
-    "action": "Upload a .txt file",
-    "user_goal": "I picked the wrong file by mistake",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "POST a text/plain file as \"document\" to /api/upload"
-    ],
-    "expected": [
-      "400 with \"Select a PDF, JPEG, PNG or WebP file.\"",
-      "No document row or To check entry appears"
-    ],
-    "refs": [
-      "frontend-check --extra"
-    ]
-  },
-  {
-    "id": "DOC-005",
-    "area": "Upload",
-    "action": "See the refusal on the Upload page (not a bare text page)",
-    "user_goal": "I want to stay on the page with a clear message",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "/upload open",
-      "A .txt file renamed to bill.pdf is not used here: pick an actual .txt (override the accept filter by choosing All files)"
-    ],
-    "steps": [
-      "Choose the .txt file",
-      "Tap \"Upload and read\""
-    ],
-    "expected": [
-      "The message \"Select a PDF, JPEG, PNG or WebP file.\" appears under the button (role alert) and the page stays on /upload",
-      "The button returns to \"Upload and read\"; no navigation, no raw text page"
-    ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "DOC-006",
-    "area": "Upload",
-    "action": "Upload a file whose contents do not match its type",
-    "user_goal": "a renamed file must not be read as a bill",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A text file posted with content-type application/pdf"
-    ],
-    "steps": [
-      "POST it as \"document\" with type application/pdf"
-    ],
-    "expected": [
-      "400 \"File contents do not match the selected file type.\"",
-      "Nothing stored"
-    ],
-    "refs": [
-      "D32"
-    ]
-  },
-  {
-    "id": "DOC-007",
-    "area": "Upload",
-    "action": "Upload a PDF over 6 MiB",
-    "user_goal": "a huge file should be refused in words",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A 6.5 MiB fictional PDF"
-    ],
-    "steps": [
-      "POST it to /api/upload",
-      "Then try exactly 6 MiB"
-    ],
-    "expected": [
-      "The 6.5 MiB file: 400 \"Document exceeds the 6 MiB limit.\", nothing stored",
-      "Exactly 6 MiB is accepted (the multipart overhead allowance is 8 KiB)"
-    ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "DOC-008",
-    "area": "Upload",
-    "action": "Upload an empty (0 byte) file",
-    "user_goal": "an empty file should not create a document",
-    "type": "edge",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "POST a 0-byte PNG-typed file to /api/upload"
-    ],
-    "expected": [
-      "Refused with a plain message (contents do not match, or \"Supply a document of 1 byte to 6 MiB.\")",
-      "No document row appears in To check"
-    ],
-    "refs": [
-      "D32"
-    ]
-  },
-  {
-    "id": "DOC-009",
-    "area": "Upload",
-    "action": "Post /api/upload with no file or a JSON body",
-    "user_goal": "a broken request should be a clear refusal",
-    "type": "negative",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "POST an empty multipart form to /api/upload",
-      "POST a JSON body to /api/upload"
-    ],
-    "expected": [
-      "Empty multipart form: HTTP 400 \"Select a PDF, JPEG, PNG or WebP file.\"",
-      "JSON or other non-multipart body: HTTP 400 \"Select a file to upload.\""
-    ],
-    "refs": [
-      "frontend-check --extra (authenticated-empty-multipart-upload)",
-      "frontend-check --extra (authenticated-invalid-upload)"
-    ]
+    "refs": []
   },
   {
     "id": "DOC-010",
@@ -264,9 +102,7 @@
       "The row reads \"Document needs attention\" with \"AI_API_KEY is not set\" and a Retry button",
       "Hikari Denki stays ¥11,220 and the sentence is unchanged"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "DOC-011",
@@ -293,34 +129,6 @@
     ],
     "refs": [
       "D32"
-    ]
-  },
-  {
-    "id": "DOC-012",
-    "area": "Upload",
-    "action": "Retry with a bad or another household's document id",
-    "user_goal": "retry must only touch my own documents",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A document id from a different household"
-    ],
-    "steps": [
-      "POST /api/readings/retry with id=abc",
-      "POST it with another household's document uuid"
-    ],
-    "expected": [
-      "id=abc: 400 \"Invalid document\"",
-      "Another household's id changes nothing: no read starts for it and no data of it is shown"
-    ],
-    "refs": [
-      "db:isolation-test",
-      "D31"
     ]
   },
   {
@@ -404,9 +212,7 @@
       "Confirming one leaves the other waiting",
       "A file with two items attached in Ask gives one card with Confirm, Edit and Don't add it on each"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "DOC-016",
@@ -492,37 +298,7 @@
       "Coming up shows Harbor Energy ¥9,800 on Nov 25 and the sentence counts it on Nov 25, not on any day of the period",
       "The To check count drops by one"
     ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "DOC-019",
-    "area": "To check",
-    "action": "Period with only one date, or end before start",
-    "user_goal": "a half-filled period should be refused in words",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A reading waiting (or a bill edit form)"
-    ],
-    "steps": [
-      "Confirm with First day set and Last day empty",
-      "Confirm with Last day before First day"
-    ],
-    "expected": [
-      "\"Give both the first and the last day of the period, or neither.\"",
-      "\"The period must start on or before its last day.\"",
-      "Neither saves the bill; the reading stays in To check"
-    ],
-    "refs": [
-      "db:reader-test"
-    ]
+    "refs": []
   },
   {
     "id": "DOC-020",
@@ -555,34 +331,6 @@
     ]
   },
   {
-    "id": "DOC-021",
-    "area": "To check",
-    "action": "Confirm a reading with a bad amount or no card for a charge",
-    "user_goal": "wrong input should be refused in words",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A reading waiting"
-    ],
-    "steps": [
-      "Enter an amount of 0 or negative and Confirm",
-      "Switch Entry to Card charge, leave Card as \"Choose card\" and Confirm"
-    ],
-    "expected": [
-      "Amount 0: \"The amount must be more than zero\" (or the field's own message), nothing saved",
-      "No card: refused with a message; nothing saved",
-      "The reading stays in To check with what was typed"
-    ],
-    "refs": [
-      "db:reader-test"
-    ]
-  },
-  {
     "id": "DOC-022",
     "area": "To check",
     "action": "Dismiss a reading",
@@ -606,9 +354,7 @@
       "Nothing is added to Coming up or the sentence",
       "The To check count drops by one"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "DOC-023",
@@ -672,31 +418,6 @@
     ]
   },
   {
-    "id": "DOC-025",
-    "area": "To check",
-    "action": "Correction offer is hidden for long numbers or long text",
-    "user_goal": "private numbers must not be offered to memory",
-    "type": "edge",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:memory-test and npm run db:reader-test"
-    ],
-    "expected": [
-      "A line over the memory text limit or holding a long number is not offered (null)"
-    ],
-    "refs": [
-      "db:memory-test",
-      "db:reader-test"
-    ]
-  },
-  {
     "id": "DOC-026",
     "area": "Attach a bill",
     "action": "Attach a bill in Ask without an AI key",
@@ -720,37 +441,7 @@
       "The card \"Reading your bill…\" then \"This file could not be read: AI_API_KEY is not set\"",
       "Reload shows the same card; To check shows \"Document needs attention · AI_API_KEY is not set · Retry\"; Hikari Denki still ¥11,220"
     ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "DOC-027",
-    "area": "Attach a bill",
-    "action": "Attach a .txt file or a PDF over 6 MiB in Ask",
-    "user_goal": "refusals should come in words and add nothing",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "/canvas open"
-    ],
-    "steps": [
-      "Attach a .txt file",
-      "Attach a 6.5 MiB PDF"
-    ],
-    "expected": [
-      "\"Select a PDF, JPEG, PNG or WebP file.\"",
-      "\"Document exceeds the 6 MiB limit.\"",
-      "Neither adds a turn to the conversation"
-    ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "DOC-028",
@@ -786,30 +477,6 @@
     ]
   },
   {
-    "id": "DOC-029",
-    "area": "Attach a bill",
-    "action": "Confirm in Ask without answering the question",
-    "user_goal": "the open question must not be skipped",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:ask-document-test"
-    ],
-    "expected": [
-      "A Confirm sent without the answer is refused with \"Answer the question first: …\""
-    ],
-    "refs": [
-      "db:ask-document-test"
-    ]
-  },
-  {
     "id": "DOC-030",
     "area": "Attach a bill",
     "action": "\"Don't add it\" and an empty file in Ask",
@@ -832,38 +499,7 @@
       "\"Not added.\" and nothing is saved",
       "\"Nothing to add was found in this file.\""
     ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "DOC-031",
-    "area": "Attach a bill",
-    "action": "Poll another household's or a deleted document card",
-    "user_goal": "one household must not read another's card",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "GET /api/ask/document?id=<uuid of another household's document>",
-      "GET with an unknown uuid, an invalid id, and with no cookie"
-    ],
-    "expected": [
-      "Other household's and unknown uuid: 200 with card status \"gone\" and \"This file was deleted.\"",
-      "Invalid id: 400 \"Invalid item\"",
-      "No session: 401"
-    ],
-    "refs": [
-      "frontend-check --extra",
-      "frontend-check --guards",
-      "db:ask-document-test"
-    ]
+    "refs": []
   },
   {
     "id": "DOC-032",
@@ -946,65 +582,7 @@
       "The same card as an upload appears within 30 s",
       "Forwarding an email with no body and no supported attachment gives \"Email has no readable body or supported attachment.\" on the document row"
     ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "DOC-036",
-    "area": "Forwarding",
-    "action": "Post to /api/inbound without the Worker's origin or secret",
-    "user_goal": "only the Email Worker may deliver mail",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "The dev server and database are available"
-    ],
-    "steps": [
-      "POST /api/inbound with no headers",
-      "POST with Origin https://worker.internal and a wrong Authorization",
-      "On a server lacking INBOUND_WORKER_SECRET, POST with Origin https://worker.internal"
-    ],
-    "expected": [
-      "With the Worker's origin and a wrong secret: 403 with no body",
-      "Without the origin: 403 with no body",
-      "On a server lacking INBOUND_WORKER_SECRET: 503 with no body and one server log line naming the variable"
-    ],
-    "refs": [
-      "frontend-check --guards"
-    ]
-  },
-  {
-    "id": "DOC-045",
-    "area": "Reader",
-    "action": "Upload a file on a server with no document model",
-    "user_goal": "a missing server setting is named, not a vague failure",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A dev server the owner started with no AI_TEXT_MODEL and no household model (record blocked if Ask works)"
-    ],
-    "steps": [
-      "POST a small valid PNG to /api/upload",
-      "POST the same file to /api/ask/document with an id and conversationId",
-      "POST a file that is not a JPEG, PNG, WebP or PDF to /api/upload on a server that has the model"
-    ],
-    "expected": [
-      "The first two answer 503 \"Reading documents isn’t available on this server yet (AI_TEXT_MODEL).\" and store nothing",
-      "The bad file answers 400 with its own sentence"
-    ],
-    "refs": [
-      "src/db/reader-job.ts requireReaderModel"
-    ]
+    "refs": []
   },
   {
     "id": "DOC-041",
@@ -1064,32 +642,6 @@
     ]
   },
   {
-    "id": "CHECK-001",
-    "area": "To check",
-    "action": "Open To check on a fresh household",
-    "user_goal": "I want to see what waits for my OK",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "Open /to-check"
-    ],
-    "expected": [
-      "One item: Hikari Denki ¥11,220 due Nov 27, \"Utilities · 30% business · due Nov 27\"",
-      "No check line and no card note on it",
-      "The nav badge and Home heading read the same count"
-    ],
-    "refs": [
-      "qa/README Expected numbers"
-    ]
-  },
-  {
     "id": "CHECK-002",
     "area": "To check",
     "action": "Confirm Ben's pending Hikari Denki",
@@ -1113,9 +665,7 @@
       "The count drops to 0",
       "Nov 27 has two rows; only the last reads \"Short by ¥30,000 if clients pay late\""
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "CHECK-003",
@@ -1171,169 +721,6 @@
     ]
   },
   {
-    "id": "CHECK-005",
-    "area": "To check",
-    "action": "Confirm an unknown or another household's pending id",
-    "user_goal": "an id from elsewhere must be refused",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "POST /api/confirm with kind=bill and a uuid of another household",
-      "POST with an invalid id",
-      "POST kind=reading with decision=maybe"
-    ],
-    "expected": [
-      "Another household's uuid changes nothing and shows no data of it",
-      "Invalid id: 400 \"Invalid item\"",
-      "Bad decision: 400 \"Invalid decision\""
-    ],
-    "refs": [
-      "db:isolation-test",
-      "frontend-check --guards"
-    ]
-  },
-  {
-    "id": "CHECK-006",
-    "area": "To check",
-    "action": "Missing: an unknown amount with history",
-    "user_goal": "a bill with no amount should ask me, with a guess",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "State after HOME-110 (Hikari Denki added with Amount not known yet, due Nov 25)"
-    ],
-    "steps": [
-      "Open To check"
-    ],
-    "expected": [
-      "Count 2 (pending Hikari ¥11,220 plus this)",
-      "A first section \"Missing\" with \"Hikari Denki, due Nov 25: how much?\" and muted \"Counted at about ¥9,330 (¥8,640–¥10,020, from your last 2 bills)\"",
-      "An Amount \"¥\" field and Save, no date field",
-      "Home's sentence says ¥28,800 short on the 27th (late case counts the high end)"
-    ],
-    "refs": [
-      "D55"
-    ]
-  },
-  {
-    "id": "CHECK-007",
-    "area": "To check",
-    "action": "Enter the amount for a Missing bill",
-    "user_goal": "I got the bill and have the amount",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "The Missing Hikari Denki row from CHECK-006"
-    ],
-    "steps": [
-      "Enter 11,220 and tap Save"
-    ],
-    "expected": [
-      "The Missing section disappears and the badge is 1",
-      "Activity says \"Hikari Denki: ¥11,220 (was about ¥9,330)\"",
-      "The sentence reads ¥30,000 short on the 27th; the Nov 25 row reads ¥11,220 with no \"about\"; month total ¥163,450"
-    ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "CHECK-008",
-    "area": "To check",
-    "action": "Save a Missing amount left empty",
-    "user_goal": "an empty answer should not save",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A Missing row"
-    ],
-    "steps": [
-      "Tap Save with Amount empty"
-    ],
-    "expected": [
-      "The browser says \"Fill out this field\" or the route says \"Give the amount or the date\"",
-      "The bill stays in Missing, unchanged"
-    ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "CHECK-009",
-    "area": "To check",
-    "action": "Missing: unknown amount with no history is never ¥0",
-    "user_goal": "an unknown bill should not look like ¥0",
-    "type": "edge",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "Add one-off \"Minato Gas\", Amount not known yet, due Nov 20, Utilities",
-      "Check Home, To check and Plan → Where the month goes, then search \"gas\" in Plan"
-    ],
-    "expected": [
-      "Home: \"Added Minato Gas, amount not known, due Nov 20\"; sentence stays ¥18,780 with muted \"Not counted: Minato Gas (amount not known).\"",
-      "To check Missing: \"Minato Gas, due Nov 20: how much?\" with \"Could change your forecast\" and \"Not counted until you enter it\"",
-      "Plan header for Utilities reads \"amount not known\" with \"1 bill not counted\", never ¥0; November total stays ¥152,230",
-      "Search shows \"amount not known in November\", never \"Nothing matches\""
-    ],
-    "refs": [
-      "D55"
-    ]
-  },
-  {
-    "id": "CHECK-010",
-    "area": "To check",
-    "action": "Enter 6,800 for Minato Gas",
-    "user_goal": "the amount arrived",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "Minato Gas missing from CHECK-009"
-    ],
-    "steps": [
-      "Enter 6,800 in Missing and Save"
-    ],
-    "expected": [
-      "The Not counted note and the Missing row go",
-      "Sentence reads ¥25,580 short on the 27th; month total ¥159,030; Activity \"Minato Gas: ¥6,800\""
-    ],
-    "refs": [
-
-    ]
-  },
-  {
     "id": "CHECK-011",
     "area": "To check",
     "action": "Missing: an unknown date counts as due now",
@@ -1383,100 +770,7 @@
       "The question reads \"Minato Water: how much, and when is it due?\" with both fields and one Save",
       "Filling only the amount keeps the row with the date question"
     ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "CHECK-013",
-    "area": "To check",
-    "action": "Add-form rules for the two Not known yet boxes",
-    "user_goal": "options that cannot go together must hide",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "Home add form open at 375px"
-    ],
-    "steps": [
-      "Choose More → Repeats Every month",
-      "Tick \"Amount changes every month\"",
-      "Fill Last day to cancel, then Changes to",
-      "Tick a box then hide it and submit"
-    ],
-    "expected": [
-      "Every month hides both boxes; ticking the varies box brings back \"Amount not known yet\" only",
-      "A cancel-by date hides \"Date not known yet\"; \"Changes to\" hides \"Amount not known yet\"; emptying them brings the boxes back",
-      "A ticked then hidden box saves the field as shown (empty and required)"
-    ],
-    "refs": [
-      "D55"
-    ]
-  },
-  {
-    "id": "CHECK-014",
-    "area": "To check",
-    "action": "Refused direct posts for unknown bills",
-    "user_goal": "the server must hold the rules even without the browser",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "POST repeating bill with amount unknown and no varies",
-      "Repeating bill with date unknown",
-      "A cancel-by with date unknown",
-      "Fill a bill that has both known",
-      "Fill another household's bill id"
-    ],
-    "expected": [
-      "\"A bill that repeats needs its amount, unless the amount changes every month\"",
-      "\"A bill that repeats needs its due date\"",
-      "\"A bill with a last day to cancel needs its due date\"",
-      "\"This bill has its amount and its date already\"",
-      "\"Choose a bill of this household\""
-    ],
-    "refs": [
-      "db:gaps-test"
-    ]
-  },
-  {
-    "id": "CHECK-015",
-    "area": "To check",
-    "action": "A repeating bill's amount that varies still guesses",
-    "user_goal": "the varies guess line should work with the amount unknown",
-    "type": "edge",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "Add Hikari Denki in Utilities with Due date Nov 25 and Repeats Every month",
-      "Tick Amount changes every month and Amount not known yet, then save",
-      "Open Coming up and the bill's page on Bills"
-    ],
-    "expected": [
-      "The guess line \"Every month · varies · Utilities · Change ›\" works",
-      "Coming up shows about ¥9,330 (¥8,640–¥10,020, from your last 2 bills) from the confirmed September and October one-offs",
-      "The bill's page on Bills shows the amount is unknown on the stored series"
-    ],
-    "refs": [
-      "D54",
-      "db:gaps-test"
-    ]
+    "refs": []
   },
   {
     "id": "CHECK-016",
@@ -1596,32 +890,6 @@
     "refs": [
       "D61",
       "db:checks-test"
-    ]
-  },
-  {
-    "id": "CHECK-020",
-    "area": "To check",
-    "action": "Checks come in a fixed order and offer two to four choices",
-    "user_goal": "the card should be calm and predictable",
-    "type": "happy",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:checks-test and npm run db:gaps-test"
-    ],
-    "expected": [
-      "Order: missing, already saved, past due, far from usual, repeat unknown",
-      "Each check has 2 to 4 choices, labels at most 40 characters, and a duplicate is within 3 days"
-    ],
-    "refs": [
-      "db:checks-test",
-      "db:gaps-test"
     ]
   },
   {
@@ -1753,9 +1021,7 @@
       "Returns to Home with the new sentence",
       "From the nav it returns to /to-check"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "CHECK-026",
@@ -1780,9 +1046,7 @@
       "Buttons, links, inputs and summary rows are at least 44px tall at 375px",
       "Text, the Missing label and check lines are readable in dark"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "ERR-001",
@@ -1806,35 +1070,7 @@
       "Go Home opens Home",
       "At 375px and 1440px, light and dark, nothing overlaps"
     ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "ERR-002",
-    "area": "Errors",
-    "action": "Unknown address with no session",
-    "user_goal": "the not-found page also works signed out",
-    "type": "negative",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "The dev server and database are available"
-    ],
-    "steps": [
-      "GET /nothing-here with no cookie",
-      "GET /to-check with no cookie"
-    ],
-    "expected": [
-      "Not found shows the same page with status 404",
-      "/to-check redirects to the start, never a stack trace"
-    ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "ERR-003",
@@ -1890,32 +1126,6 @@
     ]
   },
   {
-    "id": "ERR-006",
-    "area": "Errors",
-    "action": "A refused form stays in the app",
-    "user_goal": "a validation error should not take me to a text page",
-    "type": "negative",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "Home add bill form"
-    ],
-    "steps": [
-      "Submit the add bill form with a hand-edited bad value (for example a due date over two years away)"
-    ],
-    "expected": [
-      "The message from the server shows in place (\"Choose a date within the next two years\") and the page stays",
-      "The typed fields remain; nothing is saved; no page of raw text"
-    ],
-    "refs": [
-
-    ]
-  },
-  {
     "id": "ERR-008",
     "area": "Errors",
     "action": "Network drops during an upload",
@@ -1964,84 +1174,7 @@
       "No console errors on any page",
       "On the Worker reload, Ben’s Home and its expected numbers appear and the console has no React error #419"
     ],
-    "refs": [
-
-    ]
-  },
-  {
-    "id": "LIM-003",
-    "area": "Limits",
-    "action": "A client with no readable address is refused",
-    "user_goal": "the per-address limit must not be bypassed",
-    "type": "negative",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:limits-test"
-    ],
-    "expected": [
-      "A request whose address cannot be read is refused with the ClientIpError message; never counted under a shared key"
-    ],
-    "refs": [
-      "db:limits-test"
-    ]
-  },
-  {
-    "id": "LIM-004",
-    "area": "Limits",
-    "action": "Try it creation closed by the cap",
-    "user_goal": "the demo pool has a ceiling",
-    "type": "edge",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:isolation-test"
-    ],
-    "expected": [
-      "When demoCreationAllowed is false the Try it route answers with a plain refusal and creates nothing"
-    ],
-    "refs": [
-      "db:isolation-test"
-    ]
-  },
-  {
-    "id": "LIM-005",
-    "area": "Limits",
-    "action": "Send many files in one minute",
-    "user_goal": "a burst of files is never refused for being a burst",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "A household with room in its storage cap"
-    ],
-    "steps": [
-      "Store eight different small files in a row with the upload path (storeDocument), then the first one again"
-    ],
-    "expected": [
-      "All eight are accepted; no request answers 429",
-      "The repeated file is the same document, not a ninth",
-      "What still guards uploads: 6 MiB a file, the storage cap, a household session or the Worker secret, one document per identical file"
-    ],
-    "refs": [
-      "D36",
-      "db:limits-test"
-    ]
+    "refs": []
   },
   {
     "id": "UP-001",
@@ -2099,33 +1232,6 @@
     ]
   },
   {
-    "id": "LIM-007",
-    "area": "Limits",
-    "action": "Use the server's model as much as you like",
-    "user_goal": "No daily AI cap stops me",
-    "type": "edge",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:limits-test",
-      "Read the check \"the server's model is never capped\""
-    ],
-    "expected": [
-      "No AI_DAILY_LIMIT or AI_GLOBAL_DAILY_LIMIT setting is needed and many calls across households all get a connection",
-      "A household with its own model gets its own connection"
-    ],
-    "refs": [
-      "db:limits-test",
-      "D33"
-    ]
-  },
-  {
     "id": "LIM-008",
     "area": "Limits",
     "action": "Try it storage is full at 20 MiB",
@@ -2147,31 +1253,6 @@
     "expected": [
       "The next is refused on the Upload page and in Ask with \"Your stored documents are full (20 MB). Delete some in Settings, under Your data, then try again.\"",
       "Home numbers are unchanged"
-    ],
-    "refs": [
-      "db:limits-test"
-    ]
-  },
-  {
-    "id": "LIM-009",
-    "area": "Limits",
-    "action": "A signed-in household's cap is 200 MiB",
-    "user_goal": "real households get more room",
-    "type": "edge",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:limits-test"
-    ],
-    "expected": [
-      "The refusal for a signed-in household says 200 MB",
-      "Exactly at the cap is allowed; one byte over is refused"
     ],
     "refs": [
       "db:limits-test"
@@ -2204,252 +1285,6 @@
     ],
     "refs": [
       "D59"
-    ]
-  },
-  {
-    "id": "LIM-011",
-    "area": "Limits",
-    "action": "Raw files are removed 30 days after the last reading is settled",
-    "user_goal": "old bills must not sit in storage",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:limits-test"
-    ],
-    "expected": [
-      "A file whose readings are all confirmed or dismissed more than 30 days ago is removed; the document row, readings and bills stay",
-      "A document with no readings or one still to check keeps its file",
-      "A recent settle (under 30 days) keeps it"
-    ],
-    "refs": [
-      "db:limits-test"
-    ]
-  },
-  {
-    "id": "LIM-013",
-    "area": "Limits",
-    "action": "The 6 MiB size limit at the edge of the body",
-    "user_goal": "a body just over the limit is cut off, not buffered",
-    "type": "edge",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "POST a body of MAX plus 9 KiB to /api/upload",
-      "POST a body that has no Content-Length"
-    ],
-    "expected": [
-      "Both stop with \"Document exceeds the 6 MiB limit.\" without reading it all"
-    ],
-    "refs": [
-      "D32"
-    ]
-  },
-  {
-    "id": "LIM-014",
-    "area": "Limits",
-    "action": "Per-household limits are per household",
-    "user_goal": "one household's burst does not block another",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run mcp:demo",
-      "Read the check that two households count their request allowances separately"
-    ],
-    "expected": [
-      "A household that has used its allowance leaves another household's allowance untouched"
-    ],
-    "refs": [
-      "npm run mcp:demo"
-    ]
-  },
-  {
-    "id": "SEC-001",
-    "area": "Security",
-    "action": "Another household's id is refused on every read",
-    "user_goal": "I only ever see my own data",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:isolation-test"
-    ],
-    "expected": [
-      "Every function that takes an id of another household returns nothing or refuses",
-      "No query runs without a household id (requireHousehold throws)"
-    ],
-    "refs": [
-      "db:isolation-test",
-      "D31",
-      "AGENTS.md rule 6"
-    ]
-  },
-  {
-    "id": "SEC-002",
-    "area": "Security",
-    "action": "Use another household's ids in write requests",
-    "user_goal": "a stolen id must not work",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "Ids copied from a second household"
-    ],
-    "steps": [
-      "With household A's session, POST /api/bills (kind=edit), /api/charges, and /api/clients with household B's bill, charge, and client ids. Use A's own card in the charge form.",
-      "POST /api/remove kind=bill and kind=charge with B's bill and charge ids",
-      "POST /api/settings kind=card with B's card id",
-      "POST /api/family-links kind=stop with B's live link id"
-    ],
-    "expected": [
-      "/api/bills returns 400 \"Choose a bill of this household\"",
-      "/api/charges returns 400 \"Choose a charge of this household\"",
-      "/api/clients returns 400 \"Choose a client of this household\"",
-      "/api/remove kind=bill returns 400 \"Choose a bill of this household\"",
-      "/api/remove kind=charge returns 400 \"Choose a charge of this household\"",
-      "/api/settings returns 400 \"Card no longer exists\"",
-      "/api/family-links returns 200 \"That link has already ended.\" and B’s link stays live",
-      "Neither household's records or Activity change"
-    ],
-    "refs": [
-      "db:charge-routes-test",
-      "db:isolation-test",
-      "AGENTS.md rule 6"
-    ]
-  },
-  {
-    "id": "SEC-003",
-    "area": "Security",
-    "action": "Cross-origin POST is refused on every route",
-    "user_goal": "another site cannot post as me",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "POST to /api/upload, /api/confirm, /api/canvases, /api/memory, /api/data, /api/restore, /api/settings and /api/remove with Origin http://cross-origin.test"
-    ],
-    "expected": [
-      "Each answers 403 \"Same-origin request required\" and changes nothing"
-    ],
-    "refs": [
-      "frontend-check --guards"
-    ]
-  },
-  {
-    "id": "SEC-004",
-    "area": "Security",
-    "action": "POST without a session is 401",
-    "user_goal": "a signed-out request must not act",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "The dev server and database are available"
-    ],
-    "steps": [
-      "POST to /api/upload, /api/approve, /api/export, /api/people, /api/settle, /api/remove, /api/readings/retry with no cookie",
-      "POST /api/settings with kind=household and a cookie that is the UUID of a signed-in account's household"
-    ],
-    "expected": [
-      "Each no-cookie post answers 401 \"Household session required\" (or 403 for same-origin) and nothing changes",
-      "A cookie that names a signed-in account's household is never accepted as a session (only demo households answer to the cookie)"
-    ],
-    "refs": [
-      "frontend-check --guards",
-      "D31"
-    ]
-  },
-  {
-    "id": "SEC-005",
-    "area": "Security",
-    "action": "A POST with no Origin header is refused",
-    "user_goal": "a POST without Origin could be forged",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "POST /api/upload with no Origin and no Sec-Fetch-Site"
-    ],
-    "expected": [
-      "403 \"Same-origin request required\" (only GET may rely on Sec-Fetch-Site or Referer)"
-    ],
-    "refs": [
-      "src/lib/session.ts sameOrigin",
-      "frontend-check --guards"
-    ]
-  },
-  {
-    "id": "SEC-006",
-    "area": "Security",
-    "action": "Send only from the approve route",
-    "user_goal": "the agent must never send money requests",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run lint",
-      "Run npm run db:agent-test and npm run mcp:demo"
-    ],
-    "expected": [
-      "The agent and MCP catalogues hold draft and read tools only",
-      "Lint fails any other import of runTool or deleteSmokeDraft",
-      "/api/approve without a session is 401"
-    ],
-    "refs": [
-      "db:agent-test",
-      "npm run mcp:demo",
-      "AGENTS.md rule 5",
-      "D12"
     ]
   },
   {
@@ -2510,58 +1345,6 @@
     ]
   },
   {
-    "id": "SEC-011",
-    "area": "Security",
-    "action": "Error messages never name secrets",
-    "user_goal": "a missing setting names the variable, not its value",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "The response bodies recorded while running the http scenarios in this run"
-    ],
-    "steps": [
-      "Search every error body and Settings, Household, Home and export response seen in the run for \"Bearer\", \"sk-\", \"eyJ\", \"postgres://\" and \"service_role\""
-    ],
-    "expected": [
-      "Missing-setting errors name the variable (\"AI_API_KEY is not set\") and never a value",
-      "No error body holds a key, token, a URL with credentials or a stack"
-    ],
-    "refs": [
-      "AGENTS.md rules 2 and 10"
-    ]
-  },
-  {
-    "id": "SEC-014",
-    "area": "Security",
-    "action": "A family token cannot change anything",
-    "user_goal": "a family member cannot change anything",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "State after FAM-001 (a live family link)"
-    ],
-    "steps": [
-      "POST to an /api route (for example /api/settings) with the family token as the only cookie"
-    ],
-    "expected": [
-      "Any POST is 401 or 403 and nothing changes"
-    ],
-    "refs": [
-      "frontend-check --guards",
-      "db:family-test",
-      "D52"
-    ]
-  },
-  {
     "id": "SEC-015",
     "area": "Security",
     "action": "The request log is content-free",
@@ -2618,113 +1401,6 @@
     ]
   },
   {
-    "id": "SEC-017",
-    "area": "Security",
-    "action": "The upload and reader are household-scoped in Storage",
-    "user_goal": "a file path of another household is never read",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:reader-test and npm run db:isolation-test"
-    ],
-    "expected": [
-      "A storage path that does not start with the household id is refused (\"Document storage path is invalid\" / \"does not belong\")",
-      "Removing a household's documents removes only its own"
-    ],
-    "refs": [
-      "db:reader-test",
-      "db:isolation-test"
-    ]
-  },
-  {
-    "id": "SEC-018",
-    "area": "Security",
-    "action": "Export and import carry no secrets",
-    "user_goal": "a data file I share must be safe",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:snapshot-test and npm run db:data-test"
-    ],
-    "expected": [
-      "The export holds no AI key, no token and no cookie",
-      "Import goes only into an empty household"
-    ],
-    "refs": [
-      "db:snapshot-test",
-      "db:data-test",
-      "D44"
-    ]
-  },
-  {
-    "id": "SEC-020",
-    "area": "Security",
-    "action": "The cron routes need their bearer",
-    "user_goal": "unauthorised requests cannot list or run the daily job",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "Isolated PGlite fixtures"
-    ],
-    "steps": [
-      "Run npm run db:cron-test in economy-saver",
-      "Read the discovery and single-household authorization check"
-    ],
-    "expected": [
-      "Both /api/cron forms refuse a missing or wrong bearer with 401",
-      "The fixture uses a fictional bearer"
-    ],
-    "refs": [
-      "db:cron-test",
-      "D64"
-    ]
-  },
-  {
-    "id": "SEC-021",
-    "area": "Security",
-    "action": "PayPal is sandbox only",
-    "user_goal": "no real money is possible",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)"
-    ],
-    "steps": [
-      "Read Household → Details (\"PayPal stays in sandbox\"), the privacy line for PayPal and the invoice review page",
-      "Search every PayPal link and host seen in those pages and in the responses of PAY-003 for a host name"
-    ],
-    "expected": [
-      "The pages say PayPal is the sandbox",
-      "The only PayPal host seen anywhere is api-m.sandbox.paypal.com"
-    ],
-    "refs": [
-      "AGENTS.md rule 1",
-      "D12"
-    ]
-  },
-  {
     "id": "UI-001",
     "area": "Layout",
     "action": "No sideways scroll on any screen at 375px",
@@ -2747,9 +1423,7 @@
       "scrollWidth equals clientWidth on every screen",
       "No text is cut off or overlaps. Long names wrap in Home and Ask’s sentence notes and Plan’s expanded “not counted” note in the UI-006 fixture"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-002",
@@ -2773,9 +1447,7 @@
       "No horizontal scroll; the sidebar, top bar (Ask, bell, Add) and panels line up",
       "Household and Settings keep their tab bar on one row"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-003",
@@ -2801,9 +1473,7 @@
       "Tapping the expanded area activates its own button, link, summary or checkbox. The canvas and Coming up links cover no neighboring content",
       "The Ask row never covers the last row"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-004",
@@ -2827,9 +1497,7 @@
       "All text is readable; the red shortfall and green Covered stay clear",
       "Form fields, buttons, the check lines and the reading card are visible"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-005",
@@ -2852,9 +1520,7 @@
     "expected": [
       "Each page replaces the fallback within a second or two (a hidden pane can throttle: not a bug)"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-006",
@@ -2881,9 +1547,7 @@
       "Names wrap in Home and Ask’s sentence notes, in Plan’s expanded “not counted” note and spending list, and in To check, Settings and Activity",
       "The right column and amounts stay on screen and the document has no sideways scroll"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-007",
@@ -2907,9 +1571,7 @@
       "Nothing scrolls sideways. At 375px the file field, button and To check link each have at least 44px of tap height, and the link opens To check",
       "The red message wraps and is readable in dark"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-009",
@@ -2933,9 +1595,7 @@
       "Estimate words wrap under the name and the right column stays on screen",
       "Choice buttons wrap to the next line and are 44px tall"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-010",
@@ -2959,9 +1619,7 @@
       "Focus is visible on every control in a sensible order",
       "The file field, Upload and read, Confirm reading and Dismiss are all reachable and work with the keyboard"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-011",
@@ -2984,9 +1642,7 @@
       "The file field is named Document; reading details have a summary name (name and review kind)",
       "Each check line is a group labelled with its words; the upload message has role alert; the Document readings section is named"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-012",
@@ -3010,9 +1666,7 @@
     "expected": [
       "The attach control is at least 44px, the card fits the screen and the Ask row never hides the Confirm button"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-013",
@@ -3034,9 +1688,7 @@
     "expected": [
       "The long address wraps or scrolls inside its box without widening the page"
     ],
-    "refs": [
-
-    ]
+    "refs": []
   },
   {
     "id": "UI-014",
@@ -3065,35 +1717,6 @@
     ],
     "refs": [
       "D55"
-    ]
-  },
-  {
-    "id": "SEC-022",
-    "area": "Security",
-    "action": "Enforce household isolation with the database role",
-    "user_goal": "I want records from other households to stay inaccessible at the database",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "PGlite migrated through 0029 with two fictional households"
-    ],
-    "steps": [
-      "Run db:isolation-test",
-      "Read the pes_app policy, direct read and write, and transaction reuse checks"
-    ],
-    "expected": [
-      "No household rows are visible without a set household id",
-      "Unfiltered reads under A cannot see B on any household table",
-      "The database hides B from updates and rejects cross-household inserts and reassignment",
-      "Commit and rollback clear the scope"
-    ],
-    "refs": [
-      "db:isolation-test",
-      "PLAN 31C"
     ]
   }
 ]

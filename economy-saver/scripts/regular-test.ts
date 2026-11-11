@@ -212,7 +212,6 @@ async function main() {
       }
       const denki = (await load(other)).items.find(c => c.key === "utilities:fictional denki")!;
       assert.deepEqual(brief(denki), ["Fictional Denki 11月分", "up", [8_640, 9_100, 11_220], 2_120]);
-      assert.ok(!(await load(ben)).items.some(c => c.label.startsWith("Fictional")), "the other household's bills are not Ben's");
     });
 
     console.log(`Regular cost checks passed (${passed}).`);

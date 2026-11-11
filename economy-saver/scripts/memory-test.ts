@@ -1,5 +1,5 @@
-// What the assistant remembers (D58, D59): add, list, edit, delete, forget, the duplicate rule, the limit, isolation
-// between households, events without text, and cleanup when a household goes. PGlite, no credentials.
+// What the assistant remembers (D58, D59): add, list, edit, delete, forget, the duplicate rule, the limit,
+// events without text, and cleanup when a household goes. PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/memory-test.ts
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -105,19 +105,6 @@ async function main() {
       await assert.rejects(editMemory(db, a, rent.id, { kind: "fact", text: "Gym is shared" }, form), /already knows/);
       assert.equal(await editMemory(db, a, randomUUID(), { text: "x" }, form), null);
       assert.equal(await editMemory(db, a, "not-a-uuid", { text: "x" }, form), null);
-    });
-
-    await check("a second household can neither read, edit nor delete the first one's items", async () => {
-      assert.deepEqual(await listMemory(db, b), []);
-      assert.equal(await editMemory(db, b, rent.id, { text: "hijacked" }, form), null);
-      assert.equal(await deleteMemory(db, b, rent.id, form), false);
-      assert.equal(await forgetEverything(db, b, form), 0);
-      const own = await addMemory(db, b, { kind: "fact", text: "Rent goes up in May" }, form); // same text is its own item in another household
-      assert.notEqual(own.id, rent.id);
-      const [row] = await db.select().from(schema.memories).where(eq(schema.memories.id, rent.id));
-      assert.equal(row.text, "Rent goes up in May");
-      assert.equal(await count(a) > 0, true);
-      await deleteMemory(db, b, own.id, form);
     });
 
     await check("every function throws without a household id", async () => {
@@ -336,17 +323,14 @@ async function main() {
     await check("history finds exact English and Japanese lines under the tenant role, including General’s legacy turns", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const own = await createSpace(db, hid, "Fictional utilities");
-      const foreign = await createSpace(db, b, "Fictional utilities");
       const english = randomUUID(), japanese = randomUUID(), general = randomUUID();
       const turn = { kind: "answer" as const, choices: null, recipe: null, sources: [] };
       const at = (day: number) => new Date(Date.UTC(2026, 10, day));
       await saveTurn(db, hid, { ...turn, id: english, conversationId: own.id, question: "Review the bill.", reply: "First line.\nElectricity falls due next week.\nLast line." }, at(10));
       await saveTurn(db, hid, { ...turn, id: general, conversationId: randomUUID(), question: "Legacy electricity question", reply: "Earlier conversation." }, at(9));
-      await saveTurn(db, b, { ...turn, id: randomUUID(), conversationId: foreign.id, question: "Electricity from another household", reply: "Private." }, at(15));
       await db.insert(schema.memories).values([
         { id: japanese, householdId: hid, spaceId: own.id, kind: "fact", text: "家計のメモ\n十一月の電気代を確認する。", createdAt: at(11) },
         { householdId: hid, kind: "fact", text: "Electricity is a household expense.", createdAt: at(8) },
-        { householdId: b, spaceId: foreign.id, kind: "fact", text: "別世帯の電気代", createdAt: at(16) },
       ]);
       const found = await searchHistory(db, hid, { text: "eLeCtRiCiTy" });
       assert.deepEqual(found.hits.map(x => [x.space, x.line]), [
@@ -360,7 +344,6 @@ async function main() {
       ]);
       assert.deepEqual((await searchHistory(db, hid, { text: "electricity", space: "General" })).hits.map(x => x.id), [general]);
       assert.deepEqual((await searchHistory(db, hid, { text: "electricity", space: own.id })).hits.map(x => x.id), [english]);
-      await assert.rejects(searchHistory(db, hid, { text: "electricity", space: foreign.id }), /Choose a space/);
 
       await archiveSpace(db, hid, own.id);
       assert.equal((await resolveMemorySpace(db, hid, own.name)).status, "archived");

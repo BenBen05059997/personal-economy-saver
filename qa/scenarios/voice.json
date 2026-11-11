@@ -176,31 +176,6 @@
     ]
   },
   {
-    "id": "VOICE-007",
-    "area": "Voice",
-    "action": "Run the voice suite",
-    "user_goal": "the voice schema, checks and route stay correct",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "Dependencies installed"
-    ],
-    "steps": [
-      "Run npm run db:voice-test from economy-saver/"
-    ],
-    "expected": [
-      "The suite passes: the checks keep an amount only if it was said in the field's currency, dates within limits, selects among their options, and the route writes nothing"
-    ],
-    "refs": [
-      "db:voice-test",
-      "D26"
-    ]
-  },
-  {
     "id": "VOICE-008",
     "area": "Voice",
     "action": "Fill a card charge by real speech",

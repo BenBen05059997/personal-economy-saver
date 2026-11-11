@@ -52,32 +52,6 @@
     ]
   },
   {
-    "id": "VIEW-003",
-    "area": "Stage 36",
-    "action": "Inspect the landing preview",
-    "user_goal": "I want to use the new desktop workspace confidently",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
-    ],
-    "steps": [
-      "Read the sample Home preview"
-    ],
-    "expected": [
-      "The sentence, forecast and safe to spend match Expected numbers and the action names Beacon Studio"
-    ],
-    "refs": [
-      "D25",
-      "D47",
-      "D60"
-    ]
-  },
-  {
     "id": "VIEW-004",
     "area": "Stage 36",
     "action": "Open People from Household",
@@ -859,32 +833,6 @@
     ]
   },
   {
-    "id": "VIEW-034",
-    "area": "Stage 36",
-    "action": "Toggle Ask with the top bar button",
-    "user_goal": "I want to use the new desktop workspace confidently",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
-    ],
-    "steps": [
-      "With the panel open, look at the Ask button",
-      "Click it"
-    ],
-    "expected": [
-      "The Ask button has a dark 2px border and a pale-yellow fill while the panel is open",
-      "Clicking it closes the panel and the border and fill go away"
-    ],
-    "refs": [
-      "D60"
-    ]
-  },
-  {
     "id": "VIEW-035",
     "area": "Stage 36",
     "action": "Read the sidebar current page",
@@ -1006,30 +954,6 @@
     ],
     "refs": [
       "D72"
-    ]
-  },
-  {
-    "id": "VIEW-040",
-    "area": "Stage 36",
-    "action": "Read the Home order",
-    "user_goal": "I want to use the new desktop workspace confidently",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
-    ],
-    "steps": [
-      "Open Home"
-    ],
-    "expected": [
-      "Top to bottom: the date \"Sat Nov 14\", the sentence \"You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th.\", the demo line, the \"Invoice Beacon $400\" and \"Upload a receipt\" buttons, \"Get started\", the \"Your next 30 days\" panel, then To check, Cards and Coming up"
-    ],
-    "refs": [
-      "D25"
     ]
   },
   {
@@ -1237,59 +1161,6 @@
     ]
   },
   {
-    "id": "VIEW-049",
-    "area": "Stage 36",
-    "action": "Read the Categories figures and sentence",
-    "user_goal": "I want to use the new desktop workspace confidently",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
-    ],
-    "steps": [
-      "Choose Categories"
-    ],
-    "expected": [
-      "Ranked bars this month and last month: Housing ¥82,000 and ¥82,000; Other ¥48,900 and ¥7,480; Food ¥10,700 and ¥11,440; Phone & internet ¥4,800 and ¥4,800; Business tools ¥3,850 and ¥0; Subscriptions ¥1,980 and ¥1,980",
-      "The legend reads \"Spent so far\", \"Still to come (bills and statements you know of)\", \"October\"",
-      "The sentence reads \"November so far ¥63,450 spent, ¥88,780 still to come: ¥152,230 for the month, against ¥132,060 in October.\" then \"Hikari Denki ¥11,220 waits in To check and is not counted yet.\"",
-      "The table columns are Category, Spent, Still to come, November, October"
-    ],
-    "refs": [
-      "D73"
-    ]
-  },
-  {
-    "id": "VIEW-050",
-    "area": "Stage 36",
-    "action": "Read the Trend figures and sentence",
-    "user_goal": "I want to use the new desktop workspace confidently",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
-    ],
-    "steps": [
-      "Choose Trend"
-    ],
-    "expected": [
-      "Columns: Aug ¥88,780, Sep ¥150,380, Oct ¥132,060, Nov ¥152,230; November is stacked, ¥63,450 spent plus ¥88,780 still to come",
-      "The sentence reads \"September was the highest month (¥150,380), mostly because of Hotel Kazemachi Hakone (¥28,600).\"",
-      "The table columns are Month, Spent, Still to come, Total"
-    ],
-    "refs": [
-      "D73"
-    ]
-  },
-  {
     "id": "VIEW-051",
     "area": "Stage 36",
     "action": "Read the Home views in dark mode",
@@ -1416,31 +1287,6 @@
     ]
   },
   {
-    "id": "VIEW-056",
-    "area": "Stage 36",
-    "action": "Read the full Ask page composer",
-    "user_goal": "I want to use the new desktop workspace confidently",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
-    ],
-    "steps": [
-      "Open /canvas at 1440px"
-    ],
-    "expected": [
-      "The same \"Ask a question\" box, Incognito and Attach a bill sit at the bottom of the conversation column",
-      "The thread scrolls above it in one centred column of about 760px; the Space button in the header opens the brief, notes, pins, earlier conversations and starter canvases in a side sheet"
-    ],
-    "refs": [
-      "D60"
-    ]
-  },
-  {
     "id": "VIEW-057",
     "area": "Stage 36",
     "action": "Open the Ask panel as an overlay at 1100px",
@@ -1487,64 +1333,6 @@
       "There is no Person button with one person",
       "The heading reads \"Where this month goes\" with \"Spending by category, compared with last month\"",
       "Forecast and Trend do not show the group"
-    ],
-    "refs": [
-      "D74"
-    ]
-  },
-  {
-    "id": "VIEW-059",
-    "area": "Look at it by",
-    "action": "Look at the month as business or personal in Chart",
-    "user_goal": "I want to see how much of this month is the business",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Home → Categories, Chart"
-    ],
-    "steps": [
-      "Choose Business or personal"
-    ],
-    "expected": [
-      "The heading reads \"Business and personal this month\" with \"Each category split by the business share you set\"",
-      "A strip shows \"Business ¥32,830\" and \"Personal ¥119,400\"",
-      "The legend reads \"Business\", \"Personal\" and \"October\"",
-      "Housing shows ¥82,000 with \"business ¥24,600\"; Subscriptions shows \"all business\"; Food shows \"all personal\"",
-      "Under the bars: \"Business ¥32,830 of ¥152,230 this month\""
-    ],
-    "refs": [
-      "D74"
-    ]
-  },
-  {
-    "id": "VIEW-060",
-    "area": "Look at it by",
-    "action": "Look at the month as business or personal in Table",
-    "user_goal": "I want the same split as numbers",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Home → Categories, Chart"
-    ],
-    "steps": [
-      "Choose Business or personal",
-      "Choose Table"
-    ],
-    "expected": [
-      "The columns are Category, Business, Personal, Total",
-      "Housing reads ¥24,600, ¥57,400, ¥82,000",
-      "The Business column adds to ¥32,830, Personal to ¥119,400 and Total to ¥152,230",
-      "No row is indented"
     ],
     "refs": [
       "D74"
@@ -1797,141 +1585,6 @@
     "refs": [
       "D74",
       "D60"
-    ]
-  },
-  {
-    "id": "VIEW-070",
-    "area": "Look at it by",
-    "action": "Open Food in the Category chart",
-    "user_goal": "I want to see the coffee inside Food",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Home → Categories, Chart"
-    ],
-    "steps": [
-      "Press the arrow named \"Show your categories in Food\""
-    ],
-    "expected": [
-      "Two thinner bars appear: Coffee ¥1,880 and \"Everything else in Food\" ¥8,820",
-      "The arrow is now named \"Hide your categories in Food\"",
-      "Food still shows ¥10,700; no other row has an arrow except Other"
-    ],
-    "refs": [
-      "D75"
-    ]
-  },
-  {
-    "id": "VIEW-071",
-    "area": "Look at it by",
-    "action": "Open Other in the Category chart",
-    "user_goal": "I want to see my gear and books inside Other",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Home → Categories, Chart"
-    ],
-    "steps": [
-      "Press the arrow named \"Show your categories in Other\""
-    ],
-    "expected": [
-      "Gear ¥24,600, Books & films ¥0 with the October tick at ¥7,480, and \"Everything else in Other\" ¥24,300 appear in that order",
-      "Other still shows ¥48,900",
-      "Pressing the arrow again closes the rows"
-    ],
-    "refs": [
-      "D75"
-    ]
-  },
-  {
-    "id": "VIEW-072",
-    "area": "Look at it by",
-    "action": "Read the own categories in the Category table",
-    "user_goal": "I want the numbers behind the bars",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Home → Categories, Table, Category"
-    ],
-    "steps": [
-      "Read the rows under Food and Other"
-    ],
-    "expected": [
-      "Coffee, Everything else in Food, Gear, Books & films and Everything else in Other are indented under their category",
-      "Food's children add up to ¥10,700 and Other's to ¥48,900",
-      "Business or personal shows no indented rows"
-    ],
-    "refs": [
-      "D75"
-    ]
-  },
-  {
-    "id": "VIEW-073",
-    "area": "Look at it by",
-    "action": "Check that the looks and own categories move no money",
-    "user_goal": "Looking at my spending must not change my cash numbers",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Home, any Look at it by choice"
-    ],
-    "steps": [
-      "Read the sentence, safe to spend and the forecast low point"
-    ],
-    "expected": [
-      "The sentence is \"You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th.\"",
-      "Safe to spend is ¥0 and the forecast low point is ¥18,780 short on the 27th"
-    ],
-    "refs": [
-      "D74",
-      "D75"
-    ]
-  },
-  {
-    "id": "VIEW-074",
-    "area": "Look at it by",
-    "action": "Run the Look at it by maths",
-    "user_goal": "The three looks must share one total",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "No server, credentials or model needed: the suite runs on PGlite (from economy-saver/)"
-    ],
-    "steps": [
-      "Run npm run db:look-by-test"
-    ],
-    "expected": [
-      "The month total is the same by category, by business or personal and by person",
-      "Person with fewer than two people gives the category rows",
-      "A stored choice is read back as view, mode and by, and a two-part value reads as Category"
-    ],
-    "refs": [
-      "db:look-by-test",
-      "D74"
     ]
   },
   {

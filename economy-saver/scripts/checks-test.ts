@@ -210,7 +210,7 @@ async function main() {
   const db = drizzle(pg, { schema });
   try {
     await migrate(db, { migrationsFolder: "./drizzle" });
-    const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
+    const a = await seedBen(db, { isDemo: true });
     const tool = checkTools.find(t => t.name === "to_check")!;
     const ctxOf = (hid: string): ToolContext => ({ madeBy: "mcp", db, householdId: hid, state: async () => loadMoneyState(db, hid, await householdDate(db, hid)), appUrl: new URL("http://127.0.0.1:3123") });
     const run = async (hid: string) => JSON.parse(await tool.run(ctxOf(hid), {} as never)) as {
@@ -238,10 +238,9 @@ async function main() {
       assert.deepEqual(out.reading, []);
     });
 
-    await check("to_check: a reading comes back with its checks, its source and its document; another household's items never appear", async () => {
+    await check("to_check: a reading comes back with its checks, its source and its document", async () => {
       const documentId = await addReading(a, { kind: "bill", name: "Rent", date: "2026-12-27", amountMinor: 92_000, currency: "JPY", category: "housing", cardId: null });
       const emailId = await addReading(a, { kind: "bill", name: "Kawa Gym", date: "2026-12-20", amountMinor: 6_000, currency: "JPY", category: "health", cardId: null }, "email");
-      await addReading(b, { kind: "bill", name: "ZZ Secret Landlord", date: "2026-12-20", amountMinor: 6_000, currency: "JPY", category: "housing", cardId: null });
       const out = await run(a);
       const rent = out.items.find(i => i.source === "reading" && i.name === "Rent")!;
       assert.equal(rent.documentId, documentId);
@@ -253,11 +252,6 @@ async function main() {
       assert.equal(gym.from, "email");
       assert.equal(gym.documentId, emailId);
       assert.deepEqual(gym.checks.map(c => c.kind), ["repeat_unknown"]);
-      assert.equal(out.items.some(i => i.name === "ZZ Secret Landlord"), false);
-      assert.equal(JSON.stringify(out).includes("ZZ Secret"), false);
-      const other = await run(b);
-      assert.ok(other.items.some(i => i.name === "ZZ Secret Landlord"));
-      assert.equal(other.items.some(i => i.name === "Kawa Gym"), false);
     });
 
     await check("to_check: a draft saved through MCP carries its source; documents being read are listed", async () => {

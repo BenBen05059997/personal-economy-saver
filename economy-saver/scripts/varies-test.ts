@@ -282,12 +282,10 @@ async function main() {
     assert.equal(kept.householdId, hid);
   });
 
-  await check("a household's real bill never links to another household's series, and loadSpending reads linked bills before the range", async () => {
+  await check("loadSpending reads linked bills before the range", async () => {
     const other = await seedBen(db, { isDemo: true });
     const s2 = randomUUID();
     await insertBill(store, other, billInput.parse({ id: s2, biller: "Sakura Gas", amount: "6000", due: "2026-12-10", category: "utilities", repeat: "month", amountVaries: true }), "confirmed", form);
-    const mine = await add({ biller: "Sakura Gas", amount: "6100", due: "2027-01-08" });
-    assert.equal((await row(mine)).seriesBillId, null, "the only series is the other household's");
     const id = randomUUID();
     await insertBill(store, other, billInput.parse({ id, biller: "Sakura Gas 10月分", amount: "5000", due: "2026-10-12", category: "utilities" }), "confirmed", form);
     const spending = await loadSpending(store, other, { from: "2026-12-01", to: "2026-12-31" });

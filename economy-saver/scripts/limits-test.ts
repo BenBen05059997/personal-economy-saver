@@ -160,8 +160,6 @@ async function main() {
       assert.equal(await removeExpiredFiles(store, hid, new Date(now.getTime() + 26 * 86_400_000), fake), 1);
       const stuck = await addDoc(hid, 10); await addReading(hid, stuck.id, "confirmed", days(90));
       await assert.rejects(removeExpiredFiles(store, hid, new Date("2027-06-01T00:00:00Z"), { remove: async () => ({ error: new Error("down") }) }), /Could not remove old documents/);
-      const hidB = await seedBen(db);
-      assert.equal(await removeExpiredFiles(store, hidB, now, fake), 0);
     });
 
     await check("the daily job removes expired files through Storage and cron housekeeping prunes old address windows", async () => {

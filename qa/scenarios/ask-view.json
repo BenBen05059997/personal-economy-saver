@@ -28,134 +28,6 @@
     "refs": []
   },
   {
-    "id": "ASKVIEW-002",
-    "area": "Ask view",
-    "action": "Request the Ask view for the current household",
-    "user_goal": "I want the view to return my selected space privately",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "A household with General and a named space"
-    ],
-    "steps": [
-      "Run npm run db:ask-routes-test",
-      "Check the same-origin view with no space parameter and with the named space id"
-    ],
-    "expected": [
-      "Both responses return 200 with Cache-Control: private, no-store",
-      "The first view selects General and the second selects the named space"
-    ],
-    "refs": [
-      "db:ask-routes-test"
-    ]
-  },
-  {
-    "id": "ASKVIEW-003",
-    "area": "Ask view",
-    "action": "Request an Ask view without access",
-    "user_goal": "I want only my household to be able to read my Ask spaces",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "Two households with their own spaces"
-    ],
-    "steps": [
-      "Run npm run db:ask-routes-test",
-      "Check requests without a session, from a foreign origin, and with malformed, unknown or foreign space ids"
-    ],
-    "expected": [
-      "The missing session returns 401 and the foreign origin returns 403",
-      "Each invalid space lookup returns 404 without space data"
-    ],
-    "refs": [
-      "db:ask-routes-test"
-    ]
-  },
-  {
-    "id": "ASKVIEW-004",
-    "area": "Ask view",
-    "action": "Load an Ask view with kinds kept on this device",
-    "user_goal": "I want my device-held thread, brief, notes and pins to stay on this device",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "The household keeps its journal, memory and canvases on this device"
-    ],
-    "steps": [
-      "Run npm run db:ask-routes-test",
-      "Load a view for the selected space"
-    ],
-    "expected": [
-      "The view includes the space metadata and omits turns, briefs, notes and pins for device-held kinds"
-    ],
-    "refs": [
-      "db:ask-routes-test"
-    ]
-  },
-  {
-    "id": "ASKVIEW-005",
-    "area": "Ask view",
-    "action": "Reach the shared Ask view and canvas request limit",
-    "user_goal": "I want the app to tell me when I should wait before retrying",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "A household at its canvas request limit"
-    ],
-    "steps": [
-      "Run npm run db:ask-routes-test",
-      "Make a view request with the household’s canvas request bucket exhausted"
-    ],
-    "expected": [
-      "The view returns 429 for the shared 120 requests per minute household bucket"
-    ],
-    "refs": [
-      "db:ask-routes-test"
-    ]
-  },
-  {
-    "id": "ASKVIEW-006",
-    "area": "Ask view",
-    "action": "Render the same Ask view in both sizes",
-    "user_goal": "I want the compact view to have the same Ask controls",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "A named Ask space with a brief"
-    ],
-    "steps": [
-      "Run npm run db:ask-routes-test",
-      "Render the full and panel presentations from the same Ask view"
-    ],
-    "expected": [
-      "Both render the question form and space controls; the full page also renders the brief, notes and starter canvases",
-      "Only the panel renders Open full for the selected space, and it leaves out the brief, notes, delete control and starter canvases"
-    ],
-    "refs": [
-      "db:ask-routes-test"
-    ]
-  },
-  {
     "id": "ASKVIEW-007",
     "area": "Ask view",
     "action": "Open the selected space in full Ask",
@@ -180,33 +52,6 @@
       "Open full opens the named space’s /canvas?space=<id> page with March paperwork selected"
     ],
     "refs": []
-  },
-  {
-    "id": "ASKVIEW-008",
-    "area": "Ask view",
-    "action": "Keep desktop Ask preferences for this tab",
-    "user_goal": "I want my panel preferences to stay local to my tab and household",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "A fresh workspace and a second household"
-    ],
-    "steps": [
-      "Run npm run db:ask-routes-test",
-      "Check the initial workspace rendering and the panel preference round trip"
-    ],
-    "expected": [
-      "The initial server-rendered workspace has no panel or view request",
-      "At 1200px or wider an absent preference defaults to open; an explicit close stays closed",
-      "Preferences contain only the open flag and selected space and are separate by household"
-    ],
-    "refs": [
-      "db:ask-routes-test"
-    ]
   },
   {
     "id": "ASKVIEW-009",
@@ -259,32 +104,6 @@
       "Acme stays selected after closing the panel"
     ],
     "refs": []
-  },
-  {
-    "id": "ASKVIEW-011",
-    "area": "Ask view",
-    "action": "Use the current section as Ask context",
-    "user_goal": "I want Ask to know which screen I’m on from a fixed label",
-    "type": "security",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "suite",
-    "preconditions": [
-      "An Ask request with the To check screen key"
-    ],
-    "steps": [
-      "Run npm run db:agent-test",
-      "Compare the context with and without the screen field"
-    ],
-    "expected": [
-      "The screen field adds the fixed sentence The person is asking from To check.",
-      "With no screen the context omits that sentence"
-    ],
-    "refs": [
-      "db:agent-test"
-    ]
   },
   {
     "id": "ASKVIEW-012",

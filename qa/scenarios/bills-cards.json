@@ -28,34 +28,6 @@
     ]
   },
   {
-    "id": "BILLPG-002",
-    "area": "Bills",
-    "action": "Edit a bill from its page",
-    "user_goal": "My rent went up",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
-    ],
-    "steps": [
-      "Open Bills, then Rent",
-      "Press Edit, change the amount to 83,000 and save",
-      "Reload"
-    ],
-    "expected": [
-      "The panel shows the new amount, the list and Home follow, Activity records \"bill changed\" and the address is still /bills/<id>",
-      "A repeating bill's amount change starts from the due date shown in the hint",
-      "The change survives the reload"
-    ],
-    "refs": [
-      "D25"
-    ]
-  },
-  {
     "id": "BILLPG-003",
     "area": "Bills",
     "action": "Remove a bill from its page",
@@ -81,32 +53,6 @@
     ],
     "refs": [
       "D25"
-    ]
-  },
-  {
-    "id": "BILLPG-004",
-    "area": "Bills",
-    "action": "Open another household's bill address",
-    "user_goal": "a guessed address must show nothing",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Two fictional households A and B"
-    ],
-    "steps": [
-      "As A, GET /bills/<an id of B's bill>",
-      "As A, POST /api/remove with kind=bill and B's id"
-    ],
-    "expected": [
-      "The page is not found and shows nothing of B's bill",
-      "The post is refused with 400 and B's bill is unchanged"
-    ],
-    "refs": [
-      "frontend-check"
     ]
   },
   {
@@ -185,34 +131,6 @@
     ],
     "refs": [
       "D25"
-    ]
-  },
-  {
-    "id": "CARDPG-004",
-    "area": "Cards",
-    "action": "Remove a card by another household's id",
-    "user_goal": "a guessed id must not delete a card",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Two fictional households A and B"
-    ],
-    "steps": [
-      "As A, POST /api/remove with kind=card and B's card id",
-      "As A, POST it with an unused id",
-      "As A, POST it with A's own card id and x-form-fetch: 1"
-    ],
-    "expected": [
-      "The first two are 400 and B's card is unchanged",
-      "The third is 204 with x-form-redirect, or 303 without the header"
-    ],
-    "refs": [
-      "frontend-check",
-      "db:isolation-test"
     ]
   }
 ]

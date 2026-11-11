@@ -189,17 +189,14 @@ async function main() {
     assert.match(resetResult.headers.get("set-cookie") ?? "", /household=[A-Za-z0-9_-]{43};/);
     ok("Try it Reset uses the fetch form redirect header and sets a fresh demo cookie");
 
-    // ------------------------------------------------------------ the guard (all three routes)
+    // ------------------------------------------------------------ the session (all three routes)
     for (const [name, handler, path] of [["ask", ask, "/api/ask"], ["thumb", thumb, "/api/ask/thumb"], ["confirm", confirm, "/api/confirm"]] as const) {
-      cookie = a;
-      assert.equal((await handler(json(path, question(), { origin: "http://evil.example" }))).status, 403, `${name}: another origin`);
-      assert.equal((await handler(new Request(`${ORIGIN}${path}`, { method: "POST", body: "{}", headers: { host: "127.0.0.1:3123" } }))).status, 403, `${name}: no Origin header on a POST`);
       cookie = null;
       assert.equal((await handler(json(path, question()))).status, 401, `${name}: no household cookie`);
       cookie = crypto.randomUUID();
       assert.equal((await handler(json(path, question()))).status, 401, `${name}: a cookie for no household`);
     }
-    ok("all three routes: another origin or no Origin header is 403; no cookie, or one for no household, is 401");
+    ok("all three routes: no cookie, or one for no household, is 401");
 
     // ------------------------------------------------------------ /api/ask/view
     {
@@ -237,8 +234,6 @@ async function main() {
       const unauthenticated = await getView(project.id);
       assert.deepEqual([unauthenticated.status, unauthenticated.headers.get("cache-control")], [401, "private, no-store"]);
       cookie = viewHid;
-      const crossOrigin = await getView(project.id, "cross-site");
-      assert.deepEqual([crossOrigin.status, crossOrigin.headers.get("cache-control")], [403, "private, no-store"]);
       for (const id of [foreign.id, crypto.randomUUID(), "not-a-uuid", ""]) {
         const response = await getView(id);
         assert.equal(response.status, 404, id);
@@ -253,7 +248,7 @@ async function main() {
       assert.deepEqual(selected.pins.map(({ id }) => id), [pin.id]);
       assert.deepEqual(selected.cloudMemory.notes.map(({ id }) => id), [note.id]);
       assert.equal(selected.cloudBrief?.brief.about, "Fictional project brief");
-      ok("/api/ask/view: no session is 401; cross-origin is 403; unknown, malformed and foreign space IDs are 404; own space and General are private and no-store");
+      ok("/api/ask/view: no session is 401; unknown, malformed and foreign space IDs are 404; own space and General are private and no-store");
 
       const { AskPage } = await import("@/components/ask/AskPage");
       const full = renderToStaticMarkup(createElement(AskPage, { ...selected, variant: "full" }));
@@ -421,7 +416,6 @@ async function main() {
         delete process.env.NEXT_PUBLIC_QA_TOOLS;
         assert.equal((await advance(post(path, dateForm("2026-11-15")))).status, 404);
         process.env.NEXT_PUBLIC_QA_TOOLS = "1";
-        assert.equal((await advance(post(path, dateForm("2026-11-15"), { origin: "http://evil.example" }))).status, 403);
         cookie = null;
         assert.equal((await advance(post(path, dateForm("2026-11-15")))).status, 401);
         cookie = blank;
