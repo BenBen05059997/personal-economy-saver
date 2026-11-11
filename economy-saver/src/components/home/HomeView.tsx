@@ -16,7 +16,6 @@ import { HOUSEHOLD_PEOPLE, hrefFor } from "@/lib/links";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { BankBalance } from "./BankBalance";
 import { HomeViews } from "./HomeViews";
-import type { SpendingInput } from "@/lib/money/spending";
 import { homeSentence } from "@/lib/money/sentence";
 import { Suspense, type ReactNode } from "react";
 import { Sentence } from "./Sentence";
@@ -214,7 +213,7 @@ function ComingUp({ state, added, addedId }: Props & { added: string | null; add
   const addedRow = addedId === null ? 0 : dated.findIndex((row) => row.rank === 0 && usual[row.index].id.split("@")[0] === addedId) + 1;
   const shown = Math.max(keepRow, focusRow, addedRow);
   return <section id="coming-up" className="home-panel home-upcoming">
-    <h2>Coming up <Link prefetch={false} href="/activity">All activity ›</Link></h2>
+    <h2>Coming up</h2>
     {added && <p role="status" className="home-added">{added}</p>}
     {dated.length === 0 && <PanelHint className="home-empty" add="bill" label="Add a bill">Nothing due in the next 30 days.</PanelHint>}
     {dated.slice(0, shown).map((row) => row.node)}
@@ -241,7 +240,7 @@ function addedLine(state: MoneyState, id: string | null): string | null {
   return charge && card ? `Added ${charge.merchant} ${format(charge.amount)} on ${card.label}` : null;
 }
 
-export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, spending }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; spending: SpendingInput }) {
+export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null }) {
   const date = homeDateLabel(state.today);
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
@@ -252,7 +251,7 @@ export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forward
     <Actions state={state} forwarding={forwarding} />
     <Suspense fallback={null}>{pins}</Suspense>
     {tryIt && getStarted ? <GetStarted key={householdId} householdId={householdId} progress={getStarted} peopleCount={state.split.members.length} /> : <HintsPanel state={state} inbox={inbox} tryIt={tryIt} householdId={householdId} />}
-    <HomeViews state={state} spending={spending} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
+    <HomeViews state={state} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
     <div className="home-panels">
       <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} /></div>
       <div className="home-column"><ComingUp state={state} added={addedLine(state, added)} addedId={added} /></div>

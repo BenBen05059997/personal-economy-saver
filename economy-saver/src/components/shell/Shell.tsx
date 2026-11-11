@@ -7,9 +7,9 @@ import { useSpeech } from "@/components/voice/use-speech";
 import "@/components/ask/ask-bar.css";
 import React, { type ReactNode } from "react";
 import type { AskScreen } from "@/lib/agent/screen";
-import { hrefForRef } from "@/lib/links";
 import type { EventFeed } from "@/db/event-feed";
 import { useEventFeed } from "./useEventFeed";
+import { ActivityList } from "./ActivityList";
 import { AskButton } from "./AskButton";
 import { useAskPanel } from "./AskWorkspace";
 import { AddLink } from "@/components/add/AddLink";
@@ -20,14 +20,14 @@ const iconPaths = {
   home: "M2.5 7.2 8 2.8l5.5 4.4V13h-11z M6.5 13V9.5h3V13",
   check: "M2.5 9.5 4 3.5h8l1.5 6 M2.5 9.5V13h11V9.5H10l-1 1.5H7l-1-1.5z",
   ask: "M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z",
-  activity: "M1.5 8h3l2-4.5 3 9 2-4.5h3",
   menu: "M3 4.5h10 M3 8h10 M3 11.5h10",
   cards: "M3.5 3.5h9a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11V5a1.5 1.5 0 0 1 1.5-1.5z M2 6.8h12",
   clients: "M2.5 5.5h11v7h-11z M6 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5 M2.5 9h11",
   people: "M8.2 6A2.2 2.2 0 1 1 3.8 6a2.2 2.2 0 0 1 4.4 0z M2 13c.3-2.4 2-3.6 4-3.6s3.7 1.2 4 3.6 M10.5 4.2a2.2 2.2 0 0 1 0 3.6 M12 9.6c1 .5 1.8 1.5 2 3.4",
   bill: "M4 2.5h8v11l-1.6-1-1.2 1-1.2-1-1.2 1-1.2-1-1.6 1z M6 6h4 M6 8.5h4",
   memory: "M4 2.5h8v11l-4-2.5-4 2.5z",
-  plan: "M3 12.5V9 M7 12.5V5.5 M11 12.5V3 M2.5 12.5h11",
+  spending: "M3 12.5V9 M7 12.5V5.5 M11 12.5V3 M2.5 12.5h11",
+  saving: "M5.5 2.5h5 M4.5 5h7 M4 5.6v6.4a1.5 1.5 0 0 0 1.5 1.5h5a1.5 1.5 0 0 0 1.5-1.5V5.6 M6.2 8.8h3.6",
   settings: "M3 5h2 M8 5h5 M3 11h6 M12 11h1 M8 5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z M12 11a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z",
   mic: "M6 4a2 2 0 0 1 4 0v3.5a2 2 0 0 1-4 0z M3.5 7.8a4.5 4.5 0 0 0 9 0 M8 12.3V14",
   plus: "M8 3v10 M3 8h10",
@@ -43,11 +43,11 @@ const destinations = [
   { section: "home", icon: "home", label: "Home", href: "/" },
   { section: "canvas", icon: "ask", label: "Ask", href: "/canvas" },
   { section: "check", icon: "check", label: "To check", href: "/to-check" },
-  { section: "activity", icon: "activity", label: "Activity", href: "/activity" },
   { section: "bills", icon: "bill", label: "Bills", href: "/bills" },
   { section: "cards", icon: "cards", label: "Cards", href: "/cards" },
   { section: "clients", icon: "clients", label: "Clients", href: "/clients" },
-  { section: "plan", icon: "plan", label: "Plan", href: "/plan" },
+  { section: "spending", icon: "spending", label: "Spending", href: "/spending" },
+  { section: "saving", icon: "saving", label: "Saving", href: "/saving" },
 ] as const;
 
 export type Section = AskScreen;
@@ -77,18 +77,19 @@ function shortDate(iso: string) {
   return month >= 1 && month <= 12 && day ? `${months[month - 1]} ${day}` : iso;
 }
 
-export function Shell({ children, name, pending, feed, section, forwarding = false, tryIt = false, today }: {
+export function Shell({ children, name, pending, feed, section, forwarding = false, tryIt = false, today, timeZone }: {
   children: ReactNode;
   forwarding?: boolean;
   tryIt?: boolean;
   today?: string;
+  timeZone: string;
   name: string;
   pending: number;
   feed: EventFeed;
   section: Section;
 }) {
   const { mark, marking, error } = useEventFeed(feed, section === "home" || section === "check");
-  const { notifications, unread } = feed;
+  const { unread } = feed;
   const router = useRouter();
   const desktop = !!useAskPanel()?.desktop;
 
@@ -132,7 +133,7 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
             <span role="status">{micLabel || `Ask or say: ${askPrompt}`}</span><b>Ask</b>
           </Link>
         </div>}
-        <button className="shell-bell" popoverTarget="shell-notifications" aria-label={`Notifications, ${unread} unread`}>
+        <button className="shell-bell" popoverTarget="shell-notifications" aria-label={`Activity, ${unread} unread`}>
           <Icon name="bell" />{unread > 0 && <span className="shell-badge">{unread}</span>}
         </button>
         <button type="button" className="shell-add" popoverTarget="shell-add"><Icon name="plus" />Add</button>
@@ -151,17 +152,8 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
       <Navigation name={name} pending={pending} section={section} />
     </aside>
     <section id="shell-notifications" popover="auto" className="shell-popover shell-notifications">
-      <h2>Notifications</h2>
-      <p>{unread === 0 ? "You’re caught up." : `${unread} unread notification${unread === 1 ? "" : "s"}`}</p>
-      {notifications.length > 0 && <ul className="shell-notification-list">
-        {notifications.map(item => <li key={item.id}>
-          <div>{hrefForRef(item.refType, item.refId) ? <Link prefetch={false} href={hrefForRef(item.refType, item.refId)!}>{item.title}</Link> : item.title}{item.body && <small>{item.body}</small>}</div>
-          <button disabled={marking} onClick={() => mark([item.id])} aria-label={`Mark ${item.title} read`}>Mark read</button>
-        </li>)}
-      </ul>}
-      {unread > 1 && <button className="shell-read-all" disabled={marking} onClick={() => mark()}>Mark all read</button>}
+      <ActivityList feed={feed} timeZone={timeZone} marking={marking} mark={mark} />
       {error && <p role="status">{error}</p>}
-      <Link prefetch={false} href="/activity">View activity</Link>
     </section>
     <nav id="shell-add" popover="auto" className="shell-popover shell-add-menu" aria-label="Add to household">
       <AddLink kind="bill">A bill</AddLink>
@@ -169,6 +161,7 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
       <AddLink kind="card">A card</AddLink>
       <AddLink kind="client">A client who pays you</AddLink>
       <AddLink kind="person">A person who shares costs</AddLink>
+      <AddLink kind="pot">A pot</AddLink>
       <Link prefetch={false} className="shell-add-rule" href="/upload">Upload a receipt or bill</Link>
       {forwarding && <Link prefetch={false} href="/bills#forwarding">Forward a bill</Link>}
       <Link prefetch={false} href="/invoices/new">New invoice</Link>

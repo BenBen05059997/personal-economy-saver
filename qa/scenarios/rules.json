@@ -52,7 +52,7 @@
     ],
     "expected": [
       "The rule reads Flag a card statement up to 7 days ahead",
-      "The out-of-range values are refused and Activity has one rule change for the accepted value"
+      "The out-of-range values are refused"
     ],
     "refs": [
       "D66"
@@ -135,7 +135,7 @@
     ],
     "expected": [
       "The setting follows each saved state and has no numeric field",
-      "Activity shows both rule changes"
+      "The bell lists both rule changes"
     ],
     "refs": [
       "D66"
@@ -218,11 +218,11 @@
     ],
     "steps": [
       "Open Settings → Assistant rules",
-      "Reload and check Activity"
+      "Reload and check the bell"
     ],
     "expected": [
       "All six defaults appear on both visits",
-      "Activity contains one Default standing rules added row"
+      "The bell contains one Default standing rules added row"
     ],
     "refs": [
       "D66"

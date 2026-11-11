@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { aboutMoney, dayLabel, minorMoney } from "@/lib/money/format";
 import { shareLabel } from "@/lib/money/categories";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "@/lib/money/gaps";
@@ -6,7 +5,7 @@ import { allUncounted, type SpendItem } from "@/lib/money/spending";
 import { businessLine, monthWhen, splitLine, type MonthItem, type MonthOwn, type MonthView, type WhoseTotals } from "@/lib/money/month";
 import type { OwnChoices } from "@/lib/reader/own-choices";
 import { FileControl } from "./FileControl";
-import "./plan.css";
+import "./spending.css";
 
 export type MonthPerson = { id: string; name: string };
 
@@ -36,21 +35,20 @@ export function whoseName(id: string | null, people: MonthPerson[]): string {
 export type Filing = { entries: SpendItem[]; own: OwnChoices };
 
 /**
- * Where the month goes (D46, D52): the current month's confirmed bills and card charges by category, split business and personal,
- * and, for two or more people, into Shared and each person. Presentational and server-safe: no buttons or forms of its own, so it
- * works on a page with no session. Inside a category with own categories (D75), items are grouped under each with its total, then "Everything else in Food". With `filing` each item row has a quiet "File" control; the public family link passes none. `past` names a month before the current one ("October", "December 2025"): the heading
- * becomes "Where October went" and the lines say "in October" in place of "this month". `nav` (Plan's month links) sits under the heading.
+ * The month's confirmed bills and card charges by category (D46, D52), split business and personal, and, for two or more people,
+ * into Shared and each person: the lines and the categories that open to their items. Presentational and server-safe: no buttons or
+ * forms of its own, so it works on a page with no session. Inside a category with own categories (D75), items are grouped under each
+ * with its total, then "Everything else in Food". With `filing` each item row has a quiet "File" control; the public family link passes
+ * none. `past` names a month before the current one ("October", "December 2025"): the lines say "in October" in place of "this month".
  */
-export function MonthSplit({ view, people, past, nav, filing }: { view: MonthView; people: MonthPerson[]; past?: string; nav?: ReactNode; filing?: Filing }) {
+export function MonthList({ view, people, past, filing }: { view: MonthView; people: MonthPerson[]; past?: string; filing?: Filing }) {
   const money = (minor: number) => minorMoney(minor, view.currency);
   const together = people.length >= 2;
   const when = monthWhen(past);
-  return <section className="plan-month" aria-labelledby="plan-month-title">
-    <h2 id="plan-month-title">{past === undefined ? <>Where the month goes <small>{view.name}</small></> : `Where ${past} went`}</h2>
-    {nav}
+  return <div className="spending-list">
     {view.categories.length === 0 ? <p className="ui-hint">{past === undefined ? "Nothing confirmed yet this month." : `Nothing confirmed ${when}.`}</p> : <>
-      {together && <p className="plan-line plan-together">{togetherLine(view, people, when)}</p>}
-      <p className="plan-line">{businessLine(view, when)}</p>
+      {together && <p className="spending-line spending-together">{togetherLine(view, people, when)}</p>}
+      <p className="spending-line">{businessLine(view, when)}</p>
       {view.categories.map(category => {
         const split = splitLine(view, category);
         const sources = filing ? filing.entries.filter(entry => entry.category === category.category) : [];
@@ -58,19 +56,19 @@ export function MonthSplit({ view, people, past, nav, filing }: { view: MonthVie
         const choices = filing ? filing.own.categories.filter(option => option.kind === category.category) : [];
         const row = (item: MonthItem, index: number, grouped: string | null) => {
           const entry = source.get(item);
-          return <li key={`${grouped ?? ""}-${item.label}-${item.date}-${index}`} className={grouped !== null ? "plan-own-item" : undefined}>
+          return <li key={`${grouped ?? ""}-${item.label}-${item.date}-${index}`} className={grouped !== null ? "spending-own-item" : undefined}>
             <span>{item.label}<small>{dayLabel(item.date)}{together && ` · ${whoseName(item.ownerId, people)}`}
-              {entry && choices.length > 0 && <><span className="plan-file-sep" aria-hidden>·</span><FileControl item={entry.kind} id={entry.id} name={item.label} current={item.own?.id ?? null} options={choices} /></>}</small></span>
+              {entry && choices.length > 0 && <><span className="spending-file-sep" aria-hidden>·</span><FileControl item={entry.kind} id={entry.id} name={item.label} current={item.own?.id ?? null} options={choices} /></>}</small></span>
             <span className="num">{item.uncounted ? AMOUNT_NOT_KNOWN : item.estimated ? aboutMoney(item.amountMinor, view.currency) : money(item.amountMinor)}{item.businessBp > 0 && <small>{shareLabel(item.businessBp)}</small>}</span>
           </li>;
         };
-        const head = (group: MonthOwn, name: string) => <li key={`own-${group.id ?? "rest"}`} className="plan-own-head">
+        const head = (group: MonthOwn, name: string) => <li key={`own-${group.id ?? "rest"}`} className="spending-own-head">
           <span>{name}</span><span className="num">{allUncounted(group.items) ? AMOUNT_NOT_KNOWN : money(group.totalMinor)}</span></li>;
-        return <details key={category.category} className="plan-cat">
+        return <details key={category.category} className="spending-cat">
           <summary>
-            <span className="plan-cat-name">{category.label}</span>
+            <span className="spending-cat-name">{category.label}</span>
             <span className="num">{allUncounted(category.items) ? AMOUNT_NOT_KNOWN : money(category.totalMinor)}{split && <small>{split}</small>}</span>
-            {together && <span className="plan-whose">{whoseLine(view, category, people)}</span>}
+            {together && <span className="spending-whose">{whoseLine(view, category, people)}</span>}
           </summary>
           <ul>
             {category.ownCategories.length === 0
@@ -78,9 +76,17 @@ export function MonthSplit({ view, people, past, nav, filing }: { view: MonthVie
               : [...category.ownCategories.map(group => [head(group, group.name!), ...group.items.map((item, index) => row(item, index, group.id))]),
                 ...(category.withoutOwn ? [[head(category.withoutOwn, `Everything else in ${category.label}`), ...category.withoutOwn.items.map((item, index) => row(item, index, "rest"))]] : [])].flat()}
           </ul>
-          {category.items.some(item => item.uncounted) && <p className="ui-hint plan-uncounted">{gapUncountedWords(category.items.filter(item => item.uncounted).map(item => item.label))}</p>}
+          {category.items.some(item => item.uncounted) && <p className="ui-hint spending-uncounted">{gapUncountedWords(category.items.filter(item => item.uncounted).map(item => item.label))}</p>}
         </details>;
       })}
     </>}
+  </div>;
+}
+
+/** The family link's "Where the month goes": a heading over the month's list (D46, D52). */
+export function MonthSplit({ view, people }: { view: MonthView; people: MonthPerson[] }) {
+  return <section className="spending-month" aria-labelledby="spending-month-title">
+    <h2 id="spending-month-title">Where the month goes <small>{view.name}</small></h2>
+    <MonthList view={view} people={people} />
   </section>;
 }

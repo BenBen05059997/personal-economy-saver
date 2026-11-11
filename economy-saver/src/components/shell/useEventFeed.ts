@@ -88,8 +88,9 @@ export function useEventFeed(feed: EventFeed, pollPage: boolean) {
     };
   }, [feed, pollPage, expire, refresh]);
 
-  async function mark(ids?: string[]) {
-    if (markPending.current || refreshing.current || expired.current) return;
+  /** True when the server marked them read. */
+  async function mark(ids?: string[]): Promise<boolean> {
+    if (markPending.current || refreshing.current || expired.current) return false;
     markPending.current = true;
     setMarking(true);
     try {
@@ -97,13 +98,15 @@ export function useEventFeed(feed: EventFeed, pollPage: boolean) {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(ids ? { ids } : {}),
         signal: AbortSignal.timeout(15_000),
       });
-      if (response.status === 401) { expire(); return; }
+      if (response.status === 401) { expire(); return false; }
       if (!response.ok) throw new Error();
       const { changed, feed: current }: { changed: number; feed: EventFeed } = await response.json();
       setError("");
       if (changed > 0 || feedChanged(current, feed)) refresh();
+      return true;
     } catch {
-      setError("Couldn’t mark notifications read. Try again.");
+      setError("Couldn’t mark activity read. Try again.");
+      return false;
     } finally {
       markPending.current = false;
       setMarking(false);

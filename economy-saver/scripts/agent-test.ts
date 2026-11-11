@@ -448,7 +448,7 @@ async function main() {
       const lunch = transport([() => reply("tool_use", [toolUse("l", "log_charge", { ...base, id: lunchId, merchant: "Fictional deli", own_category: "Lunch" })]), () => reply("end_turn", [text("Only you can make that one.")])]);
       await ask(c, "480 yen at the deli, under Lunch", lunch.fetch);
       assert.equal(toolResults(lunch.bodies[1])[0].is_error, true);
-      assert.equal(toolResults(lunch.bodies[1])[0].content, `"Lunch" is not one of this household's own categories under Food. Under Food there are: Coffee. Only the person can make a new one, in Plan → Your categories.`);
+      assert.equal(toolResults(lunch.bodies[1])[0].content, `"Lunch" is not one of this household's own categories under Food. Under Food there are: Coffee. Only the person can make a new one, in Spending → Your categories.`);
       assert.equal(await rowOf(lunchId), undefined, "nothing was saved");
       const healthId = crypto.randomUUID();
       const health = transport([() => reply("tool_use", [toolUse("h", "add_bill", { id: healthId, biller: "Fictional clinic", amount: "3000", due: "2026-11-20", category: "health", memberId: null, own_category: "Dental" })]), () => reply("end_turn", [text("ok")])]);
@@ -481,11 +481,11 @@ async function main() {
       const words = toolResults(listed.bodies[1])[0].content;
       assert.match(words, /Under Food: Coffee \(no default business share, \d+ items?\)\./);
       assert.match(words, /Under Other: Books & films \(.*\); Gear \(.*\)\./);
-      assert.deepEqual((answer as { sources: unknown[] }).sources, [{ label: "Your categories", href: "/plan#categories" }]);
+      assert.deepEqual((answer as { sources: unknown[] }).sources, [{ label: "Your categories", href: "/spending/categories" }]);
       const bare = await createHousehold(db, crypto.randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "JPY", timeZone: "Asia/Tokyo" }), { isDemo: true });
       const none = transport([() => reply("tool_use", [toolUse("o", "own_categories", {})]), () => reply("end_turn", [text("ok")])]);
       await ask(bare, "What are my own categories?", none.fetch);
-      assert.equal(toolResults(none.bodies[1])[0].content, "This household has no categories of its own yet. Only the person can make one, in Plan → Your categories.");
+      assert.equal(toolResults(none.bodies[1])[0].content, "This household has no categories of its own yet. Only the person can make one, in Spending → Your categories.");
       assert.equal(TOOL_WORDS.own_categories, "Reading your own categories");
 
       // The model's schema: a name, never an id, and no tool writes an own category.
@@ -496,7 +496,7 @@ async function main() {
       }
       assert.equal(tools.find(t => t.name === "own_categories")!.scope, "read");
       assert.deepEqual(tools.filter(t => /own_categor|categories/.test(t.name) && t.scope !== "read"), [], "no tool that writes an own category");
-      assert.match(MODEL_RULES, /own_category[^.]*never invent one[^.]*Plan → Your categories/);
+      assert.match(MODEL_RULES, /own_category[^.]*never invent one[^.]*Spending → Your categories/);
     });
 
     await check("add_bill takes repeat, next_amount, next_amount_from and cancel_by (D48): a yearly bill waits in To check with them, and a bad schedule is an error the model can read", async () => {
@@ -646,7 +646,7 @@ async function main() {
         () => reply("end_turn", [text("It takes about ¥300,000 a month.")]),
       ]);
       const asked = await ask(a, "Can I save ¥1,200,000 for a car by March 2027?", plan.fetch);
-      assert.deepEqual(asked, { kind: "answer", answer: "It takes about ¥300,000 a month.", choices: null, recipe: null, sources: [{ label: "Plan", href: "/plan" }], links: [], pending: false, offers: [] });
+      assert.deepEqual(asked, { kind: "answer", answer: "It takes about ¥300,000 a month.", choices: null, recipe: null, sources: [{ label: "Saving", href: "/saving" }], links: [], pending: false, offers: [] });
       const [out] = toolResults(plan.bodies[1]);
       assert.ok(!out.is_error);
       const result = JSON.parse(out.content);
@@ -1591,7 +1591,7 @@ async function main() {
       await assert.rejects(conversation(d, "Show my cash", titled.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
       assert.deepEqual(canvasWords(RecipeSchema.parse({ version: 1, title: "T", blocks: [
         { type: "number", label: "L", query: { q: "cash" }, note: "N" }, { type: "table", title: "TT", query: { q: "events" } },
-        { type: "progress", label: "P", query: { q: "cash" }, targetMinor: 5 }, { type: "action", label: "A", href: "/plan" }, { type: "note", text: "NT", by: "you" }] })),
+        { type: "progress", label: "P", query: { q: "cash" }, targetMinor: 5 }, { type: "action", label: "A", href: "/spending" }, { type: "note", text: "NT", by: "you" }] })),
       ["T", "L", "N", "TT", "P", "A", "NT"]);
     });
 

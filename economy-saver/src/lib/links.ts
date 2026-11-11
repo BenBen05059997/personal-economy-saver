@@ -1,8 +1,9 @@
+import type { AddKind } from "@/components/add/context";
 /** Where a thing lives in the app. Pure: every link to an invoice, bill, card, client, pot or setting is built here. */
 export const HOUSEHOLD_PEOPLE = "/household/people";
 
 /** The Add page for one kind of thing, the no-JS twin of the Add dialog; `back` is the page to return to. */
-export function addHref(kind: "bill" | "charge" | "client" | "card" | "person", back: string): string {
+export function addHref(kind: AddKind, back: string): string {
   return `/add/${kind}?back=${encodeURIComponent(back)}`;
 }
 
@@ -15,7 +16,7 @@ export function movedAnchor(hash: string): string | null {
     case "family-view": return `${HOUSEHOLD_PEOPLE}#family-view`;
     case "cards": return "/cards";
     case "forwarding": return "/bills#forwarding";
-    case "categories": return "/plan#categories";
+    case "categories": return "/spending/categories";
     case "ai-model": return "/settings/ai-model";
     case "mcp": return "/settings/ai-model#mcp";
     case "your-data": return "/settings/data";
@@ -38,7 +39,7 @@ export function hrefFor({ type, id }: LinkTarget): string {
   switch (type) {
     case "invoice": return `/invoices/${id}`;
     case "bill": return `/bills/${id}`;
-    case "pot": return `/plan#pot-${id}`;
+    case "pot": return `/saving/${id}`;
     case "card":
     case "statement": return `/cards/${id}`;
     case "client": return `/clients/${id}`;

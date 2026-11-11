@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import type { Currency } from "@/lib/catalogue/types";
 import { minorMoney, minorPerUnit } from "@/lib/money/format";
-import { compact, niceStep } from "./chart-utils";
+import { compact, niceStep } from "@/components/home/chart-utils";
 
 export type CategoryRow = { key: string; label: string; note?: string; spent: number; coming: number; total: number; previous: number; business?: number; personal?: number; children?: CategoryRow[] };
 
@@ -21,8 +21,8 @@ export const BUSINESS_SEGMENTS: [BarSegment, BarSegment] = [
 
 const cap = (word: string) => word[0].toUpperCase() + word.slice(1);
 
-/** `note` is the small line under a row's total; it defaults to the last-month comparison. */
-export function CategoryBars({ rows, currency, lastName, segments = SPENT_SEGMENTS, note }: { rows: CategoryRow[]; currency: Currency; lastName: string; segments?: [BarSegment, BarSegment]; note?: (row: CategoryRow) => string }) {
+/** `note` is the small line under a row's total; it defaults to the comparison with the month before. `when` and `before` are how a past month says "this month" and "last month" ("in October", "the month before"). */
+export function CategoryBars({ rows, currency, lastName, segments = SPENT_SEGMENTS, note, when = "this month", before = "last month" }: { rows: CategoryRow[]; currency: Currency; lastName: string; segments?: [BarSegment, BarSegment]; note?: (row: CategoryRow) => string; when?: string; before?: string }) {
   const [active, setActive] = useState<string | null>(null);
   const [opened, setOpened] = useState<ReadonlySet<string>>(new Set()); // D75: which rows show their own categories; kept here, not stored
   const toggle = (key: string) => setOpened(previous => { const next = new Set(previous); if (!next.delete(key)) next.add(key); return next; });
@@ -33,10 +33,10 @@ export function CategoryBars({ rows, currency, lastName, segments = SPENT_SEGMEN
   const pct = (value: number) => `${(value / max) * 100}%`;
   const row = everyRow.find(item => item.key === active);
   const [first, second] = segments;
-  const sub = note ?? ((item: CategoryRow) => `vs ${format(item.previous)} last month`);
+  const sub = note ?? ((item: CategoryRow) => `vs ${format(item.previous)} ${before}`);
   const hasKids = rows.some(row => (row.children ?? []).length > 0);
   const line = (item: CategoryRow, thin: boolean, disclosure?: { open: boolean; onToggle: () => void }) => <li key={item.key} className={`${thin ? "hv-cat hv-cat-thin" : "hv-cat"}${active === item.key ? " hv-cat-on" : ""}`} tabIndex={0}
-    aria-label={`${item.label}: ${format(item.total)} this month. ${cap(first.word)} ${format(first.value(item))}, ${second.word} ${format(second.value(item))}, ${lastName} ${format(item.previous)}.`}
+    aria-label={`${item.label}: ${format(item.total)} ${when}. ${cap(first.word)} ${format(first.value(item))}, ${second.word} ${format(second.value(item))}, ${lastName} ${format(item.previous)}.`}
     onPointerEnter={() => setActive(item.key)} onPointerLeave={() => setActive(null)} onFocus={() => setActive(item.key)} onBlur={() => setActive(null)}>
     <span className="hv-cat-name">
       {disclosure && <button type="button" className="hv-cat-toggle" aria-expanded={disclosure.open} aria-label={`${disclosure.open ? "Hide" : "Show"} your categories in ${item.label}`} onClick={disclosure.onToggle}>

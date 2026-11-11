@@ -1,6 +1,6 @@
 // Regular costs (D54). Pure: which bills and charges come back month after month, what each cost in every month of a short
 // window, and what changed this month. Built on D53's items (`spendingItems`) and D54's one name key (`nameKey`), so the
-// Plan panel, the search and the assistant agree. Moves no money; nothing in the runway reads it. Integer minor units.
+// Over time panel, the search and the assistant agree. Moves no money; nothing in the runway reads it. Integer minor units.
 import type { Currency } from "@/lib/catalogue/types";
 import { aboutMoney, minorMoney } from "./format";
 import { categoryLabel, type CategoryKey } from "./categories";

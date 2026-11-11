@@ -1,4 +1,4 @@
-import { MonthSplit } from "@/components/plan/MonthSplit";
+import { MonthSplit } from "@/components/spending/MonthSplit";
 import { homeDateLabel } from "@/components/ui/dates";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { Sentence } from "@/components/home/Sentence";

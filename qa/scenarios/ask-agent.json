@@ -518,7 +518,7 @@
     ],
     "expected": [
       "It calls plan_for with target 300000 yen and the March date; the monthly figure is the tool's, not the model's own division",
-      "\"Based on:\" has a Plan link to /plan",
+      "\"Based on:\" has a Saving link to /saving",
       "No pot is created and nothing is added to To check (a pot is offered only when asked)",
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
@@ -547,8 +547,8 @@
       "Press Enter"
     ],
     "expected": [
-      "It calls month_by_category (and may build a canvas); October's total is ¥132,060, equal to Plan's October",
-      "\"Based on:\" has a Plan link",
+      "It calls month_by_category (and may build a canvas); October's total is ¥132,060, equal to Spending's October",
+      "\"Based on:\" has a Spending link",
       "A canvas replaces the starter canvas (see CANVAS-015)"
     ],
     "refs": []
@@ -575,7 +575,7 @@
     ],
     "expected": [
       "It calls search_spending with a food query; the answer quotes the tool's totals by month, nothing summed by the model",
-      "\"Based on:\" has a Plan link",
+      "\"Based on:\" has a Spending link",
       "An item whose amount is not known is described as unknown, never added in"
     ],
     "refs": [
@@ -604,9 +604,9 @@
     ],
     "expected": [
       "The status line passes through \"Finding the bills for that month\"",
-      "The reply names Harbor Energy (11月分), ¥9,800 and its due date; \"Based on:\" shows Plan",
+      "The reply names Harbor Energy (11月分), ¥9,800 and its due date; \"Based on:\" shows Spending",
       "The term electricity finds Harbor Energy through its Utilities category",
-      "Information only: Plan's month view counts it on the day it is paid"
+      "Information only: Spending's month view counts it on the day it is paid"
     ],
     "refs": [
       "D63",
@@ -635,7 +635,7 @@
     ],
     "expected": [
       "The reply invents no amount",
-      "Based on links to Plan"
+      "Based on links to Spending"
     ],
     "refs": [
       "D63"
@@ -662,8 +662,8 @@
       "Press Enter"
     ],
     "expected": [
-      "It calls regular_costs; the answer names Rent ¥82,000, Mobaile Tsushin ¥4,800 and CloudBox Plus ¥1,980 and says which changed (Kissa Midori café down ¥920 so far), matching Plan's Regular costs",
-      "\"Based on:\" has a Plan link"
+      "It calls regular_costs; the answer names Rent ¥82,000, Mobaile Tsushin ¥4,800 and CloudBox Plus ¥1,980 and says which changed (Kissa Midori café down ¥920 so far), matching Over time's Regular costs",
+      "\"Based on:\" has a Spending link to /spending/over-time"
     ],
     "refs": [
       "D54"
@@ -1884,7 +1884,7 @@
       "Press Enter"
     ],
     "expected": [
-      "\"Based on:\" is followed by links named for the pages used (Safe to spend, Coming up, Options, Clients, Plan, Shared costs, To check or Memory)",
+      "\"Based on:\" is followed by links named for the pages used (Safe to spend, Coming up, Options, Clients, Spending, Saving, Shared costs, To check or Memory)",
       "Each link opens the page it names",
       "At 375px each link’s tap area is at least 44px tall, including its invisible ::after area"
     ],
@@ -2438,7 +2438,7 @@
     ],
     "steps": [
       "Reload /canvas",
-      "Open Home, Coming up and Plan"
+      "Open Home, Coming up and Spending"
     ],
     "expected": [
       "The slider is back at \"on their usual day\"",
@@ -2499,7 +2499,7 @@
       "The pin shows the title \"What if clients pay late\", \"Open ›\", \"Move up\" and \"Move down\" greyed (it is the only pin), \"Unpin\", \"Show the recipe\" and the sliders",
       "Northwind at 10 days leaves Lowest point ¥121,220 on Nov 20 (the low comes before it pays)",
       "Home still shows its own sentence above the pin",
-      "Activity says \"Pinned “What if clients pay late” to Home\" (type Pinned to Home)"
+      "The bell lists \"Pinned “What if clients pay late” to Home\" (type Pinned to Home)"
     ],
     "refs": [
       "D57"
@@ -2529,7 +2529,7 @@
     "expected": [
       "Two pins appear in the order pinned, then the second becomes first",
       "\"Move up\" is greyed on the new first and \"Move down\" is greyed on the other",
-      "Activity says \"Pinned canvas “This month against last month” moved up\"",
+      "The bell lists \"Pinned canvas “This month against last month” moved up\"",
       "The order stays after reload",
       "At 375px \"Open ›\" is a text link and the buttons are 44px tall"
     ],
@@ -2584,7 +2584,7 @@
     ],
     "expected": [
       "The pin goes at once and Home shows no pin section when none is left",
-      "Activity records the unpin without naming amounts"
+      "The bell lists the unpin without naming amounts"
     ],
     "refs": [
       "D57"
@@ -2612,7 +2612,7 @@
     ],
     "expected": [
       "One or two sentences and a canvas that replaces the starter canvas, built from a table or comparison of October's categories",
-      "Its figures equal Plan's October (¥132,060 in all)",
+      "Its figures equal Spending's October (¥132,060 in all)",
       "Its blocks carry \"Worked out from your records\"",
       "The first column is the engine's month_by_category, not numbers typed by the model",
       "Show the recipe lists blocks in words with queries and no amounts",
@@ -2980,11 +2980,11 @@
     "steps": [
       "Press \"Forget everything\"",
       "Press \"Yes, forget everything\"",
-      "Open Activity"
+      "Open the bell"
     ],
     "expected": [
       "It asks \"Delete all {n} things for good? This cannot be undone.\" and then shows the empty panel and \"0 of 200 used.\"",
-      "Activity's newest rows read \"The assistant forgot everything\", \"You deleted something the assistant remembered\", etc., type \"Assistant memory changed\", never with the text or an amount"
+      "The bell's newest rows read \"The assistant forgot everything\", \"You deleted something the assistant remembered\", etc., type \"Assistant memory changed\", never with the text or an amount"
     ],
     "refs": [
       "D58"
@@ -3415,7 +3415,7 @@
       "The text \"Its questions and answers are removed for good. What the assistant remembers, the brief and your pinned canvases stay.\" shows before the confirm",
       "The turns and canvas leave the screen and stay gone after reload",
       "The memory item and the pin are still there",
-      "Activity has no text of the questions"
+      "The bell has no text of the questions"
     ],
     "refs": [
       "D59",
@@ -3593,7 +3593,7 @@
     "expected": [
       "The reply is \"Review the draft at <app>/invoices/<id>.\"",
       "The invoice appears in the app as a draft; nothing is sent to PayPal",
-      "Activity or the draft says \"· Drafted through MCP\" where it waits"
+      "The bell or the draft says \"· Drafted through MCP\" where it waits"
     ],
     "refs": [
       "D12",

@@ -85,7 +85,7 @@ export function planLine(input: PlanInput, plan: Plan, state: MoneyState): strin
   return parts.join(" ");
 }
 
-/** The short line under a goal pot on the Plan page: what it takes by its date, or where the current pace gets it. Undefined for a pot with no target. */
+/** The short line under a goal pot on the Saving page: what it takes by its date, or where the current pace gets it. Undefined for a pot with no target. */
 export function potLine(pot: Pot, state: MoneyState): string | undefined {
   if (pot.target === undefined) return undefined;
   const money = (n: number) => minorMoney(Math.round(n * unit(state)), state.homeCurrency);
@@ -107,11 +107,10 @@ function roomClause(state: MoneyState): string {
     : "The next 30 days leave nothing over if clients pay as usual.";
 }
 
-/** The sentence at the top of the Plan page. With no client payment expected, it says the plan counts the bank balance only. */
+/** The sentence at the top of the Saving page: what the next 30 days leave, which is what could be put aside. With no client payment expected, it says there is nothing new to put aside yet. */
 export function roomLine(state: MoneyState): string {
-  return expectsClientPayment(state)
-    ? roomClause(state)
-    : "No client payments are expected in the next 30 days, so the plan counts your bank balance only.";
+  if (!expectsClientPayment(state)) return "No client payments are expected in the next 30 days, so there's nothing new to put aside yet.";
+  return monthlyRoom(state) > 0 ? `${roomClause(state)} That's what you could put aside.` : roomClause(state);
 }
 
 /**

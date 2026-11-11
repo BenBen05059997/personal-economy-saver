@@ -75,11 +75,11 @@ export function ImportStatement({ cards, currency, own }: { cards: { id: string;
   const header = file?.statement.header ?? [];
   const count = read?.readable ?? 0;
   return <section className="ui-panel settings-import" id="import"><h2>Import a statement</h2>
-    <p className="ui-hint">Bring in months of card spending from the CSV file your card issuer or bank lets you download, so Plan shows where the money went. The file is read on this device; only the charges are sent. Up to 1 MB and 2,000 rows a file.</p>
+    <p className="ui-hint">Bring in months of card spending from the CSV file your card issuer or bank lets you download, so Spending shows where the money went. The file is read on this device; only the charges are sent. Up to 1 MB and 2,000 rows a file.</p>
     <label className="ui-field">Card<select value={cardId} onChange={event => setCardId(event.target.value)}>{cards.map(card => <option key={card.id} value={card.id}>{card.label}</option>)}</select></label>
     <label className="ui-field">Statement file (CSV)<input type="file" accept=".csv,text/csv" onChange={choose} disabled={busy} /></label>
     <p role="status" className="ui-hint">{problem}</p>
-    {done && <p role="status" className="settings-import-done">{done.added ? `Added ${done.added} ${done.added === 1 ? "charge" : "charges"} to ${done.label}` : `Nothing new for ${done.label}`}{done.skipped ? ` (${done.skipped} already there)` : ""}. <Link href="/plan">See where the month goes on Plan ›</Link></p>}
+    {done && <p role="status" className="settings-import-done">{done.added ? `Added ${done.added} ${done.added === 1 ? "charge" : "charges"} to ${done.label}` : `Nothing new for ${done.label}`}{done.skipped ? ` (${done.skipped} already there)` : ""}. <Link href="/spending">See where the month goes on Spending ›</Link></p>}
     {file && read && <div className="settings-import-preview">
       <p className="ui-hint">{file.name}: {ENCODING_WORDS[file.encoding]}</p>
       <div className="settings-import-columns">{(Object.keys(COLUMN_WORDS) as (keyof Picks)[]).map(kind =>

@@ -1,36 +1,9 @@
 [
   {
-    "id": "GOAL-001",
-    "area": "Goals",
-    "action": "View the Goals tab with no goals",
-    "user_goal": "I want to know where to set a savings goal",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Separate test app with migration 0028",
-      "375px and 1440px widths",
-      "Fresh Ben Try it on Nov 14"
-    ],
-    "steps": [
-      "Open Memory and select Goals"
-    ],
-    "expected": [
-      "Goals is selected",
-      "The empty state reads No goals yet. Give a pot a target amount and date in Plan."
-    ],
-    "refs": [
-      "D66"
-    ]
-  },
-  {
-    "id": "GOAL-005",
-    "area": "Goals",
-    "action": "Open a goal’s exact pot form",
-    "user_goal": "I want to edit the right pot from Goals",
+    "id": "SAVING-001",
+    "area": "Saving",
+    "action": "Open a pot's row panel",
+    "user_goal": "I want to edit the right pot",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -38,24 +11,24 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026"
     ],
     "steps": [
-      "Tap Edit in Plan on Camera"
+      "On Saving press the Camera row",
+      "Press Edit, then close the panel"
     ],
     "expected": [
-      "The URL targets Camera at /plan#pot-<id> and opens its form with 30000 saved",
-      "Plan shows the same pace as Goals"
+      "The address is /saving/<id>; the panel beside the list names Camera, shows ¥30,000 saved and the same pace line as the row, and Edit opens its form with 30000 saved",
+      "Closing the panel returns to /saving; opening /saving/<id> directly shows the same panel"
     ],
     "refs": [
       "D66"
     ]
   },
   {
-    "id": "GOAL-006",
-    "area": "Goals",
+    "id": "SAVING-005",
+    "area": "Saving",
     "action": "Ask about goals and draw a progress block",
     "user_goal": "I want the assistant to show the pace from my records",
     "type": "agent",
@@ -65,7 +38,6 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026"
     ],
@@ -73,7 +45,7 @@
       "Ask How are my goals doing? Show them in a progress block."
     ],
     "expected": [
-      "The step reads Checking your goal progress and Based on links to Goals",
+      "The step reads Checking your goal progress and Based on links to Saving",
       "The Camera block gives the saved amount, expected amount, gap and projection in AJ4"
     ],
     "refs": [
@@ -81,8 +53,8 @@
     ]
   },
   {
-    "id": "GOAL-007",
-    "area": "Goals",
+    "id": "SAVING-006",
+    "area": "Saving",
     "action": "Inspect the recipe for goal progress",
     "user_goal": "I want to see which query feeds my goal block",
     "type": "happy",
@@ -92,7 +64,6 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
       "A goal canvas is visible from AJ4"
@@ -108,8 +79,8 @@
     ]
   },
   {
-    "id": "GOAL-008",
-    "area": "Goals",
+    "id": "SAVING-007",
+    "area": "Saving",
     "action": "Pin goal progress to Home",
     "user_goal": "I want to see my progress without asking again",
     "type": "happy",
@@ -119,7 +90,6 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
       "A goal canvas is visible from AJ4"
@@ -135,36 +105,8 @@
     ]
   },
   {
-    "id": "GOAL-010",
-    "area": "Goals",
-    "action": "Find the rules from Goals",
-    "user_goal": "I want to switch from savings goals to standing rules",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Separate test app with migration 0028",
-      "375px and 1440px widths",
-      "Fresh Ben Try it on Nov 14"
-    ],
-    "steps": [
-      "Open Memory → Goals",
-      "Look for a Rules tab, then open Settings → Assistant rules"
-    ],
-    "expected": [
-      "Memory has only Profile, Spaces and Goals; there is no Rules tab",
-      "Settings → Assistant rules (/settings) shows all six standing rules"
-    ],
-    "refs": [
-      "D66"
-    ]
-  },
-  {
-    "id": "GOAL-011",
-    "area": "Goals",
+    "id": "SAVING-004",
+    "area": "Saving",
     "action": "Save a pot without a target date",
     "user_goal": "I want to save for a purchase while leaving its date open",
     "type": "edge",
@@ -174,20 +116,63 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
     "steps": [
-      "In Plan add Furniture with ¥10,000 saved and a ¥50,000 target, leaving Target date blank",
-      "Open Goals"
+      "On Saving press Add a pot and add Furniture with ¥10,000 saved and a ¥50,000 target, leaving Target date blank"
     ],
     "expected": [
-      "Plan shows the Furniture pot and its amount",
-      "Furniture is absent from Goals"
+      "The dialog closes and Saving lists Furniture with ¥10,000 saved and \"Target ¥50,000\", no \"by\" date and no pace line"
     ],
     "refs": [
       "D66"
     ]
+  },
+  {
+    "id": "SAVING-002",
+    "area": "Saving",
+    "action": "Add a pot with 101%",
+    "user_goal": "A share over 100 is refused",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "On Saving press Add a pot, then add a pot with 101%"
+    ],
+    "expected": [
+      "'Enter a share between 0.01 and 100 percent, such as 25' shows; nothing saved"
+    ],
+    "refs": []
+  },
+  {
+    "id": "SAVING-003",
+    "area": "Saving",
+    "action": "Edit and remove a pot",
+    "user_goal": "I changed my mind",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)",
+      "A pot"
+    ],
+    "steps": [
+      "On Saving open a pot's row, change its target and Save changes",
+      "Then 'Yes, remove <pot>'"
+    ],
+    "expected": [
+      "Home and Saving follow each step"
+    ],
+    "refs": []
   }
 ]

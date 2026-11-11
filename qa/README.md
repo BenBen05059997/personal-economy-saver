@@ -35,11 +35,11 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 | Card B | ¥61,000 owed now · ¥239,000 limit left · So far ¥61,000 due Dec 10 · Covered ✓ |
 | To check | 1: Hikari Denki ¥11,220, due Nov 27 |
 | Coming up | CloudBox Plus ¥1,980 Nov 18 and Mobaile Tsushin ¥4,800 Nov 20 (every month); Acme +$1,200 Nov 22 (if late Dec 3); Northwind +$800 Nov 25 (if late Nov 29); Card A statement ¥58,000 Nov 26; Rent ¥82,000 Nov 27 (every month, "Short by ¥18,780 if clients pay late") |
-| Plan | "The next 30 days leave about ¥92,220 if clients pay as usual." No pots. |
+| Saving | "The next 30 days leave about ¥92,220 if clients pay as usual. That's what you could put aside." No pots. |
 | Options | "Cover ¥18,780 by Nov 27."; first option Invoice Beacon Studio, ¥0 extra cost |
 | Clients | Acme $1,200 outstanding; Beacon Studio nothing outstanding; Northwind $800 outstanding |
-| Home → Categories → Look at it by | November: Business ¥32,830, Personal ¥119,400, total ¥152,230; the sentence "Business ¥32,830 of ¥152,230 this month". Person is not offered with one person |
-| Own categories (Plan → Your categories) | Food: Coffee · 3 items. Other: Books & films · 2 items, Gear · 2 items. None has a default share |
+| Spending → This month → Look at it by | November: Business ¥32,830, Personal ¥119,400, total ¥152,230; the sentence "Business ¥32,830 of ¥152,230 this month". Person is not offered with one person |
+| Own categories (Spending → Your categories) | Food: Coffee · 3 items. Other: Books & films · 2 items, Gear · 2 items. None has a default share |
 | Own categories in November | Food ¥10,700 = Coffee ¥1,880 + Everything else in Food ¥8,820. Other ¥48,900 = Gear ¥24,600 + Books & films ¥0 (¥7,480 in October) + Everything else in Other ¥24,300. Totals and the sentence do not change |
 | Coffee in October | ¥2,800 in October (2 items), ¥1,880 in November (1 item) |
 
@@ -49,7 +49,7 @@ Scenarios cite these blocks by name. The old check letters stay in the headings 
 
 ### M1. Where the month goes, November (and M2, after Hikari Denki is confirmed)
 
-- Plan shows "Where the month goes · November" and the line "Business ¥32,830 of ¥152,230 this month" (a household with no business share this month reads "All personal this month" instead), then these rows in this order (each has a dark › chevron that turns down when the row opens to its items):
+- Spending → This month, in Table, shows "Where the month goes · November" and the line "Business ¥32,830 of ¥152,230 this month" (a household with no business share this month reads "All personal this month" instead), then these rows in this order (each has a dark › chevron that turns down when the row opens to its items):
 
 | Row | Total | Split | Items |
 |---|---|---|---|
@@ -61,23 +61,23 @@ Scenarios cite these blocks by name. The old check letters stay in the headings 
 | Other | ¥48,900 | just the total | Kumo Goods Online Nov 2 ¥24,300; Tsuki Electronics Nov 9 ¥18,200; Yamabiko Outdoor Nov 12 ¥6,400 |
 
 
-- Confirm Hikari Denki in To check → Plan gains Utilities ¥11,220 (business ¥3,366 · personal ¥7,854) after Housing, and the business line becomes "Business ¥36,196 of ¥163,450 this month". The Home shortfall becomes ¥30,000 and Plan's room line falls from ¥92,220 to ¥81,000 (the bill now counts); the other category rows do not move.
+- Confirm Hikari Denki in To check → Spending gains Utilities ¥11,220 (business ¥3,366 · personal ¥7,854) after Housing, and the business line becomes "Business ¥36,196 of ¥163,450 this month". The Home shortfall becomes ¥30,000 and Saving's room line falls from ¥92,220 to ¥81,000 (the bill now counts); the other category rows do not move.
 
 ### S-A. The month by whose, with two people
 
-The month by whose (D52). Plan → Where the month goes shows "Together ¥88,780 · Ben ¥63,450 · Wife ¥0 this month" on top; Housing reads ¥82,000 with "Shared ¥82,000" under it, Food ¥10,700 with "Ben ¥10,700" (no "Shared ¥0"); opening a category marks each item Shared, Ben or Wife. Ben alone (Reset) shows no Together line and no whose lines. At 375px the amount stays on the category's row and nothing scrolls sideways.
+The month by whose (D52). Spending → This month → Where the month goes shows "Together ¥88,780 · Ben ¥63,450 · Wife ¥0 this month" on top; Housing reads ¥82,000 with "Shared ¥82,000" under it, Food ¥10,700 with "Ben ¥10,700" (no "Shared ¥0"); opening a category marks each item Shared, Ben or Wife. Ben alone (Reset) shows no Together line and no whose lines. At 375px the amount stays on the category's row and nothing scrolls sideways.
 
 ### T-A. October and September
 
-Plan → Where the month goes has "‹ October" (no "›" on the current month). October: heading "Where October went", "‹ September" and "November ›", "Business ¥31,986 of ¥132,060 in October"; Housing ¥82,000, Utilities ¥10,020 (Hikari Denki Oct 25), Phone & internet ¥4,800, Subscriptions ¥1,980, Food ¥11,440 (Kissa Midori Oct 10 ¥1,320, Minato Fresh Market Oct 17 ¥8,640, Kissa Midori Oct 25 ¥1,480), Transport ¥14,340, Other ¥7,480. September totals ¥150,380 (business ¥31,572) with Utilities ¥8,640 and Travel ¥47,000 (Kumokaze Air flight Sep 21 ¥18,400, Hotel Kazemachi Hakone Sep 22 ¥28,600). `?month=2020-01` says "Plan shows the last 12 months, December 2025 to November 2026. Here is November." The current month is unchanged: ¥152,230, business ¥32,830.
+Spending → This month has "‹ October" (no "›" on the current month). October: heading "Where October went", "‹ September" and "November ›", "Business ¥31,986 of ¥132,060 in October"; Housing ¥82,000, Utilities ¥10,020 (Hikari Denki Oct 25), Phone & internet ¥4,800, Subscriptions ¥1,980, Food ¥11,440 (Kissa Midori Oct 10 ¥1,320, Minato Fresh Market Oct 17 ¥8,640, Kissa Midori Oct 25 ¥1,480), Transport ¥14,340, Other ¥7,480. September totals ¥150,380 (business ¥31,572) with Utilities ¥8,640 and Travel ¥47,000 (Kumokaze Air flight Sep 21 ¥18,400, Hotel Kazemachi Hakone Sep 22 ¥28,600). `?month=2020-01` says "Spending shows the last 12 months, December 2025 to November 2026. Here is November." The current month is unchanged: ¥152,230, business ¥32,830.
 
-### T-B. Search on Plan
+### T-B. Search on Spending
 
-Search on Plan: the field "Search spending: hotel, food, a shop name" and a Search button on one row at 375px; no Spending panel without a query. "hotel" → `"hotel": ¥28,600 in September (1 item); nothing in the other 11 months. ¥28,600 in all.` with the Hakone row; "travel" → `Travel: ¥47,000 in September (2 items); nothing in the other 11 months. ¥47,000 in all.`; "food" → `Food: ¥10,700 in November (3 items), ¥11,440 in October (3 items), ¥5,960 in September (1 item); nothing in the other 9 months. ¥28,100 in all.` with November's three rows first; "rent" → `"rent": ¥82,000 in October (1 item), ¥82,000 in September (1 item), ¥82,000 in August (1 item); nothing in the other 9 months. ¥246,000 in all.` (Nov 27 is after today); "hikari" → ¥10,020 in October and ¥8,640 in September, ¥18,660 in all; "zzz" → "Nothing matches “zzz” in the last 12 months." Nothing scrolls sideways at 375px.
+Search on Spending (`/spending?q=…`): the field "Search spending: hotel, food, a shop name" and a Search button on one row at 375px; no search results without a query. "hotel" → `"hotel": ¥28,600 in September (1 item); nothing in the other 11 months. ¥28,600 in all.` with the Hakone row; "travel" → `Travel: ¥47,000 in September (2 items); nothing in the other 11 months. ¥47,000 in all.`; "food" → `Food: ¥10,700 in November (3 items), ¥11,440 in October (3 items), ¥5,960 in September (1 item); nothing in the other 9 months. ¥28,100 in all.` with November's three rows first; "rent" → `"rent": ¥82,000 in October (1 item), ¥82,000 in September (1 item), ¥82,000 in August (1 item); nothing in the other 9 months. ¥246,000 in all.` (Nov 27 is after today); "hikari" → ¥10,020 in October and ¥8,640 in September, ¥18,660 in all; "zzz" → "Nothing matches “zzz” in the last 12 months." Nothing scrolls sideways at 375px.
 
 ### U-A. Regular costs
 
-Plan → Regular costs (after Where the month goes), before confirming Hikari Denki: "Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far" on top; rows Kissa Midori café Food ¥1,880 so far (Last month ¥2,800 · down ¥920; Sep ¥0 · Oct ¥2,800 · Nov ¥1,880), Minato Fresh Market ¥8,820 so far (up ¥180), Rent ¥82,000 (same), Mobaile Tsushin ¥4,800, CloudBox Plus ¥1,980, and Hikari Denki Utilities "not in yet" (Last month ¥10,020 · usually on the 25th; Sep ¥8,640 · Oct ¥10,020 · Nov not in yet). Up reads in red, down in green, the words carry it too. At 375px each amount stays on its label's line.
+Spending → Over time → Regular costs (under the months), before confirming Hikari Denki: "Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far" on top; rows Kissa Midori café Food ¥1,880 so far (Last month ¥2,800 · down ¥920; Sep ¥0 · Oct ¥2,800 · Nov ¥1,880), Minato Fresh Market ¥8,820 so far (up ¥180), Rent ¥82,000 (same), Mobaile Tsushin ¥4,800, CloudBox Plus ¥1,980, and Hikari Denki Utilities "not in yet" (Last month ¥10,020 · usually on the 25th; Sep ¥8,640 · Oct ¥10,020 · Nov not in yet). Up reads in red, down in green, the words carry it too. At 375px each amount stays on its label's line.
 
 ### AA1. Your data, fresh counts
 

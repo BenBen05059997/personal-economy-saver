@@ -34,14 +34,14 @@ function DefaultShare({ bp }: { bp: number | null }) {
 }
 
 /**
- * Settings → Your categories (D75): the person's own names under the fourteen, grouped by category, each with its default share and how many
+ * Spending → Your categories (D75): the person's own names under the fourteen, grouped by category, each with its default share and how many
  * items are filed under it. Any member may add, rename, merge and remove; they post to /api/own-categories.
  */
 export function OwnCategories({ groups }: { groups: OwnCategoryGroup[] }) {
   return <section className="ui-panel" id="categories"><h2>Your categories</h2>
     {groups.length === 0
       ? <p className="ui-hint">Your own names for your spending, kept under the fourteen categories, like Coffee under Food. Make one here, or while adding a bill or charge.</p>
-      : <p className="ui-hint">Your own names, kept under the fourteen categories. Plan and Home show them inside their category.</p>}
+      : <p className="ui-hint">Your own names, kept under the fourteen categories. Spending shows them inside their category.</p>}
     {groups.map(group => <div key={group.kind} className="settings-own-group">
       <h3>{group.label}</h3>
       {group.categories.map(category => {
@@ -61,7 +61,7 @@ export function OwnCategories({ groups }: { groups: OwnCategoryGroup[] }) {
                 <p className="ui-hint">Its {items(category.items)} move to the one you choose, and {category.name} is removed.</p>
                 <button className="ui-button">Merge</button></ApiForm></details>}
           </ApiFormGroup>
-          <ConfirmRemove kind="own_category" id={category.id} returnTo="/plan" label={category.name}
+          <ConfirmRemove kind="own_category" id={category.id} returnTo="/spending/categories" label={category.name}
             note={category.items === 0 ? "Nothing is filed under it." : `${category.items === 1 ? "Its 1 item goes" : `Its ${category.items} items go`} back to ${group.label}.`} />
         </div>;
       })}

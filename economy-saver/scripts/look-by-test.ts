@@ -1,7 +1,7 @@
-// Home's Categories view looked at three ways (D74): the category, business and person rows, the remembered choice.
+// Spending's This month looked at three ways (D74) and Over time (D73): the category, business and person rows, the remembered choice.
 // Pure, no database. Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/look-by-test.ts
 import assert from "node:assert/strict";
-import { formatHomeView, lookBy, parseHomeView } from "@/lib/money/look-by";
+import { formatSpendingView, lookBy, monthTrend, parseHomeMode, parseSpendingView } from "@/lib/money/look-by";
 import { monthByCategory } from "@/lib/money/month";
 import { monthBounds, monthsBack, spendingItems } from "@/lib/money/spending";
 import type { MoneyState } from "@/lib/money/types";
@@ -119,16 +119,38 @@ check("Every amount is an integer", () => {
     for (const v of [r.spent, r.coming, r.total, r.previous, r.business, r.personal]) assert.ok(Number.isInteger(v));
 });
 
-check("The remembered choice: two parts read as Category; three parts round-trip; Person needs two people", () => {
-  assert.deepEqual(parseHomeView("categories|chart", 1), { view: "categories", mode: "chart", by: "category" });
-  assert.deepEqual(parseHomeView("categories|table|business", 1), { view: "categories", mode: "table", by: "business" });
-  assert.equal(formatHomeView("categories", "table", "business"), "categories|table|business");
-  assert.deepEqual(parseHomeView("categories|chart|person", 1), { view: "categories", mode: "chart", by: "category" });
-  assert.deepEqual(parseHomeView("categories|chart|person", 2), { view: "categories", mode: "chart", by: "person" });
-  assert.deepEqual(parseHomeView("forecast|chart", 1), { view: "forecast", mode: "chart", by: "category" });
-  assert.deepEqual(parseHomeView("junk", 1), { view: "forecast", mode: "chart", by: "category" });
-  const { view, mode, by } = parseHomeView("trend|table|person", 3);
-  assert.equal(parseHomeView(formatHomeView(view, mode, by), 3).by, "person");
+check("A past month looks back from its own month: nothing still to come, the month before as the tick", () => {
+  const october = lookBy(ben, today, "category", members, "2026-10");
+  assert.equal(october.name, "October");
+  assert.equal(october.lastName, "September");
+  assert.equal(october.coming, 0);
+  assert.equal(october.total, october.spent);
+  assert.equal(october.total, monthByCategory(ben, today, "2026-10").totalMinor);
+  assert.match(october.businessLine, /in October$/);
+  assert.deepEqual(lookBy(ben, today, "category", members, today.slice(0, 7)), lookBy(ben, today, "category", members));
+});
+
+check("Over time: six months oldest first, the current one last and still to come only there", () => {
+  const trend = monthTrend(ben, today);
+  assert.equal(trend[trend.length - 1].month, today.slice(0, 7));
+  assert.equal(trend[trend.length - 1].current, true);
+  assert.deepEqual(trend.map(m => m.month), [...trend.map(m => m.month)].sort());
+  for (const m of trend) { assert.equal(m.total, m.spent + m.coming); assert.ok(m.current || m.coming === 0); }
+  assert.equal(trend[trend.length - 1].total, lookBy(ben, today, "category", members).total);
+});
+
+check("The remembered choices: Spending's three parts round-trip; Person needs two people; Home keeps chart or table", () => {
+  assert.deepEqual(parseSpendingView("table|business|table", 1), { mode: "table", by: "business", trendMode: "table" });
+  assert.deepEqual(parseSpendingView("chart|person|chart", 1), { mode: "chart", by: "category", trendMode: "chart" });
+  assert.deepEqual(parseSpendingView("chart|person|chart", 2), { mode: "chart", by: "person", trendMode: "chart" });
+  assert.deepEqual(parseSpendingView("junk", 1), { mode: "chart", by: "category", trendMode: "chart" });
+  const { mode, by, trendMode } = parseSpendingView("table|person|table", 3);
+  assert.equal(formatSpendingView(mode, by, trendMode), "table|person|table");
+  assert.equal(parseHomeMode("table"), "table");
+  assert.equal(parseHomeMode("chart"), "chart");
+  assert.equal(parseHomeMode("forecast|table|business"), "table");
+  assert.equal(parseHomeMode("categories|chart|person"), "chart");
+  assert.equal(parseHomeMode("junk"), "chart");
 });
 
 console.log(`\n${passed} checks passed`);

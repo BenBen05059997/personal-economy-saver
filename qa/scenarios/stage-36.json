@@ -300,10 +300,10 @@
       "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
     ],
     "steps": [
-      "Open the panel on Home and navigate to Plan"
+      "Open the panel on Home and navigate to Spending"
     ],
     "expected": [
-      "The chip changes from Looking at Home to Looking at Plan"
+      "The chip changes from Looking at Home to Looking at Spending"
     ],
     "refs": [
       "D25",
@@ -822,7 +822,7 @@
       "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
     ],
     "steps": [
-      "Open Home, then Plan"
+      "Open Home, then Spending"
     ],
     "expected": [
       "The top bar shows \"Sample household · fixed date Nov 14\", a bell with a \"1\" badge, \"+ Add\" and \"Ask\" on both pages",
@@ -847,7 +847,7 @@
       "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px unless the step says otherwise"
     ],
     "steps": [
-      "Open Home with the panel open, then Plan"
+      "Open Home with the panel open, then Spending"
     ],
     "expected": [
       "The current page is the only row with a grey fill, never yellow",

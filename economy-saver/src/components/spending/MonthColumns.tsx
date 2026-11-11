@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Currency } from "@/lib/catalogue/types";
 import { minorMoney, minorPerUnit } from "@/lib/money/format";
-import { compact, niceStep, useWidth } from "./chart-utils";
+import { compact, niceStep, useWidth } from "@/components/home/chart-utils";
 
 export type MonthColumn = { month: string; name: string; spent: number; coming: number; total: number; current: boolean };
 

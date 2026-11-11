@@ -294,13 +294,13 @@
     ],
     "steps": [
       "Ask \"What is Card A’s next statement amount and due date? Update this space’s brief with what you find.\"",
-      "Open Space brief, reload, and check Activity"
+      "Open Space brief, reload, and check the bell"
     ],
     "expected": [
       "The answer reports ¥58,000 due Nov 26",
       "The brief updates and shows \"Agent updated it\" with a time",
       "Any amount in the brief comes from this question’s tool results",
-      "Activity shows the update without the brief text"
+      "The bell shows the update without the brief text"
     ],
     "refs": [
       "D69"

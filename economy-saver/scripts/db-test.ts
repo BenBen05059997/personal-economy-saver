@@ -350,7 +350,7 @@ async function main() {
     assert.equal((await eventFeed(db, otherVisitor)).inFlight, true);
     assert.equal(feed.total, 2);
     assert.equal(feed.unread, 1);
-    assert.equal(feed.notifications.length, 1);
+    assert.equal(feed.recent.length, 2);
     const [invoice] = await db.select({ id: schema.invoices.id }).from(schema.invoices)
       .where(and(eq(schema.invoices.householdId, visitor), eq(schema.invoices.status, "sent"))).limit(1);
     const invoiceFilter = and(eq(schema.invoices.householdId, visitor), eq(schema.invoices.id, invoice.id));
@@ -366,11 +366,11 @@ async function main() {
     assert.equal((await eventFeed(db, visitor)).inFlight, true);
     await db.update(schema.documents).set({ status: "read" }).where(and(eq(schema.documents.householdId, visitor), eq(schema.documents.id, doc.id)));
     assert.equal((await eventFeed(db, visitor)).inFlight, false);
-    assert.equal(await markRead(db, b, [feed.notifications[0].id]), 0);
+    assert.equal(await markRead(db, b, [feed.recent.find(row => row.notify && !row.readAt)!.id]), 0);
     assert.equal((await eventFeed(db, visitor)).unread, 1);
-    assert.equal(await markRead(db, visitor, [feed.notifications[0].id]), 1);
+    assert.equal(await markRead(db, visitor, [feed.recent.find(row => row.notify && !row.readAt)!.id]), 1);
     assert.equal((await eventFeed(db, visitor)).unread, 0);
-    assert.equal((await eventFeed(db, visitor)).notifications.length, 0);
+    assert.equal((await eventFeed(db, visitor)).recent.filter(row => row.notify && !row.readAt).length, 0);
     assert.ok(!(await listEvents(db, visitor)).map(publicEvent).some(row => JSON.stringify(row).includes(visitor)));
     // This synthetic metadata row never had a Storage object.
     await db.delete(schema.documents).where(and(eq(schema.documents.householdId, visitor), eq(schema.documents.id, doc.id)));

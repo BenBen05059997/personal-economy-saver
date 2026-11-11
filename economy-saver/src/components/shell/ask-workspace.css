@@ -40,8 +40,6 @@
   .directory.detail-open { grid-template-columns: minmax(0, 1fr) minmax(260px, 48%); }
   .directory-list .directory-link { align-items: start; flex-wrap: wrap; }
   .directory-list .directory-link > :last-child { white-space: normal; }
-  .household-table .event-kind { display: none; }
-  .ask-workspace .household-table .kind-line { display: block; } /* outranks the hide rule in household.css, which loads later */
 }
 /* The Ask button: top right of every screen of a household. */
 .ask-workspace .ask-button {

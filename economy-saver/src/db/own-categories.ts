@@ -1,5 +1,5 @@
 // Own categories (D75): the person's own names under the fixed fourteen categories ("Food › Coffee"). One function per job, called by
-// Settings → Your categories, the bill and charge writes, Plan's File control and the agent's tools. A bill or charge has at most one,
+// Spending → Your categories, the bill and charge writes, Spending's File control and the agent's tools. A bill or charge has at most one,
 // of its own category's kind; the database refuses another household's or another kind's. A category, an own category and a default
 // business share move no money, so nothing here observes the runway and no Activity event is recorded.
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";

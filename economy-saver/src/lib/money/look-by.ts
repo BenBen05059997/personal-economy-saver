@@ -1,13 +1,12 @@
-// Home's Categories view (D74): one month looked at three ways, from the same items (the month's confirmed bills and charges).
+// Spending's This month and Over time (D73, D74): one month looked at three ways, from the same items (the month's confirmed bills and charges), and the months side by side.
 // Pure: the screen only draws these rows. Amounts are integer minor units of the home currency.
 import { businessPart } from "./categories";
 import { plural } from "./format";
-import { businessLine, monthByCategory } from "./month";
-import { monthBounds, monthsBack, spendingItems, type SpendingInput } from "./spending";
+import { businessLine, monthByCategory, monthWhen } from "./month";
+import { monthBounds, monthLabel, monthsBack, spendingItems, type SpendingInput } from "./spending";
 
 export type LookBy = "category" | "business" | "person";
-export type HomeViewKey = "forecast" | "categories" | "trend";
-export type HomeViewMode = "chart" | "table";
+export type DisplayMode = "chart" | "table";
 
 /** One bar. `business` and `personal` add up to `total`; `spent` is dated on or before today, `coming` is a later bill. */
 export type LookRow = {
@@ -30,9 +29,9 @@ export type LookMember = { id: string; name: string };
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
 const noteFor = (count: number, unknown: boolean) => unknown ? "an amount is not known" : plural(count, "item");
 
-/** The rows for a month (the one `today` is in) and a choice. `person` needs two or more members; with fewer it gives the category rows. */
-export function lookBy(input: SpendingInput, today: string, by: LookBy, members: LookMember[]): LookByView {
-  const month = today.slice(0, 7), previous = monthsBack(month, 2);
+/** The rows for a month (default: the one `today` is in; any earlier month has nothing still to come) and a choice. `person` needs two or more members; with fewer it gives the category rows. */
+export function lookBy(input: SpendingInput, today: string, by: LookBy, members: LookMember[], month: string = today.slice(0, 7)): LookByView {
+  const previous = monthsBack(month, 2);
   const current = monthByCategory(input, today, month), last = monthByCategory(input, today, previous);
   const { first, last: end } = monthBounds(month);
   const items = spendingItems(input, first, end);
@@ -85,16 +84,35 @@ export function lookBy(input: SpendingInput, today: string, by: LookBy, members:
   const spent = sum(rows.map(row => row.spent)), coming = sum(rows.map(row => row.coming));
   return {
     by: effective, rows, spent, coming, total: spent + coming, name: current.name, lastName: last.name, lastTotal: last.totalMinor,
-    businessMinor: current.businessMinor, personalMinor: current.personalMinor, businessLine: businessLine(current),
+    businessMinor: current.businessMinor, personalMinor: current.personalMinor, businessLine: businessLine(current, monthWhen(month === today.slice(0, 7) ? undefined : monthLabel(month, today))),
   };
 }
 
-/** The remembered choice on this device: "<view>|<mode>|<by>". A missing or two-part value reads as Category; Person without two people reads as Category. */
-export function parseHomeView(stored: string, memberCount: number): { view: HomeViewKey; mode: HomeViewMode; by: LookBy } {
-  const [rawView, rawMode, rawBy] = stored.split("|");
-  const view: HomeViewKey = rawView === "categories" || rawView === "trend" ? rawView : "forecast";
-  const mode: HomeViewMode = rawMode === "table" ? "table" : "chart";
-  const by: LookBy = rawBy === "business" ? "business" : rawBy === "person" && memberCount >= 2 ? "person" : "category";
-  return { view, mode, by };
+/** One column of Over time: what was spent by the end of `today` and, for the current month only, the bills still to come. */
+export type TrendMonth = { month: string; name: string; spent: number; coming: number; total: number; current: boolean; unknown: boolean; biggest: { label: string; amount: number } | null };
+
+/** The last six months, oldest first, leaving out empty past months (the current month always stays). */
+export function monthTrend(input: SpendingInput, today: string): TrendMonth[] {
+  const month = today.slice(0, 7);
+  return Array.from({ length: 6 }, (_, index) => monthsBack(month, 6 - index)).map(date => {
+    const bounds = monthBounds(date), entries = spendingItems(input, bounds.first, bounds.last);
+    const spent = sum(entries.filter(item => item.date <= today).map(item => item.amountMinor));
+    const coming = date === month ? sum(entries.filter(item => item.date > today && item.kind === "bill").map(item => item.amountMinor)) : 0;
+    const biggest = entries.filter(item => !item.uncounted && (item.kind === "charge" || item.repeat === null)).sort((a, b) => b.amountMinor - a.amountMinor)[0];
+    return { month: date, name: monthByCategory(input, today, date).name, spent, coming, total: spent + coming, current: date === month, hasItems: entries.length > 0, unknown: entries.some(item => item.uncounted), biggest: biggest ? { label: biggest.label, amount: biggest.amountMinor } : null };
+  }).filter(entry => entry.hasItems || entry.current).map(({ hasItems, ...entry }) => { void hasItems; return entry; });
 }
-export const formatHomeView = (view: HomeViewKey, mode: HomeViewMode, by: LookBy) => `${view}|${mode}|${by}`;
+
+/** The remembered choices on this device, "<This month: chart|table>|<look at it by>|<Over time: chart|table>". Person without two people reads as Category; anything missing reads as chart and Category. */
+export function parseSpendingView(stored: string, memberCount: number): { mode: DisplayMode; by: LookBy; trendMode: DisplayMode } {
+  const [rawMode, rawBy, rawTrend] = stored.split("|");
+  const by: LookBy = rawBy === "business" ? "business" : rawBy === "person" && memberCount >= 2 ? "person" : "category";
+  return { mode: rawMode === "table" ? "table" : "chart", by, trendMode: rawTrend === "table" ? "table" : "chart" };
+}
+export const formatSpendingView = (mode: DisplayMode, by: LookBy, trendMode: DisplayMode) => `${mode}|${by}|${trendMode}`;
+
+/** Home's remembered Chart or Table. An earlier value, "<view>|<mode>|<by>", still reads as its mode. */
+export function parseHomeMode(stored: string): DisplayMode {
+  const parts = stored.split("|");
+  return (parts[1] ?? parts[0]) === "table" ? "table" : "chart";
+}

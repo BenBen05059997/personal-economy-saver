@@ -368,15 +368,17 @@ export async function recordEvent(db: Db, householdId: string, e: NewEvent): Pro
   return row.id;
 }
 
-/** Newest first. `since` returns only events that happened after it (the 5-second poll). */
-export async function listEvents(db: Db, householdId: string, since?: Date, limit = 100, offset = 0) {
+/** Newest first. `since` returns only events that happened after it (the 5-second poll); `before` is an event id and returns only the events older than that one (Show older). */
+export async function listEvents(db: Db, householdId: string, since?: Date, limit = 100, before?: string) {
   const hid = requireHousehold(householdId);
+  const anchor = before ? sql`(select ${s.events.occurredAt} from ${s.events} where ${s.events.householdId} = ${hid} and ${s.events.id} = ${before})` : undefined;
   return db
     .select()
     .from(s.events)
-    .where(and(eq(s.events.householdId, hid), since ? gt(s.events.occurredAt, since) : undefined))
+    .where(and(eq(s.events.householdId, hid), since ? gt(s.events.occurredAt, since) : undefined,
+      before ? sql`(${s.events.occurredAt} < ${anchor} or (${s.events.occurredAt} = ${anchor} and ${s.events.id} < ${before}))` : undefined))
     .orderBy(desc(s.events.occurredAt), desc(s.events.id))
-    .limit(limit).offset(offset);
+    .limit(limit);
 }
 
 export async function unreadCount(db: Db, householdId: string): Promise<number> {

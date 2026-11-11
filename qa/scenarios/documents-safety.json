@@ -323,7 +323,7 @@
     ],
     "expected": [
       "The saved bill shows the edited name and amount in Coming up and Bills",
-      "Activity records it",
+      "The bell lists it",
       "The sentence uses the edited amount"
     ],
     "refs": [
@@ -742,7 +742,7 @@
     "expected": [
       "Home: \"Added Minato Water ¥6,500, date not known, counted as due now\"; sentence ¥25,280 short on the 27th",
       "To check: \"Minato Water, ¥6,500: when is it due?\" with \"Due soon\", a Due date field and Save (no amount field)",
-      "After Save: sentence back to ¥18,780, Activity \"Minato Water: due Nov 30\", row moves to Nov 30, Missing section goes"
+      "After Save: sentence back to ¥18,780, the bell lists \"Minato Water: due Nov 30\", row moves to Nov 30, Missing section goes"
     ],
     "refs": [
       "D55"
@@ -1167,7 +1167,7 @@
       "Fresh Try it household (Ben, today Nov 14)"
     ],
     "steps": [
-      "Open Home, Ask, To check, Activity, Bills, Cards, Clients, Plan, Memory, Household, Settings (each tab), Upload, Login with the console open",
+      "Open Home, Ask, To check, the bell, Bills, Cards, Clients, Spending (each tab), Saving, Memory (each tab), Household, Settings (each tab), Upload, Login with the console open",
       "In the owner-run local Worker browser check, fully reload Home in the same Try it household"
     ],
     "expected": [
@@ -1416,12 +1416,12 @@
       "Viewport 375px (mobile preset)"
     ],
     "steps": [
-      "Open each of: Home, Ask, To check, Activity, Bills, Cards, Clients, Plan, Memory, Household, Settings (each tab), Upload, New invoice, Invoice review, Login",
+      "Open each of: Home, Ask, To check, the bell, Bills, Cards, Clients, Spending (each tab), Saving, Memory (each tab), Household, Settings (each tab), Upload, New invoice, Invoice review, Login",
       "Check document scrollWidth against the width"
     ],
     "expected": [
       "scrollWidth equals clientWidth on every screen",
-      "No text is cut off or overlaps. Long names wrap in Home and Ask’s sentence notes and Plan’s expanded “not counted” note in the UI-006 fixture"
+      "No text is cut off or overlaps. Long names wrap in Home and Ask’s sentence notes and Spending’s expanded “not counted” note in the UI-006 fixture"
     ],
     "refs": []
   },
@@ -1465,7 +1465,7 @@
       "Viewport 375px"
     ],
     "steps": [
-      "Measure links, buttons, inputs, selects and summaries on Home, Ask, To check, Upload, Plan, Settings → Assistant rules and Settings. Include Ask question and canvas starters, Upload’s To check link, Plan’s Add a pot summary, the Rules On row, and the Email reminders and Quiet days rows",
+      "Measure links, buttons, inputs, selects and summaries on Home, Ask, To check, Upload, Spending, Saving, Settings → Assistant rules and Settings. Include Ask question and canvas starters, Upload’s To check link, Saving’s Add a pot button, the Rules On row, and the Email reminders and Quiet days rows",
       "Measure and edge-tap Acme and Northwind in Ask’s This month canvas, and CloudBox Plus, Mobaile Tsushin and Card A in Home’s Coming up"
     ],
     "expected": [
@@ -1539,12 +1539,12 @@
       "The 60-character bill has a due date this month and an unknown amount, so it appears in the sentence notes"
     ],
     "steps": [
-      "Open Home, Ask, To check, Plan, Settings and Activity at 375px",
-      "In Ask open This month. In Plan expand the bill’s category under Where the month goes",
+      "Open Home, Ask, To check, Spending, Settings and the bell at 375px",
+      "In Ask open This month. In Spending choose Table and expand the bill’s category under Where the month goes",
       "Compare document scrollWidth with clientWidth"
     ],
     "expected": [
-      "Names wrap in Home and Ask’s sentence notes, in Plan’s expanded “not counted” note and spending list, and in To check, Settings and Activity",
+      "Names wrap in Home and Ask’s sentence notes, in Spending’s expanded “not counted” note and spending list, and in To check, Settings and the bell",
       "The right column and amounts stay on screen and the document has no sideways scroll"
     ],
     "refs": []

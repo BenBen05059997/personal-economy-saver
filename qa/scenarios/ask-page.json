@@ -99,14 +99,14 @@
       "Fresh Try it household (Ben) at 1440px"
     ],
     "steps": [
-      "On Plan press Ask in the top bar to open the panel",
+      "On Spending press Ask in the top bar to open the panel",
       "Press Open full in the panel",
       "On /canvas read the Ask button, then press it",
       "Repeat from Bills with the panel closed"
     ],
     "expected": [
       "On /canvas the top bar's Ask button shows pressed",
-      "Pressing it returns to the page the person came from (Plan) with the panel open, and the question and thread typed on the page are in the panel",
+      "Pressing it returns to the page the person came from (Spending) with the panel open, and the question and thread typed on the page are in the panel",
       "From Bills with the panel closed it returns to Bills; with no earlier page it returns to Home"
     ],
     "refs": [
@@ -128,7 +128,7 @@
       "Fresh Try it household (Ben) at 1440px"
     ],
     "steps": [
-      "Open Home, Bills, Cards, Clients, Plan, Household, Settings, Activity and To check, and press Ask on each",
+      "Open Home, Bills, Cards, Clients, Spending, Saving, Household, Settings and To check, and press Ask on each",
       "Open the sidebar's Ask link"
     ],
     "expected": [

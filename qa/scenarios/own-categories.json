@@ -12,13 +12,13 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Plan open"
+      "Spending open"
     ],
     "steps": [
-      "Scroll to Your categories on Plan"
+      "Open Spending → Your categories"
     ],
     "expected": [
-      "The intro reads \"Your own names, kept under the fourteen categories. Plan and Home show them inside their category.\"",
+      "The intro reads \"Your own names, kept under the fourteen categories. Spending shows them inside their category.\"",
       "Under Food: \"Coffee · 3 items\"; under Other: \"Books & films · 2 items\" and \"Gear · 2 items\"",
       "Each row has Rename or change default and Remove; \"Add a category\" is closed"
     ],
@@ -39,7 +39,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Plan → Your categories"
+      "Spending → Your categories"
     ],
     "steps": [
       "Open Add a category",
@@ -67,7 +67,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Plan → Your categories"
+      "Spending → Your categories"
     ],
     "steps": [
       "Add Travel, Taxis, No default"
@@ -92,7 +92,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Plan → Your categories"
+      "Spending → Your categories"
     ],
     "steps": [
       "Add Food, name sk-aaaaaaaaaaaaaaaaaaaaaaaa"
@@ -119,7 +119,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Plan → Your categories"
+      "Spending → Your categories"
     ],
     "steps": [
       "Add Travel, name Coffee"
@@ -145,7 +145,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Plan → Your categories with Taxis under Travel (OWN-003)"
+      "Spending → Your categories with Taxis under Travel (OWN-003)"
     ],
     "steps": [
       "Open Rename or change default on Taxis",
@@ -287,7 +287,7 @@
     ],
     "expected": [
       "The box \"Name of your new category\" appears and is required",
-      "Plan → Your categories lists Fares under Travel with \"1 item\""
+      "Spending → Your categories lists Fares under Travel with \"1 item\""
     ],
     "refs": [
       "D75"
@@ -338,12 +338,12 @@
     "steps": [
       "Type Kissa Midori café, amount 900, Card B",
       "Open More ›",
-      "Add the charge and open Plan"
+      "Add the charge and open Spending (Table)"
     ],
     "expected": [
       "The summary line on the form reads \"Food › Coffee\" with the hint \"Filed like last time, change if wrong\" under it",
       "Under More ›, Category shows Food and Your category shows Coffee",
-      "Plan lists the charge under Food › Coffee"
+      "Spending lists the charge under Food › Coffee"
     ],
     "refs": [
       "D75"
@@ -500,7 +500,7 @@
       "Save"
     ],
     "expected": [
-      "Plan → Your categories lists Subscriptions with \"Tools · 1 item\""
+      "Spending → Your categories lists Subscriptions with \"Tools · 1 item\""
     ],
     "refs": [
       "D75"
@@ -634,10 +634,10 @@
     ],
     "steps": [
       "Press Import",
-      "Open Plan"
+      "Open Spending"
     ],
     "expected": [
-      "Plan lists the café row under Food › Coffee"
+      "Spending lists the café row under Food › Coffee"
     ],
     "refs": [
       "D75"
@@ -646,7 +646,7 @@
   {
     "id": "OWN-033",
     "area": "Own categories",
-    "action": "File one item from Plan",
+    "action": "File one item from Spending",
     "user_goal": "I want to move one item",
     "type": "happy",
     "priority": "P2",
@@ -659,7 +659,7 @@
       "A Fictional Bakery card charge of ¥600 on Card B with no own category"
     ],
     "steps": [
-      "Open Food in Plan",
+      "Open Spending, choose Table and open Food",
       "Press File on Fictional Bakery",
       "Choose Coffee, untick \"Every Fictional Bakery, past and future\", press Save"
     ],
@@ -699,7 +699,7 @@
   {
     "id": "OWN-037",
     "area": "Own categories",
-    "action": "Look at Plan on the family link",
+    "action": "Look at the month on the family link",
     "user_goal": "Family must not be able to refile",
     "type": "security",
     "priority": "P1",
@@ -715,7 +715,7 @@
       "Read Where the month goes"
     ],
     "expected": [
-      "Items are grouped under Coffee and Gear as in Plan",
+      "Items are grouped under Coffee and Gear as in Spending",
       "No File control is shown"
     ],
     "refs": [
@@ -736,7 +736,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Plan open"
+      "Spending open"
     ],
     "steps": [
       "Search spending for coffee"
@@ -798,8 +798,8 @@
     ],
     "expected": [
       "The panel says \"Imported.\"",
-      "Plan → Your categories lists the same three names with the same counts",
-      "Plan shows Food › Coffee"
+      "Spending → Your categories lists the same three names with the same counts",
+      "Spending shows Food › Coffee"
     ],
     "refs": [
       "D44",
@@ -823,7 +823,7 @@
     ],
     "steps": [
       "Delete everything and start again with Start with my numbers",
-      "Open Plan → Your categories"
+      "Open Spending → Your categories"
     ],
     "expected": [
       "The section shows only \"Your own names for your spending, kept under the fourteen categories, like Coffee under Food. Make one here, or while adding a bill or charge.\" and an open \"Add a category\""
@@ -854,7 +854,7 @@
     ],
     "expected": [
       "A pending charge appears in To check reading \"Food › Coffee · Personal\"",
-      "Plan → Your categories gains nothing",
+      "Spending → Your categories gains nothing",
       "Nothing is marked paid or sent"
     ],
     "refs": [
@@ -883,7 +883,7 @@
     ],
     "expected": [
       "No charge is created",
-      "The answer names Coffee as the one that exists under Food and says a new one is made in Plan → Your categories"
+      "The answer names Coffee as the one that exists under Food and says a new one is made in Spending → Your categories"
     ],
     "refs": [
       "D75"

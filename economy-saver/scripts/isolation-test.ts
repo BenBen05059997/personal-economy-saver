@@ -616,7 +616,7 @@ async function main() {
       const events = await F.listEvents(store, hid);
       seen("listEvents", events);
       assert.ok(events.length > 0 && events.every(e => e.householdId === hid));
-      seen("listEvents since", await F.listEvents(store, hid, new Date(0), 5, 1));
+      seen("listEvents since", await F.listEvents(store, hid, new Date(0), 5, events[0].id));
       seen("unreadCount", await F.unreadCount(store, hid));
       seen("eventFeed", await F.eventFeed(store, hid));
       assert.equal(await F.memberCount(store, hid), 2);

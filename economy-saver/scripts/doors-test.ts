@@ -38,7 +38,6 @@ import { homeSentence } from "@/lib/money/sentence";
 const lines = (sentence: ReturnType<typeof homeSentence>) => ({ lead: sentence.lead, emphasis: sentence.emphasis });
 import { addDays, low, medianLow, planWindow, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { cardSummary } from "@/components/home/card-summary";
-import { EVENT_KIND_LABELS, eventKindLabel } from "@/lib/money/event-kinds";
 
 const TODAY = "2026-11-14";
 
@@ -750,34 +749,11 @@ async function main() {
           assert.ok(at === -1 || at > guard, `${route} reads ${later} before the guard`);
         }
       }
-      for (const page of ["/memory", "/canvas", "/settings", "/plan", "/to-check"]) assert.equal(returnPath(page), page);
+      for (const page of ["/memory", "/canvas", "/settings", "/spending", "/spending/over-time", "/spending/categories", "/saving", "/to-check"]) assert.equal(returnPath(page), page);
       const uuid = crypto.randomUUID();
-      for (const page of ["/", "/activity", "/bills", "/cards", "/clients", "/household", "/household/people", "/settings/ai-model", "/settings/paypal", "/settings/data", "/settings/account", "/options", "/upload", `/bills/${uuid}`, `/cards/${uuid}`, `/clients/${uuid}`, `/canvas?space=${uuid}`, "/setup?step=bank", "/setup?step=card"]) assert.equal(returnPath(page), page);
-      for (const bad of ["/api/memory", "/api/x", "//cross-origin.test", "//host", "/memory/../x", "../", "/settings/other", "/bills/not-an-id", "/setup?step=other", "https://example.test/"]) assert.equal(returnPath(bad), "/", bad);
+      for (const page of ["/", "/bills", "/cards", "/clients", "/household", "/household/people", "/settings/ai-model", "/settings/paypal", "/settings/data", "/settings/account", "/options", "/upload", `/bills/${uuid}`, `/cards/${uuid}`, `/clients/${uuid}`, `/saving/${uuid}`, `/canvas?space=${uuid}`, "/setup?step=bank", "/setup?step=card"]) assert.equal(returnPath(page), page);
+      for (const bad of ["/api/memory", "/api/x", "//cross-origin.test", "//host", "/memory/../x", "../", "/settings/other", "/bills/not-an-id", "/activity", "/plan", "/saving/not-an-id", "/setup?step=other", "https://example.test/"]) assert.equal(returnPath(bad), "/", bad);
       assert.equal(returnPath(null), "/");
-    });
-
-    await check("every Activity event kind the app writes has words in the Type column", async () => {
-      const { readdirSync, readFileSync } = await import("node:fs");
-      const files = [...readdirSync("./src/db").map(f => `./src/db/${f}`), "./src/lib/events.ts"].filter(f => f.endsWith(".ts"));
-      const written = new Set<string>();
-      for (const file of files) for (const m of readFileSync(file, "utf8").matchAll(/kind: "([a-z_]+)"|kind: [^"\n]*\? "([a-z_]+)" : "([a-z_]+)"|kind \+ "_confirmed"|kind: value\.kind \+ "_confirmed"/g)) {
-        for (const kind of [m[1], m[2], m[3]]) if (kind) written.add(kind);
-        if (m[0].includes("_confirmed")) { written.add("bill_confirmed"); written.add("charge_confirmed"); }
-      }
-      assert.ok(written.has("bill_removed") && written.has("settings_updated") && written.has("runway_clear"), "the scan finds the kinds");
-      // Kinds that are not events: a reading's own kind, a document source, a snapshot field.
-      for (const notEvent of ["bill", "charge", "balance", "pot", "email", "upload", "arrival", "statement", "reading"]) written.delete(notEvent);
-      for (const kind of written) assert.ok(Object.hasOwn(EVENT_KIND_LABELS, kind), `no label for the event kind ${kind}`);
-      for (const kind of Object.keys(EVENT_KIND_LABELS)) assert.ok(written.has(kind), `the label ${kind} is for a kind nothing writes`);
-      assert.equal(eventKindLabel("daily_reminder"), "Daily reminder", "historical Activity keeps its label");
-      assert.equal(eventKindLabel("nudge_suggested"), "Nudge suggested", "historical Activity keeps its label");
-      assert.equal(eventKindLabel("invoice_paid_outside"), "Invoice paid outside PayPal");
-      assert.equal(eventKindLabel("runway_clear"), "Clear for 30 days");
-      assert.equal(eventKindLabel("runway_short"), "Short");
-      assert.equal(eventKindLabel("settings_updated"), "Settings changed");
-      assert.equal(eventKindLabel("rule_changed"), "Rule changed");
-      assert.equal(eventKindLabel("to_check"), "Waiting in To check");
     });
 
     await check("D50: a pending row made by Ask or MCP says so in To check and on its event; a row made by a form says nothing", async () => {

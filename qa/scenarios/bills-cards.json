@@ -100,7 +100,7 @@
       "Press Edit, change the closing day and save"
     ],
     "expected": [
-      "The panel shows the new closing day, the next statement date follows and Activity records the change"
+      "The panel shows the new closing day, the next statement date follows and the bell lists the change"
     ],
     "refs": [
       "D25"
@@ -127,7 +127,7 @@
     ],
     "expected": [
       "The question names the charges and statements that go with the card",
-      "Keep changes nothing; confirming removes the card, its charges and statements, records an Activity event, returns to /cards and Home's numbers follow"
+      "Keep changes nothing; confirming removes the card, its charges and statements, adds an event to the bell, returns to /cards and Home's numbers follow"
     ],
     "refs": [
       "D25"

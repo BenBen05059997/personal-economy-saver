@@ -152,7 +152,7 @@ function categoryFor(name: string, given: z.infer<typeof categoryField>): { cate
 /** The refusal for an own category the household does not have: it lists the ones that exist and says only the person can make one. */
 function unknownOwnWords(name: string, category: CategoryKey, names: string[]): string {
   const label = categoryLabel(category);
-  return `"${name}" is not one of this household's own categories under ${label}. Under ${label} there ${names.length === 0 ? "are none yet" : `are: ${names.join(", ")}`}. Only the person can make a new one, in Plan → Your categories.`;
+  return `"${name}" is not one of this household's own categories under ${label}. Under ${label} there ${names.length === 0 ? "are none yet" : `are: ${names.join(", ")}`}. Only the person can make a new one, in Spending → Your categories.`;
 }
 
 /**
@@ -423,7 +423,7 @@ export const tools: Tool[] = [
     description: "The household's own categories under the fourteen, grouped by category, each with its default business share if set and how many bills and charges are filed under it. The only names add_bill and log_charge accept as own_category. Quote the tool's words.",
     run: async ctx => {
       const groups = await listOwnCategoriesGrouped(ctx.db, ctx.householdId);
-      if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Plan → Your categories.";
+      if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Spending → Your categories.";
       const part = (o: (typeof groups)[number]["categories"][number]) => `${o.name} (${o.businessBp === null ? "no default business share" : `default business share ${o.businessBp / 100}%`}, ${o.items} ${o.items === 1 ? "item" : "items"})`;
       return groups.map(g => `Under ${g.label}: ${g.categories.map(part).join("; ")}.`).join("\n");
     },

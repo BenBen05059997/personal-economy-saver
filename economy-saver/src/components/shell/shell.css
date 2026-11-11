@@ -262,12 +262,18 @@
   .shell-popover { inset: 46px 12px auto auto; }
   .shell-popover a { min-height: 44px; }
 }
-.shell-notifications { width: min(360px, calc(100vw - 24px)); max-height: min(500px, 80dvh); overflow-y: auto; }
+.shell-notifications { width: min(380px, calc(100vw - 24px)); max-height: min(560px, 80dvh); overflow-y: auto; }
 .shell-notification-list { list-style: none; margin: 10px 0; padding: 0 10px; }
 .shell-notification-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); }
 .shell-notification-list small { display: block; color: var(--muted); }
+.shell-notification-list b { font-weight: 600; }
+.shell-notification-list .shell-drafted { display: inline; }
+.shell-notification-list li > div { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.shell-notification-list a { display: inline; padding: 0; text-decoration: none; }
+.shell-notification-list a:hover { text-decoration: underline; }
+.shell-unread-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #F7A30A; }
 .shell-notification-list button, .shell-read-all { min-height: 30px; flex: none; padding: 4px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--screen); color: var(--ink); cursor: pointer; }
-.shell-read-all { margin: 0 10px; }
+.shell-read-all { margin: 4px 10px; }
 
 .money-shell:has(.shell-bar.is-desktop) .shell-add-menu { top: 58px; right: 108px; }
 .money-shell:has(.shell-bar.is-desktop) .shell-notifications { top: 58px; right: 200px; }

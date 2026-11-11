@@ -70,11 +70,11 @@
     ],
     "steps": [
       "Ask I'm saving ¥120,000 for a camera by June 30, 2027. What should I plan for?",
-      "In a second tab, check Plan before and after tapping Keep"
+      "In a second tab, check Saving before and after tapping Keep"
     ],
     "expected": [
       "The offer gives a ¥120,000 target and the date 2027-06-30",
-      "Plan has one new camera pot after the tap with saved ¥0"
+      "Saving lists one new camera pot after the tap with saved ¥0"
     ],
     "refs": [
       "D67"
@@ -132,7 +132,7 @@
     ],
     "expected": [
       "Ask answers with the ¥50,000 safe-to-spend rule offer and Keep and No. The rule stays off until Keep",
-      "Keep shows Kept. Rules shows Flag safe to spend below ¥50,000 and Activity shows the matching rule change"
+      "Keep shows Kept. Rules shows Flag safe to spend below ¥50,000 and the bell lists the matching rule change"
     ],
     "refs": [
       "D67"

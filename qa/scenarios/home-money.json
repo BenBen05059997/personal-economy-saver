@@ -38,7 +38,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Compare Home, Cards, Clients, Plan and Options with qa/README Expected numbers"
+      "Compare Home, Cards, Clients, Saving and Options with qa/README Expected numbers"
     ],
     "expected": [
       "Safe to spend, bank balance, both card rows, Coming up rows and the Options gap all match the table",
@@ -137,11 +137,10 @@
     ],
     "steps": [
       "Tap 'Other options ›'",
-      "Go back and tap 'All cards ›'",
-      "Go back and tap 'All activity ›'"
+      "Go back and tap 'All cards ›'"
     ],
     "expected": [
-      "They open Options, Cards and Activity in turn"
+      "They open Options and Cards in turn"
     ],
     "refs": []
   },
@@ -295,7 +294,7 @@
     "expected": [
       "While it runs the button is disabled and dimmed and 'Sending through PayPal sandbox…' shows",
       "The page opens the invoice as 'Invoice sent. Awaiting payment.'",
-      "Activity gains 'Invoice sent to Beacon Studio' within about 2 s of the response"
+      "The bell gains 'Invoice sent to Beacon Studio' within about 2 s of the response"
     ],
     "refs": [
       "D12"
@@ -373,7 +372,7 @@
       "Reload Home"
     ],
     "expected": [
-      "Activity shows 'Invoice … paid' and the invoice reads Paid",
+      "The bell shows 'Invoice … paid' and the invoice reads Paid",
       "The bank balance rises by the invoice amount and the sentence changes",
       "Replaying the same event does not change anything twice"
     ],
@@ -431,7 +430,7 @@
     "expected": [
       "The review page shows Acme Corp, Logo update and $250 ≈ the yen value",
       "Under Amount the form says 'Invoices are always in US dollars. Home shows what they are worth in your own currency.'",
-      "Activity records 'Invoice drafted for Acme Corp'"
+      "The bell lists 'Invoice drafted for Acme Corp'"
     ],
     "refs": []
   },
@@ -730,7 +729,7 @@
     ],
     "expected": [
       "The first gives 'Choose a date within the next two years'",
-      "Nov 14, 2028 is accepted and Activity reads \"Fictional Market added\" with its amount"
+      "Nov 14, 2028 is accepted and the bell reads \"Fictional Market added\" with its amount"
     ],
     "refs": []
   },
@@ -822,7 +821,7 @@
       "Confirm"
     ],
     "expected": [
-      "It asks first; then Card A owed now falls from ¥86,450 to ¥80,050 and Activity says 'Removed charge Yamabiko Outdoor ¥6,400'"
+      "It asks first; then Card A owed now falls from ¥86,450 to ¥80,050 and the bell lists 'Removed charge Yamabiko Outdoor ¥6,400'"
     ],
     "refs": []
   },
@@ -895,7 +894,7 @@
       "Add a bill named with a very long unbroken word"
     ],
     "expected": [
-      "It wraps on Home, Plan, Bills and Activity without sideways scroll at 375px"
+      "It wraps on Home, Spending, Bills and the bell without sideways scroll at 375px"
     ],
     "refs": []
   },
@@ -914,10 +913,10 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Open + Add on Home and again from Plan"
+      "Open + Add on Home and again from Spending"
     ],
     "expected": [
-      "The menu lists A bill, A card charge, A card, A client who pays you, A person who shares costs, a line, then Upload a receipt or bill, Forward a bill (only when forwarding is set up) and New invoice, in that order",
+      "The menu lists A bill, A card charge, A card, A client who pays you, A person who shares costs, A pot, a line, then Upload a receipt or bill, Forward a bill (only when forwarding is set up) and New invoice, in that order",
       "Each opens that thing's form in a dialog over the current screen (the same form as /add/<kind>); closing it leaves the person where they were",
       "At 1200px and wider the menu and the notifications open directly under their own top-bar buttons with the Ask panel closed, with it open (they do not cover the panel) and on the Ask page, where the top bar has no Ask button"
     ],
@@ -943,14 +942,14 @@
     ],
     "expected": [
       "It asks 'Remove Rent ¥82,000? It repeats every month, so every month goes.'; Keep changes nothing",
-      "Remove takes every month off Coming up and the runway; Activity says 'Removed bill Rent ¥82,000'"
+      "Remove takes every month off Coming up and the runway; the bell lists 'Removed bill Rent ¥82,000'"
     ],
     "refs": []
   },
   {
-    "id": "ACT-001",
-    "area": "Activity",
-    "action": "Read the Activity feed",
+    "id": "BELL-001",
+    "area": "Bell",
+    "action": "Read the bell's Activity list",
     "user_goal": "I want to see what changed",
     "type": "happy",
     "priority": "P2",
@@ -962,19 +961,19 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Open Activity"
+      "Press the bell in the top bar"
     ],
     "expected": [
-      "Newest first with dates like \"Nov 14\"; every row says in words what changed, with no raw ids or ISO dates",
-      "Type reads in words, such as \"Waiting in To check\" and \"Invoice sent\", never a name with underscores",
-      "With the Ask panel docked the Type column is hidden and each row shows its type words as a line under the title; with the panel closed the Type column shows"
+      "A popover headed Activity lists events newest first, each with a title, a line of detail where there is one and a date like \"Nov 14\"; no raw ids, ISO dates or names with underscores",
+      "A line above the list says how many need you, or \"You’re caught up.\"",
+      "A row's title opens the thing it is about; the popover opens under the bell button with the Ask panel open or closed"
     ],
     "refs": []
   },
   {
-    "id": "ACT-002",
-    "area": "Activity",
-    "action": "Page through Activity",
+    "id": "BELL-002",
+    "area": "Bell",
+    "action": "Show older events in the bell",
     "user_goal": "I want older entries",
     "type": "edge",
     "priority": "P3",
@@ -983,23 +982,26 @@
     ],
     "how": "browser",
     "preconditions": [
-      "A household with more than 50 events"
+      "A household with more than 20 events"
     ],
     "steps": [
-      "Tap 'Older ›' then '‹ Newer'"
+      "Open the bell and scroll to the end of the list",
+      "Press Show older until it goes"
     ],
     "expected": [
-      "Pages hold 50 rows; Older shows only when there is more; Newer shows from page 2"
+      "The list starts with the newest 20; Show older shows only when there are more",
+      "Pressing it reads Loading… while it works, adds the next older events below and repeats none",
+      "When there are no more events the button is gone"
     ],
     "refs": [
       "economy-saver/src/app/activity/page.tsx"
     ]
   },
   {
-    "id": "ACT-004",
-    "area": "Activity",
-    "action": "Open an empty Activity",
-    "user_goal": "A new household has no rows",
+    "id": "BELL-003",
+    "area": "Bell",
+    "action": "Open the bell with no events",
+    "user_goal": "A new household has nothing yet",
     "type": "edge",
     "priority": "P3",
     "needs": [
@@ -1010,17 +1012,17 @@
       "Blank household"
     ],
     "steps": [
-      "Open Activity"
+      "Open the bell"
     ],
     "expected": [
-      "It says 'No activity yet.'"
+      "It says only \"Nothing here yet. When you send an invoice, a client pays, a bill is read or you change something, it shows here.\" with no count line and no Show older"
     ],
     "refs": []
   },
   {
-    "id": "ACT-005",
-    "area": "Activity",
-    "action": "Read an Activity row for a removed item",
+    "id": "BELL-004",
+    "area": "Bell",
+    "action": "Read a bell row for a removed item",
     "user_goal": "A removed bill has no page",
     "type": "edge",
     "priority": "P3",
@@ -1033,7 +1035,7 @@
       "A bill removed"
     ],
     "steps": [
-      "Look at the 'Removed bill …' row"
+      "Open the bell and look at the 'Removed bill …' row"
     ],
     "expected": [
       "The title is plain text, not a link"
@@ -1041,10 +1043,10 @@
     "refs": []
   },
   {
-    "id": "ACT-006",
-    "area": "Activity",
-    "action": "Read the bell",
-    "user_goal": "I want the unread count",
+    "id": "BELL-005",
+    "area": "Bell",
+    "action": "Mark events read in the bell",
+    "user_goal": "I want the unread marks to clear",
     "type": "happy",
     "priority": "P3",
     "needs": [
@@ -1056,17 +1058,20 @@
     ],
     "steps": [
       "Open the bell",
-      "Tap Mark read"
+      "Press Mark read on one row",
+      "Press Mark all read"
     ],
     "expected": [
-      "Events list; the count clears to 'You're caught up'"
+      "A dot marks each row that needs you, and the line above says how many ('2 need you')",
+      "Mark read clears that row's dot and lowers the count; the row stays in the list",
+      "Mark all read shows only while two or more need you; after it the line reads 'You’re caught up.' and no dots remain"
     ],
     "refs": []
   },
   {
-    "id": "ACT-008",
-    "area": "Activity",
-    "action": "Read a drafted-by label",
+    "id": "BELL-006",
+    "area": "Bell",
+    "action": "Read a drafted-by label in the bell",
     "user_goal": "I want to know the agent wrote it",
     "type": "happy",
     "priority": "P3",
@@ -1080,130 +1085,12 @@
       "A working model (the server's or the Codex bridge)"
     ],
     "steps": [
-      "Open Activity"
+      "Open the bell"
     ],
     "expected": [
       "'Waiting in To check' row shows '· Drafted by Ask'; a typed bill shows none"
     ],
     "refs": []
-  },
-  {
-    "id": "PLAN-002",
-    "area": "Plan",
-    "action": "Read Plan with no client payments",
-    "user_goal": "The words must not promise clients",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Blank household with a bill"
-    ],
-    "steps": [
-      "Open Plan"
-    ],
-    "expected": [
-      "'No client payments are expected in the next 30 days, so the plan counts your bank balance only.'"
-    ],
-    "refs": []
-  },
-  {
-    "id": "PLAN-005",
-    "area": "Plan",
-    "action": "Add a pot with 101%",
-    "user_goal": "A share over 100 is refused",
-    "type": "negative",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "Add a pot with 101%"
-    ],
-    "expected": [
-      "'Enter a share between 0.01 and 100 percent, such as 25' shows; nothing saved"
-    ],
-    "refs": []
-  },
-  {
-    "id": "PLAN-007",
-    "area": "Plan",
-    "action": "Edit and remove a pot",
-    "user_goal": "I changed my mind",
-    "type": "happy",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)",
-      "A pot"
-    ],
-    "steps": [
-      "Save changes with a new target",
-      "Then 'Yes, remove <pot>'"
-    ],
-    "expected": [
-      "Home and Plan follow each step"
-    ],
-    "refs": []
-  },
-  {
-    "id": "PLAN-009",
-    "area": "Plan",
-    "action": "Read where the month goes",
-    "user_goal": "I want categories and the business share",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "Open Plan → Where the month goes · November",
-      "Open each category row"
-    ],
-    "expected": [
-      "The line 'Business ¥32,830 of ¥152,230 this month' and the six rows in qa/README M1 with their splits and items, each chevron turning when opened"
-    ],
-    "refs": [
-      "qa/README M1"
-    ]
-  },
-  {
-    "id": "PLAN-015",
-    "area": "Plan",
-    "action": "Search spending",
-    "user_goal": "I want to find a payment",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "Search 'hotel', then 'travel', 'food', 'rent', 'hikari'"
-    ],
-    "expected": [
-      "Each gives the monthly summary in qa/README T-B with a row list and an 'in all' total",
-      "Search and button sit on one row at 375px"
-    ],
-    "refs": [
-      "qa/README T-B"
-    ]
   },
   {
     "id": "PLAN-018",
@@ -1231,7 +1118,7 @@
   },
   {
     "id": "PLAN-034",
-    "area": "Plan",
+    "area": "Home",
     "action": "Add a bill with a last payment",
     "user_goal": "It ends on a date",
     "type": "edge",
@@ -1257,7 +1144,7 @@
   },
   {
     "id": "PLAN-037",
-    "area": "Plan",
+    "area": "Options",
     "action": "Read Options",
     "user_goal": "I want ways to cover the gap",
     "type": "happy",
@@ -1281,7 +1168,7 @@
   },
   {
     "id": "PLAN-038",
-    "area": "Plan",
+    "area": "Options",
     "action": "Read Options with no gap",
     "user_goal": "No gap means no options",
     "type": "edge",
@@ -1305,7 +1192,7 @@
   },
   {
     "id": "PLAN-039",
-    "area": "Plan",
+    "area": "Ask",
     "action": "See what foreign payouts cost",
     "user_goal": "I want to know PayPal's cost to me",
     "type": "happy",
@@ -1330,7 +1217,7 @@
   },
   {
     "id": "PLAN-040",
-    "area": "Plan",
+    "area": "Ask",
     "action": "See what a foreign charge cost",
     "user_goal": "I paid in dollars",
     "type": "edge",
@@ -1396,7 +1283,7 @@
       "Cards → Card B belongs to Aki"
     ],
     "expected": [
-      "Activity says 'Card B now belongs to Aki'"
+      "The bell lists 'Card B now belongs to Aki'"
     ],
     "refs": []
   },
@@ -1488,7 +1375,7 @@
       "Household → People → Remove Aki"
     ],
     "expected": [
-      "'Settle up with Aki first.'; after Mark settled it works and Activity says 'Aki left the household'"
+      "'Settle up with Aki first.'; after Mark settled it works and the bell lists 'Aki left the household'"
     ],
     "refs": []
   },
@@ -1618,17 +1505,17 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben)",
-      "A pot exists (add one on Plan)"
+      "A pot exists (add one on Saving)"
     ],
     "steps": [
       "On Home press Add a bill in the + Add menu, then in Coming up press a bill",
-      "In Activity press a pot",
+      "In the bell press the pot's event",
       "In the bell press a waiting row"
     ],
     "expected": [
       "The Add a bill dialog opens over Home at 1280px",
       "The bill opens at /bills/<id> beside the list",
-      "Plan opens scrolled to the pot",
+      "Saving opens with that pot's panel (/saving/<id>)",
       "To check opens scrolled to that row"
     ],
     "refs": [

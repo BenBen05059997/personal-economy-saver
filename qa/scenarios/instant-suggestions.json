@@ -113,7 +113,7 @@
     ],
     "expected": [
       "Try it and Reset both open Ben’s Home",
-      "Plan shows the confirmed pot and the invoice is Paid once",
+      "Saving shows the confirmed pot and the invoice is Paid once",
       "Each failed pass writes one operator log line and a later pass resolves the stale finding"
     ],
     "refs": [

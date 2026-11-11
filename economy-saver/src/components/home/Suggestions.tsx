@@ -7,7 +7,7 @@ import { findingsBySpace } from "@/lib/money/suggestion-types";
 type Suggestion = Awaited<ReturnType<typeof openSuggestions>>[number];
 
 function actionFor(row: Suggestion) {
-  if (row.action === "regular") return { label: "Review regular costs", href: "/plan#plan-regular-title" };
+  if (row.action === "regular") return { label: "Review regular costs", href: "/spending/over-time#regular-costs" };
   if (row.action === "runway") return { label: "Review safe to spend", href: "/#next-30-days" };
   if (!row.refId) throw new Error("Suggestion action needs a reference");
   switch (row.action) {

@@ -49,7 +49,7 @@
     ],
     "expected": [
       "/account lands on /settings/account and /memory?tab=rules on /settings",
-      "Each old #address moves to its new place: Household → People, Cards, Plan → Your categories, Bills → Forwarding address, Settings → Your AI model, Settings → Your data and /bills/<id>",
+      "Each old #address moves to its new place: Household → People, Cards, Spending → Your categories, Bills → Forwarding address, Settings → Your AI model, Settings → Your data and /bills/<id>",
       "Nothing flashes an error"
     ],
     "refs": [

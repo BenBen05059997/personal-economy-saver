@@ -73,6 +73,8 @@ function flight(html) {
   return chunks.join("");
 }
 function pageContent(html) { return text(html) + " " + flight(html); }
+// The page without the bell: the bell lists the newest events (their titles name bills and pins) on every page, so "not on this page" leaves it out.
+function textWithoutBell(html) { const bell = /<section id="shell-notifications"[\s\S]*?<\/section>/; expect(bell.test(html), "bell-present"); return text(html.replace(bell, "")); }
 // The sentence is built from several text nodes, so its words can sit apart ("rent , your"): close the gap before punctuation.
 const plain = (content) => content.replace(/\s+([,.])/g, "$1");
 async function page(path, content) {
@@ -95,6 +97,12 @@ async function events() {
   const data = JSON.parse(result.body);
   expect(Array.isArray(data.events) && Number.isInteger(data.feed?.unread), "events-shape");
   return data;
+}
+// The Activity page is gone: the bell and every check read the same events. Some event's title or body must match.
+async function sawEvent(pattern) {
+  const found = (await events()).events.find(event => pattern.test(event.title) || pattern.test(event.body ?? ""));
+  expect(found, "event-seen");
+  return found;
 }
 const SETUP_START = "/setup?step=bank"; // where "Start planning" lands: the setup steps
 function adopt(result, fetchForm = false, to = "/") {
@@ -169,6 +177,8 @@ if (args[0] === "--guards") {
     ["finish-without-code", "/api/auth/finish", {}, 303, "/login?expired=1"],
     ["approve-without-household", "/api/approve", { method: "POST" }, 401],
     ["unsigned-webhook", "/api/paypal/webhook", { method: "POST", json: { id: "fictional-check", event_type: "INVOICING.INVOICE.PAID" } }, 400],
+    ["events-without-household", "/api/events", { session: "" }, 401],
+    ["events-mark-read-without-household", "/api/events", { method: "POST", session: "", json: { ids: [] } }, 401],
     ["private-upload-without-household", "/api/upload", { method: "POST" }, 401],
     ["inbound-without-worker-origin", "/api/inbound", { method: "POST" }, 403],
     ["mcp-without-bearer", "/api/mcp", { method: "POST" }, 401],
@@ -292,7 +302,7 @@ if (args[0] === "--extra") {
     expect(again.response.status === 303 && again.response.headers.get("location") === `/bills/${id}`, "nov5-edit-native-result");
     const changed = (await events()).events.filter(event => event.kind === "bill_changed" && event.refId === id);
     expect(changed.length === 1 && changed[0].body === "Amount ¥1,200 → ¥980 · Category Other → Food" && changed[0].madeBy === "form", "nov5-one-bill-changed-event");
-    await page("/activity", /Fictional noodle stand bill changed/);
+    expect(/Fictional noodle stand bill changed/.test(changed[0].title), "nov5-bill-changed-title");
     const removed = await request("/api/remove", { method: "POST", form: { kind: "bill", id, returnTo: "/bills" } });
     expect(removed.response.status === 303, "nov5-remove");
   });
@@ -351,7 +361,7 @@ if (args[0] === "--extra") {
       const result = await request("/api/import", { method: "POST", json: { cardId: importCard, rows: statementRows } });
       expect(result.response.status === 200 && result.body === JSON.stringify({ added: 3, skipped: 0 }), "s17-first-import");
     });
-    await step("page", "stage17-activity-names-the-import", () => page("/activity", /Imported 3 charges to Card B from a statement/));
+    await step("read", "stage17-events-name-the-import", () => sawEvent(/Imported 3 charges to Card B from a statement/));
     await step("guard", "stage17-import-form-body-refused", async () => {
       const result = await request("/api/import", { method: "POST", form: { cardId: importCard } });
       expect(result.response.status === 400 && result.body === "Check the required fields and try again.", "s17-form-body");
@@ -368,10 +378,10 @@ if (args[0] === "--extra") {
       expect(label.response.status === 400 && label.body === "Food is already a category.", "s37-label");
       const matcha = await own({ kind: "add", category: "food", name: "Fictional matcha", businessShare: "business" });
       expect(matcha.response.status === 200, "s37-add-with-default-share");
-      const html = await page("/plan", /Your categories/);
+      const html = await page("/spending/categories", /Your categories/);
       const idOf = (name) => new RegExp(`id="own-([0-9a-f-]{36})"[^>]*><p>${name}`).exec(html)?.[1];
       const teaId = idOf("Fictional tea"), matchaId = idOf("Fictional matcha");
-      expect(teaId !== undefined && matchaId !== undefined, "s37-plan-lists-both");
+      expect(teaId !== undefined && matchaId !== undefined, "s37-categories-list-both");
       const first = randomUUID(), second = randomUUID();
       for (const [id, date] of [[first, "2026-11-02"], [second, "2026-11-03"]]) {
         const charge = await request("/api/charges", { method: "POST", form: { id, cardId: importCard, merchant: "Fictional Tea House", amount: "700", date, category: "food", businessShare: "personal", ownCategory: "" } });
@@ -385,7 +395,7 @@ if (args[0] === "--extra") {
       expect(renamed.response.status === 200 && renamed.body === "Saved", "s37-rename");
       const taken = await own({ kind: "save", id: teaId, name: "Fictional matcha" });
       expect(taken.response.status === 400 && taken.body === "You already have Fictional matcha under Food.", "s37-rename-duplicate");
-      await page("/plan", /Fictional chai/);
+      await page("/spending/categories", /Fictional chai/);
       const merged = await own({ kind: "merge", id: teaId, into: matchaId });
       expect(merged.response.status === 200 && merged.body === "Merged. 2 items moved.", "s37-merge");
       const removed = await own({ kind: "remove", id: matchaId });
@@ -395,7 +405,7 @@ if (args[0] === "--extra") {
     });
   }
   // Stage 18 varies (D54): a monthly bill whose amount varies is "about" its estimate on Home until that month's real bill is in;
-  // one-offs with the same name key and category link to it (Activity says so) and a real bill for its month is counted once.
+  // one-offs with the same name key and category link to it (the event says so) and a real bill for its month is counted once.
   {
     const gasBill = (over) => ({ id: randomUUID(), biller: "Sakura Gas", amount: "6,000", due: "2026-12-10", category: "utilities", businessShare: "personal", ...over });
     const comingUp = async () => {
@@ -422,7 +432,6 @@ if (args[0] === "--extra") {
         expect(added.response.status === 303, "s18v-add-real");
         expect(await linkedBody(bill.id) === "Linked to Sakura Gas: counts toward its estimate", "s18v-linked-event");
       }
-      await page("/activity", /Linked to Sakura Gas: counts toward its estimate/);
       expect((await comingUp()).includes("about ¥6,000"), "s18v-average-6000");
     });
     await step("action", "stage18-varies-a-real-bill-for-its-month-replaces-the-estimate-once", async () => {
@@ -485,12 +494,13 @@ await step("page", "home-coming-up-keeps-the-sentence-day-above-the-fold", async
   const before = fold >= 0 ? panel.slice(0, fold) : panel;
   expect(before.includes('dateTime="2026-11-27"'), "sentence-day-row-folded");
 });
-// Home and Safe to spend say what the number counts; Plan says what its "leave about" counts.
-await step("page", "home-and-plan-say-what-their-numbers-count", async () => {
+// Home and Safe to spend say what the number counts; Saving says what its "leave about" counts.
+await step("page", "home-and-saving-say-what-their-numbers-count", async () => {
   const home = plain(pageContent(await page("/", /18,780|30,000/)));
   expect(home.includes("The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late."), "safe-to-spend-line");
-  const plan = plain(pageContent(await page("/plan", /leave about/)));
-  expect(plan.includes("What client payments bring in over the next 30 days, after every bill and card statement, if clients pay as usual."), "plan-room-line");
+  const saving = plain(pageContent(await page("/saving", /leave about/)));
+  expect(saving.includes("The next 30 days leave about ¥92,220 if clients pay as usual."), "saving-room-line");
+  expect(saving.includes("What client payments bring in over the next 30 days, after every bill and card statement, if clients pay as usual."), "saving-room-note");
 });
 // The add forms say what More › will save: the guess from the name, with Change ›.
 await step("page", "add-forms-show-the-guess", async () => {
@@ -549,12 +559,16 @@ await step("page", "settings-tabs-render-with-the-current-tab-selected", async (
 // Next streams a page's redirect after the shell started, so the status is 200 with the redirect in the markup; a plain 307/308 is also right.
 async function redirectsTo(path, target) {
   const { response, body } = await request(path);
-  if (response.status === 307 || response.status === 308) return new URL(response.headers.get("location") ?? "", base).pathname === target;
+  if (response.status === 307 || response.status === 308) { const to = new URL(response.headers.get("location") ?? "", base); return to.pathname + to.search === target; }
   return response.status === 200 && body.includes(`NEXT_REDIRECT;replace;${target};`);
 }
 await step("page", "old-addresses-lead-to-their-new-places", async () => {
   expect(await redirectsTo("/account", "/settings/account"), "account-to-settings-account");
   expect(await redirectsTo("/memory?tab=rules", "/settings"), "memory-rules-to-settings");
+  expect(await redirectsTo("/memory?tab=goals", "/saving"), "memory-goals-to-saving");
+  expect(await redirectsTo("/plan", "/spending"), "plan-to-spending");
+  expect(await redirectsTo("/plan?month=2026-10&q=food", "/spending?month=2026-10&q=food"), "plan-keeps-month-and-search");
+  expect(await isNotFound("/activity"), "activity-page-is-gone");
   const html = await page("/memory", /Profile/);
   expect(/aria-selected="true"[^>]*href="\/memory"|href="\/memory"[^>]*aria-selected="true"/.test(html), "memory-profile-tab");
 });
@@ -618,8 +632,8 @@ await step("action", "a-card-is-removed-with-its-own-id-only", async () => {
 });
 await step("page", "cards", () => page("/cards", /Card B/));
 await step("page", "clients", () => page("/clients", /Beacon/));
-await step("page", "plan", () => page("/plan", /Add a pot/));
-await step("page", "plan-where-the-month-goes", () => page("/plan", /Where the month goes[\s\S]*Housing ¥82,000/));
+await step("page", "saving", () => page("/saving", /Add a pot/));
+await step("page", "spending-where-the-month-goes", () => page("/spending", /Where the month goes[\s\S]*Housing 1 item ¥82,000/));
 // S-A and S-B (D52): the two-person month and the public read-only family link.
 {
   const prior = cookie;
@@ -633,10 +647,10 @@ await step("page", "plan-where-the-month-goes", () => page("/plan", /Where the m
       "Who owes whom", "Nothing can be changed from here."];
     const privateWords = [...familyWords, "Acme Corp", "Northwind", "CloudBox Plus", "Wife", "¥88,780"];
     await step("action", "family-s-a-month-split", async () => {
-      expect(!together.test(pageContent(await page("/plan", /Where the month goes/))), "family-single-person");
+      expect(!together.test(pageContent(await page("/spending", /Where the month goes/))), "family-single-person");
       const added = await request("/api/people", { method: "POST", form: { kind: "add", name: "Wife" } });
       expect(added.response.status === 303, "family-add-person");
-      const month = plain(pageContent(await page("/plan", together)));
+      const month = plain(pageContent(await page("/spending", together)));
       expect(month.includes("Shared ¥82,000") && month.includes("Ben ¥10,700"), "family-month-shares");
     });
     const link = await step("action", "family-s-b-make-a-link", async () => {
@@ -686,17 +700,17 @@ await step("page", "plan-where-the-month-goes", () => page("/plan", /Where the m
   cookie = prior;
 }
 
-// Stage 17 plan (D53): the search box, the Spending panel and the month links, on the Try it household (today Nov 14).
+// Stage 17 Spending (D53): the search box, the search results and the month links, on the Try it household (today Nov 14).
 const TRY_TODAY = "2026-11-14";
 const lastMonth = (() => { const [y, m] = TRY_TODAY.split("-").map(Number); return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`; })();
-await step("page", "stage17-plan-search-box-and-no-panel-without-a-query", async () => {
-  const html = await page("/plan", /Business ¥32,830 of ¥152,230 this month/);
-  expect(/<form[^>]*action="\/plan"[^>]*method="get"/.test(html) && /name="q"/.test(html) && html.includes("Search spending: hotel, food, a shop name"), "search-form");
-  expect(!html.includes('id="plan-spending-title"'), "panel-without-query");
-  expect(html.includes(`href="/plan?month=${lastMonth}"`) && !/aria-label="Next month/.test(html), "month-links-on-current-month");
+await step("page", "stage17-spending-search-box-and-no-results-without-a-query", async () => {
+  const html = await page("/spending", /Business ¥32,830 of ¥152,230 this month/);
+  expect(/<form[^>]*action="\/spending"[^>]*method="get"/.test(html) && /name="q"/.test(html) && html.includes("Search spending: hotel, food, a shop name"), "search-form");
+  expect(!html.includes('id="spending-results-title"'), "results-without-query");
+  expect(html.includes(`href="/spending?month=${lastMonth}"`) && !/aria-label="Next month/.test(html), "month-links-on-current-month");
 });
-await step("page", "stage17-plan-search-food", async () => {
-  const content = plain(pageContent(await page("/plan?q=food", /Spending/)));
+await step("page", "stage17-spending-search-food", async () => {
+  const content = plain(pageContent(await page("/spending?q=food", /¥28,100 in all/)));
   expect(content.includes("Food: ¥10,700 in November (3 items), ¥11,440 in October (3 items), ¥5,960 in September (1 item); nothing in the other 9 months. ¥28,100 in all."), "food-summary-line");
   const november = content.slice(content.indexOf("November ¥10,700"), content.indexOf("October ¥11,440"));
   expect(november.includes("Food ¥10,700"), "food-november-by-category");
@@ -704,33 +718,33 @@ await step("page", "stage17-plan-search-food", async () => {
   expect(!content.includes("August ¥0"), "zero-month-block");
   expect(content.includes("Business ¥32,830 of ¥152,230 this month"), "month-view-unchanged-by-search");
 });
-await step("page", "stage17-plan-search-hotel-finds-hakone", async () => {
-  const content = plain(pageContent(await page("/plan?q=hotel", /Spending/))).replaceAll("&quot;", "\"");
+await step("page", "stage17-spending-search-hotel-finds-hakone", async () => {
+  const content = plain(pageContent(await page("/spending?q=hotel", /Hakone/))).replaceAll("&quot;", "\"");
   expect(content.includes("\"hotel\": ¥28,600 in September (1 item); nothing in the other 11 months. ¥28,600 in all.") && content.includes("Hotel Kazemachi Hakone Sep 22 ¥28,600"), "hotel-result");
 });
-await step("page", "stage17-plan-search-nothing-matches", async () => {
-  const content = plain(pageContent(await page("/plan?q=zzz", /Spending/)));
+await step("page", "stage17-spending-search-nothing-matches", async () => {
+  const content = plain(pageContent(await page("/spending?q=zzz", /Nothing matches/)));
   expect(content.includes("Nothing matches “zzz” in the last 12 months."), "nothing-matches");
 });
-await step("page", "stage17-plan-last-month", async () => {
-  const html = await page(`/plan?month=${lastMonth}`, /Where October went/);
+await step("page", "stage17-spending-last-month", async () => {
+  const html = await page(`/spending?month=${lastMonth}`, /Where October went/);
   const content = plain(pageContent(html));
-  expect(content.includes("Business ¥31,986 of ¥132,060 in October") && content.includes("Housing ¥82,000") && content.includes("Utilities ¥10,020") && content.slice(0, content.includes("Your categories") ? content.indexOf("Your categories") : undefined).includes("Travel") === false, "october-view");
+  const month = content.slice(content.indexOf("Where October went"), content.indexOf("Ask or tell me"));
+  expect(content.includes("Business ¥31,986 of ¥132,060 in October") && month.includes("Housing 1 item ¥82,000") && month.includes("Utilities 1 item ¥10,020") && !month.includes("Travel"), "october-view");
   expect(/aria-label="Next month, November"/.test(html) && /aria-label="Previous month, September"/.test(html), "october-links");
 });
-await step("guard", "stage17-plan-month-out-of-range-refused-in-words", async () => {
-  const content = plain(pageContent(await page("/plan?month=2020-01", /Plan shows the last 12 months/)));
-  expect(content.includes("Plan shows the last 12 months, December 2025 to November 2026. Here is November.") && content.includes("Where the month goes"), "month-refusal");
+await step("guard", "stage17-spending-month-out-of-range-refused-in-words", async () => {
+  const content = plain(pageContent(await page("/spending?month=2020-01", /Spending shows the last 12 months/)));
+  expect(content.includes("Spending shows the last 12 months, December 2025 to November 2026. Here is November.") && content.includes("Where the month goes"), "month-refusal");
 });
-// Stage 18 regular (D54): Plan's Regular costs panel on the Try it household, before and after confirming Hikari Denki.
+// Stage 18 regular (D54): Over time's Regular costs panel on the Try it household, before and after confirming Hikari Denki.
 const regularPanel = (html) => { const content = plain(pageContent(html)); const at = content.indexOf("Regular costs"); return at < 0 ? "" : content.slice(at); };
 await step("page", "stage18-regular-costs-before-confirm", async () => {
-  const panel = regularPanel(await page("/plan", /Regular costs/));
+  const panel = regularPanel(await page("/spending/over-time", /Regular costs/));
   expect(panel.includes("Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far"), "regular-changed-line");
   expect(/Hikari Denki Utilities not in yet Last month ¥10,020 · usually on the 25th Sep ¥8,640 · Oct ¥10,020 · Nov not in yet/.test(panel), "regular-hikari-not-yet");
   expect(panel.includes("Rent Housing ¥82,000 Last month ¥82,000 · same Sep ¥82,000 · Oct ¥82,000 · Nov ¥82,000"), "regular-rent-same");
 });
-await step("page", "activity", () => page("/activity", /Hikari Denki/));
 await step("page", "seeded-invoice-review-read-only", async () => {
   const id = home?.match(/href="\/invoices\/([0-9a-f-]{36})"/i)?.[1]
     ?? (home && flight(home).match(/"href"\s*:\s*"\/invoices\/([0-9a-f-]{36})"/i)?.[1]);
@@ -759,9 +773,9 @@ for (const label of ["confirm-hikari", "confirm-hikari-retry"]) {
   });
 }
 await step("page", "home-after-confirm-30000", () => page("/", /30,000/));
-await step("page", "plan-utilities-after-confirm", () => page("/plan", /Utilities ¥11,220/));
+await step("page", "spending-utilities-after-confirm", () => page("/spending", /Utilities \d+ items? ¥11,220/));
 await step("page", "stage18-regular-costs-after-confirm", async () => {
-  const panel = regularPanel(await page("/plan", /Regular costs/));
+  const panel = regularPanel(await page("/spending/over-time", /Regular costs/));
   expect(/Regular costs Hikari Denki up ¥1,200 · Kissa Midori café down ¥920 so far/.test(panel), "regular-changed-line-starts-with-hikari");
   expect(panel.includes("Hikari Denki Utilities ¥11,220 Last month ¥10,020 · up ¥1,200 Sep ¥8,640 · Oct ¥10,020 · Nov ¥11,220"), "regular-hikari-row");
 });
@@ -821,7 +835,7 @@ await step("action", "pin-a-canvas-home-draws-it-and-unpin-removes-it", async ()
   expect(taskPin.response.status === 303 && taskPin.response.headers.get("location") === spacePath, "pin-task-status");
   await page(spacePath, /Fictional task-only pin/);
   const home = await page("/", /Fictional pin check/);
-  expect(!/Fictional task-only pin/.test(pageContent(home)), "task-pin-stays-off-home");
+  expect(/Fictional pin check/.test(textWithoutBell(home)) && !/Fictional task-only pin/.test(textWithoutBell(home)), "task-pin-stays-off-home");
   expect(/Cash today/.test(pageContent(home)) && /Move up/.test(pageContent(home)) && /Unpin/.test(pageContent(home)), "pin-drawn-on-home");
   const id = /\/canvas\?pin=([0-9a-f-]{36})/.exec(home)?.[1];
   expect(id, "pin-id");
@@ -830,7 +844,7 @@ await step("action", "pin-a-canvas-home-draws-it-and-unpin-removes-it", async ()
   const gone = await request("/api/canvases", { method: "POST", form: { kind: "unpin", id, returnTo: "/" } });
   expect(gone.response.status === 303, "unpin-status");
   const after = await request("/");
-  expect(!/Fictional pin check/.test(pageContent(after.body)), "pin-removed");
+  expect(!/Fictional pin check/.test(textWithoutBell(after.body)), "pin-removed");
   const removedTask = await request("/api/spaces", { method: "POST", form: { kind: "delete", id: spaceId } });
   expect(removedTask.response.status === 303, "pin-task-removed");
   const kinds = (await events()).events.map(event => event.kind);
@@ -936,10 +950,10 @@ await step("action", "rules-nudge-on-then-off", async () => {
   const on = await request("/api/rules", { method: "POST", form: { kind: "set", ruleKind: "nudge_after", enabled: "on", value: "5" } });
   expect(on.response.status === 303 && on.response.headers.get("location") === "/settings", "nudge-on-result");
   await page("/settings", /Nudge a client 5 days after an invoice is due/);
-  await page("/activity", /Rule changed: Nudge a client 5 days after an invoice is due/);
+  await sawEvent(/Rule changed: Nudge a client 5 days after an invoice is due/);
   const off = await request("/api/rules", { method: "POST", form: { kind: "set", ruleKind: "nudge_after", value: "" } });
   expect(off.response.status === 303, "nudge-off-result");
-  await page("/activity", /Rule changed: Nudge a client 5 days after an invoice is due \(off\)/);
+  await sawEvent(/Rule changed: Nudge a client 5 days after an invoice is due \(off\)/);
 });
 await step("page", "settings-reload-saved-name", async () => {
   const html = await page("/household", /Household name/);
@@ -1015,7 +1029,7 @@ await step("page", "start-blank-home-after-bill", async () => {
   expect(!/Add your bills and the clients/.test(content), "blank-empty-still-shown");
 });
 // D48 on a blank household (Try it numbers never move): a yearly bill with a new amount and a cancel-by date goes through the
-// same door the form uses; Coming up says "Yearly" and has the cancel-by row, Activity names what the bill carries.
+// same door the form uses; Coming up says "Yearly" and has the cancel-by row, its event names what the bill carries.
 await step("action", "start-blank-add-yearly-bill-with-cancel-by", async () => {
   const result = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: "Fictional Cloud", amount: "12,000", due: "2026-12-01", category: "subscriptions", businessShare: "personal",
     repeat: "year", nextAmount: "13,000", nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20", repeatUntil: "2028-06-01" } });
@@ -1029,13 +1043,9 @@ await step("page", "start-blank-coming-up-says-yearly-and-has-the-cancel-by-row"
   expect(content.includes("Yearly · last one Dec 1, 2027"), "yearly-row-says-the-last-payment");
   expect(content.indexOf("Cancel Fictional Cloud") < content.indexOf("Fictional rent"), "cancel-by-row-in-date-order");
 });
-await step("page", "start-blank-activity-names-the-yearly-bill", async () => {
-  const content = plain(pageContent(await page("/activity", /Fictional Cloud added, due Dec 1/)));
-  expect(content.includes("Every year · Changes to ¥13,000 from Dec 1, 2027 · Cancel by Nov 20 · Last one Dec 1, 2027"), "yearly-activity-line");
-});
-await step("page", "start-blank-plan-month-counts-the-yearly-bill-in-its-month-only", async () => {
-  const content = plain(pageContent(await page("/plan", /Where the month goes/)));
-  expect(!/Fictional Cloud/.test(content), "yearly-bill-not-in-november");
+await step("read", "start-blank-event-names-the-yearly-bill", async () => {
+  const event = await sawEvent(/Fictional Cloud added, due Dec 1/);
+  expect(event.body === "Every year · Changes to ¥13,000 from Dec 1, 2027 · Cancel by Nov 20 · Last one Dec 1, 2027", "yearly-event-line");
 });
 await step("action", "start-blank-fetch-form-gets-redirect-header", async () => {
   cookie = "";
@@ -1144,15 +1154,15 @@ await step("page", "stage15c-coming-up-row-carries-a-link-to-its-bill", async ()
   expect(/id="bill-[0-9a-f-]{36}"/.test(bills), "c-bills-row-anchor");
 });
 await step("action", "stage15c-try-it-session", async () => adopt(await request("/api/try", { session: "" })));
-await step("page", "stage15c-activity-invoice-row-links-to-the-invoice", async () => {
+await step("page", "stage15c-paid-outside-event-points-at-the-invoice", async () => {
   const home = await page("/", /short on the 27th/);
   expect(/<a [^>]*href="#next-30-days"[^>]*>on the 27th</.test(home), "c-sentence-date-link");
   const id = /href="\/invoices\/([0-9a-f-]{36})"/.exec(home)?.[1];
   expect(id !== undefined, "c-invoice-id");
   const paid = await request("/api/invoices/paid", { method: "POST", form: { id } });
   expect(paid.response.status === 303, "c-paid-outside");
-  const html = await page("/activity", /marked paid outside PayPal/);
-  expect(html.includes(`href="/invoices/${id}"`), "c-activity-invoice-link");
+  const event = await sawEvent(/marked paid outside PayPal/);
+  expect(event.refType === "invoice" && event.refId === id, "c-event-invoice-ref");
 });
 // Stage 15 B: the add forms show three fields, the rest under More ›, in the user's words
 await step("action", "stage15b-try-it-session", async () => adopt(await request("/api/try", { session: "" }))); // the C block ends on a blank household
@@ -1216,9 +1226,9 @@ await step("action", "stage15b-three-field-bill-with-guessed-defaults", async ()
   await step("page", "stage19-gaps-b-to-check-and-the-month-view", async () => {
     const check = await content("/to-check", /Missing/);
     expect(check.includes("Minato Gas, due Nov 20: how much?") && check.includes("Not counted until you enter it") && check.includes("Could change your forecast"), "s19b-missing-row");
-    const month = await content("/plan", /Where the month goes/);
+    const month = await content("/spending", /Where the month goes/);
     expect(month.includes("1 bill not counted: Minato Gas (amount not known)") && !/Utilities\s*¥0/.test(month), "s19b-month-line");
-    const search = await content("/plan?q=gas", /Spending/);
+    const search = await content("/spending?q=gas", /Minato Gas Nov 20/);
     expect(!search.includes("Nothing matches"), "s19b-search-not-empty");
     expect(search.includes("Minato Gas Nov 20 amount not known") && search.includes("1 bill not counted: Minato Gas (amount not known)"), "s19b-search-row");
     expect(search.includes("November amount not known") && !/Utilities\s*¥0/.test(search), "s19b-search-header-not-zero");
@@ -1231,15 +1241,15 @@ await step("action", "stage15b-three-field-bill-with-guessed-defaults", async ()
     expect((await activityTitles(gas.id)).includes("Minato Gas: ¥6,800"), "s19b-activity");
   });
 }
-await step("action", "long-uncounted-bill-appears-in-ask-and-plan-notes", async () => {
+await step("action", "long-uncounted-bill-appears-in-ask-and-spending-notes", async () => {
   const name = "LongBiller".repeat(6);
   const added = await request("/api/bills", { method: "POST", form: { id: randomUUID(), biller: name,
     due: "2026-11-25", category: "utilities", businessShare: "personal", amountUnknown: "on" } });
   expect(added.response.status === 303, "long-bill-saved");
   const ask = plain(pageContent(await page("/canvas", /This month/)));
-  const plan = plain(pageContent(await page("/plan", /Where the month goes/)));
+  const month = plain(pageContent(await page("/spending", /Where the month goes/)));
   expect(ask.includes(`Not counted: ${name} (amount not known).`), "long-bill-ask-note");
-  expect(plan.includes(`1 bill not counted: ${name} (amount not known)`), "long-bill-plan-note");
+  expect(month.includes(`1 bill not counted: ${name} (amount not known)`), "long-bill-month-note");
 });
 
 await step("action", "client-detail-accepts-the-full-120-character-name", async () => {

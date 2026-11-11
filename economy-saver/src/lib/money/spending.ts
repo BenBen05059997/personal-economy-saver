@@ -51,7 +51,7 @@ export type SpendingInput = {
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-/** How far back Plan's month view and the search reach (D53): this many calendar months, the current one included. */
+/** How far back Spending's month view and the search reach (D53): this many calendar months, the current one included. */
 export const HISTORY_MONTHS = 12;
 /** The longest search the box or the assistant takes, in characters. */
 export const SEARCH_QUERY_MAX = 80;
@@ -60,6 +60,11 @@ export const SEARCH_QUERY_MAX = 80;
 export function monthName(month: string): string {
   if (!MONTH.test(month)) throw new Error(`A month is YYYY-MM, not "${month}"`);
   return MONTH_NAMES[Number(month.slice(5, 7)) - 1];
+}
+
+/** "November", or "December 2025" for a month outside the year `today` is in. */
+export function monthLabel(month: string, today: string): string {
+  return month.slice(0, 4) === today.slice(0, 4) ? monthName(month) : `${monthName(month)} ${month.slice(0, 4)}`;
 }
 
 /** The first and last day of a month given as YYYY-MM. */

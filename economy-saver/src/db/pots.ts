@@ -1,5 +1,5 @@
 import { closeByRef, refreshSuggestions } from "./suggestions";
-// Pots (D43): money set aside with a reason. One function per job, called by the Plan form (confirmed rows) and by the
+// Pots (D43): money set aside with a reason. One function per job, called by the Saving forms (confirmed rows) and by the
 // agent's add_pot tool (pending rows, confirmed in To check). Money in a confirmed pot is not spendable: the engine
 // starts the runway from cash less the pots (availableCash), so every write here ends with the runway observed.
 import { and, eq, isNotNull, sql } from "drizzle-orm";
@@ -90,7 +90,7 @@ function addedEvent(tx: Db, hid: string, id: string, f: Fields, currency: string
 }
 
 /**
- * Creates or edits a pot in the household's home currency. "confirmed" (the Plan form) counts at once and records a
+ * Creates or edits a pot in the household's home currency. "confirmed" (the Saving forms) counts at once and records a
  * `pot_added` event, or a `pot_updated` event with the old and new values when the id already names a confirmed pot;
  * "pending" (the agent and MCP) waits in To check until `confirmPending` and counts for nothing. Idempotent on `id`: the
  * same id with the same fields returns it again with no second event; a pending call with an id already in use by

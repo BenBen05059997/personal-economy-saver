@@ -57,7 +57,7 @@
     "id": "ASKVIEW-009",
     "area": "Ask view",
     "action": "Keep the Ask composer across workspace navigation",
-    "user_goal": "I want to see Plan without losing the question I am writing",
+    "user_goal": "I want to see Spending without losing the question I am writing",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -69,7 +69,7 @@
     ],
     "steps": [
       "Open the Ask panel on Home and type an unsent question",
-      "Go to Plan and back",
+      "Go to Spending and back",
       "Press Escape",
       "Open the panel again and use Close"
     ],
@@ -160,8 +160,8 @@
   {
     "id": "ASKVIEW-014",
     "area": "Ask view",
-    "action": "Navigate to Plan while an Ask reply is in flight",
-    "user_goal": "I want to look at Plan while my answer comes in",
+    "action": "Navigate to Spending while an Ask reply is in flight",
+    "user_goal": "I want to look at Spending while my answer comes in",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -175,8 +175,8 @@
     ],
     "steps": [
       "Send Can I afford ¥4,000 tonight? once",
-      "While Ask is still working, go to Plan and back to Home",
-      "Once the reply arrives, go to Plan and back again"
+      "While Ask is still working, go to Spending and back to Home",
+      "Once the reply arrives, go to Spending and back again"
     ],
     "expected": [
       "The same space stays open and shows one copy of the question and reply",

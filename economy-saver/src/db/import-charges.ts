@@ -35,7 +35,7 @@ const keyOf = (date: string, amountMinor: number, merchant: string) => `${date}|
  * the same file again adds nothing. Stored card statements are left as they are, unlike `syncClosedStatementCharge` for a
  * single typed charge: a stored statement is what the issuer billed for its cycle, and these rows come from that same issuer,
  * so they are already in it. Rows after the card's latest stored statement count in the runway as any confirmed charge does
- * (the open cycle, or a closed cycle still to be paid); older ones are history for Plan. One `charges_imported` event, and
+ * (the open cycle, or a closed cycle still to be paid); older ones are history for Spending. One `charges_imported` event, and
  * the runway is observed.
  * One select for the existing keys, one multi-row insert: the Workers CPU budget (D32).
  */

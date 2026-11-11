@@ -1,0 +1,117 @@
+[
+  {
+    "id": "SPEND-001",
+    "area": "Spending",
+    "action": "Switch This month between chart and table, and between looks",
+    "user_goal": "I want to see the month the way that suits the question",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Spending → This month",
+      "Press Table, then Chart",
+      "Under Look at it by press Business or personal; with a second person added, also Person",
+      "Press Ask about this"
+    ],
+    "expected": [
+      "Chart and Table show the same month: Chart as one bar per category, Table as the Category list of qa/README M1",
+      "Business or personal splits each category's bar into business and personal, with the strip Business ¥32,830 and Personal ¥119,400; Person is offered only with two people",
+      "Each look has its own hint and its own Ask about this question; Ask about this opens the Ask panel with that question typed"
+    ],
+    "refs": [
+      "D73",
+      "D74"
+    ]
+  },
+  {
+    "id": "SPEND-002",
+    "area": "Spending",
+    "action": "Come back to the choice I made",
+    "user_goal": "I want my chart or table to stay as I left it on this device",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "On This month press Table and Business or personal",
+      "Reload, then open Over time and come back",
+      "Open a past month with ‹ October",
+      "Clear this site's data for the address and reload"
+    ],
+    "expected": [
+      "After the reload and after leaving and returning, This month is still Table and Business or personal; the choice is kept on this device only, nothing is saved in the household",
+      "A past month opens with the same choice",
+      "After clearing site data This month is back to Chart and Category"
+    ],
+    "refs": [
+      "D59",
+      "D73"
+    ]
+  },
+  {
+    "id": "SPEND-003",
+    "area": "Spending",
+    "action": "Switch Over time between chart and table",
+    "user_goal": "I want to compare the months and read my regular costs",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Spending → Over time",
+      "Press Table, then Chart",
+      "Reload"
+    ],
+    "expected": [
+      "Chart shows the months side by side with the current month marked; Table lists Month, Spent, Still to come and Total for each",
+      "Over time's choice is separate from This month's and is still there after the reload",
+      "Regular costs follow the months, as in qa/README U-A"
+    ],
+    "refs": [
+      "D54",
+      "D73"
+    ]
+  },
+  {
+    "id": "SPEND-004",
+    "area": "Spending",
+    "action": "Read where the month goes",
+    "user_goal": "I want categories and the business share",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "Open Spending → This month and choose Table",
+      "Open each category row"
+    ],
+    "expected": [
+      "\"Where the month goes · November\", the line 'Business ¥32,830 of ¥152,230 this month' and the six rows in qa/README M1 with their splits and items, each chevron turning when opened",
+      "Choosing Chart shows the same totals as bars, each row \"N items ¥amount vs ¥last month\""
+    ],
+    "refs": [
+      "qa/README M1"
+    ]
+  }
+]

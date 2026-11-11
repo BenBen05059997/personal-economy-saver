@@ -67,7 +67,7 @@ export function starterRecipes(state: MoneyState, nudgeIds: readonly string[] = 
     version: RECIPE_VERSION, title: "Regular costs",
     blocks: [
       { type: "table", title: "What comes back every month", query: { q: "regular_costs" } },
-      { type: "action", label: "Open Plan", href: "/plan" },
+      { type: "action", label: "Open Spending", href: "/spending" },
     ],
   };
 

@@ -10,6 +10,7 @@ import { LoadingIndicator } from "@/components/ui/LoadingState";
 import { SessionEnded } from "@/components/ui/SessionEnded";
 import { askScreenForPath } from "@/lib/agent/screen";
 import type { AskView } from "@/db/ask-view";
+import "@/components/ask/ask.css";
 import "./ask-workspace.css";
 
 const AskPage = dynamic(() => import("@/components/ask/AskPage").then(module => module.AskPage), {

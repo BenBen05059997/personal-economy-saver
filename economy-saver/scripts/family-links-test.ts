@@ -12,7 +12,6 @@ import { createFamilyLink, listFamilyLinks, resolveFamilyLink, stopFamilyLink } 
 import { FAMILY_LINK_DAYS, MAX_LIVE_FAMILY_LINKS } from "@/lib/family-links";
 import { InputError } from "@/db/input-error";
 import { seedBen } from "@/db/seed";
-import { EVENT_KIND_LABELS } from "@/lib/money/event-kinds";
 
 const DAY = 86_400_000;
 
@@ -77,7 +76,6 @@ async function main() {
       assert.match(created.body ?? "", /until Nov 21/);
       const [stopped] = await events(a, "family_link_stopped");
       assert.equal(stopped.title, "Stopped sharing a family view");
-      assert.ok(EVENT_KIND_LABELS.family_link_created && EVENT_KIND_LABELS.family_link_stopped);
     });
 
     await check("at most five links are live; a sixth is refused with a clear message, and stopping one makes room", async () => {

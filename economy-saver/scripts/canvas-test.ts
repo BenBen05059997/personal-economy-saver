@@ -178,7 +178,7 @@ async function main() {
   // ------------------------------------------------------------ the schema
   await check("the schema accepts a good recipe and refuses a money block with an amount of its own, an outside link, 13 blocks and an unknown type", () => {
     const sentence = { type: "sentence", query: { q: "sentence" } };
-    const good = { version: 1, title: "Mine", blocks: [sentence, { type: "action", label: "Open Plan", href: "/plan?month=2026-10#top" }] };
+    const good = { version: 1, title: "Mine", blocks: [sentence, { type: "action", label: "Open Spending", href: "/spending?month=2026-10#top" }] };
     assert.ok(RecipeSchema.safeParse(good).success);
     const refused = (blocks: unknown[], extra: object = {}) => !RecipeSchema.safeParse({ version: 1, title: "Mine", blocks, ...extra }).success;
     assert.ok(refused([{ type: "number", label: "Cash", query: { q: "cash" }, amountMinor: 5_000 }]), "an amount beside the query");
@@ -194,7 +194,7 @@ async function main() {
     assert.ok(refused(Array.from({ length: 13 }, () => sentence)), "13 blocks");
     assert.ok(!refused(Array.from({ length: 12 }, () => sentence)), "12 blocks");
     assert.ok(refused([]), "no blocks");
-    assert.ok(refused([{ type: "iframe", src: "/plan" }]), "an unknown block type");
+    assert.ok(refused([{ type: "iframe", src: "/spending" }]), "an unknown block type");
     assert.ok(refused([sentence], { version: 2 }), "another version");
     assert.ok(refused([sentence], { notes: "x" }), "an unknown recipe key");
     assert.ok(refused([{ type: "note", text: "x".repeat(601), by: "you" }]) && refused([{ type: "letter", text: "x".repeat(4001) }]) && refused([{ type: "action", label: "x".repeat(61), href: "/" }]));
@@ -384,7 +384,7 @@ async function main() {
       assert.equal(table.rows.length, regular.items.length);
       assert.equal(table.caption, regular.changedLine);
       assert.equal(block(resolved, "table").source, "From your records");
-      assert.equal(block(resolved, "action").data.href, "/plan");
+      assert.equal(block(resolved, "action").data.href, "/spending");
       const more: Recipe = { version: 1, title: "More", blocks: [
         { type: "table", query: { q: "month_by_category", month: "2026-11" } },
         { type: "table", query: { q: "spending_search", text: "market", months: 3 } },

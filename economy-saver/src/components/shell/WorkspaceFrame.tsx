@@ -26,7 +26,7 @@ export function WorkspaceFrame({ workspace, section, children }: {
   section: Section;
   children: ReactNode;
 }) {
-  const { pending, feed, name, tryIt } = workspace;
+  const { pending, feed, name, tryIt, timeZone } = workspace;
   const today = "state" in workspace ? workspace.state.today : workspace.today;
-  return <Shell name={name} pending={pending} feed={feed} section={section} forwarding={missingForwardingSetting() === null} tryIt={tryIt} today={today}>{children}</Shell>;
+  return <Shell name={name} pending={pending} feed={feed} section={section} forwarding={missingForwardingSetting() === null} tryIt={tryIt} today={today} timeZone={timeZone}>{children}</Shell>;
 }
