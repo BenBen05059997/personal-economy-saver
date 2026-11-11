@@ -10,7 +10,7 @@ import { Confirming } from "../Confirming";
 import "../pay.css";
 
 export const metadata: Metadata = {
-  title: "Pay an invoice · fipa",
+  title: "Pay an invoice",
   robots: { index: false, follow: false },
   referrer: "no-referrer",
 };

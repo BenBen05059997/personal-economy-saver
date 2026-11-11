@@ -3,7 +3,7 @@ import { Confirming } from "../../Confirming";
 import "../../pay.css";
 
 export const metadata: Metadata = {
-  title: "Confirming your payment · fipa",
+  title: "Confirming your payment",
   robots: { index: false, follow: false },
   referrer: "no-referrer",
 };
