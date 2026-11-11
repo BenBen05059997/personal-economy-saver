@@ -1,3 +1,4 @@
+import { logSettingProblem } from "@/lib/operator-log";
 import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { requireHousehold, recordEvent, withHousehold, type Db } from "./household";
 import { householdClock } from "./account";
@@ -30,8 +31,9 @@ async function contentId(hid: string, mime: string, bytes: ArrayBuffer) {
 /** A file is refused up front, as a 503 naming the setting, when no model is set up to read it (the household's own, or the server default). */
 export async function requireReaderModel(db: Db, id: string) {
   const missing = missingAskSetting(Boolean((await withHousehold(db, id, tx => connectionView(tx, id)))?.textModel));
+  if (missing) logSettingProblem("reader_not_set_up", `${missing} is not set`, id);
   if (missing) throw new ReaderError(serverHasNoModel() ? "Reading documents needs an AI key in Settings → Your AI model."
-    : `Reading documents isn’t available on this server yet (${missing}).`, 503);
+    : "Reading documents isn’t set up on this server.", 503);
 }
 
 export async function storeDocument(db: Db, id: string, kind: "email" | "upload", mime: string, bytes: ArrayBuffer) {

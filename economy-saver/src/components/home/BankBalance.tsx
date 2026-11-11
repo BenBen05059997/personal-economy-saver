@@ -15,7 +15,7 @@ export function BankBalance({ currency, balance, balanceId }: { currency: string
     panel.current.open = false;
     panel.current.querySelector("summary")?.focus();
   }
-  return <details ref={panel} className="home-balance" onKeyDown={escape} onToggle={event => { if (event.currentTarget.open) field.current?.focus(); }}>
+  return <details ref={panel} id="bank-balance" className="home-balance" onKeyDown={escape} onToggle={event => { if (event.currentTarget.open) field.current?.focus(); }}>
     <summary><span>Bank balance <b>{balance}</b></span><span className="home-balance-edit">Update</span></summary>
     <ApiForm action="/api/bank-balance">
       <VoiceFill />

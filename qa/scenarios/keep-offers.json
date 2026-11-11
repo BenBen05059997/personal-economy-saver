@@ -127,8 +127,8 @@
     ],
     "steps": [
       "Ask Keep ¥50,000 safe to spend",
-      "In a second tab check Minimum safe to spend in Memory → Rules",
-      "Tap Keep on the rule offer and reload Rules"
+      "In a second tab check Minimum safe to spend in Settings → Assistant rules",
+      "Tap Keep on the rule offer and reload Assistant rules"
     ],
     "expected": [
       "Ask answers with the ¥50,000 safe-to-spend rule offer and Keep and No. The rule stays off until Keep",

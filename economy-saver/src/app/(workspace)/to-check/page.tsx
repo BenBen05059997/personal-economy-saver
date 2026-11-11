@@ -12,7 +12,7 @@ async function CheckList({ search }: { search: Promise<{ from?: string | string[
   if (!hid) redirect("/");
   const workspace = await loadWorkspace(hid, false, true);
   return <WorkspaceFrame workspace={workspace} section="check">
-    <CheckView from={from === "home" ? "home" : undefined} state={workspace.state} inbox={workspace.inbox} people={workspace.people} own={workspace.own} entryIds={{ bill: crypto.randomUUID(), charge: crypto.randomUUID() }} />
+    <CheckView from={from === "home" ? "home" : undefined} state={workspace.state} inbox={workspace.inbox} own={workspace.own} />
   </WorkspaceFrame>;
 }
 export default function Page({ searchParams }: { searchParams: Promise<{ from?: string | string[] }> }) {

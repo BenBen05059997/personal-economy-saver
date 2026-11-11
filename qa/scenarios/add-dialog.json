@@ -1,0 +1,253 @@
+[
+  {
+    "id": "ADD-001",
+    "area": "Add dialog",
+    "action": "Add a bill in the Add dialog",
+    "user_goal": "I want to add this thing without leaving the screen I am on",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "On Plan open + Add and choose A bill",
+      "Check the address bar and the page behind the dialog",
+      "Press Save with the required field empty or an unreadable value, then type a valid value",
+      "Fill the form: Biller Fictional noodle stand, amount 1,200, due Nov 20, and press Save",
+      "Reopen the dialog from + Add and press Escape",
+      "Open /add/bill?back=%2Fplan in a window with JavaScript off and press Save"
+    ],
+    "expected": [
+      "The dialog titled \"Add a bill\" opens over Plan with the same fields as /add/bill; the address stays /plan and Plan is not scrolled or reloaded",
+      "A refused save shows the sentence in the dialog and keeps everything typed in it",
+      "A good save closes the dialog, returns focus to + Add and the screen behind shows the change without a reload: Coming up shows Fictional noodle stand ¥1,200 on Nov 20 and Bills lists it",
+      "Escape closes the dialog, leaves nothing saved and returns focus to + Add; the Ask panel stays as it was",
+      "Without JavaScript /add/bill is a page holding the form; Save posts to /api/bills and returns to Plan (the back address), Cancel goes to Plan"
+    ],
+    "refs": [
+      "D25",
+      "D39"
+    ]
+  },
+  {
+    "id": "ADD-002",
+    "area": "Add dialog",
+    "action": "Add a card charge in the Add dialog",
+    "user_goal": "I want to add this thing without leaving the screen I am on",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "On Plan open + Add and choose A card charge",
+      "Check the address bar and the page behind the dialog",
+      "Press Save with the required field empty or an unreadable value, then type a valid value",
+      "Fill the form: What or where Fictional lunch, amount 980, Card A, and press Save",
+      "Reopen the dialog from + Add and press Escape",
+      "Open /add/charge?back=%2Fplan in a window with JavaScript off and press Save"
+    ],
+    "expected": [
+      "The dialog titled \"Add a card charge\" opens over Plan with the same fields as /add/charge; the address stays /plan and Plan is not scrolled or reloaded",
+      "A refused save shows the sentence in the dialog and keeps everything typed in it",
+      "A good save closes the dialog, returns focus to + Add and the screen behind shows the change without a reload: Card A shows the charge and Activity records it",
+      "Escape closes the dialog, leaves nothing saved and returns focus to + Add; the Ask panel stays as it was",
+      "Without JavaScript /add/charge is a page holding the form; Save posts to /api/charges and returns to Plan (the back address), Cancel goes to Plan"
+    ],
+    "refs": [
+      "D25",
+      "D39"
+    ]
+  },
+  {
+    "id": "ADD-003",
+    "area": "Add dialog",
+    "action": "Add a card in the Add dialog",
+    "user_goal": "I want to add this thing without leaving the screen I am on",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "On Plan open + Add and choose A card",
+      "Check the address bar and the page behind the dialog",
+      "Press Save with the required field empty or an unreadable value, then type a valid value",
+      "Fill the form: Card label Card N, closing day 25, payment day 10, no limit, and press Save",
+      "Reopen the dialog from + Add and press Escape",
+      "Open /add/card?back=%2Fplan in a window with JavaScript off and press Save"
+    ],
+    "expected": [
+      "The dialog titled \"Add a card\" opens over Plan with the same fields as /add/card; the address stays /plan and Plan is not scrolled or reloaded",
+      "A refused save shows the sentence in the dialog and keeps everything typed in it",
+      "A good save closes the dialog, returns focus to + Add and the screen behind shows the change without a reload: Cards lists Card N with ¥0 owed now",
+      "Escape closes the dialog, leaves nothing saved and returns focus to + Add; the Ask panel stays as it was",
+      "Without JavaScript /add/card is a page holding the form; Save posts to /api/settings and returns to Plan (the back address), Cancel goes to Plan"
+    ],
+    "refs": [
+      "D25",
+      "D39"
+    ]
+  },
+  {
+    "id": "ADD-004",
+    "area": "Add dialog",
+    "action": "Add a client in the Add dialog",
+    "user_goal": "I want to add this thing without leaving the screen I am on",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "On Plan open + Add and choose A client who pays you",
+      "Check the address bar and the page behind the dialog",
+      "Press Save with the required field empty or an unreadable value, then type a valid value",
+      "Fill the form: Name Fictional Studio, email, days to pay 14, and press Save",
+      "Reopen the dialog from + Add and press Escape",
+      "Open /add/client?back=%2Fplan in a window with JavaScript off and press Save"
+    ],
+    "expected": [
+      "The dialog titled \"Add a client\" opens over Plan with the same fields as /add/client; the address stays /plan and Plan is not scrolled or reloaded",
+      "A refused save shows the sentence in the dialog and keeps everything typed in it",
+      "A good save closes the dialog, returns focus to + Add and the screen behind shows the change without a reload: Clients lists Fictional Studio",
+      "Escape closes the dialog, leaves nothing saved and returns focus to + Add; the Ask panel stays as it was",
+      "Without JavaScript /add/client is a page holding the form; Save posts to /api/clients and returns to Plan (the back address), Cancel goes to Plan"
+    ],
+    "refs": [
+      "D25",
+      "D39"
+    ]
+  },
+  {
+    "id": "ADD-005",
+    "area": "Add dialog",
+    "action": "Add a person in the Add dialog",
+    "user_goal": "I want to add this thing without leaving the screen I am on",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "On Plan open + Add and choose A person who shares costs",
+      "Check the address bar and the page behind the dialog",
+      "Press Save with the required field empty or an unreadable value, then type a valid value",
+      "Fill the form: Name Wife, and press Save",
+      "Reopen the dialog from + Add and press Escape",
+      "Open /add/person?back=%2Fplan in a window with JavaScript off and press Save"
+    ],
+    "expected": [
+      "The dialog titled \"Add a person\" opens over Plan with the same fields as /add/person; the address stays /plan and Plan is not scrolled or reloaded",
+      "A refused save shows the sentence in the dialog and keeps everything typed in it",
+      "A good save closes the dialog, returns focus to + Add and the screen behind shows the change without a reload: Household → People lists Wife with two equal shares",
+      "Escape closes the dialog, leaves nothing saved and returns focus to + Add; the Ask panel stays as it was",
+      "Without JavaScript /add/person is a page holding the form; Save posts to /api/people and returns to Plan (the back address), Cancel goes to Plan"
+    ],
+    "refs": [
+      "D25",
+      "D39"
+    ]
+  },
+  {
+    "id": "ADD-006",
+    "area": "Add dialog",
+    "action": "Open an Add dialog from each place that has an Add button",
+    "user_goal": "I want every Add button to open the same dialog",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Press Add a bill on Bills, Add a card on Cards, Add a client on Clients and Add a person on Household → People",
+      "On a blank household press each empty panel's link and each Home hint card (Add a bill, Add a client, Add a card)",
+      "Press Back after closing a dialog"
+    ],
+    "expected": [
+      "Each opens its own kind's dialog over the current screen, with the same form as + Add",
+      "Closing the dialog leaves the person on the same page and scroll; Back does not reopen it",
+      "A dialog left open on one page never blocks a page reached afterwards (the page is not inert)"
+    ],
+    "refs": [
+      "D25"
+    ]
+  },
+  {
+    "id": "ADD-007",
+    "area": "Add dialog",
+    "action": "Add a card charge when there is no card",
+    "user_goal": "I need to be told to add a card first",
+    "type": "negative",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Blank household with no card at 1440px"
+    ],
+    "steps": [
+      "Open + Add and choose A card charge"
+    ],
+    "expected": [
+      "The dialog says a card is needed first and offers the Add a card form; it never shows a charge form without a card"
+    ],
+    "refs": [
+      "D25"
+    ]
+  },
+  {
+    "id": "ADD-008",
+    "area": "Add dialog",
+    "action": "Add view is refused without a household or from another site",
+    "user_goal": "a stranger must not read my choices",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "No household cookie"
+    ],
+    "steps": [
+      "GET /api/add/view with no cookie",
+      "GET /api/add/view with Origin: http://cross-origin.test and Sec-Fetch-Site: cross-site",
+      "GET /api/add/view with a household cookie",
+      "GET /add/bill?back=//evil.test"
+    ],
+    "expected": [
+      "No cookie is 401; cross-origin is 403",
+      "A household cookie gets that household's today, currency, people, cards and own categories only, no-store",
+      "/add/bill with a foreign back address returns to Home when saved, never to another host"
+    ],
+    "refs": [
+      "frontend-check"
+    ]
+  }
+]

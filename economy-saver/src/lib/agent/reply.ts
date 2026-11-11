@@ -38,7 +38,7 @@ const TOOL_SOURCES: Record<string, LinkSource> = {
   plan_for: { label: "Plan", href: "/plan" },
   month_by_category: { label: "Plan", href: "/plan" },
   search_spending: { label: "Plan", href: "/plan" },
-  own_categories: { label: "Your categories", href: "/settings#categories" },
+  own_categories: { label: "Your categories", href: "/plan#categories" },
   bills_for_month: { label: "Plan", href: "/plan" },
   regular_costs: { label: "Plan", href: "/plan" },
   who_owes_whom: { label: "Shared costs", href: "/#shared-costs" },

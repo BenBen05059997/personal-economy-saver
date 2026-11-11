@@ -796,9 +796,9 @@ async function main() {
         }
       }
       for (const page of ["/memory", "/canvas", "/settings", "/plan", "/to-check"]) assert.equal(returnPath(page), page);
-      assert.equal(returnPath("/api/memory"), "/");
-      assert.equal(returnPath("//cross-origin.test"), "/");
-      assert.equal(returnPath("/memory/../x"), "/");
+      const uuid = crypto.randomUUID();
+      for (const page of ["/", "/activity", "/bills", "/cards", "/clients", "/household", "/household/people", "/settings/ai-model", "/settings/paypal", "/settings/data", "/settings/account", "/options", "/upload", `/bills/${uuid}`, `/cards/${uuid}`, `/clients/${uuid}`, `/canvas?space=${uuid}`, "/setup?step=bank", "/setup?step=card"]) assert.equal(returnPath(page), page);
+      for (const bad of ["/api/memory", "/api/x", "//cross-origin.test", "//host", "/memory/../x", "../", "/settings/other", "/bills/not-an-id", "/setup?step=other", "https://example.test/"]) assert.equal(returnPath(bad), "/", bad);
       assert.equal(returnPath(null), "/");
     });
 

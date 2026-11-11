@@ -7,16 +7,16 @@ import { ReaderReview } from "@/components/reader/ReaderReview";
 import type { ReaderInbox } from "@/db/reader-inbox";
 import "@/components/reader/reader.css";
 import "./household.css";
-import { AddEntry, type EntryIds } from "./AddEntry";
+import { AddLink } from "@/components/add/AddLink";
 import type { OwnChoices } from "@/lib/reader/own-choices";
 import { missingForwardingSetting } from "@/components/reader/ForwardingSettings";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { ConfirmButton } from "./ConfirmButton";
 import { GapFill } from "./GapFill";
 
-export function CheckView({ state, inbox, people, entryIds, own, from }: {
+export function CheckView({ state, inbox, own, from }: {
   from?: "home";
-  state: MoneyState; inbox: ReaderInbox; people: { id: string; name: string }[]; entryIds: EntryIds; own: OwnChoices;
+  state: MoneyState; inbox: ReaderInbox; own: OwnChoices;
 }) {
   const forwarding = missingForwardingSetting() === null;
   const rows = toCheck(state);
@@ -27,7 +27,7 @@ export function CheckView({ state, inbox, people, entryIds, own, from }: {
   const checkWords = (id: string) => { const proposal = proposals.get(id); return proposal ? checksFor(proposal, state, readings).filter(check => check.kind !== "missing").map(check => check.words) : []; };
   return <>
     <h1 className="ui-title">To check</h1>
-    {rows.length + missing.length + inbox.readings.length + inbox.jobs.length === 0 && <PanelHint href={forwarding ? "/settings#forwarding" : "/upload"} label={forwarding ? "Forward a bill or upload a receipt" : "Upload a receipt"}>Things the app read or drafted, waiting for your OK. Nothing here now.</PanelHint>}
+    {rows.length + missing.length + inbox.readings.length + inbox.jobs.length === 0 && <PanelHint href={forwarding ? "/bills#forwarding" : "/upload"} label={forwarding ? "Forward a bill or upload a receipt" : "Upload a receipt"}>Things the app read or drafted, waiting for your OK. Nothing here now.</PanelHint>}
     {missing.length > 0 && <section aria-labelledby="check-missing" className="check-missing">
       <h2 id="check-missing" className="check-missing-title">Missing</h2>
       {missing.map(gap => <div key={gap.id} className="check-gap">
@@ -45,7 +45,6 @@ export function CheckView({ state, inbox, people, entryIds, own, from }: {
     </div>)}
     {inbox.jobs.some(job => job.status !== "failed") && <p className="ui-hint">Reading the document… usually under 30 seconds</p>}
     <ReaderReview state={state} inbox={inbox} own={own} />
-    <AddEntry key={entryIds.bill + entryIds.charge} ids={entryIds} returnTo="/to-check" today={state.today} currency={state.homeCurrency} people={people} own={own}
-      cards={state.cards.map(card => ({ id: card.id, label: card.label }))} />
+    <p className="check-add"><AddLink kind="bill" className="ui-button">Add a bill</AddLink> <AddLink kind="charge" className="ui-button">Add a card charge</AddLink></p>
   </>;
 }

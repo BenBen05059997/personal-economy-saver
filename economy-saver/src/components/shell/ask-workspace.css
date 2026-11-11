@@ -43,3 +43,34 @@
   .household-table .event-kind { display: none; }
   .ask-workspace .household-table .kind-line { display: block; } /* outranks the hide rule in household.css, which loads later */
 }
+/* The Ask button: top right of every screen of a household. */
+.ask-workspace .ask-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--screen);
+  color: var(--ink);
+  font: 600 14px/1 var(--sans);
+  text-decoration: none;
+  cursor: pointer;
+}
+.ask-workspace .ask-button:hover { background: var(--wash); }
+.ask-workspace .ask-button[aria-pressed="true"] { border: 2px solid var(--ink); background: var(--accent-wash); }
+.setup-frame-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  height: var(--topbar-height);
+  padding: 0 24px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--screen);
+  color: var(--ink);
+}
+.setup-frame-brand { display: flex; align-items: center; gap: 9px; color: inherit; font: 600 15px/1 var(--sans); text-decoration: none; }
+.setup-frame-brand .logo-mark { flex: none; display: block; }

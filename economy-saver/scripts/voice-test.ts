@@ -220,10 +220,10 @@ async function main() {
     const callsBefore = modelCalls;
     const missing = await call(rent);
     assert.equal(missing.status, 503);
-    assert.equal(await missing.text(), "Voice fill needs an AI model on this server (AI_TEXT_MODEL). Type the fields instead.");
+    assert.equal(await missing.text(), "Voice fill isn’t set up on this server. Type the fields instead.");
     process.env.AI_TEXT_MODEL = saved;
     delete process.env.AI_API_KEY;
-    assert.match(await (await call(rent)).text(), /\(AI_API_KEY\)/, "the first missing setting is named");
+    assert.match(await (await call(rent)).text(), /isn’t set up on this server/, "a missing setting is said in words");
     process.env.AI_API_KEY = "fictional-test-value";
     assert.equal(modelCalls, callsBefore, "no model call without a model");
     ok("a server without a model answers 503 naming the setting");

@@ -67,11 +67,11 @@
       "375px and 1440px for browser checks"
     ],
     "steps": [
-      "Cancel the invite in People",
+      "Cancel the invite in Household → People",
       "Open its old join URL"
     ],
     "expected": [
-      "The invite disappears from People and its link is unavailable"
+      "The invite disappears from Household → People and its link is unavailable"
     ],
     "refs": [
       "D68"
@@ -248,10 +248,10 @@
       "375px and 1440px for browser checks"
     ],
     "steps": [
-      "As owner, open Who has access in People"
+      "As owner, open Who has access in Household → People"
     ],
     "expected": [
-      "People, current family links and active MCP keys are listed without full credentials"
+      "Household → People lists current family links and active MCP keys are listed without full credentials"
     ],
     "refs": [
       "D68"
@@ -275,7 +275,7 @@
     "steps": [
       "As a member, open Account and confirm leaving",
       "In the same signed-in browser reopen Home and a saved household page",
-      "Reopen People in the owner profile"
+      "Reopen Household → People in the owner profile"
     ],
     "expected": [
       "The former member’s signed-in browser can no longer open household pages",
@@ -302,7 +302,7 @@
     ],
     "steps": [
       "Settle outstanding shared costs",
-      "As owner remove that person from People"
+      "As owner remove that person from Household → People"
     ],
     "expected": [
       "The person loses login access and existing settlement guards are respected"
@@ -410,10 +410,10 @@
       "375px and 1440px for browser checks"
     ],
     "steps": [
-      "Open Settings as a signed-in member"
+      "Open Settings → Your AI model and Household → People as a signed-in member"
     ],
     "expected": [
-      "Share a family view and Connect another AI assistant are absent",
+      "Share a family view (Household → People) and Connect another AI assistant (Settings → Your AI model) are absent",
       "Ordinary household controls remain available"
     ],
     "refs": [

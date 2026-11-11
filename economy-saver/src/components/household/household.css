@@ -4,7 +4,19 @@
 .directory { display: grid; gap: var(--space-6); }
 .directory.detail-open { grid-template-columns: minmax(0, 1fr) minmax(270px, var(--detail-width)); align-items: start; }
 .directory-list { min-width: 0; }
-.directory-list > .ui-hint { margin-bottom: var(--space-5); }
+.directory-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-5); }
+.directory-header > div { min-width: 0; }
+.directory-header .ui-hint { margin-bottom: 0; }
+.directory-header .ui-button { flex: none; text-decoration: none; margin-top: var(--space-2); }
+.directory-section { margin-top: var(--space-8); }
+.directory-section > h2 { font: 500 18px/1.4 var(--sans); margin-bottom: var(--space-2); }
+.directory-fold { margin-top: var(--space-4); }
+.directory-fold > summary { cursor: pointer; font: 500 14px var(--sans); padding-block: var(--space-2); }
+.directory-detail .directory-edit { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--rule); }
+.directory-detail .directory-edit > summary { cursor: pointer; font: 500 14px var(--sans); }
+.directory-detail .directory-edit[open] > summary { margin-bottom: var(--space-3); }
+.directory-detail .ui-remove { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--rule); }
+.directory-detail .directory-charge .ui-remove { margin-top: var(--space-2); padding-top: 0; border-top: 0; }
 .directory .ui-row { align-items: center; }
 .directory-link { text-decoration: none; overflow-wrap: anywhere; }
 .directory-link:hover { background: var(--wash); }

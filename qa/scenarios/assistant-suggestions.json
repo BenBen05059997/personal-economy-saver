@@ -272,7 +272,7 @@
       "Edit and save the selected item"
     ],
     "expected": [
-      "The CloudBox Plus finding shows ¥1,980 and opens its bill in Settings. Saving closes the finding and records Suggestion approved."
+      "The CloudBox Plus finding shows ¥1,980 and opens its bill's page on Bills (/bills/<id>). Saving closes the finding and records Suggestion approved."
     ],
     "refs": [
       "D64"

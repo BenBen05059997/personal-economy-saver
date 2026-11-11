@@ -5,7 +5,7 @@ import { AccountFrame } from "@/components/auth/AccountFrame";
 import { verifiedUid } from "@/lib/auth-request";
 
 async function Login({ searchParams }: PageProps<"/login">) {
-  if (await verifiedUid()) redirect("/account");
+  if (await verifiedUid()) redirect("/settings/account");
   const params = await searchParams;
   return <AccountFrame title={params.sent ? "Check your email" : "Sign in with email"}>
     {params.sent ? <p>Open the sign-in link in this browser to finish.</p> : <>

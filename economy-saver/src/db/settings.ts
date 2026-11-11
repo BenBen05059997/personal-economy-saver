@@ -1,6 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { setBankBalance } from "./bank-balance";
 import { type Db, requireHousehold, recordEvent } from "./household";
 import { InputError } from "./input-error";
 import { minorMoney } from "@/lib/money/format";
@@ -16,7 +15,7 @@ const name = z.string().trim().min(1).max(80);
 const amount = z.string().trim().min(1).max(16); // read by parseMinor: separators and full-width digits are fine; the limit and the decimals are checked there
 const memberId = z.union([z.string().uuid(), z.literal("")]);
 export const settingsInput = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("household"), name, bank: amount }),
+  z.object({ kind: z.literal("household"), name }),
   z.object({ kind: z.literal("card"), id: z.union([z.string().uuid(), z.literal("")]), label: name,
     memberId, closingDay: z.coerce.number().int().min(1).max(31), dueDay: z.coerce.number().int().min(1).max(31),
     limit: z.union([amount, z.literal("")]),
@@ -56,7 +55,7 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
   const hid = requireHousehold(householdId);
   const data = settingsInput.parse(input);
   await db.transaction(async tx => {
-    const [household] = await tx.select({ currency: households.homeCurrency, bank: households.bankBalanceMinor, name: households.name }).from(households).where(eq(households.id, hid)).for("update");
+    const [household] = await tx.select({ currency: households.homeCurrency, name: households.name }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new SettingsError("Household no longer exists");
     await beginMoneyChange(tx, hid);
     for (const memberRef of [data.kind === "card" ? data.memberId : ""]) {
@@ -69,8 +68,6 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
     if (data.kind === "household") {
       if (data.name !== household.name) title = `Household renamed to ${data.name}`;
       await tx.update(households).set({ name: data.name }).where(eq(households.id, hid));
-      // D42: the one way to set the balance
-      if (parseMinor(data.bank, household.currency) !== household.bank) await setBankBalance(tx, hid, { id: crypto.randomUUID(), amount: data.bank }, "confirmed", { madeBy: "form" });
     } else if (data.kind === "card") {
       const limitMinor = data.limit ? parseMinor(data.limit, household.currency) : null;
       if (limitMinor !== null && limitMinor < 0) throw new SettingsError("Credit limit cannot be negative");
@@ -109,5 +106,27 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
     if (!changed) throw new SettingsError("That row no longer exists in this household");
     if (title) await recordEvent(tx, hid, { madeBy: "form", kind: "settings_updated", title });
     await observeRunway(tx, hid);
+  });
+}
+
+/**
+ * Remove a card with the charges and statements that belong to it (the database cascades them), in one transaction, scoped to the household,
+ * with an Activity event. False when the id is not a card of this household.
+ */
+export async function removeCard(db: Db, householdId: string, id: string): Promise<boolean> {
+  const hid = requireHousehold(householdId);
+  const cardId = z.string().uuid().parse(id);
+  return db.transaction(async tx => {
+    const [household] = await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
+    if (!household) throw new SettingsError("Household no longer exists");
+    const [card] = await tx.select({ label: cards.label }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, cardId)));
+    if (!card) return false;
+    await beginMoneyChange(tx, hid);
+    const [gone] = await tx.select({ charges: sql<number>`count(*)::int` }).from(charges).where(and(eq(charges.householdId, hid), eq(charges.cardId, cardId)));
+    await tx.delete(cards).where(and(eq(cards.householdId, hid), eq(cards.id, cardId)));
+    await recordEvent(tx, hid, { madeBy: "form", kind: "settings_updated", title: `${card.label} removed`,
+      body: `${gone.charges} charge${gone.charges === 1 ? "" : "s"} and its statements went with it` });
+    await observeRunway(tx, hid);
+    return true;
   });
 }

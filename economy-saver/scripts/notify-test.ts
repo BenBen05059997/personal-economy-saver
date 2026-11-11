@@ -115,8 +115,8 @@ async function main() {
       delete process.env.RESEND_API_KEY;
       const view = await reminderView(db, hid, identity);
       assert.equal(view.emailOn, false);
-      assert.equal(view.emailProblem, "RESEND_API_KEY is not set.");
-      await assert.rejects(sendTestReminder(db, hid, identity, "email", undefined, transport), /RESEND_API_KEY/);
+      assert.equal(view.emailProblem, "Email reminders aren’t set up on this server.");
+      await assert.rejects(sendTestReminder(db, hid, identity, "email", undefined, transport), /Email reminders aren’t set up on this server\./);
       process.env.RESEND_API_KEY = config.RESEND_API_KEY;
       await assert.rejects(sendTestReminder(db, hid, guestIdentity, "push", subscription.endpoint, transport), /Turn on push/);
       assert.equal(sends.length, before);

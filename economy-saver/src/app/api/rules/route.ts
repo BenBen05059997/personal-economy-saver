@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   try {
     await withHousehold(store, hid, tx => changeStandingRule(tx, hid, parsed.data));
     const destination = returnPath(form.get("returnTo"));
-    return redirectTo(destination === "/canvas" || destination.startsWith("/canvas?space=") ? destination : "/memory?tab=rules", request);
+    return redirectTo(destination === "/canvas" || destination.startsWith("/canvas?space=") ? destination : "/settings", request);
   } catch (error) {
     return failure(error);
   }

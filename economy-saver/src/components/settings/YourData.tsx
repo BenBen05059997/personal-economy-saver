@@ -44,7 +44,7 @@ export async function YourData({ canDeleteHousehold = true }: { canDeleteHouseho
     {ROWS.map(row => {
       const n = counts?.[row.kind] ?? 0;
       const note = row.kind === "journal" ? "This also removes the named spaces’ notes and pins. The General space and documents stay." : "This can’t be undone.";
-      const remove = row.all && n > 0 ? <ConfirmRemove kind="data" id={row.kind} label={row.all} note={note} returnTo="/settings" /> : null;
+      const remove = row.all && n > 0 ? <ConfirmRemove kind="data" id={row.kind} label={row.all} note={note} returnTo="/settings/data" /> : null;
       if (hid && places && row.all && isMovable(row.kind)) {
         return <DataPlace key={row.kind} householdId={hid} kind={row.kind} place={places[row.kind]} cloudCount={n} name={row.name} unit={row.unit} what={row.what} all={row.all} journalSpaceCount={row.kind === "journal" ? spaces.filter(space => !space.isGeneral).length : undefined} href={row.href}>{remove}</DataPlace>;
       }
@@ -62,7 +62,7 @@ export async function YourData({ canDeleteHousehold = true }: { canDeleteHouseho
                   {" · "}{doc.bytes > 0 ? fileSize(doc.bytes) : "Size unavailable"}{doc.fileRemoved && " · File removed"}
                 </p>
                 {readingHref && <Link className="account-link" prefetch={false} href={readingHref}>Open in To check ›</Link>}
-                <ConfirmRemove kind="data" what="documents" id={doc.id} label={doc.name} note="This can’t be undone." returnTo="/settings" />
+                <ConfirmRemove kind="data" what="documents" id={doc.id} label={doc.name} note="This can’t be undone." returnTo="/settings/data" />
               </li>;
             })}
           </ul>}
@@ -79,6 +79,6 @@ export async function YourData({ canDeleteHousehold = true }: { canDeleteHouseho
       <ImportFile /></div>
     {canDeleteHousehold && <div className="settings-bill"><p>Delete everything</p>
       <p className="ui-hint">Deletes the household and all of the above for good.</p>
-      <Link className="ui-button" prefetch={false} href="/account">Delete everything</Link></div>}
+      <Link className="ui-button" prefetch={false} href="/settings/account">Delete everything</Link></div>}
   </section>;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import "./settings.css";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
 import { PercentInput } from "@/components/ui/CheckedInput";
@@ -60,7 +61,7 @@ export function OwnCategories({ groups }: { groups: OwnCategoryGroup[] }) {
                 <p className="ui-hint">Its {items(category.items)} move to the one you choose, and {category.name} is removed.</p>
                 <button className="ui-button">Merge</button></ApiForm></details>}
           </ApiFormGroup>
-          <ConfirmRemove kind="own_category" id={category.id} returnTo="/settings" label={category.name}
+          <ConfirmRemove kind="own_category" id={category.id} returnTo="/plan" label={category.name}
             note={category.items === 0 ? "Nothing is filed under it." : `${category.items === 1 ? "Its 1 item goes" : `Its ${category.items} items go`} back to ${group.label}.`} />
         </div>;
       })}

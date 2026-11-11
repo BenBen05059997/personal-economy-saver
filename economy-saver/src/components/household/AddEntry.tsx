@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { CheckedInput } from "@/components/ui/CheckedInput";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
@@ -19,77 +19,6 @@ import { type Repeat, ScheduleFields } from "./ScheduleFields";
 import "./add-entry.css";
 import { repeatWords } from "@/lib/money/format";
 import { ownLabel } from "@/lib/money/own-category";
-
-export type EntryIds = { bill: string; charge: string };
-type Props = {
-  ids: EntryIds;
-  returnTo: "/" | "/to-check";
-  today: string;
-  currency: string;
-  people: { id: string; name: string }[];
-  cards: { id: string; label: string }[];
-  own: OwnChoices; // D75: the household's own categories and what a typed name files itself under
-};
-
-/** One entry point for typing in a bill or a card charge. The ids are minted per render so a double submit saves once; the caller keys it by them, so an accepted entry leaves a fresh, closed one. Each tab is its own form with its own fields; both stay mounted and the other is hidden, so switching tabs never mixes or loses what was typed. */
-export function AddEntry({ ids, returnTo, today, currency, people, cards, own }: Props) {
-  const [kind, setKind] = useState<"bill" | "charge">("bill");
-  const shared = { returnTo, today, currency, own };
-  const [open, setOpen] = useState(false);
-  // Links to "#add-bill" and "#add-charge" (the empty panels and First steps on Home; the + Add menu links to "/#add-bill" from any page) open this form on the right tab.
-  // A page opened with the hash already in its address (arriving from another page) opens it on load.
-  // The click is caught in the capture phase, before a Next <Link> handles it: a Link's own hash navigation finds no
-  // element called add-bill, so it would scroll nowhere and leave the form closed (found in the Nov 4 walk).
-  const scrollWhenOpen = useRef(false);
-  useEffect(() => {
-    const kinds: Record<string, "bill" | "charge"> = { "#add-bill": "bill", "#add-charge": "charge" };
-    function show(target: "bill" | "charge") {
-      setKind(target);
-      scrollWhenOpen.current = true;
-      setOpen(true);
-    }
-    function onClick(event: MouseEvent) {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      const link = event.target instanceof Element ? event.target.closest("a") : null;
-      const href = link?.getAttribute("href") ?? "";
-      const target = kinds[href] ?? (window.location.pathname === "/" ? kinds[href.replace(/^\//, "")] : undefined);
-      if (!target) return;
-      event.preventDefault(); // a Next <Link> leaves a prevented click alone; menus that close on any click still see it
-      show(target);
-    }
-    // The address's hash is read here and again on every hash change (typing /#add-charge into the address bar of an open Home
-    // changes only the hash, which never re-runs this effect). Each tab button carries the hash's id too, so the browser's own
-    // fragment navigation finds an element inside this <details> and opens it even before this code has run.
-    function arrive() {
-      const arrived = kinds[window.location.hash];
-      if (arrived) show(arrived);
-    }
-    arrive();
-    document.addEventListener("click", onClick, true);
-    window.addEventListener("hashchange", arrive);
-    return () => {
-      document.removeEventListener("click", onClick, true);
-      window.removeEventListener("hashchange", arrive);
-    };
-  }, []);
-  // suppressHydrationWarning on the <details>: a page opened with #add-bill or #add-charge has it opened by the browser's own fragment navigation (the tab buttons carry those ids) before React hydrates, so the server's markup and the DOM differ by `open` on purpose; the effect above then opens it in state too.
-  // Scroll once the open form is on the page, not before React has drawn it.
-  useEffect(() => {
-    if (!open || !scrollWhenOpen.current) return;
-    scrollWhenOpen.current = false;
-    document.getElementById("add-entry")?.scrollIntoView({ block: "center" });
-  }, [open]);
-  return <details id="add-entry" className="add-entry" open={open} suppressHydrationWarning onToggle={event => setOpen(event.currentTarget.open)}>
-    <summary>Add a bill or charge</summary>
-    <div className="add-entry-kind" role="group" aria-label="What to add">
-      <button id="add-bill" type="button" className="ui-button" aria-pressed={kind === "bill"} onClick={() => setKind("bill")}>Bill</button>
-      <button id="add-charge" type="button" className="ui-button" aria-pressed={kind === "charge"} onClick={() => setKind("charge")}>Card charge</button>
-    </div>
-    <div hidden={kind !== "bill"}><BillForm id={ids.bill} people={people} {...shared} /></div>
-    <div hidden={kind !== "charge"}>{cards.length ? <ChargeForm id={ids.charge} people={people} cards={cards} {...shared} /> : <p className="ui-hint">Add a card in Settings before adding a charge.</p>}</div>
-  </details>;
-}
-
 
 /** The category key the select shows: the user's choice, else the guess from the name (D46: "Other" when the table is not sure). */
 const categoryWords = (chosen: string | null, name: string, own: OwnApplied) => {
@@ -153,7 +82,7 @@ export function BillForm({ id, returnTo, today, currency, people, own, preset }:
   </ApiForm>;
 }
 
-function ChargeForm({ id, returnTo, today, currency, people, cards, own }: FormProps & { cards: { id: string; label: string }[] }) {
+export function ChargeForm({ id, returnTo, today, currency, people, cards, own }: FormProps & { cards: { id: string; label: string }[] }) {
   const [name, setName] = useState(""); // what or where, typed so far; the category follows it until the user chooses
   const [category, setCategory] = useState<string | null>(null);
   const [applied, setApplied] = useState<OwnApplied>(null);

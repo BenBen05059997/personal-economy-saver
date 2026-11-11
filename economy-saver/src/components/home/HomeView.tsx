@@ -12,7 +12,7 @@ import { potSummary } from "@/lib/money/plan";
 import { toCheck } from "@/lib/money/to-check";
 import { splitBalance, transferLine } from "@/lib/money/split";
 import { datesIn, lastOneWords } from "@/lib/money/repeat";
-import { ADD_BILL, ADD_CHARGE, SETTINGS_CARDS, SETTINGS_PEOPLE, hrefFor } from "@/lib/links";
+import { HOUSEHOLD_PEOPLE, hrefFor } from "@/lib/links";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { BankBalance } from "./BankBalance";
 import { HomeViews } from "./HomeViews";
@@ -21,17 +21,14 @@ import { homeSentence } from "@/lib/money/sentence";
 import { Suspense, type ReactNode } from "react";
 import { Sentence } from "./Sentence";
 import { cardSummary } from "./card-summary";
-import { AddEntry, type EntryIds } from "@/components/household/AddEntry";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
 import { Suggestions } from "./Suggestions";
 import type { openSuggestions } from "@/db/suggestions";
-import type { OwnChoices } from "@/lib/reader/own-choices";
 import { GetStarted, type GetStartedProgress } from "./GetStarted";
 import { Hints } from "./Hints";
 import "./home.css";
 
 type Props = { state: MoneyState };
-type People = { id: string; name: string }[];
 
 // What the ✓ marks mean in the engine: a bill's tick is "the worst-case balance on its due day is at least zero";
 // a card's is "the statement is paid from the bank, or once client payments land by its due date, with every other bill still paid".
@@ -48,7 +45,7 @@ function Actions({ state, forwarding }: Props & { forwarding: boolean }) {
     <div className="home-actions">
       {invoiceFix ? <Link className="home-button home-primary" prefetch={false} href={`/invoices/${unbilled.id}`}>Invoice {client.name.split(" ")[0]} {usd(unbilled.amountUsd)}</Link>
         : pick && <Link className="home-button home-primary" prefetch={false} href={pick.id === "remind" ? "/clients" : "/options"}>{pick.title}</Link>}
-      {forwarding && <Link className="home-button home-secondary" prefetch={false} href="/settings#forwarding">Forward a bill</Link>}
+      {forwarding && <Link className="home-button home-secondary" prefetch={false} href="/bills#forwarding">Forward a bill</Link>}
       <Link className="home-button home-secondary" prefetch={false} href="/upload">Upload a receipt</Link>
     </div>
     {options.gap > 0 && <Link className="home-options" prefetch={false} href="/options">{pick ? "Other options" : "Compare options"} ›</Link>}
@@ -61,7 +58,7 @@ function ToCheck({ state, inbox, forwarding }: Props & { inbox: ReaderInbox; for
   const total = rows.length + inbox.readings.length + missing.length;
   return <section id="to-check" className="home-panel home-review">
     <h2>To check{total > 0 && ` · ${total}`}</h2>
-    {total === 0 && !inbox.jobs.length && <PanelHint className="home-empty" href={forwarding ? "/settings#forwarding" : "/upload"} label={forwarding ? "Forward a bill or upload a receipt" : "Upload a receipt"}>Things the app read or drafted, waiting for your OK. Nothing here now.</PanelHint>}
+    {total === 0 && !inbox.jobs.length && <PanelHint className="home-empty" href={forwarding ? "/bills#forwarding" : "/upload"} label={forwarding ? "Forward a bill or upload a receipt" : "Upload a receipt"}>Things the app read or drafted, waiting for your OK. Nothing here now.</PanelHint>}
     {inbox.jobs.map(job => <div key={job.id} className="home-row"><Link prefetch={false} href="/to-check?from=home">{job.status === "failed" ? "Document needs attention" : "Reading document…"}</Link></div>)}
     {inbox.readings.map(r => <div key={r.id} className="home-row"><span>{r.value.name || "Document"}</span><Link prefetch={false} href={`/to-check?from=home#reading-${r.id}`}>Review</Link></div>)}
     {missing.map((gap) => <div key={gap.id} className="home-row home-check-row">
@@ -86,16 +83,16 @@ function HintsPanel({ state, inbox, tryIt, householdId }: Props & { inbox: Reade
     charge: state.charges.length > 0,
     upload: inbox.readings.length + inbox.jobs.length > 0,
   };
-  return <Hints householdId={householdId} done={done} hasCard={state.cards.length > 0} links={{ bill: ADD_BILL, charge: ADD_CHARGE, cards: SETTINGS_CARDS }} />;
+  return <Hints householdId={householdId} done={done} hasCard={state.cards.length > 0} />;
 }
 
 function Cards({ state }: Props) {
   const format = formatter(state.homeCurrency);
   return <section id="cards" className="home-panel home-cards">
     <h2>Cards <Link prefetch={false} href="/cards">All cards ›</Link></h2>
-    {state.cards.length === 0 && <PanelHint className="home-empty" href={SETTINGS_CARDS} label="Add one in Settings">No card yet.</PanelHint>}
-    {state.cards.length > 0 && state.charges.length === 0 && <PanelHint className="home-empty" href={ADD_CHARGE} label="Add a card charge">No card charges yet.</PanelHint>}
-    {state.cards.length > 0 && <p className="home-note"><Link prefetch={false} href={SETTINGS_CARDS}>Change closing day ›</Link></p>}
+    {state.cards.length === 0 && <PanelHint className="home-empty" add="card" label="Add a card">No card yet.</PanelHint>}
+    {state.cards.length > 0 && state.charges.length === 0 && <PanelHint className="home-empty" add="charge" label="Add a card charge">No card charges yet.</PanelHint>}
+    {state.cards.length > 0 && <p className="home-note"><Link prefetch={false} href="/cards">Change closing day ›</Link></p>}
     {state.cards.map((card) => {
       const { owed, limitLeft, next, shortBy } = cardSummary(state, card.id);
       return <div key={card.id} className="home-row home-card-row">
@@ -132,8 +129,8 @@ function SharedCosts({ state }: Props) {
       ? <PanelHint className="home-empty">{state.split.settledThrough !== null && "Nobody owes anyone anything. "}{next.biller} on {dayLabel(next.date)} splits {shares} once it is paid.</PanelHint>
       : state.split.bills.length > 0 || state.split.charges.length > 0
         ? <PanelHint className="home-empty">All settled. New shared items split from here.</PanelHint>
-        : <PanelHint className="home-empty" href={ADD_BILL} label="Add a bill">Choose Shared on a bill or charge to split it by shares.</PanelHint>)}
-    <p className="home-note"><Link prefetch={false} href={SETTINGS_PEOPLE}>Share costs ›</Link></p>
+        : <PanelHint className="home-empty" add="bill" label="Add a bill">Choose Shared on a bill or charge to split it by shares.</PanelHint>)}
+    <p className="home-note"><Link prefetch={false} href={HOUSEHOLD_PEOPLE}>Share costs ›</Link></p>
     {transfers.map(transfer => <div key={transfer.fromId + transfer.toId} className="home-row"><div>{transferLine(transfer, state.homeCurrency)}</div></div>)}
     {transfers.length > 0 && <ApiForm action="/api/settle" className="home-settle">
       <input type="hidden" name="returnTo" value="/" />
@@ -157,7 +154,7 @@ function CancelRow({ notice, state }: { notice: CancelNotice; state: MoneyState 
   </div>;
 }
 
-function ComingUp({ state, people, entryIds, own, added, addedId }: Props & { people: People; entryIds: EntryIds; own: OwnChoices; added: string | null; addedId: string | null }) {
+function ComingUp({ state, added, addedId }: Props & { added: string | null; addedId: string | null }) {
   const format = formatter(state.homeCurrency);
   const usual = timeline(state, "expected");
   const late = series(state, "worst");
@@ -219,11 +216,9 @@ function ComingUp({ state, people, entryIds, own, added, addedId }: Props & { pe
   return <section id="coming-up" className="home-panel home-upcoming">
     <h2>Coming up <Link prefetch={false} href="/activity">All activity ›</Link></h2>
     {added && <p role="status" className="home-added">{added}</p>}
-    {dated.length === 0 && <PanelHint className="home-empty" href={ADD_BILL} label="Add a bill">Nothing due in the next 30 days.</PanelHint>}
+    {dated.length === 0 && <PanelHint className="home-empty" add="bill" label="Add a bill">Nothing due in the next 30 days.</PanelHint>}
     {dated.slice(0, shown).map((row) => row.node)}
     {dated.length > shown && <details><summary>Later in the month · {dated.length - shown} more</summary>{dated.slice(shown).map((row) => row.node)}</details>}
-    <AddEntry key={entryIds.bill + entryIds.charge} ids={entryIds} returnTo="/" today={state.today} currency={state.homeCurrency} people={people} own={own}
-      cards={state.cards.map(card => ({ id: card.id, label: card.label }))} />
   </section>;
 }
 
@@ -246,7 +241,7 @@ function addedLine(state: MoneyState, id: string | null): string | null {
   return charge && card ? `Added ${charge.merchant} ${format(charge.amount)} on ${card.label}` : null;
 }
 
-export function HomeView({ state, inbox, notice, people, entryIds, own, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, spending }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; people: People; entryIds: EntryIds; own: OwnChoices; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; spending: SpendingInput }) {
+export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, spending }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; spending: SpendingInput }) {
   const date = homeDateLabel(state.today);
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
@@ -260,7 +255,7 @@ export function HomeView({ state, inbox, notice, people, entryIds, own, balanceI
     <HomeViews state={state} spending={spending} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
     <div className="home-panels">
       <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} /></div>
-      <div className="home-column"><ComingUp state={state} people={people} entryIds={entryIds} own={own} added={addedLine(state, added)} addedId={added} /></div>
+      <div className="home-column"><ComingUp state={state} added={addedLine(state, added)} addedId={added} /></div>
     </div>
   </article>;
 }

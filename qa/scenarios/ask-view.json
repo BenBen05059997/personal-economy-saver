@@ -531,11 +531,11 @@
     ],
     "steps": [
       "Choose Open full in the Ask panel",
-      "Return to Home from the sidebar"
+      "Press the pressed Ask button, or Home in the sidebar"
     ],
     "expected": [
-      "Open full shows one question box and no separate Ask panel",
-      "On returning to Home the panel is open"
+      "Open full shows one question box and no separate Ask panel; the top bar's Ask button shows pressed",
+      "The Ask button returns to the screen the person came from with the panel open"
     ],
     "refs": []
   },

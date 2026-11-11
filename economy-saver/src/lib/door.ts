@@ -35,9 +35,12 @@ export function text(message: string, status: number, headers: Record<string, st
 
 export { tooMany } from "@/db/rate-limit";
 
-/** Only the pages that offer a form are valid return targets. */
+const RETURN_PAGES = new Set(["/", "/to-check", "/activity", "/bills", "/cards", "/clients", "/plan", "/memory", "/canvas", "/household", "/household/people", "/settings", "/settings/ai-model", "/settings/paypal", "/settings/data", "/settings/account", "/options", "/upload"]);
+const RETURN_PATTERNS = [/^\/(?:bills|cards|clients)\/[0-9a-f-]{36}$/, /^\/canvas\?space=[0-9a-f-]{36}$/, /^\/setup\?step=(?:bank|income|bills|card)$/];
+
+/** Only a fixed list of app pages is a valid return target; anything else goes Home. */
 export function returnPath(value: FormDataEntryValue | null) {
-  return value === "/to-check" || value === "/plan" || value === "/settings" || value === "/memory" || value === "/canvas" || (typeof value === "string" && /^\/setup\?step=(?:bank|income|bills|card)$/.test(value)) || (typeof value === "string" && /^\/(?:cards\/|canvas\?space=)[0-9a-f-]{36}$/.test(value)) ? String(value) : "/";
+  return typeof value === "string" && (RETURN_PAGES.has(value) || RETURN_PATTERNS.some((pattern) => pattern.test(value))) ? value : "/";
 }
 
 /** Plain-text failure: a request problem is 400 with its user-facing message, anything else is 503 with no detail. */

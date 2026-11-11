@@ -14,7 +14,7 @@
       "Fresh Try it household (Ben, today Nov 14)"
     ],
     "steps": [
-      "Open /upload from To check or the Add menu"
+      "Open /upload from To check or the Add menu (Upload a receipt or bill)"
     ],
     "expected": [
       "Heading \"Upload a bill or receipt\" and the text about reviewing amount and date first",
@@ -546,7 +546,7 @@
       "Tap Confirm reading"
     ],
     "expected": [
-      "The saved bill shows the edited name and amount in Coming up and Settings → Bills",
+      "The saved bill shows the edited name and amount in Coming up and Bills",
       "Activity records it",
       "The sentence uses the edited amount"
     ],
@@ -895,7 +895,7 @@
   {
     "id": "DOC-033",
     "area": "Forwarding",
-    "action": "Show the forwarding address in Settings",
+    "action": "Show the forwarding address on Bills",
     "user_goal": "I want an email address to forward bills to",
     "type": "happy",
     "priority": "P2",
@@ -908,11 +908,11 @@
       "FORWARDING_DOMAIN and INBOUND_ADDRESS_KEY set"
     ],
     "steps": [
-      "Open Settings → forwarding",
+      "Open Bills → Forwarding address",
       "Tap the button that makes the address"
     ],
     "expected": [
-      "An address of this household is shown and the page returns to /settings#forwarding",
+      "An address of this household is shown and the page returns to /bills#forwarding",
       "Doing it again shows the same address"
     ],
     "refs": [
@@ -999,7 +999,7 @@
       "POST a file that is not a JPEG, PNG, WebP or PDF to /api/upload on a server that has the model"
     ],
     "expected": [
-      "The first two answer 503 \"Reading documents isn\u2019t available on this server yet (AI_TEXT_MODEL).\" and store nothing",
+      "The first two answer 503 \"Reading documents isn’t available on this server yet (AI_TEXT_MODEL).\" and store nothing",
       "The bad file answers 400 with its own sentence"
     ],
     "refs": [
@@ -1466,12 +1466,12 @@
     "steps": [
       "Add Hikari Denki in Utilities with Due date Nov 25 and Repeats Every month",
       "Tick Amount changes every month and Amount not known yet, then save",
-      "Open Coming up and Settings"
+      "Open Coming up and the bill's page on Bills"
     ],
     "expected": [
       "The guess line \"Every month · varies · Utilities · Change ›\" works",
       "Coming up shows about ¥9,330 (¥8,640–¥10,020, from your last 2 bills) from the confirmed September and October one-offs",
-      "Settings shows the amount is unknown on the stored series"
+      "The bill's page on Bills shows the amount is unknown on the stored series"
     ],
     "refs": [
       "D54",
@@ -1957,7 +1957,7 @@
       "Fresh Try it household (Ben, today Nov 14)"
     ],
     "steps": [
-      "Open Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Options, Settings, Upload, Login with the console open",
+      "Open Home, Ask, To check, Activity, Bills, Cards, Clients, Plan, Memory, Household, Settings (each tab), Upload, Login with the console open",
       "In the owner-run local Worker browser check, fully reload Home in the same Try it household"
     ],
     "expected": [
@@ -2525,7 +2525,7 @@
       "The response bodies recorded while running the http scenarios in this run"
     ],
     "steps": [
-      "Search every error body and Settings, Home and export response seen in the run for \"Bearer\", \"sk-\", \"eyJ\", \"postgres://\" and \"service_role\""
+      "Search every error body and Settings, Household, Home and export response seen in the run for \"Bearer\", \"sk-\", \"eyJ\", \"postgres://\" and \"service_role\""
     ],
     "expected": [
       "Missing-setting errors name the variable (\"AI_API_KEY is not set\") and never a value",
@@ -2712,7 +2712,7 @@
       "Fresh Try it household (Ben, today Nov 14)"
     ],
     "steps": [
-      "Read Settings (\"PayPal stays in sandbox\"), the privacy line for PayPal and the invoice review page",
+      "Read Household → Details (\"PayPal stays in sandbox\"), the privacy line for PayPal and the invoice review page",
       "Search every PayPal link and host seen in those pages and in the responses of PAY-003 for a host name"
     ],
     "expected": [
@@ -2740,7 +2740,7 @@
       "Viewport 375px (mobile preset)"
     ],
     "steps": [
-      "Open each of: Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Options, Settings, Upload, New invoice, Invoice review, Login",
+      "Open each of: Home, Ask, To check, Activity, Bills, Cards, Clients, Plan, Memory, Household, Settings (each tab), Upload, New invoice, Invoice review, Login",
       "Check document scrollWidth against the width"
     ],
     "expected": [
@@ -2771,7 +2771,7 @@
     ],
     "expected": [
       "No horizontal scroll; the sidebar, top bar (Ask, bell, Add) and panels line up",
-      "Settings uses two columns"
+      "Household and Settings keep their tab bar on one row"
     ],
     "refs": [
 
@@ -2793,7 +2793,7 @@
       "Viewport 375px"
     ],
     "steps": [
-      "Measure links, buttons, inputs, selects and summaries on Home, Ask, To check, Upload, Plan, Memory → Rules and Settings. Include Ask question and canvas starters, Upload’s To check link, Plan’s Add a pot summary, the Rules On row, and the Email reminders and Quiet days rows",
+      "Measure links, buttons, inputs, selects and summaries on Home, Ask, To check, Upload, Plan, Settings → Assistant rules and Settings. Include Ask question and canvas starters, Upload’s To check link, Plan’s Add a pot summary, the Rules On row, and the Email reminders and Quiet days rows",
       "Measure and edge-tap Acme and Northwind in Ask’s This month canvas, and CloudBox Plus, Mobaile Tsushin and Card A in Home’s Coming up"
     ],
     "expected": [
@@ -3017,7 +3017,7 @@
   {
     "id": "UI-013",
     "area": "Layout",
-    "action": "The Settings forwarding address block",
+    "action": "The forwarding address block on Bills",
     "user_goal": "a long address must wrap",
     "type": "edge",
     "priority": "P3",
@@ -3029,7 +3029,7 @@
       "State after DOC-033 (a forwarding address made)"
     ],
     "steps": [
-      "Open Settings → forwarding at 375px"
+      "Open Bills → Forwarding address at 375px"
     ],
     "expected": [
       "The long address wraps or scrolls inside its box without widening the page"

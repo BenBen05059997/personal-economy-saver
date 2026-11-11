@@ -1,3 +1,4 @@
+import { logSettingProblem } from "@/lib/operator-log";
 import { db } from "@/db/client";
 import { connectionView } from "@/db/ai-key";
 import { withHousehold } from "@/db/household";
@@ -26,8 +27,9 @@ export async function POST(request: Request) {
   const connection = db();
   const view = await withHousehold(connection, hid, tx => connectionView(tx, hid));
   const missing = missingAskSetting(Boolean(view?.textModel));
+  if (missing) logSettingProblem("voice_fill_not_set_up", `${missing} is not set`, hid);
   if (missing) return text(serverHasNoModel() ? "Voice fill needs an AI key in Settings → Your AI model. Type the fields instead."
-    : `Voice fill needs an AI model on this server (${missing}). Type the fields instead.`, 503);
+    : "Voice fill isn’t set up on this server. Type the fields instead.", 503);
   const started = Date.now();
   try {
     const response = await fillByVoice(connection, hid, data.data);

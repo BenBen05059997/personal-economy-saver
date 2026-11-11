@@ -1,3 +1,5 @@
+import { NEEDS_KEY, serverHasNoModel } from "@/lib/agent/availability";
+import { logSettingProblem } from "@/lib/operator-log";
 import { and, eq, sql } from "drizzle-orm";
 import { pgSchema, text, uuid } from "drizzle-orm/pg-core";
 import { InputError } from "./input-error";
@@ -31,7 +33,7 @@ async function lockedHousehold(db: Db, hid: string) {
 
 const settingOf = (name: string) => {
   const value = process.env[name]?.trim();
-  if (!value) throw new AiKeyError(`${name} is not set`);
+  if (!value) { logSettingProblem("ai_not_set_up", `${name} is not set`); throw new AiKeyError(serverHasNoModel() ? NEEDS_KEY : "The AI model isn’t set up on this server yet."); }
   return value;
 };
 
@@ -43,11 +45,12 @@ const allowLocal = () => { const raw = process.env.APP_URL?.trim(); return raw ?
 // another household does not open). The stored text is `pes-ai1.` + base64url(iv + ciphertext).
 const SEAL_PREFIX = "pes-ai1.";
 const sealAad = (hid: string) => new TextEncoder().encode(`personal-economy-saver/ai-key/v1/${hid}`);
+const KEYS_UNAVAILABLE = "Saving an AI key isn’t set up on this server.";
 async function sealKey() {
   const raw = process.env.AI_KEY_SEAL_KEY;
-  if (!raw) throw new AiKeyError("AI_KEY_SEAL_KEY is not set");
+  if (!raw) { logSettingProblem("ai_key_seal", "AI_KEY_SEAL_KEY is not set"); throw new AiKeyError(KEYS_UNAVAILABLE); }
   const bytes = Buffer.from(raw, "base64url");
-  if (bytes.length !== 32 || bytes.toString("base64url") !== raw) throw new AiKeyError("AI_KEY_SEAL_KEY must be 32 bytes encoded as unpadded base64url");
+  if (bytes.length !== 32 || bytes.toString("base64url") !== raw) { logSettingProblem("ai_key_seal", "AI_KEY_SEAL_KEY must be 32 bytes encoded as unpadded base64url"); throw new AiKeyError(KEYS_UNAVAILABLE); }
   return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 /** The text to put in Vault for this household's key. */
@@ -113,7 +116,7 @@ export async function aiConnection(db: Db, householdId: string, need: ModelNeed)
       documentModel: need === "document" ? wanted : process.env.AI_DOCUMENT_MODEL?.trim() || null,
     };
     const protocol = settingOf("AI_PROTOCOL");
-    if (protocol !== "anthropic" && protocol !== "openai") throw new AiKeyError("AI_PROTOCOL must be anthropic or openai");
+    if (protocol !== "anthropic" && protocol !== "openai") { logSettingProblem("ai_not_set_up", "AI_PROTOCOL must be anthropic or openai"); throw new AiKeyError("The AI model isn’t set up on this server yet."); }
     const baseUrl = protocol === "anthropic" ? anthropicHost : settingOf("AI_BASE_URL");
     const key = settingOf("AI_API_KEY");
     return { protocol, baseUrl, key, ...models, own: false } satisfies Connection;

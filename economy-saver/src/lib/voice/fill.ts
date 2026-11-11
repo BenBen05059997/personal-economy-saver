@@ -1,3 +1,4 @@
+import { logSettingProblem } from "@/lib/operator-log";
 // Voice fill (28B), server side: the words a person said and the form's fields in, checked values out. One model call, forced to one
 // tool whose input is built from the fields; the model only proposes, `checkFill` decides. Nothing is written to any table: the
 // form's own route saves after the person's tap.
@@ -41,7 +42,7 @@ export async function fillByVoice(db: Db, householdId: string, request: VoiceFil
   let reply;
   try {
     const connection = await (opts.connection ?? (() => aiConnection(db, householdId, "text")))();
-    if (!connection.textModel) throw new AiKeyError("AI_TEXT_MODEL is not set");
+    if (!connection.textModel) { logSettingProblem("voice_fill_not_set_up", "AI_TEXT_MODEL is not set", householdId); throw new AiKeyError("Voice fill has no model to use. Choose one in Settings → Your AI model."); }
     reply = await callModel({
       connection, model: connection.textModel, maxTokens: 600, timeoutMs: 20_000, fetch: opts.fetch,
       system: `Fill in a form from the words a person said, by calling ${FILL_FIELDS}. Today is ${today} (${weekday}). The household's currency is ${currency}. `

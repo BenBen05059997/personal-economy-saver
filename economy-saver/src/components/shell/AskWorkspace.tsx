@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Activity, createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { storeDraft } from "@/components/ask/draft";
 import { readPanelChoice, writePanelChoice, type PanelChoice } from "@/components/ask/panel-preferences";
@@ -33,7 +33,7 @@ function subscribeWide(onChange: () => void) {
 const isWide = () => window.matchMedia(WIDE_WIDTH).matches;
 
 const AskPanel = createContext<{
-  available: boolean; wide: boolean; visible: boolean; revision: number; open: (trigger: HTMLElement) => void; close: () => void; ask: (question: string, trigger: HTMLElement) => void; invalidate: () => void;
+  available: boolean; desktop: boolean; visible: boolean; revision: number; open: (trigger: HTMLElement) => void; close: () => void; ask: (question: string, trigger: HTMLElement) => void; invalidate: () => void; returnFromAsk: () => void;
 } | null>(null);
 
 export const useAskPanel = () => useContext(AskPanel);
@@ -41,6 +41,7 @@ export const useAskPanel = () => useContext(AskPanel);
 /** The stable part of the shell. Route content can change without moving the panel subtree. */
 export function AskWorkspace({ householdId, children }: { householdId: string; children: ReactNode }) {
   const pathname = usePathname();
+  const search = useSearchParams().toString();
   const router = useRouter();
   const desktop = useSyncExternalStore(subscribeDesktop, isDesktop, serverDesktop);
   const wide = useSyncExternalStore(subscribeWide, isWide, serverDesktop);
@@ -54,9 +55,11 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
   const [revision, setRevision] = useState(0);
   const [handoff, setHandoff] = useState<{ id: string; question: string } | null>(null);
   const restored = useRef(false);
+  const lastPage = useRef<string | null>(null);
+  const previousPath = useRef(pathname);
   const opener = useRef<HTMLElement | null>(null);
   const request = useRef<AbortController | null>(null);
-  const visible = ready && available && (preferences.open ?? wide);
+  const visible = ready && available && (preferences.open ?? (wide && pathname !== "/setup"));
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -67,6 +70,10 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
     });
     return () => cancelAnimationFrame(frame);
   }, [householdId]);
+
+  useEffect(() => {
+    if (pathname !== "/canvas") lastPage.current = `${pathname}${search ? `?${search}` : ""}`;
+  }, [pathname, search]);
 
   function remember(next: PanelChoice) {
     restored.current = true;
@@ -150,7 +157,7 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
   useEffect(() => {
     if (!visible) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector(":popover-open")) return;
+      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector(":popover-open, dialog[open]")) return;
       event.preventDefault();
       close();
     };
@@ -177,6 +184,19 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
     setLoading(false);
   }, []);
 
+  // Turns asked on the full page show in the panel once the person leaves it.
+  useEffect(() => {
+    const left = previousPath.current === "/canvas" && pathname !== "/canvas";
+    previousPath.current = pathname;
+    if (left) invalidate();
+  }, [invalidate, pathname]);
+
+  function returnFromAsk() {
+    const space = new URLSearchParams(window.location.search).get("space");
+    remember({ open: true, spaceId: space });
+    router.push(lastPage.current ?? "/");
+  }
+
   function pageFormSaved(action: string) {
     if (action === "/api/data" || action === "/api/spaces" || action === "/api/settings/ai-model" || action === "/api/restore") invalidate();
     return false;
@@ -193,7 +213,7 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
     return true;
   }
 
-  return <AskPanel.Provider value={{ available, wide, visible, revision, open, close, ask, invalidate }}>
+  return <AskPanel.Provider value={{ available, desktop, visible, revision, open, close, ask, invalidate, returnFromAsk }}>
     <div className="ask-workspace" data-ask-open={visible || undefined}>
       <div className="ask-workspace-page"><ApiFormNavigation.Provider value={pageFormSaved}>
         {children}

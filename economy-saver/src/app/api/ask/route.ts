@@ -1,3 +1,4 @@
+import { logSettingProblem } from "@/lib/operator-log";
 import { AiKeyError } from "@/db/ai-key";
 import { answerQuestion, askInput } from "@/db/ask";
 import { db } from "@/db/client";
@@ -5,7 +6,7 @@ import { InputError } from "@/db/input-error";
 import { AgentError } from "@/lib/agent/run";
 import { NO_STORE, limited, text } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
-import { askUnavailable, NEEDS_KEY, serverHasNoModel } from "@/lib/agent/availability";
+
 import { MissingAuthSetting } from "@/lib/supabase-auth";
 
 // D59: device questions carry notes, a brief, and a bounded local history.
@@ -56,9 +57,7 @@ export async function POST(request: Request) {
 
 function errorWords(error: unknown): string {
   if (error instanceof InputError) return error.message;
-  // These messages are fixed text or setting names, never secrets, so the person can read them.
-  const known = error instanceof AgentError || error instanceof AiKeyError || error instanceof MissingAuthSetting;
-  // A missing AI setting keeps its name (so the owner can fix it) inside a sentence a person can read.
-  const missing = known ? /^(AI_[A-Z_]+) is not set$/.exec(error.message) : null;
-  return missing ? (serverHasNoModel() ? NEEDS_KEY : askUnavailable(missing[1])) : known ? error.message : "Couldn't answer right now. Try again.";
+  if (error instanceof MissingAuthSetting) logSettingProblem("ask_auth_not_set_up", error.message);
+  // These messages are fixed words for the person; a missing setting's name went to the operator log where it was found.
+  return error instanceof AgentError || error instanceof AiKeyError ? error.message : "Couldn't answer right now. Try again.";
 }

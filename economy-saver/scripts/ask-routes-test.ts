@@ -56,7 +56,7 @@ async function main() {
       const value = await tokenFor(cookie);
       return { getAll: () => (value ? [{ name: "household", value }] : []), get: (name: string) => (name === "household" && value ? { name, value } : undefined) };
     } };
-    if (request === "next/navigation") return { usePathname: () => "/", useRouter: () => ({}) };
+    if (request === "next/navigation") return { usePathname: () => "/", useSearchParams: () => new URLSearchParams(), useRouter: () => ({}) };
     if (request.endsWith(".css")) return {};
     const resolved = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
     if (resolved.endsWith("/src/db/client.ts")) return { db: () => db, MissingDatabaseUrl: class extends Error {} };
@@ -158,14 +158,15 @@ async function main() {
       ok("AskWorkspace server-renders the closed shell without a panel or a fetch");
     }
 
-    const { AddEntry } = await import("@/components/household/AddEntry");
-    const entry = renderToStaticMarkup(createElement(AddEntry, {
-      ids: { bill: crypto.randomUUID(), charge: crypto.randomUUID() },
-      returnTo: "/", today: "2026-11-14", currency: "JPY",
+    const { AddForm } = await import("@/components/add/AddForm");
+    const addView = {
+      today: "2026-11-14", homeCurrency: "JPY",
       people: [{ id: crypto.randomUUID(), name: "Ben" }],
       cards: [{ id: crypto.randomUUID(), label: "Fictional card" }],
       own: { categories: [], guesses: {} },
-    }));
+    };
+    const entry = (["bill", "charge"] as const)
+      .map(kind => renderToStaticMarkup(createElement(AddForm, { kind, id: crypto.randomUUID(), returnTo: "/", view: addView }))).join("");
     const entryForms = [...entry.matchAll(/<form\b[^>]*action="\/api\/(bills|charges)"[^>]*>([\s\S]*?)<\/form>/g)];
     assert.deepEqual(entryForms.map(([, kind]) => kind), ["bills", "charges"]);
     for (const [, kind, form] of entryForms) {
@@ -257,17 +258,19 @@ async function main() {
       const { AskPage } = await import("@/components/ask/AskPage");
       const full = renderToStaticMarkup(createElement(AskPage, { ...selected, variant: "full" }));
       const panel = renderToStaticMarkup(createElement(AskPage, { ...selected, variant: "panel" }));
-      assert.match(full, /class="ask-page"/);
+      assert.match(full, /class="ask-page is-full"/);
       assert.match(panel, /class="ask-page is-panel"/);
       assert.doesNotMatch(full, /aria-label="Open full"|aria-label="Close Ask"/);
+      assert.match(full, />Space<\/button>/, "the full page header has the Space button");
       assert.match(panel, new RegExp(`<a class="ask-icon-button ask-open-full" aria-label="Open full" href="/canvas\\?space=${project.id}"`), "Open full points to the current space");
       assert.match(panel, /aria-label="Close Ask"/);
       for (const part of [askTurn.question, askTurn.reply, "Helpful", "Incognito", "Attach a bill", "Ask a question", 'aria-label="Use microphone"', recipe.blocks[0].text]) {
         assert.ok(full.includes(part) && panel.includes(part), part);
       }
       assert.ok(!full.includes("Your question"), "one composer wording");
-      // The full page keeps the brief, the notes link and the starter canvases; the panel leaves them to Open full.
-      assert.match(full, /href="#space-notes"/);
+      // The full page keeps the brief, the notes and the starter canvases in the Space sheet, in the page even while closed; the panel leaves them to Open full.
+      assert.match(full, /id="space-notes"/);
+      assert.match(full, /Space brief/);
       assert.match(full, /Show the recipe/);
       assert.doesNotMatch(panel, /space-notes|Space brief|Canvases to start from/);
       assert.ok(full.includes('id="ask"') && panel.includes('id="ask-panel-question"'));
@@ -378,31 +381,19 @@ async function main() {
     await mapped(new InputError("Reload the page and ask again."), [400, "Reload the page and ask again."]);
     await mapped(new AgentError("The assistant took too long."), [200, "The assistant took too long."]);
     await mapped(new AiKeyError("That key was not accepted."), [200, "That key was not accepted."]);
-    await mapped(new MissingAuthSetting("SUPABASE_URL is not set"), [200, "SUPABASE_URL is not set"]);
-    // A server with some AI_ setting names the missing one; a server with none (the deployed setup) points to the household's own key.
-    const aiNames = ["AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL", "AI_DOCUMENT_MODEL"] as const;
-    const savedAi = Object.fromEntries(aiNames.map(name => [name, process.env[name]]));
-    try {
-      for (const name of aiNames) delete process.env[name];
-      process.env.AI_DOCUMENT_MODEL = "fixture-document";
-      for (const name of ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY"]) {
-        for (const Kind of [AgentError, AiKeyError, MissingAuthSetting]) await mapped(new Kind(`${name} is not set`), [200, askUnavailable(name)]);
-      }
-      delete process.env.AI_DOCUMENT_MODEL;
-      for (const Kind of [AgentError, AiKeyError, MissingAuthSetting]) await mapped(new Kind("AI_TEXT_MODEL is not set"), [200, NEEDS_KEY]);
-    } finally {
-      for (const name of aiNames) if (savedAi[name] === undefined) delete process.env[name]; else process.env[name] = savedAi[name];
+    await mapped(new MissingAuthSetting("SUPABASE_URL is not set"), [200, "Couldn't answer right now. Try again."]);
+    // The route no longer rewrites a missing setting's name: the words an AgentError or an AiKeyError carries reach the person as they are (the name went to the operator log where it was found).
+    for (const Kind of [AgentError, AiKeyError]) {
+      await mapped(new Kind("The AI model isn’t set up on this server yet."), [200, "The AI model isn’t set up on this server yet."]);
+      await mapped(new Kind(NEEDS_KEY), [200, NEEDS_KEY]);
     }
-    // an unknown-named or longer message is not rewritten; only exactly `AI_X is not set` is
-    await mapped(new AgentError("AI_TEXT_MODEL is not set, sorry"), [200, "AI_TEXT_MODEL is not set, sorry"]);
-    await mapped(new AgentError("ai_text_model is not set"), [200, "ai_text_model is not set"]);
     // anything else, including an Error whose text names a secret or a setting, is the fixed sentence
     for (const error of [new Error("AI_TEXT_MODEL is not set"), new Error("connect ECONNREFUSED 10.0.0.1:5432 password=fictional-secret"), new TypeError("x is not a function"), "a string", null, { message: "AI_TEXT_MODEL is not set" }]) {
       const answer = await mapped(error, [200, FIXED]);
       assert.ok(!answer.text.includes("secret") && !answer.text.includes("ECONNREFUSED"), "the error's own text never reaches the person");
     }
     asking = null;
-    ok("/api/ask errors: InputError 400 with its message; AgentError, AiKeyError, MissingAuthSetting an error line with theirs; 'AI_X is not set' becomes askUnavailable(X); anything else an error line with the fixed sentence only");
+    ok("/api/ask errors: InputError 400 with its message; AgentError and AiKeyError an error line with theirs; MissingAuthSetting only the fixed sentence; anything else an error line with the fixed sentence only");
 
     // the real answerQuestion behind the route: a household that keeps its memory on the device is refused a question without it, as 400
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, b));
@@ -862,7 +853,7 @@ async function main() {
     set(full); assert.equal(missingAskSetting(false), null, "everything set");
     set({ ...full, AI_PROTOCOL: "anthropic" }); assert.equal(missingAskSetting(false), null);
     set({ ...full, AI_PROTOCOL: " openai ", AI_BASE_URL: undefined }); assert.equal(missingAskSetting(false), "AI_BASE_URL", "the protocol is trimmed");
-    assert.equal(askUnavailable("AI_API_KEY"), "Ask isn’t available on this server yet (AI_API_KEY).");
+    assert.equal(askUnavailable("AI_API_KEY"), "Ask isn’t set up on this server yet.");
     assert.ok(!askUnavailable("AI_API_KEY").includes("fictional"), "a name, never a value");
     set({}); assert.equal(serverDefaultHost(), null);
     set({ ...full, AI_PROTOCOL: "anthropic" }); assert.equal(serverDefaultHost(), "api.anthropic.com");
@@ -923,10 +914,10 @@ async function main() {
         const badWithModel = await say(await route(post(path, file("hello", "a.txt", "text/plain"))));
         assert.deepEqual([badWithModel.status, badWithModel.text], [400, bad.text], `${name}: bad-file refusal is the same when a model is configured`);
         env({ ...modelSet, AI_API_KEY: undefined }); await reset();
-        assert.match((await say(await route(post(path, file(PNG, "a.png", "image/png"))))).text, /\(AI_API_KEY\)/, `${name}: a missing key is named`);
+        assert.match((await say(await route(post(path, file(PNG, "a.png", "image/png"))))).text, /isn’t set up on this server/, `${name}: a missing key is said in words`);
         env(modelSet); await reset();
         const noStorage = await say(await route(post(path, file(PNG, "a.png", "image/png"))));
-        assert.deepEqual([noStorage.status, noStorage.text], [503, "SUPABASE_URL is not set"], `${name}: a setting the reader needs is 503 naming it`);
+        assert.deepEqual([noStorage.status, noStorage.text], [503, "Reading and forwarding bills isn’t set up on this server."], `${name}: a setting the reader needs is 503 in words`);
       }
       const failing = (code: number) => (async () => new Response("{}", { status: code })) as typeof fetch;
       const statusOf = async (fetchImpl: typeof fetch | undefined, over: Record<string, unknown> = {}) => {
@@ -937,7 +928,7 @@ async function main() {
       assert.deepEqual(await statusOf((async () => { throw new TypeError("network"); }) as typeof fetch), [502, "Couldn't reach the AI service. Try again."]);
       assert.deepEqual(await statusOf(failing(401)), [502, "The AI key was not accepted. Check it in Settings."]);
       assert.deepEqual(await statusOf(failing(429)), [502, "The AI service is busy. Try again in a minute."]);
-      assert.deepEqual(await statusOf(undefined, { documentModel: null }), [503, "AI_DOCUMENT_MODEL is not set"]);
+      assert.deepEqual(await statusOf(undefined, { documentModel: null }), [503, "Reading documents isn’t set up on this server."]);
       await reset();
       ok("/api/upload and /api/ask/document: a bad, mismatched or oversize file is 400; no model is 503 naming the setting; a missing reader setting is 503; the model failing or unreachable is 502 (extractDocument)");
 
@@ -954,13 +945,14 @@ async function main() {
       assert.deepEqual(errors, [], "a refused caller leaves nothing in the log");
       env({}); errors.length = 0;
       assert.deepEqual(await empty(await inbound(mail({ origin: "https://worker.internal", authorization: "Bearer anything" }))), [503, ""], "no secret set: 503, no body");
-      assert.deepEqual(errors, ["/api/inbound: INBOUND_WORKER_SECRET is not set"], "one line naming the variable, never a value");
+      assert.deepEqual(errors, ['{"at":"reader_not_set_up","message":"INBOUND_WORKER_SECRET is not set"}', "/api/inbound: Reading and forwarding bills isn’t set up on this server."], "the operator line names the variable, never a value; the route line is the fixed words");
       assert.deepEqual(await empty(await inbound(mail({}))), [403, ""], "no origin is still 403 when the setting is missing");
       env({ INBOUND_WORKER_SECRET: "fictional-secret" }); errors.length = 0;
       const noDomain = await inbound(mail({ origin: "https://worker.internal", authorization: "Bearer fictional-secret", "x-envelope-to": "x@example.invalid" }));
       assert.equal(noDomain.status, 503, "a later setting missing is 503 too");
-      assert.equal(errors.length, 1);
-      assert.match(errors[0], /^\/api\/inbound: [A-Z_]+ is not set$/, "the log line names a variable");
+      assert.equal(errors.length, 2);
+      assert.match(errors[0], /^\{"at":"reader_not_set_up","message":"[A-Z_]+ is not set"\}$/, "the operator line names a variable");
+      assert.equal(errors[1], "/api/inbound: Reading and forwarding bills isn’t set up on this server.");
       assert.equal(await docs(), docsBefore, "nothing stored in any case");
       assert.equal((await db.select().from(schema.requestBuckets)).length, 0, "no limit counted for a refused or failed call");
       ok("/api/inbound: no origin or a wrong secret is 403 with no body (even when the server lacks the setting); a missing setting is 503 with no body and one log line naming the variable; nothing is stored");

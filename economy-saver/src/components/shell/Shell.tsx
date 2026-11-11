@@ -10,7 +10,9 @@ import type { AskScreen } from "@/lib/agent/screen";
 import { hrefForRef } from "@/lib/links";
 import type { EventFeed } from "@/db/event-feed";
 import { useEventFeed } from "./useEventFeed";
+import { AskButton } from "./AskButton";
 import { useAskPanel } from "./AskWorkspace";
+import { AddLink } from "@/components/add/AddLink";
 import { LogoMark } from "./Logo";
 import "./shell.css";
 
@@ -23,6 +25,7 @@ const iconPaths = {
   cards: "M3.5 3.5h9a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11V5a1.5 1.5 0 0 1 1.5-1.5z M2 6.8h12",
   clients: "M2.5 5.5h11v7h-11z M6 5.5V4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5 M2.5 9h11",
   people: "M8.2 6A2.2 2.2 0 1 1 3.8 6a2.2 2.2 0 0 1 4.4 0z M2 13c.3-2.4 2-3.6 4-3.6s3.7 1.2 4 3.6 M10.5 4.2a2.2 2.2 0 0 1 0 3.6 M12 9.6c1 .5 1.8 1.5 2 3.4",
+  bill: "M4 2.5h8v11l-1.6-1-1.2 1-1.2-1-1.2 1-1.2-1-1.6 1z M6 6h4 M6 8.5h4",
   memory: "M4 2.5h8v11l-4-2.5-4 2.5z",
   plan: "M3 12.5V9 M7 12.5V5.5 M11 12.5V3 M2.5 12.5h11",
   settings: "M3 5h2 M8 5h5 M3 11h6 M12 11h1 M8 5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z M12 11a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z",
@@ -41,25 +44,25 @@ const destinations = [
   { section: "canvas", icon: "ask", label: "Ask", href: "/canvas" },
   { section: "check", icon: "check", label: "To check", href: "/to-check" },
   { section: "activity", icon: "activity", label: "Activity", href: "/activity" },
+  { section: "bills", icon: "bill", label: "Bills", href: "/bills" },
   { section: "cards", icon: "cards", label: "Cards", href: "/cards" },
   { section: "clients", icon: "clients", label: "Clients", href: "/clients" },
-  { section: "settings", icon: "people", label: "People", href: "/settings#people" },
   { section: "plan", icon: "plan", label: "Plan", href: "/plan" },
 ] as const;
 
 export type Section = AskScreen;
 
 function Navigation({ pending, name, section }: { pending: number; name: string; section: Section }) {
-  const panel = useAskPanel();
   return <>
     <Link prefetch={false} className="shell-brand" href="/"><LogoMark />fipa</Link>
     <nav className="shell-links" aria-label="Main navigation">
-      {destinations.map(({ section: target, icon, label, href }) => target === "canvas" && section !== "canvas" && panel?.wide ? <button type="button" key={target} aria-pressed={panel.visible} onClick={event => panel.visible ? panel.close() : panel.open(event.currentTarget)}><Icon name={icon} />{label}<i className="shell-dot" aria-hidden="true" /></button> : <Link prefetch={false} key={target} href={href} aria-current={target !== "settings" && target === section ? "page" : undefined}>
+      {destinations.map(({ section: target, icon, label, href }) => <Link prefetch={false} key={target} href={href} aria-current={target === section ? "page" : undefined}>
         <Icon name={icon} />{label}{target === "check" && pending > 0 && <span className="shell-badge">{pending}</span>}
       </Link>)}
     </nav>
     <footer className="shell-footer">
       <Link prefetch={false} aria-current={section === "memory" ? "page" : undefined} href="/memory"><Icon name="memory" />Memory</Link>
+      <Link prefetch={false} aria-current={section === "household" ? "page" : undefined} href="/household"><Icon name="people" />Household</Link>
       <Link prefetch={false} aria-current={section === "settings" ? "page" : undefined} href="/settings"><Icon name="settings" />Settings</Link>
       <div className="shell-person"><span aria-hidden="true">{name.slice(0, 1)}</span>{name}</div>
     </footer>
@@ -87,34 +90,27 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
   const { mark, marking, error } = useEventFeed(feed, section === "home" || section === "check");
   const { notifications, unread } = feed;
   const router = useRouter();
-  const panel = useAskPanel();
-  const openPanel = panel?.available && section !== "canvas" ? panel.open : null;
-  const topWide = !!panel?.wide;
-  const micTrigger = React.useRef<HTMLElement | null>(null);
+  const desktop = !!useAskPanel()?.desktop;
 
-  function handOver(trigger: HTMLElement, text?: string, source: "manual" | "voice" = "manual") {
+  function handOver(text?: string, source: "manual" | "voice" = "manual") {
     if (text) storeDraft({ text, source });
-    if (openPanel) openPanel(trigger);
-    else router.push("/canvas#ask");
+    router.push("/canvas#ask");
     if (text) window.dispatchEvent(new Event(DRAFT_EVENT));
   }
   function typedOnBar(event: React.KeyboardEvent<HTMLElement>) {
     if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
-    handOver(event.currentTarget, event.key === " " ? undefined : event.key);
+    handOver(event.key === " " ? undefined : event.key);
   }
   // Dictation fills the same composer and waits for the person to send.
   const speech = useSpeech(words => {
-    if (micTrigger.current) handOver(micTrigger.current, words, "voice");
+    handOver(words, "voice");
   });
   const micLabel = speech.listening ? "Listening… tap to stop" : speech.problem;
   const micProps = {
     type: "button" as const, "aria-label": "Speak a question", "aria-pressed": speech.listening,
-    onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
-      if (speech.listening) { speech.stop(); return; }
-      micTrigger.current = event.currentTarget;
-      openPanel?.(event.currentTarget);
-      speech.start();
+    onClick: () => {
+      if (speech.listening) speech.stop(); else speech.start();
     },
   };
   return <div className="money-shell" onClick={event => {
@@ -126,34 +122,21 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
     <Link prefetch={false} className="shell-skip" href="#shell-main">Skip to content</Link>
     <aside className="shell-sidebar"><Navigation name={name} pending={pending} section={section} /></aside>
     <div className="shell-workspace">
-      <header className={`shell-bar${topWide ? " is-wide" : ""}`}>
+      <header className={`shell-bar${desktop ? " is-desktop" : ""}`}>
         <button className="shell-mobile-toggle" popoverTarget="shell-nav" aria-label="Open navigation"><Icon name="menu" /></button>
         <Link prefetch={false} className="shell-mobile-brand" href="/"><LogoMark />fipa</Link>
-        {topWide && tryIt && <p className="shell-sample">Sample household{today ? ` · fixed date ${shortDate(today)}` : ""}</p>}
-        {topWide ? <>
-          <button className="shell-bell" popoverTarget="shell-notifications" aria-label={`Notifications, ${unread} unread`}>
-            <Icon name="bell" />{unread > 0 && <span className="shell-badge">{unread}</span>}
-          </button>
-          <button type="button" className="shell-add" popoverTarget="shell-add"><Icon name="plus" />Add</button>
-          {section !== "canvas" && <button type="button" id="shell-top-ask" className="shell-ask-button" aria-pressed={panel!.visible} onKeyDown={event => { if (event.key !== " ") typedOnBar(event); }} onClick={event => panel!.visible ? panel!.close() : panel!.open(event.currentTarget)}><Icon name="ask" />Ask</button>}
-        </> : <>
-        <div className="shell-ask-row">
+        {desktop && tryIt && <p className="shell-sample">Sample household{today ? ` · fixed date ${shortDate(today)}` : ""}</p>}
+        {!desktop && <div className="shell-ask-row">
           <button {...micProps} className={`shell-ask-mic${speech.listening ? " is-listening" : ""}`}><Icon name="mic" /></button>
-          <Link prefetch={false} id="shell-top-ask" className="shell-ask" href="/canvas#ask" onKeyDown={typedOnBar}
-            aria-expanded={openPanel ? panel?.visible : undefined}
-            onClick={event => {
-              if (!openPanel || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-              event.preventDefault();
-              openPanel(event.currentTarget);
-            }}>
+          <Link prefetch={false} className="shell-ask" href="/canvas#ask" onKeyDown={typedOnBar}>
             <span role="status">{micLabel || `Ask or say: ${askPrompt}`}</span><b>Ask</b>
           </Link>
-        </div>
+        </div>}
         <button className="shell-bell" popoverTarget="shell-notifications" aria-label={`Notifications, ${unread} unread`}>
           <Icon name="bell" />{unread > 0 && <span className="shell-badge">{unread}</span>}
         </button>
-        <button className="shell-add" popoverTarget="shell-add"><Icon name="plus" />Add</button>
-        </>}
+        <button type="button" className="shell-add" popoverTarget="shell-add"><Icon name="plus" />Add</button>
+        {desktop && <AskButton />}
       </header>
       <main id="shell-main" className="shell-main" tabIndex={-1}>
         <div className="shell-content">{children}</div>
@@ -181,12 +164,13 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
       <Link prefetch={false} href="/activity">View activity</Link>
     </section>
     <nav id="shell-add" popover="auto" className="shell-popover shell-add-menu" aria-label="Add to household">
-      <Link prefetch={false} href="/#add-bill">A bill</Link>
-      <Link prefetch={false} href="/#add-charge">A card charge</Link>
-      <Link prefetch={false} href="/clients#add-client">A client who pays you</Link>
-      <Link prefetch={false} href="/settings#add-person">A person who shares costs</Link>
+      <AddLink kind="bill">A bill</AddLink>
+      <AddLink kind="charge">A card charge</AddLink>
+      <AddLink kind="card">A card</AddLink>
+      <AddLink kind="client">A client who pays you</AddLink>
+      <AddLink kind="person">A person who shares costs</AddLink>
       <Link prefetch={false} className="shell-add-rule" href="/upload">Upload a receipt or bill</Link>
-      {forwarding && <Link prefetch={false} href="/settings#forwarding">Forward a bill</Link>}
+      {forwarding && <Link prefetch={false} href="/bills#forwarding">Forward a bill</Link>}
       <Link prefetch={false} href="/invoices/new">New invoice</Link>
     </nav>
   </div>;

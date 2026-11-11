@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { AddLink } from "@/components/add/AddLink";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import type { AddKind } from "@/components/add/context";
 import { useAskPanel } from "@/components/shell/AskWorkspace";
 import { listDevice } from "@/lib/store/device";
 import "./get-started.css";
@@ -34,8 +36,8 @@ export function GetStarted({ householdId, progress, peopleCount }: { householdId
     { done: true, label: "Read the sentence and the forecast", href: "#next-30-days" },
     { done: progress.invoicePaid, label: "Approve Beacon’s invoice and watch the sentence change", href: "/invoices" },
     { done: progress.billConfirmed, label: "Check the Hikari Denki bill in To check", href: "/to-check" },
-    { done: progress.hasKey && (progress.journalOnDevice ? deviceAnswered : progress.answered), label: "Add your AI key, then ask a question", href: "/settings#ai-model" },
-    { done: peopleCount > 1, label: "Add a person who shares costs", href: "/settings#people" },
+    { done: progress.hasKey && (progress.journalOnDevice ? deviceAnswered : progress.answered), label: "Add your AI key, then ask a question", href: "/settings/ai-model" },
+    { done: peopleCount > 1, label: "Add a person who shares costs", add: "person" as const },
   ];
   const done = steps.filter(step => step.done).length;
   function hide() {
@@ -43,10 +45,10 @@ export function GetStarted({ householdId, progress, peopleCount }: { householdId
     try { localStorage.setItem(key, "yes"); window.dispatchEvent(new Event("pes-get-started-hidden")); } catch { /* Device storage may be unavailable. */ }
   }
   return <StepsPanel id="get-started-title" title="Get started" meta={`${done} of 5 done`} progress={{ done, of: 5 }} onHide={hide}
-    rows={steps.map(step => ({ done: step.done, label: step.label, href: step.href }))} />;
+    rows={steps} />;
 }
 
-export type StepRow = { done: boolean; label: string; href?: string };
+export type StepRow = { done: boolean; label: string; href?: string; add?: AddKind };
 
 /** The panel Get started draws: a header, an optional progress bar and one row per step. */
 function StepsPanel({ id, title, meta, progress, onHide, rows, }: { id: string; title: string; meta?: string; progress?: { done: number; of: number }; onHide?: () => void; rows: StepRow[] }) {
@@ -61,7 +63,7 @@ function StepsPanel({ id, title, meta, progress, onHide, rows, }: { id: string; 
       const body = <><span className="get-started-tick" aria-hidden="true">{row.done && <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3 3 7-7" /></svg>}</span>
         <span className="get-started-label">{row.label}</span><span className="sr-only">{row.done ? ", done" : ", not done"}</span></>;
       return <li key={row.label} className={row.done ? "get-started-done" : undefined}>
-        {row.href ? <Link href={row.href} prefetch={false}>{body}</Link> : <div className="get-started-row">{body}</div>}</li>;
+        {row.add ? <AddLink kind={row.add}>{body}</AddLink> : row.href ? <Link href={row.href} prefetch={false}>{body}</Link> : <div className="get-started-row">{body}</div>}</li>;
     })}</ol>
   </section>;
 }

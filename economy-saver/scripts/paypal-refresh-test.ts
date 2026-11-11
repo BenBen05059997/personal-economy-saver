@@ -10,7 +10,8 @@ import { seedBen } from "@/db/seed";
 import { refreshPayPal } from "@/db/paypal-refresh";
 import { observeRunway } from "@/db/runway-events";
 import { listEvents, loadMoneyState, recordEvent } from "@/db/household";
-import { updateSettings } from "@/db/settings";
+import { setBankBalance } from "@/db/bank-balance";
+import { randomUUID } from "node:crypto";
 import { householdClock } from "@/db/account";
 import { clockForHousehold } from "@/db/clock";
 import { applyVerifiedDelivery } from "@/lib/events";
@@ -142,8 +143,8 @@ async function test() {
     console.log("✓ Stored data survives failures; retry waits five minutes, cancelled invoices leave the forecast; a household that is not the designated one sees no notice, and a malformed setting is logged for the operator");
 
     await db.transaction(async tx=>{await observeRunway(tx,b)});
-    await updateSettings(db,b,{kind:"household",name:"Ben",bank:"950000"});
-    await updateSettings(db,b,{kind:"household",name:"Ben",bank:"0"});
+    await setBankBalance(db,b,{id:randomUUID(),amount:"950000"},"confirmed",{madeBy:"form"});
+    await setBankBalance(db,b,{id:randomUUID(),amount:"0"},"confirmed",{madeBy:"form"});
     await db.transaction(async tx=>{await recordEvent(tx,b,{ madeBy: "form",kind:"daily_reminder",title:"Due soon",notify:true})});
     const changes=(await listEvents(db,b)).filter(e=>["runway_clear","runway_short","daily_reminder"].includes(e.kind));
     assert.equal(changes.filter(e=>e.kind==="runway_clear").length,1);

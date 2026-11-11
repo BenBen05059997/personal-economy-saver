@@ -1,3 +1,4 @@
+import { logSettingProblem } from "@/lib/operator-log";
 import { modelFailureWords } from "@/lib/ai/provider-failure";
 import PostalMime from "postal-mime";
 import { z } from "zod";
@@ -110,7 +111,10 @@ export async function extractDocument(bytes: ArrayBuffer, mime: string, context:
   const { need, parts } = await documentContent(bytes, mime);
   const c = await connection(need);
   const model = need === "document" ? c.documentModel : c.textModel;
-  if (!model) throw new ReaderError(`${need === "document" ? "AI_DOCUMENT_MODEL" : "AI_TEXT_MODEL"} is not set`, 503);
+  if (!model) {
+    logSettingProblem("reader_not_set_up", `${need === "document" ? "AI_DOCUMENT_MODEL" : "AI_TEXT_MODEL"} is not set`);
+    throw new ReaderError("Reading documents isn’t set up on this server.", 503);
+  }
   let reply;
   try {
     // One forced tool: tool calling is what both protocols share.

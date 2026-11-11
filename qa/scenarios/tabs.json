@@ -1,0 +1,59 @@
+[
+  {
+    "id": "TABS-001",
+    "area": "Tabs",
+    "action": "Move between Household and Settings tabs",
+    "user_goal": "I want each section to have its own address",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Household, then People, then Details",
+      "Open Settings, then each of Your AI model, PayPal, Your data, Account and Assistant rules",
+      "Press Back after each",
+      "Open each address directly"
+    ],
+    "expected": [
+      "Each tab has its own address (/household, /household/people, /settings, /settings/ai-model, /settings/paypal, /settings/data, /settings/account) and the current tab has aria-selected and a visible selected look",
+      "Back returns to the previous tab; the tabs are plain links that also work with JavaScript off",
+      "The Left and Right arrow keys move focus between the tabs; an unknown tab address shows not found"
+    ],
+    "refs": [
+      "D25"
+    ]
+  },
+  {
+    "id": "TABS-002",
+    "area": "Tabs",
+    "action": "Open an old Settings address",
+    "user_goal": "a bookmark from before must still land",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open /account",
+      "Open /memory?tab=rules",
+      "Open /settings#people, /settings#cards, /settings#categories, /settings#forwarding, /settings#ai-model, /settings#your-data and /settings#bill-<a bill id>"
+    ],
+    "expected": [
+      "/account lands on /settings/account and /memory?tab=rules on /settings",
+      "Each old #address moves to its new place: Household → People, Cards, Plan → Your categories, Bills → Forwarding address, Settings → Your AI model, Settings → Your data and /bills/<id>",
+      "Nothing flashes an error"
+    ],
+    "refs": [
+      "D25"
+    ]
+  }
+]

@@ -3,14 +3,18 @@ export const ASK_SCREEN_NAMES = {
   canvas: "Ask",
   check: "To check",
   activity: "Activity",
+  bills: "Bills",
   cards: "Cards",
   clients: "Clients",
   plan: "Plan",
+  household: "Household",
   memory: "Memory",
   settings: "Settings",
   invoices: "Invoices",
   options: "Options",
   upload: "Upload",
+  setup: "Setup",
+  add: "Add",
 } as const;
 
 export type AskScreen = keyof typeof ASK_SCREEN_NAMES;
@@ -20,15 +24,19 @@ const screenRoutes: Record<string, AskScreen> = {
   canvas: "canvas",
   "to-check": "check",
   activity: "activity",
+  bills: "bills",
   cards: "cards",
   clients: "clients",
   plan: "plan",
+  household: "household",
   memory: "memory",
   settings: "settings",
   account: "settings",
   invoices: "invoices",
   options: "options",
   upload: "upload",
+  setup: "setup",
+  add: "add",
 };
 
 /** Only the section is sent. A row's path, query and contents never become context. */

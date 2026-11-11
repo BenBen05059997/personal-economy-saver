@@ -186,7 +186,7 @@ async function main() {
     await check("the member session can write to People while owner actions refuse it before any external calls", async () => {
       signedIn = guest;
       const otherPerson = await addMember(db, hid, { name: "Fictional Removable" });
-      assert.equal((await editPeople(form("/api/people", { kind: "add", name: "Fictional Add by Member", householdId: b.householdId }))).status, 200);
+      assert.equal((await editPeople(form("/api/people", { kind: "add", name: "Fictional Add by Member", householdId: b.householdId }))).status, 303);
       assert.ok((await people()).some(person => person.displayName === "Fictional Add by Member"));
       assert.equal((await db.select().from(schema.members).where(eq(schema.members.householdId, b.householdId))).length, 1);
       for (const action of ["send", "remind"]) {

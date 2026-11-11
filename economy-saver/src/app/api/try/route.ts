@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   const foreign = sameOriginOnly(request, "Same-origin navigation required");
   if (foreign) return foreign;
   try {
-    if (await verifiedUid()) return redirectTo("/account", undefined, NO_REFERRER);
+    if (await verifiedUid()) return redirectTo("/settings/account", undefined, NO_REFERRER);
     const existing = await currentHouseholdId();
     if (existing) return await demoResponse(existing);
     return await demoResponse(await seedBen(db(), { isDemo: true }));

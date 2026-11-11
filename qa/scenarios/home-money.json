@@ -160,11 +160,11 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Look at Home, Add a bill and Settings"
+      "Look at Home, Add a bill and Bills"
     ],
     "expected": [
       "No Shared costs panel and no Whose, Paid by or Shared fields or labels",
-      "Settings has no 'Card belongs to' select and its bills panel is headed 'Bills'",
+      "Cards has no 'Card belongs to' select and the bills list is headed 'Bills'",
       "The line 'Add a partner or housemate…' is still there"
     ],
     "refs": []
@@ -240,7 +240,7 @@
     ],
     "expected": [
       "The panel shows six cards: Set today’s bank balance, Add a bill, Add a client, Add a card, Upload a receipt or bill and Ask a question",
-      "Each card opens its thing: the balance form, the Add a bill form on the Bill tab, Clients",
+      "Each card opens its thing: the balance form, the Add a bill dialog, the Add a client dialog",
       "A card whose thing now exists shows a tick and \"Done\" and stays clickable",
       "Try it (Ben) shows Get started instead; no \"First steps\" panel exists",
       "Cards are at least 44px tall at 375px"
@@ -1141,7 +1141,7 @@
       "POST /api/paypal/import"
     ],
     "expected": [
-      "Answered 403 'Only the household connected to the PayPal sandbox merchant can import from it.'; the Settings panel is not shown"
+      "Answered 403 'Only the household connected to the PayPal sandbox merchant can import from it.'; the PayPal tab's import is not offered"
     ],
     "refs": [
       "D37",
@@ -1513,10 +1513,10 @@
       "Household with no card"
     ],
     "steps": [
-      "Open Add a bill or charge → Card charge"
+      "Open + Add → A card charge"
     ],
     "expected": [
-      "It says 'Add a card in Settings before adding a charge.'"
+      "The dialog says to add a card first, with a link that opens the Add a card dialog"
     ],
     "refs": []
   },
@@ -1750,7 +1750,7 @@
       "A one-off bill Noodle shop ¥1,200 due Nov 20, category Other, added"
     ],
     "steps": [
-      "Open Settings → Bills and Noodle shop's ▶ Edit",
+      "Open Bills, then Noodle shop's page and Edit",
       "Change the amount to ¥980 and the category to Food, and save"
     ],
     "expected": [
@@ -1876,7 +1876,7 @@
       "POST /api/charges with shared on"
     ],
     "expected": [
-      "Refused with 'Sharing a charge needs a second person; add one in Settings, People'"
+      "Refused with 'Sharing a charge needs a second person; add one in Household → People'"
     ],
     "refs": [
       "db:split-test"
@@ -2096,7 +2096,7 @@
       "Add a bill with Repeats 'Every month on the 25th'"
     ],
     "expected": [
-      "Coming up shows 'Every month' and Settings lists it"
+      "Coming up shows 'Every month' and Bills lists it"
     ],
     "refs": []
   },
@@ -2166,7 +2166,7 @@
       "Add a bill named with a very long unbroken word"
     ],
     "expected": [
-      "It wraps on Home, Plan, Settings and Activity without sideways scroll at 375px"
+      "It wraps on Home, Plan, Bills and Activity without sideways scroll at 375px"
     ],
     "refs": []
   },
@@ -2188,8 +2188,8 @@
       "Open + Add on Home and again from Plan"
     ],
     "expected": [
-      "The menu lists A bill, A card charge, A client who pays you, A person who shares costs, a line, then Upload a receipt or bill, Forward a bill (only when forwarding is set up) and New invoice, in that order",
-      "Each opens its existing form; from Plan the bill and charge forms open on the correct tab",
+      "The menu lists A bill, A card charge, A card, A client who pays you, A person who shares costs, a line, then Upload a receipt or bill, Forward a bill (only when forwarding is set up) and New invoice, in that order",
+      "Each opens that thing's form in a dialog over the current screen (the same form as /add/<kind>); closing it leaves the person where they were",
       "At 1200px and wider the menu and the notifications open directly under their own top-bar buttons with the Ask panel closed, with it open (they do not cover the panel) and on the Ask page, where the top bar has no Ask button"
     ],
     "refs": []
@@ -2209,7 +2209,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Settings → Bills → Remove on Rent → Keep",
+      "Bills → Rent → Remove → Keep",
       "Then Remove again → Remove"
     ],
     "expected": [
@@ -3096,11 +3096,11 @@
     ],
     "steps": [
       "Add Kawa Gym ¥6,000 due Nov 27, Every month, Last payment Dec 27",
-      "Read Coming up and Settings → Bills"
+      "Read Coming up and Bills"
     ],
     "expected": [
       "Coming up shows \"Every month · last one Dec 27\" and the late-case shortfall reads ¥24,780 on the 27th",
-      "Settings shows \"Kawa Gym · ¥6,000 · last one Dec 27\""
+      "The bill's page on Bills shows \"Kawa Gym · ¥6,000 · last one Dec 27\""
     ],
     "refs": [
       "D41"
@@ -3298,7 +3298,7 @@
       "Ben and Aki"
     ],
     "steps": [
-      "Settings → Cards → Card B belongs to Aki"
+      "Cards → Card B belongs to Aki"
     ],
     "expected": [
       "Activity says 'Card B now belongs to Aki'"
@@ -3414,7 +3414,7 @@
       "Ben and Aki"
     ],
     "steps": [
-      "Settings → bills, set 'Who pays it?' to 'Nobody (not split by shares)'"
+      "Bills → the bill → Edit, set 'Who pays it?' to 'Nobody (not split by shares)'"
     ],
     "expected": [
       "The bill stays out of who owes whom; an unowned bill reads 'Shared'"
@@ -3437,7 +3437,7 @@
       "Aki with a shared bill she paid"
     ],
     "steps": [
-      "Settings → People → Remove Aki"
+      "Household → People → Remove Aki"
     ],
     "expected": [
       "'Settle up with Aki first.'; after Mark settled it works and Activity says 'Aki left the household'"
@@ -3460,7 +3460,7 @@
       "The dev server at http://127.0.0.1:3123"
     ],
     "steps": [
-      "Add a fictional second person named Fictional Aki in Settings → People",
+      "Add a fictional second person named Fictional Aki in Household → People",
       "Check Ben’s row and use its member id to POST /api/people with kind=remove and returnTo=/settings",
       "Remove Fictional Aki, who has no shared costs",
       "Repeat the same POST for Ben after he is the only person left"
@@ -3469,7 +3469,7 @@
       "Ben’s row has no Remove control",
       "With two people, the POST for Ben returns HTTP 400 with \"The household’s owner cannot be removed\"",
       "With Ben alone, the POST for Ben returns HTTP 400 with \"The last person in a household cannot be removed\"",
-      "Ben remains in Settings → People"
+      "Ben remains in Household → People"
     ],
     "refs": [
       "frontend-check --extra (nov5-remove-a-person-only-once-settled)",
@@ -3523,7 +3523,7 @@
       "POST /api/settle in a one-person household"
     ],
     "expected": [
-      "400 'Settling needs a second person; add one in Settings, People'"
+      "400 'Settling needs a second person; add one in Household → People'"
     ],
     "refs": [
       "db:split-test"
@@ -3548,7 +3548,7 @@
       "Add a shared charge on it"
     ],
     "expected": [
-      "'A shared charge needs a card that belongs to a person; set the card's owner in Settings'"
+      "'A shared charge needs a card that belongs to a person; set the card's owner on Cards'"
     ],
     "refs": [
       "db:split-test"
@@ -3602,9 +3602,9 @@
     ],
     "expected": [
       "The balance card opens Bank balance on Home and scrolls to it",
-      "Add a bill opens the Add a bill or charge form on the Bill tab",
-      "Add a client opens Clients",
-      "Add a card opens Settings → Cards",
+      "Add a bill opens the Add a bill dialog over Home",
+      "Add a client opens the Add a client dialog over Home",
+      "Add a card opens the Add a card dialog over Home",
       "Upload opens Upload",
       "Ask a question opens the Ask panel (or full Ask on a narrow window)"
     ],
@@ -3717,8 +3717,8 @@
       "In the bell press a waiting row"
     ],
     "expected": [
-      "The Add a bill or charge form opens on the Bill tab and scrolls into view at 1280px",
-      "Settings opens scrolled to that bill's row",
+      "The Add a bill dialog opens over Home at 1280px",
+      "The bill opens at /bills/<id> beside the list",
       "Plan opens scrolled to the pot",
       "To check opens scrolled to that row"
     ],
@@ -3797,7 +3797,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Open Settings → People",
+      "Open Household → People",
       "Add Aki"
     ],
     "expected": [

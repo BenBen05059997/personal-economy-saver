@@ -1,5 +1,11 @@
-/** The sentence for a missing Ask setting: the setting's name inside words a person can read (never a value). */
-export const askUnavailable = (name: string) => `Ask isn’t available on this server yet (${name}).`;
+import { logSettingProblem } from "@/lib/operator-log";
+const ASK_NOT_SET_UP = "Ask isn’t set up on this server yet.";
+
+/** The sentence for a missing Ask setting, in words a person can read; the setting's name goes to the operator log (never a value). */
+export function askUnavailable(name: string): string {
+  logSettingProblem("ask_not_set_up", `${name} is not set`);
+  return ASK_NOT_SET_UP;
+}
 
 /** On a server with no AI model of its own (the deployed setup), each household adds its own key: these words say so. */
 export const NEEDS_KEY_OWNER = "Add your own AI key in Settings to use Ask.";

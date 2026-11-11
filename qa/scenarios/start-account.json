@@ -250,7 +250,7 @@
       "Home shows today's real date in the date line, not Sat Nov 14",
       "Before the update the sentence reads \"Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥0.\"; after it, it includes \"Bank balance ¥250,000.\" and Cards says \"No card yet.\"",
       "\"What you can do here\" shows six cards; after the update \"Set today’s bank balance\" is ticked and \"First steps\" does not exist",
-      "Settings, Late-client nudge shows 3"
+      "Settings → Assistant rules: Late-client nudge shows 3"
     ],
     "refs": [
       "D47"
@@ -259,7 +259,7 @@
   {
     "id": "START-012",
     "area": "Start with my numbers",
-    "action": "Start planning, then add a card in Settings",
+    "action": "Start planning, then add a card on Cards",
     "user_goal": "I want my card counted from day one",
     "type": "happy",
     "priority": "P1",
@@ -276,7 +276,7 @@
       "Press Start planning",
       "On the setup page press Skip, Skip, Skip, then Finish",
       "On Home, Bank balance → Update, type 120,000 and Save",
-      "Settings → Cards → add Card N, closing 25, payment 10, no limit"
+      "Cards → Add a card: Card N, closing 25, payment 10, no limit"
     ],
     "expected": [
       "Home opens in 1.5 s or less with the empty sentence \"Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥120,000.\"",
@@ -417,7 +417,7 @@
     ],
     "expected": [
       "The name field stops at 80 characters or the form refuses it, and nothing is created for an over-long name",
-      "A name with markup is shown as plain text everywhere (Home, Settings), never as formatting",
+      "A name with markup is shown as plain text everywhere (Home, Household), never as formatting",
       "A long unbroken name wraps and nothing scrolls sideways at 375px"
     ],
     "refs": []
@@ -469,7 +469,7 @@
       "Press Back to the old pages"
     ],
     "expected": [
-      "The line reads \"This replaces the Try it household in this browser. Reset in Settings brings Ben's numbers back.\"",
+      "The line reads \"This replaces the Try it household in this browser. Reset in Settings → Account brings Ben's numbers back.\"",
       "Home is blank as in START-012, not Ben's",
       "Going Back shows the landing or the new blank household, never Ben's"
     ],
@@ -503,8 +503,8 @@
   {
     "id": "START-021",
     "area": "Start with my numbers",
-    "action": "Use Start over from Settings",
-    "user_goal": "I want a blank household from Settings",
+    "action": "Use Start over from Settings → Account",
+    "user_goal": "I want a blank household from Settings → Account",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -513,7 +513,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben)",
-      "Settings open"
+      "Settings → Account open"
     ],
     "steps": [
       "Find \"Start over with my numbers ›\" beside Reset",
@@ -544,8 +544,8 @@
       "POST /api/try/blank"
     ],
     "expected": [
-      "/start redirects to /account",
-      "The post redirects to /account and makes nothing"
+      "/start redirects to /account, which moves to /settings/account",
+      "The post redirects the same way and makes nothing"
     ],
     "refs": []
   },
@@ -570,7 +570,7 @@
     ],
     "expected": [
       "A pending bill waiting in To check does not change the sentence, which is still the empty one",
-      "With no card, the card hint reads \"Add a card\" with \"Card charges and statements need a card first.\" and opens Settings → Cards"
+      "With no card, the card hint reads \"Add a card\" with \"Card charges and statements need a card first.\" and opens the Add a card dialog"
     ],
     "refs": []
   },
@@ -592,10 +592,10 @@
       "Read Coming up, Cards, To check and Clients on Home"
     ],
     "expected": [
-      "Coming up says \"Nothing due yet. Add your rent ›\" or \"Nothing due in the next 30 days. Add a bill ›\" and the link opens the Add bill form",
-      "Cards says \"No card yet. Add one in Settings ›\" without a card, or \"No card charges yet. Add a card charge ›\" with one",
+      "Coming up says \"Nothing due yet. Add your rent ›\" or \"Nothing due in the next 30 days. Add a bill ›\" and the link opens the Add a bill dialog",
+      "Cards says \"No card yet. Add one ›\" without a card (it opens the Add a card dialog), or \"No card charges yet. Add a card charge ›\" with one",
       "To check says \"Things the app read or drafted, waiting for your OK. Nothing here now.\"",
-      "Clients says \"No clients yet. Add a client ›\" and the link jumps to the add form"
+      "Clients says \"No clients yet. Add a client ›\" and the link opens the Add a client dialog"
     ],
     "refs": []
   },
@@ -912,7 +912,7 @@
       "Signed in"
     ],
     "steps": [
-      "Open /account",
+      "Open /settings/account",
       "Press Sign out"
     ],
     "expected": [
@@ -937,7 +937,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Open /account",
+      "Open /settings/account",
       "Read the page",
       "Press Leave this household"
     ],
@@ -951,7 +951,7 @@
   {
     "id": "AUTH-014",
     "area": "Security",
-    "action": "Open /account without any session",
+    "action": "Open /account and /settings/account without any session",
     "user_goal": "I came with no cookie",
     "type": "negative",
     "priority": "P2",
@@ -963,10 +963,10 @@
       "Private window, no household cookie"
     ],
     "steps": [
-      "GET /account"
+      "GET /account, then GET /settings/account"
     ],
     "expected": [
-      "It redirects to /login"
+      "Each redirects to /login (/account first moves to /settings/account)"
     ],
     "refs": []
   },
@@ -985,7 +985,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Open each sidebar link: Home, Ask, To check, Activity, Cards, Clients, Plan, Memory, Settings",
+      "Open each sidebar link: Home, Ask, To check, Activity, Bills, Cards, Clients, Plan, Memory, Household, Settings",
       "On a phone open and close the menu"
     ],
     "expected": [
@@ -1009,7 +1009,7 @@
       "Signed in with a household"
     ],
     "steps": [
-      "Open /account",
+      "Open /settings/account",
       "Tick \"Delete my household and its data\"",
       "Press Delete household"
     ],
@@ -1046,7 +1046,7 @@
   {
     "id": "SET-001",
     "area": "Settings",
-    "action": "Open Settings and read its panels",
+    "action": "Open Settings and read its tabs",
     "user_goal": "I want to find my settings",
     "type": "happy",
     "priority": "P2",
@@ -1058,18 +1058,21 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Open Settings at 375px and 1440px"
+      "Open Settings at 375px and 1440px",
+      "Open each tab: Assistant rules, Your AI model, PayPal, Your data, Account",
+      "Open Household and its two tabs: Details, People"
     ],
     "expected": [
-      "Panels appear for Household & bank, Late-client nudge, People, Cards, statement import, Bills, Your AI model, Your data and Account",
-      "At 1440px Your AI model and Your data sit in the right column; nothing scrolls sideways; light and dark both read clearly"
+      "Settings has five tabs: Assistant rules (Late-client nudge and the other rules, Reminders), Your AI model, PayPal, Your data and Account; each has its own address (/settings, /settings/ai-model, /settings/paypal, /settings/data, /settings/account) and the current one is selected",
+      "Household has Details (name, currency, time zone, the bank balance with a link to Home) and People (names and shares, invitations, family view, who has access) at /household and /household/people",
+      "Nothing scrolls sideways; light and dark both read clearly"
     ],
     "refs": []
   },
   {
     "id": "SET-002",
     "area": "Settings",
-    "action": "Change the household name and bank balance",
+    "action": "Change the household name; change the balance on Home",
     "user_goal": "My balance changed",
     "type": "happy",
     "priority": "P1",
@@ -1081,12 +1084,12 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Type a new name and 70,000 in the bank balance",
-      "Press Save household",
+      "Open Household → Details, type a new name and press Save household",
+      "On Home open Bank balance → Update, type 70,000 and Save",
       "Reload, then open Home"
     ],
     "expected": [
-      "The name and balance stay after the reload",
+      "The name stays after the reload; Household → Details shows the balance with an \"Update on Home ›\" link, and the Details form has no balance field",
       "Home's sentence and bank balance follow (¥15,780 short on the 27th with ¥70,000)",
       "Putting 67,000 back restores the expected numbers"
     ],
@@ -1109,7 +1112,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Type -5,000 and press Save household",
+      "On Home open Bank balance → Update, type -5,000 and press Save",
       "Type 100,000,001",
       "Type abc",
       "Clear the box"
@@ -1139,7 +1142,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Clear the name and press Save household",
+      "On Household → Details clear the name and press Save household",
       "Type 81 characters"
     ],
     "expected": [
@@ -1162,11 +1165,11 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Press Save household twice without changing anything",
+      "On Household → Details press Save household twice without changing anything",
       "Press it with only the name changed"
     ],
     "expected": [
-      "Nothing breaks and no balance event is added for the unchanged balance",
+      "Nothing breaks and no event is added for an unchanged name",
       "Activity shows \"Household renamed to …\" only when the name changed"
     ],
     "refs": []
@@ -1187,7 +1190,7 @@
       "Fresh Try it household (Ben) at 375px and 1440px"
     ],
     "steps": [
-      "Open Memory → Rules",
+      "Open Settings → Assistant rules (the first tab)",
       "Set the nudge rule to 5 days and save",
       "Reload and try 0 and 31 days",
       "Turn the nudge rule off and save"
@@ -1217,12 +1220,12 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Type Wife in Add a person and press Add person",
-      "Read the People panel"
+      "On Household → People press Add a person, type Wife and save the dialog",
+      "Read People"
     ],
     "expected": [
       "The answer says everyone's share is now equal",
-      "Two name fields and Share (%) fields at 50 and 50 appear",
+      "The People tab shows two name fields and Share (%) fields at 50 and 50",
       "Plan's month shows Together, Ben and Wife and the Shared costs panel appears on Home"
     ],
     "refs": []
@@ -1243,7 +1246,7 @@
       "Wife added"
     ],
     "steps": [
-      "Set Ben 60 and Wife 50 and press Save people",
+      "Set Ben 60 and Wife 50 and press Save names",
       "Set 101 for one person",
       "Set 0 and 100, then 60 and 40",
       "Rename a person to an empty name"
@@ -1273,7 +1276,7 @@
       "Wife added with no shared bill owed"
     ],
     "steps": [
-      "Press Remove beside Wife",
+      "On Household → People press Remove beside Wife",
       "Read the question",
       "Press Keep, then Remove again and Remove"
     ],
@@ -1458,8 +1461,8 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Open Settings, Bills",
-      "Press Edit on a bill",
+      "Open Bills",
+      "Open a bill on Bills and press Edit",
       "Change the amount and due date and press Save bill"
     ],
     "expected": [
@@ -1646,7 +1649,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Open Settings, Bills",
+      "Open Bills",
       "Open \"Past bills (n)\""
     ],
     "expected": [
@@ -1702,7 +1705,7 @@
       "Open Settings → Your AI model"
     ],
     "expected": [
-      "On a server with some but not all AI_ settings it reads \"Ask isn't available on this server yet (AI_TEXT_MODEL).\" and \"Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.\"; with no AI_ settings it reads \"Paste your own key below to use Ask and document reading.\" and the default-model hint is hidden; there is no allowance or \"default calls recorded\" line",
+      "On a server with some but not all AI_ settings it reads \"Ask isn’t set up on this server yet.\" and \"Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.\"; with no AI_ settings it reads \"Paste your own key below to use Ask and document reading.\" and the default-model hint is hidden; there is no allowance or \"default calls recorded\" line",
       "There is no \"go to\" host line and no clear button",
       "With a server model the first line is \"Your questions and documents go to {host}.\""
     ],
@@ -2108,7 +2111,7 @@
       "economy-saver/scripts/fixtures/sample-statement-utf8.csv"
     ],
     "steps": [
-      "Settings → Import a statement, choose Card B and the file",
+      "Cards → Import a statement, choose Card B and the file",
       "Tap Import 7 charges",
       "Import the same file again",
       "Pick a text file that is not a CSV, then an empty file"
@@ -2135,7 +2138,7 @@
       "The owner's non-demo household bound to the PayPal sandbox merchant (PAYPAL_BALANCE_HOUSEHOLD_ID), signed in"
     ],
     "steps": [
-      "Settings → PayPal history → Import clients and invoices from PayPal",
+      "Settings → PayPal → Import clients and invoices from PayPal",
       "Run it again"
     ],
     "expected": [
@@ -2162,7 +2165,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Open /settings#your-data"
+      "Open /settings/data"
     ],
     "expected": [
       "The panel reads \"What the app keeps about you, where it is kept, and how to delete it. A question you ask goes to the household’s AI model.\"",
@@ -2222,7 +2225,7 @@
     ],
     "expected": [
       "The question reads \"Delete all the assistant remembers? This can’t be undone.\" Keep closes it and changes nothing",
-      "Delete returns to Settings with the row at \"0 things\" and no Delete",
+      "Delete returns to Settings → Your data with the row at \"0 things\" and no Delete",
       "Activity records \"The assistant forgot everything\" and never names the text",
       "The pinned canvases, cloud Ask journal and documents ask \"Delete all pinned canvases?\", \"Delete all conversations, briefs and named spaces?\", and \"Delete all uploaded documents?\""
     ],
@@ -2720,7 +2723,7 @@
       "Press \"Delete everything\" in Your data"
     ],
     "expected": [
-      "It opens /account where Delete household asks me to tick the box; a Try it household sees only Leave this household there"
+      "It opens /settings/account where Delete household asks me to tick the box; a Try it household sees only Leave this household there"
     ],
     "refs": []
   },
@@ -2788,10 +2791,10 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben)",
-      "Wife added in Settings → People"
+      "Wife added in Household → People"
     ],
     "steps": [
-      "Open Settings → People → Share a family view",
+      "Open Household → People → Share a family view",
       "Press Make a link"
     ],
     "expected": [
@@ -3061,7 +3064,7 @@
       "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
-      "Open Settings → People → Share a family view and press Make a link",
+      "Open Household → People → Share a family view and press Make a link",
       "Open the link in a private window"
     ],
     "expected": [
@@ -3184,7 +3187,7 @@
       "Press Privacy on the landing",
       "Press Privacy › on /start",
       "Press Privacy › beside Open account in Settings → Account",
-      "Press Privacy › on /account"
+      "Press Privacy › on /settings/account"
     ],
     "expected": [
       "Each opens /privacy",
@@ -3254,12 +3257,12 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Fetch Settings, Home and the export",
+      "Fetch Settings → Your AI model, Home and the export",
       "Search each for AI key, token and service key text"
     ],
     "expected": [
       "No key, token, sign-in email or service secret appears in any page or export",
-      "Only the last four characters of a saved key of 20 or more characters can appear in Settings; a shorter key shows (hidden)"
+      "Only the last four characters of a saved key of 20 or more characters can appear in Settings → Your AI model; a shorter key shows (hidden)"
     ],
     "refs": [
       "AGENTS hard rule 2"

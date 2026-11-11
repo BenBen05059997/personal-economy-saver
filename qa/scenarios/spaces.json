@@ -20,7 +20,7 @@
     ],
     "expected": [
       "General is selected by default",
-      "Memory has Profile, Spaces, Goals and Rules",
+      "Memory has Profile, Spaces and Goals",
       "General has no Rename, Archive or Delete controls",
       "Ben still has ¥0 safe to spend and is ¥18,780 short on Nov 27 if clients pay late"
     ],

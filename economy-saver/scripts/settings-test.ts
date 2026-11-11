@@ -20,7 +20,8 @@ import { seedBen } from "@/db/seed";
 import { parseMinor } from "@/db/money";
 import { savePeople } from "@/db/people";
 import { billEditInput, updateBill } from "@/db/bills";
-import { loadSettings, settingsInput, updateSettings } from "@/db/settings";
+import { loadSettings, removeCard, settingsInput, updateSettings } from "@/db/settings";
+import { setBankBalance } from "@/db/bank-balance";
 import { deleteHousehold, loadMoneyState } from "@/db/household";
 import { resetDemoHousehold } from "@/db/demo";
 import { runDaily } from "@/db/daily";
@@ -117,7 +118,7 @@ async function main() {
       assert.ok(calls.every(key => key === fictional));
       await aiKey(db, b);
       delete process.env.AI_API_KEY;
-      await assert.rejects(aiKey(db, a), /AI_API_KEY is not set/);
+      await assert.rejects(aiKey(db, a), /The AI model isn’t set up on this server yet\./);
       process.env.AI_API_KEY = fictional;
     });
     await check("a saved AI key is sealed before Vault: round trip, wrong key, another household, an unsealed old value, a missing setting", async () => {
@@ -132,10 +133,10 @@ async function main() {
         process.env.AI_KEY_SEAL_KEY = good;
         await assert.rejects(unsealAiKey(b, stored), AiKeyError, "bound to its household");
         process.env.AI_KEY_SEAL_KEY = "short";
-        await assert.rejects(aiConnection(db, a, "text"), { message: "AI_KEY_SEAL_KEY must be 32 bytes encoded as unpadded base64url" });
+        await assert.rejects(aiConnection(db, a, "text"), { message: "Saving an AI key isn’t set up on this server." });
         delete process.env.AI_KEY_SEAL_KEY;
-        await assert.rejects(aiConnection(db, a, "text"), { message: "AI_KEY_SEAL_KEY is not set" });
-        await assert.rejects(own(b).done, { message: "AI_KEY_SEAL_KEY is not set" });
+        await assert.rejects(aiConnection(db, a, "text"), { message: "Saving an AI key isn’t set up on this server." });
+        await assert.rejects(own(b).done, { message: "Saving an AI key isn’t set up on this server." });
       } finally { process.env.AI_KEY_SEAL_KEY = good; }
       await pg.query("update vault.secrets set decrypted_secret = $1", [fictional]);
       await assert.rejects(aiConnection(db, a, "text"), { message: "Your saved AI key predates sealed storage. Save your key again in Settings." });
@@ -333,13 +334,13 @@ async function main() {
       const server = await aiConnection(db, b, "document");
       assert.deepEqual(server, { protocol: "anthropic", baseUrl: "https://api.anthropic.com", key: fictional, textModel: "fixture-text", documentModel: "fixture-document", own: false });
       process.env.AI_PROTOCOL = "openai";
-      await assert.rejects(aiConnection(db, b, "text"), /AI_BASE_URL is not set/);
+      await assert.rejects(aiConnection(db, b, "text"), /The AI model isn’t set up on this server yet\./);
       process.env.AI_BASE_URL = "https://models.example/v1";
       const other = await aiConnection(db, b, "text");
       assert.deepEqual([other.protocol, other.baseUrl, other.own], ["openai", "https://models.example/v1", false]);
       process.env.AI_PROTOCOL = "anthropic"; delete process.env.AI_BASE_URL;
       delete process.env.AI_DOCUMENT_MODEL;
-      await assert.rejects(aiConnection(db, b, "document"), /AI_DOCUMENT_MODEL is not set/);
+      await assert.rejects(aiConnection(db, b, "document"), /The AI model isn’t set up on this server yet\./);
       process.env.AI_DOCUMENT_MODEL = "fixture-document";
       assert.equal(missingAskSetting(false), null);
       delete process.env.AI_TEXT_MODEL;
@@ -364,16 +365,18 @@ async function main() {
       assert.equal(parseMinor("-12.37", "USD"), -1237); assert.equal(parseMinor("0.01", "USD"), 1);
       assert.throws(() => parseMinor("0.01", "JPY")); assert.throws(() => parseMinor("1.234", "USD"));
       const settingsA = await loadSettings(db, a), settingsB = await loadSettings(db, b);
-      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Fictional household", bank: "23456" }));
+      await setBankBalance(db, a, { id: randomUUID(), amount: "23456" }, "confirmed", { madeBy: "form" });
       assert.equal((await loadSettings(db, a)).household.bank, 23456);
       const bankEvents = async () => (await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), eq(schema.events.kind, "bank_balance")))).length;
       const written = await bankEvents();
-      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Renamed household", bank: "23456" }));
-      assert.equal(await bankEvents(), written, "a rename with the same balance goes through setBankBalance only when the balance changes");
       await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Renamed household", bank: "-100" }));
+      assert.equal((await loadSettings(db, a)).household.bank, 23456, "the household form has no bank field: an extra bank is dropped");
+      assert.equal(await bankEvents(), written, "a rename writes no balance event");
+      await setBankBalance(db, a, { id: randomUUID(), amount: "-100" }, "confirmed", { madeBy: "form" });
       assert.equal((await loadSettings(db, a)).household.bank, -100);
-      assert.equal(await bankEvents(), written + 1, "Settings changes the balance through setBankBalance (old and new in an event)");
-      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Fictional household", bank: "23456" }));
+      assert.equal(await bankEvents(), written + 1, "the balance changes through setBankBalance only (old and new in an event)");
+      await setBankBalance(db, a, { id: randomUUID(), amount: "23456" }, "confirmed", { madeBy: "form" });
+      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Fictional household" }));
       await assert.rejects(savePeople(db, a, { people: [{ id: settingsB.people[0].id, name: "Wrong household" }] }));
       await assert.rejects(setWhose(db, a, settingsA.bills[0].id, settingsB.people[0].id));
       await setWhose(db, a, settingsA.bills[0].id, settingsA.people[0].id);
@@ -391,10 +394,8 @@ async function main() {
     await check("Activity says what a settings change was: a rename, a card added, a card edited, nothing when nothing changed", async () => {
       const titles = async () => (await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), eq(schema.events.kind, "settings_updated"))).orderBy(schema.events.occurredAt, schema.events.id)).map(e => e.title);
       const before = (await titles()).length;
-      const [household] = await db.select().from(schema.households).where(eq(schema.households.id, a));
-      const bank = String(household.bankBalanceMinor);
-      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Renamed in Activity", bank }));
-      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Renamed in Activity", bank }));
+      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Renamed in Activity" }));
+      await updateSettings(db, a, settingsInput.parse({ kind: "household", name: "Renamed in Activity" }));
       await updateSettings(db, a, settingsInput.parse({ kind: "card", id: "", label: "Card C", memberId: "", closingDay: 5, dueDay: 25, limit: "" }));
       const card = (await loadSettings(db, a)).cards.find(c => c.label === "Card C")!;
       const form = { kind: "card", id: card.id, label: "Card C", memberId: "", closingDay: 5, dueDay: 25, limit: "" };
@@ -403,6 +404,24 @@ async function main() {
       assert.deepEqual((await titles()).slice(before), [
         "Household renamed to Renamed in Activity", "Card C added", "Card C: due day 25 → 27", "Card C: limit no limit → ¥100,000",
       ]);
+    });
+    await check("removeCard removes the card with its charges and statements, writes an Activity event and refuses another household's id", async () => {
+      await updateSettings(db, a, settingsInput.parse({ kind: "card", id: "", label: "Card Gone", memberId: "", closingDay: 10, dueDay: 25, limit: "" }));
+      const gone = (await loadSettings(db, a)).cards.find(c => c.label === "Card Gone")!;
+      const otherCard = (await loadSettings(db, b)).cards[0];
+      await db.insert(schema.charges).values({ householdId: a, cardId: gone.id, merchant: "Fictional shop", amountMinor: 1200, currency: "JPY", date: "2026-11-10", source: "manual", status: "confirmed" });
+      await db.insert(schema.cardStatements).values({ householdId: a, cardId: gone.id, amountMinor: 1200, currency: "JPY", closedOn: "2026-10-10", dueOn: "2026-10-25" });
+      const count = async (table: typeof schema.charges | typeof schema.cardStatements) => (await db.select().from(table).where(eq(table.cardId, gone.id))).length;
+      assert.equal(await removeCard(db, a, otherCard.id), false, "another household's card id is refused");
+      assert.equal(await removeCard(db, b, gone.id), false, "a card of this household is not removable from another");
+      assert.equal((await loadSettings(db, a)).cards.some(c => c.id === gone.id), true);
+      assert.equal(await removeCard(db, a, gone.id), true);
+      assert.equal((await loadSettings(db, a)).cards.some(c => c.id === gone.id), false);
+      assert.equal(await count(schema.charges), 0); assert.equal(await count(schema.cardStatements), 0);
+      assert.equal((await loadSettings(db, b)).cards.some(c => c.id === otherCard.id), true);
+      const titles = (await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), eq(schema.events.kind, "settings_updated")))).map(e => e.title);
+      assert.ok(titles.includes("Card Gone removed"));
+      assert.equal(await removeCard(db, a, gone.id), false, "a removed card is refused like an unknown one");
     });
     await check("document ownership constraints reject cross-household reading, charge and bill references", async () => {
       const [doc] = await db.insert(schema.documents).values({ householdId: b, kind: "upload", storagePath: b + "/fictional", mime: "image/png" }).returning();

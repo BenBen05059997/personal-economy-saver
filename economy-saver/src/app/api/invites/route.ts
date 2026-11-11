@@ -4,7 +4,6 @@ import { db } from "@/db/client";
 import { acceptInvite, cancelInvite, createInvite, INVITE_TOKEN, leaveHousehold } from "@/db/invites";
 import { verifiedIdentity } from "@/lib/auth-request";
 import { badFields, failure, formOf, limited, NO_REFERRER, NO_STORE, redirectTo, sameOriginOnly, text } from "@/lib/door";
-import { postedByForm } from "@/lib/form-fetch";
 import { appUrl } from "@/lib/supabase-auth";
 
 const createFields = z.object({ email: z.string().max(254), memberId: z.string().uuid().optional(), name: z.string().max(80).optional() });
@@ -46,7 +45,7 @@ export async function POST(request: Request) {
       const id = z.string().uuid().safeParse(form.get("id"));
       if (!id.success) return badFields();
       if (!await cancelInvite(store, hid, identity.uid, id.data)) return text("This invitation is no longer open.", 404);
-      return redirectTo(postedByForm(request) ? "/settings" : "/settings#people", request, NO_REFERRER);
+      return redirectTo("/household/people", request, NO_REFERRER);
     }
     const fields = createFields.safeParse({ email: form.get("email"), memberId: form.get("memberId") || undefined, name: form.get("name") || undefined });
     if (!fields.success) return badFields();

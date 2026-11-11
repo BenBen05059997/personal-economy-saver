@@ -4,6 +4,7 @@ import { sendReminderEmail } from "@/lib/notify/email";
 import { isPushSubscription, sendReminderPush } from "@/lib/notify/push";
 import { reminderSettings as deliverySettings } from "@/lib/notify/settings";
 import { appUrl } from "@/lib/supabase-auth";
+import { logSettingProblem } from "@/lib/operator-log";
 import { clockForHousehold } from "./clock";
 import { householdClockRow, requireHousehold, withHousehold, type Db } from "./household";
 import { InputError } from "./input-error";
@@ -26,6 +27,12 @@ async function memberFor(db: Db, hid: string, identity: Identity) {
   return row.id;
 }
 
+/** The person's words for a delivery setting the server lacks, or null; the setting's name goes to the operator log. */
+function settingWords(setting: { problem: string | null; words: string | null }, householdId: string) {
+  if (setting.problem) logSettingProblem("reminders_not_set_up", setting.problem, householdId);
+  return setting.words;
+}
+
 export async function reminderView(db: Db, id: string, identity: Identity) {
   const hid = requireHousehold(id);
   const memberId = await memberFor(db, hid, identity);
@@ -36,7 +43,7 @@ export async function reminderView(db: Db, id: string, identity: Identity) {
       .where(and(eq(pushSubscriptions.householdId, hid), eq(pushSubscriptions.memberId, memberId))),
   ]);
   const config = deliverySettings();
-  const emailProblem = config.email.problem ?? (identity?.email ? null : "Sign in with a verified email to use email reminders.");
+  const emailProblem = settingWords(config.email, hid) ?? (identity?.email ? null : "Sign in with a verified email to use email reminders.");
   const endpointHashes = await Promise.all(subscriptions.map(async ({ endpoint }) => {
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint));
     return Buffer.from(digest).toString("hex");
@@ -44,7 +51,7 @@ export async function reminderView(db: Db, id: string, identity: Identity) {
   return {
     hour: rows[0]?.hour ?? 8, quietDays: rows[0]?.quietDays ?? [],
     emailOn: emailProblem === null && rows[0]?.emailOn === true, emailAvailable: emailProblem === null, emailProblem,
-    pushPublicKey: config.push.value?.publicKey ?? null, pushProblem: config.push.problem, endpointHashes,
+    pushPublicKey: config.push.value?.publicKey ?? null, pushProblem: settingWords(config.push, hid), endpointHashes,
   };
 }
 
@@ -53,7 +60,7 @@ export async function saveReminderSettings(db: Db, id: string, identity: Identit
   const memberId = await memberFor(db, hid, identity);
   const email = input.emailOn ? identity?.email : null;
   if (input.emailOn && !email) throw new InputError("Sign in with a verified email to use email reminders.");
-  const problem = deliverySettings().email.problem;
+  const problem = settingWords(deliverySettings().email, hid);
   if (input.emailOn && problem) throw new InputError(problem);
   const values = { ...input, quietDays: [...new Set(input.quietDays)].sort(), email: email ?? null };
   await db.insert(reminderSettings).values({ householdId: hid, memberId, ...values }).onConflictDoUpdate({
@@ -63,7 +70,7 @@ export async function saveReminderSettings(db: Db, id: string, identity: Identit
 
 export async function subscribeReminder(db: Db, id: string, identity: Identity, subscription: Subscription) {
   const hid = requireHousehold(id);
-  const problem = deliverySettings().push.problem;
+  const problem = settingWords(deliverySettings().push, hid);
   if (problem) throw new InputError(problem);
   if (!isPushSubscription(subscription)) throw new InputError("This browser’s push subscription is invalid.");
   return db.transaction(async tx => {
@@ -108,12 +115,12 @@ export async function sendTestReminder(db: Db, id: string, identity: Identity, c
   if (channel === "email") {
     await withHousehold(db, hid, tx => memberFor(tx, hid, identity));
     if (!identity?.email) throw new InputError("Sign in with a verified email to use email reminders.");
-    if (config.email.problem) throw new InputError(config.email.problem);
+    { const problem = settingWords(config.email, hid); if (problem) throw new InputError(problem); }
     return sendReminderEmail(config.email.value!, identity.email, testReminder(appUrl().href), fetcher);
   }
   const rows = await withHousehold(db, hid, async tx => {
     const memberId = await memberFor(tx, hid, identity);
-    if (config.push.problem) throw new InputError(config.push.problem);
+    { const problem = settingWords(config.push, hid); if (problem) throw new InputError(problem); }
     if (!endpoint) throw new InputError("Turn on push for this device first.");
     return tx.select().from(pushSubscriptions).where(and(eq(pushSubscriptions.householdId, hid),
       eq(pushSubscriptions.memberId, memberId), eq(pushSubscriptions.endpoint, endpoint)));

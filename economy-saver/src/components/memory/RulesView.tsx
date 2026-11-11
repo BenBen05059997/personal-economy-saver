@@ -1,3 +1,4 @@
+import "./memory.css";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
 import { AmountInput } from "@/components/ui/CheckedInput";
 import { fromMinor } from "@/db/money";
@@ -25,7 +26,7 @@ function RuleThreshold({ kind, rule, currency }: { kind: RuleKind; rule: Standin
 export function RulesView({ rules, currency, spaceNames }: { rules: StandingRules; currency: Currency; spaceNames: ReadonlyMap<string, string> }) {
   return <article className="memory-page">
     <header>
-      <h1 className="ui-title">Rules</h1>
+      <h2 className="ui-title">Assistant rules</h2>
       <p className="ui-hint">Rules make suggestions and reminders. PayPal actions still need your approval.</p>
     </header>
     <ApiFormGroup>
@@ -39,7 +40,7 @@ export function RulesView({ rules, currency, spaceNames }: { rules: StandingRule
           <ApiForm action="/api/rules">
             <input type="hidden" name="kind" value="set" />
             <input type="hidden" name="ruleKind" value={kind} />
-            <input type="hidden" name="returnTo" value="/memory?tab=rules" />
+            <input type="hidden" name="returnTo" value="/settings" />
             <label className="rule-toggle">
               <input key={String(rule.enabled)} type="checkbox" name="enabled" value="on" defaultChecked={rule.enabled} />
               On

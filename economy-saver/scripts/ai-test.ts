@@ -681,7 +681,7 @@ async function main() {
       assert.equal(askMissingWords("AI_TEXT_MODEL", false), "Ask the household’s owner to add an AI key in Settings.");
       process.env.AI_PROTOCOL = "anthropic";
       assert.equal(serverHasNoModel(), false);
-      assert.equal(askMissingWords("AI_TEXT_MODEL", true), "Ask isn’t available on this server yet (AI_TEXT_MODEL).");
+      assert.equal(askMissingWords("AI_TEXT_MODEL", true), "Ask isn’t set up on this server yet.");
     } finally {
       for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
     }

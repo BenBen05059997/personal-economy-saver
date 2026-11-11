@@ -4,7 +4,7 @@ import { addMember, addMemberInput, removeMember, removeMemberInput, savePeople,
 import { badFields, failure, householdForm, limited, redirectTo, returnPath, text } from "@/lib/door";
 import { hasHouseholdOwnerAccess } from "@/lib/session";
 
-/** Settings, People (D45): `kind=add` adds a person (equal shares again); `kind=people` saves every name and share in one go, fields named `name:<member id>` and, with two or more people, `share:<member id>` in percent; `kind=remove` removes the person `id` (the rule is on `removeMember`). */
+/** Settings, People (D45): `kind=add` adds a person (equal shares again) and returns to `returnTo`; `kind=people` saves every name and share in one go, fields named `name:<member id>` and, with two or more people, `share:<member id>` in percent; `kind=remove` removes the person `id` (the rule is on `removeMember`). */
 export async function POST(request: Request) {
   const ctx = await householdForm(request);
   if (ctx instanceof Response) return ctx;
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       const data = addMemberInput.safeParse({ name: form.get("name") });
       if (!data.success) return badFields();
       await withHousehold(db(), hid, tx => addMember(tx, hid, data.data));
-      return text("Added. Everyone’s share is now equal; change the shares if you split unevenly.", 200);
+      return redirectTo(returnPath(form.get("returnTo")), request);
     }
     if (kind === "remove") {
       const data = removeMemberInput.safeParse({ id: form.get("id") });

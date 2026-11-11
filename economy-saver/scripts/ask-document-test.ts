@@ -371,7 +371,7 @@ async function main() {
     const noModel = await attach(a, "no model set");
     const noModelCard = await read(a, noModel.documentId);
     process.env.AI_DOCUMENT_MODEL = savedModel;
-    assert.equal(noModelCard.words, "This file could not be read: AI_DOCUMENT_MODEL is not set");
+    assert.equal(noModelCard.words, "This file could not be read: The AI model isn’t set up on this server yet.");
     assert.equal(noModelCard.items.length, 0);
     ok("a read that fails: the card says so in the reader's own words");
 

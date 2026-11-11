@@ -248,7 +248,7 @@
   {
     "id": "GOAL-010",
     "area": "Goals",
-    "action": "Open the Rules tab from Goals",
+    "action": "Find the rules from Goals",
     "user_goal": "I want to switch from savings goals to standing rules",
     "type": "happy",
     "priority": "P2",
@@ -262,11 +262,12 @@
       "Fresh Ben Try it on Nov 14"
     ],
     "steps": [
-      "Open Memory → Goals and select Rules"
+      "Open Memory → Goals",
+      "Look for a Rules tab, then open Settings → Assistant rules"
     ],
     "expected": [
-      "The Rules tab is selected at /memory?tab=rules",
-      "All six standing rules are shown"
+      "Memory has only Profile, Spaces and Goals; there is no Rules tab",
+      "Settings → Assistant rules (/settings) shows all six standing rules"
     ],
     "refs": [
       "D66"

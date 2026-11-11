@@ -16,6 +16,7 @@ import * as schema from "@/db/schema";
 import { randomUUID } from "node:crypto";
 import { accountHousehold, createHousehold, deleteOwnedHousehold, finishSetup, householdClock, setupForm } from "@/db/account";
 import { settingsInput, updateSettings } from "@/db/settings";
+import { setBankBalance } from "@/db/bank-balance";
 import { runDaily } from "@/db/daily";
 import { parseReferenceRate } from "@/db/reference-rate";
 import { confirmPending } from "@/db/confirm";
@@ -473,7 +474,8 @@ async function main() {
     assert.equal(await findDemoHousehold(db, fromDemo), null);
     assert.equal(await findDemoHousehold(db, uid), null);
     assert.equal(await accountHousehold(db, uid), uid);
-    await updateSettings(db, uid, settingsInput.parse({ kind: "household", name: "Kiko", bank: "-12.37" }));
+    await updateSettings(db, uid, settingsInput.parse({ kind: "household", name: "Kiko" }));
+    await setBankBalance(db, uid, { id: randomUUID(), amount: "-12.37" }, "confirmed", { madeBy: "form" });
     await updateSettings(db, uid, settingsInput.parse({ kind: "card", id: "", label: "Card C", memberId: "", closingDay: 15, dueDay: 10, limit: "501.10" }));
     const state = await loadMoneyState(db, uid, today);
     assert.equal(state.cards.length, 1);
@@ -501,7 +503,8 @@ async function main() {
     const blank = await createHousehold(db, randomUUID(), setupForm.parse({
       name: "Mika", currency: "USD", timeZone: "Asia/Tokyo",
     }), { isDemo: true });
-    await updateSettings(db, blank, settingsInput.parse({ kind: "household", name: "Mika", bank: "1200" }));
+    await updateSettings(db, blank, settingsInput.parse({ kind: "household", name: "Mika" }));
+    await setBankBalance(db, blank, { id: randomUUID(), amount: "1200" }, "confirmed", { madeBy: "form" });
     await updateSettings(db, blank, settingsInput.parse({ kind: "card", id: "", label: "Card D", memberId: "", closingDay: 20, dueDay: 10, limit: "" }));
     assert.equal(await findDemoHousehold(db, blank), blank);
     assert.equal(await accountHousehold(db, blank), null);

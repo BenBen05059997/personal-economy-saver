@@ -12,5 +12,5 @@ export async function POST(request: Request) {
     if (error instanceof ReaderError) return text(error.message, 400);
     throw error;
   }
-  return redirectTo("/settings#forwarding");
+  return redirectTo("/bills#forwarding");
 }

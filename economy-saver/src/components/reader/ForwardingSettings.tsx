@@ -1,3 +1,4 @@
+import { logSettingProblem } from "@/lib/operator-log";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
@@ -9,12 +10,7 @@ const FORWARDING_SETTINGS = ["FORWARDING_DOMAIN", "INBOUND_ADDRESS_KEY", "INBOUN
 
 /** The first setting email forwarding needs that this server lacks, or null when forwarding is set up. Home hides its Forward links on a name. */
 export function missingForwardingSetting(): string | null {
-  for (const name of FORWARDING_SETTINGS) {
-    try { readerSetting(name); } catch (error) {
-      if (error instanceof ReaderError) return name;
-      throw error;
-    }
-  }
+  for (const name of FORWARDING_SETTINGS) if (!process.env[name]?.trim()) return name;
   return null;
 }
 
@@ -22,7 +18,7 @@ export async function ForwardingSettings({ householdId }: { householdId: string 
   let status: string | null = null;
   let address: string | null = null;
   const missing = missingForwardingSetting();
-  if (missing) status = `Email forwarding isn’t available on this server yet (${missing}).`;
+  if (missing) { logSettingProblem("forwarding_not_set_up", `${missing} is not set`, householdId); status = "Forwarding bills by email isn’t set up on this server."; }
   else try {
     const domain = readerSetting("FORWARDING_DOMAIN");
     const [row] = await withHousehold(db(), householdId, async tx => tx.select({ token: households.forwardingLocalpart }).from(households)

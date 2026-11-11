@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   const join = invite === null ? null : "/join/" + invite;
   const jar = await cookies();
   if (!join) jar.set(INVITE_COOKIE, "", { ...inviteCookiePolicy, maxAge: 0 });
-  if (await verifiedUid()) return redirectTo(join ?? "/account", request, NO_REFERRER);
+  if (await verifiedUid()) return redirectTo(join ?? "/settings/account", request, NO_REFERRER);
   const response = redirectTo(join ? join + "?sent=1" : "/login?sent=1", request, NO_REFERRER);
   try {
     const store = db();

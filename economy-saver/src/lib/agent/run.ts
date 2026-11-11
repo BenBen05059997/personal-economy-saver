@@ -1,3 +1,4 @@
+import { logSettingProblem } from "@/lib/operator-log";
 // The in-app agent (D40): Claude chooses tools over the engine and phrases their results. Plain manual loop on the
 // provider-neutral model call (lib/ai). It logs one content-free line per Ask (log.ts) and nothing else: never the key, the question, a tool
 // argument or result, or the answer.
@@ -206,7 +207,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       opts.onStep?.(THINKING_WORDS);
       const connection = await opts.connection();
       trace.protocol = connection.protocol; trace.own = connection.own;
-      if (!connection.textModel) throw new AgentError("AI_TEXT_MODEL is not set", "no_model");
+      if (!connection.textModel) { logSettingProblem("ask_not_set_up", "AI_TEXT_MODEL is not set", opts.householdId); throw new AgentError("Ask has no model to use. Choose one in Settings → Your AI model.", "no_model"); }
       let reply;
       try {
         reply = await callModel({

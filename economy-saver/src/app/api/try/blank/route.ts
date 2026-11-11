@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const foreign = sameOriginOnly(request);
   if (foreign) return foreign;
   try {
-    if (await verifiedUid()) return redirectTo("/account", request, NO_REFERRER);
+    if (await verifiedUid()) return redirectTo("/settings/account", request, NO_REFERRER);
     const body = await formOf(request);
     if (body instanceof Response) return body;
     const form = setupForm.safeParse(Object.fromEntries(body));

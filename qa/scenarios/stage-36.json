@@ -80,7 +80,7 @@
   {
     "id": "VIEW-004",
     "area": "Stage 36",
-    "action": "Open People from the sidebar",
+    "action": "Open People from Household",
     "user_goal": "I want to use the new desktop workspace confidently",
     "type": "happy",
     "priority": "P2",
@@ -92,10 +92,10 @@
       "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
     ],
     "steps": [
-      "Select People in the sidebar"
+      "Select Household in the sidebar, then the People tab"
     ],
     "expected": [
-      "Settings opens at People and the person form is available"
+      "Household opens at /household/people with People selected and an Add a person button"
     ],
     "refs": [
       "D25",
@@ -199,7 +199,7 @@
       "Choose Add then A person who shares costs"
     ],
     "expected": [
-      "Settings opens at the add-person form"
+      "The Add a person dialog opens over the current screen; without JavaScript /add/person holds the same form"
     ],
     "refs": [
       "D25",
@@ -927,7 +927,7 @@
       "Open + Add"
     ],
     "expected": [
-      "The menu reads A bill, A card charge, A client who pays you, A person who shares costs, a line, Upload a receipt or bill, New invoice",
+      "The menu reads A bill, A card charge, A card, A client who pays you, A person who shares costs, a line, Upload a receipt or bill, New invoice",
       "Forward a bill appears before New invoice only when the forwarding settings exist"
     ],
     "refs": [
@@ -977,7 +977,7 @@
       "Open /canvas at 1440px"
     ],
     "expected": [
-      "The bar shows the chip, the bell and \"+ Add\" and no Ask button"
+      "The bar shows the chip, the bell, \"+ Add\" and the Ask button, which is pressed"
     ],
     "refs": [
       "D25"
@@ -1076,7 +1076,7 @@
     "expected": [
       "It shows \"1 of 5 done\" with a short orange bar and Hide",
       "\"Read the sentence and the forecast\" is struck through with a green check",
-      "The other four have empty rings and link to /invoices, /to-check, /settings#ai-model and /settings#people with the words \"Approve Beacon’s invoice and watch the sentence change\", \"Check the Hikari Denki bill in To check\", \"Add your AI key, then ask a question\" and \"Add a person who shares costs\""
+      "The other four have empty rings and link to /invoices, /to-check and /settings/ai-model, and the last one opens the Add a person dialog (/add/person) with the words \"Approve Beacon’s invoice and watch the sentence change\", \"Check the Hikari Denki bill in To check\", \"Add your AI key, then ask a question\" and \"Add a person who shares costs\""
     ],
     "refs": [
       "D47"
@@ -1434,7 +1434,7 @@
     ],
     "expected": [
       "The same \"Ask a question\" box, Incognito and Attach a bill sit at the bottom of the conversation column",
-      "The brief, \"Space notes ↓\", the starters and the thread scroll above it and the canvas is on the right"
+      "The thread scrolls above it in one centred column of about 760px; the Space button in the header opens the brief, notes, pins, earlier conversations and starter canvases in a side sheet"
     ],
     "refs": [
       "D60"
@@ -1677,7 +1677,7 @@
       "Home → Categories, Chart"
     ],
     "steps": [
-      "Settings → People → add Wife",
+      "Household → People → Add a person → Wife",
       "Open Home → Categories"
     ],
     "expected": [
@@ -1701,7 +1701,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Wife added in Settings → People"
+      "Wife added in Household → People"
     ],
     "steps": [
       "Choose Person in Chart",

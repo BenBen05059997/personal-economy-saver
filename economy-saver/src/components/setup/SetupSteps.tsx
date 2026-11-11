@@ -9,6 +9,7 @@ import { withHousehold } from "@/db/household";
 import { loadSettings } from "@/db/settings";
 import { Currency } from "@/lib/catalogue/types";
 import { formatter, minorMoney, repeatWords } from "@/lib/money/format";
+import { SetupFrame } from "./SetupFrame";
 import { SetupBank } from "./SetupBank";
 import { SetupBills } from "./SetupBills";
 import { SetupNav } from "./SetupNav";
@@ -53,7 +54,7 @@ export async function SetupSteps({ householdId, step }: { householdId: string; s
       <ApiForm><CardFields key={settings.cards.length} returnTo={stepPath("card")} data={{ people, household: { currency: home } }} /></ApiForm>
     </>;
   }
-  return <AccountFrame title={question}>
+  return <SetupFrame><AccountFrame title={question}>
     <div className="setup-progress">
       <p className="ui-hint" data-testid="setup-progress">Step {index + 1} of {STEPS.length}</p>
       <div className="setup-bar" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={index + 1} aria-label={`Step ${index + 1} of ${STEPS.length}`}><span style={{ width: `${((index + 1) / STEPS.length) * 100}%` }} /></div>
@@ -61,5 +62,5 @@ export async function SetupSteps({ householdId, step }: { householdId: string; s
     <p className="setup-why">{why}</p>
     {body}
     <SetupNav back={index > 0 ? stepPath(STEPS[index - 1]) : null} next={next} last={last} />
-  </AccountFrame>;
+  </AccountFrame></SetupFrame>;
 }

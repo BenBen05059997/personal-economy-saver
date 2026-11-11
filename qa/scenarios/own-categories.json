@@ -12,10 +12,10 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings open"
+      "Plan open"
     ],
     "steps": [
-      "Scroll to Your categories (between Import a statement and Bills)"
+      "Scroll to Your categories on Plan"
     ],
     "expected": [
       "The intro reads \"Your own names, kept under the fourteen categories. Plan and Home show them inside their category.\"",
@@ -39,7 +39,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Your categories"
+      "Plan → Your categories"
     ],
     "steps": [
       "Open Add a category",
@@ -67,7 +67,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Your categories"
+      "Plan → Your categories"
     ],
     "steps": [
       "Add Travel, Taxis, No default"
@@ -92,7 +92,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Your categories"
+      "Plan → Your categories"
     ],
     "steps": [
       "Add Food, name Food"
@@ -118,7 +118,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Your categories"
+      "Plan → Your categories"
     ],
     "steps": [
       "Add Food, name coffee"
@@ -144,7 +144,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Your categories"
+      "Plan → Your categories"
     ],
     "steps": [
       "Add Food, name sk-aaaaaaaaaaaaaaaaaaaaaaaa"
@@ -197,7 +197,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Your categories"
+      "Plan → Your categories"
     ],
     "steps": [
       "Add Travel, name Coffee"
@@ -223,7 +223,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Your categories with Taxis under Travel (OWN-003)"
+      "Plan → Your categories with Taxis under Travel (OWN-003)"
     ],
     "steps": [
       "Open Rename or change default on Taxis",
@@ -302,7 +302,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Your categories"
+      "Plan → Your categories"
     ],
     "steps": [
       "Open Merge into… on Gear",
@@ -450,7 +450,7 @@
     ],
     "expected": [
       "The box \"Name of your new category\" appears and is required",
-      "Settings → Your categories lists Fares under Travel with \"1 item\""
+      "Plan → Your categories lists Fares under Travel with \"1 item\""
     ],
     "refs": [
       "D75"
@@ -655,7 +655,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Bills"
+      "Bills"
     ],
     "steps": [
       "Edit CloudBox Plus",
@@ -663,7 +663,7 @@
       "Save"
     ],
     "expected": [
-      "Settings → Your categories lists Subscriptions with \"Tools · 1 item\""
+      "Plan → Your categories lists Subscriptions with \"Tools · 1 item\""
     ],
     "refs": [
       "D75"
@@ -793,7 +793,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Import a statement, Card B, a CSV with Kissa Midori café and Fictional Bakery rows dated in November"
+      "Cards → Import a statement, Card B, a CSV with Kissa Midori café and Fictional Bakery rows dated in November"
     ],
     "steps": [
       "Choose the file and read the preview"
@@ -981,7 +981,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Wife added; a family link made in Settings → People; open it in a private window"
+      "Wife added; a family link made in Household → People; open it in a private window"
     ],
     "steps": [
       "Read Where the month goes"
@@ -1122,7 +1122,7 @@
     ],
     "expected": [
       "The panel says \"Imported.\"",
-      "Settings → Your categories lists the same three names with the same counts",
+      "Plan → Your categories lists the same three names with the same counts",
       "Plan shows Food › Coffee"
     ],
     "refs": [
@@ -1175,7 +1175,7 @@
     ],
     "steps": [
       "Delete everything and start again with Start with my numbers",
-      "Open Settings → Your categories"
+      "Open Plan → Your categories"
     ],
     "expected": [
       "The section shows only \"Your own names for your spending, kept under the fourteen categories, like Coffee under Food. Make one here, or while adding a bill or charge.\" and an open \"Add a category\""
@@ -1206,7 +1206,7 @@
     ],
     "expected": [
       "A pending charge appears in To check reading \"Food › Coffee · Personal\"",
-      "Settings → Your categories gains nothing",
+      "Plan → Your categories gains nothing",
       "Nothing is marked paid or sent"
     ],
     "refs": [
@@ -1235,7 +1235,7 @@
     ],
     "expected": [
       "No charge is created",
-      "The answer names Coffee as the one that exists under Food and says a new one is made in Settings → Your categories"
+      "The answer names Coffee as the one that exists under Food and says a new one is made in Plan → Your categories"
     ],
     "refs": [
       "D75"
@@ -1314,7 +1314,7 @@
       "Run npm run db:agent-test"
     ],
     "expected": [
-      "add_bill, add_bills, log_charge and log_charges with an unknown own_category save nothing and return an error that lists the category's own categories and says only the person can make one in Settings → Your categories",
+      "add_bill, add_bills, log_charge and log_charges with an unknown own_category save nothing and return an error that lists the category's own categories and says only the person can make one in Plan → Your categories",
       "A given name that exists files the draft under it"
     ],
     "refs": [

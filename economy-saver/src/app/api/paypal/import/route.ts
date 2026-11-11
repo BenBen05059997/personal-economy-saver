@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   if (busy) return busy;
   try {
     await importPayPalHistory(store, hid);
-    return redirectTo("/settings");
+    return redirectTo("/settings/paypal");
   } catch (error) {
     if (error instanceof ImportRefused) return text(error.message, 403);
     if (error instanceof ImportSetupError) return text(error.message, 503);

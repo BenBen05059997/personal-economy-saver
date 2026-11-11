@@ -1,7 +1,6 @@
 "use client";
 
 import { useSyncExternalStore, type ReactNode } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAskPanel } from "@/components/shell/AskWorkspace";
 import { formatter, minorMoney } from "@/lib/money/format";
@@ -10,7 +9,7 @@ import { monthByCategory } from "@/lib/money/month";
 import { daysBetween, safeToSpend, statementItems } from "@/lib/money/runway";
 import { monthBounds, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { hasNothingToForecast } from "@/lib/money/sentence";
-import { ADD_BILL } from "@/lib/links";
+import { AddLink } from "@/components/add/AddLink";
 import type { MoneyState } from "@/lib/money/types";
 import { longDay } from "./chart-utils";
 import { BUSINESS_SEGMENTS, CategoryBars } from "./CategoryBars";
@@ -44,7 +43,7 @@ function Table({ caption, head, children }: { caption: string; head: string[]; c
   return <div className="hv-table-wrap"><table><caption>{caption}</caption><thead><tr>{head.map((label, i) => <th scope="col" key={label} className={i === 0 || label === "What happens" ? undefined : "hv-num"}>{label}</th>)}</tr></thead><tbody>{children}</tbody></table></div>;
 }
 
-const Empty = () => <p className="hv-empty">No spending this month yet. <Link prefetch={false} href="/#add-bill">Add a bill or a card charge.</Link></p>;
+const Empty = () => <p className="hv-empty">No spending this month yet. <AddLink kind="bill">Add a bill or a card charge.</AddLink></p>;
 const Unknown = ({ show }: { show: boolean }) => show ? <p className="hv-note">Some amounts are not known and are not included in these totals.</p> : null;
 
 function Forecast({ state, mode, bankBalance }: { state: MoneyState; mode: Mode; bankBalance: ReactNode }) {
@@ -104,7 +103,7 @@ export function HomeViews({ state, spending, bankBalance }: { state: MoneyState;
   const preference = useSyncExternalStore(subscribe, snapshot, serverSnapshot), people = state.split.members.length;
   const { view, mode, by } = parseHomeView(preference, people);
   const panel = useAskPanel(), router = useRouter();
-  if (hasNothingToForecast(state)) return <section id="next-30-days" className="home-panel hv-panel hv-blank"><header><div><h2>Your next 30 days</h2><p>Nothing to forecast yet. Add a bill or a client and your next 30 days show here.</p></div></header><div className="hv-blank-actions"><Link prefetch={false} href={ADD_BILL} className="home-button home-primary">Add a bill</Link><Link prefetch={false} href="/clients" className="home-button">Add a client</Link></div>{bankBalance}</section>;
+  if (hasNothingToForecast(state)) return <section id="next-30-days" className="home-panel hv-panel hv-blank"><header><div><h2>Your next 30 days</h2><p>Nothing to forecast yet. Add a bill or a client and your next 30 days show here.</p></div></header><div className="hv-blank-actions"><AddLink kind="bill" className="home-button home-primary">Add a bill</AddLink><AddLink kind="client" className="home-button">Add a client</AddLink></div>{bankBalance}</section>;
   const labels = { forecast: ["Your next 30 days", "Cash if clients pay on time or late", "What does my cash forecast show?"], categories: LOOK_HEADINGS[by], trend: ["Spending over time", "Your recent months at a glance", "How has my spending changed over recent months?"] } as const;
   const choices: LookBy[] = people >= 2 ? ["category", "business", "person"] : ["category", "business"];
   return <section id="next-30-days" className="home-panel hv-panel"><header><div><h2>{labels[view][0]}</h2><p>{labels[view][1]}</p></div><button type="button" onClick={event => { if (panel) panel.ask(labels[view][2], event.currentTarget); else { try { sessionStorage.setItem("pes-ask-submit", JSON.stringify({ id: crypto.randomUUID(), question: labels[view][2] })); } catch { /* The person can still type the question. */ } router.push("/canvas#ask"); } }}>Ask about this</button></header><div className="hv-controls"><div role="group" aria-label="View">{(["forecast", "categories", "trend"] as const).map(item => <button type="button" key={item} aria-pressed={view === item} onClick={() => save(formatHomeView(item, mode, by))}>{item[0].toUpperCase()+item.slice(1)}</button>)}</div><div role="group" aria-label="Display">{(["chart", "table"] as const).map(item => <button type="button" key={item} aria-pressed={mode === item} onClick={() => save(formatHomeView(view, item, by))}>{item[0].toUpperCase()+item.slice(1)}</button>)}</div>{view === "categories" && <div className="hv-look"><span aria-hidden="true">Look at it by</span><div role="group" aria-label="Look at it by">{choices.map(item => <button type="button" key={item} aria-pressed={by === item} onClick={() => save(formatHomeView(view, mode, item))}>{LOOK_LABELS[item]}</button>)}</div></div>}</div>{view === "forecast" ? <Forecast state={state} mode={mode} bankBalance={bankBalance}/> : view === "categories" ? <Categories input={spending} state={state} mode={mode} by={by}/> : <Trend input={spending} state={state} mode={mode}/>}</section>;

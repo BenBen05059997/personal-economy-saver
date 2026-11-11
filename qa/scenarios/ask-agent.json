@@ -127,7 +127,7 @@
       "Click a starter canvas"
     ],
     "expected": [
-      "The red line reads \"Ask isn’t available on this server yet (AI_TEXT_MODEL).\" (a server with some but not all AI_ settings; with none, see ASK-115)",
+      "The red line reads \"Ask isn’t set up on this server yet.\" (a server with some but not all AI_ settings; with none, see ASK-115)",
       "The example buttons and Ask are disabled; no request is made to /api/ask",
       "The starter canvases still draw",
       "Nothing throws and no step line is left behind"
@@ -187,8 +187,8 @@
     "expected": [
       "Heading \"Ask\" and the hint \"Ask in your own words about your money. Every number comes from your records.\"",
       "Three example buttons: \"Am I OK until the end of the month?\", \"What if a client pays two weeks late?\", \"Where did last month go?\"",
-      "From 900px the composer is docked at the bottom of the conversation column: the label \"Ask a question\", one box with the placeholder \"What’s due this week? Can I spend ¥4,000?\", \"Use microphone\" and \"Ask\", then Incognito and Attach a bill",
-      "Four starter buttons above the canvas with \"This month\" selected"
+      "The composer is at the bottom of the one centred column: the label \"Ask a question\", one box with the placeholder \"What’s due this week? Can I spend ¥4,000?\", \"Use microphone\" and \"Ask\", then Incognito and Attach a bill",
+      "Four starter canvases in the Space sheet with \"This month\" selected"
     ],
     "refs": [
       "D60"
@@ -2257,7 +2257,7 @@
       "Ask \"Where am I?\""
     ],
     "expected": [
-      "Before the first answer a line above the box reads \"A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to {host}. Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.\" with the host Settings → Your AI model shows (on a server with no AI_ settings the last sentence is \"Ask runs on your household’s own AI key, set in Settings → Your AI model.\")",
+      "Before the first answer a line above the box reads \"A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to {host}. Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.\" with the host Settings → Your AI model shows (on a server with no AI_ settings the last sentence is \"Ask runs on your household’s own AI key, set in Settings → Your AI model.\"); a server missing a setting says only \"Ask isn’t set up on this server yet.\", never a setting name",
       "After the first real answer the line is gone",
       "It stays gone after reload; a decline or a clarifying question does not remove it"
     ],
@@ -4370,7 +4370,7 @@
       "An MCP client such as Claude Desktop or curl"
     ],
     "steps": [
-      "Settings → Connect another AI assistant → Create key (read)",
+      "Settings → Your AI model → Connect another AI assistant → Create key (read)",
       "Copy the endpoint and token",
       "Call where_am_i and who_owes_whom from the client"
     ],
@@ -4810,7 +4810,7 @@
     ],
     "expected": [
       "The card shows the bold \"Add your own AI key in Settings to use Ask.\", a paragraph, a yellow \"Add your AI key\" button and \"Where do I get one?\"",
-      "The button opens Settings → Your AI model (#ai-model)",
+      "The button opens Settings → Your AI model (/settings/ai-model)",
       "The example buttons, the question field and Ask are disabled; no request is made to /api/ask"
     ],
     "refs": [

@@ -28,13 +28,13 @@ export function ConfirmDo({ summary, summaryLabel, question, button, action, fie
 
 /**
  * Remove with an in-page confirm: "Remove" opens "Remove Rent ¥82,000?" with Keep and Remove. Posts to /api/remove, which
- * deletes the bill (a monthly one as a whole series) or the card charge and records it in Activity; a person posts to
+ * deletes the bill (a monthly one as a whole series), the card charge or the card and records it in Activity; a person posts to
  * /api/people with `kind=remove`, an own category (D75) to /api/own-categories with `kind=remove`. Stored data (D59) goes to /api/data: `data` deletes the item in `id` when `what` is given, or every item of the kind in `id`,
  * `conversation` deletes the conversation whose id is `id`. Spaces post to /api/spaces. Bulk, journal, conversation and space deletion read "Delete …".
  * `onDone` runs after the route accepts the post. `onRemove` handles a device-only item in the browser.
  */
 export function ConfirmRemove({ kind, id, label, note, returnTo, onDone, onRemove, what }: {
-  kind: "bill" | "charge" | "person" | "own_category" | "data" | "conversation" | "space"; id: string; label: string; note?: string; returnTo: string; onDone?: () => void; onRemove?: () => void; what?: DataKind;
+  kind: "bill" | "charge" | "card" | "person" | "own_category" | "data" | "conversation" | "space"; id: string; label: string; note?: string; returnTo: string; onDone?: () => void; onRemove?: () => void; what?: DataKind;
 }) {
   const dataItem = kind === "data" && what !== undefined;
   const verb = (kind === "data" && (!dataItem || what === "journal")) || kind === "conversation" || kind === "space" ? "Delete" : "Remove";

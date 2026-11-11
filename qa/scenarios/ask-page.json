@@ -1,0 +1,201 @@
+[
+  {
+    "id": "ASKPG-001",
+    "area": "Ask page",
+    "action": "Read the full Ask page as one column",
+    "user_goal": "I want the conversation wider but still easy to read",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Open Ask in the sidebar",
+      "Ask \"Can I afford ¥4,000 tonight?\"",
+      "Read the thread"
+    ],
+    "expected": [
+      "One centred column of about 760px: the header (Ask, a space chooser, Space), the thread in the middle and the composer at the bottom",
+      "The question appears as a bubble on the right and the answer under it with its canvas drawn inside the thread; the column does not shift sideways",
+      "Nothing scrolls sideways; light and dark both read clearly"
+    ],
+    "refs": [
+      "D60"
+    ]
+  },
+  {
+    "id": "ASKPG-002",
+    "area": "Ask page",
+    "action": "Open the Space sheet",
+    "user_goal": "I want the space's brief, notes and pins without leaving the conversation",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px",
+      "Ask open at /canvas"
+    ],
+    "steps": [
+      "Press Space in the header",
+      "Read the sheet",
+      "Press Escape, then open it again and press Close Space",
+      "Switch pages with the sheet open"
+    ],
+    "expected": [
+      "A side sheet opens with the space brief, space notes, pinned canvases, earlier conversations, Delete this conversation and the starter canvases",
+      "Escape and Close Space close it and return focus to Space",
+      "The sheet is closed on the next page; it never leaves the page inert"
+    ],
+    "refs": [
+      "D60",
+      "D69"
+    ]
+  },
+  {
+    "id": "ASKPG-003",
+    "area": "Ask page",
+    "action": "Choose a different space on the full page",
+    "user_goal": "I want a thread per task",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) with a second space",
+      "Ask open at /canvas"
+    ],
+    "steps": [
+      "Choose the second space in the space chooser"
+    ],
+    "expected": [
+      "The page shows that space's thread, brief and pins at /canvas?space=<id>; Back returns to General"
+    ],
+    "refs": [
+      "D69"
+    ]
+  },
+  {
+    "id": "ASKBTN-001",
+    "area": "Ask button",
+    "action": "Press the Ask button on the full Ask page and go back",
+    "user_goal": "I want the button to take me back where I was",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px"
+    ],
+    "steps": [
+      "On Plan press Ask in the top bar to open the panel",
+      "Press Open full in the panel",
+      "On /canvas read the Ask button, then press it",
+      "Repeat from Bills with the panel closed"
+    ],
+    "expected": [
+      "On /canvas the top bar's Ask button shows pressed",
+      "Pressing it returns to the page the person came from (Plan) with the panel open, and the question and thread typed on the page are in the panel",
+      "From Bills with the panel closed it returns to Bills; with no earlier page it returns to Home"
+    ],
+    "refs": [
+      "D60"
+    ]
+  },
+  {
+    "id": "ASKBTN-002",
+    "area": "Ask button",
+    "action": "Use the Ask button on every screen of a household",
+    "user_goal": "one button, same place everywhere",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1440px"
+    ],
+    "steps": [
+      "Open Home, Bills, Cards, Clients, Plan, Household, Settings, Activity and To check, and press Ask on each",
+      "Open the sidebar's Ask link"
+    ],
+    "expected": [
+      "The Ask button is at the top right of every screen and opens and closes the panel; it is open by default at 1200px and wider",
+      "The sidebar's Ask opens the full page, not the panel"
+    ],
+    "refs": [
+      "D25",
+      "D60"
+    ]
+  },
+  {
+    "id": "ASKBTN-003",
+    "area": "Ask button",
+    "action": "Ask button during setup",
+    "user_goal": "I want to ask while I set up",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie",
+      "/start open"
+    ],
+    "steps": [
+      "Type Mika and press Start planning",
+      "On /setup?step=bank read the top bar and press Ask",
+      "Move to the next step"
+    ],
+    "expected": [
+      "The Ask button is at the top right of the setup step",
+      "It opens the panel over the step (closed by default during setup) and the unsaved form in the step is not submitted by the panel's own Ask",
+      "The panel keeps its conversation across steps"
+    ],
+    "refs": [
+      "D47",
+      "D60"
+    ]
+  },
+  {
+    "id": "ASKBTN-004",
+    "area": "Ask button",
+    "action": "Ask button between 900px and 1199px",
+    "user_goal": "a narrow desktop window still has the panel",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben) at 1100px"
+    ],
+    "steps": [
+      "Open Home",
+      "Press Ask in the top bar",
+      "Press Open full, then the Ask button"
+    ],
+    "expected": [
+      "The panel is closed by default and opens over the page (not docked) with the Ask button pressed",
+      "Open full shows the page and the button returns to Home with the panel open",
+      "Below 900px the Ask bar opens the full page instead"
+    ],
+    "refs": [
+      "D60"
+    ]
+  }
+]

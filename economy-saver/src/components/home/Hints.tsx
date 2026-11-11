@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { AddLink } from "@/components/add/AddLink";
+import type { AddKind } from "@/components/add/context";
 import { useState, useSyncExternalStore, type MouseEvent } from "react";
 import { useAskPanel } from "@/components/shell/AskWorkspace";
 import "./hints.css";
@@ -23,7 +25,7 @@ const subscribe = (callback: () => void) => {
 };
 
 /** What a person can do on Home, as cards that open the thing. A card whose thing exists is ticked and still clickable; Hide is kept on this device. */
-export function Hints({ householdId, done, hasCard, links }: { householdId: string; done: HintsDone; hasCard: boolean; links: { bill: string; charge: string; cards: string } }) {
+export function Hints({ householdId, done, hasCard }: { householdId: string; done: HintsDone; hasCard: boolean }) {
   const panel = useAskPanel();
   const [locallyHidden, setLocallyHidden] = useState(false);
   const key = `pes-hints-hidden:${householdId}`;
@@ -45,25 +47,28 @@ export function Hints({ householdId, done, hasCard, links }: { householdId: stri
   function openAsk(event: MouseEvent<HTMLElement>) {
     if (panel?.available) { event.preventDefault(); panel.open(event.currentTarget); }
   }
-  const cards: { icon: keyof typeof ICONS; title: string; hint: string; done: boolean; href: string; onClick?: (event: MouseEvent<HTMLElement>) => void }[] = [
+  const cards: { icon: keyof typeof ICONS; title: string; hint: string; done: boolean; href?: string; add?: AddKind; onClick?: (event: MouseEvent<HTMLElement>) => void }[] = [
     { icon: "bank", title: "Set today’s bank balance", hint: "Your forecast starts from this.", done: done.bank, href: "/#bank-balance", onClick: openBalance },
-    { icon: "bill", title: "Add a bill", hint: "Rent, phone, subscriptions: anything that leaves on a date.", done: done.bill, href: links.bill },
-    { icon: "client", title: "Add a client", hint: "Who pays you, so incoming money shows up.", done: done.client, href: "/clients" },
-    { icon: "charge", title: hasCard ? "Add a card charge" : "Add a card", hint: hasCard ? "Spending on a card, paid when the statement is due." : "Card charges and statements need a card first.", done: done.charge, href: hasCard ? links.charge : links.cards },
+    { icon: "bill", title: "Add a bill", hint: "Rent, phone, subscriptions: anything that leaves on a date.", done: done.bill, add: "bill" },
+    { icon: "client", title: "Add a client", hint: "Who pays you, so incoming money shows up.", done: done.client, add: "client" },
+    { icon: "charge", title: hasCard ? "Add a card charge" : "Add a card", hint: hasCard ? "Spending on a card, paid when the statement is due." : "Card charges and statements need a card first.", done: done.charge, add: hasCard ? "charge" : "card" },
     { icon: "upload", title: "Upload a receipt or bill", hint: "fipa reads it; you check before it counts.", done: done.upload, href: "/upload" },
     { icon: "ask", title: "Ask a question", hint: "Ask about your money in your own words.", done: false, href: "/canvas#ask", onClick: openAsk },
   ];
+  const body = (card: (typeof cards)[number]) => <>
+    <svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONS[card.icon]} /></svg>
+    <span className="home-hints-text"><b>{card.title}</b><small>{card.hint}</small></span>
+    {card.done && <span className="home-hints-done"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>Done</span>}
+  </>;
   return <section id="hints" className="home-hints" aria-labelledby="hints-title">
     <div className="home-hints-heading">
       <h2 id="hints-title">What you can do here</h2>
       <button type="button" onClick={hide}>Hide</button>
     </div>
     <ul>{cards.map(card => <li key={card.title}>
-      <Link href={card.href} prefetch={false} onClick={card.onClick} className={card.done ? "is-done" : undefined}>
-        <svg viewBox="0 0 16 16" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={ICONS[card.icon]} /></svg>
-        <span className="home-hints-text"><b>{card.title}</b><small>{card.hint}</small></span>
-        {card.done && <span className="home-hints-done"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 8.5l3 3 7-7" /></svg>Done</span>}
-      </Link>
+      {card.add
+        ? <AddLink kind={card.add} className={card.done ? "is-done" : undefined}>{body(card)}</AddLink>
+        : <Link href={card.href ?? "/"} prefetch={false} onClick={card.onClick} className={card.done ? "is-done" : undefined}>{body(card)}</Link>}
     </li>)}</ul>
   </section>;
 }

@@ -58,6 +58,7 @@ import * as readings from "@/db/readings";
 import * as referenceRate from "@/db/reference-rate";
 import * as runwayEvents from "@/db/runway-events";
 import * as settingsMod from "@/db/settings";
+import * as addViewMod from "@/db/add-view";
 import * as settle from "@/db/settle";
 import * as snapshotMod from "@/db/snapshot";
 import * as spacesMod from "@/db/spaces";
@@ -113,7 +114,7 @@ const covered = [
   // rate-limit.ts, reader-inbox.ts, reader-job.ts, readings.ts, reference-rate.ts
   "consumeRequest", "consumeCanvasRequest", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "storeReferenceRate",
   // runway-events.ts, settings.ts, settle.ts, snapshot.ts, statement-charge.ts, workspace.ts
-  "lockRunway", "beginMoneyChange", "observeRunway", "loadSettings", "updateSettings", "settleUp", "loadHouseholdSnapshot",
+  "lockRunway", "beginMoneyChange", "observeRunway", "loadSettings", "loadAddView", "updateSettings", "removeCard", "settleUp", "loadHouseholdSnapshot",
   "syncClosedStatementCharge", "unsyncClosedStatementCharge", "loadNavigationData", "loadWorkspaceData",
   // Stage 17 import: import-charges.ts
   "importCharges",
@@ -243,7 +244,7 @@ async function main() {
     ...memoryMod, // D58 memory
     ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
     ...askViewMod, ...spacesMod, ...historyMod, // D69 spaces and D70 history
-    ...ownCategoriesMod, // D75 own categories
+    ...ownCategoriesMod, ...addViewMod, // D75 own categories, the Add forms' view
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
   };
   const F = new Proxy(modules, {
@@ -316,7 +317,8 @@ async function main() {
       await db.update(schema.fxRates).set({ rateMicro }).where(eq(schema.fxRates.householdId, hid));
       const ownerRow = one(await db.select().from(schema.members).where(and(eq(schema.members.householdId, hid), eq(schema.members.role, "owner"))));
       await db.update(schema.members).set({ displayName: `${T} owner` }).where(eq(schema.members.id, ownerRow.id));
-      await F.updateSettings(db, hid, { kind: "household", name: `${T} household`, bank: String(bankYen) });
+      await F.updateSettings(db, hid, { kind: "household", name: `${T} household` });
+      await F.setBankBalance(db, hid, { id: randomUUID(), amount: String(bankYen) }, "confirmed", { madeBy: "form" });
       const akiName = `${T} Aki`;
       const aki = await F.addMember(db, hid, { name: akiName });
       await F.updateSettings(db, hid, { kind: "card", id: "", label: `${T} card`, memberId: ownerRow.id, closingDay: 25, dueDay: 10, limit: "500000" });
@@ -624,6 +626,9 @@ async function main() {
       seen("loadSettings", settings);
       assert.equal(settings.household.name, `${viewer.name} household`);
       assert.ok(settings.cards.some(c => c.id === viewer.ids.card) && settings.people.some(p => p.id === viewer.ids.aki));
+      const addView = await F.loadAddView(store, hid);
+      seen("loadAddView", addView);
+      assert.ok(addView?.cards.some(c => c.id === viewer.ids.card) && addView.people.some(p => p.id === viewer.ids.aki));
       const tokens = await F.listMcpTokens(store, hid);
       seen("listMcpTokens", tokens);
       assert.deepEqual(tokens.map(x => x.id), [viewer.ids.token]);
@@ -766,6 +771,7 @@ async function main() {
       await check(`${X.name} -> ${Y.name}: remove by id (bills, charges, pots)`, async () => {
         for (const id of [y.billConfirmed, y.billPending]) await refuse("removeBill " + id, () => F.removeBill(store, X.hid, id));
         for (const id of [y.charge, y.chargePending]) await refuse("removeCharge " + id, () => F.removeCharge(store, X.hid, id));
+        await refuse("removeCard " + y.card, () => F.removeCard(store, X.hid, y.card));
         for (const id of [y.pot, y.potPending]) await refuse("removePot " + id, () => F.removePot(store, X.hid, id));
         for (const id of [y.billConfirmed, y.billPending]) await refuse("updateBill " + id, () => F.updateBill(store, X.hid, billEditInput.parse({ id, biller: "Isolation probe", amount: "1", due: "2026-11-20", category: "other" }), { madeBy: "form" }));
         for (const id of [y.aki, y.owner]) await refuse("removeMember " + id, () => F.removeMember(store, X.hid, { id }));

@@ -1,0 +1,8 @@
+.add-dialog { width: min(32rem, calc(100vw - 2 * 16px)); max-height: calc(100dvh - 2 * 16px); margin: auto; padding: 0; border: 1px solid var(--rule); border-radius: 12px; background: var(--screen); color: var(--ink); overflow: auto; }
+.add-dialog::backdrop { background: rgb(0 0 0 / 0.4); }
+.add-dialog-body { padding: 16px 20px 20px; }
+.add-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.add-dialog-head h2 { margin: 0; font: 600 18px var(--sans); }
+.add-dialog form, .add-page form { max-width: none; }
+.add-page-cancel { margin-top: 16px; }
+.check-add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }

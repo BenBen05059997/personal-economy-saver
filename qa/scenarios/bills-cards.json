@@ -1,0 +1,218 @@
+[
+  {
+    "id": "BILLPG-001",
+    "area": "Bills",
+    "action": "Open a bill from the list",
+    "user_goal": "I want one bill's details and actions in one place",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Bills",
+      "Press CloudBox Plus",
+      "Press Back"
+    ],
+    "expected": [
+      "Bills is a full-width list with Add a bill at the top; a row opens /bills/<id> with a right-hand panel of about 420px holding the bill's details, Edit and Remove",
+      "The list stays visible behind the panel; Close and Back return to /bills",
+      "Forwarding address (or the words that forwarding is not set up) is on this page"
+    ],
+    "refs": [
+      "D25"
+    ]
+  },
+  {
+    "id": "BILLPG-002",
+    "area": "Bills",
+    "action": "Edit a bill from its page",
+    "user_goal": "My rent went up",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Bills, then Rent",
+      "Press Edit, change the amount to 83,000 and save",
+      "Reload"
+    ],
+    "expected": [
+      "The panel shows the new amount, the list and Home follow, Activity records \"bill changed\" and the address is still /bills/<id>",
+      "A repeating bill's amount change starts from the due date shown in the hint",
+      "The change survives the reload"
+    ],
+    "refs": [
+      "D25"
+    ]
+  },
+  {
+    "id": "BILLPG-003",
+    "area": "Bills",
+    "action": "Remove a bill from its page",
+    "user_goal": "I do not pay this any more",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Bills, then Rent",
+      "Press Remove, read the question and press Keep",
+      "Press Remove again and confirm"
+    ],
+    "expected": [
+      "Keep changes nothing; confirming removes the whole monthly series, closes the panel and returns to /bills without Rent",
+      "Home's sentence follows",
+      "Opening /bills/<the removed id> shows the list with no panel"
+    ],
+    "refs": [
+      "D25"
+    ]
+  },
+  {
+    "id": "BILLPG-004",
+    "area": "Bills",
+    "action": "Open another household's bill address",
+    "user_goal": "a guessed address must show nothing",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Two fictional households A and B"
+    ],
+    "steps": [
+      "As A, GET /bills/<an id of B's bill>",
+      "As A, POST /api/remove with kind=bill and B's id"
+    ],
+    "expected": [
+      "The page is not found and shows nothing of B's bill",
+      "The post is refused with 400 and B's bill is unchanged"
+    ],
+    "refs": [
+      "frontend-check"
+    ]
+  },
+  {
+    "id": "CARDPG-001",
+    "area": "Cards",
+    "action": "Add a card",
+    "user_goal": "I want a new card counted",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Cards and press Add a card",
+      "Fill Card label Card N, closing day 25, payment day 10 and save"
+    ],
+    "expected": [
+      "The Add a card dialog opens over Cards; saving closes it and Cards lists Card N with ¥0 owed now · No statement due"
+    ],
+    "refs": [
+      "D25",
+      "D62"
+    ]
+  },
+  {
+    "id": "CARDPG-002",
+    "area": "Cards",
+    "action": "Edit a card",
+    "user_goal": "The closing day changed",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Cards, then Card B",
+      "Press Edit, change the closing day and save"
+    ],
+    "expected": [
+      "The panel shows the new closing day, the next statement date follows and Activity records the change"
+    ],
+    "refs": [
+      "D25"
+    ]
+  },
+  {
+    "id": "CARDPG-003",
+    "area": "Cards",
+    "action": "Remove a card with its charges",
+    "user_goal": "I closed this card",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Cards, then Card B",
+      "Press Remove and read the question",
+      "Press Keep, then Remove again and confirm"
+    ],
+    "expected": [
+      "The question names the charges and statements that go with the card",
+      "Keep changes nothing; confirming removes the card, its charges and statements, records an Activity event, returns to /cards and Home's numbers follow"
+    ],
+    "refs": [
+      "D25"
+    ]
+  },
+  {
+    "id": "CARDPG-004",
+    "area": "Cards",
+    "action": "Remove a card by another household's id",
+    "user_goal": "a guessed id must not delete a card",
+    "type": "security",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "http",
+    "preconditions": [
+      "Two fictional households A and B"
+    ],
+    "steps": [
+      "As A, POST /api/remove with kind=card and B's card id",
+      "As A, POST it with an unused id",
+      "As A, POST it with A's own card id and x-form-fetch: 1"
+    ],
+    "expected": [
+      "The first two are 400 and B's card is unchanged",
+      "The third is 204 with x-form-redirect, or 303 without the header"
+    ],
+    "refs": [
+      "frontend-check",
+      "db:isolation-test"
+    ]
+  }
+]

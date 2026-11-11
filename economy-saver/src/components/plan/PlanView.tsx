@@ -8,7 +8,9 @@ import { monthYear, moneyInPotsLine, potLine, roomLine, roomNote } from "@/lib/m
 import { ApiForm } from "@/components/ui/ApiForm";
 import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
 import "@/components/household/add-entry.css";
+import type { OwnCategoryGroup } from "@/db/own-categories";
 import type { OwnChoices } from "@/lib/reader/own-choices";
+import { OwnCategories } from "@/components/settings/OwnCategories";
 import { MonthSplit } from "./MonthSplit";
 import { RegularCosts } from "./RegularCosts";
 import { SpendingResults, SpendingSearchForm } from "./SpendingSearch";
@@ -99,7 +101,7 @@ function planHref(month: string, current: string, query: string): string {
   return search ? `/plan?${search}` : "/plan";
 }
 
-export function PlanView({ state, spending, ask, own, newPotId }: { state: MoneyState; spending: SpendingInput; ask: PlanAsk; own: OwnChoices; newPotId: string }) {
+export function PlanView({ state, spending, ask, own, ownGroups, newPotId }: { state: MoneyState; spending: SpendingInput; ask: PlanAsk; own: OwnChoices; ownGroups: OwnCategoryGroup[]; newPotId: string }) {
   const inPots = moneyInPotsLine(state);
   const people = state.split.members.map(({ id, name }) => ({ id, name }));
   const { month, refusal: monthRefusal } = chosenMonth(ask);
@@ -134,5 +136,6 @@ export function PlanView({ state, spending, ask, own, newPotId }: { state: Money
         <button className="ui-button primary">Add pot</button>
       </ApiForm>
     </details>
+    <OwnCategories groups={ownGroups} />
   </article>;
 }

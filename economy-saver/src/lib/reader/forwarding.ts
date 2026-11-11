@@ -1,3 +1,4 @@
+import { logSettingProblem } from "@/lib/operator-log";
 import { eq } from "drizzle-orm";
 import { type Db, requireHousehold, withHousehold } from "@/db/household";
 import { households } from "@/db/schema";
@@ -29,14 +30,15 @@ function unbase32(value: string) {
   }
   return out;
 }
+const FORWARDING_OFF = "Forwarding bills by email isn’t set up on this server.";
 function routingDomain() {
   const domain = readerSetting("FORWARDING_DOMAIN").toLowerCase();
-  if (!/^(?:[a-z0-9-]+\.)+[a-z]{2,63}$/.test(domain)) throw new ReaderError("FORWARDING_DOMAIN must be a domain name.");
+  if (!/^(?:[a-z0-9-]+\.)+[a-z]{2,63}$/.test(domain)) { logSettingProblem("forwarding_not_set_up", "FORWARDING_DOMAIN must be a domain name."); throw new ReaderError(FORWARDING_OFF, 503); }
   return domain;
 }
 async function routingKey() {
   const key = readerSetting("INBOUND_ADDRESS_KEY");
-  if (!/^[\da-f]{64}$/i.test(key)) throw new ReaderError("INBOUND_ADDRESS_KEY must be a 256-bit hexadecimal key.");
+  if (!/^[\da-f]{64}$/i.test(key)) { logSettingProblem("forwarding_not_set_up", "INBOUND_ADDRESS_KEY must be a 256-bit hexadecimal key."); throw new ReaderError(FORWARDING_OFF, 503); }
   return crypto.subtle.importKey("raw", Buffer.from(key, "hex"), "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 

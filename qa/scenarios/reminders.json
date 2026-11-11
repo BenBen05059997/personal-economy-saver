@@ -16,9 +16,9 @@
       "Fresh Ben Try it on Nov 14"
     ],
     "steps": [
-      "Open Settings and find Reminders",
+      "Open Settings → Assistant rules and find Reminders",
       "Set Reminder hour to 10:00 and save",
-      "Reload Settings"
+      "Reload the page"
     ],
     "expected": [
       "The hour starts at 08:00 in Asia/Tokyo",
@@ -47,7 +47,7 @@
     ],
     "steps": [
       "Select Saturday and Sunday in Quiet days and save",
-      "Reload Settings"
+      "Reload the page"
     ],
     "expected": [
       "Both days remain selected",
@@ -75,7 +75,7 @@
     ],
     "steps": [
       "Check Email reminders and save",
-      "Reload Settings"
+      "Reload the page"
     ],
     "expected": [
       "Email reminders stays selected",
@@ -104,7 +104,7 @@
     ],
     "steps": [
       "Clear Email reminders and save",
-      "Reload Settings"
+      "Reload the page"
     ],
     "expected": [
       "Email reminders stays off"
@@ -160,7 +160,7 @@
     ],
     "steps": [
       "Tap Turn on push and allow notifications",
-      "Reload Settings and check the same household in a separate browser"
+      "Reload the page and check the same household in a separate browser"
     ],
     "expected": [
       "Push is on for this device. appears",
@@ -304,7 +304,7 @@
       "Fresh Ben Try it on Nov 14"
     ],
     "steps": [
-      "Open Settings and find Push on this device"
+      "Open Settings → Assistant rules and find Push on this device"
     ],
     "expected": [
       "Push on this device says \"Off. WEB_PUSH_PUBLIC_KEY is not set.\"",
@@ -389,7 +389,7 @@
       "RESEND_API_KEY and WEB_PUSH_PUBLIC_KEY are absent"
     ],
     "steps": [
-      "Open Settings and find Reminders"
+      "Open Settings → Assistant rules and find Reminders"
     ],
     "expected": [
       "Email and push both show off",

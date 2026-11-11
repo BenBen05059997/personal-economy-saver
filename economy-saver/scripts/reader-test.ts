@@ -188,7 +188,7 @@ async function test() {
     delete process.env.AI_TEXT_MODEL;
     await readDocument(db, a, retry);
     assert.equal(calls, countBefore);
-    assert.equal((await readerInbox(db, a)).jobs.find(j => j.id === retry)?.error, "AI_TEXT_MODEL is not set");
+    assert.equal((await readerInbox(db, a)).jobs.find(j => j.id === retry)?.error, "The AI model isn’t set up on this server yet.");
     process.env.AI_TEXT_MODEL = "fixture-text";
     await readDocument(db, a, retry, true);
     assert.equal(calls, countBefore + 1);

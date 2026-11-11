@@ -152,7 +152,7 @@ function categoryFor(name: string, given: z.infer<typeof categoryField>): { cate
 /** The refusal for an own category the household does not have: it lists the ones that exist and says only the person can make one. */
 function unknownOwnWords(name: string, category: CategoryKey, names: string[]): string {
   const label = categoryLabel(category);
-  return `"${name}" is not one of this household's own categories under ${label}. Under ${label} there ${names.length === 0 ? "are none yet" : `are: ${names.join(", ")}`}. Only the person can make a new one, in Settings → Your categories.`;
+  return `"${name}" is not one of this household's own categories under ${label}. Under ${label} there ${names.length === 0 ? "are none yet" : `are: ${names.join(", ")}`}. Only the person can make a new one, in Plan → Your categories.`;
 }
 
 /**
@@ -182,7 +182,7 @@ async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>
   if (shared) {
     if (bill.memberId !== null) throw new InputError("A shared bill belongs to nobody in particular; leave memberId empty");
     if (paidBy === null) throw new InputError("Say who pays a shared bill (paidBy)");
-    if (await memberCount(ctx.db, ctx.householdId) < 2) throw new InputError("Splitting a bill needs a second person; add one in Settings, People");
+    if (await memberCount(ctx.db, ctx.householdId) < 2) throw new InputError("Splitting a bill needs a second person; add one in Household → People");
     paidByMemberId = (await memberByName(ctx.db, ctx.householdId, paidBy)).id;
   }
   const { category, note: categoryNote } = categoryFor(bill.biller, given);
@@ -423,7 +423,7 @@ export const tools: Tool[] = [
     description: "The household's own categories under the fourteen, grouped by category, each with its default business share if set and how many bills and charges are filed under it. The only names add_bill and log_charge accept as own_category. Quote the tool's words.",
     run: async ctx => {
       const groups = await listOwnCategoriesGrouped(ctx.db, ctx.householdId);
-      if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Settings → Your categories.";
+      if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Plan → Your categories.";
       const part = (o: (typeof groups)[number]["categories"][number]) => `${o.name} (${o.businessBp === null ? "no default business share" : `default business share ${o.businessBp / 100}%`}, ${o.items} ${o.items === 1 ? "item" : "items"})`;
       return groups.map(g => `Under ${g.label}: ${g.categories.map(part).join("; ")}.`).join("\n");
     },
