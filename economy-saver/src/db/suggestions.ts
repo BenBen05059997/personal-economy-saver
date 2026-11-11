@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, isNull, lt, notInArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { jobError } from "@/lib/job-error";
 import { addDays } from "@/lib/money/runway";
 import { findSuggestions } from "@/lib/money/suggest";
@@ -8,7 +8,7 @@ import { REGULAR_MONTHS } from "@/lib/money/regular";
 import { clockForHousehold } from "./clock";
 import { CHARGE_LOOKBACK_DAYS, householdClockRow, loadMoneyState, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { rulesFor } from "./rules";
-import { events, households, invoices, spaces, standingRules, suggestions } from "./schema";
+import { events, households, spaces, standingRules, suggestions } from "./schema";
 
 const active = () => inArray(suggestions.status, ["open", "not_now"]);
 const RETENTION_MS = 90 * 86_400_000;
@@ -32,14 +32,8 @@ export async function runPass(db: Db, id: string, now = new Date()) {
     const lookback = addDays(today, -CHARGE_LOOKBACK_DAYS);
     const regularFrom = monthsBack(today.slice(0, 7), REGULAR_MONTHS) + "-01";
     const chargesFrom = rules.cost_up.enabled && regularFrom < lookback ? regularFrom : lookback;
-    const [state, remindable] = await Promise.all([
-      loadMoneyState(tx, hid, today, household, chargesFrom),
-      rules.nudge_after.enabled ? tx.select({ id: invoices.id }).from(invoices).where(and(
-        eq(invoices.householdId, hid), eq(invoices.status, "sent"), isNotNull(invoices.paypalInvoiceId),
-        isNotNull(invoices.dueOn), isNull(invoices.remindedAt), isNull(invoices.reminderAttemptedAt),
-      )) : [],
-    ]);
-    const findings = findSuggestions(state, rules, new Set(remindable.map(row => row.id)));
+    const state = await loadMoneyState(tx, hid, today, household, chargesFrom);
+    const findings = findSuggestions(state, rules);
     const current = findings.map(finding => finding.key);
     await tx.update(suggestions).set({ status: "resolved", closedAt: now })
       .where(and(eq(suggestions.householdId, hid), active(), current.length ? notInArray(suggestions.key, current) : undefined));

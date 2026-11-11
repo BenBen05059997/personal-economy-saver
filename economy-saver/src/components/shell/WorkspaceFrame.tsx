@@ -2,22 +2,22 @@ import type { ReactNode } from "react";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { refreshPayPal } from "@/db/paypal-refresh";
-import { loadNavigationData, loadWorkspaceData } from "@/db/workspace";
+import { loadNavigationData, loadWorkspaceData, type Viewer } from "@/db/workspace";
 import { missingForwardingSetting } from "@/components/reader/ForwardingSettings";
 import { Shell, type Section } from "./Shell";
 
 type WorkspaceData = Awaited<ReturnType<typeof loadWorkspaceData>>;
 
 /** `withOwn` also loads the household's own categories and guesses (D75) for the pages that show the Add forms or the reader; `own` is then never null. */
-export async function loadWorkspace<Own extends boolean = false>(hid: string, home = false, withOwn: Own = false as Own):
+export async function loadWorkspace<Own extends boolean = false>(hid: string, home = false, withOwn: Own = false as Own, viewer: Viewer = null):
   Promise<Own extends true ? WorkspaceData & { own: NonNullable<WorkspaceData["own"]> } : WorkspaceData> {
   const freshness = home ? await refreshPayPal(db(), hid) : null;
-  return withHousehold(db(), hid, tx => loadWorkspaceData(tx, hid, home, freshness, withOwn),
+  return withHousehold(db(), hid, tx => loadWorkspaceData(tx, hid, home, freshness, withOwn, viewer),
     home ? undefined : { isolationLevel: "repeatable read", accessMode: "read only" }) as never;
 }
 
-export async function loadNavigation(hid: string) {
-  return withHousehold(db(), hid, tx => loadNavigationData(tx, hid),
+export async function loadNavigation(hid: string, viewer: Viewer = null) {
+  return withHousehold(db(), hid, tx => loadNavigationData(tx, hid, viewer),
     { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 

@@ -458,7 +458,7 @@
       "Fresh Try it household (Ben) at 1440px unless the step says otherwise"
     ],
     "steps": [
-      "Approve Beacon’s invoice and arrange sandbox payment"
+      "Approve Beacon’s invoice, then pay its link as the client (PAY-041)"
     ],
     "expected": [
       "The invoice step becomes complete when the paid state is recorded"

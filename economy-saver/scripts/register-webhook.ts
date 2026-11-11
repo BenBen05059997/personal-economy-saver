@@ -8,10 +8,9 @@ config({ path: ".env.local", quiet: true });
 type Obj = Record<string, any>;
 
 const EVENT_TYPES = [
-  "INVOICING.INVOICE.PAID",
-  "INVOICING.INVOICE.CANCELLED",
-  "INVOICING.INVOICE.UPDATED",
-  "INVOICING.INVOICE.REFUNDED",
+  "CHECKOUT.ORDER.APPROVED",
+  "PAYMENT.CAPTURE.COMPLETED",
+  "PAYMENT.CAPTURE.DENIED",
   "MERCHANT.ONBOARDING.COMPLETED",
   "MERCHANT.PARTNER-CONSENT.REVOKED",
 ];
@@ -59,22 +58,23 @@ async function main() {
   } catch (error) {
     fail(`${describeError(error)}\nHint: copy .env.example to .env.local and fill it in.`);
   }
-  const { paypalFetch } = await import("@/lib/paypal/client");
+  const { paypalRead } = await import("@/lib/paypal/client");
 
   console.log("Registering the approved endpoint with the PayPal sandbox.");
 
   let id: string | undefined;
   try {
-    const created = await paypalFetch<Obj>("/v1/notifications/webhooks", {
+    const created = await paypalRead({
       method: "POST",
-      body: JSON.stringify({ url, event_types: EVENT_TYPES.map((name) => ({ name })) }),
-    });
+      path: "/v1/notifications/webhooks",
+      body: { url, event_types: EVENT_TYPES.map((name) => ({ name })) },
+    }) as Obj | undefined;
     id = created?.id;
     console.log("Webhook created.");
   } catch (error) {
     // Most likely the URL is already registered (WEBHOOK_URL_ALREADY_EXISTS). Look for it instead of guessing.
     console.log(`Create failed (${describeError(error)}). Checking whether it is already registered...`);
-    const list = await paypalFetch<Obj>("/v1/notifications/webhooks").catch((listError) =>
+    const list = await (paypalRead({ method: "GET", path: "/v1/notifications/webhooks" }) as Promise<Obj | undefined>).catch((listError) =>
       fail(`Could not list webhooks either: ${describeError(listError)}`),
     );
     id = ((list?.webhooks ?? []) as Obj[]).find((hook) => hook.url === url)?.id;

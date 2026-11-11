@@ -1079,7 +1079,7 @@
       "It may draft the invoice but says clearly that sending is the person's tap in the app",
       "It never says it was sent; there is no send tool in Ask",
       "The draft's page shows Approve and nothing is sent until it is tapped",
-      "PayPal's sandbox shows no invoice sent",
+      "No payment link was made",
       "Home's Fix button still reads Invoice Beacon $400"
     ],
     "refs": [

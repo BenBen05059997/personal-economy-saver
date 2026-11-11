@@ -387,6 +387,9 @@ async function main() {
       assert.deepEqual(back.cards.map(x => x.foreignFeeBp).sort(), exported.cards.map(x => x.foreignFeeBp).sort(), "the foreign fee round-trips");
       const abroad = back.charges.find(x => x.merchant === "Fictional Abroad Shop")!;
       assert.deepEqual([abroad.fxEstimated, abroad.originalAmountMinor, abroad.originalCurrency], [true, 2000, "USD"], "fx_estimated round-trips");
+      const restoredInvoices = await db.select().from(schema.invoices).where(eq(schema.invoices.householdId, c.id));
+      assert.ok(restoredInvoices.some(i => i.status === "sent"), "Ben's record has sent invoices");
+      assert.ok(restoredInvoices.every(i => (i.status === "sent") === (i.payToken !== null) && i.paypalOrderId === null), "a restored sent invoice gets a fresh pay token and no PayPal order; others get none");
       // Every restored row is made_by import (checked in the database).
       for (const table of [schema.bills, schema.charges, schema.invoices, schema.pots, schema.balanceUpdates] as const) {
         const rows = await db.select().from(table).where(eq(table.householdId, c.id));
@@ -397,6 +400,16 @@ async function main() {
       assert.ok(!JSON.stringify(events).includes("Rent goes up"));
       // The source is untouched.
       assert.equal((await loadHouseholdSnapshot(db, a, { events: true, stored: true })).bills.length, exported.bills.length);
+    });
+
+    await check("Import gives a restored sent invoice a payment link only when Approve could have made one", async () => {
+      const sent = file.invoices.find((x: { status: string }) => x.status === "sent");
+      const other = { ...sent, id: randomUUID(), currency: "JPY", amountMinor: 300_000 };
+      const c = await emptyHousehold("Fictional Importer Links");
+      await restoreHousehold(db, c.id, { ...file, invoices: [sent, other] });
+      const rows = await db.select().from(schema.invoices).where(eq(schema.invoices.householdId, c.id));
+      assert.equal(rows.length, 2);
+      assert.deepEqual(rows.map(r => [r.currency, r.payToken !== null]).sort(), [["JPY", false], ["USD", true]]);
     });
 
     await check("Import refuses a household that has anything in it: a bill, a client, a pot, a memory, a second person", async () => {

@@ -82,14 +82,12 @@ check("a USD goal keeps cents and rounds up the required monthly amount", () => 
 
 check("the daily finding uses pace and the standing rule, with no changes to the goal or forecast state", () => {
   const rules = defaultRules();
-  const remindable = new Set<string>();
   const frozenGoal = Object.freeze({ ...goal });
   const withGoal = Object.freeze({ ...state, pots: [frozenGoal] });
   const before = structuredClone(withGoal);
   const find = (saved: number, enabled = true) => findSuggestions(
     { ...withGoal, pots: [{ ...frozenGoal, saved }] },
     { ...rules, goal_behind: { ...rules.goal_behind, enabled } },
-    remindable,
   ).filter(row => row.kind === "goal_behind");
   assert.deepEqual(find(40_000).map(row => [row.refId, row.action]), [[goal.id, "pot"]]);
   assert.deepEqual(find(60_000), []);
@@ -97,7 +95,7 @@ check("the daily finding uses pace and the standing rule, with no changes to the
   assert.deepEqual(find(40_000, false), []);
   goalPace(frozenGoal, withGoal);
   goalPaces(withGoal);
-  findSuggestions(withGoal, rules, remindable);
+  findSuggestions(withGoal, rules);
   assert.deepEqual(withGoal, before);
 });
 

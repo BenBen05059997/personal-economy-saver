@@ -19,6 +19,7 @@ import { ClientIpError, clientIp, consumeIpRequest, hashIp, pruneIpBuckets } fro
 import { storeDocument } from "@/db/reader-job";
 import { seedBen } from "@/db/seed";
 import { applyVerifiedDelivery, storedPayload } from "@/lib/events";
+import type { CaptureOrder } from "@/lib/paypal/contracts";
 import { missingAskSetting } from "@/lib/agent/availability";
 import { ReaderError } from "@/lib/reader/settings";
 
@@ -186,13 +187,18 @@ async function main() {
     });
 
     // ---------------------------------------------------------------- 5. the webhook payload
-    await check("a delivery keeps only the invoice id and time of PayPal's event, never the whole event, and the migration trims old rows the same way", async () => {
+    await check("a delivery keeps only the resource id and time of PayPal's event, never the whole event, and the migration trims old rows the same way", async () => {
       const event = { id: "WH-LIMITS-1", event_type: "PAYMENT.SALE.COMPLETED", create_time: "2026-11-07T01:00:00Z", resource_type: "sale", summary: "Fictional payer paid 12.00 USD",
         resource: { id: "SALE-1", payer: { email: "fictional.payer@example.test" }, amount: { total: "12.00" } } };
-      assert.deepEqual(storedPayload(event, undefined), { invoiceId: undefined, createdAt: "2026-11-07T01:00:00Z" });
-      await applyVerifiedDelivery(store, event);
+      assert.deepEqual(storedPayload(event, undefined), { resourceId: undefined, createdAt: "2026-11-07T01:00:00Z" });
+      const capture: CaptureOrder = async () => { throw new Error("Nothing is captured here"); };
+      await applyVerifiedDelivery(store, event, capture);
+      const approved = { id: "WH-LIMITS-2", event_type: "CHECKOUT.ORDER.APPROVED", create_time: "2026-11-07T02:00:00Z", resource: { id: "ORDER-LIMITS", payer: { email: "fictional.payer@example.test" } } };
+      await applyVerifiedDelivery(store, approved, capture);
+      const [kept] = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, "WH-LIMITS-2"));
+      assert.deepEqual(kept.payload, { resourceId: "ORDER-LIMITS", createdAt: "2026-11-07T02:00:00Z" }, "the resource id and the time, nothing of the payer");
       const [row] = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, "WH-LIMITS-1"));
-      assert.deepEqual(Object.keys(row.payload as object).sort(), ["createdAt"], "undefined is dropped by JSON; nothing else is kept");
+      assert.deepEqual(row.payload, { resourceId: "SALE-1", createdAt: "2026-11-07T01:00:00Z" }, "the resource id and the time; nothing else is kept");
       assert.ok(!JSON.stringify(row.payload).includes("fictional.payer"));
       await db.insert(schema.webhookDeliveries).values({ paypalEventId: "WH-OLD-1", eventType: "INVOICING.INVOICE.PAID", verified: true,
         payload: { id: "WH-OLD-1", summary: "Fictional", resource: { id: "INV2-X", payer: "Fictional" }, invoiceId: "INV2-X", createdAt: "2026-10-01T00:00:00Z" } });

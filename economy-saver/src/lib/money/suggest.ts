@@ -1,10 +1,9 @@
 import { AMOUNT_NOT_KNOWN } from "./gaps";
 import { dayLabel, majorMoney, minorMoney, minorPerUnit } from "./format";
-import { clientPace, expectedPayDate } from "./pace";
 import { goalPaces } from "./goals";
 import { cancelNotices, resolveBills } from "./repeat";
 import { REGULAR_MONTHS, regularCosts } from "./regular";
-import { addDays, daysBetween, dueItems, safeToSpend } from "./runway";
+import { addDays, daysBetween, dueItems, expectedPayBasis, safeToSpend } from "./runway";
 import { monthBounds, monthsBack, spendingItems } from "./spending";
 import type { Finding, StandingRule, StandingRules } from "./suggestion-types";
 import type { MoneyState } from "./types";
@@ -13,7 +12,7 @@ import { stateThrough } from "./window";
 const threshold = (rule: StandingRule) => rule.enabled ? rule.threshold : null;
 const daysWords = (n: number) => n === 1 ? "1 day" : n + " days";
 
-export function findSuggestions(state: MoneyState, rules: StandingRules, remindable: ReadonlySet<string>): Finding[] {
+export function findSuggestions(state: MoneyState, rules: StandingRules): Finding[] {
   const { today, homeCurrency } = state;
   const findings: Finding[] = [];
   const format = (amount: number) => majorMoney(amount, homeCurrency);
@@ -22,16 +21,16 @@ export function findSuggestions(state: MoneyState, rules: StandingRules, reminda
     if (invoice.status !== "sent") continue;
     const client = state.clients.find(row => row.id === invoice.clientId);
     if (!client) continue;
-    const usual = invoice.sentOn && clientPace(client) ? expectedPayDate(client, invoice.sentOn) : null;
-    const due = invoice.dueOn ?? (invoice.sentOn ? expectedPayDate(client, invoice.sentOn) : null);
-    if (nudge !== null && due && remindable.has(invoice.id) && daysBetween(due, today) >= nudge) {
-      findings.push({ kind: "invoice_nudge", key: "nudge:" + invoice.id, title: "Nudge " + client.name,
-        reason: "The invoice is " + daysWords(daysBetween(due, today)) + " past due.", action: "remind", refId: invoice.id, urgency: 1 });
-    }
-    if (usual && today > usual) {
-      findings.push({ kind: "late_client", key: "late:" + invoice.id, title: client.name + " is past their usual payment day",
-        reason: "The invoice usually would have been paid by " + dayLabel(usual) + ".", action: "invoice", refId: invoice.id, urgency: 2 });
-    }
+    // Late has one meaning: the forecast's own expected pay day for this invoice is more than the rule's days behind us (D64).
+    if (nudge === null || !invoice.sentOn || !invoice.hasLink) continue;
+    const expected = expectedPayBasis(state, invoice);
+    if (daysBetween(expected.on, today) <= nudge) continue;
+    const why = expected.basis === "history" ? client.name + " usually pays in " + daysWords(expected.days)
+      : expected.basis === "due" ? client.name + "'s invoice was due " + dayLabel(expected.dueOn)
+      : client.name + "'s terms are " + daysWords(expected.days);
+    findings.push({ kind: "invoice_nudge", key: "nudge:" + invoice.id, title: "Send " + client.name + " the link again",
+      reason: why + "; it has been " + daysWords(daysBetween(invoice.sentOn, today)) + " since the link was made.",
+      action: "remind", refId: invoice.id, urgency: 1 });
   }
 
   const billAhead = threshold(rules.bill_ahead);

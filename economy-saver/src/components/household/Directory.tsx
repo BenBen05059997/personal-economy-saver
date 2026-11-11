@@ -70,7 +70,7 @@ function ClientPanel({ state, client }: { state: MoneyState; client: Client }) {
     </dl>
     <h3>Work and invoices</h3>
     {invoices.map(invoice => <Link prefetch={false} className="ui-row directory-link" key={invoice.id} href={`/invoices/${invoice.id}`}>
-      <div>{invoice.item}<small>{invoice.number ? `#${invoice.number} · ` : ""}{invoice.status}{invoice.paypalStatus && ` · PayPal ${invoice.paypalStatus.toLowerCase().replaceAll("_", " ")}`}
+      <div>{invoice.item}<small>{invoice.number ? `#${invoice.number} · ` : ""}{invoice.status}
         {invoice.status === "sent" && ` · expected ${dayLabel(project(state, invoice).expectedOn)}`}</small></div>
       <span className="num">{usd(invoice.amountUsd)}</span>
     </Link>)}

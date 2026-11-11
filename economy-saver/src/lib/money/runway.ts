@@ -15,7 +15,7 @@
 
 import type { Context, Currency, Moment, Profile } from "@/lib/catalogue/types";
 import { addDays, dateIn, daysBetween } from "./dates";
-import { dayLabel as label, formatter, minorPerUnit, money, plural, usd } from "./format";
+import { formatter, minorPerUnit, money, plural, usd } from "./format";
 import type { Bill, Card, Charge, Client, Invoice, MoneyState } from "./types";
 
 // ---------------------------------------------------------------- dates
@@ -164,6 +164,32 @@ export function medianLow(xs: number[]): number {
   return s[Math.floor((s.length - 1) / 2)];
 }
 
+/** Which value the expected pay day came from: the client's usual days, else the invoice's due date, else the client's terms. */
+export type ExpectedPayBasis =
+  | { on: string; basis: "history"; days: number }
+  | { on: string; basis: "due"; dueOn: string }
+  | { on: string; basis: "terms"; days: number };
+
+/**
+ * The one calculation of the day the forecast expects a sent invoice to be paid, before `project()` lifts it to tomorrow,
+ * with the value it used: the client's usual days from the day the link was made, else the invoice's due date, else the
+ * client's terms. The nudge needs this raw date to know how late the invoice is, and its words quote the basis.
+ */
+export function expectedPayBasis(state: MoneyState, invoice: Invoice, sentOn: string = invoice.sentOn ?? state.today): ExpectedPayBasis {
+  const client: Client | undefined = state.clients.find((c) => c.id === invoice.clientId);
+  const history = client?.daysToPay ?? [];
+  const extra = client?.lateDays ?? 0;
+  if (history.length) { const days = medianLow(history); return { on: addDays(sentOn, days + extra), basis: "history", days }; }
+  if (invoice.dueOn) return { on: addDays(invoice.dueOn, extra), basis: "due", dueOn: invoice.dueOn };
+  const days = client?.termsDays ?? 0;
+  return { on: addDays(sentOn, days + extra), basis: "terms", days };
+}
+
+/** The day the forecast expects a sent invoice to be paid: see `expectedPayBasis`. */
+export function expectedPayOn(state: MoneyState, invoice: Invoice, sentOn: string = invoice.sentOn ?? state.today): string {
+  return expectedPayBasis(state, invoice, sentOn).on;
+}
+
 /**
  * Where an invoice sent on `sentOn` is expected to land. Used for sent invoices and,
  * with sentOn = today, for what an unbilled invoice would do if it were sent now.
@@ -175,7 +201,7 @@ export function project(state: MoneyState, invoice: Invoice, sentOn: string = in
   const later = (iso: string) => (iso < tomorrow ? tomorrow : iso);
   const extra = client?.lateDays ?? 0; // D57: a what-if's "this client pays N days late"; 0 (a no-op) in every real state
   const fallback = addDays(invoice.dueOn ?? addDays(sentOn, client?.termsDays ?? 0), extra);
-  const expectedOn = later(history.length ? addDays(sentOn, medianLow(history) + extra) : fallback);
+  const expectedOn = later(expectedPayOn(state, invoice, sentOn));
   const worstOn = later(history.length ? addDays(sentOn, Math.max(...history) + extra) : fallback);
   return {
     invoiceId: invoice.id,
@@ -330,11 +356,10 @@ export function roomOnCard(state: MoneyState, cardId: string): CardRoom {
 type Rung = {
   id: "invoice" | "remind" | "advance" | "discount";
   title: string;
-  detail: string;
+  detail?: string; // the "remind" rung is worded once, in options.ts
   cost: number; // home currency
   costLabel: string;
   verdict: string;
-  pick: boolean;
 };
 
 export const EARLY_DISCOUNT = 0.02;
@@ -363,7 +388,8 @@ function advanceFeeText(c: Currency): string {
 }
 
 /**
- * The ways to cover the worst-case gap, cheapest first. Empty when there is no gap.
+ * The ways to cover the worst-case gap, cheapest first. Empty when there is no gap. It returns only its rows: which one
+ * covers the gap is decided in one place, `fundingOptions`.
  * The gap is the lowest worst-case balance, and it is judged on the day that low is reached.
  */
 export function ladder(state: MoneyState): Rung[] {
@@ -373,10 +399,8 @@ export function ladder(state: MoneyState): Rung[] {
   const lw = low(worst);
   const gap = Math.max(0, -lw.amount);
   if (gap <= 0) return [];
-  const gapDay = label(lw.date);
   const sent = arrivals(state);
   const rows: Rung[] = [];
-  const works = new Set<Rung["id"]>(); // rungs that close the gap
 
   // 1. Invoice the unbilled work.
   const unbilled = state.invoices.find((i) => i.status === "unbilled");
@@ -384,7 +408,7 @@ export function ladder(state: MoneyState): Rung[] {
     const p = project(state, unbilled, state.today);
     const hist = state.clients.find((c) => c.id === unbilled.clientId)?.daysToPay ?? [];
     const med = hist.length ? medianLow(hist) : 0;
-    const covers = p.amountHome >= gap && p.worstOn < lw.date;
+    const covers = p.amountHome >= gap && p.worstOn < lw.date; // wording only; fundingOptions decides the pick
     rows.push({
       id: "invoice",
       title: `Invoice ${p.clientName} for ${lowerFirst(unbilled.item)}`,
@@ -392,31 +416,20 @@ export function ladder(state: MoneyState): Rung[] {
       cost: 0,
       costLabel: `${home(0)} extra`,
       verdict: covers ? "Cheapest. Covers it." : p.worstOn >= lw.date ? "May land too late" : `Covers ${home(p.amountHome)} of it`,
-      pick: false,
     });
-    if (covers) works.add("invoice");
   }
 
-  // 2. Remind the clients with sent invoices.
+  // 2. Send the clients with sent invoices their payment link again.
   if (sent.length) {
     const late = sent.some((a) => a.worstOn > lw.date);
     const names = sent.map((a) => short(a.clientName));
-    const slowest = sent.map((a) => {
-      const hist = state.clients.find((c) => c.id === a.clientId)?.daysToPay ?? [];
-      return hist.length ? Math.max(...hist) : 0;
-    });
     rows.push({
       id: "remind",
-      title: `Remind ${names.join(" and ")}`,
-      detail: late
-        ? `Their slowest payments took ${slowest.join(" and ")} days. A reminder may not land by ${gapDay}.`
-        : `They usually pay before ${gapDay}. A reminder should land in time.`,
+      title: `Send ${names.join(" and ")} the link again`,
       cost: 0,
       costLabel: home(0),
       verdict: late ? "May be too late" : "Should land in time",
-      pick: false,
     });
-    if (!late && sent.every((a) => a.expectedOn <= lw.date)) works.add("remind");
   }
 
   // 3. Card cash advance until the first worst-case arrival after the gap date.
@@ -430,9 +443,7 @@ export function ladder(state: MoneyState): Rung[] {
     cost: adv,
     costLabel: "≈" + home(adv),
     verdict: "Works",
-    pick: false,
   });
-  works.add("advance");
 
   // 4. Offer the largest sent invoice an early-payment discount.
   const biggest = [...sent].sort((a, b) => b.amountHome - a.amountHome)[0];
@@ -447,14 +458,10 @@ export function ladder(state: MoneyState): Rung[] {
       cost,
       costLabel: home(cost),
       verdict: dearer,
-      pick: false,
     });
-    if (biggest.amountHome >= gap) works.add("discount");
   }
 
-  rows.sort((a, b) => a.cost - b.cost);
-  const pick = rows.find((r) => works.has(r.id))?.id;
-  return rows.map((r) => ({ ...r, pick: r.id === pick }));
+  return rows.sort((a, b) => a.cost - b.cost);
 }
 
 // ---------------------------------------------------------------- timeline

@@ -180,7 +180,7 @@
       "Home shows today's real date in the date line, not Sat Nov 14",
       "Before the update the sentence reads \"Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥0.\"; after it, it includes \"Bank balance ¥250,000.\" and Cards says \"No card yet.\"",
       "\"What you can do here\" shows six cards; after the update \"Set today’s bank balance\" is ticked and \"First steps\" does not exist",
-      "Settings → Assistant rules: Late-client nudge shows 3"
+      "Settings → Assistant rules: Late-client link shows 3"
     ],
     "refs": [
       "D47"
@@ -791,7 +791,7 @@
       "Open Household and its two tabs: Details, People"
     ],
     "expected": [
-      "Settings has five tabs: Assistant rules (Late-client nudge and the other rules, Reminders), Your AI model, PayPal, Your data and Account; each has its own address (/settings, /settings/ai-model, /settings/paypal, /settings/data, /settings/account) and the current one is selected",
+      "Settings has five tabs: Assistant rules (Late-client link and the other rules, Reminders), Your AI model, PayPal, Your data and Account; each has its own address (/settings, /settings/ai-model, /settings/paypal, /settings/data, /settings/account) and the current one is selected",
       "Household has Details (name, currency, time zone, the bank balance with a link to Home) and People (names and shares, invitations, family view, who has access) at /household and /household/people",
       "Nothing scrolls sideways; light and dark both read clearly"
     ],
@@ -875,8 +875,8 @@
   {
     "id": "SET-006",
     "area": "Rules",
-    "action": "Turn the nudge rule on, off and out of range",
-    "user_goal": "I want a nudge for late clients",
+    "action": "Turn the late-client link rule on, off and out of range",
+    "user_goal": "I want a suggestion to send a late client the link again",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -889,12 +889,12 @@
     ],
     "steps": [
       "Open Settings → Assistant rules (the first tab)",
-      "Set the nudge rule to 5 days and save",
+      "Set the late-client link rule to 5 days and save",
       "Reload and try 0 and 31 days",
-      "Turn the nudge rule off and save"
+      "Turn the late-client link rule off and save"
     ],
     "expected": [
-      "The nudge rule starts enabled at 3 days and keeps 5 after a successful save and reload",
+      "The late-client link rule starts enabled at 3 days and keeps 5 after a successful save and reload",
       "0 and 31 are refused and 5 stays saved",
       "Turning it off keeps the rule off on reload and the Save button is at least 44px tall at 375px"
     ],
@@ -1505,33 +1505,6 @@
       "A file that is not CSV or is empty shows a sentence and imports nothing"
     ],
     "refs": []
-  },
-  {
-    "id": "SET-049",
-    "area": "Settings",
-    "action": "Import PayPal history",
-    "user_goal": "I want my sandbox clients",
-    "type": "happy",
-    "priority": "P3",
-    "needs": [
-      "owner"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "The owner's non-demo household bound to the PayPal sandbox merchant (PAYPAL_BALANCE_HOUSEHOLD_ID), signed in"
-    ],
-    "steps": [
-      "Settings → PayPal → Import clients and invoices from PayPal",
-      "Run it again"
-    ],
-    "expected": [
-      "Clients and invoices from the sandbox appear and nothing in PayPal changes",
-      "Paid ones credit no balance and running again leaves imported ones alone",
-      "The panel is absent when the household cannot import"
-    ],
-    "refs": [
-      "D39"
-    ]
   },
   {
     "id": "DATA-001",

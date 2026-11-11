@@ -20,7 +20,7 @@
       "Open /memory?tab=rules"
     ],
     "expected": [
-      "Nudge, card statement and bill rules are on at 3 days and the goal pace rule is on",
+      "Late-client link, card statement and bill rules are on at 3 days and the goal pace rule is on",
       "Regular-cost increase and Safe to spend rules are off",
       "/memory?tab=rules moves to /settings with the Assistant rules tab selected",
       "Memory has no Rules tab"
@@ -173,7 +173,7 @@
   {
     "id": "RULE-008",
     "area": "Rules",
-    "action": "Turn off an older nudge threshold",
+    "action": "Turn off an older late-client link threshold",
     "user_goal": "I want to keep control over my migrated setting",
     "type": "edge",
     "priority": "P2",
@@ -184,7 +184,7 @@
     "preconditions": [
       "Separate test app with migration 0028",
       "375px and 1440px widths",
-      "The household had a 45-day nudge setting and a saved reader correction before migration 0028"
+      "The household had a 45-day late-client link setting and a saved reader correction before migration 0028"
     ],
     "steps": [
       "Check Rules for the 45-day threshold and reread a bill from the same biller",

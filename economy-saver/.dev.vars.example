@@ -4,8 +4,11 @@
 PAYPAL_ENVIRONMENT=
 PAYPAL_CLIENT_ID=
 PAYPAL_CLIENT_SECRET=
+# fipa's partner attribution code, sent on every PayPal call (D13).
+PAYPAL_PARTNER_ATTRIBUTION_ID=
+# fipa's own platform merchant id: used in partner paths and as the payee for Try it.
+PAYPAL_PARTNER_MERCHANT_ID=
 PAYPAL_WEBHOOK_ID=
-SANDBOX_CLIENT_EMAIL=
 AI_PROTOCOL=
 AI_BASE_URL=
 AI_API_KEY=
@@ -31,7 +34,6 @@ SUPABASE_DOCUMENT_BUCKET=
 FORWARDING_DOMAIN=
 INBOUND_ADDRESS_KEY=
 INBOUND_WORKER_SECRET=
-PAYPAL_BALANCE_HOUSEHOLD_ID=
 CLIENT_IP_HEADER=cf-connecting-ip
 
 # Optional email reminders. The From address must belong to the Resend sender domain.

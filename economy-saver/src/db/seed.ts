@@ -9,6 +9,7 @@ import { nameKey } from "@/lib/money/name-key";
 import { addDays } from "@/lib/money/runway";
 import type { Db } from "./household";
 import { DEMO_DATE } from "./clock";
+import { newPayToken } from "@/lib/paypal/pay-link";
 import { toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
 
@@ -108,7 +109,7 @@ export async function seedBenRows(tx: Db, opts: SeedOptions): Promise<string> {
     {
       householdId: hid, madeBy: "form" as const,
       kind: "invoice_sent",
-      title: "Invoice 1038 sent to Northwind",
+      title: "Payment link made for Northwind",
       amountMinor: toMinor(800, "USD"),
       currency: "USD",
       occurredAt: at("2026-11-13T10:00:00"),
@@ -164,6 +165,7 @@ export async function seedBenRows(tx: Db, opts: SeedOptions): Promise<string> {
         currency: "USD",
         sentOn: i.sentOn ?? null,
         dueOn: i.dueOn ?? null,
+        payToken: i.status === "sent" ? newPayToken() : null, // a sent invoice has its payment link; the PayPal order is made when Pay is tapped
       })),
     ]),
     eventInsert,

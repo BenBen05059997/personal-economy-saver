@@ -176,7 +176,16 @@ if (args[0] === "--guards") {
     ["callback-hands-off", "/api/auth/callback?code=x", {}, 303, "/signing-in?code=x"],
     ["finish-without-code", "/api/auth/finish", {}, 303, "/login?expired=1"],
     ["approve-without-household", "/api/approve", { method: "POST" }, 401],
-    ["unsigned-webhook", "/api/paypal/webhook", { method: "POST", json: { id: "fictional-check", event_type: "INVOICING.INVOICE.PAID" } }, 400],
+    ["invoice-offered-without-household", "/api/invoices/offered", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000" } }, 401],
+    ["invoice-offered-cross-origin", "/api/invoices/offered", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["invoice-end-without-household", "/api/invoices/end", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000" } }, 401],
+    ["invoice-end-cross-origin", "/api/invoices/end", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["invoice-match-without-household", "/api/invoices/match", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000", paymentId: "00000000-0000-4000-8000-000000000001" } }, 401],
+    ["invoice-match-cross-origin", "/api/invoices/match", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000", paymentId: "00000000-0000-4000-8000-000000000001" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    // The client's Pay is public (no session) but only from this site's own page, and a token that is not a link opens nothing.
+    ["pay-cross-origin", "/api/pay", { method: "POST", session: "", form: { token: "x" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["pay-unknown-token", "/api/pay", { method: "POST", session: "", form: { token: "not-a-payment-link" } }, 404],
+    ["unsigned-webhook", "/api/paypal/webhook", { method: "POST", json: { id: "fictional-check", event_type: "PAYMENT.CAPTURE.COMPLETED" } }, 400],
     ["events-without-household", "/api/events", { session: "" }, 401],
     ["events-mark-read-without-household", "/api/events", { method: "POST", session: "", json: { ids: [] } }, 401],
     ["private-upload-without-household", "/api/upload", { method: "POST" }, 401],
@@ -555,6 +564,9 @@ await step("page", "settings-tabs-render-with-the-current-tab-selected", async (
     expect(tabs.length === 5 && selected.length === 1 && selected[0].includes(`href="${path}"`) && /aria-current="page"/.test(selected[0]), "settings-tab-" + path);
   }
   expect(await isNotFound("/settings/nothing"), "settings-unknown-tab");
+  // Try it cannot connect PayPal: the tab says whose sandbox account it pays into and offers no Connect button.
+  const paypal = plain(pageContent(await page("/settings/paypal", /Your PayPal/)));
+  expect(/Try it pays into fipa(?:'|’|&#x27;|&apos;)s own PayPal sandbox account\. Sign in with your email to connect your own PayPal\./.test(paypal) && !paypal.includes("Connect your PayPal"), "settings-paypal-try-it");
 });
 // Next streams a page's redirect after the shell started, so the status is 200 with the redirect in the markup; a plain 307/308 is also right.
 async function redirectsTo(path, target) {
@@ -751,9 +763,12 @@ await step("page", "seeded-invoice-review-read-only", async () => {
   expect(id, "invoice-link");
   const review = plain(pageContent(await page("/invoices/" + id, /Review invoice/)));
   expect(review.includes("Beacon Studio usually pays 2 days after you send, slowest 3"), "invoice-review-client-pace");
-  // The approve form names who and how much, says it is the sandbox, and carries the busy line for the 5 to 10 s send.
-  expect(/PayPal sandbox sends this invoice for \$[\d,.]+ to Beacon(?:’|&#x27;|')s test address\. No real money moves\./.test(review), "invoice-review-send-hint");
-  expect(review.includes("Sending through PayPal sandbox…") && !review.includes("configured test client"), "invoice-review-busy-line");
+  // The approve form names who and how much, says whose account the client pays (Try it: fipa's own sandbox account), and carries the busy line for the 5 to 10 s call.
+  expect(review.includes("Approve and make payment link"), "invoice-review-approve-button");
+  expect(/PayPal sandbox makes a link for \$[\d,.]+ that Beacon pays into fipa(?:’|&#x27;|')s sandbox account\. No real money moves\./.test(review), "invoice-review-send-hint");
+  expect(review.includes("Asking PayPal sandbox for a payment link…"), "invoice-review-busy-line");
+  // Paying another way is offered to everyone and says what it does to the bank balance.
+  expect(review.includes("Paid another way (bank, cash)") && /Use this if Beacon Studio paid you another way\. It adds ¥[\d,]+ to your bank balance\./.test(review), "invoice-review-paid-another-way");
 });
 const initial = await step("read", "events-before-actions", events);
 await step("action", "mark-notification-read", async () => {
@@ -937,7 +952,7 @@ await step("action", "settings-save-fictional-name", async () => {
 });
 // D66: nudge rules are the standing rules on Settings → Assistant rules.
 await step("page", "rules-default-nudge-and-approval-hint", async () => {
-  const content = plain(pageContent(await page("/settings", /Nudge a client 3 days after an invoice is due/)));
+  const content = plain(pageContent(await page("/settings", /Suggest sending a client the link again 3 days after their usual pay day/)));
   expect(/suggest|approv/i.test(content), "rule-approval-hint");
 });
 await step("guard", "rules-nudge-out-of-range-refused", async () => {
@@ -949,11 +964,11 @@ await step("guard", "rules-nudge-out-of-range-refused", async () => {
 await step("action", "rules-nudge-on-then-off", async () => {
   const on = await request("/api/rules", { method: "POST", form: { kind: "set", ruleKind: "nudge_after", enabled: "on", value: "5" } });
   expect(on.response.status === 303 && on.response.headers.get("location") === "/settings", "nudge-on-result");
-  await page("/settings", /Nudge a client 5 days after an invoice is due/);
-  await sawEvent(/Rule changed: Nudge a client 5 days after an invoice is due/);
+  await page("/settings", /Suggest sending a client the link again 5 days after their usual pay day/);
+  await sawEvent(/Rule changed: Suggest sending a client the link again 5 days after their usual pay day/);
   const off = await request("/api/rules", { method: "POST", form: { kind: "set", ruleKind: "nudge_after", value: "" } });
   expect(off.response.status === 303, "nudge-off-result");
-  await sawEvent(/Rule changed: Nudge a client 5 days after an invoice is due \(off\)/);
+  await sawEvent(/Rule changed: Suggest sending a client the link again 5 days after their usual pay day \(off\)/);
 });
 await step("page", "settings-reload-saved-name", async () => {
   const html = await page("/household", /Household name/);
@@ -1161,7 +1176,7 @@ await step("page", "stage15c-paid-outside-event-points-at-the-invoice", async ()
   expect(id !== undefined, "c-invoice-id");
   const paid = await request("/api/invoices/paid", { method: "POST", form: { id } });
   expect(paid.response.status === 303, "c-paid-outside");
-  const event = await sawEvent(/marked paid outside PayPal/);
+  const event = await sawEvent(/paid \$[\d,.]+ \(outside PayPal\)/);
   expect(event.refType === "invoice" && event.refId === id, "c-event-invoice-ref");
 });
 // Stage 15 B: the add forms show three fields, the rest under More ›, in the user's words

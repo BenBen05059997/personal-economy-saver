@@ -5,7 +5,7 @@ import { ipBuckets, requestBuckets } from "./schema";
 /** The length of a counting window: a minute (the default) or an hour (the sign-in link limit). */
 type Window = "minute" | "hour";
 
-export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp" | "draft" | "approve" | "import" | "statement-import" | "export" | "people" | "settle" | "remove" | "family-links" | "canvas" | "ai-model" | "ai-model-list" | "thumb" | "pins" | "data" | "restore" | "move" | "suggestions" | "reminders" | "rules" | "invites" | "spaces" | "own-categories" | "mcp-tokens" | "add-view" | "paypal-connect" | "offered", limit = 30, per: Window = "minute") {
+export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp" | "draft" | "approve" | "statement-import" | "export" | "people" | "settle" | "remove" | "family-links" | "canvas" | "ai-model" | "ai-model-list" | "thumb" | "pins" | "data" | "restore" | "move" | "suggestions" | "reminders" | "rules" | "invites" | "spaces" | "own-categories" | "mcp-tokens" | "add-view" | "paypal-connect" | "offered" | "invoice-paid" | "invoice-match", limit = 30, per: Window = "minute") {
   const window = sql`date_trunc(${sql.raw(`'${per}'`)}, now())`;
   const sameWindow = sql`${requestBuckets.window} = ${window}`;
   const rows = await db.insert(requestBuckets).values({ householdId: requireHousehold(hid), purpose, window, count: 1 })

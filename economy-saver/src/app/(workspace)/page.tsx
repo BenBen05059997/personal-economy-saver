@@ -10,6 +10,7 @@ import { missingForwardingSetting } from "@/components/reader/ForwardingSettings
 import { ScrollToHash } from "@/components/ui/ScrollToHash";
 import { loadWorkspace, WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
 import { currentHouseholdId } from "@/lib/session";
+import { verifiedIdentity } from "@/lib/auth-request";
 
 type Search = Promise<{ added?: string | string[] }>;
 
@@ -17,16 +18,16 @@ async function SessionHome({ search }: { search: Search }) {
   const id = await currentHouseholdId();
   if (!id) return <Landing />;
   const { added } = await search;
-  const workspaceRead = loadWorkspace(id, true);
+  const identity = await verifiedIdentity();
+  const workspaceRead = loadWorkspace(id, true, false, identity);
   const suggestionsRead = withHousehold(db(), id, tx => openSuggestions(tx, id));
   const pins = loadHomePins(id);
   // The pins boundary will read the original promise after the workspace is ready.
   void pins.catch(() => {});
   const [workspace, suggestions] = await Promise.all([workspaceRead, suggestionsRead]);
-  return <WorkspaceFrame workspace={workspace} section="home"><HomeView householdId={id} getStarted={workspace.getStarted} suggestions={suggestions} state={workspace.state} balanceId={crypto.randomUUID()} inbox={workspace.inbox} notice={workspace.freshness?.stale} demo={workspace.demo} tryIt={workspace.tryIt} connection={workspace.connection}
+  return <WorkspaceFrame workspace={workspace} section="home"><HomeView householdId={id} getStarted={workspace.getStarted} suggestions={suggestions} state={workspace.state} balanceId={crypto.randomUUID()} inbox={workspace.inbox} notice={workspace.freshness?.stale} demo={workspace.demo} tryIt={workspace.tryIt} connection={workspace.connection} isOwner={workspace.role.isOwner} asOf={workspace.freshness?.asOf?.toLocaleString("en-US", { timeZone: workspace.timeZone }) ?? null}
     forwarding={missingForwardingSetting() === null} added={typeof added === "string" ? added : null}
     pins={<Pinned householdId={id} state={workspace.state} pins={pins} />} />
-    {workspace.freshness?.asOf && <p className="ui-hint">PayPal balance as of {workspace.freshness.asOf.toLocaleString("en-US", { timeZone: workspace.timeZone })}.</p>}
     <ScrollToHash />
   </WorkspaceFrame>;
 }

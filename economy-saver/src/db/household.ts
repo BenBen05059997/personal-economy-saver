@@ -271,7 +271,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
       item: i.item,
       amountUsd: inUsd(i.amountMinor, i.currency),
       status: i.status,
-      ...(i.paypalStatus && { paypalStatus: i.paypalStatus }),
+      hasLink: i.payToken !== null,
       ...(i.sentOn !== null && { sentOn: i.sentOn }),
       ...(i.dueOn !== null && { dueOn: i.dueOn }),
       ...(i.note !== null && { note: i.note }),
@@ -335,7 +335,7 @@ type NewEvent = {
 export async function recordEvent(db: Db, householdId: string, e: NewEvent): Promise<string> {
   const hid = requireHousehold(householdId);
   let notify = e.notify === true;
-  if (notify && e.kind !== "invoice_paid") {
+  if (notify && e.kind !== "invoice_paid" && e.kind !== "payment_received") {
     const today = sql`timezone(${s.households.timeZone}, now())::date`;
     const claimed = await db.update(s.households).set({ notificationDay: today }).where(and(
       eq(s.households.id, hid), sql`${s.households.notificationDay} is distinct from ${today}`,

@@ -69,7 +69,7 @@ export function whatIf(state: MoneyState, changes: readonly Change[]): MoneyStat
         const clientId = `whatif-income-${added}`;
         next.clients.push({ id: clientId, name: change.name, email: "", termsDays: 0, daysToPay: [] });
         // The engine keeps invoices in dollars; the home amount is what lands (`project` rounds it back to the home unit).
-        next.invoices.push({ id: clientId, clientId, item: change.name, amountUsd: home(change.amountMinor) / next.fxPerUsd, status: "sent", sentOn: change.date, dueOn: change.date });
+        next.invoices.push({ id: clientId, clientId, item: change.name, amountUsd: home(change.amountMinor) / next.fxPerUsd, status: "sent", hasLink: false, sentOn: change.date, dueOn: change.date });
         break;
       }
     }

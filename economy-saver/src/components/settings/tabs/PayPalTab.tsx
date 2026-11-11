@@ -1,5 +1,6 @@
 import { ApiForm } from "@/components/ui/ApiForm";
 import type { ConnectionView } from "@/lib/paypal/contracts";
+import { connectWords, OWNER_ONLY_CONNECT } from "@/components/paypal/ConnectLine";
 
 /** The connection, in words (D76). Only the household owner gets the buttons; a member sees where it stands. */
 function Connection({ connection, isOwner }: { connection: ConnectionView; isOwner: boolean }) {
@@ -14,29 +15,20 @@ function Connection({ connection, isOwner }: { connection: ConnectionView; isOwn
     </> : <p className="ui-hint">Only the household owner can disconnect PayPal.</p>}
   </section>;
   if (connection.state === "pending") return <section className="ui-panel" id="paypal-connection"><h2>Your PayPal</h2>
-    <p>Waiting for PayPal.</p>
-    <p className="ui-hint">{connection.detail ?? "PayPal hasn't finished your sign-up yet. Check again in a moment."}</p>
+    <p>{connectWords(connection)?.head}</p>
+    <p className="ui-hint">{connectWords(connection)?.body}</p>
     {isOwner ? <div className="settings-actions">
       <ApiForm action="/api/paypal/connect/return"><button className="ui-button">Check again</button></ApiForm>
       {connect}
-    </div> : <p className="ui-hint">Only the household owner can connect PayPal.</p>}
+    </div> : <p className="ui-hint">{OWNER_ONLY_CONNECT}</p>}
   </section>;
   return <section className="ui-panel" id="paypal-connection"><h2>Your PayPal</h2>
-    <p className="ui-hint">Connect your PayPal so fipa can read your balance and make payment links.</p>
-    {isOwner ? connect : <p className="ui-hint">Only the household owner can connect PayPal.</p>}
+    <p className="ui-hint">{connectWords(connection)?.body}</p>
+    {isOwner ? connect : <p className="ui-hint">{OWNER_ONLY_CONNECT}</p>}
   </section>;
 }
 
-/** Settings → PayPal: the connection, and the sandbox import that reads the sandbox account's clients and invoices when this household may. */
-export function PayPalTab({ connection, isOwner, canImportPayPal }: { connection: ConnectionView; isOwner: boolean; canImportPayPal: boolean }) {
-  return <>
-    <Connection connection={connection} isOwner={isOwner} />
-    <section className="ui-panel" id="paypal-import"><h2>PayPal history</h2>
-      <p className="ui-hint">PayPal runs in sandbox here, so no real money moves.</p>
-      {canImportPayPal ? <>
-        <p className="ui-hint">Add the clients and invoices from your PayPal sandbox account. This only reads from PayPal and never changes your balance.</p>
-        <form method="post" action="/api/paypal/import"><button className="ui-button">Import clients and invoices from PayPal</button></form>
-      </> : <p className="ui-hint">Importing from PayPal is not set up for this household.</p>}
-    </section>
-  </>;
+/** Settings → PayPal: the connection (D76). */
+export function PayPalTab({ connection, isOwner }: { connection: ConnectionView; isOwner: boolean }) {
+  return <Connection connection={connection} isOwner={isOwner} />;
 }

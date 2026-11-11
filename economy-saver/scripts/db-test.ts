@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import "./forecast-causes-test";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { and, eq, getTableName, is, sql } from "drizzle-orm";
+import { and, eq, getTableName, is, ne, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
@@ -27,7 +27,12 @@ const lines = (sentence: ReturnType<typeof homeSentence>) => ({ lead: sentence.l
 import { findDemoHousehold, resetDemoHousehold } from "@/db/demo";
 import { seedBen } from "@/db/seed";
 import { eventFeed, publicEvent } from "@/db/event-feed";
-import { applyVerifiedDelivery, recentDeliveries } from "@/lib/events";
+import { applyVerifiedDelivery } from "@/lib/events";
+import { InvoiceMatchError, readPaymentCandidates, settleReadPayment } from "@/db/invoice-match";
+import { endPaymentLink } from "@/db/invoice-end";
+import { markPaidOutside } from "@/db/invoice-paid";
+import { PayPalError } from "@/lib/paypal/client";
+import type { CaptureOrder } from "@/lib/paypal/contracts";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import { expandBills } from "@/lib/money/repeat";
 import { statementItems } from "@/lib/money/runway";
@@ -40,6 +45,9 @@ import { addDays } from "@/lib/money/runway";
 type _ClientFitsDb = ReturnType<typeof clientDb> extends Db ? true : never;
 const _fits: _ClientFitsDb = true;
 void _fits;
+
+/** Webhook events that must not take a payment get this one: it fails the test if called. */
+const noCapture: CaptureOrder = async () => { throw new Error("A payment must not be taken here"); };
 
 let passed = 0;
 let total = 0;
@@ -180,7 +188,7 @@ async function main() {
     const full = await loadWorkspaceData(db, hid);
     const narrow = await db.transaction(tx => loadNavigationData(tx, hid),
       { isolationLevel: "repeatable read", accessMode: "read only" });
-    assert.deepEqual(narrow, { name: full.name, feed: full.feed, pending: full.pending, timeZone: full.timeZone, today: full.state.today, tryIt: full.tryIt });
+    assert.deepEqual(narrow, { name: full.name, feed: full.feed, pending: full.pending, timeZone: full.timeZone, today: full.state.today, tryIt: full.tryIt, role: full.role });
     assert.equal(narrow.pending, beforeOther.pending + 4, "two recent pending charges, one bill and one reading count");
     assert.deepEqual(await loadNavigationData(db, other), beforeOther);
     await db.delete(schema.fxRates).where(eq(schema.fxRates.householdId, hid));
@@ -287,58 +295,388 @@ async function main() {
     );
   });
 
-  await check("verified paid webhook: one delivery, one paid transition, one household notification on replay", async () => {
-    const paypalId = "INV2-FICTIONAL";
-    const [sent] = await db.select().from(schema.invoices)
-      .where(and(eq(schema.invoices.householdId, a), eq(schema.invoices.status, "sent"))).limit(1);
-    const target = and(eq(schema.invoices.householdId, a), eq(schema.invoices.id, sent.id));
-    await db.update(schema.invoices).set({ paypalInvoiceId: paypalId }).where(target);
-    const event = {
-      id: "WH-TEST-PAID",
-      event_type: "INVOICING.INVOICE.PAID",
-      create_time: "2026-11-14T16:00:00Z",
-      resource: { id: paypalId, status: "PAID" },
-    };
+  /** The receipts kept for a household (the webhook's only trace). */
+  const receipts = (hid: string) => db.select({ id: schema.webhookDeliveries.paypalEventId }).from(schema.webhookDeliveries)
+    .where(eq(schema.webhookDeliveries.householdId, hid));
 
-    await applyVerifiedDelivery(db, { ...event, id: "WH-TEST-PARTIAL", resource: { id: paypalId, status: "PARTIALLY_PAID" } });
-    assert.equal((await db.select().from(schema.invoices).where(target))[0].status, "sent");
-
-    // A failure after writing the receipt must allow PayPal to retry the whole transaction.
-    await assert.rejects(applyVerifiedDelivery(db, { ...event, create_time: undefined }), /create_time/);
-    assert.ok(!(await recentDeliveries(db, a)).some((e) => e.id === event.id));
-    await applyVerifiedDelivery(db, event);
-    await applyVerifiedDelivery(db, event);
-    const [invoice] = await db.select().from(schema.invoices).where(target);
-    assert.equal(invoice.status, "paid");
-    assert.equal(invoice.paidOn, "2026-11-15", "paid date uses Tokyo, not UTC");
-    const deliveries = (await recentDeliveries(db, a)).filter((d) => d.id === event.id);
-    assert.equal(deliveries.length, 1);
-    assert.ok(!("payload" in deliveries[0]));
-    const paid = (await listEvents(db, a)).filter((e) => e.kind === "invoice_paid");
-    assert.equal(paid.length, 1);
-    assert.equal(paid[0].notify, true);
-    assert.equal(paid[0].refId, sent.id);
-    assert.equal(paid[0].amountMinor, sent.amountMinor);
-    assert.equal((await listEvents(db, b)).filter((e) => e.kind === "invoice_paid").length, 0);
-    assert.equal((await recentDeliveries(db, b)).length, 0);
-  });
-
-  await check("verified delivery for an unknown invoice is deduplicated without notifying any household", async () => {
+  await check("a verified delivery of a type fipa no longer handles, or for an unknown invoice, gets a receipt and notifies no household", async () => {
+    // PayPal's own invoice event: the live subscription may still send it; it only gets a receipt.
     const event = { id: "WH-UNMATCHED", event_type: "INVOICING.INVOICE.PAID", resource: { id: "INV2-UNKNOWN", status: "PAID" } };
-    await applyVerifiedDelivery(db, event);
-    await applyVerifiedDelivery(db, event);
+    await applyVerifiedDelivery(db, event, noCapture);
+    await applyVerifiedDelivery(db, event, noCapture);
     const deliveries = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, event.id));
     assert.equal(deliveries.length, 1);
     assert.equal(deliveries[0].householdId, null);
-    assert.ok(!(await recentDeliveries(db, a)).some((d) => d.id === event.id));
+    assert.ok(!(await receipts(a)).some((d) => d.id === event.id));
+    const unknownOrder = { id: "WH-UNMATCHED-PAY", event_type: "PAYMENT.CAPTURE.COMPLETED", create_time: "2026-11-14T16:00:00Z",
+      resource: { id: "CAP-UNKNOWN", status: "COMPLETED", amount: { currency_code: "USD", value: "1.00" }, supplementary_data: { related_ids: { order_id: "ORDER-NOBODY" } } } };
+    await applyVerifiedDelivery(db, unknownOrder, noCapture);
+    const [kept] = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, unknownOrder.id));
+    assert.equal(kept.householdId, null);
   });
 
-  await check("bell polling stays idle for seed invoices and tracks only my PayPal invoices, reader jobs and read markers", async () => {
+  /** A sent invoice of household `hid` with an order made for it, the way Approve leaves one. */
+  async function orderedInvoice(hid: string, orderId: string, amountMinor = 25_000) {
+    const [client] = await db.select().from(schema.clients).where(eq(schema.clients.householdId, hid)).limit(1);
+    const [inv] = await db.insert(schema.invoices).values({
+      householdId: hid, clientId: client.id, status: "sent", item: "Logo refresh " + orderId, number: "P-" + orderId.slice(-6), amountMinor, currency: "USD",
+      fxRateMicro: 150_000_000, sentOn: today, dueOn: today, paypalOrderId: orderId, paypalPayeeId: "SELLERFICTIONAL", payToken: "tok-" + orderId,
+    }).returning();
+    return inv;
+  }
+  const approved = (id: string, orderId: string, customId?: string) => ({ id, event_type: "CHECKOUT.ORDER.APPROVED", create_time: "2026-11-14T16:00:00Z",
+    resource: { id: orderId, status: "APPROVED", purchase_units: [{ custom_id: customId, payee: { merchant_id: "SELLERFICTIONAL" } }] } });
+  const completed = (id: string, orderId: string, over: { custom?: string; value?: string; currency?: string; status?: string; capture?: string } & Record<string, unknown> = {}) => ({
+    id, event_type: "PAYMENT.CAPTURE.COMPLETED", create_time: "2026-11-14T16:00:00Z",
+    resource: { id: over.capture ?? "CAP-" + id, status: over.status ?? "COMPLETED", amount: { currency_code: over.currency ?? "USD", value: over.value ?? "250.00" },
+      custom_id: over.custom, supplementary_data: { related_ids: { order_id: orderId } } },
+  });
+  const hasReceipt = async (id: string) => (await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, id))).length === 1;
+
+  await check("approved order webhook: the payment is taken once, kept only after it was taken, and a failure that may pass is retried", async () => {
+    const inv = await orderedInvoice(a, "ORDER-DB-APPROVE");
+    const taken: [string, string][] = [];
+    let failure: unknown;
+    let given = false;
+    const capture: CaptureOrder = async (order, payee) => {
+      taken.push([order, payee]);
+      if (failure) throw failure;
+      const captureId = given ? null : "CAP-DB-APPROVE";
+      given = true;
+      return { captureId };
+    };
+    const event = approved("WH-APPROVE-1", "ORDER-DB-APPROVE", inv.id);
+    failure = new PayPalError("PayPal is down", 500);
+    await assert.rejects(applyVerifiedDelivery(db, event, capture), /down/);
+    assert.equal(await hasReceipt(event.id), false, "no receipt, so PayPal sends it again");
+    failure = new Error("The operation was aborted due to timeout");
+    await assert.rejects(applyVerifiedDelivery(db, event, capture), /timeout/);
+    assert.equal(await hasReceipt(event.id), false);
+    failure = undefined;
+    await applyVerifiedDelivery(db, event, capture);
+    assert.equal(await hasReceipt(event.id), true);
+    assert.deepEqual(taken.at(-1), ["ORDER-DB-APPROVE", "SELLERFICTIONAL"], "taken for the payee stored with the invoice, not one named by the event");
+    const calls = taken.length;
+    await applyVerifiedDelivery(db, event, capture);
+    assert.equal(taken.length, calls, "a repeated delivery takes nothing again");
+    // A second approval of an invoice that already holds a capture takes nothing: one invoice, one charge.
+    await applyVerifiedDelivery(db, approved("WH-APPROVE-2", "ORDER-DB-APPROVE", inv.id), capture);
+    assert.equal(taken.length, calls, "a second approval never reaches PayPal");
+    const afterApproval = (await db.select().from(schema.invoices).where(eq(schema.invoices.id, inv.id)))[0];
+    assert.equal(afterApproval.status, "sent", "approval alone never marks paid");
+    assert.equal(afterApproval.paypalCaptureId, "CAP-DB-APPROVE", "the capture id PayPal gave is kept when fipa takes the payment");
+  });
+
+  // ---- Payments the PayPal read found (a connected household): the same money as an open invoice, counted once.
+  await db.insert(schema.fxRates).values({ householdId: b, base: "USD", quote: "JPY", date: "2020-01-01", rateMicro: 150_000_000 }).onConflictDoNothing();
+  const connectB = () => db.update(schema.paypalConnections).set({ connectionStatus: "connected", sellerMerchantId: "SELLERFICTIONAL", connectedAt: new Date("2026-11-01T00:00:00Z") })
+    .where(eq(schema.paypalConnections.householdId, b));
+  /** A row the way the PayPal read leaves one: paid, never sent, PayPal's transaction id as its capture id, with its Activity entry. */
+  async function readPayment(hid: string, clientId: string, captureId: string, paidOn: string, amountMinor = 25_000) {
+    const [row] = await db.insert(schema.invoices).values({ householdId: hid, madeBy: "paypal", clientId, status: "paid", number: null, item: "PayPal payment",
+      amountMinor, currency: "USD", sentOn: null, dueOn: null, paidOn, paypalCaptureId: captureId }).returning();
+    await db.transaction(tx => recordEvent(tx, hid, { madeBy: "paypal", kind: "payment_received", title: "Fictional paid $250",
+      amount: { value: amountMinor / 100, currency: "USD" }, ref: { type: "invoice", id: row.id }, notify: true }));
+    return row;
+  }
+  const invoiceRow = async (id: string) => (await db.select().from(schema.invoices).where(eq(schema.invoices.id, id)))[0];
+  const moneyOf = async (hid: string) => ({
+    balance: (await db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, hid)))[0].balanceMinor,
+    pots: (await db.select({ saved: schema.pots.savedMinor }).from(schema.pots).where(eq(schema.pots.householdId, hid))).map(p => p.saved),
+    fills: (await listEvents(db, hid)).filter(e => e.kind === "pot_filled").length,
+  });
+
+  /** A webhook's console.error lines while `fn` runs. */
+  async function logsOf(fn: () => Promise<unknown>): Promise<string[]> {
+    const log = console.error; const logged: string[] = [];
+    console.error = (...args: unknown[]) => { logged.push(args.join(" ")); };
+    try { await fn(); } finally { console.error = log; }
+    return logged;
+  }
+
+  await check("approved order webhook: only PayPal's named final refusals are kept; a 401 or 403 is refused so PayPal sends it again", async () => {
+    const inv = await orderedInvoice(a, "ORDER-DB-REFUSE");
+    let failure: unknown;
+    const capture: CaptureOrder = async () => { if (failure) throw failure; return { captureId: "CAP-DB-REFUSE" }; };
+    for (const [status, issue] of [[401, undefined], [403, undefined], [403, "PERMISSION_DENIED"], [422, "SOME_NEW_ISSUE"], [429, undefined]] as const) {
+      failure = new PayPalError("Refused", status, "debug-x", undefined, issue);
+      await assert.rejects(applyVerifiedDelivery(db, approved("WH-REFUSE-1", "ORDER-DB-REFUSE", inv.id), capture), /Refused/, `${status} ${issue}`);
+      assert.equal(await hasReceipt("WH-REFUSE-1"), false, `${status} ${issue ?? ""}: no receipt, so PayPal sends it again`);
+    }
+    failure = undefined;
+    await applyVerifiedDelivery(db, approved("WH-REFUSE-1", "ORDER-DB-REFUSE", inv.id), capture);
+    assert.equal((await invoiceRow(inv.id)).paypalCaptureId, "CAP-DB-REFUSE", "the resent delivery takes the payment");
+    // A final refusal: kept and logged with what finds it by hand; the order is dropped so the client's next Pay makes a fresh one.
+    const declined = await orderedInvoice(a, "ORDER-DB-DECLINED");
+    failure = new PayPalError("Declined", 422, "debug-1", undefined, "INSTRUMENT_DECLINED");
+    const logged = await logsOf(() => applyVerifiedDelivery(db, approved("WH-APPROVE-3", "ORDER-DB-DECLINED", declined.id), capture));
+    assert.equal(await hasReceipt("WH-APPROVE-3"), true);
+    assert.ok(logged.some(l => l.includes("INSTRUMENT_DECLINED") && l.includes("WH-APPROVE-3") && l.includes("ORDER-DB-DECLINED")));
+    const after = await invoiceRow(declined.id);
+    assert.deepEqual([after.status, after.paypalCaptureId, after.paypalApproveUrl, after.paypalOrderId], ["sent", null, null, "ORDER-DB-DECLINED"]);
+  });
+
+  await check("approved order webhook: a capture PayPal answers DECLINED or FAILED keeps no id and leaves the link payable; PENDING keeps it until DENIED frees it", async () => {
+    for (const status of ["DECLINED", "FAILED"]) {
+      const inv = await orderedInvoice(a, "ORDER-DB-CAP-" + status);
+      await db.update(schema.invoices).set({ paypalApproveUrl: "https://www.sandbox.paypal.com/checkoutnow?token=X" }).where(eq(schema.invoices.id, inv.id));
+      const capture: CaptureOrder = async () => ({ captureId: null, declined: true });
+      await logsOf(() => applyVerifiedDelivery(db, approved("WH-CAP-" + status, "ORDER-DB-CAP-" + status, inv.id), capture));
+      const row = await invoiceRow(inv.id);
+      assert.deepEqual([row.status, row.paypalCaptureId, row.paypalApproveUrl], ["sent", null, null], status + ": no capture kept, the order dropped");
+      assert.equal(await hasReceipt("WH-CAP-" + status), true);
+    }
+    const inv = await orderedInvoice(a, "ORDER-DB-CAP-PENDING");
+    await applyVerifiedDelivery(db, approved("WH-CAP-PENDING", "ORDER-DB-CAP-PENDING", inv.id), async () => ({ captureId: "CAP-DB-PENDING" }));
+    assert.equal((await invoiceRow(inv.id)).paypalCaptureId, "CAP-DB-PENDING", "a pending capture keeps its id: the money may still come");
+    const denied = { id: "WH-CAP-DENIED", event_type: "PAYMENT.CAPTURE.DENIED", create_time: "2026-11-14T17:00:00Z",
+      resource: { id: "CAP-DB-PENDING", status: "DECLINED", amount: { currency_code: "USD", value: "250.00" }, custom_id: inv.id,
+        supplementary_data: { related_ids: { order_id: "ORDER-DB-CAP-PENDING" } } } };
+    await logsOf(() => applyVerifiedDelivery(db, denied, noCapture));
+    const freed = await invoiceRow(inv.id);
+    assert.deepEqual([freed.status, freed.paypalCaptureId, freed.paypalApproveUrl], ["sent", null, null], "the denied capture is let go, so the link is open again");
+    await applyVerifiedDelivery(db, denied, noCapture);
+    assert.equal(await hasReceipt("WH-CAP-DENIED"), true);
+  });
+
+  await check("an order the link's Pay replaced: its events find the invoice by fipa's invoice id, checked against amount, currency and payee", async () => {
+    const inv = await orderedInvoice(a, "ORDER-DB-NEW");
+    const old = (id: string, over: { value?: string; currency?: string; payee?: string } = {}) => ({ ...approved(id, "ORDER-DB-OLD", inv.id),
+      resource: { id: "ORDER-DB-OLD", status: "APPROVED", purchase_units: [{ custom_id: inv.id,
+        amount: { currency_code: over.currency ?? "USD", value: over.value ?? "250.00" }, payee: { merchant_id: over.payee ?? "SELLERFICTIONAL" } }] } });
+    const taken: string[] = [];
+    const capture: CaptureOrder = async order => { taken.push(order); return { captureId: "CAP-DB-OLD" }; };
+    await logsOf(async () => {
+      await applyVerifiedDelivery(db, old("WH-OLD-AMOUNT", { value: "1.00" }), capture);
+      await applyVerifiedDelivery(db, old("WH-OLD-CURRENCY", { currency: "JPY", value: "250" }), capture);
+      await applyVerifiedDelivery(db, old("WH-OLD-PAYEE", { payee: "SOMEONEELSE" }), capture);
+      const unnamed = old("WH-OLD-NOPAYEE");
+      delete (unnamed.resource.purchase_units[0] as { payee?: unknown }).payee;
+      await applyVerifiedDelivery(db, unnamed, capture);
+    });
+    assert.deepEqual(taken, [], "a wrong amount, currency or payee, or none, takes nothing");
+    await applyVerifiedDelivery(db, old("WH-OLD-OK"), capture);
+    assert.deepEqual(taken, ["ORDER-DB-OLD"], "the earlier order's approval is taken");
+    assert.equal((await invoiceRow(inv.id)).paypalCaptureId, "CAP-DB-OLD");
+    await applyVerifiedDelivery(db, approved("WH-NEW-AFTER", "ORDER-DB-NEW", inv.id), capture);
+    assert.deepEqual(taken, ["ORDER-DB-OLD"], "and the newer order's approval then takes nothing: one charge per invoice");
+    const credit = async () => (await db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, a)))[0].balanceMinor;
+    const start = await credit();
+    const oldDone = (id: string, over: Record<string, unknown> = {}) => {
+      const event = completed(id, "ORDER-DB-OLD", { custom: inv.id, capture: "CAP-DB-OLD" });
+      return { ...event, resource: { ...event.resource, payee: { merchant_id: "SELLERFICTIONAL" }, ...over } };
+    };
+    await logsOf(async () => {
+      await applyVerifiedDelivery(db, oldDone("WH-OLD-DONE-AMOUNT", { amount: { currency_code: "USD", value: "249.00" } }), noCapture);
+      await applyVerifiedDelivery(db, oldDone("WH-OLD-DONE-PAYEE", { payee: { merchant_id: "SOMEONEELSE" } }), noCapture);
+    });
+    assert.equal((await invoiceRow(inv.id)).status, "sent");
+    await applyVerifiedDelivery(db, oldDone("WH-OLD-DONE"), noCapture);
+    const paid = await invoiceRow(inv.id);
+    assert.deepEqual([paid.status, paid.paypalCaptureId], ["paid", "CAP-DB-OLD"], "the earlier order's payment marks the invoice paid");
+    assert.equal(await credit(), start + 37_500, "credited once");
+    await applyVerifiedDelivery(db, oldDone("WH-OLD-DONE"), noCapture);
+    assert.equal(await credit(), start + 37_500);
+  });
+
+  await check("approved order webhook: another invoice id, a paid invoice and an unknown order take nothing", async () => {
+    const wrong = await orderedInvoice(a, "ORDER-DB-WRONG");
+    const done = await orderedInvoice(a, "ORDER-DB-DONE");
+    await db.update(schema.invoices).set({ status: "paid", paidOn: today }).where(eq(schema.invoices.id, done.id));
+    const capture: CaptureOrder = async () => { throw new Error("nothing should be taken"); };
+    await applyVerifiedDelivery(db, approved("WH-APPROVE-WRONG", "ORDER-DB-WRONG", randomUUID()), capture);
+    await applyVerifiedDelivery(db, approved("WH-APPROVE-DONE", "ORDER-DB-DONE", done.id), capture);
+    await applyVerifiedDelivery(db, approved("WH-APPROVE-UNKNOWN", "ORDER-DB-UNKNOWN"), capture);
+    assert.equal((await db.select().from(schema.invoices).where(eq(schema.invoices.id, wrong.id)))[0].status, "sent");
+    const [unknown] = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, "WH-APPROVE-UNKNOWN"));
+    assert.equal(unknown.householdId, null, "an unknown order is recorded without a household");
+    assert.deepEqual(unknown.payload, { resourceId: "ORDER-DB-UNKNOWN", createdAt: "2026-11-14T16:00:00Z" });
+  });
+
+  await check("completed capture webhook: paid only for its own order, invoice id and amount; credited once; a duplicate or a mismatch changes nothing", async () => {
+    const inv = await orderedInvoice(a, "ORDER-DB-PAY");
+    const target = eq(schema.invoices.id, inv.id);
+    const status = async () => (await db.select().from(schema.invoices).where(target))[0];
+    const credit = async () => (await db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, a)))[0].balanceMinor;
+    const start = await credit();
+    // Open on a mismatch: another invoice's id, a different amount or currency, a pending capture, a payment for another order.
+    await applyVerifiedDelivery(db, completed("WH-PAY-ID", "ORDER-DB-PAY", { custom: randomUUID() }), noCapture);
+    await applyVerifiedDelivery(db, completed("WH-PAY-NOID", "ORDER-DB-PAY", { custom: undefined }), noCapture);
+    await applyVerifiedDelivery(db, completed("WH-PAY-AMOUNT", "ORDER-DB-PAY", { custom: inv.id, value: "249.99" }), noCapture);
+    await applyVerifiedDelivery(db, completed("WH-PAY-CURRENCY", "ORDER-DB-PAY", { custom: inv.id, currency: "JPY", value: "250" }), noCapture);
+    await applyVerifiedDelivery(db, completed("WH-PAY-PENDING", "ORDER-DB-PAY", { custom: inv.id, status: "PENDING" }), noCapture);
+    await applyVerifiedDelivery(db, completed("WH-PAY-OTHER-ORDER", "ORDER-DB-OTHER", { custom: inv.id }), noCapture);
+    assert.equal((await status()).status, "sent");
+    assert.equal(await credit(), start);
+    // The delivery that fails after its receipt is written is retried whole.
+    await assert.rejects(applyVerifiedDelivery(db, { ...completed("WH-PAY-OK", "ORDER-DB-PAY", { custom: inv.id }), create_time: undefined }, noCapture), /create_time/);
+    assert.equal(await hasReceipt("WH-PAY-OK"), false);
+    const event = completed("WH-PAY-OK", "ORDER-DB-PAY", { custom: inv.id });
+    await applyVerifiedDelivery(db, event, noCapture);
+    await applyVerifiedDelivery(db, event, noCapture);
+    await applyVerifiedDelivery(db, completed("WH-PAY-OK-2", "ORDER-DB-PAY", { custom: inv.id, capture: "CAP-OTHER" }), noCapture);
+    const paid = await status();
+    assert.equal(paid.status, "paid");
+    assert.equal(paid.paypalCaptureId, "CAP-WH-PAY-OK", "the capture id is stored");
+    assert.equal(paid.paidOn, "2026-11-15", "paid date uses Tokyo, not UTC");
+    assert.equal(await credit(), start + 37_500, "the gross amount, credited once");
+    assert.equal((await listEvents(db, a)).filter(e => e.kind === "invoice_paid" && e.refId === inv.id).length, 1);
+    assert.equal((await listEvents(db, b)).filter(e => e.refId === inv.id).length, 0);
+    assert.equal((await receipts(b)).length, 0);
+    // A pending capture that completes later still pays it.
+    const later = await orderedInvoice(a, "ORDER-DB-LATER");
+    await applyVerifiedDelivery(db, completed("WH-LATER-PENDING", "ORDER-DB-LATER", { custom: later.id, status: "PENDING" }), noCapture);
+    assert.equal((await db.select().from(schema.invoices).where(eq(schema.invoices.id, later.id)))[0].status, "sent");
+    await applyVerifiedDelivery(db, completed("WH-LATER-DONE", "ORDER-DB-LATER", { custom: later.id }), noCapture);
+    assert.equal((await db.select().from(schema.invoices).where(eq(schema.invoices.id, later.id)))[0].status, "paid");
+  });
+
+  await check("a payment the read found first: the completed payment settles the invoice with it, credits nothing, and is not retried for ever", async () => {
+    await connectB();
+    const inv = await orderedInvoice(b, "ORDER-DB-RACE");
+    const read = await readPayment(b, inv.clientId, "CAP-RACE", today);
+    const before = await moneyOf(b);
+    const event = completed("WH-RACE", "ORDER-DB-RACE", { custom: inv.id, capture: "CAP-RACE" });
+    await applyVerifiedDelivery(db, event, noCapture);
+    await applyVerifiedDelivery(db, event, noCapture);
+    const paid = await invoiceRow(inv.id);
+    assert.deepEqual([paid.status, paid.paidOn, paid.paypalCaptureId], ["paid", today, "CAP-RACE"]);
+    assert.equal(await invoiceRow(read.id), undefined, "the read row is gone");
+    assert.deepEqual(await moneyOf(b), before, "the read already counted the money: no credit, no pots");
+    const entries = (await listEvents(db, b)).filter(e => e.refId === inv.id || e.refId === read.id);
+    assert.deepEqual(entries.map(e => [e.kind, e.refId]), [["payment_received", inv.id]], "Activity's entry now points at the invoice; no second paid entry");
+    assert.equal(await hasReceipt("WH-RACE"), true);
+  });
+
+  await check("a payment the read found first: fipa's own capture settles the invoice with it, even when the read named another payer", async () => {
+    await connectB();
+    const inv = await orderedInvoice(b, "ORDER-DB-RACE2");
+    const [otherClient] = await db.select().from(schema.clients).where(and(eq(schema.clients.householdId, b), ne(schema.clients.id, inv.clientId))).limit(1);
+    const read = await readPayment(b, otherClient.id, "CAP-RACE2", today);
+    const before = await moneyOf(b);
+    const capture: CaptureOrder = async () => ({ captureId: "CAP-RACE2" });
+    await applyVerifiedDelivery(db, approved("WH-RACE2", "ORDER-DB-RACE2", inv.id), capture);
+    const paid = await invoiceRow(inv.id);
+    assert.deepEqual([paid.status, paid.paypalCaptureId], ["paid", "CAP-RACE2"]);
+    assert.equal(await invoiceRow(read.id), undefined);
+    assert.deepEqual(await moneyOf(b), before);
+    // The completed payment that follows changes nothing.
+    await applyVerifiedDelivery(db, completed("WH-RACE2-DONE", "ORDER-DB-RACE2", { custom: inv.id, capture: "CAP-RACE2" }), noCapture);
+    assert.deepEqual(await moneyOf(b), before);
+    assert.equal((await listEvents(db, b)).filter(e => e.kind === "invoice_paid" && e.refId === inv.id).length, 0);
+  });
+
+  await check("matching a read payment to an open invoice: the finder offers only same client, amount and currency on or after the link, and the settle refuses the rest", async () => {
+    await connectB();
+    const inv = await orderedInvoice(b, "ORDER-DB-MATCH");
+    const [otherClient] = await db.select().from(schema.clients).where(and(eq(schema.clients.householdId, b), ne(schema.clients.id, inv.clientId))).limit(1);
+    const good = await readPayment(b, inv.clientId, "CAP-MATCH-GOOD", addDays(today, 2));
+    const amount = await readPayment(b, inv.clientId, "CAP-MATCH-AMOUNT", today, 24_999);
+    const client = await readPayment(b, otherClient.id, "CAP-MATCH-CLIENT", today);
+    const early = await readPayment(b, inv.clientId, "CAP-MATCH-EARLY", addDays(today, -1));
+    const [aClient] = await db.select().from(schema.clients).where(eq(schema.clients.householdId, a)).limit(1);
+    const elsewhere = await readPayment(a, aClient.id, "CAP-MATCH-ELSEWHERE", today);
+    const payerOf = async (clientId: string) => (await db.select({ payer: schema.clients.name, payerEmail: schema.clients.email }).from(schema.clients).where(eq(schema.clients.id, clientId)))[0];
+    assert.deepEqual(await readPaymentCandidates(db, b, inv.id), [
+      { paymentId: good.id, paidOn: addDays(today, 2), amountMinor: 25_000, currency: "USD", ...await payerOf(inv.clientId), ownClient: true },
+      { paymentId: client.id, paidOn: today, amountMinor: 25_000, currency: "USD", ...await payerOf(otherClient.id), ownClient: false },
+    ], "same amount and currency on or after the link day, own client first, then another payer");
+    assert.deepEqual(await readPaymentCandidates(db, a, inv.id), [], "another household sees nothing of it");
+    const refused = (status: number) => (e: unknown) => e instanceof InvoiceMatchError && e.status === status;
+    await assert.rejects(settleReadPayment(db, b, inv.id, amount.id), refused(409));
+    await assert.rejects(settleReadPayment(db, b, inv.id, early.id), refused(409));
+    await assert.rejects(settleReadPayment(db, b, inv.id, elsewhere.id), refused(404), "another household's payment");
+    await assert.rejects(settleReadPayment(db, b, inv.id, inv.id), refused(404), "an invoice is not a read payment");
+    await assert.rejects(settleReadPayment(db, a, inv.id, good.id), refused(404), "another household's invoice");
+    assert.equal((await invoiceRow(inv.id)).status, "sent", "a refusal changes nothing");
+    const before = await moneyOf(b);
+    await settleReadPayment(db, b, inv.id, good.id);
+    const paid = await invoiceRow(inv.id);
+    assert.deepEqual([paid.status, paid.paidOn, paid.paypalCaptureId, paid.sentOn], ["paid", addDays(today, 2), "CAP-MATCH-GOOD", today]);
+    assert.equal(await invoiceRow(good.id), undefined);
+    assert.deepEqual(await moneyOf(b), before, "credits nothing and fills no pots");
+    assert.deepEqual((await listEvents(db, b)).filter(e => e.refId === inv.id).map(e => e.kind).filter(k => k !== "invoice_sent"), ["payment_received"]);
+    await assert.rejects(settleReadPayment(db, b, inv.id, amount.id), refused(409), "an invoice that is no longer sent");
+    assert.deepEqual(await readPaymentCandidates(db, b, inv.id), []);
+    // A payment from another payer (a client paying from an address not on file) settles an open invoice too.
+    const second = await orderedInvoice(b, "ORDER-DB-MATCH-2");
+    await settleReadPayment(db, b, second.id, client.id);
+    assert.deepEqual([(await invoiceRow(second.id)).status, (await invoiceRow(second.id)).paypalCaptureId], ["paid", "CAP-MATCH-CLIENT"]);
+    assert.deepEqual(await moneyOf(b), before, "and credits nothing either");
+    // A Try it household is never connected: nothing to match.
+    const [demoSent] = await db.select().from(schema.invoices).where(and(eq(schema.invoices.householdId, a), eq(schema.invoices.status, "sent"))).limit(1);
+    if (demoSent) assert.deepEqual(await readPaymentCandidates(db, a, demoSent.id), []);
+    for (const row of [amount, early]) await db.delete(schema.invoices).where(eq(schema.invoices.id, row.id));
+    await db.delete(schema.invoices).where(eq(schema.invoices.id, elsewhere.id));
+  });
+
+  await check("approved order webhook: Paid another way, End this link and a person's Yes that land during the capture wait and then see it", async () => {
+    await connectB();
+    const before = async (hid: string) => (await db.select({ bank: schema.households.bankBalanceMinor }).from(schema.households).where(eq(schema.households.id, hid)))[0].bank;
+    // Paid another way, tapped while PayPal is taking the payment.
+    const inv = await orderedInvoice(a, "ORDER-DB-RACE-OUT");
+    const bank = await before(a);
+    let outside: Promise<unknown> = Promise.resolve();
+    await applyVerifiedDelivery(db, approved("WH-RACE-OUT", "ORDER-DB-RACE-OUT", inv.id), async () => {
+      outside = markPaidOutside(db, a, inv.id, today).then(r => r, e => e);
+      await new Promise(r => setTimeout(r, 20));
+      return { captureId: "CAP-DB-RACE-OUT" };
+    });
+    const said = await outside;
+    assert.ok(said === false || said instanceof Error, "Paid another way changes nothing once the payment is taken");
+    const row = await invoiceRow(inv.id);
+    assert.deepEqual([row.status, row.paypalCaptureId], ["sent", "CAP-DB-RACE-OUT"]);
+    assert.equal(await before(a), bank, "the bank is not credited for money PayPal took");
+    // End this link, tapped during the capture: the link ends after the capture, and the completed payment still marks it paid.
+    const ending = await orderedInvoice(a, "ORDER-DB-RACE-END");
+    let ended: Promise<unknown> = Promise.resolve();
+    await applyVerifiedDelivery(db, approved("WH-RACE-END", "ORDER-DB-RACE-END", ending.id), async () => {
+      ended = endPaymentLink(db, a, ending.id);
+      await new Promise(r => setTimeout(r, 20));
+      return { captureId: "CAP-DB-RACE-END" };
+    });
+    await ended;
+    assert.equal((await invoiceRow(ending.id)).paypalCaptureId, "CAP-DB-RACE-END", "the capture is kept on the ended invoice");
+    await applyVerifiedDelivery(db, completed("WH-RACE-END-DONE", "ORDER-DB-RACE-END", { custom: ending.id, capture: "CAP-DB-RACE-END" }), noCapture);
+    assert.equal((await invoiceRow(ending.id)).status, "paid", "the money arrived, so the ended link's invoice is paid");
+    // A person's Yes for another payment, tapped during the capture: refused, because this invoice's payment is on its way.
+    const yes = await orderedInvoice(b, "ORDER-DB-RACE-YES");
+    const other = await readPayment(b, yes.clientId, "CAP-DB-RACE-YES-READ", today);
+    let said2: Promise<unknown> = Promise.resolve();
+    await applyVerifiedDelivery(db, approved("WH-RACE-YES", "ORDER-DB-RACE-YES", yes.id), async () => {
+      said2 = settleReadPayment(db, b, yes.id, other.id).then(() => "settled", e => e);
+      await new Promise(r => setTimeout(r, 20));
+      return { captureId: "CAP-DB-RACE-YES" };
+    });
+    const answer = await said2;
+    assert.ok(answer instanceof InvoiceMatchError, "the Yes sees the capture and is refused");
+    assert.deepEqual([(await invoiceRow(yes.id)).status, (await invoiceRow(yes.id)).paypalCaptureId], ["sent", "CAP-DB-RACE-YES"]);
+    await db.delete(schema.invoices).where(eq(schema.invoices.id, other.id));
+  });
+
+  await check("an ended link: an approved order takes no payment, but a completed payment for its own order still marks it paid", async () => {
+    await connectB();
+    const inv = await orderedInvoice(b, "ORDER-DB-ENDED");
+    assert.equal(await endPaymentLink(db, b, inv.id), true);
+    assert.equal((await invoiceRow(inv.id)).status, "closed");
+    await applyVerifiedDelivery(db, approved("WH-ENDED-APPROVE", "ORDER-DB-ENDED", inv.id), noCapture);
+    assert.equal((await invoiceRow(inv.id)).status, "closed");
+    const before = await moneyOf(b);
+    await applyVerifiedDelivery(db, completed("WH-ENDED-WRONG", "ORDER-DB-ENDED", { custom: inv.id, value: "1.00" }), noCapture);
+    assert.equal((await invoiceRow(inv.id)).status, "closed", "a mismatch still changes nothing");
+    await applyVerifiedDelivery(db, completed("WH-ENDED-PAID", "ORDER-DB-ENDED", { custom: inv.id }), noCapture);
+    const paid = await invoiceRow(inv.id);
+    assert.deepEqual([paid.status, paid.paypalCaptureId], ["paid", "CAP-WH-ENDED-PAID"]);
+    assert.equal((await moneyOf(b)).balance, before.balance + 37_500, "the money did arrive: $250 at the invoice's rate, in the yen balance");
+  });
+
+  await check("bell polling stays idle for seed invoices and tracks only my fresh payment-link orders, reader jobs and read markers", async () => {
     const visitor = await seedBen(db, { isDemo: true });
     const otherVisitor = await seedBen(db, { isDemo: true });
     const [otherInvoice] = await db.select({ id: schema.invoices.id }).from(schema.invoices)
       .where(and(eq(schema.invoices.householdId, otherVisitor), eq(schema.invoices.status, "sent"))).limit(1);
-    await db.update(schema.invoices).set({ paypalInvoiceId: "INV2-OTHER-VISITOR" })
+    const inFlightOrder = (orderId: string) => ({ paypalOrderId: orderId, paypalOrderCreatedAt: new Date(Date.now() - 3_600_000) });
+    await db.update(schema.invoices).set(inFlightOrder("ORDER-OTHER-VISITOR"))
       .where(and(eq(schema.invoices.householdId, otherVisitor), eq(schema.invoices.id, otherInvoice.id)));
     assert.equal((await eventFeed(db, otherVisitor)).inFlight, true);
     assert.equal((await eventFeed(db, visitor)).inFlight, false, "another household's invoice must not trigger polling");
@@ -354,7 +692,7 @@ async function main() {
     const [invoice] = await db.select({ id: schema.invoices.id }).from(schema.invoices)
       .where(and(eq(schema.invoices.householdId, visitor), eq(schema.invoices.status, "sent"))).limit(1);
     const invoiceFilter = and(eq(schema.invoices.householdId, visitor), eq(schema.invoices.id, invoice.id));
-    await db.update(schema.invoices).set({ paypalInvoiceId: "INV2-TRACKED-VISITOR" }).where(invoiceFilter);
+    await db.update(schema.invoices).set(inFlightOrder("ORDER-TRACKED-VISITOR")).where(invoiceFilter);
     assert.equal((await eventFeed(db, visitor)).inFlight, true);
     await db.update(schema.invoices).set({ status: "paid", paidOn: today }).where(invoiceFilter);
     assert.equal((await eventFeed(db, visitor)).inFlight, false);

@@ -9,7 +9,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { PGlite, type Transaction } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
@@ -45,9 +45,12 @@ import * as invoicePaid from "@/db/invoice-paid";
 import * as invitesMod from "@/db/invites";
 import * as mcpTokens from "@/db/mcp-tokens";
 import * as memoryMod from "@/db/memory"; // D58 memory
-import * as paypalImport from "@/db/paypal-import";
 import * as paypalConnectMod from "@/db/paypal-connection"; // D76 Connect PayPal
-import * as paypalConnectReadMod from "@/db/paypal-connection-read";
+import * as invoiceMatchMod from "@/db/invoice-match";
+import * as payTokenBackfillMod from "@/db/pay-token-backfill";
+import * as invoiceOfferedMod from "@/db/invoice-offered";
+import * as invoiceEndMod from "@/db/invoice-end";
+import * as paymentLinkMod from "@/db/payment-link";
 import { NotConnected, type PayPalCall } from "@/lib/paypal/contracts";
 import * as paypalRefresh from "@/db/paypal-refresh";
 import * as ownCategoriesMod from "@/db/own-categories"; // D75 own categories
@@ -73,8 +76,8 @@ import { billEditInput, billInput } from "@/db/bills";
 import { chargeInput } from "@/db/charges";
 import { DEMO_DATE } from "@/db/clock";
 import type { Db } from "@/db/household";
-import { ImportRefused } from "@/db/paypal-import";
 import { ApprovalError } from "@/db/approval";
+import { InvoiceMatchError } from "@/db/invoice-match";
 import { AiKeyError } from "@/db/ai-key";
 import { InputError } from "@/db/input-error";
 import { potInput } from "@/db/pots";
@@ -94,7 +97,9 @@ const covered = [
   // D68 invites.ts
   "activeInvites", "createInvite", "cancelInvite", "inviteView", "inviteMatchesEmail", "acceptInvite", "leaveHousehold",
   // approval.ts
-  "invoiceReview", "approveInvoice",
+  "invoiceReview", "approvePaymentLink",
+  // invoice-match.ts, invoice-offered.ts, invoice-end.ts, payment-link.ts
+  "readPaymentCandidates", "settleReadPayment", "settleReadPaymentInTx", "readPaymentByCapture", "backfillHouseholdPayTokens", "recordLinkOffered", "endPaymentLink", "paymentLinkView", "openPaymentLink",
   // bank-balance.ts, bills.ts, charges.ts, clients.ts, confirm.ts
   "setBankBalance", "confirmBalanceUpdate", "insertBill", "removeBill", "updateBill", "insertCharge", "removeCharge", "insertClient", "confirmPending",
   // daily.ts, demo.ts, document-cleanup.ts, event-feed.ts
@@ -110,17 +115,17 @@ const covered = [
   "listFamilyLinks", "createFamilyLink", "stopFamilyLink", "resolveFamilyLink", "loadFamilyView",
   // invoice-draft.ts, invoice-paid.ts, mcp-tokens.ts
   "saveInvoiceDraft", "markPaidOutside", "listMcpTokens", "issueMcpToken", "authenticateMcpToken", "revokeMcpToken",
-  // paypal-import.ts, paypal-refresh.ts
-  "canImportPayPal", "importPayPalHistory", "refreshPayPal",
-  // paypal-connection.ts, paypal-connection-read.ts
-  "startConnect", "confirmConnection", "recheckConnection", "disconnect", "applyMerchantEvent", "paypalConnectionView", "payeeFor",
+  // paypal-refresh.ts
+  "refreshPayPal",
+  // paypal-connection.ts
+  "startConnect", "confirmConnection", "disconnect", "applyMerchantEvent", "paypalConnectionView", "payeeFor", "ownerPayPal",
   // people.ts, pots.ts
   "memberCount", "memberByName", "addMember", "savePeople", "removeMember", "savePot", "confirmPot", "removePot", "fillPots",
   // rate-limit.ts, reader-inbox.ts, reader-job.ts, readings.ts, reference-rate.ts
   "consumeRequest", "consumeCanvasRequest", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "storeReferenceRate",
   // runway-events.ts, settings.ts, settle.ts, snapshot.ts, statement-charge.ts, workspace.ts
   "lockRunway", "beginMoneyChange", "observeRunway", "loadSettings", "loadAddView", "updateSettings", "removeCard", "settleUp", "loadHouseholdSnapshot",
-  "syncClosedStatementCharge", "unsyncClosedStatementCharge", "loadNavigationData", "loadWorkspaceData",
+  "syncClosedStatementCharge", "unsyncClosedStatementCharge", "loadNavigationData", "loadWorkspaceData", "viewerRole",
   // Stage 17 import: import-charges.ts
   "importCharges",
   // Stage 17 spending: spending.ts
@@ -155,6 +160,7 @@ const covered = [
 ];
 
 const notApplicable: Record<string, string> = {
+  backfillPayTokens: "the one-off script's loop over every household, one household at a time through backfillHouseholdPayTokens (tested here); it takes no household id by design",
   lockHousehold: "locks the one household row it is given and returns its id; every caller passes a validated id, and the lock is the scope (tested through bills, charges, clients, rules and mcp-tokens)",
   householdClockRow: "reads the three clock columns of the one household id it is given (requireHousehold throws without one)",
   issueDemoToken: "gives one demo household a fresh cookie token; sweep-test checks a token opens only its own household",
@@ -187,7 +193,6 @@ const notApplicable: Record<string, string> = {
   requireReaderModel: "reads only the calling household's own connection (connectionView) and the server settings; its refusals are tested in ask-routes-test",
   storeDocument: "creates a document keyed by a digest that includes the household id; needs Supabase Storage",
   parseReferenceRate: "pure parser of the ECB feed", fetchReferenceRate: "network fetch of the public ECB feed; no household id",
-  sandboxRead: "PayPal sandbox HTTP reader; takes no household id",
   isMovable: "pure check that a value is one of the three movable kind names", contextText: "pure text from turns passed in; assembleContext, which reads them, is covered above",
   dueHouseholds: "global Cron scheduler selector, restricted to non-demo households and tested in cron-test",
   logDailyError: "formats an operator log line from its arguments and uses no database",
@@ -198,6 +203,8 @@ const notApplicable: Record<string, string> = {
   refreshSuggestions: "delegates the supplied household id to runPass, which is covered here; failure is covered in suggest-test",
   sealAiKey: "pure: seals a key text for the household id it is given; the isolation check below proves a key sealed for one household does not open for another", unsealAiKey: "pure: opens a sealed key for the household id it is given; same check",
   groupOwnCategories: "pure grouping of a list passed in; listOwnCategoriesGrouped, which reads it, is covered above",
+  orderRequestFor: "pure: builds the PayPal order request from an invoice, a payee and a token passed in; approvePaymentLink and openPaymentLink, which call it, are covered above",
+  paypalInvoiceNumber: "pure: encodes an invoice id passed in",
   isDataKind: "pure check that a value is one of the five kind names", readSnapshotFile: "pure parse of a file passed in; restoreHousehold, which calls it, is covered above",
 };
 
@@ -207,7 +214,7 @@ type Outcome = { threw: boolean; error?: unknown; value?: unknown };
 type Ids = {
   owner: string; aki: string; card: string; client: string; billConfirmed: string; billPending: string; charge: string; chargePending: string;
   pot: string; potPending: string; balanceConfirmed: string; balancePending: string; invoiceDraft: string; invoiceSent: string; approveKey: string;
-  paypalInvoice: string; document: string; documentFailed: string; documentRead: string; reading: string; settlement: string; token: string;
+  readPayment: string; readCapture: string; payToken: string; document: string; documentFailed: string; documentRead: string; reading: string; settlement: string; token: string;
   suggestion: string; statement: string; webhookEvent: string; secret: string; user: string; authUid: string; familyLink: string; memory: string; canvas: string; turn: string;
 };
 type Tenant = {
@@ -240,7 +247,7 @@ async function main() {
   const used = new Set<string>();
   const modules = {
     ...account, ...aiKeys, ...approval, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
-    ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...invitesMod, ...mcpTokens, ...paypalImport, ...paypalRefresh, ...paypalConnectMod, ...paypalConnectReadMod, ...people, ...potsMod, ...rateLimit,
+    ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...invitesMod, ...mcpTokens, ...paypalRefresh, ...paypalConnectMod, ...invoiceMatchMod, ...payTokenBackfillMod, ...invoiceOfferedMod, ...invoiceEndMod, ...paymentLinkMod, ...people, ...potsMod, ...rateLimit,
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
     ...importChargesMod, // Stage 17 import
     ...spendingMod, // Stage 17 spending
@@ -260,7 +267,7 @@ async function main() {
     },
   });
 
-  const saved = Object.fromEntries(["PAYPAL_ENVIRONMENT", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "MCP_TOKEN_KEY", "PAYPAL_BALANCE_HOUSEHOLD_ID", "AI_TEXT_MODEL", "APP_URL", "PAYPAL_PARTNER_ATTRIBUTION_ID", "PAYPAL_PARTNER_MERCHANT_ID"].map(k => [k, process.env[k]]));
+  const saved = Object.fromEntries(["PAYPAL_ENVIRONMENT", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "MCP_TOKEN_KEY", "AI_TEXT_MODEL", "APP_URL", "PAYPAL_PARTNER_ATTRIBUTION_ID", "PAYPAL_PARTNER_MERCHANT_ID"].map(k => [k, process.env[k]]));
   try {
     process.env.PAYPAL_ENVIRONMENT = "SANDBOX";
     process.env.PAYPAL_CLIENT_ID = "fictional-test-client";
@@ -271,7 +278,6 @@ async function main() {
     process.env.AI_TEXT_MODEL = "fixture-text";
     process.env.MCP_TOKEN_KEY = randomBytes(32).toString("base64url");
     process.env.AI_KEY_SEAL_KEY = randomBytes(32).toString("base64url"); // fictional test seal key (a household's saved AI key is sealed with it)
-    delete process.env.PAYPAL_BALANCE_HOUSEHOLD_ID;
 
     await migrate(db, { migrationsFolder: "./drizzle" });
     // Vault's public SQL interface, represented only in this disposable database (as in settings-test).
@@ -346,11 +352,16 @@ async function main() {
       const balanceConfirmed = one(await db.select().from(schema.balanceUpdates).where(and(eq(schema.balanceUpdates.householdId, hid), eq(schema.balanceUpdates.status, "confirmed")))).id;
       const invoiceDraft = randomUUID();
       await F.saveInvoiceDraft(db, hid, { id: invoiceDraft, clientId: client, item: `${T} invoice item`, amount: "12.34", note: `${T} invoice note` }, { madeBy: "form" });
-      const paypalInvoice = `ISO-${tag}-PAYPAL-INV`;
+      const payToken = `isolation-pay-token-${tag}-${"p".repeat(24)}`, readCapture = `ISO-${tag}-CAPTURE`;
       const sent = one(await db.insert(schema.invoices).values({
         householdId: hid, clientId: client, status: "sent", number: `ISO-${tag}-1`, item: `${T} sent invoice`, amountMinor: 50_000, currency: "USD",
-        sentOn: "2026-11-01", dueOn: "2026-11-08", paypalInvoiceId: paypalInvoice, paypalStatus: "SENT",
+        sentOn: "2026-11-01", dueOn: "2026-11-08", payToken,
       }).returning({ id: schema.invoices.id, approveKey: schema.invoices.approveKey }));
+      // A payment the PayPal read found: paid, never sent, no link, holding PayPal's transaction id.
+      const readPayment = one(await db.insert(schema.invoices).values({
+        householdId: hid, clientId: client, status: "paid", item: `${T} read payment`, amountMinor: 50_000, currency: "USD",
+        paidOn: "2026-11-05", paypalCaptureId: readCapture, madeBy: "paypal",
+      }).returning({ id: schema.invoices.id })).id;
       const doc = (status: "queued" | "failed" | "read", error: string | null) => db.insert(schema.documents).values({
         householdId: hid, kind: "upload", storagePath: `${hid}/${randomUUID()}`, mime: "application/pdf", status, error,
       }).returning({ id: schema.documents.id });
@@ -398,7 +409,7 @@ async function main() {
       return {
         hid, tag, name: T, bankYen, rateMicro, key, tokenString: issued.token, familyToken: family.token, akiName,
         ids: { owner: ownerRow.id, aki, card: card.id, client, billConfirmed, billPending, charge, chargePending, pot, potPending, balanceConfirmed, balancePending,
-          invoiceDraft, invoiceSent: sent.id, approveKey: sent.approveKey, paypalInvoice, document, documentFailed, documentRead, reading, settlement, token: issued.info.id,
+          invoiceDraft, invoiceSent: sent.id, approveKey: sent.approveKey, readPayment, readCapture, payToken, document, documentFailed, documentRead, reading, settlement, token: issued.info.id,
           suggestion, statement, webhookEvent, secret, user, authUid, familyLink: family.info.id, memory, canvas, turn },
       };
     }
@@ -660,7 +671,12 @@ async function main() {
       assert.equal(review?.invoice.id, viewer.ids.invoiceSent);
       assert.equal(await F.invoiceReview(store, hid, other.ids.invoiceSent), undefined);
       assert.equal(await F.invoiceReview(store, hid, other.ids.invoiceDraft), undefined);
-      assert.equal(await F.canImportPayPal(store, hid), false);
+      seen("readPaymentCandidates", await F.readPaymentCandidates(store, hid, viewer.ids.invoiceSent));
+      seen("ownerPayPal", await F.ownerPayPal(store, hid));
+      const role = await F.viewerRole(store, hid, { uid: viewer.ids.authUid }, false);
+      seen("viewerRole", role);
+      assert.equal(role.isOwner, true);
+      assert.equal((await F.viewerRole(store, hid, { uid: other.ids.authUid }, false)).isOwner, false, "the other household's owner is not this household's");
       const memory = await F.listMemory(store, hid);
       seen("listMemory", memory);
       const pins = await F.listCanvases(store, hid);
@@ -769,6 +785,26 @@ async function main() {
       const x = X.ids, y = Y.ids;
       const nothingCalled = () => { throw new Error("the PayPal tool must not be called"); };
 
+      await check(label("backfillHouseholdPayTokens gives its own household's sent invoice a token and leaves the other's tokenless one alone"), async () => {
+        const make = async (hid: string, client: string, tag: string) => (await db.insert(schema.invoices).values({ householdId: hid, clientId: client, status: "sent",
+          item: `Fictional backfill ${tag}`, amountMinor: 10_000, currency: "USD", sentOn: "2026-11-01", dueOn: "2026-11-08" }).returning({ id: schema.invoices.id }))[0].id;
+        const mine = await make(X.hid, x.client, "own"), theirs = await make(Y.hid, y.client, "other");
+        const tokenOf = async (id: string) => (await db.select({ t: schema.invoices.payToken }).from(schema.invoices).where(eq(schema.invoices.id, id)))[0].t;
+        try {
+          const counted = await F.backfillHouseholdPayTokens(store, X.hid, false);
+          assert.equal(counted.given, 1);
+          assert.equal(await tokenOf(mine), null, "counting gives nothing");
+          const done = await F.backfillHouseholdPayTokens(store, X.hid, true);
+          assert.equal(done.given, 1);
+          assert.ok(await tokenOf(mine), "its own invoice has a token");
+          assert.equal(await tokenOf(theirs), null, "the other household's invoice is unchanged");
+          assert.equal((await db.select({ t: schema.invoices.payToken }).from(schema.invoices).where(eq(schema.invoices.id, y.invoiceSent)))[0].t, y.payToken);
+        } finally {
+          await db.delete(schema.invoices).where(inArray(schema.invoices.id, [mine, theirs]));
+        }
+        await untouched("backfillHouseholdPayTokens");
+      });
+
       await check(label("suggestion actions ignore the other household's suggestion and action reference"), async () => {
         await refuse("dismiss", () => F.dismiss(store, X.hid, y.suggestion));
         await refuse("notNow", () => F.notNow(store, X.hid, y.suggestion));
@@ -820,19 +856,43 @@ async function main() {
         await mustThrow("updateSettings card owned by the other's member", () => F.updateSettings(store, X.hid, { kind: "card", id: x.card, label: "Probe", memberId: y.aki, closingDay: 1, dueDay: 2, limit: "" }), /member of this household/);
         await mustThrow("updateSettings a new card owned by the other's member", () => F.updateSettings(store, X.hid, { kind: "card", id: "", label: "Probe", memberId: y.owner, closingDay: 1, dueDay: 2, limit: "" }), /member of this household/);
       });
-      await check(`${X.name} -> ${Y.name}: invoices (paid outside, review, approve, remind)`, async () => {
+      await check(`${X.name} -> ${Y.name}: invoices (paid another way, review, approve, end, offered, match)`, async () => {
         await refuse("markPaidOutside the other's draft", () => F.markPaidOutside(store, X.hid, y.invoiceDraft, DEMO_DATE));
         await refuse("markPaidOutside the other's sent invoice", () => F.markPaidOutside(store, X.hid, y.invoiceSent, DEMO_DATE));
         await refuse("invoiceReview", () => F.invoiceReview(store, X.hid, y.invoiceSent));
-        let toolCalls = 0;
-        const tool: approval.InvoiceTool = async () => { toolCalls++; return nothingCalled(); };
-        for (const action of ["send", "remind"] as const) {
-          const ctx = { db: store, householdId: X.hid, approveKey: y.approveKey, today: DEMO_DATE, usdRate: 150, recipient: "isolation-probe@example.test", tool };
-          const outcome = await attempt(() => F.approveInvoice(ctx, action));
-          assert.ok(outcome.threw && outcome.error instanceof ApprovalError && (outcome.error as ApprovalError).status === 404, label("approveInvoice " + action));
-          await untouched("approveInvoice " + action);
+        let orders = 0;
+        const createOrder = async () => { orders++; return nothingCalled(); };
+        const ctx = { db: store, householdId: X.hid, approveKey: y.approveKey, today: DEMO_DATE, usdRate: 150, createOrder };
+        const approved = await attempt(() => F.approvePaymentLink(ctx));
+        assert.ok(approved.threw && approved.error instanceof ApprovalError && (approved.error as ApprovalError).status === 404, label("approvePaymentLink"));
+        await untouched("approvePaymentLink");
+        assert.equal(orders, 0, "no PayPal order was made for the other household's invoice");
+        await refuse("endPaymentLink", () => F.endPaymentLink(store, X.hid, y.invoiceSent));
+        await refuse("recordLinkOffered", () => F.recordLinkOffered(store, X.hid, y.invoiceSent));
+        assert.deepEqual(await F.readPaymentCandidates(store, X.hid, y.invoiceSent), [], label("readPaymentCandidates"));
+        await untouched("readPaymentCandidates");
+        await refuse("readPaymentByCapture", () => store.transaction(tx => F.readPaymentByCapture(tx as unknown as Db, X.hid, y.readCapture)));
+        // The other's read payment settling the other's invoice, and X's own invoice being settled with the other's read payment.
+        for (const [name, invoice, payment] of [["the other's invoice with the other's payment", y.invoiceSent, y.readPayment], ["its own invoice with the other's payment", x.invoiceSent, y.readPayment], ["the other's invoice with its own payment", y.invoiceSent, x.readPayment]]) {
+          const settled = await attempt(() => F.settleReadPayment(store, X.hid, invoice, payment));
+          assert.ok(settled.threw && settled.error instanceof InvoiceMatchError && (settled.error as InvoiceMatchError).status === 404, label("settleReadPayment " + name));
+          await untouched("settleReadPayment " + name);
+          const inTx = await attempt(() => store.transaction(tx => F.settleReadPaymentInTx(tx as unknown as Db, X.hid, invoice, payment, "capture")));
+          assert.ok(inTx.threw && inTx.error instanceof InvoiceMatchError, label("settleReadPaymentInTx " + name));
+          await untouched("settleReadPaymentInTx " + name);
         }
-        assert.equal(toolCalls, 0, "no PayPal call was made for the other household's invoice");
+      });
+      await check(`${X.name} -> ${Y.name}: the payment link opens by its token alone and shows the item, not the household; a made-up token opens nothing`, async () => {
+        const view = await F.paymentLinkView(store, y.payToken);
+        // The link shows only the item and the amount: nothing about the household, its name or its invoice number.
+        assert.deepEqual(Object.keys(view).sort(), ["amountMinor", "currency", "item", "state"]);
+        assert.ok(!("seller" in view) && !("number" in view), "the link shows only the item and the amount");
+        assert.deepEqual(await F.paymentLinkView(store, "x".repeat(40)), { state: "ended" });
+        let created = 0;
+        const create = async () => { created++; return nothingCalled(); };
+        assert.deepEqual(await F.openPaymentLink(store, "x".repeat(40), create, async () => nothingCalled(), new Date("2026-11-11T00:00:00Z")), { kind: "unknown" });
+        assert.equal(created, 0);
+        await untouched("openPaymentLink with a made-up token");
       });
       await check(`${X.name} -> ${Y.name}: readings, documents, tokens, events, webhooks`, async () => {
         const item = { kind: "charge" as const, name: "Isolation probe", date: "2026-11-12", amountMinor: 100, currency: "JPY" as const, category: "other" as const, businessBp: 0, cardId: null, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null, repeatUntil: null };
@@ -1003,23 +1063,9 @@ async function main() {
         await mustThrow("add_pot with the other's pot id", () => runTool(X, "add_pot", { id: y.pot, name: "Isolation probe" }));
         await mustThrow("update_bank_balance with the other's update id", () => runTool(X, "update_bank_balance", { id: y.balancePending, amount: "1" }));
       });
-      await check(`${X.name} -> ${Y.name}: PayPal import and refresh reach only the caller's own invoices`, async () => {
-        for (const bound of [Y.hid, X.hid]) {
-          process.env.PAYPAL_BALANCE_HOUSEHOLD_ID = bound;
-          const outcome = await attempt(() => F.importPayPalHistory(store, X.hid, async () => nothingCalled()));
-          assert.ok(outcome.threw && outcome.error instanceof ImportRefused, "a demo household is refused, whichever household the setting names");
-          assert.equal(await F.canImportPayPal(store, X.hid), false);
-          await untouched("importPayPalHistory");
-        }
-        delete process.env.PAYPAL_BALANCE_HOUSEHOLD_ID;
-        const paths: string[] = [];
-        const read = async (path: string) => {
-          paths.push(path);
-          return { id: X.ids.paypalInvoice, status: "UNPAID", detail: { invoice_number: `ISO-${X.tag}-1` } };
-        };
-        const refreshed = await F.refreshPayPal(store, X.hid, read, new Date("2026-11-03T04:00:00Z"));
+      await check(`${X.name} -> ${Y.name}: the PayPal refresh of a household that is not connected makes no call and touches nothing of ${Y.name}`, async () => {
+        const refreshed = await F.refreshPayPal(store, X.hid, async () => nothingCalled(), new Date("2026-11-03T04:00:00Z"));
         assert.equal(refreshed.stale, null);
-        assert.deepEqual(paths, ["/v2/invoicing/invoices/" + X.ids.paypalInvoice], "only the caller's own PayPal invoice is read");
         await untouched("refreshPayPal");
       });
       await check(`${X.name}: its own writes (events, rate limit, pots, reference rate, daily run, settle, locks) leave ${Y.name} untouched`, async () => {
@@ -1227,33 +1273,6 @@ async function main() {
       await bothUntouched("deleteDemoHousehold");
       for (const id of [oldBusy, recent, oldReal]) await F.deleteHousehold(store, id);
     });
-    await check("PayPal import into the designated household cannot take or touch an invoice that belongs to A or B", async () => {
-      const designated = await seedBen(db);
-      await db.insert(schema.fxRates).values({ householdId: designated, base: "USD", quote: "JPY", date: "2020-01-01", rateMicro: 150_000_000 });
-      const remote = (id: string, email: string) => ({
-        id, status: "SENT", detail: { invoice_number: "N-" + id, invoice_date: "2026-09-01", payment_term: { due_date: "2026-09-15" } },
-        primary_recipients: [{ billing_info: { email_address: email, name: { given_name: "Isolation", surname: "Probe" } } }], amount: { currency_code: "USD", value: "10.00" },
-      });
-      const read = async (path: string) => {
-        assert.match(path, /^\/v2\/invoicing\/invoices\?page=1/);
-        return { total_pages: 1, items: [remote(A.ids.paypalInvoice, "isolation-a-client@example.test"), remote(B.ids.paypalInvoice, "isolation-b-client@example.test")] };
-      };
-      process.env.PAYPAL_BALANCE_HOUSEHOLD_ID = designated;
-      try {
-        assert.equal(await F.canImportPayPal(store, designated), true);
-        assert.equal(await F.canImportPayPal(store, A.hid), false);
-        assert.equal(await F.canImportPayPal(store, B.hid), false);
-        await assert.rejects(F.importPayPalHistory(store, A.hid, read), ImportRefused);
-        await assert.rejects(F.importPayPalHistory(store, B.hid, read), ImportRefused);
-        const result = await F.importPayPalHistory(store, designated, read);
-        assert.deepEqual(result, { clients: 0, invoices: 0, skipped: 2 }, "an invoice id another household owns is skipped, its client rolled back");
-        const mine = await fingerprint(designated);
-        assert.deepEqual(leaks(mine.text, await needlesOf(A)), []);
-        assert.deepEqual(leaks(mine.text, await needlesOf(B)), []);
-        await bothUntouched("importPayPalHistory");
-      } finally { delete process.env.PAYPAL_BALANCE_HOUSEHOLD_ID; }
-    });
-
     // ---------------------------------------------------------------- Stage 17 spending
     await check("a saved AI key sealed for household A does not open for household B, and a bill's billing period (27F) is read for its own household only", async () => {
       const sealed = await aiKeys.sealAiKey(A.hid, "fictional-key-value");
@@ -1472,6 +1491,9 @@ async function main() {
           action: "bill", refId: t.ids.billConfirmed, urgency: 3, createdOn: day,
         });
         const bBeforePass = await fingerprint(B.hid);
+        // An earlier daily run (no push settings then) already claimed A's push for today; give it back, with its receipt, so this pass is the one that delivers.
+        await db.update(schema.reminderSettings).set({ pushRanOn: null }).where(eq(schema.reminderSettings.householdId, A.hid));
+        await db.delete(schema.reminders).where(and(eq(schema.reminders.householdId, A.hid), eq(schema.reminders.day, day)));
         await F.runReminders(store, A.hid, new Date(day + "T04:00:00Z"), fakeFetch);
         assert.deepEqual(sent, [aSub.endpoint]);
         const receipts = await db.select().from(schema.reminders).where(and(eq(schema.reminders.householdId, A.hid), eq(schema.reminders.day, day)));
@@ -1518,18 +1540,17 @@ async function main() {
       const hidA = await seedBen(db), hidB = await seedBen(db);
 
       assert.equal((await F.paypalConnectionView(store, hidA)).state, "none");
-      await assert.rejects(F.recheckConnection(store, hidB, call), ConnectError);
+      await assert.rejects(F.confirmConnection(store, hidB, call), ConnectError);
       await F.startConnect(store, hidA, call);
       const trackingA = await trackingOf(hidA);
       assert.equal((await rowOf(hidB)).connectionStatus, null);
       const callsBefore = calls.length;
-      await assert.rejects(F.confirmConnection(store, hidB, trackingA, call), ConnectError);
-      assert.equal(calls.length, callsBefore, "a foreign tracking id made no PayPal call");
-      await assert.rejects(F.recheckConnection(store, hidB, call), ConnectError);
+      await assert.rejects(F.confirmConnection(store, hidB, call), ConnectError);
+      assert.equal(calls.length, callsBefore, "B has no sign-up of its own, so A's made no PayPal call for B");
       assert.equal((await F.paypalConnectionView(store, hidB)).state, "none");
 
       sellers.set(trackingA, { merchant: "ISOSELLERA", email: "isolation-a-seller@example.test" });
-      assert.equal((await F.confirmConnection(store, hidA, trackingA, call)).state, "connected");
+      assert.equal((await F.confirmConnection(store, hidA, call)).state, "connected");
       assert.deepEqual(await F.paypalConnectionView(store, hidA), { state: "connected", email: "isolation-a-seller@example.test", detail: null });
       assert.deepEqual(await F.paypalConnectionView(store, hidB), { state: "none", email: null, detail: null });
       assert.equal(await F.payeeFor(store, hidA), "ISOSELLERA");
@@ -1555,7 +1576,7 @@ async function main() {
       await F.startConnect(store, hidA, call);
       const trackingA2 = await trackingOf(hidA);
       sellers.set(trackingA2, { merchant: "ISOSELLERA2", email: "isolation-a-seller@example.test" });
-      await F.confirmConnection(store, hidA, trackingA2, call);
+      await F.confirmConnection(store, hidA, call);
       const aRow = await rowOf(hidA);
       assert.equal(await F.disconnect(store, hidB), true);
       assert.equal((await F.paypalConnectionView(store, hidB)).state, "none");

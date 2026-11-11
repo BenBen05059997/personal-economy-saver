@@ -20,7 +20,6 @@ export function movedAnchor(hash: string): string | null {
     case "ai-model": return "/settings/ai-model";
     case "mcp": return "/settings/ai-model#mcp";
     case "your-data": return "/settings/data";
-    case "paypal-import": return "/settings/paypal";
   }
   const bill = /^bill-([0-9a-f-]{36})$/.exec(id);
   return bill ? `/bills/${bill[1]}` : null;

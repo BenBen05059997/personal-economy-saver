@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { tracingChannel } from "node:diagnostics_channel";
 import { readdirSync, readFileSync } from "node:fs";
+import Module from "node:module";
+import { demoCookies } from "./demo-cookie";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
@@ -17,6 +19,10 @@ import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { insertCharge, removeCharge } from "@/db/charges";
 import { clientInput, insertClient } from "@/db/clients";
 import { markPaidOutside } from "@/db/invoice-paid";
+import { InvoiceMatchError, readPaymentCandidates, settleReadPayment, settleReadPaymentInTx } from "@/db/invoice-match";
+import { recordLinkOffered } from "@/db/invoice-offered";
+import { endPaymentLink } from "@/db/invoice-end";
+import { paidTitle } from "@/lib/money/paid-title";
 import { confirmPending } from "@/db/confirm";
 import { InputError } from "@/db/input-error";
 import { parseAmountMinor, parseMinor } from "@/db/money";
@@ -377,19 +383,20 @@ async function main() {
       assert.equal(await markPaidOutside(db, a, beacon.id, TODAY), false);
       assert.equal(await bank(a), start + 400 * 150);
       const paid = await first(db.select().from(schema.invoices).where(eq(schema.invoices.id, beacon.id)));
-      assert.deepEqual([paid.status, paid.paidOn, paid.fxRateMicro, paid.sentOn, paid.paypalInvoiceId], ["paid", TODAY, 150_000_000, null, null]);
+      assert.deepEqual([paid.status, paid.paidOn, paid.fxRateMicro, paid.sentOn], ["paid", TODAY, 150_000_000, null]);
       const logged = (await events(a, "invoice_paid_outside")).filter(e => e.refId === beacon.id);
       assert.equal(logged.length, 1);
-      assert.deepEqual([logged[0].notify, logged[0].title, logged[0].amountMinor, logged[0].currency], [false, "Beacon Studio marked paid outside PayPal", 40_000, "USD"]);
+      assert.equal(logged[0].madeBy, "form");
+      assert.deepEqual([logged[0].notify, logged[0].title, logged[0].amountMinor, logged[0].currency], [false, paidTitle("Beacon Studio", 40_000, "USD", "outside"), 40_000, "USD"]);
       assert.equal(await markPaidOutside(db, a, acme.id, TODAY), true);
       assert.equal(await bank(a), start + (400 + 1200) * 150);
       assert.equal((await first(db.select().from(schema.invoices).where(eq(schema.invoices.id, acme.id)))).sentOn, "2026-11-08");
     });
 
-    await check("markPaidOutside refuses a PayPal-sent invoice and a closed one", async () => {
+    await check("markPaidOutside refuses a payment PayPal captured and a closed invoice", async () => {
       const invoices = await db.select().from(schema.invoices).where(eq(schema.invoices.householdId, b));
       const sent = invoices.find(i => i.number === "1038")!;
-      await db.update(schema.invoices).set({ paypalInvoiceId: "FICTIONAL-INV2-0001" }).where(eq(schema.invoices.id, sent.id));
+      await db.update(schema.invoices).set({ paypalCaptureId: "FICTIONAL-CAPTURE-0001" }).where(eq(schema.invoices.id, sent.id));
       const start = await bank(b);
       await assert.rejects(markPaidOutside(db, b, sent.id, TODAY), InputError);
       assert.equal(await markPaidOutside(db, b, randomUUID(), TODAY), false);
@@ -402,6 +409,28 @@ async function main() {
       assert.equal(await markPaidOutside(db, b, closed.id, TODAY), false);
       assert.equal(await bank(b), start);
       await assert.rejects(markPaidOutside(db, b, sent.id, "yesterday"));
+    });
+
+    await check("recordLinkOffered logs the event and writes no column; endPaymentLink closes the invoice once, within its household", async () => {
+      const sent = (await db.select().from(schema.invoices).where(eq(schema.invoices.householdId, b))).find(i => i.number === "1038")!;
+      await db.update(schema.invoices).set({ status: "sent", paypalCaptureId: null, payToken: null }).where(eq(schema.invoices.id, sent.id));
+      assert.equal(await recordLinkOffered(db, b, sent.id), false); // no link yet
+      await db.update(schema.invoices).set({ status: "sent", paypalCaptureId: null, payToken: "fictional-token-1038" }).where(eq(schema.invoices.id, sent.id));
+      assert.equal(await recordLinkOffered(db, a, sent.id), false); // another household's invoice
+      assert.equal(await recordLinkOffered(db, b, sent.id), true);
+      const offered = (await events(b, "link_offered")).filter(e => e.refId === sent.id);
+      assert.equal(offered.length, 1);
+      assert.equal(offered[0].madeBy, "form");
+      const unchanged = await first(db.select().from(schema.invoices).where(eq(schema.invoices.id, sent.id)));
+      assert.deepEqual([unchanged.status, unchanged.linkOfferedAt], ["sent", null]);
+      assert.equal(await endPaymentLink(db, a, sent.id), false);
+      assert.equal((await first(db.select().from(schema.invoices).where(eq(schema.invoices.id, sent.id)))).status, "sent");
+      assert.equal(await endPaymentLink(db, b, sent.id), true);
+      assert.equal(await endPaymentLink(db, b, sent.id), false);
+      assert.equal((await first(db.select().from(schema.invoices).where(eq(schema.invoices.id, sent.id)))).status, "closed");
+      assert.equal((await events(b, "link_ended")).filter(e => e.refId === sent.id).length, 1);
+      assert.match((await events(b, "link_ended"))[0].title, /^Payment link for .+ ended$/);
+      assert.equal(await recordLinkOffered(db, b, sent.id), false); // an ended link is not offered
     });
 
     // ---- monthly bills (D41). Ben is seeded with CloudBox (18th), phone (20th) and rent (27th) repeating; today is Nov 14,
@@ -787,7 +816,7 @@ async function main() {
     await check("D66: changing and switching off a nudge rule records Activity, and preserves its value", async () => {
       const read = async () => (await rulesFor(db, a)).nudge_after;
       const set = { ruleKind: "nudge_after", enabled: true, value: "9" } as const;
-      const title = "Rule changed: Nudge a client 9 days after an invoice is due";
+      const title = "Rule changed: Suggest sending a client the link again 9 days after their usual pay day";
       assert.deepEqual(await read(), { enabled: true, threshold: 3, currency: null });
       await changeStandingRule(db, a, set);
       assert.deepEqual(await read(), { enabled: true, threshold: 9, currency: null });
@@ -869,6 +898,145 @@ async function main() {
         await assert.rejects(removeBill(db, bad, randomUUID()), /household id is required/);
         await assert.rejects(removeCharge(db, bad, randomUUID()), /household id is required/);
       }
+    });
+
+    await check("POST /api/invoices/match settles an open invoice once; a second Yes, a wrong payment and another household are refused", async () => {
+      const ORIGIN = "http://127.0.0.1:3123";
+      const [c, d] = [await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true })];
+      let cookie: string | null = null;
+      const tokenFor = demoCookies(db);
+      const loader = Module as unknown as { _load: (request: string, parent: unknown, isMain: boolean) => unknown; _resolveFilename: (request: string, parent: unknown, isMain: boolean) => string };
+      const realLoad = loader._load;
+      // door and session were loaded for the checks above with the real next/headers: load them again under the stand-ins.
+      for (const key of Object.keys(require.cache)) if (/\/src\/(lib\/(door|session)|db\/client)\.ts$/.test(key)) delete require.cache[key];
+      loader._load = function (request, parent, isMain) {
+        if (request === "next/headers") return { cookies: async () => {
+          const value = await tokenFor(cookie);
+          return { getAll: () => (value ? [{ name: "household", value }] : []), get: (name: string) => (name === "household" && value ? { name, value } : undefined) };
+        } };
+        const resolved = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
+        if (resolved.endsWith("/src/db/client.ts")) return { db: () => db, MissingDatabaseUrl: class extends Error {} };
+        return realLoad.call(this, request, parent, isMain);
+      };
+      const savedUrl = process.env.APP_URL;
+      process.env.APP_URL = ORIGIN;
+      try {
+        const match = (await import("@/app/api/invoices/match/route")).POST;
+        const post = async (as: string, fields: Record<string, string>) => {
+          cookie = as;
+          const response = await match(new Request(`${ORIGIN}/api/invoices/match`, { method: "POST", body: new URLSearchParams(fields), headers: { origin: ORIGIN, host: "127.0.0.1:3123" } }));
+          return { status: response.status, location: response.headers.get("location"), text: await response.text() };
+        };
+        const open = async (hid: string) => {
+          const [invoice] = await db.select().from(schema.invoices).where(and(eq(schema.invoices.householdId, hid), eq(schema.invoices.number, "1042")));
+          const [payment] = await db.insert(schema.invoices).values({ householdId: hid, madeBy: "paypal", clientId: invoice.clientId, status: "paid", number: null, item: "PayPal payment",
+            amountMinor: invoice.amountMinor, currency: invoice.currency, sentOn: null, dueOn: null, paidOn: TODAY, paypalCaptureId: `CAP-${hid}` }).returning();
+          return { invoice, payment };
+        };
+        const one = await open(c), two = await open(d);
+        const wrong = await post(c, { id: one.invoice.id, paymentId: randomUUID() });
+        assert.equal(wrong.status, 404);
+        assert.equal(wrong.text, "That is not a payment PayPal reported to this household.");
+        assert.equal((await post(c, { id: one.invoice.id, paymentId: two.payment.id })).status, 404, "another household's payment");
+        assert.equal((await post(d, { id: one.invoice.id, paymentId: one.payment.id })).status, 404, "another household's invoice");
+        assert.equal((await post(c, { id: one.invoice.id })).status, 400);
+        assert.equal((await first(db.select().from(schema.invoices).where(eq(schema.invoices.id, one.invoice.id)))).status, "sent");
+        const yes = await post(c, { id: one.invoice.id, paymentId: one.payment.id });
+        assert.equal(yes.status, 303);
+        assert.equal(yes.location, `/invoices/${one.invoice.id}`);
+        const settled = await first(db.select().from(schema.invoices).where(eq(schema.invoices.id, one.invoice.id)));
+        assert.deepEqual([settled.status, settled.paidOn, settled.paypalCaptureId], ["paid", TODAY, one.payment.paypalCaptureId]);
+        assert.equal((await post(c, { id: one.invoice.id, paymentId: one.payment.id })).status, 404, "a second Yes: the payment is gone");
+        assert.equal((await first(db.select().from(schema.invoices).where(eq(schema.invoices.id, two.invoice.id)))).status, "sent", "the other household is untouched");
+        // Both routes run the suggestion pass, so each has a per-minute limit of its own.
+        const paid = (await import("@/app/api/invoices/paid/route")).POST;
+        const statuses = async (route: (r: Request) => Promise<Response>, path: string) => {
+          const seen: number[] = [];
+          for (let i = 0; i < 25; i++) {
+            cookie = d;
+            seen.push((await route(new Request(`${ORIGIN}${path}`, { method: "POST", body: new URLSearchParams({}), headers: { origin: ORIGIN, host: "127.0.0.1:3123" } }))).status);
+          }
+          return seen;
+        };
+        const paidSeen = await statuses(paid, "/api/invoices/paid");
+        assert.ok(paidSeen.includes(400) && paidSeen.at(-1) === 429, "paid: bad fields until the limit, then 429");
+        const matchSeen = await statuses(match, "/api/invoices/match");
+        assert.ok(matchSeen.includes(400) && matchSeen.at(-1) === 429, "match: bad fields until the limit, then 429");
+      } finally {
+        loader._load = realLoad;
+        if (savedUrl === undefined) delete process.env.APP_URL; else process.env.APP_URL = savedUrl;
+      }
+    });
+
+    await check("a client who pays from an address not on file: the read's payment is offered, Yes closes the invoice without counting again, and the read-made client is tidied", async () => {
+      const hid = await seedBen(db);
+      await db.insert(schema.fxRates).values({ householdId: hid, base: "USD", quote: "JPY", date: "2026-10-01", rateMicro: 150_000_000 }).onConflictDoNothing();
+      await db.update(schema.paypalConnections).set({ connectionStatus: "connected", sellerMerchantId: "SELLERFICTIONAL", connectedAt: new Date("2026-11-01T00:00:00Z"), balanceMinor: 30_000 })
+        .where(eq(schema.paypalConnections.householdId, hid));
+      await db.insert(schema.pots).values({ householdId: hid, name: "Tax", savedMinor: 7_500, fillBp: 2_500, currency: "JPY" });
+      const [acme] = await db.select().from(schema.clients).where(eq(schema.clients.householdId, hid)).limit(1);
+      const blank = (await db.insert(schema.clients).values({ householdId: hid, name: "Blank Studio", email: "", termsDays: 0 }).returning())[0];
+      const openFor = async (clientId: string, amountMinor = 20_000) => (await db.insert(schema.invoices).values({ householdId: hid, clientId, status: "sent", item: "Fictional site",
+        amountMinor, currency: "USD", fxRateMicro: 150_000_000, sentOn: "2026-11-02", dueOn: "2026-11-02", payToken: `tok${randomUUID().replaceAll("-", "")}` }).returning())[0];
+      /** What the read leaves for a payer not on file: a client, its "added" entry and the paid row, all in one transaction. */
+      const readFor = async (email: string, name: string, captureId: string, amountMinor = 20_000) => db.transaction(async tx => {
+        const [made] = await tx.insert(schema.clients).values({ householdId: hid, name, email, termsDays: 0 }).returning();
+        await tx.insert(schema.events).values({ householdId: hid, kind: "client_added", title: `${name} added as a client`, refType: "client", refId: made.id, madeBy: "form" });
+        const [row] = await tx.insert(schema.invoices).values({ householdId: hid, madeBy: "paypal", clientId: made.id, status: "paid", number: null, item: "PayPal payment",
+          amountMinor, currency: "USD", sentOn: null, dueOn: null, paidOn: "2026-11-09", paypalCaptureId: captureId }).returning();
+        await tx.insert(schema.events).values({ householdId: hid, kind: "payment_received", title: `${name} paid $200`, refType: "invoice", refId: row.id, madeBy: "paypal" });
+        return { client: made, payment: row };
+      });
+      const money = async () => ({
+        balance: (await db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, hid)))[0].balanceMinor,
+        cash: (await db.select().from(schema.households).where(eq(schema.households.id, hid)))[0].bankBalanceMinor,
+        pots: (await db.select().from(schema.pots).where(eq(schema.pots.householdId, hid))).map(p => p.savedMinor),
+      });
+      const clientIds = async () => (await db.select().from(schema.clients).where(eq(schema.clients.householdId, hid))).map(c => c.id);
+
+      // Another payer: offered with the payer as PayPal reported them; Yes closes the invoice and counts nothing.
+      const one = await openFor(acme.id);
+      const away = await readFor("accounts@acme-payables.example", "Acme Payables", "CAP-AWAY");
+      const own = await readFor("own@example.test", "Own Payer", "CAP-OWN");
+      await db.update(schema.invoices).set({ clientId: acme.id }).where(eq(schema.invoices.id, own.payment.id));
+      const seen = await readPaymentCandidates(db, hid, one.id);
+      assert.deepEqual(seen.map(c => [c.paymentId, c.ownClient, c.payer, c.payerEmail]),
+        [[own.payment.id, true, acme.name, acme.email], [away.payment.id, false, "Acme Payables", "accounts@acme-payables.example"]], "the client's own first, then another payer");
+      await db.delete(schema.invoices).where(eq(schema.invoices.id, own.payment.id));
+      const before = await money();
+      await settleReadPayment(db, hid, one.id, away.payment.id);
+      const paid = (await db.select().from(schema.invoices).where(eq(schema.invoices.id, one.id)))[0];
+      assert.deepEqual([paid.status, paid.paypalCaptureId], ["paid", "CAP-AWAY"]);
+      assert.deepEqual(await money(), before, "the read already counted it: balance, cash and pots unchanged");
+      assert.ok(!(await clientIds()).includes(away.client.id), "the read-made client had nothing else and is removed");
+      const log = await db.select().from(schema.events).where(eq(schema.events.householdId, hid));
+      assert.ok(!log.some(e => e.refId === away.client.id), "no entry points at the removed client");
+      assert.ok(log.some(e => e.kind === "payment_received" && e.refId === one.id), "the payment entry points at the invoice");
+      assert.equal((await db.select().from(schema.clients).where(eq(schema.clients.id, acme.id)))[0].email, acme.email, "a client with an email keeps it");
+      await assert.rejects(settleReadPayment(db, hid, one.id, away.payment.id), InvoiceMatchError, "a second Yes");
+      assert.deepEqual(await readPaymentCandidates(db, hid, one.id), []);
+      await assert.rejects(markPaidOutside(db, hid, one.id, TODAY), InputError, "nothing is left to mark paid twice");
+      assert.deepEqual(await money(), before);
+
+      // A read-made client that has another payment stays; one whose invoice's client has no email lends it.
+      const two = await openFor(acme.id);
+      const kept = await readFor("keeps@example.test", "Keeps Payer", "CAP-KEEP");
+      await db.insert(schema.invoices).values({ householdId: hid, madeBy: "paypal", clientId: kept.client.id, status: "paid", number: null, item: "PayPal payment",
+        amountMinor: 999, currency: "USD", sentOn: null, dueOn: null, paidOn: "2026-11-08", paypalCaptureId: "CAP-KEEP-OTHER" });
+      await settleReadPayment(db, hid, two.id, kept.payment.id);
+      assert.ok((await clientIds()).includes(kept.client.id), "a read-made client with another payment stays");
+      const three = await openFor(blank.id);
+      const lends = await readFor("lends@example.test", "Lends Payer", "CAP-LEND");
+      await settleReadPayment(db, hid, three.id, lends.payment.id);
+      assert.equal((await db.select().from(schema.clients).where(eq(schema.clients.id, blank.id)))[0].email, "lends@example.test", "the payer's address is remembered on a client with none");
+      assert.ok(!(await clientIds()).includes(lends.client.id));
+
+      // The webhook's by-capture path tidies the same way.
+      const four = await openFor(blank.id);
+      const byCapture = await readFor("capture@example.test", "Capture Payer", "CAP-BYCAP");
+      await db.transaction(tx => settleReadPaymentInTx(tx, hid, four.id, byCapture.payment.id, "capture"));
+      assert.ok(!(await clientIds()).includes(byCapture.client.id), "by capture too");
+      assert.equal((await db.select().from(schema.clients).where(eq(schema.clients.id, blank.id)))[0].email, "lends@example.test", "an email already there is not replaced");
     });
 
     console.log(`${passed}/${passed} typed-in data checks passed.`);

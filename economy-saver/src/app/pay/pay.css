@@ -1,0 +1,11 @@
+.pay-page { width: min(100%, 480px); padding: 72px var(--space-6) 72px; margin: 0 auto; color: var(--ink); font: 15px/1.5 var(--sans); }
+.pay-page h1 { margin: 0 0 var(--space-3); }
+.pay-brand { margin: 0 0 var(--space-5); color: var(--muted); font-size: 14px; }
+.pay-details { margin: var(--space-5) 0; border-top: 1px solid var(--rule); }
+.pay-details > div { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--rule); }
+.pay-details dt { color: var(--muted); }
+.pay-details dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.pay-amount { font-size: 22px; font-weight: 600; }
+.pay-page form { margin: 0; }
+.pay-page .ui-button { width: 100%; justify-content: center; }
+.pay-note { margin-top: var(--space-3); color: var(--muted); font-size: 14px; }

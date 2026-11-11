@@ -120,7 +120,7 @@ export async function dropIdleDemoKeys(db: Db, now = new Date(), limit = SWEEP_L
 export const DEMO_LIFETIME_DAYS = 7;
 export const SWEEP_LIMIT = 200;
 
-const noRecentEvent = (cutoff: Date) => sql`not exists (select 1 from ${events} where ${events.householdId} = ${households.id} and ${events.createdAt} >= ${cutoff})`;
+const noRecentEvent = (cutoff: Date) => sql`not exists (select 1 from ${events} where ${events.householdId} = ${households.id} and ${events.createdAt} >= ${cutoff.toISOString()}::timestamptz)`;
 
 // Deletes demo households created and last changed more than seven days before `now`, oldest first, each in its own
 // transaction. A failing deletion is counted and does not stop the others. Non-demo households are never selected.

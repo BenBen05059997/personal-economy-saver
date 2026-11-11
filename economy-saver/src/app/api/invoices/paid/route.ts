@@ -3,12 +3,14 @@ import { householdDate } from "@/db/account";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { markPaidOutside } from "@/db/invoice-paid";
-import { badFields, failure, householdForm, redirectTo, text } from "@/lib/door";
+import { badFields, failure, householdForm, limited, redirectTo, text } from "@/lib/door";
 
 export async function POST(request: Request) {
   const ctx = await householdForm(request);
   if (ctx instanceof Response) return ctx;
   const { hid, form: body } = ctx;
+  const busy = await limited(hid, "invoice-paid", 20, "Too many requests. Try again in a minute.");
+  if (busy) return busy;
   const id = z.string().uuid().safeParse(body.get("id"));
   if (!id.success) return badFields();
   try {

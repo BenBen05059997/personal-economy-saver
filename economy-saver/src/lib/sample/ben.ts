@@ -93,9 +93,9 @@ export const benMoney: MoneyState = {
   split: { members: [{ id: "m-ben", name: "Ben", shareBp: 10_000 }], since: null, settledThrough: null, settledAt: null, bills: [], charges: [] },
   balanceUpdates: [],
   invoices: [
-    { id: "i-1042", clientId: "c-acme", number: "1042", item: "Product illustrations, batch 3", amountUsd: 1_200, status: "sent", sentOn: "2026-11-08", dueOn: "2026-11-18" },
-    { id: "i-1038", clientId: "c-northwind", number: "1038", item: "Landing page visuals", amountUsd: 800, status: "sent", sentOn: "2026-11-13", dueOn: "2026-11-20" },
-    { id: "i-beacon-m2", clientId: "c-beacon", item: "Brand refresh, milestone 2", amountUsd: 400, status: "unbilled", note: "Thanks! Milestone 2 files are in the shared folder." },
+    { id: "i-1042", clientId: "c-acme", number: "1042", item: "Product illustrations, batch 3", amountUsd: 1_200, status: "sent", hasLink: true, sentOn: "2026-11-08", dueOn: "2026-11-18" },
+    { id: "i-1038", clientId: "c-northwind", number: "1038", item: "Landing page visuals", amountUsd: 800, status: "sent", hasLink: true, sentOn: "2026-11-13", dueOn: "2026-11-20" },
+    { id: "i-beacon-m2", clientId: "c-beacon", item: "Brand refresh, milestone 2", amountUsd: 400, status: "unbilled", hasLink: false, note: "Thanks! Milestone 2 files are in the shared folder." },
   ],
 };
 

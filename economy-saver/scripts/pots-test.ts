@@ -17,6 +17,7 @@ import { fillPots, parseFillBp, potInput, removePot, savePot } from "@/db/pots";
 import { seedBen } from "@/db/seed";
 import { loadNavigationData } from "@/db/workspace";
 import { applyVerifiedDelivery } from "@/lib/events";
+import type { CaptureOrder } from "@/lib/paypal/contracts";
 import { addMonths, monthlyRoom, monthsUntil, planFor, planLine, potLine, potSummary, roomLine } from "@/lib/money/plan";
 import { availableCash, low, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
@@ -329,17 +330,19 @@ async function main() {
       assert.equal(availableCash(state), 128_000 + 37_500 - 9_375, "the pot's share is not spendable");
     });
 
-    await check("a verified paid webhook fills the pots after the credit, once", async () => {
+    await check("a verified completed payment fills the pots after the credit, once", async () => {
       const c = await seedBen(db, { isDemo: true }), d = await seedBen(db, { isDemo: true });
       const tax = input({ name: "Tax", fillPct: "25" }), other = input({ name: "Other", fillPct: "40" });
       await savePot(db, c, tax, "confirmed", { madeBy: "form" }); await savePot(db, d, other, "confirmed", { madeBy: "form" });
-      const remote = "INV2-FICTIONAL-POTS";
-      const inv = await invoice(c, "Northwind", 25_000, { paypalInvoiceId: remote });
+      const order = "ORDER-FICTIONAL-POTS";
+      const inv = await invoice(c, "Northwind", 25_000, { paypalOrderId: order, paypalPayeeId: "SELLERFICTIONAL" });
       const connection = async (hid: string) => (await first(db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, hid)))).balanceMinor;
       const [start, startD] = [await connection(c), await connection(d)];
-      const event = { id: "WH-POTS-PAID", event_type: "INVOICING.INVOICE.PAID", create_time: "2026-11-14T16:00:00Z", resource: { id: remote, status: "PAID" } };
-      await applyVerifiedDelivery(db, event);
-      await applyVerifiedDelivery(db, event);
+      const event = { id: "WH-POTS-PAID", event_type: "PAYMENT.CAPTURE.COMPLETED", create_time: "2026-11-14T16:00:00Z", resource: { id: "CAP-POTS", status: "COMPLETED",
+        amount: { currency_code: "USD", value: "250.00" }, custom_id: inv, supplementary_data: { related_ids: { order_id: order } } } };
+      const capture: CaptureOrder = async () => { throw new Error("A completed payment is not captured again"); };
+      await applyVerifiedDelivery(db, event, capture);
+      await applyVerifiedDelivery(db, event, capture);
       assert.equal(await connection(c), start + 37_500);
       assert.equal(await saved(tax.id), 9_375);
       assert.equal(await saved(other.id), 0, "another household's pot is not touched");

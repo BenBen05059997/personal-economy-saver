@@ -20,6 +20,7 @@ import { Currency } from "@/lib/catalogue/types";
 import type { TurnSource } from "@/lib/schema/turn";
 import { BriefSchema } from "@/lib/agent/brief";
 import * as s from "./schema";
+import { canHavePayLink, newPayToken } from "@/lib/paypal/pay-link";
 
 export const NOT_EMPTY = "Import works on an empty household. Start with my numbers first.";
 export const OLD_VERSION = "This file is an older export (version 1). Import reads version 2, 3 or 4 files. Export again from the app that made it, then import that file.";
@@ -185,7 +186,7 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       await insertChunks(tx, s.charges, file.charges.map(c => ({ ...c, id: ref(c.id), cardId: ref(c.cardId), ...made, ownCategoryId: ownRef(c.ownCategoryId), documentId: null })));
       await insertChunks(tx, s.bills, file.bills.map(b => ({ ...b, id: ref(b.id), ...made, memberId: who(b.memberId), paidByMemberId: who(b.paidByMemberId), ownCategoryId: ownRef(b.ownCategoryId), documentId: null, seriesBillId: null })));
       for (const b of file.bills) if (b.seriesBillId) await tx.update(s.bills).set({ seriesBillId: ref(b.seriesBillId) }).where(and(eq(s.bills.householdId, hid), eq(s.bills.id, ref(b.id))));
-      await insertChunks(tx, s.invoices, file.invoices.map(i => ({ ...i, id: ref(i.id), clientId: ref(i.clientId), ...made, paypalInvoiceId: null, paypalStatus: null, remindedAt: i.remindedAt ? new Date(i.remindedAt) : null })));
+      await insertChunks(tx, s.invoices, file.invoices.map(i => ({ ...i, id: ref(i.id), clientId: ref(i.clientId), ...made, paypalInvoiceId: null, paypalStatus: null, payToken: i.status === "sent" && canHavePayLink(i) ? newPayToken() : null, remindedAt: i.remindedAt ? new Date(i.remindedAt) : null })));
       await insertChunks(tx, s.pots, file.pots.map(p => ({ ...p, id: ref(p.id), ...made, memberId: who(p.memberId) })));
       await insertChunks(tx, s.settlements, file.settlements.map(x => ({ ...x, id: ref(x.id), householdId: hid, fromMemberId: who(x.fromMemberId)!, toMemberId: who(x.toMemberId)!, settledAt: new Date(x.settledAt), createdAt: new Date(x.createdAt) })));
       await insertChunks(tx, s.balanceUpdates, file.balanceUpdates.map(u => ({ ...u, id: ref(u.id), ...made, createdAt: new Date(u.createdAt) })));

@@ -15,7 +15,7 @@ type Identity = { uid: string; email: string | null } | null;
 type Channel = typeof reminders.$inferInsert.channel;
 type Subscription = Pick<typeof pushSubscriptions.$inferInsert, "endpoint" | "p256dh" | "auth">;
 type Recipient = Pick<typeof reminderSettings.$inferSelect, "memberId" | "email">;
-const DIGEST_KINDS = ["statement_due", "bill_due", "late_client", "goal_behind", "safe_below", "cancel_by"] as const;
+const DIGEST_KINDS = ["statement_due", "bill_due", "invoice_nudge", "goal_behind", "safe_below", "cancel_by"] as const;
 
 async function memberFor(db: Db, hid: string, identity: Identity) {
   const [row] = identity ? await db.select({ id: users.memberId }).from(users)

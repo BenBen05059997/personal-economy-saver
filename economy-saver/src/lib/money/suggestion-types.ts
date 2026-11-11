@@ -5,8 +5,8 @@ export type RuleKind = typeof RULE_KINDS[number];
 export type StandingRule = { enabled: boolean; threshold: number | null; currency: Currency | null; spaceId?: string };
 export type StandingRules = Record<RuleKind, StandingRule>;
 
-export const SUGGESTION_KINDS = ["invoice_nudge", "late_client", "statement_due", "bill_due", "cost_up", "cancel_by", "goal_behind", "safe_below"] as const;
-export const SUGGESTION_ACTIONS = ["remind", "invoice", "statement", "bill", "regular", "pot", "runway", "check_bill"] as const;
+export const SUGGESTION_KINDS = ["invoice_nudge", "statement_due", "bill_due", "cost_up", "cancel_by", "goal_behind", "safe_below"] as const;
+export const SUGGESTION_ACTIONS = ["remind", "statement", "bill", "regular", "pot", "runway", "check_bill"] as const;
 export type Finding = {
   kind: typeof SUGGESTION_KINDS[number];
   key: string;
@@ -17,7 +17,7 @@ export type Finding = {
   urgency: number;
 };
 
-/** Findings without a standing rule (usual payment day and cancellation deadlines) stay in General. */
+/** Findings without a standing rule (cancellation deadlines) stay in General. */
 export const FINDING_RULE: Partial<Record<Finding["kind"], RuleKind>> = {
   invoice_nudge: "nudge_after", statement_due: "statement_ahead", bill_due: "bill_ahead",
   cost_up: "cost_up", safe_below: "safe_below", goal_behind: "goal_behind",

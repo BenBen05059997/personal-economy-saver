@@ -957,7 +957,6 @@ async function main() {
         const restore = (await import("@/app/api/restore/route")).POST as Handler;
         const pots = (await import("@/app/api/pots/route")).POST as Handler;
         const savedIp = process.env.CLIENT_IP_HEADER;
-        const savedPaypal = Object.fromEntries(["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_ENVIRONMENT"].map(key => [key, process.env[key]]));
         const realWarn = console.warn;
         console.warn = () => {};
         try {
@@ -970,12 +969,7 @@ async function main() {
           for (let sent = 0; sent < 121; sent++) last = (await hook("{}", "203.0.113.50")).status;
           assert.equal(last, 429, "the 121st delivery from one address in a minute is 429 before PayPal is asked");
           assert.equal((await hook("{}", "203.0.113.51")).status, 400, "another address is counted on its own and an unsigned body is 400");
-          for (const key of Object.keys(savedPaypal)) delete process.env[key];
-          cookie = a;
-          const diagnostics = await webhook.GET();
-          assert.equal(diagnostics.status, 503, "GET with the PayPal settings missing is a 503, not an empty 500");
-          assert.match(await diagnostics.text(), /PAYPAL_/, "and it names the setting");
-          ok("/api/paypal/webhook: 64 KB body cap, per-address limit before the PayPal call, GET names a missing setting");
+          ok("/api/paypal/webhook: 64 KB body cap, per-address limit before the PayPal call");
 
           cookie = a;
           const padded = (bytes: number, headers: Record<string, string> = {}) => post("/api/pots", `name=${"x".repeat(bytes)}`, { "content-type": "application/x-www-form-urlencoded", ...headers });
@@ -987,7 +981,6 @@ async function main() {
         } finally {
           console.warn = realWarn;
           if (savedIp === undefined) delete process.env.CLIENT_IP_HEADER; else process.env.CLIENT_IP_HEADER = savedIp;
-          for (const [key, value] of Object.entries(savedPaypal)) if (value !== undefined) process.env[key] = value;
         }
       }
     } finally {

@@ -21,8 +21,6 @@ const schema = z.object({
   PAYPAL_PARTNER_MERCHANT_ID: z.string({ required_error: "is missing" }).min(1, "is missing"),
   // Set after registering the webhook (npm run webhook:register).
   PAYPAL_WEBHOOK_ID: blankIsUnset(z.string().min(1).optional()),
-  // The sandbox personal (US client) account that receives demo invoices.
-  SANDBOX_CLIENT_EMAIL: blankIsUnset(z.string().email().optional()),
 });
 
 type Env = z.infer<typeof schema>;

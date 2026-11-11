@@ -4,7 +4,7 @@ const TITLE = "Personal Economy Saver";
 const LINES = {
   statement_due: "A card statement is due soon",
   bill_due: "A bill is due soon",
-  late_client: "A client is past their usual payment day",
+  invoice_nudge: "A client is late with a payment",
   goal_behind: "A goal is behind its pace",
   safe_below: "Safe to spend is below your rule",
   cancel_by: "A cancellation deadline is coming up",

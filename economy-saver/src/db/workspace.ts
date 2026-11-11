@@ -4,8 +4,9 @@ import { balanceUpdates, bills, charges, clients, conversationTurns, events, hou
 import { readerInbox } from "./reader-inbox";
 import type { refreshPayPal } from "./paypal-refresh";
 import { observeRunway } from "./runway-events";
+import { accountMembership } from "./account";
 import { eventFeed } from "./event-feed";
-import { paypalConnectionView } from "./paypal-connection-read";
+import { paypalConnectionView } from "./paypal-connection";
 import { ownChoices } from "./own-categories";
 import { CHARGE_LOOKBACK_DAYS, householdClockRow, householdOwnerName, loadMoneyState, requireHousehold, type Db } from "./household";
 
@@ -13,8 +14,17 @@ import { addDays } from "@/lib/money/runway";
 import { confirmedGaps } from "@/lib/money/gaps";
 import { toCheck } from "@/lib/money/to-check";
 
+export type Viewer = { uid: string } | null;
+
+/** The one answer to "is this person the owner": whether the signed-in person owns this household, and whether they may manage it (its owner, or anyone in a Try it household). */
+export async function viewerRole(tx: Db, hid: string, viewer: Viewer, demo: boolean) {
+  const membership = viewer ? await accountMembership(tx, viewer.uid) : null;
+  const isOwner = Boolean(viewer && membership?.householdId === hid && membership.role === "owner");
+  return { membership, isOwner, canManage: demo || isOwner };
+}
+
 /** Navigation needs counts, not money conversions or reader payloads. Caller owns the read transaction. */
-export async function loadNavigationData(tx: Db, householdId: string) {
+export async function loadNavigationData(tx: Db, householdId: string, viewer: Viewer = null) {
   const hid = requireHousehold(householdId);
   const household = await householdClockRow(tx, hid);
   if (!household) throw new Error("Household not found");
@@ -31,12 +41,13 @@ export async function loadNavigationData(tx: Db, householdId: string) {
       + (select count(*) from ${bills} where ${bills.householdId} = ${hid} and ${bills.status} = 'confirmed' and (${bills.amountMinor} is null or ${bills.due} is null))
     `.mapWith(Number) }).from(households).where(eq(households.id, hid)),
   ]);
-  return { name, feed, pending: totals.pending, timeZone, today, tryIt: household.fixedToday !== null };
+  const role = await viewerRole(tx, hid, viewer, household.isDemo);
+  return { name, feed, pending: totals.pending, timeZone, today, tryIt: household.fixedToday !== null, role };
 }
 
 /** The caller owns the transaction; Home must use a writable transaction. */
 export async function loadWorkspaceData(tx: Db, hid: string, home = false,
-  freshness: Awaited<ReturnType<typeof refreshPayPal>> | null = null, withOwn = false) {
+  freshness: Awaited<ReturnType<typeof refreshPayPal>> | null = null, withOwn = false, viewer: Viewer = null) {
   const query = tx.select().from(households).where(eq(households.id, requireHousehold(hid)));
   const [household] = await (home ? query.for("update") : query);
   if (!household) throw new Error("Household not found");
@@ -60,6 +71,6 @@ export async function loadWorkspaceData(tx: Db, hid: string, home = false,
       answered: answer.length > 0, journalOnDevice: household.journalPlace === "device" };
   })() : null;
   if (home) await observeRunway(tx, hid, state, household);
-  const [feed, connection] = await Promise.all([eventFeed(tx, hid), paypalConnectionView(tx, hid)]);
-  return { state, people, own, name, feed, timeZone, inbox, freshness, getStarted, connection, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length + confirmedGaps(state).length };
+  const [feed, connection, role] = await Promise.all([eventFeed(tx, hid), paypalConnectionView(tx, hid), viewerRole(tx, hid, viewer, household.isDemo)]);
+  return { state, people, own, name, feed, timeZone, inbox, freshness, getStarted, connection, role, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length + confirmedGaps(state).length };
 }

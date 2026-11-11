@@ -9,6 +9,13 @@
 .invoice-review form p { margin-top: var(--space-3); }
 .invoice-status { font-weight: 500; }
 .invoice-paid-outside { margin-top: var(--space-5); }
+.invoice-paid-folded summary { cursor: pointer; color: var(--muted); }
+.invoice-paid-folded form { margin-top: var(--space-3); }
 .invoice-approve .invoice-sending { display: none; }
 .invoice-approve[aria-busy="true"] .invoice-sending { display: block; color: var(--ink); }
 .invoice-approve[aria-busy="true"] .invoice-send-hint { display: none; }
+.invoice-copy { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
+.invoice-link { width: 100%; font: 13px/1.4 var(--sans); padding: var(--space-2) var(--space-3); border: 1px solid var(--line, currentColor); border-radius: 8px; background: transparent; color: inherit; }
+.invoice-match { margin-top: var(--space-4); }
+.invoice-end { margin-top: var(--space-5); }
+.invoice-end summary { cursor: pointer; color: var(--muted); }

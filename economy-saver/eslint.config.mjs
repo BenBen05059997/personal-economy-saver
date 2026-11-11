@@ -5,34 +5,56 @@ import nextTs from "eslint-config-next/typescript";
 const modelSdk = { group: ["@anthropic-ai/*", "@ai-sdk/*", "openai", "openai/*"], message: "Call models through callModel in src/lib/ai (D56)." };
 const modelPath = { name: "ai", message: "Call models through callModel in src/lib/ai (D56)." };
 
-const toolkitPath = { name: "@/lib/paypal/toolkit", importNames: ["runTool", "deleteSmokeDraft"], message: "Only src/app/api/approve/route.ts may send to PayPal (D12)." };
-const createOrderPath = { name: "@/lib/paypal/send", importNames: ["createOrder"], message: "Only the approve route and the payment link's Pay route may make an order (D12)." };
-const captureOrderPath = { name: "@/lib/paypal/send", importNames: ["captureOrder"], message: "Only the webhook route may take a payment (D12)." };
+// Each payment call is matched by its module however the import is written (alias or relative path).
+const createOrderRule = { group: ["@/lib/paypal/send", "**/paypal/send"], importNames: ["createOrder"], message: "Only the approve route and the payment link's Pay route may make an order (D12)." };
+const captureOrderRule = { group: ["@/lib/paypal/send", "**/paypal/send"], importNames: ["captureOrder"], message: "Only the webhook route may take a payment (D12)." };
+const paypalRequestRule = { group: ["@/lib/paypal/client", "**/paypal/client", "./client"], importNames: ["paypalRequest"], message: "Only src/lib/paypal/send.ts makes an unguarded PayPal call; use paypalRead (D12)." };
+// The same name reached through a dynamic import, destructured or read as a property.
+const paypalRequestSyntax = ["ObjectPattern > Property[key.name='paypalRequest']", "MemberExpression[property.name='paypalRequest']"]
+  .map(selector => ({ selector, message: paypalRequestRule.message }));
+// no-restricted-imports does not see a dynamic import or require, so the payment module may not be reached that way at all
+// where a payment rule applies; nor may any module be imported dynamically by a computed name, which no lint could follow.
+const sendModule = "/(^|\\/)paypal\\/send(\\.[cm]?[jt]sx?)?$/";
+const computedImport = "ImportExpression:not([source.type='Literal'])";
+const sendSyntax = [
+  `ImportExpression[source.value=${sendModule}]`,
+  `ImportExpression[source.type='TemplateLiteral'][source.quasis.0.value.cooked=/paypal\\/send/]`,
+  computedImport,
+  `CallExpression[callee.name='require'][arguments.0.value=${sendModule}]`,
+].map(selector => ({ selector, message: "Import src/lib/paypal/send statically, so lint can see which payment call a file reaches (D12)." }));
+/** The import rules of one file: the model rule (D56) unless it is src/lib/ai, and the payment rules it is under. */
+const restricted = ({ models = true, request = true, computed = true } = {}, ...patterns) => {
+  const send = patterns.length ? sendSyntax.filter(rule => computed || rule.selector !== computedImport) : [];
+  const syntax = [...(request ? paypalRequestSyntax : []), ...send];
+  return {
+    "no-restricted-imports": ["error", models
+      ? { paths: [modelPath], patterns: [modelSdk, ...(request ? [paypalRequestRule] : []), ...patterns] }
+      : { patterns: [...(request ? [paypalRequestRule] : []), ...patterns] }],
+    ...(syntax.length && { "no-restricted-syntax": ["error", ...syntax] }),
+  };
+};
 
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   // Making and taking payments happens in a few named places (D12): an order may be made only where Approve and the
-  // link's Pay run, a payment may be taken only where the webhook runs, and the legacy send-capable runner stays in the
-  // approve route until it is removed. Every model call goes through src/lib/ai (D56): nothing else imports a model SDK.
+  // link's Pay run, a payment may be taken only where the webhook runs, and the unguarded PayPal call only inside the two
+  // files that define and use it. Every model call goes through src/lib/ai (D56): nothing else imports a model SDK.
   // One rule entry per file, so the restrictions are written together.
   {
-    files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/app/api/approve/route.ts", "src/app/api/pay/route.ts", "src/app/api/paypal/webhook/route.ts", "src/lib/ai/**"],
-    rules: { "no-restricted-imports": ["error", { paths: [toolkitPath, createOrderPath, captureOrderPath, modelPath], patterns: [modelSdk] }] },
+    files: ["src/**/*.{ts,tsx}", "scripts/**/*.{ts,tsx,mjs}"],
+    ignores: ["src/app/api/approve/route.ts", "src/app/api/pay/route.ts", "src/app/api/paypal/webhook/route.ts",
+      "src/lib/paypal/send.ts", "src/lib/paypal/client.ts", "src/lib/ai/**", "scripts/*-test.ts", "scripts/build-worker.mjs"],
+    rules: restricted({}, createOrderRule, captureOrderRule),
   },
-  {
-    files: ["src/app/api/approve/route.ts"],
-    rules: { "no-restricted-imports": ["error", { paths: [captureOrderPath, modelPath], patterns: [modelSdk] }] },
-  },
-  {
-    files: ["src/app/api/pay/route.ts"],
-    rules: { "no-restricted-imports": ["error", { paths: [toolkitPath, captureOrderPath, modelPath], patterns: [modelSdk] }] },
-  },
-  {
-    files: ["src/app/api/paypal/webhook/route.ts"],
-    rules: { "no-restricted-imports": ["error", { paths: [toolkitPath, createOrderPath, modelPath], patterns: [modelSdk] }] },
-  },
+  // The Worker build loads the OpenNext CLI from a resolved path, so only the computed-name import rule is waived there.
+  { files: ["scripts/build-worker.mjs"], rules: restricted({ computed: false }, createOrderRule, captureOrderRule) },
+  { files: ["src/lib/ai/**/*.{ts,tsx}"], rules: restricted({ models: false }, createOrderRule, captureOrderRule) },
+  { files: ["src/app/api/approve/route.ts", "src/app/api/pay/route.ts"], rules: restricted({}, captureOrderRule) },
+  { files: ["src/app/api/paypal/webhook/route.ts"], rules: restricted({}, createOrderRule) },
+  { files: ["src/lib/paypal/send.ts", "src/lib/paypal/client.ts"], rules: restricted({ request: false }) },
+  // Tests call the real createOrder and captureOrder against a stubbed fetch; they still never reach the unguarded call.
+  { files: ["scripts/*-test.ts"], rules: restricted({}) },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

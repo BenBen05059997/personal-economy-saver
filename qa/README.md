@@ -144,7 +144,7 @@ For HTTP scenarios, send a URL-encoded or multipart `POST /api/try/date` with `d
 Ben starts on Nov 14, 2026. Advancing to `2026-11-15` brings the Nov 18 CloudBox Plus bill into the default three-day suggestion window. Use a fresh Try it and `2026-11-23` for these fixtures:
 
 - On a disposable Nov 23 copy of Ben's household, run the pass. Card A statement due Nov 26 reads "¥58,000, covered even if clients pay late." Review statement opens Card A.
-- On that Nov 23 copy, Review invoice on "Acme Corp is past their usual payment day" opens invoice 1042. Its reason names Nov 22.
+- On that Nov 23 copy, Copy link again on "Send Acme Corp the link again" opens invoice 1042. Its reason says how long it has been since the link was made.
 
 ## A scenario
 
@@ -221,7 +221,7 @@ Ben starts on Nov 14, 2026. Advancing to `2026-11-15` brings the Nov 18 CloudBox
 >
 > **Recording.** Write one entry per scenario to `qa/results-browser.json` in the README's result format (`"model": "codex-bridge"`), adding entries every few scenarios so nothing is lost. For every non-pass, `actual` says exactly what you saw (the real text or number on screen) and `evidence` names the screenshot. Save a screenshot of each fail as `qa/evidence/<id>.png`. Record the screen while you run each area: start `screencapture -v -C -k qa/evidence/<area>.mov` in the background before the area's first scenario and stop it (Ctrl+C or kill the process) after its last; if screen recording isn't possible, say so once in your summary and carry on with screenshots.
 >
-> **Rules.** Do not fix anything or edit any file other than `qa/results-browser.json` and `qa/evidence/`. Approve may send a PayPal sandbox invoice to the sandbox client; that is allowed. Never type real personal data; use the scenario's fictional names and amounts. Never read or print `.env.local` or `.dev.vars`, never call `/api/cron`, never deploy, never sign in to a real account, and don't touch other browser tabs. When done, run `node economy-saver/scripts/qa-report.mjs` and give me its summary and one line per fail.
+> **Rules.** Do not fix anything or edit any file other than `qa/results-browser.json` and `qa/evidence/`. Approve may make a payment link and a PayPal sandbox order; that is allowed. Pay a link only with a PayPal sandbox buyer account the owner gives you. Never type real personal data; use the scenario's fictional names and amounts. Never read or print `.env.local` or `.dev.vars`, never call `/api/cron`, never deploy, never sign in to a real account, and don't touch other browser tabs. When done, run `node economy-saver/scripts/qa-report.mjs` and give me its summary and one line per fail.
 
 ## Fixing the failures (prompt for the fixing agent)
 

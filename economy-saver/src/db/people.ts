@@ -8,7 +8,7 @@ import { householdClock } from "./account";
 import { InputError } from "./input-error";
 import { loadSplitState, recordEvent, requireHousehold, usdRateMicro, type Db } from "./household";
 import { convertMinor, fromRateMicro } from "./money";
-import { bills, cards, charges, households, members, paypalConnections, pots, settlements } from "./schema";
+import { bills, cards, charges, households, members, pots, settlements } from "./schema";
 import { Currency } from "@/lib/catalogue/types";
 import { SHARE_TOTAL_BP, splitBalance } from "@/lib/money/split";
 
@@ -131,7 +131,7 @@ export const removeMemberInput = z.object({ id: z.string().uuid() });
 
 /**
  * Removes a person from the household (Settings → People). The rule:
- * - The owner, the last person and someone with PayPal connected cannot be removed.
+ * - The owner and the last person cannot be removed.
  *   Removing a member with a login also revokes that household access.
  * - Who owes whom between them and the household must be zero, at the household's today (lib/money/split.ts); otherwise
  *   "Settle up with Wife first." Their transfers are then already in the settlements, so nothing they owe or are owed is lost.
@@ -155,8 +155,6 @@ export async function removeMember(db: Db, householdId: string, input: z.infer<t
     const current = await orderedMembers(tx, hid);
     if (current.length < 2) throw new InputError("The last person in a household cannot be removed");
     if (person.role === "owner") throw new InputError("The household’s owner cannot be removed");
-    const [paypal] = await tx.select({ id: paypalConnections.id }).from(paypalConnections).where(and(eq(paypalConnections.householdId, hid), eq(paypalConnections.memberId, id))).limit(1);
-    if (paypal) throw new InputError(`${person.name} has PayPal connected, so they cannot be removed here`);
     const owner = current[0];
     const today = (await householdClock(tx, hid)).today;
     const currency = Currency.parse(home.currency);

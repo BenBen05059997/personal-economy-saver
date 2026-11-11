@@ -68,7 +68,7 @@ export type Invoice = {
   item: string;
   amountUsd: number;
   status: "unbilled" | "draft" | "sent" | "paid" | "closed";
-  paypalStatus?: string;
+  hasLink: boolean; // the invoice has its permanent payment link (never the token)
   sentOn?: string;
   dueOn?: string;
   note?: string;

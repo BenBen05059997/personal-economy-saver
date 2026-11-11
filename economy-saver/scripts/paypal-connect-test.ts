@@ -15,13 +15,15 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
-import { applyMerchantEvent, confirmConnection, ConnectError, disconnect, recheckConnection, startConnect } from "@/db/paypal-connection";
-import { paypalConnectionView, payeeFor } from "@/db/paypal-connection-read";
+import { applyMerchantEvent, confirmConnection, ConnectError, disconnect, paypalConnectionView, payeeFor, startConnect } from "@/db/paypal-connection";
 import { applyVerifiedDelivery } from "@/lib/events";
 import { PayPalError } from "@/lib/paypal/client";
-import { NotConnected, type PayPalCall, type PayPalRequest } from "@/lib/paypal/contracts";
+import { NotConnected, type CaptureOrder, type PayPalCall, type PayPalRequest } from "@/lib/paypal/contracts";
 import { referralBody } from "@/lib/paypal/partner";
 import type { PayPalWebhookEvent } from "@/lib/paypal/webhook";
+
+/** Merchant events never take a payment; the webhook entry point still asks for the capture function. */
+const capture: CaptureOrder = async () => { throw new Error("A merchant event must not capture"); };
 
 const BASE = "/v1/customer/partners/PARTNERFICTIONAL/merchant-integrations";
 
@@ -103,35 +105,36 @@ async function main() {
     assert.equal((await paypalConnectionView(db, a)).state, "pending");
     await assert.rejects(payeeFor(db, a), NotConnected);
 
-    // A tracking id that is not the one just started is refused, whoever asks, and nothing is asked of PayPal.
+    // A household that has started no sign-up has nothing to confirm, and nothing is asked of PayPal; another household's
+    // sign-up can never be confirmed from here, because only the household's own stored tracking id is ever asked about.
     const before = calls.length;
-    await assert.rejects(confirmConnection(db, a, "fipa-someone-else", call), ConnectError);
-    await assert.rejects(confirmConnection(db, b, tracking, call), ConnectError); // another household's tracking id
+    await assert.rejects(confirmConnection(db, b, call), ConnectError);
     assert.equal(calls.length, before);
     assert.equal((await row(b)).connectionStatus, null);
 
     // PayPal does not know the sign-up yet: still waiting, not a crash.
-    let result = await recheckConnection(db, a, call);
+    let result = await confirmConnection(db, a, call);
+    assert.ok(decodeURIComponent(calls[calls.length - 1].path).includes(`tracking_id=${tracking}`), "PayPal is asked about the stored tracking id");
     assert.equal(result.state, "pending");
     assert.match(result.detail!, /hasn't finished/);
 
     // Each readiness check on its own keeps the connection pending and says what is missing.
     sellers.set(tracking, { merchant: "SELLERA", receivable: false });
-    result = await confirmConnection(db, a, tracking, call);
+    result = await confirmConnection(db, a, call);
     assert.equal(result.state, "pending");
     assert.match(result.detail!, /can't receive payments/);
     sellers.set(tracking, { merchant: "SELLERA", confirmed: false });
-    result = await confirmConnection(db, a, tracking, call);
+    result = await confirmConnection(db, a, call);
     assert.match(result.detail!, /Confirm your email/);
     sellers.set(tracking, { merchant: "SELLERA", partner: "some-other-app" });
-    result = await confirmConnection(db, a, tracking, call);
+    result = await confirmConnection(db, a, call);
     assert.match(result.detail!, /permission isn't granted/);
     assert.equal((await row(a)).connectionStatus, "pending");
     assert.equal((await paypalConnectionView(db, a)).detail, result.detail);
 
     // Everything ready: connected with the PayPal email, the seller id and an Activity event.
     sellers.set(tracking, { merchant: "SELLERA", email: "ben-seller@example.test" });
-    result = await confirmConnection(db, a, tracking, call);
+    result = await confirmConnection(db, a, call);
     assert.deepEqual(result, { state: "connected", detail: null });
     const connected = await row(a);
     assert.equal(connected.connectionStatus, "connected");
@@ -142,7 +145,7 @@ async function main() {
     assert.equal(await payeeFor(db, a), "SELLERA");
     assert.equal((await events(a, "paypal_connected")).length, 1);
     await assert.rejects(startConnect(db, a, call), ConnectError); // already connected
-    const again = await confirmConnection(db, a, tracking, call); // a second return changes nothing
+    const again = await confirmConnection(db, a, call); // a second return changes nothing
     assert.equal(again.state, "connected");
     assert.equal((await events(a, "paypal_connected")).length, 1);
 
@@ -150,7 +153,7 @@ async function main() {
     await startConnect(db, b, call);
     const trackingB = (await row(b)).trackingId!;
     sellers.set(trackingB, { merchant: "SELLERA" });
-    result = await confirmConnection(db, b, trackingB, call);
+    result = await confirmConnection(db, b, call);
     assert.equal(result.state, "pending");
     assert.match(result.detail!, /already connected to another/);
     assert.equal((await row(b)).connectionStatus, "pending");
@@ -170,19 +173,19 @@ async function main() {
     assert.equal((await row(b)).connectionStatus, "pending"); // the other household is untouched
 
     // B can now connect that account (a tracking id is single-use, so B's sign-up is checked as it stands).
-    result = await confirmConnection(db, b, trackingB, call);
+    result = await confirmConnection(db, b, call);
     assert.equal(result.state, "connected");
     assert.equal(await payeeFor(db, b), "SELLERA");
 
     // A verified MERCHANT.PARTNER-CONSENT.REVOKED delivery clears the connection, once, through the delivery entry point.
     const revoked = event("WH-REVOKE-1", "MERCHANT.PARTNER-CONSENT.REVOKED", { merchant_id: "SELLERA" });
-    await applyVerifiedDelivery(db, revoked);
+    await applyVerifiedDelivery(db, revoked, capture);
     assert.equal((await row(b)).connectionStatus, null);
     assert.equal((await row(b)).sellerMerchantId, null);
     const revokedEvents = await events(b, "paypal_disconnected");
     assert.equal(revokedEvents.length, 1);
     assert.equal(revokedEvents[0].notify, true);
-    await applyVerifiedDelivery(db, revoked); // a redelivery changes nothing
+    await applyVerifiedDelivery(db, revoked, capture); // a redelivery changes nothing
     assert.equal((await events(b, "paypal_disconnected")).length, 1);
     const receipts = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, "WH-REVOKE-1"));
     assert.equal(receipts.length, 1);
@@ -190,9 +193,9 @@ async function main() {
     assert.deepEqual(Object.keys(receipts[0].payload as object), ["createdAt"]);
 
     // Merchant deliveries without the fields they need, or for an account that is not ours, are recorded and change nothing.
-    await applyVerifiedDelivery(db, event("WH-REVOKE-2", "MERCHANT.PARTNER-CONSENT.REVOKED", {}));
-    await applyVerifiedDelivery(db, event("WH-REVOKE-3", "MERCHANT.PARTNER-CONSENT.REVOKED", { merchant_id: "NOBODY" }));
-    await applyVerifiedDelivery(db, event("WH-ONBOARD-1", "MERCHANT.ONBOARDING.COMPLETED", { merchant_id: 42 }));
+    await applyVerifiedDelivery(db, event("WH-REVOKE-2", "MERCHANT.PARTNER-CONSENT.REVOKED", {}), capture);
+    await applyVerifiedDelivery(db, event("WH-REVOKE-3", "MERCHANT.PARTNER-CONSENT.REVOKED", { merchant_id: "NOBODY" }), capture);
+    await applyVerifiedDelivery(db, event("WH-ONBOARD-1", "MERCHANT.ONBOARDING.COMPLETED", { merchant_id: 42 }), capture);
     for (const id of ["WH-REVOKE-2", "WH-REVOKE-3", "WH-ONBOARD-1"]) {
       const [stored] = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, id));
       assert.equal(stored.householdId, null);

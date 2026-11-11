@@ -274,8 +274,8 @@
   {
     "id": "PAY-003",
     "area": "Invoices",
-    "action": "Approve and send an invoice",
-    "user_goal": "I want PayPal to send it with one tap",
+    "action": "Approve and make a payment link",
+    "user_goal": "I want a link my client can pay with one tap of mine",
     "type": "happy",
     "priority": "P1",
     "needs": [
@@ -284,17 +284,18 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14)",
-      "Dev server with the owner's PayPal sandbox settings (SANDBOX_CLIENT_EMAIL set)",
+      "Dev server with the owner's PayPal sandbox settings and partner settings",
       "Draft invoice for Beacon Studio"
     ],
     "steps": [
-      "Tap Approve and send",
+      "Tap Approve and make payment link",
       "Wait for the redirect"
     ],
     "expected": [
-      "While it runs the button is disabled and dimmed and 'Sending through PayPal sandbox…' shows",
-      "The page opens the invoice as 'Invoice sent. Awaiting payment.'",
-      "The bell gains 'Invoice sent to Beacon Studio' within about 2 s of the response"
+      "While it runs the button is disabled and dimmed and 'Asking PayPal sandbox for a payment link…' shows",
+      "Before the tap the page says 'PayPal sandbox makes a link for $400 that Beacon pays into fipa’s sandbox account. No real money moves.'",
+      "The page opens the invoice as 'Link made Nov 14. Awaiting payment.' with the payment link in a field and a 'Copy link for Beacon' button",
+      "The bell gains 'Payment link made for Beacon Studio' within about 2 s of the response"
     ],
     "refs": [
       "D12"
@@ -304,7 +305,7 @@
     "id": "PAY-004",
     "area": "Invoices",
     "action": "Tap Approve twice",
-    "user_goal": "I might double tap and must not be charged twice",
+    "user_goal": "I might double tap and must not make two links or two orders",
     "type": "security",
     "priority": "P1",
     "needs": [
@@ -319,33 +320,8 @@
       "POST /api/approve twice with the same approve_key and action send"
     ],
     "expected": [
-      "PayPal is asked to send once; the second answer redirects to the same invoice",
-      "Only one 'Invoice sent' event exists"
-    ],
-    "refs": [
-      "db:approve-test"
-    ]
-  },
-  {
-    "id": "PAY-011",
-    "area": "Invoices",
-    "action": "Approve a draft whose due date is not today",
-    "user_goal": "Sandbox drafts only support payment on receipt",
-    "type": "edge",
-    "priority": "P3",
-    "needs": [
-      "owner"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "A draft invoice with a due date other than today"
-    ],
-    "steps": [
-      "POST /api/approve action send"
-    ],
-    "expected": [
-      "Answered 409 'Sandbox drafts support payment on receipt. Review the due date before sending.'"
+      "PayPal is asked for one order; the second answer redirects to the same invoice",
+      "Only one 'Payment link made' event exists"
     ],
     "refs": [
       "db:approve-test"
@@ -354,7 +330,7 @@
   {
     "id": "PAY-018",
     "area": "Invoices",
-    "action": "Send a verified paid webhook",
+    "action": "Pay a payment link as the client",
     "user_goal": "The sentence should change when the client pays",
     "type": "happy",
     "priority": "P1",
@@ -365,14 +341,14 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14)",
-      "Deployed app, sent invoice linked to PayPal, webhook registered"
+      "Deployed app, Beacon's invoice approved (its payment link made), webhook registered"
     ],
     "steps": [
-      "Pay the sandbox invoice as the test client",
+      "Open the payment link and pay in PayPal's sandbox as the test buyer (see PAY-041)",
       "Reload Home"
     ],
     "expected": [
-      "The bell shows 'Invoice … paid' and the invoice reads Paid",
+      "The bell shows 'Beacon Studio paid $400' and the invoice reads Paid",
       "The bank balance rises by the invoice amount and the sentence changes",
       "Replaying the same event does not change anything twice"
     ],
@@ -383,8 +359,8 @@
   {
     "id": "PAY-023",
     "area": "Invoices",
-    "action": "Nudge a late client",
-    "user_goal": "I want to remind a client who is late",
+    "action": "Send a late client the link again",
+    "user_goal": "I want a late client to get the link again",
     "type": "happy",
     "priority": "P1",
     "needs": [
@@ -392,20 +368,145 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "Dev server with the owner's PayPal sandbox settings, nudge rule on, an overdue sent invoice linked to PayPal for Northwind"
+      "Fresh Try it household (Ben, today Nov 14), advanced to a date after Northwind's usual pay day (see 'Advancing the Try it date' in qa/README.md)",
+      "The late-client rule on at 3 days",
+      "Northwind's invoice is sent and has its payment link"
     ],
     "steps": [
-      "Tap 'Nudge Northwind $800' on Home",
-      "Tap Approve reminder"
+      "Tap 'Copy link again' on Northwind's finding on Home",
+      "Tap 'Copy link for Northwind' on the invoice page"
     ],
     "expected": [
-      "The review says 'Review reminder' with Approve reminder and repeats the client's time to pay",
-      "After it, the invoice reads 'Reminder sent through PayPal Sandbox.' and Home's action returns to what it was",
-      "PayPal is called only after the tap"
+      "The finding 'Send Northwind the link again' opens Northwind's invoice, which shows its payment link, 'Awaiting payment.' and the line 'Northwind is late. To send the link again, copy it again and send it the way you did before.'",
+      "The field holds the same /pay/ link as before and the button says 'Copied.' (the clipboard holds the link)",
+      "The bell gains 'Payment link for Northwind offered' and the finding leaves Home",
+      "Nothing is sent to PayPal or to the client by fipa"
     ],
     "refs": [
       "D12"
+    ]
+  },
+  {
+    "id": "PAY-041",
+    "area": "Invoices",
+    "action": "Pay a payment link",
+    "user_goal": "As the client I want to pay the invoice on PayPal and see it went through",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner",
+      "paypal_webhook"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Beacon's invoice approved in a Try it household (PAY-003)",
+      "The payment link opened in a private window, with no fipa session",
+      "A PayPal sandbox buyer account"
+    ],
+    "steps": [
+      "Read the pay page",
+      "Tap Pay",
+      "Log in as the sandbox buyer and approve the payment on PayPal's page",
+      "Wait for PayPal to return to fipa"
+    ],
+    "expected": [
+      "The pay page shows the fipa mark, the heading 'Pay this invoice', 'For' with the item and 'Amount' $400, and no household name, seller name or invoice number",
+      "Tap Pay hands the window to PayPal's sandbox checkout for $400",
+      "After approving, the window comes back to the page that says 'Thank you' and 'PayPal is confirming your payment.'",
+      "Reopening the link later says 'This invoice is paid. Thank you.' once PayPal's webhook has been received"
+    ],
+    "refs": [
+      "D12",
+      "D15",
+      "D37"
+    ]
+  },
+  {
+    "id": "PAY-042",
+    "area": "Invoices",
+    "action": "Copy the payment link",
+    "user_goal": "I want to send my client the link myself",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14)",
+      "Beacon's invoice approved (PAY-003)"
+    ],
+    "steps": [
+      "On the invoice page tap 'Copy link for Beacon'",
+      "Paste into any text field"
+    ],
+    "expected": [
+      "The button's line reads 'Copied.'",
+      "The pasted text is the /pay/ address shown in the field",
+      "The bell gains 'Payment link for Beacon Studio offered'"
+    ],
+    "refs": [
+      "D12"
+    ]
+  },
+  {
+    "id": "PAY-043",
+    "area": "Invoices",
+    "action": "Tap Pay again after approving on PayPal",
+    "user_goal": "As the client I must not be asked to pay twice for an invoice I already approved",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "owner",
+      "paypal_webhook"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Beacon's invoice approved in a Try it household (PAY-003)",
+      "The payment link opened in a private window, with no fipa session",
+      "A PayPal sandbox buyer account, the payment approved on PayPal's page (PAY-041) and the window sent back on the browser's Back button to the pay page"
+    ],
+    "steps": [
+      "Tap Pay on the pay page again"
+    ],
+    "expected": [
+      "The window goes to the page that says 'Thank you' and 'PayPal is confirming your payment.' and not to a new PayPal checkout",
+      "Once PayPal's webhook has been received, reopening the link says 'This invoice is paid. Thank you.'"
+    ],
+    "refs": [
+      "D12",
+      "D15",
+      "D37"
+    ]
+  },
+  {
+    "id": "PAY-044",
+    "area": "Invoices",
+    "action": "Open an invoice with a PayPal payment of the same amount",
+    "user_goal": "I want fipa to ask whether a PayPal payment is this invoice, and keep the bank option out of the way",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A signed-in household with its own PayPal connected (PAY-003 made Beacon's invoice a link)",
+      "A sent invoice with a payment link, and a payment of the same amount from a payer other than the client in the PayPal read since it was sent"
+    ],
+    "steps": [
+      "Open the invoice page",
+      "Read the question and the bottom of the page",
+      "Tap the folded line 'Paid another way (bank, cash)'"
+    ],
+    "expected": [
+      "The question names the payer as PayPal reported them, with their email address, for example '<name> (<email>) paid $400 on PayPal on <date>. Is this that invoice?' with the button 'Yes, that’s this invoice'; when the payer is the invoice's client it names the client's first name instead",
+      "'Paid another way (bank, cash)' is folded and closed, with no button showing",
+      "Opening it shows 'PayPal already counted a payment of this amount, so this is only for <first name> paying you separately by bank or cash.' above the button"
+    ],
+    "refs": [
+      "D12",
+      "D64"
     ]
   },
   {
@@ -433,30 +534,6 @@
       "The bell lists 'Invoice drafted for Acme Corp'"
     ],
     "refs": []
-  },
-  {
-    "id": "PAY-037",
-    "area": "Invoices",
-    "action": "Import more than twice a minute",
-    "user_goal": "The import is rate limited",
-    "type": "negative",
-    "priority": "P3",
-    "needs": [
-      "owner"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Designated household"
-    ],
-    "steps": [
-      "POST /api/paypal/import three times in a minute"
-    ],
-    "expected": [
-      "The third answers 429 'Import limit reached. Try again in a minute.'"
-    ],
-    "refs": [
-      "db:limits-test"
-    ]
   },
   {
     "id": "PAY-040",

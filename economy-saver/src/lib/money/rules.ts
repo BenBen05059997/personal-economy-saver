@@ -4,7 +4,7 @@ import { minorMoney } from "./format";
 import type { RuleKind, StandingRule } from "./suggestion-types";
 
 export const RULE_NAMES: Record<RuleKind, string> = {
-  nudge_after: "Late-client nudge",
+  nudge_after: "Late-client link",
   statement_ahead: "Upcoming card statement",
   bill_ahead: "Upcoming bill",
   cost_up: "Regular cost increase",
@@ -45,7 +45,7 @@ export function ruleWords(kind: RuleKind, rule: StandingRule) {
   const days = threshold === 1 ? "1 day" : threshold + " days";
   let words: string;
   switch (kind) {
-    case "nudge_after": words = threshold === null ? "Suggest a late-client nudge" : "Nudge a client " + days + " after an invoice is due"; break;
+    case "nudge_after": words = threshold === null ? "Suggest sending a late client the link again" : "Suggest sending a client the link again " + days + " after their usual pay day"; break;
     case "statement_ahead": words = threshold === null ? "Flag upcoming card statements" : "Flag a card statement up to " + days + " ahead"; break;
     case "bill_ahead": words = threshold === null ? "Flag upcoming bills" : "Flag a bill up to " + days + " ahead"; break;
     case "cost_up": words = threshold === null ? "Flag a regular cost increase" : "Flag a regular cost when it rises by more than " + threshold + "%"; break;

@@ -7,11 +7,6 @@ import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { accountHousehold, accountMembership, deleteOwnedHousehold, finishSetup, setupForm } from "@/db/account";
-import { acceptInvite, activeInvites, cancelInvite, createInvite, inviteMatchesEmail, inviteView, leaveHousehold } from "@/db/invites";
-import { addMember } from "@/db/people";
-import { seedBen } from "@/db/seed";
-import * as schema from "@/db/schema";
 
 const ORIGIN = "https://saver.example.test";
 const NOW = new Date("2026-11-14T03:00:00Z");
@@ -20,11 +15,12 @@ const emailFor = (label: string) => label + "@example.test";
 const identity = (label: string) => ({ uid: randomUUID(), email: emailFor(label) });
 type Identity = ReturnType<typeof identity>;
 
-import { demoCookies } from "./demo-cookie";
 async function main() {
+  const schema = await import("@/db/schema"); // tables only; it reaches no auth module
   const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
-  const tokenFor = demoCookies(db); // the Try it cookie is a token (D34)
+  const loaded: { tokenFor?: (cookie: string | null) => Promise<string | null> } = {}; // the Try it cookie is a token (D34), set once the app modules are loaded
+  const tokenFor = (cookie: string | null) => loaded.tokenFor!(cookie);
   let passed = 0;
   async function check(name: string, run: () => Promise<void>) {
     await run();
@@ -55,10 +51,19 @@ async function main() {
     } }) };
     const path = (() => { try { return loader._resolveFilename(request, parent, isMain); } catch { return ""; } })();
     if (path.endsWith("/src/db/client.ts")) return { db: () => db, MissingDatabaseUrl: class extends Error {} };
-    if (path.endsWith("/src/lib/paypal/toolkit.ts")) return { runTool: async () => { paypalCalls++; throw new Error("Unexpected PayPal transport call"); } };
+    if (path.endsWith("/src/lib/paypal/send.ts")) {
+      const refuse = async () => { paypalCalls++; throw new Error("Unexpected PayPal call"); };
+      return { createOrder: refuse, captureOrder: refuse, isPayPalApproveUrl: () => false };
+    }
     if (path.endsWith("/src/lib/ai/check.ts")) return { checkConnection: async () => { modelCalls++; throw new Error("Unexpected model call"); } };
     return realLoad.call(this, request, parent, isMain);
   };
+  // The app modules load after the harness is in place: a module that reached @supabase/ssr earlier would keep the real client.
+  const { accountHousehold, accountMembership, deleteOwnedHousehold, finishSetup, setupForm } = await import("@/db/account");
+  const { acceptInvite, activeInvites, cancelInvite, createInvite, inviteMatchesEmail, inviteView, leaveHousehold } = await import("@/db/invites");
+  const { addMember } = await import("@/db/people");
+  const { seedBen } = await import("@/db/seed");
+  loaded.tokenFor = (await import("./demo-cookie")).demoCookies(db);
   const restoreHarness = () => {
     loader._load = realLoad;
     for (const [key, value] of Object.entries(saved)) {

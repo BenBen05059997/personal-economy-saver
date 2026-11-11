@@ -301,7 +301,7 @@
       "375px and 1440px for browser checks"
     ],
     "steps": [
-      "Open Try it and review the existing sandbox invoice action"
+      "Open Try it and review the payment-link action on Beacon's invoice"
     ],
     "expected": [
       "The demo works without a login and provides no invite controls",

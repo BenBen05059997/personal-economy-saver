@@ -11,8 +11,7 @@ function actionFor(row: Suggestion) {
   if (row.action === "runway") return { label: "Review safe to spend", href: "/#next-30-days" };
   if (!row.refId) throw new Error("Suggestion action needs a reference");
   switch (row.action) {
-    case "remind": return { label: "Review reminder", href: hrefFor({ type: "invoice", id: row.refId }) };
-    case "invoice": return { label: "Review invoice", href: hrefFor({ type: "invoice", id: row.refId }) };
+    case "remind": return { label: "Copy link again", href: hrefFor({ type: "invoice", id: row.refId }) };
     case "statement": return { label: "Review statement", href: hrefFor({ type: "statement", id: row.refId }) };
     case "check_bill": return { label: "Review in To check", href: "/to-check#check-" + row.refId };
     case "bill": return { label: "Review bill", href: hrefFor({ type: "bill", id: row.refId }) };

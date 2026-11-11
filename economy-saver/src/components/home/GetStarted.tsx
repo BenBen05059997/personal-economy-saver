@@ -15,7 +15,7 @@ const subscribe = (callback: () => void) => {
   return () => { window.removeEventListener("storage", callback); window.removeEventListener("pes-get-started-hidden", callback); };
 };
 
-export function GetStarted({ householdId, progress, peopleCount }: { householdId: string; progress: GetStartedProgress; peopleCount: number }) {
+export function GetStarted({ householdId, progress, peopleCount, invoiceHref }: { householdId: string; progress: GetStartedProgress; peopleCount: number; invoiceHref: string }) {
   const panel = useAskPanel();
   const [locallyHidden, setLocallyHidden] = useState(false);
   const [deviceAnswered, setDeviceAnswered] = useState(false);
@@ -34,7 +34,7 @@ export function GetStarted({ householdId, progress, peopleCount }: { householdId
   if (hidden || locallyHidden) return null;
   const steps = [
     { done: true, label: "Read the sentence and the forecast", href: "#next-30-days" },
-    { done: progress.invoicePaid, label: "Approve Beacon’s invoice and watch the sentence change", href: "/invoices" },
+    { done: progress.invoicePaid, label: "Approve Beacon’s invoice and watch the sentence change", href: invoiceHref },
     { done: progress.billConfirmed, label: "Check the Hikari Denki bill in To check", href: "/to-check" },
     { done: progress.hasKey && (progress.journalOnDevice ? deviceAnswered : progress.answered), label: "Add your AI key, then ask a question", href: "/settings/ai-model" },
     { done: peopleCount > 1, label: "Add a person who shares costs", add: "person" as const },

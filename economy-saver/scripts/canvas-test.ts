@@ -50,7 +50,7 @@ const small: MoneyState = {
   ],
   cards: [], charges: [], statements: [],
   clients: [{ id: "maple", name: "Maple Studio", email: "ap@maple.example", termsDays: 7, daysToPay: [5, 9, 12] }],
-  invoices: [{ id: "inv-1", clientId: "maple", number: "1", item: "Posters", amountUsd: 400, status: "sent", sentOn: TODAY, dueOn: "2026-11-21" }],
+  invoices: [{ id: "inv-1", clientId: "maple", number: "1", item: "Posters", amountUsd: 400, status: "sent", hasLink: true, sentOn: TODAY, dueOn: "2026-11-21" }],
   pots: [], pendingPots: [], cancelNotices: [], balanceUpdates: [],
   split: { members: [{ id: "m1", name: "Mina", shareBp: 10_000 }], since: null, settledThrough: null, settledAt: null, bills: [], charges: [] },
 };
@@ -291,7 +291,7 @@ async function main() {
       assert.equal(action.label, "Invoice Beacon");
       const acme = state.invoices.find(i => i.status === "sent" && i.clientId === state.clients.find(c => c.name.startsWith("Acme"))?.id)!;
       const nudge = starterRecipes(state, [acme.id])[0].recipe.blocks.find(b => b.type === "action");
-      assert.deepEqual(nudge, { type: "action", label: "Nudge Acme", href: `/invoices/${acme.id}` });
+      assert.deepEqual(nudge, { type: "action", label: "Send Acme the link again", href: `/invoices/${acme.id}` });
       const toReview = starterRecipes({ ...state, invoices: [] })[0].recipe.blocks.find(b => b.type === "action");
       assert.deepEqual(toReview, { type: "action", label: "Open To check", href: "/to-check" });
       assert.equal(block(resolved, "sentence").source, "Worked out from your records");

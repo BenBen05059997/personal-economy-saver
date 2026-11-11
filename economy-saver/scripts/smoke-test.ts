@@ -1,13 +1,14 @@
-// M0 check: does our PayPal sandbox setup actually work?
-// Run from the project root: npm run smoke   (add -- --keep to keep the draft invoice)
+// Opt-in probe of the PayPal sandbox: does the setup make an order for fipa's own account, and is the webhook registered?
+// Run from the project root: npm run smoke -- --run
+// It makes one $1.00 order that nobody approves (it lapses on its own) and prints only statuses and which fields are present, never values.
 import { config } from "dotenv";
 config({ path: ".env.local", quiet: true });
 
-// PayPal responses are read loosely here; these scripts only print fields.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Obj = Record<string, any>;
+if (!process.argv.includes("--run")) {
+  console.log("PayPal sandbox smoke test. It talks to the sandbox, so it only runs when asked: npm run smoke -- --run");
+  process.exit(0);
+}
 
-const keep = process.argv.includes("--keep");
 let passed = 0;
 let total = 0;
 
@@ -17,29 +18,10 @@ function report(ok: boolean, name: string, detail = "") {
   console.log(`${ok ? "✓" : "✗"} ${name}${detail ? ` - ${detail}` : ""}`);
 }
 
-// Raw errors and API bodies can contain account data or request credentials.
+// Raw errors and API bodies can contain account data or request credentials: only the status is shown.
 function describeError(error: unknown): string {
   const status = error instanceof Error && "status" in error && typeof error.status === "number" ? error.status : null;
   return status ? `PayPal check failed (HTTP ${status}).` : "PayPal check failed.";
-}
-
-// Runs one check; returns its result, or undefined if it failed.
-async function check<T>(name: string, fn: () => Promise<{ value: T; detail?: string }>): Promise<T | undefined> {
-  try {
-    const { value, detail } = await fn();
-    report(true, name, detail);
-    return value;
-  } catch (error) {
-    report(false, name, describeError(error));
-    return undefined;
-  }
-}
-
-// create_invoice returns either a link { rel, href, method } or a full invoice with an id.
-function extractInvoiceId(result: Obj): string | undefined {
-  if (typeof result.id === "string") return result.id;
-  if (typeof result.href === "string") return result.href.split("/").filter(Boolean).pop();
-  return undefined;
 }
 
 function summary() {
@@ -50,12 +32,11 @@ function summary() {
 async function main() {
   console.log("PayPal sandbox smoke test\n");
 
-  // a. Environment
   const { env } = await import("@/lib/env");
   let settings: ReturnType<typeof env>;
   try {
     settings = env();
-    report(true, "Environment", "PAYPAL_ENVIRONMENT=SANDBOX, client id and secret present");
+    report(true, "Environment", "PAYPAL_ENVIRONMENT=SANDBOX, client id, secret, attribution code and partner merchant id present");
   } catch (error) {
     report(false, "Environment");
     console.log(error instanceof Error ? error.message : "Invalid PayPal configuration.");
@@ -64,73 +45,51 @@ async function main() {
     return;
   }
 
-  const { getAccessToken, paypalFetch } = await import("@/lib/paypal/client");
-  const { runTool, deleteSmokeDraft } = await import("@/lib/paypal/toolkit");
+  const { getAccessToken, paypalRead } = await import("@/lib/paypal/client");
+  const { createOrder } = await import("@/lib/paypal/send");
 
-  // b. Sandbox token
-  await check("Sandbox token", async () => {
+  try {
     await getAccessToken();
-    return { value: true, detail: "obtained a sandbox access token" };
-  });
-
-  // c. Balance
-  try {
-    const data = await paypalFetch<Obj>("/v1/reporting/balances");
-    report(true, "Balance", Array.isArray(data.balances) ? "balance report received" : "report received");
+    report(true, "Sandbox token", "obtained");
   } catch (error) {
-    report(false, "Balance", describeError(error));
+    report(false, "Sandbox token", describeError(error));
+    summary();
+    return;
   }
 
-  // d. Create a draft invoice
-  let invoiceId: string | undefined;
-  if (!settings.SANDBOX_CLIENT_EMAIL) {
-    report(false, "Create draft invoice", "SANDBOX_CLIENT_EMAIL is not set; it is the recipient. Skipping read-back and cleanup.");
-  } else {
-    invoiceId = await check("Create draft invoice", async () => {
-      const result = await runTool<Obj>("create_invoice", {
-        currency_code: "USD",
-        primary_recipients: [{ billing_info: { email_address: settings.SANDBOX_CLIENT_EMAIL } }],
-        items: [{ name: "M0 smoke test", quantity: "1", unit_amount: { currency_code: "USD", value: "1.00" } }],
-        note: "Smoke test draft from Personal Economy Saver. Safe to delete.",
-      });
-      const id = extractInvoiceId(result);
-      if (!id) throw new Error("Draft response missing its invoice id");
-      return { value: id, detail: "draft created" };
-    });
-  }
-
-  // e. Read it back
-  if (invoiceId) {
-    await check("Read invoice back", async () => {
-      const inv = await runTool<Obj>("get_invoice", { invoice_id: invoiceId });
-      const status = inv.status ?? "unknown";
-      if (status !== "DRAFT") throw new Error("Unexpected invoice state");
-      const detail = "draft status verified";
-      return { value: inv, detail };
-    });
-  }
-
-  // f. Clean up
-  if (invoiceId && keep) {
-    console.log("Cleanup skipped (--keep). A draft remains in the sandbox.");
-  } else if (invoiceId) {
-    await check("Delete draft invoice", async () => {
-      await deleteSmokeDraft(invoiceId!);
-      return { value: true, detail: "draft deleted" };
-    });
-  }
-
-  // g. Webhooks
+  // An order for fipa's own sandbox account, the way a Try it household's link makes one.
+  const payee = settings.PAYPAL_PARTNER_MERCHANT_ID;
+  const id = crypto.randomUUID();
+  let orderId: string | undefined;
   try {
-    const data = await paypalFetch<Obj>("/v1/notifications/webhooks");
-    const hooks = (data?.webhooks ?? []) as Obj[];
+    const order = await createOrder({
+      payee, requestId: "O-smoke-" + id, invoiceId: id, number: "P-SMOKE", item: "Smoke test", amountMinor: 100, currency: "USD",
+      returnUrl: "https://example.test/pay/smoke/done", cancelUrl: "https://example.test/pay/smoke",
+    });
+    orderId = order.orderId;
+    report(true, "Create order", `200; id present: ${!!order.orderId}; payer-action link on paypal.com present: ${!!order.approveUrl}`);
+  } catch (error) {
+    report(false, "Create order", describeError(error));
+  }
+
+  if (orderId) {
+    try {
+      const read = await paypalRead({ method: "GET", path: `/v2/checkout/orders/${encodeURIComponent(orderId)}`, actAs: payee }) as { status?: string } | undefined;
+      report(true, "Read order back", `200; status present: ${!!read?.status}`);
+    } catch (error) {
+      report(false, "Read order back", describeError(error));
+    }
+  }
+
+  try {
+    const data = await paypalRead({ method: "GET", path: "/v1/notifications/webhooks" }) as { webhooks?: { id?: string }[] } | undefined;
+    const hooks = data?.webhooks ?? [];
     if (hooks.length === 0) {
       report(true, "Webhooks", "none registered yet. After deploying, run: npm run webhook:register -- https://<your-app>");
     } else {
       report(true, "Webhooks", `${hooks.length} registered`);
       if (settings.PAYPAL_WEBHOOK_ID) {
-        const match = hooks.some((h) => h.id === settings.PAYPAL_WEBHOOK_ID);
-        console.log(`    PAYPAL_WEBHOOK_ID ${match ? "matches a registered webhook" : "does NOT match any registered webhook"}`);
+        console.log(`    PAYPAL_WEBHOOK_ID ${hooks.some(h => h.id === settings.PAYPAL_WEBHOOK_ID) ? "matches a registered webhook" : "does NOT match any registered webhook"}`);
       }
     }
   } catch (error) {

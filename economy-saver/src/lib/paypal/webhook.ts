@@ -1,5 +1,5 @@
 import { env } from "@/lib/env";
-import { paypalFetch } from "@/lib/paypal/client";
+import { paypalRead } from "@/lib/paypal/client";
 
 export type PayPalWebhookEvent = {
   id: string;
@@ -30,6 +30,7 @@ export async function verifyWebhook(rawBody: string, headers: Headers): Promise<
   } catch {
     return { verified: false, reason: "Body is not valid JSON" };
   }
+  if (typeof event !== "object" || event === null || Array.isArray(event)) return { verified: false, reason: "Body is not a webhook event" };
 
   let webhookId: string | undefined;
   try {
@@ -53,22 +54,29 @@ export async function verifyWebhook(rawBody: string, headers: Headers): Promise<
   }
 
   try {
-    const result = await paypalFetch<{ verification_status?: string }>(
-      "/v1/notifications/verify-webhook-signature",
-      {
-        method: "POST",
-        body: JSON.stringify({ ...signed, webhook_id: webhookId, webhook_event: event }),
-      },
-    );
-    if (result.verification_status === "SUCCESS") return { verified: true, event };
+    const result = await paypalRead({
+      method: "POST",
+      path: "/v1/notifications/verify-webhook-signature",
+      bodyText: verificationBody(signed, webhookId, rawBody),
+    }) as { verification_status?: string } | undefined;
+    if (result?.verification_status === "SUCCESS") return { verified: true, event };
     return {
       verified: false,
-      reason: `PayPal verification status: ${result.verification_status ?? "unknown"}`,
+      reason: `PayPal verification status: ${result?.verification_status ?? "unknown"}`,
       event,
     };
   } catch (error) {
     return { verified: false, reason: `Verification call failed: ${errorMessage(error)}`, event };
   }
+}
+
+/**
+ * The verify call's body with the event exactly as PayPal sent it: re-serialising a parsed event can change its number
+ * formatting or escapes and fail a genuine delivery. `rawBody` has already parsed as a JSON object.
+ */
+export function verificationBody(signed: Record<string, string>, webhookId: string, rawBody: string): string {
+  const head = JSON.stringify({ ...signed, webhook_id: webhookId });
+  return `${head.slice(0, -1)},"webhook_event":${rawBody}}`;
 }
 
 function errorMessage(error: unknown): string {

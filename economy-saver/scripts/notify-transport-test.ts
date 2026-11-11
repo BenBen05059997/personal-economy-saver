@@ -35,14 +35,14 @@ export async function runNotifyTransportChecks(check: Check) {
 
   await check("the digest uses fixed words and engine amounts, and links only to app Home", () => {
     const digest = reminderDigest([
-      { kind: "late_client", reason: "Open https://pay.example/path or mail someone@example.com." },
+      { kind: "invoice_nudge", reason: "Open https://pay.example/path or mail someone@example.com." },
       { kind: "bill_due", reason: "¥4,250, covered even if clients pay late." },
       { kind: "safe_below", reason: "$21.50 safe to spend, below $30.50." },
-      { kind: "invoice_nudge", reason: "$99 excluded from the outbound digest." },
+      { kind: "cost_up", reason: "$99 excluded from the outbound digest." },
     ], "https://economy.example/ignored?q=other");
     assert.deepEqual(digest, {
       title: "Personal Economy Saver",
-      body: "A client is past their usual payment day.\nA bill is due soon (¥4,250).\nSafe to spend is below your rule ($21.50, $30.50).",
+      body: "A client is late with a payment.\nA bill is due soon (¥4,250).\nSafe to spend is below your rule ($21.50, $30.50).",
       url: app,
     });
     assert.equal(reminderDigest([{ kind: "cost_up", reason: "¥3,500 more than last month." }], app), null);

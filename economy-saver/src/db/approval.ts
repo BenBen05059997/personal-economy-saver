@@ -1,155 +1,112 @@
-import { closeByRef } from "./suggestions";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 import { and, eq } from "drizzle-orm";
-import { z } from "zod";
 import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { fromMinor, toRateMicro } from "./money";
-import { logSettingProblem } from "@/lib/operator-log";
+import { orderRequestFor } from "./payment-link";
+import { payeeFor } from "./paypal-connection";
 import { clients, invoices } from "./schema";
+import { addDays } from "@/lib/money/dates";
+import { NotConnected, type CreateOrder } from "@/lib/paypal/contracts";
+import { canHavePayLink, newPayToken, payLinkUrl } from "@/lib/paypal/pay-link";
 
 export class ApprovalError extends Error {
   constructor(message: string, readonly status = 409) { super(message); }
 }
 
-// Only the server's approval route supplies this transport. Tests inject their boundary here.
-export type InvoiceTool = (name: string, args: Record<string, unknown>, requestId?: string) => Promise<unknown>;
-type ApprovalAction = "send" | "remind";
-
+/** What the invoice page shows: the invoice, its client and the fipa link once Approve has made one. */
 export async function invoiceReview(db: Db, householdId: string, invoiceId: string) {
   const hid = requireHousehold(householdId);
   const [row] = await db.select({ invoice: invoices, client: clients.name })
     .from(invoices).innerJoin(clients, and(eq(clients.householdId, hid), eq(clients.id, invoices.clientId)))
     .where(and(eq(invoices.householdId, hid), eq(invoices.id, invoiceId)));
-  return row;
+  if (!row) return undefined;
+  return { ...row, payLink: row.invoice.payToken ? payLinkUrl(row.invoice.payToken) : null };
 }
 
-const remoteInvoice = z.object({ id: z.string(), status: z.string(), primary_recipients: z.array(z.object({
-  billing_info: z.object({ email_address: z.string() }),
-})) });
-const searchResults = z.object({ items: z.array(z.object({
-  id: z.string(), detail: z.object({ invoice_number: z.string(), reference: z.string().optional() }),
-})).optional() });
-const createResult = z.union([z.object({ id: z.string().min(1) }), z.object({ href: z.string().url() })]);
-
-type ApprovalContext = {
+export type ApprovalContext = {
   db: Db;
   householdId: string;
   approveKey: string;
   today: string;
   usdRate: number;
-  recipient: string;
-  tool: InvoiceTool;
+  /** Only the approve route supplies the real one; tests inject theirs. */
+  createOrder: CreateOrder;
 };
 
-async function lockedInvoice(tx: Db, ctx: ApprovalContext) {
-  const [row] = await tx.select().from(invoices)
-    .where(and(eq(invoices.householdId, requireHousehold(ctx.householdId)), eq(invoices.approveKey, ctx.approveKey))).for("update");
-  if (!row) throw new ApprovalError("Invoice not found", 404);
-  return row;
-}
-
-function invoiceWhere(ctx: ApprovalContext, id: string) {
-  return and(eq(invoices.householdId, requireHousehold(ctx.householdId)), eq(invoices.id, id));
-}
-
-function requestId(key: string, action: "C" | "S" | "R") {
-  return action + "-" + key; // 38 bytes, distinct for each PayPal operation.
-}
-
-async function getRemote(ctx: ApprovalContext, remoteId: string) {
-  const remote = remoteInvoice.parse(await ctx.tool("get_invoice", { invoice_id: remoteId }));
-  const emails = remote.primary_recipients.map(r => r.billing_info.email_address.toLowerCase());
-  if (remote.id !== remoteId || emails.length !== 1 || emails[0] !== ctx.recipient.toLowerCase()) {
-    throw new ApprovalError("The invoice recipient must be the PayPal sandbox test client.");
-  }
-  return remote;
-}
-
-async function prepareDraft(ctx: ApprovalContext) {
-  await withHousehold(ctx.db, ctx.householdId, async tx => {
-    const invoice = await lockedInvoice(tx, ctx);
-    if (invoice.status === "closed") throw new ApprovalError("This sandbox invoice is closed.");
-    if (invoice.paypalInvoiceId || invoice.status === "paid" || invoice.status === "sent") return;
-    if (invoice.currency !== "USD" || invoice.amountMinor <= 0) throw new ApprovalError("A positive USD invoice amount is required.");
-    if (invoice.dueOn && invoice.dueOn !== ctx.today) throw new ApprovalError("Sandbox drafts support payment on receipt. Review the due date before sending.");
-    // Use the entire UUID in PayPal's 25-character invoice-number field. Each visitor shares one merchant.
-    const number = "P-" + Buffer.from(invoice.id.replaceAll("-", ""), "hex").toString("base64url");
-    const matches = searchResults.parse(await ctx.tool("search_invoicing", {
-      resource_type: "invoice", invoice_filters: { invoice_number: number, recipient_email: ctx.recipient },
-    })).items?.filter(item => item.detail.invoice_number === number) ?? [];
-    if (matches.length > 1 || (matches.length && matches[0].detail.reference !== invoice.id)) {
-      throw new ApprovalError("The sandbox invoice number is already in use.");
-    }
-    let remoteId: string | undefined = matches[0]?.id;
-    if (!remoteId) {
-      const result = createResult.parse(await ctx.tool("create_invoice", {
-        currency_code: "USD", invoice_number: number, reference: invoice.id, note: invoice.note ?? undefined,
-        primary_recipients: [{ billing_info: { email_address: ctx.recipient } }],
-        items: [{ name: invoice.item, quantity: "1", unit_amount: { currency_code: "USD", value: fromMinor(invoice.amountMinor, "USD").toFixed(2) } }],
-      }, requestId(invoice.approveKey, "C")));
-      remoteId = "id" in result ? result.id : new URL(result.href).pathname.split("/").pop();
-      if (!remoteId || !/^[A-Za-z0-9_-]+$/.test(remoteId)) throw new Error("Invalid sandbox invoice id");
-    }
-    await tx.update(invoices).set({ paypalInvoiceId: remoteId, number, status: "draft", fxRateMicro: toRateMicro(ctx.usdRate) })
-      .where(invoiceWhere(ctx, invoice.id));
+/**
+ * Approve (D12): asks PayPal for an order for the invoice's amount, paid to the household's PayPal, and gives the invoice its
+ * permanent fipa link. No lock is held while PayPal is asked, so webhooks and reads of the household never wait on it:
+ * 1. Under the invoice's row lock, the draft is checked and its link token kept (so a retry's order returns to the same link).
+ * 2. PayPal is asked with a PayPal-Request-Id made of the draft's approve key and what the order is for, so a second tap or a
+ *    retry after a timeout gets the same order back, and a draft edited since gets a new one.
+ * 3. Under the household lock, then the invoice's (the order every money writer locks in), the invoice is sent with that
+ *    order, unless a tap got there first or the draft changed while PayPal was asked.
+ */
+export async function approvePaymentLink(ctx: ApprovalContext): Promise<string> {
+  const hid = requireHousehold(ctx.householdId);
+  const draft = await withHousehold(ctx.db, hid, async tx => {
+    const [invoice] = await tx.select().from(invoices)
+      .where(and(eq(invoices.householdId, hid), eq(invoices.approveKey, ctx.approveKey))).for("update");
+    if (!invoice) throw new ApprovalError("Invoice not found", 404);
+    if (refusal(invoice)) return { invoice, payee: null };
+    const payee = await payeeOf(tx, hid);
+    if (invoice.payToken) return { invoice, payee };
+    const [kept] = await tx.update(invoices).set({ payToken: newPayToken() })
+      .where(and(eq(invoices.householdId, hid), eq(invoices.id, invoice.id))).returning();
+    return { invoice: kept, payee };
   });
-}
-
-async function sendInvoice(ctx: ApprovalContext) {
-  // Commit the remote ID before the send. A webhook can now identify this invoice, even if the send times out.
-  await prepareDraft(ctx);
-  return withHousehold(ctx.db, ctx.householdId, async tx => {
-    await beginMoneyChange(tx, ctx.householdId);
-    const invoice = await lockedInvoice(tx, ctx);
-    if (invoice.status === "sent" || invoice.status === "paid") return invoice.id;
-    if (!invoice.paypalInvoiceId) throw new ApprovalError("No sandbox draft exists.");
-    const remote = await getRemote(ctx, invoice.paypalInvoiceId);
-    if (remote.status === "DRAFT") {
-      await ctx.tool("send_invoice", { invoice_id: remote.id, send_to_recipient: true }, requestId(invoice.approveKey, "S"));
-    } else if (!["SENT", "UNPAID", "PAID", "PARTIALLY_PAID", "PAYMENT_PENDING"].includes(remote.status)) {
-      throw new ApprovalError("The sandbox invoice cannot be sent in its current state.");
+  const sentAlready = refusal(draft.invoice);
+  if (sentAlready === "sent") return draft.invoice.id;
+  if (sentAlready) throw sentAlready;
+  const payee = draft.payee!;
+  const token = draft.invoice.payToken!;
+  const requestId = `O-${ctx.approveKey}-${await orderFingerprint(draft.invoice, payee)}`;
+  const order = await ctx.createOrder(orderRequestFor(draft.invoice, payee, token, requestId));
+  return withHousehold(ctx.db, hid, async tx => {
+    await beginMoneyChange(tx, hid);
+    const [invoice] = await tx.select().from(invoices)
+      .where(and(eq(invoices.householdId, hid), eq(invoices.id, draft.invoice.id))).for("update");
+    if (!invoice) throw new ApprovalError("Invoice not found", 404);
+    const now = refusal(invoice);
+    if (now === "sent") return invoice.id;
+    if (now) throw now;
+    if (invoice.item !== draft.invoice.item || invoice.amountMinor !== draft.invoice.amountMinor || invoice.currency !== draft.invoice.currency
+      || invoice.payToken !== token || await payeeOf(tx, hid) !== payee) {
+      throw new ApprovalError("This invoice changed while its link was being made. Tap Approve again.");
     }
-    const [client] = await tx.select({ name: clients.name }).from(clients)
-      .where(and(eq(clients.householdId, ctx.householdId), eq(clients.id, invoice.clientId)));
-    await tx.update(invoices).set({ status: "sent", sentOn: ctx.today, dueOn: invoice.dueOn ?? ctx.today })
-      .where(invoiceWhere(ctx, invoice.id));
-    await recordEvent(tx, ctx.householdId, { madeBy: "form", kind: "invoice_sent", title: `Invoice sent to ${client.name}`,
+    const [client] = await tx.select({ name: clients.name, termsDays: clients.termsDays }).from(clients)
+      .where(and(eq(clients.householdId, hid), eq(clients.id, invoice.clientId)));
+    await tx.update(invoices).set({
+      status: "sent", sentOn: ctx.today, dueOn: invoice.dueOn ?? addDays(ctx.today, client.termsDays),
+      fxRateMicro: toRateMicro(ctx.usdRate), paypalOrderId: order.orderId, paypalOrderCreatedAt: order.createdAt,
+      paypalApproveUrl: order.approveUrl, paypalPayeeId: payee,
+    }).where(and(eq(invoices.householdId, hid), eq(invoices.id, invoice.id)));
+    await recordEvent(tx, hid, { madeBy: "form", kind: "invoice_sent", title: `Payment link made for ${client.name}`,
       amount: { value: fromMinor(invoice.amountMinor, invoice.currency), currency: invoice.currency }, ref: { type: "invoice", id: invoice.id } });
-    await observeRunway(tx, ctx.householdId);
+    await observeRunway(tx, hid);
     return invoice.id;
   });
 }
 
-async function remind(ctx: ApprovalContext) {
-  const claim = await withHousehold(ctx.db, ctx.householdId, async tx => {
-    const invoice = await lockedInvoice(tx, ctx);
-    if (invoice.remindedAt) return { id: invoice.id };
-    if (invoice.reminderAttemptedAt) throw new ApprovalError("A reminder was requested. Check its delivery in PayPal before taking further action.");
-    if (invoice.status !== "sent" || !invoice.paypalInvoiceId || !invoice.dueOn || invoice.dueOn >= ctx.today) {
-      throw new ApprovalError("Only an overdue, sent sandbox invoice can be reminded.");
-    }
-    const remote = await getRemote(ctx, invoice.paypalInvoiceId);
-    if (!["SENT", "UNPAID", "PARTIALLY_PAID"].includes(remote.status)) throw new ApprovalError("PayPal is not awaiting payment on this invoice.");
-    // /remind does not document idempotent retries. Commit the claim before touching the network.
-    await tx.update(invoices).set({ reminderAttemptedAt: new Date() }).where(invoiceWhere(ctx, invoice.id));
-    return { id: invoice.id, remoteId: invoice.paypalInvoiceId };
-  });
-  if (claim.remoteId) {
-    await ctx.tool("send_invoice_reminder", { invoice_id: claim.remoteId }, requestId(ctx.approveKey, "R"));
-    await withHousehold(ctx.db, ctx.householdId, async tx => {
-      await tx.update(invoices).set({ remindedAt: new Date() }).where(invoiceWhere(ctx, claim.id));
-      await recordEvent(tx, ctx.householdId, { madeBy: "form", kind: "reminder_sent", title: "Invoice reminder sent", ref: { type: "invoice", id: claim.id } });
-      await closeByRef(tx, ctx.householdId, claim.id, ["remind", "invoice"]);
-    });
-  }
-  return claim.id;
+/** Why this invoice cannot be approved now: "sent" when it already has its link, an ApprovalError, or null when it can. */
+function refusal(invoice: { status: string; currency: string; amountMinor: number }): "sent" | ApprovalError | null {
+  if (invoice.status === "closed") return new ApprovalError("This invoice is closed.");
+  if (invoice.status === "paid") return new ApprovalError("This invoice is already paid.");
+  if (invoice.status === "sent") return "sent";
+  if (!canHavePayLink(invoice)) return new ApprovalError("A positive USD invoice amount is required.");
+  return null;
 }
 
-export async function approveInvoice(ctx: ApprovalContext, action: ApprovalAction) {
-  requireHousehold(ctx.householdId);
-  if (!ctx.recipient.trim()) {
-    logSettingProblem("approve_env_not_ready", "SANDBOX_CLIENT_EMAIL is not set", ctx.householdId);
-    throw new ApprovalError("PayPal is not available right now. Try again later.", 503);
+async function payeeOf(tx: Db, hid: string): Promise<string> {
+  try { return await payeeFor(tx, hid); } catch (error) {
+    if (error instanceof NotConnected) throw new ApprovalError(error.message, 409);
+    throw error;
   }
-  return action === "remind" ? remind(ctx) : sendInvoice(ctx);
+}
+
+/** A short digest of what an order is for, so the PayPal-Request-Id changes when the draft does. */
+async function orderFingerprint(invoice: { item: string; amountMinor: number; currency: string }, payee: string): Promise<string> {
+  const text = JSON.stringify([invoice.item, invoice.amountMinor, invoice.currency, payee]);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
+  return Buffer.from(digest.slice(0, 12)).toString("base64url");
 }

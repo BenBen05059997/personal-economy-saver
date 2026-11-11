@@ -30,8 +30,8 @@
   {
     "id": "SUG-007",
     "area": "Assistant suggestions",
-    "action": "Review a sandbox nudge",
-    "user_goal": "I want to review the exact reminder before it can be sent",
+    "action": "Open a late-client finding",
+    "user_goal": "I want to see the invoice before I send the link again",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -40,15 +40,16 @@
     "how": "browser",
     "preconditions": [
       "Migration 0028 applied in the separate browser-test setup",
-      "375px and 1440px widths",
-      "A fictional Northwind sandbox invoice four days overdue with a nudge rule at 4 days and a completed pass"
+      "1440px width",
+      "A fictional Northwind invoice, sent with its payment link, four days past its usual pay day, with the late-client rule at 4 days and a completed pass"
     ],
     "steps": [
-      "On Home select Review reminder"
+      "On Home select Copy link again"
     ],
     "expected": [
-      "The existing invoice review opens with Approve reminder",
-      "No reminder was sent and the finding remains open"
+      "The finding reads 'Send Northwind the link again'",
+      "The invoice opens with its payment link and 'Copy link for Northwind'",
+      "Nothing was sent and the finding remains open until the link is copied"
     ],
     "refs": [
       "D64"
@@ -57,8 +58,8 @@
   {
     "id": "SUG-009",
     "area": "Assistant suggestions",
-    "action": "Review invoice",
-    "user_goal": "I want to inspect the invoice past its usual payment day",
+    "action": "Copy link again",
+    "user_goal": "I want to open the invoice past its usual payment day",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -71,10 +72,10 @@
       "Nov 23 Ben fixture with a completed pass"
     ],
     "steps": [
-      "Open Home and select Review invoice on the finding"
+      "Open Home and select Copy link again on the finding"
     ],
     "expected": [
-      "The Acme Corp finding gives Nov 22 as the usual date and opens invoice 1042"
+      "The Acme Corp finding 'Send Acme Corp the link again' says it has been that many days since the link was made and opens invoice 1042"
     ],
     "refs": [
       "D64"

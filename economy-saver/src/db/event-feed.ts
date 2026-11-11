@@ -14,13 +14,16 @@ export function publicEvent(row: typeof events.$inferSelect) {
 
 export type PublicEvent = ReturnType<typeof publicEvent>;
 
-export async function eventFeed(db: Db, householdId: string) {
+// A payment link is "in flight" while the PayPal order made for it is young enough to be paid.
+const IN_FLIGHT_MS = 3 * 3_600_000;
+
+export async function eventFeed(db: Db, householdId: string, now = new Date()) {
   const hid = requireHousehold(householdId);
   const [totals, recentRows] = await Promise.all([
     db.select({
       total: count(), latest: max(events.occurredAt),
       unread: sql<number>`count(*) filter (where ${events.notify} and ${events.readAt} is null)`.mapWith(Number),
-      inFlight: sql<boolean>`exists (select 1 from ${invoices} where ${invoices.householdId} = ${hid} and ${invoices.status} = 'sent' and ${invoices.paypalInvoiceId} is not null)
+      inFlight: sql<boolean>`exists (select 1 from ${invoices} where ${invoices.householdId} = ${hid} and ${invoices.status} = 'sent' and ${invoices.paypalOrderId} is not null and ${invoices.paypalOrderCreatedAt} > ${new Date(now.getTime() - IN_FLIGHT_MS).toISOString()}::timestamptz)
         or exists (select 1 from ${documents} where ${documents.householdId} = ${hid} and ${documents.status} in ('queued', 'reading'))`,
     }).from(events).where(eq(events.householdId, hid)),
     db.select().from(events).where(eq(events.householdId, hid))

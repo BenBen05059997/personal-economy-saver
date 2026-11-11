@@ -16,7 +16,7 @@ type FundingOption = {
   assumed?: boolean; repaymentCovered?: boolean; repayFrom?: string;
 };
 
-/** Financing comparison only. It neither infers eligibility nor places a loan in the runway. */
+/** Financing comparison only. Only a sent invoice with a payment link (`hasLink`) can be offered again. It neither infers eligibility nor places a loan in the runway. */
 export function fundingOptions(state: MoneyState) {
   const worst = series(state, "worst");
   const point = low(worst);
@@ -26,6 +26,8 @@ export function fundingOptions(state: MoneyState) {
   if (!gap) return { gap, date: point.date, days, repayOn: addDays(point.date, days), rows: [] as FundingOption[] };
   const base = ladder(state);
   const largest = [...arrivals(state)].sort((a, b) => b.amountHome - a.amountHome)[0];
+  // The late invoice is the sent one with a link expected earliest: its page holds the link to copy.
+  const earliest = [...arrivals(state)].filter(arrival => state.invoices.find(invoice => invoice.id === arrival.invoiceId)?.hasLink).sort((a, b) => a.expectedOn < b.expectedOn ? -1 : a.expectedOn > b.expectedOn ? 1 : 0)[0];
   const unbilled = state.invoices.find(invoice => invoice.status === "unbilled");
   const rows: FundingOption[] = base.filter(row => row.id !== "advance").map(row => {
     const projection = row.id === "invoice" && unbilled ? project(state, unbilled, state.today) : null;
@@ -35,11 +37,11 @@ export function fundingOptions(state: MoneyState) {
     const per = minorPerUnit(state.homeCurrency);
     const cost = row.id === "discount" ? Math.round(discount * per) / per : row.cost;
     return { id: row.id, title: row.title, cost, principal: 0, pick: !!covers,
-      detail: row.id === "remind" ? "Sent invoices are already in the forecast. A reminder does not guarantee an earlier payment." : row.detail,
+      detail: row.id === "remind" ? "Sent invoices are already in the forecast. Sending the link again does not guarantee an earlier payment." : row.detail ?? "",
       status: row.id === "invoice" ? covers ? "Projected to cover the gap if paid within the observed timing" : "Amount or arrival date does not cover the whole gap" :
         row.id === "discount" ? "Requires the client’s agreement and payment before the gap" : "Earlier arrival unconfirmed",
       ...(row.id === "invoice" && unbilled ? { href: `/invoices/${unbilled.id}`, action: "Review invoice" } :
-        row.id === "remind" ? { href: "/clients", action: "Review clients" } : {}),
+        row.id === "remind" && earliest ? { href: `/invoices/${earliest.invoiceId}`, action: "Copy link again" } : {}),
     };
   });
   if (state.homeCurrency === "JPY") {

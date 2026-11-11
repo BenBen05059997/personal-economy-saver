@@ -27,7 +27,7 @@ export function RulesView({ rules, currency, spaceNames }: { rules: StandingRule
   return <article className="memory-page">
     <header>
       <h2 className="ui-title">Assistant rules</h2>
-      <p className="ui-hint">Rules make suggestions and reminders. PayPal actions still need your approval.</p>
+      <p className="ui-hint">Rules make suggestions and reminders. fipa sends nothing to a client; the payment link behind Approve is the one PayPal action, and it needs your approval.</p>
     </header>
     <ApiFormGroup>
       {RULE_KINDS.map(kind => {

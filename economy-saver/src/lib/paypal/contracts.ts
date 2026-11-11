@@ -1,6 +1,7 @@
 // Types and error classes the PayPal modules share. No code that talks to PayPal lives here.
 
-export type PayPalRequest = { method: "GET" | "POST"; path: string; body?: unknown; actAs?: string; requestId?: string };
+/** `bodyText` is sent exactly as given, for a body that must reach PayPal byte for byte (a webhook event being verified). */
+export type PayPalRequest = { method: "GET" | "POST"; path: string; body?: unknown; bodyText?: string; actAs?: string; requestId?: string };
 /** One PayPal call. Everything that talks to PayPal takes one, so tests pass a fake. */
 export type PayPalCall = (req: PayPalRequest, signal?: AbortSignal) => Promise<unknown>;
 
@@ -8,7 +9,12 @@ export type OrderRequest = { payee: string; requestId: string; invoiceId: string
   amountMinor: number; currency: "USD"; returnUrl: string; cancelUrl: string };
 export type MadeOrder = { orderId: string; approveUrl: string; createdAt: Date };
 export type CreateOrder = (o: OrderRequest) => Promise<MadeOrder>;
-export type CaptureOrder = (orderId: string, payee: string) => Promise<"captured" | "already">; // throws PayPalError
+/**
+ * Takes an approved order's payment. The capture id PayPal gave when the capture is completed or pending; null when the order
+ * was already captured (the completed-payment event brings it). `declined` when PayPal answered with a capture that took no
+ * money (DECLINED or FAILED): the order is spent and the client pays again on a fresh one. Throws PayPalError.
+ */
+export type CaptureOrder = (orderId: string, payee: string) => Promise<{ captureId: string | null; declined?: boolean }>;
 
 export type ConnectionView = { state: "demo" | "none" | "pending" | "connected"; email: string | null; detail: string | null };
 

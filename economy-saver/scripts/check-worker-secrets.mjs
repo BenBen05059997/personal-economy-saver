@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const local = new URL("../.env.local", import.meta.url);
 if (existsSync(local)) process.loadEnvFile(fileURLToPath(local));
-const names = ["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_WEBHOOK_ID", "SANDBOX_CLIENT_EMAIL",
+const names = ["PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_WEBHOOK_ID",
   "PAYPAL_PARTNER_ATTRIBUTION_ID", "PAYPAL_PARTNER_MERCHANT_ID",
   "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "DATABASE_URL", "AI_API_KEY",
   "INBOUND_ADDRESS_KEY", "INBOUND_WORKER_SECRET", "CRON_SECRET", "MCP_TOKEN_KEY", "AI_KEY_SEAL_KEY", "RESEND_API_KEY",

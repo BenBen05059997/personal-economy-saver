@@ -12,7 +12,6 @@ import { verifiedIdentity } from "@/lib/auth-request";
 import { currentHouseholdId } from "@/lib/session";
 import { DetailsTab } from "@/components/household-page/DetailsTab";
 import { PeopleTab } from "@/components/household-page/PeopleTab";
-import { householdRole } from "@/components/settings/access";
 import { WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
 import { LinkTabs } from "@/components/ui/LinkTabs";
 import { ScrollToHash } from "@/components/ui/ScrollToHash";
@@ -30,9 +29,9 @@ async function Household({ params }: { params: Promise<{ tab?: string[] }> }) {
   const [hid, identity] = await Promise.all([currentHouseholdId(), verifiedIdentity()]);
   if (!hid) redirect("/");
   const { workspace, data, familyLinks, access, canManage } = await withHousehold(db(), hid, async tx => {
-    const [workspace, data] = await Promise.all([loadNavigationData(tx, hid), loadSettings(tx, hid)]);
+    const [workspace, data] = await Promise.all([loadNavigationData(tx, hid, identity), loadSettings(tx, hid)]);
     if (current === "details") return { workspace, data, familyLinks: [], access: null, canManage: false };
-    const { isOwner, canManage } = await householdRole(tx, hid, identity, data.household.demo);
+    const { isOwner, canManage } = workspace.role;
     const [tokens, links, active] = await Promise.all([
       canManage ? listMcpTokens(tx, hid) : [],
       canManage ? listFamilyLinks(tx, hid) : [],

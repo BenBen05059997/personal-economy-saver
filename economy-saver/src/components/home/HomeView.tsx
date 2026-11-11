@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { categoryLabel } from "@/lib/money/categories";
 import type { ConnectionView } from "@/lib/paypal/contracts";
+import { ConnectLine } from "@/components/paypal/ConnectLine";
 import type { CancelNotice, MoneyState } from "@/lib/money/types";
 import { aboutMoney, dayLabel, formatter, minorPerUnit, repeatWords, usd } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN, confirmedGaps, gapAmountWords, gapDateWords, gapMeanwhileWords, gapQuestion, openGaps } from "@/lib/money/gaps";
@@ -44,7 +45,7 @@ function Actions({ state, forwarding }: Props & { forwarding: boolean }) {
   return <div id="actions">
     <div className="home-actions">
       {invoiceFix ? <Link className="home-button home-primary" prefetch={false} href={`/invoices/${unbilled.id}`}>Invoice {client.name.split(" ")[0]} {usd(unbilled.amountUsd)}</Link>
-        : pick && <Link className="home-button home-primary" prefetch={false} href={pick.id === "remind" ? "/clients" : "/options"}>{pick.title}</Link>}
+        : pick && <Link className="home-button home-primary" prefetch={false} href={pick.href ?? "/options"}>{pick.title}</Link>}
       {forwarding && <Link className="home-button home-secondary" prefetch={false} href="/bills#forwarding">Forward a bill</Link>}
       <Link className="home-button home-secondary" prefetch={false} href="/upload">Upload a receipt</Link>
     </div>
@@ -241,18 +242,18 @@ function addedLine(state: MoneyState, id: string | null): string | null {
   return charge && card ? `Added ${charge.merchant} ${format(charge.amount)} on ${card.label}` : null;
 }
 
-export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, connection }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; connection: ConnectionView }) {
+export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, connection, isOwner, asOf }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; connection: ConnectionView; isOwner: boolean; asOf: string | null }) {
   const date = homeDateLabel(state.today);
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
     <h1><Sentence state={state} linked /></h1>
     {homeSentence(state).note && <p className="home-sentence-note">{homeSentence(state).note}</p>}
     {demo && tryIt && <p className="home-demo">A fictional household that lives in this browser for seven days after your last change. <Link prefetch={false} href="/start">Start with my numbers ›</Link></p>}
-    {(connection.state === "none" || connection.state === "pending") && <p className="home-demo" id="connect-paypal">Connect your PayPal so fipa can read your balance and make payment links. <Link prefetch={false} href="/settings/paypal">Connect PayPal ›</Link></p>}
-    {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
+    <ConnectLine connection={connection} isOwner={isOwner} />
+    {(notice || asOf) && <p role="status" className="home-freshness ui-hint">{notice ?? `PayPal balance as of ${asOf}.`}</p>}
     <Actions state={state} forwarding={forwarding} />
     <Suspense fallback={null}>{pins}</Suspense>
-    {tryIt && getStarted ? <GetStarted key={householdId} householdId={householdId} progress={getStarted} peopleCount={state.split.members.length} /> : <HintsPanel state={state} inbox={inbox} tryIt={tryIt} householdId={householdId} />}
+    {tryIt && getStarted ? <GetStarted key={householdId} householdId={householdId} progress={getStarted} peopleCount={state.split.members.length} invoiceHref={(inv => inv ? `/invoices/${inv.id}` : "/clients")(state.invoices.find(i => i.status === "unbilled") ?? state.invoices.find(i => i.status === "sent"))} /> : <HintsPanel state={state} inbox={inbox} tryIt={tryIt} householdId={householdId} />}
     <HomeViews state={state} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
     <div className="home-panels">
       <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} /></div>

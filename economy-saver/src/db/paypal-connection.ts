@@ -1,8 +1,9 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, getTableColumns, ne } from "drizzle-orm";
+import { env } from "@/lib/env";
 import { recordEvent, recordWebhookDelivery, requireHousehold, withHousehold, type Db } from "./household";
 import { households, members, paypalConnections } from "./schema";
 import { createReferral, sellerStatus } from "@/lib/paypal/partner";
-import type { PayPalCall } from "@/lib/paypal/contracts";
+import { NotConnected, type ConnectionView, type PayPalCall } from "@/lib/paypal/contracts";
 import type { PayPalWebhookEvent } from "@/lib/paypal/webhook";
 
 /** A connection step that cannot go ahead; `message` is for the person. */
@@ -13,15 +14,46 @@ export class ConnectError extends Error {
 const WAITING = "PayPal hasn't finished your sign-up yet. Check again in a moment.";
 const TAKEN = "That PayPal account is already connected to another fipa household.";
 
-/** The household owner's connection row (one per household, made with it). */
-async function ownerConnection(tx: Db, hid: string) {
-  const [row] = await tx.select({ id: paypalConnections.id, status: paypalConnections.connectionStatus, trackingId: paypalConnections.trackingId, demo: households.isDemo })
+/**
+ * The household owner's PayPal connection row (one per household, made with it), with the household's Try it flag, time zone
+ * and home currency. Undefined when the household has none. The one place this lookup is written.
+ */
+export async function ownerPayPal(tx: Db, householdId: string) {
+  const hid = requireHousehold(householdId);
+  const [row] = await tx.select({ ...getTableColumns(paypalConnections), demo: households.isDemo, timeZone: households.timeZone, home: households.homeCurrency })
     .from(paypalConnections)
     .innerJoin(members, and(eq(members.id, paypalConnections.memberId), eq(members.householdId, hid)))
     .innerJoin(households, eq(households.id, paypalConnections.householdId))
     .where(and(eq(paypalConnections.householdId, hid), eq(members.role, "owner")));
+  return row;
+}
+
+async function ownerConnection(tx: Db, hid: string) {
+  const row = await ownerPayPal(tx, hid);
   if (!row) throw new ConnectError("This household has no PayPal record.", 404);
   return row;
+}
+
+/** What Settings → PayPal and Home show about a household's PayPal connection (D76). */
+export async function paypalConnectionView(tx: Db, hid: string): Promise<ConnectionView> {
+  const row = await ownerPayPal(tx, hid);
+  if (!row) throw new Error("Household PayPal connection is missing.");
+  if (row.demo) return { state: "demo", email: null, detail: null };
+  if (row.connectionStatus === "connected") return { state: "connected", email: row.paypalEmail, detail: null };
+  if (row.connectionStatus === "pending") return { state: "pending", email: null, detail: row.statusDetail };
+  return { state: "none", email: null, detail: null };
+}
+
+/**
+ * The PayPal account a payment link pays: a connected household's own, a Try it household's fipa's own sandbox account.
+ * A signed-in household that has not connected throws NotConnected.
+ */
+export async function payeeFor(tx: Db, hid: string): Promise<string> {
+  const row = await ownerPayPal(tx, hid);
+  if (!row) throw new Error("Household PayPal connection is missing.");
+  if (row.demo) return env().PAYPAL_PARTNER_MERCHANT_ID;
+  if (row.connectionStatus === "connected" && row.sellerMerchantId) return row.sellerMerchantId;
+  throw new NotConnected();
 }
 
 const CLEARED = {
@@ -34,12 +66,12 @@ export async function startConnect(db: Db, householdId: string, call: PayPalCall
   const hid = requireHousehold(householdId);
   const current = await withHousehold(db, hid, tx => ownerConnection(tx, hid));
   if (current.demo) throw new ConnectError("A Try it household can't connect PayPal. Sign in with your email first.", 400);
-  if (current.status === "connected") throw new ConnectError("PayPal is already connected. Disconnect it first.");
+  if (current.connectionStatus === "connected") throw new ConnectError("PayPal is already connected. Disconnect it first.");
   const trackingId = `fipa-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
   const actionUrl = await createReferral(call, trackingId);
   await withHousehold(db, hid, async tx => {
     const row = await ownerConnection(tx, hid);
-    if (row.status === "connected") throw new ConnectError("PayPal is already connected. Disconnect it first.");
+    if (row.connectionStatus === "connected") throw new ConnectError("PayPal is already connected. Disconnect it first.");
     await tx.update(paypalConnections).set({ connectionStatus: "pending", trackingId, statusDetail: null, referralStartedAt: new Date() })
       .where(and(eq(paypalConnections.householdId, hid), eq(paypalConnections.id, row.id)));
   });
@@ -49,16 +81,15 @@ export async function startConnect(db: Db, householdId: string, call: PayPalCall
 export type ConfirmResult = { state: "connected" | "pending"; detail: string | null };
 
 /**
- * Confirms the sign-up the owner just started by asking PayPal about its tracking id. A different tracking id is
- * refused; nothing in the return address (merchant ids, flags) is believed. The connection is stored only when the
- * account can receive payments, its email is confirmed and fipa's permission is granted; otherwise it stays pending
- * and says what PayPal still needs.
+ * Confirms the sign-up this household started by asking PayPal about the tracking id it stored; nothing in a return address
+ * (tracking id, merchant ids, flags) is believed. The connection is stored only when the account can receive payments, its
+ * email is confirmed and fipa's permission is granted; otherwise it stays pending and says what PayPal still needs.
  */
-export async function confirmConnection(db: Db, householdId: string, trackingId: string, call: PayPalCall): Promise<ConfirmResult> {
+export async function confirmConnection(db: Db, householdId: string, call: PayPalCall): Promise<ConfirmResult> {
   const hid = requireHousehold(householdId);
   const row = await withHousehold(db, hid, tx => ownerConnection(tx, hid));
-  if (row.status === "connected") return { state: "connected", detail: null };
-  if (row.status !== "pending" || !row.trackingId || row.trackingId !== trackingId) throw new ConnectError("That PayPal sign-up was not started here. Start again from Settings.", 400);
+  if (row.connectionStatus === "connected") return { state: "connected", detail: null };
+  if (row.connectionStatus !== "pending" || !row.trackingId) throw new ConnectError("There is no PayPal sign-up to check. Start again from Settings.", 400);
   const seller = await sellerStatus(call, row.trackingId);
   const pending = async (detail: string): Promise<ConfirmResult> => {
     await withHousehold(db, hid, tx => tx.update(paypalConnections).set({ statusDetail: detail })
@@ -85,15 +116,6 @@ export async function confirmConnection(db: Db, householdId: string, trackingId:
   return { state: "connected", detail: null };
 }
 
-/** "Check again": confirms the tracking id this household stored when it last started. */
-export async function recheckConnection(db: Db, householdId: string, call: PayPalCall): Promise<ConfirmResult> {
-  const hid = requireHousehold(householdId);
-  const row = await withHousehold(db, hid, tx => ownerConnection(tx, hid));
-  if (row.status === "connected") return { state: "connected", detail: null };
-  if (!row.trackingId) throw new ConnectError("There is no PayPal sign-up to check. Start again from Settings.", 400);
-  return confirmConnection(db, hid, row.trackingId, call);
-}
-
 function uniqueViolation(error: unknown): boolean {
   for (let e = error as { code?: string; cause?: unknown } | undefined, depth = 0; e && depth < 4; e = e.cause as typeof e, depth++) {
     if (e.code === "23505") return true;
@@ -106,8 +128,8 @@ export async function disconnect(db: Db, householdId: string): Promise<boolean> 
   const hid = requireHousehold(householdId);
   return withHousehold(db, hid, async tx => {
     const row = await ownerConnection(tx, hid);
-    if (row.status === null) return false;
-    const was = row.status;
+    if (row.connectionStatus === null) return false;
+    const was = row.connectionStatus;
     await tx.update(paypalConnections).set(CLEARED).where(and(eq(paypalConnections.householdId, hid), eq(paypalConnections.id, row.id)));
     if (was === "connected") await recordEvent(tx, hid, { madeBy: "form", kind: "paypal_disconnected", title: "PayPal disconnected" });
     return true;
@@ -130,7 +152,7 @@ export async function applyMerchantEvent(db: Db, event: PayPalWebhookEvent, call
       .where(and(eq(paypalConnections.trackingId, trackingId), eq(paypalConnections.connectionStatus, "pending")));
     if (match) {
       // Confirming asks PayPal; if that fails the delivery fails and PayPal sends it again, so the receipt comes after it.
-      await confirmConnection(db, match.hid, trackingId, call);
+      await confirmConnection(db, match.hid, call);
       await recordWebhookDelivery(db, match.hid, receipt());
       return;
     }
