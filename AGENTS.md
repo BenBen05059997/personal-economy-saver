@@ -25,6 +25,7 @@ A personal money agent for people paid through PayPal (D2, D29). Home is one sen
 - The lead plans, reviews and handles anything touching secrets or the owner's accounts. Sonnet agents build, each owning its own files, in parallel where the files don't overlap.
 - Work from PLAN.md. Stop only at an owner gate (rules 3 and 4) and carry on with whatever doesn't depend on the answer.
 - Builders run only the checks for what they changed: `npx tsc --noEmit -p .` and the suites that cover their files. The lead runs `npm run lint` and the full `npm run db:test` once, before committing.
+- Each behaviour is tested once: household isolation in the isolation suite, the cross-site guard in its unit test and the HTTP guard list, and a QA scenario only for what a script can't see in a browser.
 - A migration only adds before the code that uses it ships, and removes only after no running Worker reads the old shape.
 - QA runs at desktop width, 1440px; judges use a computer. Phone width only when the owner asks. How to run QA: [qa/README.md](qa/README.md).
 - The accent is the logo's light yellow: buttons and selected states `#FCCB78` with dark text, chart marks `#F7A30A`; no blue, no dark amber (D72).
@@ -47,7 +48,7 @@ A personal money agent for people paid through PayPal (D2, D29). Home is one sen
 |---|---|
 | `DECISIONS.md` | what the product does, for whom, and why |
 | `PLAN.md` | open work and the owner's gates |
-| `qa/` | the QA scenarios (one per user action), their latest results, the expected numbers and how to run them |
+| `qa/` | the QA scenarios for what a script can't see in a browser, their latest results, the expected numbers and how to run them |
 | `design/` | the approved mockups |
 | `research/` | background reading the decisions cite |
 | `submission/` | the owner's Devpost text and video script |

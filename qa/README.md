@@ -39,7 +39,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 | Options | "Cover ¥18,780 by Nov 27."; first option Invoice Beacon Studio, ¥0 extra cost |
 | Clients | Acme $1,200 outstanding; Beacon Studio nothing outstanding; Northwind $800 outstanding |
 | Home → Categories → Look at it by | November: Business ¥32,830, Personal ¥119,400, total ¥152,230; the sentence "Business ¥32,830 of ¥152,230 this month". Person is not offered with one person |
-| Own categories (Settings → Your categories) | Food: Coffee · 3 items. Other: Books & films · 2 items, Gear · 2 items. None has a default share |
+| Own categories (Plan → Your categories) | Food: Coffee · 3 items. Other: Books & films · 2 items, Gear · 2 items. None has a default share |
 | Own categories in November | Food ¥10,700 = Coffee ¥1,880 + Everything else in Food ¥8,820. Other ¥48,900 = Gear ¥24,600 + Books & films ¥0 (¥7,480 in October) + Everything else in Other ¥24,300. Totals and the sentence do not change |
 | Coffee in October | ¥2,800 in October (2 items), ¥1,880 in November (1 item) |
 
@@ -95,7 +95,7 @@ A fresh Try it household (today Nov 14). Card A's owed now is ¥86,450.
 
 ## Model settings run
 
-Settings → Your AI model (`/settings#ai-model`, a panel in the right column at 1440px). Start with a fresh Try it household. For the browser saves, the owner starts an isolated dev process from `economy-saver/` using its usual app settings. Use a free port and make `APP_URL` match it. This example uses 3124.
+Settings → Your AI model tab. Start with a fresh Try it household. For the browser saves, the owner starts an isolated dev process from `economy-saver/` using its usual app settings. Use a free port and make `APP_URL` match it. This example uses 3124.
 
 ```sh
 PES_MODEL_SETTINGS_QA=1 NODE_OPTIONS="--require=tsx/cjs --require=./scripts/model-settings-qa.ts" APP_URL=http://127.0.0.1:3124 npm run dev -- -p 3124

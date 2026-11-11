@@ -110,6 +110,7 @@ How it is kept: when a decision changes, its row is rewritten in place to the ne
 | O5 | The "price in the PayPal fee" suggestion: count the whole ¥419k a year as found money, or only part? | Owner |
 | O6 | Which models read Japanese bills and card emails best for the document and text models (the server's defaults and the tested list, D56): the eval set plus the sample files, on at least two providers; waits on the owner's AI settings | Claude |
 | O10 | USD sentence amounts: whole dollars, as now, or cents? Cents change every USD sentence. | Owner |
+| O11 | Connect PayPal per person: Log in with PayPal gives identity only; invoicing from a person's own account and reading its balance need PayPal's partner onboarding, which PayPal must enable for the app even in the sandbox. Until then invoices go out from fipa's one sandbox account. Ask PayPal to enable it, or say so on screen? | Owner |
 
 ## Facts the decisions rest on
 

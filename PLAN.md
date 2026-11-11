@@ -13,7 +13,7 @@ Only Ben can do these. Agents carry on with anything that doesn't wait on them.
 - Voice with a microphone in his own Chrome or Safari, in English and Japanese (D26).
 - Supabase's Security Advisor; an uptime monitor and Worker error alerting; a manual encrypted database dump before demo day.
 - Say when the contract migration may run: it drops the unused AI-cap columns and table and the old nudge column (D66).
-- Answer O2, O5 and O10 in DECISIONS.md.
+- Answer O2, O5, O10 and O11 in DECISIONS.md.
 - Devpost: join the hackathon; the early eligibility check (D30); the OK to make the repo public; the final video on a Try it household on the deployed URL; submit by the evening of Nov 12, Tokyo (D1).
 - Approve the canvas concept; then it is saved under `design/`.
 
