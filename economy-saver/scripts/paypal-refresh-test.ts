@@ -20,6 +20,8 @@ async function test() {
   process.env.PAYPAL_ENVIRONMENT = "SANDBOX";
   process.env.PAYPAL_CLIENT_ID = "fictional-test-client";
   process.env.PAYPAL_CLIENT_SECRET = "fictional-test-secret";
+  process.env.PAYPAL_PARTNER_ATTRIBUTION_ID = "FIPA_TEST_BN";
+  process.env.PAYPAL_PARTNER_MERCHANT_ID = "PARTNERFICTIONAL";
   const pg = new PGlite({ extensions: { pg_trgm } });
   try {
     const queries: string[] = [];

@@ -46,6 +46,9 @@ import * as invitesMod from "@/db/invites";
 import * as mcpTokens from "@/db/mcp-tokens";
 import * as memoryMod from "@/db/memory"; // D58 memory
 import * as paypalImport from "@/db/paypal-import";
+import * as paypalConnectMod from "@/db/paypal-connection"; // D76 Connect PayPal
+import * as paypalConnectReadMod from "@/db/paypal-connection-read";
+import { NotConnected, type PayPalCall } from "@/lib/paypal/contracts";
 import * as paypalRefresh from "@/db/paypal-refresh";
 import * as ownCategoriesMod from "@/db/own-categories"; // D75 own categories
 import * as people from "@/db/people";
@@ -109,6 +112,8 @@ const covered = [
   "saveInvoiceDraft", "markPaidOutside", "listMcpTokens", "issueMcpToken", "authenticateMcpToken", "revokeMcpToken",
   // paypal-import.ts, paypal-refresh.ts
   "canImportPayPal", "importPayPalHistory", "refreshPayPal",
+  // paypal-connection.ts, paypal-connection-read.ts
+  "startConnect", "confirmConnection", "recheckConnection", "disconnect", "applyMerchantEvent", "paypalConnectionView", "payeeFor",
   // people.ts, pots.ts
   "memberCount", "memberByName", "addMember", "savePeople", "removeMember", "savePot", "confirmPot", "removePot", "fillPots",
   // rate-limit.ts, reader-inbox.ts, reader-job.ts, readings.ts, reference-rate.ts
@@ -235,7 +240,7 @@ async function main() {
   const used = new Set<string>();
   const modules = {
     ...account, ...aiKeys, ...approval, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
-    ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...invitesMod, ...mcpTokens, ...paypalImport, ...paypalRefresh, ...people, ...potsMod, ...rateLimit,
+    ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...invitesMod, ...mcpTokens, ...paypalImport, ...paypalRefresh, ...paypalConnectMod, ...paypalConnectReadMod, ...people, ...potsMod, ...rateLimit,
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
     ...importChargesMod, // Stage 17 import
     ...spendingMod, // Stage 17 spending
@@ -255,11 +260,14 @@ async function main() {
     },
   });
 
-  const saved = Object.fromEntries(["PAYPAL_ENVIRONMENT", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "MCP_TOKEN_KEY", "PAYPAL_BALANCE_HOUSEHOLD_ID", "AI_TEXT_MODEL"].map(k => [k, process.env[k]]));
+  const saved = Object.fromEntries(["PAYPAL_ENVIRONMENT", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "MCP_TOKEN_KEY", "PAYPAL_BALANCE_HOUSEHOLD_ID", "AI_TEXT_MODEL", "APP_URL", "PAYPAL_PARTNER_ATTRIBUTION_ID", "PAYPAL_PARTNER_MERCHANT_ID"].map(k => [k, process.env[k]]));
   try {
     process.env.PAYPAL_ENVIRONMENT = "SANDBOX";
     process.env.PAYPAL_CLIENT_ID = "fictional-test-client";
     process.env.PAYPAL_CLIENT_SECRET = "fictional-test-secret";
+    process.env.PAYPAL_PARTNER_ATTRIBUTION_ID = "FIPA_TEST_BN";
+    process.env.PAYPAL_PARTNER_MERCHANT_ID = "PARTNERFICTIONAL";
+    process.env.APP_URL = "https://fipa.example.test";
     process.env.AI_TEXT_MODEL = "fixture-text";
     process.env.MCP_TOKEN_KEY = randomBytes(32).toString("base64url");
     process.env.AI_KEY_SEAL_KEY = randomBytes(32).toString("base64url"); // fictional test seal key (a household's saved AI key is sealed with it)
@@ -1478,6 +1486,82 @@ async function main() {
           if (value === undefined) delete process.env[key]; else process.env[key] = value;
         }
       }
+    });
+
+    // ---------------------------------------------------------------- Connect PayPal (D76)
+    await check("Connect PayPal: a sign-up, a connection, a revoke and a disconnect touch only their own household", async () => {
+      const base = "/v1/customer/partners/PARTNERFICTIONAL/merchant-integrations";
+      const sellers = new Map<string, { merchant: string; email: string }>();
+      const calls: string[] = [];
+      const call: PayPalCall = async req => {
+        calls.push(`${req.method} ${req.path}`);
+        if (req.method === "POST" && req.path === "/v2/customer/partner-referrals") return { links: [{ rel: "action_url", href: "https://www.sandbox.paypal.com/bizsignup/partner/entry?referralToken=fictional" }] };
+        if (req.method === "GET" && req.path.startsWith(`${base}?tracking_id=`)) {
+          const seller = sellers.get(decodeURIComponent(req.path.split("tracking_id=")[1]));
+          if (!seller) throw new Error("not found");
+          return { merchant_id: seller.merchant };
+        }
+        if (req.method === "GET" && req.path.startsWith(`${base}/`)) {
+          const id = decodeURIComponent(req.path.slice(base.length + 1));
+          const seller = [...sellers.values()].find(s => s.merchant === id);
+          if (!seller) throw new Error("not found");
+          return { merchant_id: id, primary_email: seller.email, primary_email_confirmed: true, payments_receivable: true,
+            oauth_integrations: [{ oauth_third_party: [{ partner_client_id: "fictional-test-client" }] }] };
+        }
+        throw new Error(`Unexpected PayPal call ${req.method} ${req.path}`);
+      };
+      const rowOf = async (hid: string) => (await db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, hid)))[0];
+      const trackingOf = async (hid: string) => (await rowOf(hid)).trackingId!;
+      const ev = (id: string, type: string, resource: Record<string, unknown>) => ({ id, event_type: type, create_time: "2026-11-11T00:00:00Z", resource });
+      const { ConnectError } = paypalConnectMod;
+      // Try it households cannot connect PayPal, so this check uses two signed-in households of its own.
+      const hidA = await seedBen(db), hidB = await seedBen(db);
+
+      assert.equal((await F.paypalConnectionView(store, hidA)).state, "none");
+      await assert.rejects(F.recheckConnection(store, hidB, call), ConnectError);
+      await F.startConnect(store, hidA, call);
+      const trackingA = await trackingOf(hidA);
+      assert.equal((await rowOf(hidB)).connectionStatus, null);
+      const callsBefore = calls.length;
+      await assert.rejects(F.confirmConnection(store, hidB, trackingA, call), ConnectError);
+      assert.equal(calls.length, callsBefore, "a foreign tracking id made no PayPal call");
+      await assert.rejects(F.recheckConnection(store, hidB, call), ConnectError);
+      assert.equal((await F.paypalConnectionView(store, hidB)).state, "none");
+
+      sellers.set(trackingA, { merchant: "ISOSELLERA", email: "isolation-a-seller@example.test" });
+      assert.equal((await F.confirmConnection(store, hidA, trackingA, call)).state, "connected");
+      assert.deepEqual(await F.paypalConnectionView(store, hidA), { state: "connected", email: "isolation-a-seller@example.test", detail: null });
+      assert.deepEqual(await F.paypalConnectionView(store, hidB), { state: "none", email: null, detail: null });
+      assert.equal(await F.payeeFor(store, hidA), "ISOSELLERA");
+      await assert.rejects(F.payeeFor(store, hidB), NotConnected);
+
+      // B connects a different account, so a revoke for A's account has something of B's to leave alone.
+      await F.startConnect(store, hidB, call);
+      const trackingB = await trackingOf(hidB);
+      sellers.set(trackingB, { merchant: "ISOSELLERB", email: "isolation-b-seller@example.test" });
+      // A completed-onboarding delivery carrying B's pending tracking id confirms B only.
+      await F.applyMerchantEvent(store, ev("WH-ISO-ONB", "MERCHANT.ONBOARDING.COMPLETED", { merchant_id: "ISOSELLERB", tracking_id: trackingB }), call);
+      assert.equal((await rowOf(hidB)).sellerMerchantId, "ISOSELLERB");
+      assert.equal((await rowOf(hidA)).sellerMerchantId, "ISOSELLERA");
+
+      const bRow = await rowOf(hidB);
+      await F.applyMerchantEvent(store, ev("WH-ISO-REVOKE", "MERCHANT.PARTNER-CONSENT.REVOKED", { merchant_id: "ISOSELLERA" }), call);
+      assert.equal((await F.paypalConnectionView(store, hidA)).state, "none");
+      assert.equal((await rowOf(hidA)).sellerMerchantId, null);
+      assert.deepEqual(await rowOf(hidB), bRow, "B's connection row is unchanged by A's revoke");
+      assert.equal(await F.payeeFor(store, hidB), "ISOSELLERB");
+
+      // Reconnect A, then disconnect B: A stays connected.
+      await F.startConnect(store, hidA, call);
+      const trackingA2 = await trackingOf(hidA);
+      sellers.set(trackingA2, { merchant: "ISOSELLERA2", email: "isolation-a-seller@example.test" });
+      await F.confirmConnection(store, hidA, trackingA2, call);
+      const aRow = await rowOf(hidA);
+      assert.equal(await F.disconnect(store, hidB), true);
+      assert.equal((await F.paypalConnectionView(store, hidB)).state, "none");
+      assert.deepEqual(await rowOf(hidA), aRow, "A's connection is unchanged by B's disconnect");
+      assert.equal(await F.payeeFor(store, hidA), "ISOSELLERA2");
+      assert.equal(await F.disconnect(store, hidA), true); // leave both households as they were
     });
 
     // ---------------------------------------------------------------- the guard

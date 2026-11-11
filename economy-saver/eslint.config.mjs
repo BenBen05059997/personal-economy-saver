@@ -5,26 +5,33 @@ import nextTs from "eslint-config-next/typescript";
 const modelSdk = { group: ["@anthropic-ai/*", "@ai-sdk/*", "openai", "openai/*"], message: "Call models through callModel in src/lib/ai (D56)." };
 const modelPath = { name: "ai", message: "Call models through callModel in src/lib/ai (D56)." };
 
+const toolkitPath = { name: "@/lib/paypal/toolkit", importNames: ["runTool", "deleteSmokeDraft"], message: "Only src/app/api/approve/route.ts may send to PayPal (D12)." };
+const createOrderPath = { name: "@/lib/paypal/send", importNames: ["createOrder"], message: "Only the approve route and the payment link's Pay route may make an order (D12)." };
+const captureOrderPath = { name: "@/lib/paypal/send", importNames: ["captureOrder"], message: "Only the webhook route may take a payment (D12)." };
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  // Sending to PayPal happens in one place (D12): only the approve route may import the send-capable runner.
-  // Every model call goes through src/lib/ai (D56): nothing else imports a model SDK. One rule entry per file, so the
-  // two restrictions are written together.
+  // Making and taking payments happens in a few named places (D12): an order may be made only where Approve and the
+  // link's Pay run, a payment may be taken only where the webhook runs, and the legacy send-capable runner stays in the
+  // approve route until it is removed. Every model call goes through src/lib/ai (D56): nothing else imports a model SDK.
+  // One rule entry per file, so the restrictions are written together.
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/app/api/approve/route.ts", "src/lib/ai/**"],
-    rules: {
-      "no-restricted-imports": ["error", { paths: [{
-        name: "@/lib/paypal/toolkit",
-        importNames: ["runTool", "deleteSmokeDraft"],
-        message: "Only src/app/api/approve/route.ts may send to PayPal (D12).",
-      }, modelPath], patterns: [modelSdk] }],
-    },
+    ignores: ["src/app/api/approve/route.ts", "src/app/api/pay/route.ts", "src/app/api/paypal/webhook/route.ts", "src/lib/ai/**"],
+    rules: { "no-restricted-imports": ["error", { paths: [toolkitPath, createOrderPath, captureOrderPath, modelPath], patterns: [modelSdk] }] },
   },
   {
     files: ["src/app/api/approve/route.ts"],
-    rules: { "no-restricted-imports": ["error", { paths: [modelPath], patterns: [modelSdk] }] },
+    rules: { "no-restricted-imports": ["error", { paths: [captureOrderPath, modelPath], patterns: [modelSdk] }] },
+  },
+  {
+    files: ["src/app/api/pay/route.ts"],
+    rules: { "no-restricted-imports": ["error", { paths: [toolkitPath, captureOrderPath, modelPath], patterns: [modelSdk] }] },
+  },
+  {
+    files: ["src/app/api/paypal/webhook/route.ts"],
+    rules: { "no-restricted-imports": ["error", { paths: [toolkitPath, createOrderPath, modelPath], patterns: [modelSdk] }] },
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

@@ -5,6 +5,7 @@ import { readerInbox } from "./reader-inbox";
 import type { refreshPayPal } from "./paypal-refresh";
 import { observeRunway } from "./runway-events";
 import { eventFeed } from "./event-feed";
+import { paypalConnectionView } from "./paypal-connection-read";
 import { ownChoices } from "./own-categories";
 import { CHARGE_LOOKBACK_DAYS, householdClockRow, householdOwnerName, loadMoneyState, requireHousehold, type Db } from "./household";
 
@@ -59,6 +60,6 @@ export async function loadWorkspaceData(tx: Db, hid: string, home = false,
       answered: answer.length > 0, journalOnDevice: household.journalPlace === "device" };
   })() : null;
   if (home) await observeRunway(tx, hid, state, household);
-  const feed = await eventFeed(tx, hid);
-  return { state, people, own, name, feed, timeZone, inbox, freshness, getStarted, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length + confirmedGaps(state).length };
+  const [feed, connection] = await Promise.all([eventFeed(tx, hid), paypalConnectionView(tx, hid)]);
+  return { state, people, own, name, feed, timeZone, inbox, freshness, getStarted, connection, demo: household.isDemo, tryIt: household.fixedToday !== null, pending: toCheck(state).length + inbox.readings.length + confirmedGaps(state).length };
 }

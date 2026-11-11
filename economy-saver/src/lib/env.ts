@@ -15,6 +15,10 @@ const schema = z.object({
   }),
   PAYPAL_CLIENT_ID: z.string({ required_error: "is missing" }).min(1, "is missing"),
   PAYPAL_CLIENT_SECRET: z.string({ required_error: "is missing" }).min(1, "is missing"),
+  // D13: fipa's partner attribution code, sent on every PayPal call.
+  PAYPAL_PARTNER_ATTRIBUTION_ID: z.string({ required_error: "is missing" }).min(1, "is missing"),
+  // fipa's own platform merchant id: used in partner paths and as the payee for Try it.
+  PAYPAL_PARTNER_MERCHANT_ID: z.string({ required_error: "is missing" }).min(1, "is missing"),
   // Set after registering the webhook (npm run webhook:register).
   PAYPAL_WEBHOOK_ID: blankIsUnset(z.string().min(1).optional()),
   // The sandbox personal (US client) account that receives demo invoices.

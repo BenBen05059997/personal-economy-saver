@@ -3,6 +3,7 @@ import { homeDateLabel } from "@/components/ui/dates";
 import Link from "next/link";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { categoryLabel } from "@/lib/money/categories";
+import type { ConnectionView } from "@/lib/paypal/contracts";
 import type { CancelNotice, MoneyState } from "@/lib/money/types";
 import { aboutMoney, dayLabel, formatter, minorPerUnit, repeatWords, usd } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN, confirmedGaps, gapAmountWords, gapDateWords, gapMeanwhileWords, gapQuestion, openGaps } from "@/lib/money/gaps";
@@ -240,13 +241,14 @@ function addedLine(state: MoneyState, id: string | null): string | null {
   return charge && card ? `Added ${charge.merchant} ${format(charge.amount)} on ${card.label}` : null;
 }
 
-export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null }) {
+export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, connection }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; connection: ConnectionView }) {
   const date = homeDateLabel(state.today);
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
     <h1><Sentence state={state} linked /></h1>
     {homeSentence(state).note && <p className="home-sentence-note">{homeSentence(state).note}</p>}
     {demo && tryIt && <p className="home-demo">A fictional household that lives in this browser for seven days after your last change. <Link prefetch={false} href="/start">Start with my numbers ›</Link></p>}
+    {(connection.state === "none" || connection.state === "pending") && <p className="home-demo" id="connect-paypal">Connect your PayPal so fipa can read your balance and make payment links. <Link prefetch={false} href="/settings/paypal">Connect PayPal ›</Link></p>}
     {notice && <p role="status" className="home-freshness ui-hint">{notice}</p>}
     <Actions state={state} forwarding={forwarding} />
     <Suspense fallback={null}>{pins}</Suspense>

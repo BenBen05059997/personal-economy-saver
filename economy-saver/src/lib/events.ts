@@ -5,6 +5,8 @@ import { beginMoneyChange, lockRunway, observeRunway } from "@/db/runway-events"
 import { convertMinor, fromMinor, fromRateMicro } from "@/db/money";
 import { fillPots } from "@/db/pots";
 import { clients, fxRates, households, invoices, members, paypalConnections, webhookDeliveries } from "@/db/schema";
+import { applyMerchantEvent } from "@/db/paypal-connection";
+import { paypalRead } from "@/lib/paypal/client";
 import type { PayPalWebhookEvent } from "@/lib/paypal/webhook";
 
 /** What a delivery keeps of PayPal's event: the invoice id and the time, the only fields this app reads back. Never the whole event (27E). */
@@ -12,6 +14,8 @@ export const storedPayload = (event: PayPalWebhookEvent, invoiceId: string | und
 
 /** The signature has already been verified. Receipt, invoice transition and notification commit together. */
 export async function applyVerifiedDelivery(db: Db, event: PayPalWebhookEvent): Promise<void> {
+  // A seller's onboarding or revoked consent (D76) is the household's PayPal connection, not an invoice.
+  if (event.event_type.startsWith("MERCHANT.")) return applyMerchantEvent(db, event, paypalRead);
   const resource = event.resource;
   const invoiceId = event.event_type.startsWith("INVOICING.INVOICE.") ? resource?.id : undefined;
   // Verified PayPal deliveries name a globally unique invoice id, so resolve its household as owner.

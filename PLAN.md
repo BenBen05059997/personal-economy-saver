@@ -9,18 +9,24 @@ Only Ben can do these. Agents carry on with anything that doesn't wait on them.
 - Supabase Authentication → Redirect URLs: list the deployed URL's sign-in callback, then sign in once and verify a real magic link, onboarding and session refresh (V9).
 - On the live site, paste a real AI key, ask one question, then remove the key: the first live model call on a household's own model (D33, D56).
 - `EVAL_API_KEY` in `.env.local` for each provider the model eval runs on (O6).
-- Settings still unset: the forwarding domain and its two keys, then Email Routing on the domain with delivery checked through the live Worker; reminders by email (the sender address and API key) and by push (`npm run push:keys`, the push subject); the household for the live PayPal history import; optionally a server default AI connection for development.
+- Settings still unset: the forwarding domain and its two keys, then Email Routing on the domain with delivery checked through the live Worker; reminders by email (the sender address and API key) and by push (`npm run push:keys`, the push subject); optionally a server default AI connection for development.
 - Voice with a microphone in his own Chrome or Safari, in English and Japanese (D26).
 - Supabase's Security Advisor; an uptime monitor and Worker error alerting; a manual encrypted database dump before demo day.
 - Say when the contract migration may run: it drops the unused AI-cap columns and table and the old nudge column (D66).
-- Answer O2, O5, O10 and O11 in DECISIONS.md.
+- Answer O2, O5 and O10 in DECISIONS.md.
+- Set the two new partner settings and the new PayPal app's keys and webhook id on the Worker (D13, D76).
+- Sandbox sign-ins: the seller account to connect, and the US Personal client to pay a test link (D17).
 - Devpost: join the hackathon; the early eligibility check (D30); the OK to make the repo public; the final video on a Try it household on the deployed URL; submit by the evening of Nov 12, Tokyo (D1).
 - Approve the canvas concept; then it is saved under `design/`.
 
 ## Open work
 
-- Zod 4. The PayPal toolkit pins zod 3, and the 7 high audit findings that remain need the upgrade; expect type errors at every schema boundary.
-- The live PayPal round trip from the Worker (V1): a sandbox invoice sent, paid, the verified webhook received and the sentence flipped.
+- Zod 4. The 7 high audit findings that remain need the upgrade; expect type errors at every schema boundary.
+- Connect PayPal and payment links (D12, D76):
+  1. Connection: the owner connects their PayPal from Settings, and Home asks until they do.
+  2. Owner gate: the owner connects a sandbox seller account and pays a $1 test link as the sandbox client, to confirm PayPal delivers the client-paid webhook for a connected account's orders.
+  3. Payment links replace PayPal invoices and reminders; Home reads the connected PayPal's balance and payments; the invoice page offers the link to copy.
+- The live PayPal round trip from the Worker (V1): a payment link made, paid as the sandbox client, the verified webhook received and the sentence flipped.
 - Run the model eval on at least two real providers and add the passing pairs to the tested list (D56, O6). Waits on `EVAL_API_KEY`.
 - Live checks that wait on a real model, sign-in or deploy: answers, canvases and memory on a real model; document reading, including a bill's month; member sign-in, invite, permissions and leave (D68); MCP token issue, use and revoke; the family link copy with a real clipboard (D52); the full scripted and browser run on the deployed Worker.
 - Speed targets: Try it to Home within 1.5 s (the deployed median was 2.45 s), an answer within 8 s on a real model, a To check row within 30 s of an upload, "Sent" in Activity within 2 s. Use the request log on the deployed Worker to separate connection setup from SQL before changing anything.

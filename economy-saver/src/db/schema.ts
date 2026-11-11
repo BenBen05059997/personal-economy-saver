@@ -177,10 +177,22 @@ export const paypalConnections = pgTable(
     balanceMinor: minor("balance_minor").notNull().default(0),
     balanceCurrency: char("balance_currency", { length: 3 }).notNull(),
     fetchedAt: timestamp("fetched_at", { withTimezone: true }), // D37: pulled on open, at most every 5 minutes
+    // D76: the household's own PayPal, connected through partner onboarding. Null status = not connected.
+    connectionStatus: text("connection_status"), // null | 'pending' | 'connected'
+    trackingId: text("tracking_id").unique(),
+    sellerMerchantId: text("seller_merchant_id"), // a new column: an old Worker still writes merchant_id
+    paypalEmail: text("paypal_email"),
+    statusDetail: text("status_detail"), // what PayPal still needs
+    referralStartedAt: timestamp("referral_started_at", { withTimezone: true }),
+    connectedAt: timestamp("connected_at", { withTimezone: true }),
+    transactionsReadUntil: timestamp("transactions_read_until", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [
     index("paypal_connections_household_idx").on(t.householdId),
+    check("paypal_connections_status_valid", sql`${t.connectionStatus} is null or ${t.connectionStatus} in ('pending', 'connected')`),
+    check("paypal_connections_connected_complete", sql`${t.connectionStatus} is distinct from 'connected' or (${t.sellerMerchantId} is not null and ${t.connectedAt} is not null)`),
+    uniqueIndex("paypal_connections_seller_connected_uq").on(t.sellerMerchantId).where(sql`${t.connectionStatus} = 'connected'`),
     unique("paypal_connections_member_uq").on(t.memberId),
     foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "paypal_member_household_fk" }).onDelete("cascade"),
     check("paypal_connections_sandbox_only", sql`${t.environment} = 'SANDBOX'`), // D14
@@ -223,6 +235,14 @@ export const invoices = pgTable(
     approveKey: uuid("approve_key").notNull().defaultRandom().unique(), // D37: idempotency key for Approve
     reminderAttemptedAt: timestamp("reminder_attempted_at", { withTimezone: true }),
     remindedAt: timestamp("reminded_at", { withTimezone: true }),
+    // D12: the payment link. The order, its approve address, who it pays, the capture and the fipa link's token.
+    paypalOrderId: text("paypal_order_id").unique(),
+    paypalOrderCreatedAt: timestamp("paypal_order_created_at", { withTimezone: true }),
+    paypalApproveUrl: text("paypal_approve_url"),
+    paypalPayeeId: text("paypal_payee_id"),
+    paypalCaptureId: text("paypal_capture_id").unique(),
+    payToken: text("pay_token").unique(),
+    linkOfferedAt: timestamp("link_offered_at", { withTimezone: true }),
     madeBy: madeByColumn(),
     askId: askIdColumn(),
     createdAt: createdAt(),
