@@ -52,6 +52,9 @@ const destinations = [
 
 export type Section = AskScreen;
 
+/** The signed-in person (`email` is null when the session gives none) or null for a Try it household. */
+export type Viewer = { email: string | null } | null;
+
 function Navigation({ pending, name, section }: { pending: number; name: string; section: Section }) {
   return <>
     <Link prefetch={false} className="shell-brand" href="/"><LogoMark />fipa</Link>
@@ -64,7 +67,7 @@ function Navigation({ pending, name, section }: { pending: number; name: string;
       <Link prefetch={false} aria-current={section === "memory" ? "page" : undefined} href="/memory"><Icon name="memory" />Memory</Link>
       <Link prefetch={false} aria-current={section === "household" ? "page" : undefined} href="/household"><Icon name="people" />Household</Link>
       <Link prefetch={false} aria-current={section === "settings" ? "page" : undefined} href="/settings"><Icon name="settings" />Settings</Link>
-      <div className="shell-person"><span aria-hidden="true">{name.slice(0, 1)}</span>{name}</div>
+      <button type="button" className="shell-person" popoverTarget="shell-person-menu" aria-label="Account menu"><span aria-hidden="true">{name.slice(0, 1)}</span>{name}</button>
     </footer>
   </>;
 }
@@ -77,7 +80,8 @@ function shortDate(iso: string) {
   return month >= 1 && month <= 12 && day ? `${months[month - 1]} ${day}` : iso;
 }
 
-export function Shell({ children, name, pending, feed, section, forwarding = false, tryIt = false, today, timeZone }: {
+export function Shell({ children, name, pending, feed, section, forwarding = false, tryIt = false, viewer = null, today, timeZone }: {
+  viewer?: Viewer;
   children: ReactNode;
   forwarding?: boolean;
   tryIt?: boolean;
@@ -117,7 +121,8 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
   return <div className="money-shell" onClick={event => {
     if (event.target instanceof Element) {
       const link = event.target.closest("a");
-      link?.closest<HTMLElement>("[popover]")?.hidePopover();
+      // Close the menu the link is in and, on a phone, the navigation popover around it.
+      for (let open = link?.closest<HTMLElement>("[popover]"); open; open = open.parentElement?.closest<HTMLElement>("[popover]") ?? null) open.hidePopover();
     }
   }}>
     <Link prefetch={false} className="shell-skip" href="#shell-main">Skip to content</Link>
@@ -151,6 +156,13 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
       <button className="shell-nav-close" popoverTarget="shell-nav" popoverTargetAction="hide" aria-label="Close navigation"><Icon name="close" /></button>
       <Navigation name={name} pending={pending} section={section} />
     </aside>
+    <div id="shell-person-menu" popover="auto" className="shell-popover shell-person-menu" aria-label="Account menu">
+      <p className="shell-person-name">{name}</p>
+      <p className="shell-person-sub">{viewer ? viewer.email : "Try it household"}</p>
+      {!viewer && <Link prefetch={false} href="/login">Sign in with email</Link>}
+      <Link prefetch={false} href="/settings/account">Account</Link>
+      {viewer && <form method="post" action="/api/auth/logout"><button type="submit">Sign out</button></form>}
+    </div>
     <section id="shell-notifications" popover="auto" className="shell-popover shell-notifications">
       <ActivityList feed={feed} timeZone={timeZone} marking={marking} mark={mark} />
       {error && <p role="status">{error}</p>}

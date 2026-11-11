@@ -712,8 +712,8 @@
       "Signed in"
     ],
     "steps": [
-      "Open /settings/account",
-      "Press Sign out"
+      "On any screen press the person at the bottom of the sidebar",
+      "Press Sign out in the menu"
     ],
     "expected": [
       "I land on the landing page, signed out",
@@ -721,6 +721,36 @@
       "Back does not show my pages"
     ],
     "refs": []
+  },
+  {
+    "id": "AUTH-020",
+    "area": "Layout",
+    "action": "Open the person menu",
+    "user_goal": "I want to sign out, sign in or reach my account from any screen",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Desktop width 1440px",
+      "Signed in with a household; then a fresh Try it household in a private window"
+    ],
+    "steps": [
+      "Press the person at the bottom of the sidebar on Home, then on Bills",
+      "Press Escape",
+      "In the Try it window press the person and read the menu"
+    ],
+    "expected": [
+      "Signed in, the menu shows the name, the sign-in email, Account and Sign out; Account opens /settings/account",
+      "Escape closes the menu and the person button keeps focus",
+      "In Try it the menu shows Try it household, Sign in with email (opens /login) and Account",
+      "The menu matches the other popovers: dark shell, no blue, nothing overlaps"
+    ],
+    "refs": [
+      "D34"
+    ]
   },
   {
     "id": "AUTH-018",
@@ -749,7 +779,7 @@
   {
     "id": "AUTH-019",
     "area": "Settings",
-    "action": "Delete household while signed in",
+    "action": "Delete my account while signed in",
     "user_goal": "I want my data gone",
     "type": "happy",
     "priority": "P1",
@@ -762,12 +792,12 @@
     ],
     "steps": [
       "Open /settings/account",
-      "Tick \"Delete my household and its data\"",
-      "Press Delete household"
+      "Tick \"Delete my account, my household and its data\"",
+      "Press Delete my account"
     ],
     "expected": [
-      "The household, documents, key, memory and sessions are gone and I land on the landing",
-      "Signing in again starts onboarding as a new person"
+      "The household, documents, key, memory, sessions and my sign-in email are gone and I land on the landing",
+      "Signing in again with the same email starts onboarding as a new person"
     ],
     "refs": []
   },
@@ -1867,7 +1897,7 @@
       "Press \"Delete everything\" in Your data"
     ],
     "expected": [
-      "It opens /settings/account where Delete household asks me to tick the box; a Try it household sees only Leave this household there"
+      "It opens /settings/account where Delete my account asks me to tick the box; a Try it household sees Delete this Try it household there"
     ],
     "refs": []
   },
@@ -2201,7 +2231,7 @@
     ],
     "expected": [
       "Each opens /privacy",
-      "In a signed-in account the account page links \"How your data is stored and deleted ›\" above Delete household"
+      "In a signed-in account the account page links \"How your data is stored and deleted ›\" above Delete my account"
     ],
     "refs": []
   },

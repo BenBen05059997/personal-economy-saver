@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { AccountFrame } from "./AccountFrame";
 
@@ -11,7 +11,7 @@ const currencies = {
 } as const;
 
 /** The one setup form: onboarding (a signed-in owner) and Start with my numbers (a blank demo) post the same fields to their own route. A name is all it needs; the bank balance is set on Home (Update): currency and time zone are read from the browser and sit behind "Change". */
-export function SetupForm({ action, title, hint, button, notice, privacy = false, forwarding }: { action: string; title: string; hint: string; button: string; notice?: string; privacy?: boolean; forwarding: boolean }) {
+export function SetupForm({ action, title, hint, button, notice, privacy = false, forwarding, after }: { after?: ReactNode; action: string; title: string; hint: string; button: string; notice?: string; privacy?: boolean; forwarding: boolean }) {
   // The browser's zone (yen for Tokyo, dollars otherwise) until the person changes it; the server renders Tokyo.
   const detected = useSyncExternalStore(() => () => {}, () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Tokyo", () => "Asia/Tokyo");
   const [picked, setPicked] = useState<{ currency?: keyof typeof currencies; timeZone?: string }>({});
@@ -37,5 +37,6 @@ export function SetupForm({ action, title, hint, button, notice, privacy = false
       <button className="ui-button primary">{button}</button>
       {privacy && <p className="ui-hint">Your numbers stay in this browser’s demo household. <Link className="account-link" href="/privacy">Privacy ›</Link></p>}
     </ApiForm>
+    {after}
   </AccountFrame>;
 }

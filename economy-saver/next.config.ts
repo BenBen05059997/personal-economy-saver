@@ -12,6 +12,7 @@ const nextConfig: NextConfig = {
   devIndicators: { position: "bottom-right" },
   // D12: a payment link is opened by a client with no session: never cached, never indexed, never sent on as a referrer.
   // Its Pay button posts to fipa, which sends the client on to PayPal, so its form-action allows PayPal's address.
+  // D76: Settings → PayPal posts Connect to fipa, which sends the owner on to PayPal's sign-up, so that one page's form-action allows PayPal's address.
   // D52: the family view is opened from a shared link: never cached, never indexed, never sent on as a referrer.
   // D56: no other site may frame the app (the AI key field among it).
   // The policy has no nonce: a nonce forces every page to render per request, which cacheComponents and partial
@@ -46,6 +47,8 @@ const nextConfig: NextConfig = {
       { key: "Cache-Control", value: "private, no-store" },
       { key: "Referrer-Policy", value: "no-referrer" },
       { key: "X-Robots-Tag", value: "noindex, nofollow" },
+    ] }, { source: "/settings/paypal", headers: [
+      { key: "Content-Security-Policy", value: policy("'self' https://*.paypal.com") },
     ] }, { source: "/pay/:path*", headers: [
       { key: "Content-Security-Policy", value: policy("'self' https://*.paypal.com") },
       { key: "Cache-Control", value: "private, no-store" },

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { refreshPayPal } from "@/db/paypal-refresh";
+import { verifiedIdentity } from "@/lib/auth-request";
 import { loadNavigationData, loadWorkspaceData, type Viewer } from "@/db/workspace";
 import { missingForwardingSetting } from "@/components/reader/ForwardingSettings";
 import { Shell, type Section } from "./Shell";
@@ -21,12 +22,13 @@ export async function loadNavigation(hid: string, viewer: Viewer = null) {
     { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
-export function WorkspaceFrame({ workspace, section, children }: {
+export async function WorkspaceFrame({ workspace, section, children }: {
   workspace: Awaited<ReturnType<typeof loadNavigationData>> | Awaited<ReturnType<typeof loadWorkspaceData>>;
   section: Section;
   children: ReactNode;
 }) {
   const { pending, feed, name, tryIt, timeZone } = workspace;
+  const identity = await verifiedIdentity(); // already resolved for this request by the household lookup, so no extra call
   const today = "state" in workspace ? workspace.state.today : workspace.today;
-  return <Shell name={name} pending={pending} feed={feed} section={section} forwarding={missingForwardingSetting() === null} tryIt={tryIt} today={today} timeZone={timeZone}>{children}</Shell>;
+  return <Shell name={name} pending={pending} feed={feed} section={section} forwarding={missingForwardingSetting() === null} tryIt={tryIt} viewer={identity ? { email: identity.email } : null} today={today} timeZone={timeZone}>{children}</Shell>;
 }

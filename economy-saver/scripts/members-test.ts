@@ -174,7 +174,9 @@ async function main() {
     const model = (await import("@/app/api/settings/ai-model/route")).POST;
     const models = (await import("@/app/api/settings/ai-model/models/route")).POST;
     const editPeople = (await import("@/app/api/people/route")).POST;
-    const deleteHousehold = (await import("@/app/api/household/route")).POST;
+    const deleteAccountRoute = (await import("@/app/api/account/route")).POST;
+    const deleteTryIt = (await import("@/app/api/try/delete/route")).POST;
+    const { deleteAccount } = await import("@/lib/delete-account");
     const invitations = (await import("@/app/api/invites/route")).POST;
     const mcpTokens = (await import("@/app/api/mcp/tokens/route")).POST;
     const familyLinks = (await import("@/app/api/family-links/route")).POST;
@@ -204,7 +206,12 @@ async function main() {
         eq(schema.requestBuckets.householdId, hid), eq(schema.requestBuckets.purpose, "ai-model-list"),
       )), [], "a member cannot spend the owner's model list quota");
       assert.equal((await editPeople(form("/api/people", { kind: "remove", id: otherPerson }))).status, 403);
-      assert.equal((await deleteHousehold(form("/api/household", { confirmation: "delete" }))).status, 403);
+      // Deleting an account needs the service-role setting; without it the route stops before it touches the member's data.
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+      assert.equal((await deleteAccountRoute(form("/api/account", { confirmation: "delete" }))).status, 503);
+      if (serviceKey !== undefined) process.env.SUPABASE_SERVICE_ROLE_KEY = serviceKey;
+      assert.equal((await accountMembership(db, guest.uid))?.householdId, hid, "a refused deletion leaves the membership");
       assert.deepEqual([paypalCalls, modelCalls], [0, 0]);
 
       signedIn = a.owner;
@@ -340,6 +347,56 @@ async function main() {
       assert.equal((await changeToken(issue)).status, 401);
       assert.equal((await changeFamily(share)).status, 401);
       signedIn = null;
+    });
+
+    await check("deleting an account removes the household (owner) or the membership (member) and then only the caller's own login; a failed login deletion can be retried; Try it deletes only its own demo household", async () => {
+      const joined = async (owner: Awaited<ReturnType<typeof makeHousehold>>, label: string) => {
+        const person = identity(label);
+        const invite = await createInvite(db, owner.householdId, owner.owner.uid, { email: person.email, name: "Fictional " + label }, NOW);
+        assert.equal(await acceptInvite(db, invite.token, person, NOW), owner.householdId);
+        return person;
+      };
+      const householdRows = (id: string) => db.select().from(schema.households).where(eq(schema.households.id, id));
+      const removed: string[] = [];
+      const fake = async (uid: string) => { removed.push(uid); };
+
+      const o1 = await makeHousehold("Fictional Delete Owner");
+      const m1 = await joined(o1, "owner-sees-member");
+      assert.equal(await deleteAccount(db, o1.owner.uid, fake), "household");
+      assert.deepEqual(removed, [o1.owner.uid], "only the owner's login, never the members'");
+      assert.equal((await householdRows(o1.householdId)).length, 0);
+      assert.equal(await accountMembership(db, m1.uid), null, "the member's membership goes with the household");
+
+      const o2 = await makeHousehold("Fictional Keep Household");
+      const m2 = await joined(o2, "leaving-member");
+      const [kept] = await db.insert(schema.bills).values({ householdId: o2.householdId, biller: "Fictional shared bill", amountMinor: 900, currency: "USD", due: "2026-11-18", category: "utilities", status: "confirmed" } as typeof schema.bills.$inferInsert).returning();
+      removed.length = 0;
+      assert.equal(await deleteAccount(db, m2.uid, fake), "membership");
+      assert.deepEqual(removed, [m2.uid]);
+      assert.equal(await accountMembership(db, m2.uid), null);
+      assert.equal((await householdRows(o2.householdId)).length, 1);
+      assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.id, kept.id))).length, 1, "the shared records stay");
+      assert.equal((await accountMembership(db, o2.owner.uid))?.role, "owner");
+
+      const o3 = await makeHousehold("Fictional Retry Owner");
+      await assert.rejects(deleteAccount(db, o3.owner.uid, async () => { throw new Error("auth down"); }), /auth down/);
+      assert.equal((await householdRows(o3.householdId)).length, 0, "the data part stays done");
+      removed.length = 0;
+      assert.equal(await deleteAccount(db, o3.owner.uid, fake), "login-only", "the retry deletes the login");
+      assert.deepEqual(removed, [o3.owner.uid]);
+
+      signedIn = a.owner;
+      assert.equal((await deleteTryIt(form("/api/try/delete", {}))).status, 403, "an account household is never deleted as a Try it");
+      assert.equal((await householdRows(hid)).length, 1);
+      signedIn = null;
+      const mine = await seedBen(db, { isDemo: true }), other = await seedBen(db, { isDemo: true });
+      demoCookie = mine;
+      const gone = await deleteTryIt(form("/api/try/delete", {}));
+      demoCookie = null;
+      assert.deepEqual([gone.status, gone.headers.get("location")], [303, "/"]);
+      assert.match(gone.headers.get("set-cookie") ?? "", /household=;|household=(?:""|);/);
+      assert.equal((await householdRows(mine)).length, 0);
+      assert.equal((await householdRows(other)).length, 1, "another Try it household is untouched");
     });
 
     await check("an invitation cannot reference either a member or a creator from another household", async () => {

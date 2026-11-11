@@ -74,7 +74,8 @@
   padding-top: 10px;
   border-top: 1px solid var(--rule);
 }
-.shell-person { min-height: 38px; overflow-wrap: anywhere; }
+.shell-person { min-height: 38px; overflow-wrap: anywhere; width: 100%; border: 0; background: transparent; font: inherit; font-weight: 500; text-align: left; cursor: pointer; }
+.shell-person:hover { background: color-mix(in srgb, var(--nav-current) 60%, transparent); }
 .shell-person span {
   display: grid;
   place-items: center;
@@ -196,6 +197,12 @@
 .shell-popover p { margin: 4px 10px; color: var(--muted); }
 .shell-popover a { display: block; padding: 8px 10px; border-radius: 6px; text-decoration: none; }
 .shell-notifications { right: 110px; }
+.shell-person-menu { inset: auto auto 56px 12px; }
+.shell-person-menu .shell-person-name { margin: 8px 10px 0; color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.shell-person-menu .shell-person-sub { margin: 0 10px 6px; font-size: 13px; overflow-wrap: anywhere; }
+.shell-person-menu form { margin: 0; }
+.shell-person-menu button { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.shell-person-menu a:hover, .shell-person-menu button:hover { background: color-mix(in srgb, var(--nav-current) 60%, transparent); }
 .shell-nav-popover {
   position: fixed;
   inset: 0 auto 0 0;
@@ -260,7 +267,8 @@
   .shell-phone-ask .shell-icon { width: 21px; height: 21px; }
   .shell-links a, .shell-footer a { min-height: 44px; }
   .shell-popover { inset: 46px 12px auto auto; }
-  .shell-popover a { min-height: 44px; }
+  .shell-popover a, .shell-person-menu button { min-height: 44px; }
+  .shell-person-menu { inset: auto auto 64px 12px; }
 }
 .shell-notifications { width: min(380px, calc(100vw - 24px)); max-height: min(560px, 80dvh); overflow-y: auto; }
 .shell-notification-list { list-style: none; margin: 10px 0; padding: 0 10px; }

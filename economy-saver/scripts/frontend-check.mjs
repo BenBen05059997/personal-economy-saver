@@ -176,6 +176,10 @@ if (args[0] === "--guards") {
     ["callback-hands-off", "/api/auth/callback?code=x", {}, 303, "/signing-in?code=x"],
     ["finish-without-code", "/api/auth/finish", {}, 303, "/login?expired=1"],
     ["approve-without-household", "/api/approve", { method: "POST" }, 401],
+    ["account-delete-without-login", "/api/account", { method: "POST", session: "", form: { confirmation: "delete" } }, 401],
+    ["account-delete-cross-origin", "/api/account", { method: "POST", session: "", form: { confirmation: "delete" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["try-delete-without-household", "/api/try/delete", { method: "POST", session: "" }, 403],
+    ["try-delete-cross-origin", "/api/try/delete", { method: "POST", session: "", extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["invoice-offered-without-household", "/api/invoices/offered", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000" } }, 401],
     ["invoice-offered-cross-origin", "/api/invoices/offered", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["invoice-end-without-household", "/api/invoices/end", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000" } }, 401],
@@ -293,7 +297,7 @@ if (args[0] === "--extra") {
     expect(/Fictional verification design/.test(pageContent(html)) && /12\.34/.test(pageContent(html)), "draft-review-values");
   });
   await step("action", "reset-fictional-session", async () => adopt(await request("/api/try/reset", { method: "POST" })));
-  // Nov 5 walk: edit a bill from Settings, remove a person once settled, leave a cookie household (last: it drops the cookie).
+  // Nov 5 walk: edit a bill from Settings, remove a person once settled, delete a cookie household (last: it drops the cookie).
   await step("action", "nov5-try-it-session", async () => adopt(await request("/api/try", { session: "" })));
   await step("page", "nov5-settings-bill-rows-have-edit-and-a-repeating-bill-asks-from-when", async () => {
     const html = await page(await billPath("Rent"), /Edit Rent/);
@@ -346,11 +350,11 @@ if (args[0] === "--extra") {
     expect((await events()).events.some(event => event.kind === "person_removed" && event.title === "Fictional Wife left the household"), "nov5-person-removed-event");
     expect(!/Fictional Wife/.test(pageContent(await page("/household/people", /People/))), "nov5-settings-without-wife");
   });
-  await step("action", "nov5-leave-a-cookie-household", async () => {
-    const html = await page("/settings/account", /Leave this household/);
-    expect(plain(pageContent(html)).includes("Leave this household. It stays on this device for seven days, then it is swept.") && /action="\/api\/auth\/logout"/.test(html), "nov5-leave-words");
-    const left = await request("/api/auth/logout", { method: "POST" });
-    expect(left.response.status === 303 && left.response.headers.get("location") === "/" && /household=;|household=(?:""|);/.test(left.response.headers.get("set-cookie") ?? ""), "nov5-left");
+  await step("action", "nov5-delete-a-cookie-household", async () => {
+    const html = await page("/settings/account", /Delete this Try it household/);
+    expect(plain(pageContent(html)).includes("Its sample data is removed now, and this browser goes back to the start page.") && /action="\/api\/try\/delete"/.test(html), "nov5-delete-words");
+    const left = await request("/api/try/delete", { method: "POST" });
+    expect(left.response.status === 303 && left.response.headers.get("location") === "/" && /household=;|household=(?:""|);/.test(left.response.headers.get("set-cookie") ?? ""), "nov5-deleted");
   });
   // Stage 17 import (D53): a statement's rows go to /api/import as JSON for one card; the same rows again are all skipped.
   {
@@ -567,6 +571,11 @@ await step("page", "settings-tabs-render-with-the-current-tab-selected", async (
   // Try it cannot connect PayPal: the tab says whose sandbox account it pays into and offers no Connect button.
   const paypal = plain(pageContent(await page("/settings/paypal", /Your PayPal/)));
   expect(/Try it pays into fipa(?:'|’|&#x27;|&apos;)s own PayPal sandbox account\. Sign in with your email to connect your own PayPal\./.test(paypal) && !paypal.includes("Connect your PayPal"), "settings-paypal-try-it");
+  // Connect posts to fipa, which sends the owner on to PayPal: Chrome applies form-action to that redirect, so these two pages (and only form-action) allow PayPal.
+  const formAction = async path => (await request(path)).response.headers.get("content-security-policy")?.match(/(?:^|; )form-action ([^;]*)/)?.[1];
+  expect(await formAction("/settings/paypal") === "'self' https://*.paypal.com", "settings-paypal-form-action");
+  expect(await formAction("/pay/not-a-payment-link") === "'self' https://*.paypal.com", "pay-page-form-action");
+  expect(await formAction("/settings/data") === "'self'", "other-settings-form-action");
 });
 // Next streams a page's redirect after the shell started, so the status is 200 with the redirect in the markup; a plain 307/308 is also right.
 async function redirectsTo(path, target) {

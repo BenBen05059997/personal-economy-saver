@@ -510,6 +510,32 @@
     ]
   },
   {
+    "id": "PAY-045",
+    "area": "Invoices",
+    "action": "Connect your PayPal from Settings",
+    "user_goal": "I want to connect my own PayPal so payment links pay me",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "owner"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "A signed-in household owner with no PayPal connected",
+      "Dev server or the deployed app with the partner settings"
+    ],
+    "steps": [
+      "Open Settings, then PayPal",
+      "Tap 'Connect your PayPal'"
+    ],
+    "expected": [
+      "The browser leaves fipa and arrives on PayPal's sandbox sign-up page; the page does not stay on Settings and the console shows no Content Security Policy form-action violation"
+    ],
+    "refs": [
+      "D76"
+    ]
+  },
+  {
     "id": "PAY-026",
     "area": "Invoices",
     "action": "New invoice from Clients or Add",
