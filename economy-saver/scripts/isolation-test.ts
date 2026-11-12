@@ -749,7 +749,7 @@ async function main() {
       const snapshotTool = JSON.parse(await runTool(viewer, "household_snapshot", {}));
       assert.equal(snapshotTool.household.id, hid);
       const invoiceTool = JSON.parse(await runTool(viewer, "list_invoices", {}));
-      assert.ok(invoiceTool.some((i: { item: string }) => i.item === `${viewer.name} sent invoice`));
+      assert.ok(invoiceTool.invoices.some((i: { item: string }) => i.item === `${viewer.name} sent invoice`));
     }
     await check("reads of household A (loaders, snapshot, reader inbox, tokens, agent read tools) never show household B", () => readsOf(A, B));
     await check("reads of household B never show household A", () => readsOf(B, A));

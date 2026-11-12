@@ -1,6 +1,6 @@
 // One tool catalogue for the in-app agent and the MCP server (D40). Tools read the engine or call the same
 // src/db functions as the forms. They never send: sending is the tap in src/app/api/approve/route.ts (D12).
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { strictJsonSchema } from "@/lib/ai/schema";
 import { z } from "zod";
@@ -41,10 +41,11 @@ import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { clientPace } from "@/lib/money/pace";
 import { goalPaces } from "@/lib/money/goals";
 import { planFor, planLine } from "@/lib/money/plan";
-import { low, series, timeline as engineTimeline } from "@/lib/money/runway";
+import { daysBetween, low, series, timeline as engineTimeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
 import { memoryTools } from "./memory-tools";
+import type { OutOfScopeReason } from "./reply";
 import type { ContextTurn } from "./context";
 import { spaceTools } from "./space-tools";
 import { historyTools } from "./history-tools";
@@ -75,7 +76,7 @@ export type ToolContext = {
   /** Ask only (D60): `make_canvas` hands over its last valid recipe; `clarify` and `out_of_scope` end the question. */
   onCanvas?: (recipe: Recipe) => void;
   onClarify?: (clarify: { question: string; choices: string[] }) => void;
-  onOutOfScope?: (reason: "off_topic" | "not_offered") => void;
+  onOutOfScope?: (reason: OutOfScopeReason) => void;
   /** Ask only (D59): when the household keeps its memory on one device, the list the question carried and the changes `remember` and `forget` made to it (sent back in the reply, never stored). */
   deviceMemory?: DeviceMemory;
   /** Ask only (D67): collect offers for the reply without writing any records. */
@@ -281,8 +282,8 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "timeline", scope: "read",
-    input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("One day within two years, or null.") }),
-    description: "Cash flow for one specified day or the next 30 days, with running balances and the lowest point. Use whats_due for “what is due” questions without a date. Signed home-currency minor units. as_usual uses each client’s usual pay day and late uses their slowest day. Set on for one day, including end-of-day balance, or null for the next 30 days.",
+    input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("A day within 30 days, or null.") }),
+    description: "Cash flow for one specified day or the next 30 days, with running balances and the lowest point. Use whats_due for “what is due” questions without a date. Signed home-currency minor units. as_usual uses each client’s usual pay day and late uses their slowest day. Set on for one day in the next 30 days (end-of-day balance), or null for all 30. fipa looks 30 days ahead only: a later day gets the 30-day figures and a note; never give a balance for it.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const kind = CASE_KIND[input.scenario];
@@ -291,7 +292,8 @@ export const tools: Tool[] = [
         date: event.date, label: event.label, kind: event.kind, amountMinor: minor(event.amount),
         currency: state.homeCurrency, direction: directionOf(minor(event.amount)), balanceAfterMinor: minor(event.balance), ...(event.pending ? { pending: true } : {}), ...(event.estimated ? { estimated: true } : {}), ...(event.uncounted ? { uncounted: true } : {}),
       });
-      if (input.on != null) {
+      const beyond = input.on != null && input.on >= state.today && daysBetween(state.today, input.on) >= WINDOW_DAYS;
+      if (input.on != null && !beyond) {
         let view;
         try { view = dayView(state, kind, input.on); } catch (error) { throw new InputError(error instanceof Error ? error.message : "That day cannot be read"); }
         return JSON.stringify({ scenario: input.scenario, today: state.today, currency: state.homeCurrency, on: view.date, balanceAfterMinor: minor(view.balance), events: view.events.map(eventOut) });
@@ -299,6 +301,7 @@ export const tools: Tool[] = [
       const lowest = low(series(state, kind));
       return JSON.stringify({
         scenario: input.scenario, today: state.today, currency: state.homeCurrency,
+        ...(beyond && { note: `fipa looks ${WINDOW_DAYS} days ahead, so it has no balance for ${input.on}. These are the figures for the next ${WINDOW_DAYS} days; tell the person that fipa looks ${WINDOW_DAYS} days ahead and give no balance for the later day.` }),
         low: { date: lowest.date, amountMinor: minor(lowest.amount) },
         events: engineTimeline(state, kind).map(eventOut),
       });
@@ -324,7 +327,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "list_invoices", scope: "read", input: none,
-    description: "The 50 latest invoices with status, USD cents, dates and each client’s usual and slowest days to pay.",
+    description: "Invoice counts by status (quote them; never count the list) and the 50 latest invoices with status, USD cents, dates and each client’s usual and slowest days to pay.",
     run: async ctx => {
       const hid = requireHousehold(ctx.householdId);
       const state = await ctx.state();
@@ -335,10 +338,17 @@ export const tools: Tool[] = [
       }).from(invoices)
         .innerJoin(clients, and(eq(clients.householdId, invoices.householdId), eq(clients.id, invoices.clientId)))
         .where(eq(invoices.householdId, hid)).orderBy(desc(invoices.createdAt)).limit(50);
-      return JSON.stringify(rows.map(({ clientId, ...row }) => {
-        const pace = clientPace(state.clients.find(c => c.id === clientId) ?? { daysToPay: [] } as never);
-        return { ...row, usualDaysToPay: pace?.usual ?? null, slowestDaysToPay: pace?.slowest ?? null };
-      }));
+      const byStatus = await ctx.db.select({ status: invoices.status, n: count() }).from(invoices).where(eq(invoices.householdId, hid)).groupBy(invoices.status);
+      const countsByStatus = Object.fromEntries(byStatus.map(row => [row.status, row.n]));
+      const total = byStatus.reduce((sum, row) => sum + row.n, 0);
+      return JSON.stringify({
+        total, countsByStatus,
+        ...(total > rows.length && { listed: `Only the ${rows.length} latest invoices are listed; the counts cover all ${total}.` }),
+        invoices: rows.map(({ clientId, ...row }) => {
+          const pace = clientPace(state.clients.find(c => c.id === clientId) ?? { daysToPay: [] } as never);
+          return { ...row, usualDaysToPay: pace?.usual ?? null, slowestDaysToPay: pace?.slowest ?? null };
+        }),
+      });
     },
   }),
   defineTool({
@@ -509,7 +519,7 @@ export const tools: Tool[] = [
       const id = await saveInvoiceDraft(ctx.db, ctx.householdId, input, by(ctx));
       const href = new URL("/invoices/" + id, ctx.appUrl).href;
       ctx.addLink?.({ label: "Review invoice draft", href });
-      return `Review the draft at ${href}.`;
+      return `Review the draft at ${href}. Tell the person to review the draft and tap Approve on the invoice to make the PayPal payment link; nothing is sent until they do.`;
     },
   }),
   defineTool({

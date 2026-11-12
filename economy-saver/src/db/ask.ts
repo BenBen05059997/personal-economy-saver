@@ -111,6 +111,8 @@ export async function assembleContext(db: Db, hid: string, input: ContextInput) 
     const screen = input.screen ? `The person is asking from ${ASK_SCREEN_NAMES[input.screen]}.` : "";
     return {
       systemData, memoryForAmounts: [profile, notes].filter(Boolean), memory,
+      // The person's own earlier questions in this conversation (never the replies, never a document's text): their numbers count as theirs.
+      earlierQuestions: turns.filter(turn => turn.kind !== "document").map(turn => turn.question),
       context: [screen, contextText(turns, input.canvas, cards, omitted + raw.omitted)].filter(Boolean).join("\n\n"),
     };
   });

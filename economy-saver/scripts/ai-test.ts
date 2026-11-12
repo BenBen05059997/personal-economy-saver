@@ -187,6 +187,12 @@ async function main() {
     assert.deepEqual(unconfirmedAmounts("¥1万8780", ["18780"]), []);
     assert.deepEqual(unconfirmedAmounts("short by 18780", ["1万8780円"]), [], "a compound source is read too");
     assert.deepEqual(unconfirmedAmounts("1万円", ["10000"]), [], "1万円 stays 10,000");
+    assert.deepEqual(unconfirmedAmounts("カードAの明細は5万8,000円です", ["58000"]), [], "5万8,000円 is 58,000, not 8,000");
+    assert.deepEqual(unconfirmedAmounts("5万8千円", ["58000"]), [], "5万8千円 is 58,000");
+    assert.deepEqual(unconfirmedAmounts("5万8千円", ["8000"]), ["5万8千円"], "8,000 does not confirm 5万8千円");
+    assert.deepEqual(unconfirmedAmounts("3千円", ["12000"]), ["3千円"], "an invented 千 amount is refused");
+    assert.deepEqual(unconfirmedAmounts("58,000円", ["58000"]), [], "58,000円 is confirmed by ¥58,000's 58000");
+    assert.deepEqual(unconfirmedAmounts("¥58,000円", ["58000"]), []);
   });
 
   await check("the unsigned statement amount is backed by a signed timeline outflow", () => {

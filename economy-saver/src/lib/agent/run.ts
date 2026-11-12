@@ -16,7 +16,7 @@ import { ModelError, type Connection, type ToolResult, type ToolSpec, type Turn 
 import type { MoneyState } from "@/lib/money/types";
 import { logCall, type BriefDropReason, type ToolLog } from "./log";
 import type { Recipe } from "@/lib/canvas/schema";
-import { chooseReply, type ReplyKind, type Source } from "./reply";
+import { canvasWords, chooseReply, type OutOfScopeReason, type ReplyKind, type Source } from "./reply";
 import { briefWords, type Brief } from "./brief";
 import { memorySourceLabel, type MemorySource } from "@/lib/schema/turn";
 import type { ContextTurn } from "./context";
@@ -92,7 +92,7 @@ type AskOptions = {
   connection: () => Promise<Connection>; fetch?: typeof globalThis.fetch; now?: () => number;
   /** Quoted data that goes into the user turn after the question (earlier turns, the canvas on screen). Never an amount source. */
   context?: string;
-  assembled?: { systemData: string; memoryForAmounts: string[]; memory: MemoryItem[] };
+  assembled?: { systemData: string; memoryForAmounts: string[]; earlierQuestions?: string[]; memory: MemoryItem[] };
   spaceId?: string;
   deviceHistory?: ContextTurn[];
   incognito?: boolean;
@@ -153,8 +153,9 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const wantsMemory = /\b(?:remember|keep (?:this|that|it) in mind|(?:save|add) .{1,60} to (?:my |your )?memory)\b|覚えて|記憶して|記録して/i.test(opts.question)
     && !/\b(?:do not|don't|never) remember\b|覚えないで|記憶しないで|記録しないで/i.test(opts.question);
   let recipe: Recipe | null = null;
+  const drawn: Recipe[] = [];
   let clarify: { question: string; choices: string[] } | null = null;
-  let outOfScope: "off_topic" | "not_offered" | null = null;
+  let outOfScope: OutOfScopeReason | null = null;
   const used: string[] = [];
   let called = false;
   let wrote = false, wroteToServer = false, wroteMemory = false;
@@ -169,7 +170,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const ctx: ScopedToolContext = {
     madeBy: "ask", db: opts.db, householdId: hid, state, appUrl: opts.appUrl, askId: opts.askId, source: opts.source,
     addLink: link => { if (!links.some(known => known.href === link.href)) links.push(link); },
-    onCanvas: next => { recipe = next; },
+    onCanvas: next => { recipe = next; drawn.push(next); },
     onClarify: next => { clarify = next; },
     onOutOfScope: next => { outOfScope = next; },
     onOffer: offer => {
@@ -198,6 +199,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const turns: Turn[] = [{ role: "user", parts: [{ type: "text", text: opts.context ? `${opts.question}\n\n${opts.context}` : opts.question }] }];
   // Every amount in the answer must come from the question or a tool result (D56).
   const sources = [opts.question];
+  sources.push(...(opts.assembled?.earlierQuestions ?? []));
   sources.push(...(opts.assembled?.memoryForAmounts ?? (memory ? [memory] : [])));
 
   try {
@@ -265,6 +267,10 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   async function recordResult(result: ToolResult) {
     // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
     if (!result.isError && !NOT_SOURCES.has(result.name)) sources.push(result.content);
+    if (!result.isError && result.name === "make_canvas") {
+      const engineFilled = withoutModelWords(result.content, drawn);
+      if (engineFilled !== null) sources.push(engineFilled);
+    }
     const tool = tools.find(candidate => candidate.name === result.name);
     if (tool && toolAvailable(ctx, tool) && result.name !== "update_brief" && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
     if (result.isError) return;
@@ -335,6 +341,21 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       choices: chosen.choices, recipe: chosen.recipe, sources: [...chosen.sources, ...memorySources], links, pending, offers: available,
       ...(chosen.kind === "answer" && openSpace && unconfirmedAmounts(openSpace.name, sources).length === 0 && { openSpace }) };
   }
+}
+
+/**
+ * A canvas result with every string the model wrote on the canvas (title, labels, notes, letters) blanked out, so what is left
+ * is what the engine filled in. `null` when blanking leaves something that is no longer JSON: a non-JSON source would confirm any number.
+ */
+function withoutModelWords(content: string, recipes: Recipe[]): string | null {
+  const words = recipes.flatMap(canvasWords).map(word => JSON.stringify(word).slice(1, -1)).filter(Boolean).sort((a, b) => b.length - a.length);
+  let clean = content;
+  for (const word of new Set(words)) clean = clean.split(word).join("");
+  let parsed: { blocks?: Record<string, unknown>[] };
+  try { parsed = JSON.parse(clean); } catch { return null; }
+  // A single progress block's target is the one amount a recipe carries (D57): the model wrote it, so it confirms nothing.
+  for (const block of parsed.blocks ?? []) if (block.type === "progress" && !("rows" in block)) delete block.target;
+  return JSON.stringify(parsed);
 }
 
 function offerKey(offer: KeepOffer): string {

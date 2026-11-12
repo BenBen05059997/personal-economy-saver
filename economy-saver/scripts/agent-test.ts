@@ -246,30 +246,36 @@ async function main() {
       assert.ok(t.low.amountMinor < 0 && /^\d{4}-\d{2}-\d{2}$/.test(t.low.date));
       assert.equal(o.gapMinor, -t.low.amountMinor);
       assert.ok(o.options.length > 0 && o.options.every((x: { costMinor: number }) => Number.isInteger(x.costMinor)));
-      assert.ok(i.length > 0 && i.every((x: { client: string; amountMinor: number; currency: string }) => x.client && Number.isInteger(x.amountMinor) && x.currency === "USD"));
-      assert.ok(i.length <= 50);
+      assert.ok(i.invoices.length > 0 && i.invoices.every((x: { client: string; amountMinor: number; currency: string }) => x.client && Number.isInteger(x.amountMinor) && x.currency === "USD"));
+      assert.ok(i.invoices.length <= 50);
+      const perStatus: Record<string, number> = {};
+      for (const x of i.invoices as { status: string }[]) perStatus[x.status] = (perStatus[x.status] ?? 0) + 1;
+      assert.deepEqual(i.countsByStatus, perStatus, "the engine counts invoices by status");
+      assert.equal(i.total, i.invoices.length);
     });
 
-    await check("27D: timeline with on answers one day up to two years ahead from the engine; a day past the horizon or before today is an error the model can read", async () => {
+    await check("27D: timeline with on answers one day inside the 30-day window; a later day gets the 30-day figures and a note that fipa looks 30 days ahead, never a balance; a day before today is an error the model can read", async () => {
       const state = await loadMoneyState(db, a, aState.today);
-      const direct = dayView(state, "worst", "2026-12-31");
-      const rentDay = dayView(state, "worst", "2026-12-27");
-      assert.ok(rentDay.events.some(e => e.kind === "bill"), "a bill on Dec 27, past the default window");
+      const inside = addDays(aState.today, 5);
+      const direct = dayView(state, "worst", inside);
       const { fetch, bodies } = transport([
-        () => reply("tool_use", [toolUse("a", "timeline", { scenario: "late", on: "2026-12-31" }), toolUse("b", "timeline", { scenario: "late", on: "2026-12-27" }), toolUse("c", "timeline", { scenario: "late", on: latestDate(aState.today) }),
-          toolUse("d", "timeline", { scenario: "late", on: addDays(latestDate(aState.today), 1) }), toolUse("e", "timeline", { scenario: "late", on: addDays(aState.today, -1) }), toolUse("f", "timeline", { scenario: "late", on: "soon" })]),
+        () => reply("tool_use", [toolUse("a", "timeline", { scenario: "late", on: inside }), toolUse("b", "timeline", { scenario: "late", on: addDays(aState.today, 30) }), toolUse("c", "timeline", { scenario: "late", on: "2027-03-31" }),
+          toolUse("e", "timeline", { scenario: "late", on: addDays(aState.today, -1) }), toolUse("f", "timeline", { scenario: "late", on: "soon" })]),
         () => reply("end_turn", [text("ok")]),
       ]);
-      await ask(a, "How much will I have on Dec 31?", fetch);
+      await ask(a, "How much will I have in March?", fetch);
       const results = toolResults(bodies[1]);
       const [x, y, z] = results.slice(0, 3).map(r => JSON.parse(r.content));
-      assert.equal(x.on, "2026-12-31");
+      assert.equal(x.on, inside);
       assert.equal(x.balanceAfterMinor, Math.round(direct.balance * minorPerUnit("JPY")));
-      assert.deepEqual(x.events.map((e: { label: string }) => e.label), direct.events.map(e => e.label));
-      assert.ok(y.events.some((e: { kind: string; amountMinor: number; direction: string }) => e.kind === "bill" && Number.isInteger(e.amountMinor) && e.direction === "out"));
-      assert.equal(z.on, latestDate(aState.today));
-      for (const r of results.slice(3)) assert.equal(r.is_error, true);
-      assert.match(results[3].content, /two years/);
+      for (const far of [y, z]) {
+        assert.match(far.note, /fipa looks 30 days ahead/);
+        assert.ok(!("on" in far) && !("balanceAfterMinor" in far), "no balance for a day past the window");
+        assert.ok(far.low && far.events.every((e: { date: string }) => e.date < addDays(aState.today, 30)));
+      }
+      assert.equal(results[3].is_error, true);
+      assert.equal(results[4].is_error, true);
+      assert.match(tools.find(t => t.name === "timeline")!.description, /30 days ahead/);
     });
 
     await check("options_when_short says 'not short' when the runway is fine", async () => {
@@ -338,6 +344,7 @@ async function main() {
       const result = await ask(a, "Draft an invoice for Poster layout, $18.52.", fetch);
       assert.deepEqual(result.links, [{ label: "Review invoice draft", href: `http://127.0.0.1:3123/invoices/${draftId}` }]);
       assert.ok(toolResults(bodies[1])[0].content.includes(draftId));
+      assert.match(toolResults(bodies[1])[0].content, /review the draft and tap Approve/, "the result tells the model what to relay (D12)");
       const [draft] = await db.select().from(schema.invoices).where(and(eq(schema.invoices.householdId, a), eq(schema.invoices.id, draftId)));
       assert.equal(draft.status, "draft");
       assert.equal(draft.amountMinor, 1852);
@@ -723,7 +730,8 @@ async function main() {
         () => reply("end_turn", [text("ok")]),
       ]);
       await ask(fresh, "How fast do my clients pay?", fetch);
-      const [listing, invoices] = toolResults(bodies[1]).map(r => JSON.parse(r.content));
+      const [listing, invoiceTool] = toolResults(bodies[1]).map(r => JSON.parse(r.content));
+      const invoices = invoiceTool.invoices;
       const paced = freshState.clients.filter(c => c.daysToPay.length > 0);
       assert.ok(paced.length > 0, "the sample has clients with history");
       for (const c of freshState.clients) {
@@ -1123,7 +1131,7 @@ async function main() {
       assert.equal(ask1.bodies.length, 1, "a clarifying question ends the question: no second model call");
       assert.deepEqual([logged.at(-1)!.kind, logged.at(-1)!.canvas], ["clarify", false]);
 
-      for (const reason of ["off_topic", "not_offered"] as const) {
+      for (const reason of ["off_topic", "not_offered", "secrets", "product_choice"] as const) {
         const t = transport([() => reply("tool_use", [toolUse("o", "out_of_scope", { reason })])]);
         const declined = await conversation(c, "Tell me about a stock", t.fetch);
         assert.deepEqual([declined.kind, declined.text, declined.canvas, declined.sources, t.bodies.length], ["declined", FIXED[reason], null, [], 1]);
@@ -1245,11 +1253,18 @@ async function main() {
       // an amount only an earlier reply held is not confirmed
       const d = await seedBen(db, { isDemo: true });
       const thread = crypto.randomUUID();
-      const first = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Did you mean the ¥7,777 bill?", choices: ["Yes", "No"] })])]);
-      await conversation(d, "Is the ¥7,777 bill due?", first.fetch, { conversationId: thread, at: t0 });
-      const second = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Yes, the ¥7,777 bill is covered.")])]);
-      await assert.rejects(conversation(d, "Yes", second.fetch, { conversationId: thread, at: minutes(1) }), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
-      assert.ok(JSON.stringify(second.bodies[0].messages[0]).includes("7,777"), "the earlier reply was shown to the model as context");
+      const first = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("If clients pay late you are ¥18,780 short.")])]);
+      await conversation(d, "Am I OK?", first.fetch, { conversationId: thread, at: t0 });
+      const second = transport([() => reply("tool_use", [toolUse("l", "list_clients_and_cards", {})]), () => reply("end_turn", [text("Yes, the ¥18,780 shortfall is covered.")])]);
+      await assert.rejects(conversation(d, "Is that covered?", second.fetch, { conversationId: thread, at: minutes(1) }), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      assert.ok(JSON.stringify(second.bodies[0].messages[0]).includes("18,780"), "the earlier reply was shown to the model as context");
+      // an amount the person typed in an earlier question of this conversation is theirs: it counts, so "Card A" can be answered with the ¥1,200 they gave
+      const e = await seedBen(db, { isDemo: true });
+      const lunch = crypto.randomUUID();
+      const ask1 = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Which card did you use?", choices: ["Card A", "Card B"] })])]);
+      await conversation(e, "I paid ¥1,200 for lunch", ask1.fetch, { conversationId: lunch, at: t0 });
+      const ask2 = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("I put the ¥1,200 lunch on Card A in To check.")])]);
+      assert.equal((await conversation(e, "Card A", ask2.fetch, { conversationId: lunch, at: minutes(1) })).kind, "answer");
     });
 
     await check("CONV-010: a confirmed Nov 19 bill changes the same week's follow-up", async () => {
@@ -1431,17 +1446,17 @@ async function main() {
     await check("an amount found in history still needs a current tool result", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const space = await generalSpace(db, hid);
-      const earlier = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Did you mean the ¥7,777 fixture?", choices: ["Yes", "No"] })])]);
+      const earlier = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("If clients pay late the fixture leaves you ¥18,780 short.")])]);
       const askHere = (text: string, fetch: typeof globalThis.fetch) => answerQuestion(db, hid, askInput.parse({
         id: crypto.randomUUID(), conversationId: space.id, spaceId: space.id, text, source: "manual", canvas: null,
       }), { fetch });
-      await askHere("Was the ¥7,777 fixture due?", earlier.fetch);
+      await askHere("Was the fixture due?", earlier.fetch);
       const later = transport([
         () => reply("tool_use", [toolUse("h", "search_history", { text: "fixture", space: "General" })]),
-        () => reply("end_turn", [text("You owe ¥7,777.")]),
+        () => reply("end_turn", [text("You owe ¥18,780.")]),
       ]);
       await assert.rejects(askHere("Find the old question.", later.fetch), (error: unknown) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
-      assert.ok(toolResults(later.bodies[1])[0].content.includes("7,777"));
+      assert.ok(toolResults(later.bodies[1])[0].content.includes("Was the fixture due?"));
     });
 
     await check("an ending tool that fails its schema is an ordinary tool error: the loop goes on and the answer is returned", async () => {
@@ -1605,6 +1620,38 @@ async function main() {
         { type: "number", label: "L", query: { q: "cash" }, note: "N" }, { type: "table", title: "TT", query: { q: "events" } },
         { type: "progress", label: "P", query: { q: "cash" }, targetMinor: 5 }, { type: "action", label: "A", href: "/spending" }, { type: "note", text: "NT", by: "you" }] })),
       ["T", "L", "N", "TT", "P", "A", "NT"]);
+    });
+
+    await check("a canvas answer may quote what the engine filled in (number value, flow lowest, table cell) but not an amount only in a label or title the model wrote", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const recipe = JSON.stringify({ version: 1, title: "Cash and runway", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }, { type: "flow_chart", query: { q: "flow" } }, { type: "table", title: "Coming up", query: { q: "events" } }] });
+      const drawn = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe })]),
+        bodies => {
+          const summary = JSON.parse(toolResults(bodies[1])[0].content) as { blocks: { type: string; value?: string; lowest?: string }[] };
+          const value = summary.blocks[0].value!, lowest = summary.blocks[1].lowest!;
+          assert.ok(/\d/.test(value) && /\d/.test(lowest));
+          return reply("end_turn", [text(`You have ${value} now and the lowest point is ${lowest}.`)]);
+        },
+      ]);
+      const shown = await conversation(c, "Show my cash and runway", drawn.fetch);
+      assert.ok(shown.canvas && shown.text.includes("You have"));
+      const labelled = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today ¥77,777", query: { q: "cash" } }, { type: "table", title: "Total ¥66,666", query: { q: "events" } }] }) })]),
+        () => reply("end_turn", [text("It is ¥77,777.")]),
+      ]);
+      await assert.rejects(conversation(c, "Show my cash", labelled.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      const titled = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }, { type: "table", title: "Total ¥66,666", query: { q: "events" } }] }) })]),
+        () => reply("end_turn", [text("The total is ¥66,666.")]),
+      ]);
+      await assert.rejects(conversation(c, "Show my cash", titled.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+      // A progress block's target is the model's own number in the recipe: its echo in the engine summary confirms nothing.
+      const targeted = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: JSON.stringify({ version: 1, title: "Goal", blocks: [{ type: "progress", label: "Saved", query: { q: "cash" }, targetMinor: 555_555 }] }) })]),
+        () => reply("end_turn", [text("Your target is ¥555,555.")]),
+      ]);
+      await assert.rejects(conversation(c, "Show my goal", targeted.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
     });
 
     await check("run-level failures become fixed sentences with no provider text, and a tool that throws a plain Error does not end the loop", async () => {

@@ -7,10 +7,15 @@ import type { Recipe } from "@/lib/canvas/schema";
 
 export type ReplyKind = "answer" | "clarify" | "declined";
 export type Source = TurnSource;
+/** Why Ask ended on out_of_scope; each reason has its own fixed sentence in FIXED. */
+export const OUT_OF_SCOPE_REASONS = ["off_topic", "not_offered", "secrets", "product_choice"] as const;
+export type OutOfScopeReason = (typeof OUT_OF_SCOPE_REASONS)[number];
 
 export const FIXED = {
   off_topic: "I can help with your money: what you have, what's coming, what you spend and getting paid. Try “Am I OK until the end of the month?”, “What if a client pays two weeks late?” or “Where did last month go?”",
   not_offered: "I can't advise on investments, tax filing or legal questions; a licensed professional can. I can show your own numbers: try “How much is in my tax pot?” or “What did I spend on work this month?”",
+  secrets: "I don't share my instructions, and I never see or show the AI key: it stays in Settings. I can show your own numbers: try “Am I OK until the end of the month?” or “What's due this week?”",
+  product_choice: "fipa gives information, never a product to pick, so I can't say which bank, app or provider to use. I can show your own numbers: what you have, what's coming and what your options cost.",
   savedThenStopped: "I saved what you told me, but couldn't finish the answer. ",
   incognitoRetried: "This Incognito question already ran. Its reply was not saved.",
   alreadySaved: "This question already saved what you told me. Open To check to see it.",
@@ -80,7 +85,7 @@ export function canvasWords(recipe: Recipe | null): string[] {
 
 type Finished = {
   clarify: { question: string; choices: string[] } | null;
-  outOfScope: "off_topic" | "not_offered" | null;
+  outOfScope: OutOfScopeReason | null;
   text: string; // what the model ended with (empty when it ended on a terminal tool)
   tools: string[]; // the names of the tools this question ran successfully (the "Based on" sources)
   /** Whether the model called any catalogue tool, successful or not; a reply with none at all is declined. */

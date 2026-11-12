@@ -4,19 +4,25 @@
 // A number with thousands separators and an optional decimal part.
 const NUM = String.raw`\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?`;
 // A scale after the number: 万 (10,000), k (1,000), million or M (1,000,000).
-const SCALE = String.raw`(?:万|k(?![a-z])|million(?![a-z])|m(?![a-z]))`;
+const SCALE = String.raw`(?:万|千|k(?![a-z])|million(?![a-z])|m(?![a-z]))`;
 // A minus sign after the mark is ignored (¥-50,000 is the amount 50,000); a 万 may be followed by the rest: 1万8780.
 const SIGN = String.raw`[-\u2212\u2013]?`;
-const TAIL = String.raw`(\d{1,4}(?![\d,.]))?`;
+// What follows a 万: 3千 and/or up to four more digits, with an optional grouped last three (1万8780, 5万8,000, 5万8千).
+const TAIL = String.raw`((?:\d{1,4}千)?(?:\d{1,4}(?:,\d{3})?(?![\d,.]))?)`;
 // A currency mark before (¥ ￥ $ US$) or a currency word after/before (yen 円 ドル JPY USD dollars).
 const BEFORE = new RegExp(String.raw`(¥|￥|US\$|\$|\b(?:JPY|USD|yen|dollars?)\b\s*)\s*${SIGN}\s*(${NUM})(?:\s?(${SCALE})${TAIL})?`, "gi");
 const AFTER = new RegExp(String.raw`(${NUM})(?:\s?(${SCALE})${TAIL})?\s*(円|ドル|\b(?:Japanese yen|US dollars?|yen|JPY|USD|dollars?)\b)`, "gi");
 
 type Amount = { text: string; value: number; currency: "JPY" | "USD" };
 const currencyOf = (mark: string): "JPY" | "USD" => /¥|￥|円|yen|jpy/i.test(mark) ? "JPY" : "USD";
-const scaleOf = (mark?: string) => !mark ? 1 : mark === "万" ? 10_000 : /^k/i.test(mark) ? 1_000 : 1_000_000;
+const scaleOf = (mark?: string) => !mark ? 1 : mark === "万" ? 10_000 : mark === "千" || /^k/i.test(mark) ? 1_000 : 1_000_000;
+/** What follows a 万, in yen: "8千" is 8000, "8780" and "8,780" are 8780. */
+const tailValue = (tail: string) => {
+  const thousands = /^(\d{1,4})千/.exec(tail);
+  return (thousands ? Number(thousands[1]) * 1_000 : 0) + Number(tail.slice(thousands ? thousands[0].length : 0).replace(/,/g, "") || 0);
+};
 const scaled = (digits: string, mark?: string, tail?: string) =>
-  Math.round((Number(digits.replace(/,/g, "")) * scaleOf(mark) + (mark === "万" && tail ? Number(tail) : 0)) * 100) / 100;
+  Math.round((Number(digits.replace(/,/g, "")) * scaleOf(mark) + (mark === "万" && tail ? tailValue(tail) : 0)) * 100) / 100;
 // Full-width digits, commas, dots and ￥ become ordinary ones.
 const fold = (text: string) => text.normalize("NFKC");
 
