@@ -27,7 +27,7 @@ import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Drawn, TurnView } from "@/lib/agent/view";
 import type { Recipe } from "@/lib/canvas/schema";
 import type { MemoryItem } from "@/lib/schema/memory";
-import { DEVICE_MEMORY_SOURCE_LABEL, memorySourceLabel, type ConversationTurn, type TurnSource } from "@/lib/schema/turn";
+import { DEVICE_MEMORY_SOURCE_LABEL, memorySourceLabel, splitSources, storeSources, type ConversationTurn, type TurnSource } from "@/lib/schema/turn";
 import {
   applyDeviceMemoryChanges, deleteDeviceConversation, deleteDeviceTurn, deviceMemory, devicePins, listDevice, pinOnDevice, readDeviceBrief, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin, writeDeviceBrief,
 } from "@/lib/store/device";
@@ -41,7 +41,7 @@ type Earlier = { id: string; question: string };
 type MemoryLinks = { notes: ReadonlyMap<string, string>; profile: ReadonlyMap<string, string> };
 
 const viewOf = (turn: ConversationTurn): TurnView => ({
-  id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, sources: turn.sources, links: [], thumb: turn.thumb, documentId: turn.documentId ?? null,
+  id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, ...splitSources(turn.sources), thumb: turn.thumb, documentId: turn.documentId ?? null,
 });
 const wordsOf = (error: unknown) => (error instanceof Error ? error.message : "Couldn’t use this device’s storage.");
 /** Draws a recipe through the engine; the route reads the household's records and keeps nothing. */
@@ -329,7 +329,7 @@ export function AskPage({
         try {
           await saveDeviceTurn(householdId, {
             version: 1, id: reply.id, conversationId, spaceId: space.id, question: trimmed, kind: reply.kind, reply: reply.text, choices: reply.choices,
-            recipe: reply.canvas?.recipe ?? null, sources: reply.sources, thumb: null, createdAt: new Date().toISOString(),
+            recipe: reply.canvas?.recipe ?? null, sources: storeSources(reply.sources, reply.links), thumb: null, createdAt: new Date().toISOString(),
           }, reply.brief ? { id: space.id, ...reply.brief } : undefined);
           if (reply.brief) setLatestBrief(reply.brief);
         } catch (error) { setProblem(wordsOf(error)); }

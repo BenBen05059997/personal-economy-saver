@@ -23,7 +23,7 @@ import { listMemory } from "./memory";
 import { memoryBlock } from "@/lib/agent/memory-prompt";
 import { BriefSchema, briefContext, type BriefRecord } from "@/lib/agent/brief";
 import { ContextTurn, contextTail, THREAD_CONTEXT_MAX, turnWords } from "@/lib/agent/context";
-import { DEVICE_MEMORY_SOURCE_LABEL } from "@/lib/schema/turn";
+import { DEVICE_MEMORY_SOURCE_LABEL, splitSources, storeSources } from "@/lib/schema/turn";
 import { MemoryItem } from "@/lib/schema/memory";
 import type { DeviceMemory, MemoryChange } from "@/lib/store/memory-ops";
 import { appUrl } from "@/lib/supabase-auth";
@@ -183,7 +183,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
       const drawn = kept.recipe ? { recipe: kept.recipe, blocks: resolveRecipe(kept.recipe, await loadCanvasContext(tx, householdId, kept.recipe)) } : null;
       return { reply: {
         id, kind: kept.kind === "document" ? ANSWER : kept.kind, text: kept.reply, choices: kept.choices, canvas: drawn,
-        sources: kept.sources, links: receipt?.links ?? [], pending: receipt?.pending ?? false, firstUse: await firstUseLine(tx, householdId), memoryChanges: [], offers: [],
+        sources: splitSources(kept.sources).sources, links: receipt?.links ?? [], pending: receipt?.pending ?? false, firstUse: await firstUseLine(tx, householdId), memoryChanges: [], offers: [],
       } };
     }
     // The conversations are on the device, so no turn is stored here to replay; the receipt says this id already wrote, and nothing runs or writes again.
@@ -238,8 +238,8 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
       if (await askReceipt(tx, householdId, id) && !await turnById(tx, householdId, id))
         throw new InputError("This question already ran. Start a new question.");
       const saved = await saveTurn(tx, householdId, {
-        id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: result.sources.map(source => places.memory === "device" && "id" in source
-          ? { ...source, label: DEVICE_MEMORY_SOURCE_LABEL } : source),
+        id, conversationId, question: text, kind: result.kind, reply: result.answer, choices: result.choices, recipe: result.recipe, sources: storeSources(result.sources.map(source => places.memory === "device" && "id" in source
+          ? { ...source, label: DEVICE_MEMORY_SOURCE_LABEL } : source), result.links),
       }, deps.at);
       if (!saved) return undefined;
     }

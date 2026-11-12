@@ -14,7 +14,7 @@ import { InputError } from "@/db/input-error";
 import { deleteHousehold, listEvents, type Db } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { RECIPE_VERSION, type Recipe } from "@/lib/canvas/schema";
-import { ConversationTurn } from "@/lib/schema/turn";
+import { ConversationTurn, splitSources, storeSources } from "@/lib/schema/turn";
 import { assembleContext } from "@/db/ask";
 import { contextTail, THREAD_CONTEXT_MAX, turnWords } from "@/lib/agent/context";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
@@ -37,6 +37,18 @@ async function main() {
     await migrate(drizzle(pg, { schema }), { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     const conv = crypto.randomUUID();
+
+    await check("a turn keeps the links of what it saved beside its sources, and an older turn without them still loads", async () => {
+      const links = [{ label: "Open To check", href: "/to-check" }];
+      const sources = [{ label: "Clients", href: "/clients" }];
+      const saved = turn(crypto.randomUUID(), "Groceries 8400 with Aki", { sources: storeSources(sources, links) });
+      const older = turn(saved.conversationId, "Older question", { sources });
+      await saveTurn(db, b, saved, at(30)); await saveTurn(db, b, older, at(31));
+      const [back, plain] = await spaceThread(db, b, saved.conversationId);
+      assert.doesNotThrow(() => ConversationTurn.parse(back));
+      assert.deepEqual(splitSources(back.sources), { sources, links });
+      assert.deepEqual(splitSources(plain.sources), { sources, links: [] });
+    });
 
     await check("a turn is saved with its sources, choices and recipe, and reads back valid against the schema", async () => {
       const first = turn(conv, "What is due?", { sources: [{ label: "Coming up", href: "/#coming-up" }], recipe: recipe("Cash") });

@@ -25,7 +25,9 @@ export function Arrival() {
       if (!target) { if (left > 0) looking = window.setTimeout(() => arrive(left - 1), LOOK_MS); return; }
       clear();
       for (let fold = target instanceof HTMLDetailsElement ? target : target.parentElement?.closest("details"); fold; fold = fold.parentElement?.closest("details")) fold.open = true;
-      target.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      // Only the page scrolls: scrollIntoView would also move every scrollable ancestor and anything docked beside the page.
+      const box = target.getBoundingClientRect();
+      window.scrollTo({ top: Math.max(0, window.scrollY + box.top + box.height / 2 - window.innerHeight / 2), behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
       target.classList.add("is-arriving");
       lit = { target, timer: window.setTimeout(clear, LIT_MS) };
     }

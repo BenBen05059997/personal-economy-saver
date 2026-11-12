@@ -17,7 +17,7 @@ import { nameKey } from "@/lib/money/name-key";
 import { generalSpace, SPACE_LIMIT } from "./spaces";
 import { z } from "zod";
 import { Currency } from "@/lib/catalogue/types";
-import type { TurnSource } from "@/lib/schema/turn";
+import type { StoredSource } from "@/lib/schema/turn";
 import { BriefSchema } from "@/lib/agent/brief";
 import * as s from "./schema";
 import { canHavePayLink, newPayToken } from "@/lib/paypal/pay-link";
@@ -196,7 +196,7 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       })));
       await insertChunks(tx, s.conversationTurns, journal.map(t => ({
         id: ref(t.id), householdId: hid, conversationId: ref(t.conversationId), question: t.question, kind: t.kind, reply: t.reply, choices: t.choices, recipe: remap(t.recipe),
-        sources: t.sources.flatMap<TurnSource>(source => "id" in source
+        sources: t.sources.flatMap<StoredSource>(source => "id" in source
           ? sourceMemoryIds.has(source.id) ? [{ ...source, id: ref(source.id) }] : []
           : [source]), thumb: t.thumb, createdAt: new Date(t.createdAt),
       })));

@@ -15,6 +15,7 @@ import { readPlaces } from "@/db/place";
 import { listSpaceChoices, listSpaces } from "@/db/spaces";
 import { loadSpending } from "@/db/spending";
 import { openSuggestions } from "@/db/suggestions";
+import { splitSources } from "@/lib/schema/turn";
 import { BriefSchema, type BriefRecord } from "@/lib/agent/brief";
 import { askMissingWords, missingAskSetting } from "@/lib/agent/availability";
 import { CanvasError, resolveRecipe, type CanvasContext } from "@/lib/canvas/resolve";
@@ -71,7 +72,7 @@ export async function loadAskView(db: Db, householdId: string, { spaceId, legacy
     const last = thread.findLast(turn => turn.recipe !== null);
     const shown = pinned ? draw(`pin-${pinned.id}`, pinned.recipe, context) : last?.recipe ? draw(last.id, last.recipe, context) : null;
     const turns: TurnView[] = thread.map(turn => ({
-      id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, sources: turn.sources, links: [], thumb: turn.thumb, documentId: turn.documentId ?? null,
+      id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, ...splitSources(turn.sources), thumb: turn.thumb, documentId: turn.documentId ?? null,
     }));
     const missing = missingAskSetting(own !== null);
     const brief: BriefRecord | null = !legacyId && space.briefUpdatedAt && (space.briefUpdatedBy === "ask" || space.briefUpdatedBy === "form")

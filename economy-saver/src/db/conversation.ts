@@ -3,12 +3,12 @@
 import { and, asc, eq, notExists } from "drizzle-orm";
 import { requireHousehold, withHousehold, type Db } from "./household";
 import { conversationTurns, spaces } from "./schema";
-import { TURN_VERSION, type ConversationTurn, type TurnKind, type TurnSource } from "@/lib/schema/turn";
+import { TURN_VERSION, type ConversationTurn, type TurnKind, type StoredSource } from "@/lib/schema/turn";
 import type { Recipe } from "@/lib/canvas/schema";
 
 export type NewTurn = {
   id: string; conversationId: string; question: string; kind: TurnKind; reply: string;
-  choices: string[] | null; recipe: Recipe | null; sources: TurnSource[];
+  choices: string[] | null; recipe: Recipe | null; sources: StoredSource[];
   /** D60: the file attached in Ask (kind document). */
   documentId?: string | null;
 };
@@ -16,7 +16,7 @@ type Row = typeof conversationTurns.$inferSelect;
 
 const turnOf = (row: Row): ConversationTurn => ({
   version: TURN_VERSION, id: row.id, conversationId: row.conversationId, question: row.question, kind: row.kind as TurnKind, reply: row.reply,
-  choices: (row.choices as string[] | null) ?? null, recipe: (row.recipe as Recipe | null) ?? null, sources: row.sources as TurnSource[],
+  choices: (row.choices as string[] | null) ?? null, recipe: (row.recipe as Recipe | null) ?? null, sources: row.sources as StoredSource[],
   ...(row.documentId !== null && { documentId: row.documentId }),
   thumb: row.thumb === 1 ? 1 : row.thumb === -1 ? -1 : null, createdAt: row.createdAt.toISOString(),
 });
