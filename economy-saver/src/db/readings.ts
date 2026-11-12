@@ -203,6 +203,6 @@ export async function setReadingWhose(db: Db, id: string, input: { reading: stri
     else throw new InputError("Say whose bill it is (person), or set shared to true");
     await tx.update(readings).set({ extracted: { ...data, proposed: { ...(data.proposed as object), whose } } }).where(and(eq(readings.householdId, hid), eq(readings.id, readingId)));
     const phrase = whose.memberId ? `${person!.name}\u2019s` : !whose.shared ? "not shared" : person ? `shared, ${person.name} pays` : value.kind === "charge" ? "shared, its card\u2019s owner pays" : "shared";
-    return { readingId, words: `Marked ${name} as ${phrase}. Confirm it on the card.` };
+    return { readingId, words: `Marked ${name} as ${phrase}. Finish it on the card.` };
   });
 }

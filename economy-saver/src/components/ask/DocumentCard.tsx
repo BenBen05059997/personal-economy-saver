@@ -18,8 +18,8 @@ export type CardForm = { today: string; homeCurrency: Currency; cards: { id: str
 const POLL_MS = 2000, GIVE_UP_MS = 60_000;
 
 /** D61: the card under a document turn in Ask. Every word on it is written by code. It reads (polling), asks each failed check one at a time, then offers Confirm, Edit and Don't add it for every item. */
-export function DocumentCard({ documentId, initial, form, readOnly, returnTo, onCard, onCanvas }: {
-  documentId: string; initial: Card | null; form: CardForm; readOnly: boolean; returnTo: string;
+export function DocumentCard({ documentId, initial, form, readOnly, returnTo, busy, onCard, onCanvas }: {
+  documentId: string; initial: Card | null; form: CardForm; readOnly: boolean; returnTo: string; busy: boolean;
   onCard: (card: Card) => void; onCanvas: (canvas: NonNullable<Card["canvas"]>) => void;
 }) {
   const [card, setCard] = useState<Card | null>(initial);
@@ -44,6 +44,13 @@ export function DocumentCard({ documentId, initial, form, readOnly, returnTo, on
   useEffect(() => { loadRef.current = load; });
 
   useEffect(() => { if (initial === null) void loadRef.current(); }, [initial]);
+
+  // An Ask turn can change a reading waiting on this card (the agent's set_whose), so the card asks again when a turn ends.
+  const wasBusy = useRef(busy);
+  useEffect(() => {
+    if (wasBusy.current && !busy) void loadRef.current();
+    wasBusy.current = busy;
+  }, [busy]);
 
   const reading = card?.status === "reading";
   useEffect(() => {
@@ -118,10 +125,16 @@ function Item({ item, form, returnTo, onDone }: { item: DocumentCardItem; form: 
   </>;
 }
 
+const SETTLE_MS = 400;
+
+/** A new question replaces the last one under the pointer, so a second click meant for the answer just given must not pick on the next: clicks in the first moments of a question are ignored. */
 function Choices({ check, onChoose }: { check: Check; onChoose: (check: Check, choice: CheckChoice) => void }) {
+  const shown = useRef(0);
+  useEffect(() => { shown.current = performance.now(); }, [check.kind]);
+  const settled = (event: { timeStamp: number }) => event.timeStamp - shown.current >= SETTLE_MS;
   return <div className="check-line-choices ask-choices">{check.choices.map(choice => choice.step.do === "dismiss"
-    ? <button key={choice.label} type="submit" className="ui-button" formNoValidate>{choice.label}</button>
-    : <button key={choice.label} type="button" className="ui-button" onClick={() => onChoose(check, choice)}>{choice.label}</button>)}</div>;
+    ? <button key={choice.label} type="submit" className="ui-button" formNoValidate onClick={event => { if (!settled(event)) event.preventDefault(); }}>{choice.label}</button>
+    : <button key={choice.label} type="button" className="ui-button" onClick={event => { if (settled(event)) onChoose(check, choice); }}>{choice.label}</button>)}</div>;
 }
 
 function ConfirmRow({ item, own, people, answers, hidden, onEdit, onDone }: { item: DocumentCardItem; own: OwnChoices; people: WhosePerson[]; answers: CheckAnswers; hidden: React.ReactNode; onEdit: () => void; onDone: () => void }) {

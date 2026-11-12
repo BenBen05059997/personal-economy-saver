@@ -21,6 +21,7 @@ import { proposeReadings, reviewReading } from "@/db/readings";
 import { addMember } from "@/db/people";
 import { tools } from "@/lib/agent/tools";
 import { InputError } from "@/db/input-error";
+import { answerCheck } from "@/components/reader/check-answers";
 import { readingForm } from "@/lib/reader/form";
 import { readerInbox } from "@/db/reader-inbox";
 import { loadCanvasContext } from "@/lib/canvas/request";
@@ -34,7 +35,7 @@ import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
 import { daysBetween, low, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { readUpload } from "@/lib/reader/accept";
-import { buildCard, cardContext, DOCUMENT_WORDS, documentCanvas, needsForm, readLine, savedCard, whoseWords, type CardReading } from "@/lib/reader/document-card";
+import { buildCard, cardContext, whoseChoice, DOCUMENT_WORDS, documentCanvas, needsForm, readLine, savedCard, whoseWords, type CardReading } from "@/lib/reader/document-card";
 import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { TURN_VERSION, type ConversationTurn } from "@/lib/schema/turn";
@@ -307,6 +308,19 @@ async function main() {
     items = [bill({ name: "Pine Rent", date: "2026-12-22" })];
     const pine = await read(a, (await attach(a, "pine rent")).documentId);
     assert.equal(await reviewReading(db, a, pine.items[0].readingId, { ...pine.items[0].value, repeat: "year" }, {}, false, []), true, "Edit set Every year: the question is moot");
+    // each answer to "Does it come again?", as the card posts it (answerCheck's repeat, then the form's repeat field), is what is stored
+    for (const [label, expected, name] of [["Just this once", null, "Repeat Once"], ["Every month", "month", "Repeat Month"], ["Every year", "year", "Repeat Year"], ["Not sure", null, "Repeat Unsure"]] as const) {
+      items = [bill({ name, date: "2026-12-24" })];
+      const card = await read(a, (await attach(a, name.toLowerCase())).documentId);
+      const check = card.items[0].checks.find(one => one.kind === "repeat_unknown")!;
+      assert.deepEqual(check.choices.map(choice => choice.label), ["Just this once", "Every month", "Every year", "Not sure"]);
+      const answers = answerCheck({ kinds: [] }, check.kind, check.choices.find(choice => choice.label === label)!);
+      const fd = new FormData();
+      for (const [k, v] of Object.entries({ target: "bill", name, amount: "6000", currency: "JPY", date: "2026-12-24", category: "other", businessShare: "personal", cardId: "", repeat: answers.repeat ?? card.items[0].value.repeat ?? "" })) fd.set(k, v);
+      assert.equal(await reviewReading(db, a, card.items[0].readingId, readingForm(fd), {}, false, [check.kind]), true);
+      const [row] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.biller, name)));
+      assert.equal(row.repeatUnit, expected, `${label} stores ${expected ?? "a one-off"}`);
+    }
     items = [bill({ name: "Hana Clinic", date: "2026-12-23" })];
     const hana = await read(a, (await attach(a, "hana clinic")).documentId);
     assert.equal(await reviewReading(db, a, hana.items[0].readingId, { ...hana.items[0].value, date: "2026-11-01" }, {}, false, ["repeat_unknown"]), true, "past due raised only by the person's own edit does not block");
@@ -465,11 +479,14 @@ async function main() {
     assert.deepEqual(readingForm(formOf({ whose: "shared" }, "charge")).whose, { shared: true, memberId: null, paidByMemberId: null });
     assert.equal(readingForm(formOf({ whose: "own" }, "charge")).whose?.shared, false);
     // the tool: a fixed sentence, a link to the item, nothing confirmed
-    assert.equal(await setWhose(a, { reading: "hikari denki", shared: false, person: "aki" }), "Marked Hikari Denki as Aki\u2019s. Confirm it on the card.");
+    assert.equal(await setWhose(a, { reading: "hikari denki", shared: false, person: "aki" }), "Marked Hikari Denki as Aki\u2019s. Finish it on the card.");
     assert.deepEqual(links, [{ label: "Open in To check", href: `http://127.0.0.1:3123/to-check#reading-${denki.readingId}` }]);
+    assert.equal(whoseChoice("bill", (await documentCard(db, a, whoseCard.documentId)).items.find(item => item.readingId === denki.readingId)!.value.whose), aki, "the card's Whose follows the stored owner");
+    assert.equal(whoseChoice("bill", undefined), "shared");
+    assert.deepEqual([whoseChoice("charge", { shared: true, memberId: null, paidByMemberId: null }), whoseChoice("charge", undefined)], ["shared", "own"]);
     const reMarked = (await documentCard(db, a, whoseCard.documentId)).items.find(item => item.readingId === denki.readingId)!;
     assert.deepEqual([reMarked.status, reMarked.value.whose], ["to_check", { shared: false, memberId: aki, paidByMemberId: null }], "a draft edit: still waiting");
-    assert.equal(await setWhose(a, { reading: "Hikari Denki", shared: true, person: "Aki" }), "Marked Hikari Denki as shared, Aki pays. Confirm it on the card.");
+    assert.equal(await setWhose(a, { reading: "Hikari Denki", shared: true, person: "Aki" }), "Marked Hikari Denki as shared, Aki pays. Finish it on the card.");
     await assert.rejects(setWhose(a, { reading: "Hikari Denki", shared: true, person: "Chie" }), (e: unknown) => e instanceof InputError && e.message === "Nobody called Chie is in this household");
     await assert.rejects(setWhose(a, { reading: "Hikari Denki", shared: false }), (e: unknown) => e instanceof InputError && /Say whose bill/.test(e.message));
     await assert.rejects(setWhose(a, { reading: "Ramen Kita", shared: true, person: "Aki" }), (e: unknown) => e instanceof InputError && /leave person empty/.test(e.message));

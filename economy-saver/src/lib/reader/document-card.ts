@@ -119,6 +119,10 @@ export function whoseWords(kind: "bill" | "charge", whose: Whose | null | undefi
   return payer ? `Shared, ${payer} pays` : "Shared";
 }
 
+/** D45: the Whose select's choice for a stored whose: a bill's owner or "shared"; a charge's "shared" or "own" (the card's owner). */
+export const whoseChoice = (kind: "bill" | "charge", whose: Whose | null | undefined): string =>
+  kind === "charge" ? (whose?.shared ? "shared" : "own") : whose?.memberId ?? "shared";
+
 const later = (a: string, b: string) => (a > b ? a : b);
 
 /** The canvas drawn after Confirm: the sentence, the chart and the timeline over the days to the month end (or the bill), the bill marked. */

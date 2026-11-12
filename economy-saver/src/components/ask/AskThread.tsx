@@ -83,7 +83,7 @@ export function AskThread({
         {!readOnly && turn.offers?.map(offer => <KeepOfferCard key={JSON.stringify(offer)}
           offer={offer} householdId={householdId} clock={clock} currency={form.homeCurrency} deviceMemory={onDeviceMemory} returnTo={spaceHref} onDeviceMemoryKept={onKept} hidden={incognito} />)}
         {turn.kind === "document" && (turn.documentId
-          ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} readOnly={!canWrite} returnTo={spaceHref} onCard={onTakeCard}
+          ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} readOnly={!canWrite} returnTo={spaceHref} onCard={onTakeCard} busy={busy}
             onCanvas={drawn => onDocumentCanvas(turn.documentId as string, drawn)} />
           : <p className="ui-hint">{DOCUMENT_WORDS.notKept}</p>)}
         {!readOnly && (!turn.incognito || incognito) && turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
