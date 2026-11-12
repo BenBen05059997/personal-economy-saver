@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { FORM_FETCH_HEADER } from "@/lib/form-fetch";
 
-/** The invoice's payment link in a read-only field and one button that copies it, then tells fipa it was offered. Without JavaScript the field alone is there to copy. */
-export function CopyLink({ url, invoiceId, client }: { url: string; invoiceId: string; client: string }) {
+/** The invoice's payment link in a read-only field and one button that copies it, then tells fipa it was offered. `plain` makes the button a plain one, for when another button on the page is the primary action. Without JavaScript the field alone is there to copy. */
+export function CopyLink({ url, invoiceId, client, plain = false }: { url: string; invoiceId: string; client: string; plain?: boolean }) {
   const [message, setMessage] = useState("");
   async function copy() {
     try {
@@ -23,7 +23,7 @@ export function CopyLink({ url, invoiceId, client }: { url: string; invoiceId: s
   }
   return <div className="invoice-copy">
     <input className="invoice-link" readOnly value={url} aria-label="Payment link" onFocus={event => event.currentTarget.select()} />
-    <button type="button" className="ui-button primary" onClick={copy}>{`Copy link for ${client}`}</button>
+    <button type="button" className={plain ? "ui-button" : "ui-button primary"} onClick={copy}>{`Copy link for ${client}`}</button>
     <p role="status" className="ui-hint">{message}</p>
   </div>;
 }

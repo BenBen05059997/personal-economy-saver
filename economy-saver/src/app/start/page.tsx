@@ -13,7 +13,7 @@ async function Start() {
   if (await verifiedUid()) redirect("/settings/account");
   const demo = await currentHouseholdId(); // not signed in, so a household here is a Try it or blank demo
   const kind = demo ? await withHousehold(db(), demo, tx => tryItKind(tx, demo)) : null;
-  const notice = kind === "try-it" ? "This replaces the Try it household in this browser. Reset in Settings brings Ben's numbers back."
+  const notice = kind === "try-it" ? "This replaces the Try it household in this browser. Reset at the top of every page brings Ben's numbers back."
     : kind === "blank" ? "This replaces your household in this browser and its numbers." : undefined;
   return <SetupForm notice={notice} action="/api/try/blank" forwarding={missingForwardingSetting() === null} privacy title="Start with my numbers" button="Start planning"
     hint="A name is all it needs; the next pages ask about your money, and you can skip any. No bills, clients or payments are added for you, and nothing here is real money. You can sign in with email later to keep it." />;

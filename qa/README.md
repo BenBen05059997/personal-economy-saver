@@ -12,7 +12,7 @@ One scenario is one user action with one expected outcome, so a failure points t
 ## How to run
 
 - Run the app on http://127.0.0.1:3123 (always 127.0.0.1, not localhost): `npm run dev -- -p 3123` in `economy-saver/`. Restart it after any change in `src/db/`, the schema or `next.config.ts`, and keep one browser tab open. For scenarios that need a model, run the dev model bridge on http://127.0.0.1:3130 (`npm run codex:bridge`); it reads images but refuses PDFs.
-- Start from a fresh Try it household: Settings → Account → Reset to Ben's starting numbers → Reset (or a private window, then Try it). Try it and Start with my numbers have no hourly limit.
+- Start from a fresh Try it household: Reset in the top banner beside Sample household → Reset (or a private window, then Try it). Try it and Start with my numbers have no hourly limit.
 - Run in file order; a scenario whose preconditions name an earlier one assumes it ran.
 - Do every screen at 1440px (judges use a computer). Steps and lines written for 375px are phone checks, run only when the owner asks. In a phone run every button, link, input and select is at least 44px tall; nothing overlaps and a long unbroken word wraps.
 - A scenario fails if a number differs, the screen errors, a button does nothing, or anything scrolls sideways or overlaps.
@@ -213,7 +213,7 @@ Ben starts on Nov 14, 2026. Advancing to `2026-11-15` brings the Nov 18 CloudBox
 
 > Read `AGENTS.md`, then `qa/README.md` ("How to run", "Expected numbers"). You are the testing agent. Drive any browser you can control, with its window 1440px wide. Run every scenario whose `how` is `browser`, in this order of files: `qa/scenarios/home-money.json`, `start-account.json`, `documents-safety.json`, `ask-agent.json` (about 400). Only the areas I name, if I name some.
 >
-> **Setup.** The app runs at http://127.0.0.1:3123 (always 127.0.0.1, not localhost) and its AI model is the dev model bridge on 127.0.0.1:3130; don't start, stop or restart either. Use one browser window with one tab for the app. Start from Ben's Try it household: open http://127.0.0.1:3123 and click Try it (opening /api/try directly is refused). When a scenario needs a fresh household again, use Settings → Account → Reset to Ben's starting numbers → Reset, or a new Try it. Follow each scenario's preconditions; when one names an earlier scenario, run them in order.
+> **Setup.** The app runs at http://127.0.0.1:3123 (always 127.0.0.1, not localhost) and its AI model is the dev model bridge on 127.0.0.1:3130; don't start, stop or restart either. Use one browser window with one tab for the app. Start from Ben's Try it household: open http://127.0.0.1:3123 and click Try it (opening /api/try directly is refused). When a scenario needs a fresh household again, use Reset in the top banner beside Sample household → Reset, or a new Try it. Follow each scenario's preconditions; when one names an earlier scenario, run them in order.
 >
 > **Width.** Run at 1440px (device toolbar off): judges use a computer. Skip steps and expected lines that apply only at 375px unless I ask for a phone run. Record `width` as `1440` (or `375` in a phone run).
 >

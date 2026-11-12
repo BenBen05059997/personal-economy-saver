@@ -1,5 +1,6 @@
 "use client";
 
+import { ResetDemo } from "@/components/settings/ResetDemo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DRAFT_EVENT, storeDraft } from "@/components/ask/draft";
@@ -131,7 +132,7 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
       <header className={`shell-bar${desktop ? " is-desktop" : ""}`}>
         <button className="shell-mobile-toggle" popoverTarget="shell-nav" aria-label="Open navigation"><Icon name="menu" /></button>
         <Link prefetch={false} className="shell-mobile-brand" href="/"><LogoMark />fipa</Link>
-        {desktop && tryIt && <p className="shell-sample">Sample household{today ? ` · fixed date ${shortDate(today)}` : ""}</p>}
+        {desktop && tryIt && <p className="shell-sample"><span className="shell-sample-label">Sample household{today ? ` · fixed date ${shortDate(today)}` : ""}</span><ResetDemo /></p>}
         {!desktop && <div className="shell-ask-row">
           <button {...micProps} className={`shell-ask-mic${speech.listening ? " is-listening" : ""}`}><Icon name="mic" /></button>
           <Link prefetch={false} className="shell-ask" href="/canvas#ask" onKeyDown={typedOnBar}>
@@ -161,6 +162,7 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
       <p className="shell-person-sub">{viewer ? viewer.email : "Try it household"}</p>
       {!viewer && <Link prefetch={false} href="/login">Sign in with email</Link>}
       <Link prefetch={false} href="/settings/account">Account</Link>
+      {tryIt && !desktop && <p className="shell-person-reset"><ResetDemo long /></p>}
       {viewer && <form method="post" action="/api/auth/logout"><button type="submit">Sign out</button></form>}
     </div>
     <section id="shell-notifications" popover="auto" className="shell-popover shell-notifications">

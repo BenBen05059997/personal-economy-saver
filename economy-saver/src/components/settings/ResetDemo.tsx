@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
 
-/** Try it households only: a two-step reset, asked on the page itself (no confirm() dialog). */
-export function ResetDemo() {
+/** Try it households only: the one reset, a compact control that asks once on the page itself (no confirm() dialog). Used in the top banner (short question, it replaces the banner text while asking) and, at phone width, the account menu (long question). */
+export function ResetDemo({ long = false }: { long?: boolean }) {
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -24,19 +23,12 @@ export function ResetDemo() {
     setBusy(false);
     setAsking(false);
   }
-  return <div className="settings-reset">
+  return <span className="reset-demo" data-asking={asking || undefined}>
     {asking ? <>
-      <p>Everything you added goes. Reset?</p>
-      <div className="settings-actions">
-        <button type="button" className="ui-button primary" disabled={busy} onClick={reset}>Reset</button>
-        <button type="button" className="ui-button" disabled={busy} onClick={() => setAsking(false)}>Keep</button>
-      </div>
-    </> : <>
-      <button type="button" className="ui-button" onClick={() => { setMessage(""); setAsking(true); }}>Reset to Ben’s starting numbers</button>
-      <p className="ui-hint">Puts Ben’s fictional starting numbers back.</p>
-    </>}
-    <p className="ui-hint"><Link href="/start">Start over with my numbers ›</Link></p>
-    <p className="ui-hint">Replaces this household with a blank one and your own numbers.</p>
-    <p role="status" className="ui-hint">{message}</p>
-  </div>;
+      <span className="reset-demo-ask">{long ? "Put Ben’s starting numbers back? Everything you changed goes." : "Reset to Ben’s starting numbers?"}</span>
+      <button type="button" className="reset-demo-button" disabled={busy} onClick={reset}>Reset</button>
+      <button type="button" className="reset-demo-button" disabled={busy} onClick={() => setAsking(false)}>Keep</button>
+    </> : <button type="button" className="reset-demo-button" onClick={() => { setMessage(""); setAsking(true); }}>Reset</button>}
+    <span role="status" className="reset-demo-message">{message}</span>
+  </span>;
 }

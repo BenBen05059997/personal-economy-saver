@@ -72,7 +72,7 @@ export function InvoiceReview({ review, state, canApprove, connection, candidate
     {sent && payLink && <section className="invoice-link-section">
       <p className="invoice-status">{`Link made${invoice.sentOn ? ` ${dayLabel(invoice.sentOn)}` : ""}. Awaiting payment.`}</p>
       {taking ? <ConfirmingRefresh /> : late && <p className="ui-hint">{`${first} is late. To send the link again, copy it again and send it the way you did before.`}</p>}
-      <CopyLink url={payLink} invoiceId={invoice.id} client={first} />
+      <CopyLink url={payLink} invoiceId={invoice.id} client={first} plain={tryIt && !taking} />
       {tryIt && !taking && <ApiForm action="/api/try/pay-as-client" className="invoice-play-client">
         <input type="hidden" name="id" value={invoice.id} />
         <p className="ui-hint">{`Play the client: fipa pays this link with PayPal’s sandbox test card, so no PayPal login is needed. PayPal confirms in about 20 seconds; then the payment shows at the top of Activity and your PayPal balance rises by ${minorMoney(homeAmount, state.homeCurrency)}.`}</p>

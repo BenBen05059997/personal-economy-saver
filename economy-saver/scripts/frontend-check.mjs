@@ -1168,7 +1168,7 @@ await step("action", "stage15a-try-it-keeps-nov-14-and-shows-get-started", async
   const html = await page("/", /short on the 27th/);
   expect(html.includes('dateTime="2026-11-14"') && /18,780/.test(pageContent(html)) && /Get started/.test(pageContent(html)) && /Read the sentence and the forecast/.test(pageContent(html)), "a-try-it-date");
 });
-await step("page", "stage15a-start-notice-names-ben-for-try-it", () => page("/start", /This replaces the Try it household in this browser\. Reset in Settings brings Ben(?:'|&#x27;|’)s numbers back\./));
+await step("page", "stage15a-start-notice-names-ben-for-try-it", () => page("/start", /This replaces the Try it household in this browser\. Reset at the top of every page brings Ben(?:'|&#x27;|’)s numbers back\./));
 
 // Stage 15 C: every empty panel names what fills it and links there; rows lead to what they are about.
 await step("action", "stage15c-blank-session", async () => {

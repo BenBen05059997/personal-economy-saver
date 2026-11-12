@@ -315,7 +315,7 @@
       "Press Back to the old pages"
     ],
     "expected": [
-      "The line reads \"This replaces the Try it household in this browser. Reset in Settings → Account brings Ben's numbers back.\"",
+      "The line reads \"This replaces the Try it household in this browser. Reset at the top of every page brings Ben's numbers back.\"",
       "Home is blank as in START-012, not Ben's",
       "Going Back shows the landing or the new blank household, never Ben's"
     ],
@@ -362,7 +362,7 @@
       "Settings → Account open"
     ],
     "steps": [
-      "Find \"Start over with my numbers ›\" beside Reset",
+      "Find \"Start over with my numbers ›\" under the line \"Reset is at the top of every page, beside Sample household.\"",
       "Press it"
     ],
     "expected": [
@@ -1474,15 +1474,14 @@
       "Something added or changed"
     ],
     "steps": [
-      "Open Settings → Account",
-      "Press Reset to Ben's starting numbers",
-      "Press Keep once, then Reset again and press Reset"
+      "At 1440px, on any page, find Reset beside \"Sample household · fixed date Nov 14\" in the top banner",
+      "Press Reset, then Keep once, then Reset again and press Reset"
     ],
     "expected": [
-      "The question reads “Everything you added goes. Reset?”; Keep changes nothing",
+      "The banner text is replaced on one line by “Reset to Ben’s starting numbers?” with Reset and Keep, nothing clipped or wrapped; Keep brings the banner back and changes nothing. In the phone account menu the question reads “Put Ben’s starting numbers back? Everything you changed goes.”",
       "Reset returns to Home with Ben’s expected numbers and Get started",
       "Network shows one Reset POST with x-form-fetch: 1, a 204 with x-form-redirect: /, and one navigation to Home",
-      "The line “Puts Ben’s fictional starting numbers back.” shows under the button"
+      "Settings → Account no longer has a Reset button; it says “Reset is at the top of every page, beside Sample household.” At phone width Reset is in the account menu"
     ],
     "refs": []
   },
