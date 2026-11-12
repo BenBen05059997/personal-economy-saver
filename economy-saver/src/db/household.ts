@@ -177,7 +177,8 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
       .where(eq(s.cardStatements.householdId, hid))
       .orderBy(s.cardStatements.dueOn),
     db.select().from(s.clients).where(eq(s.clients.householdId, hid)).orderBy(s.clients.createdAt, s.clients.name),
-    db.select().from(s.invoices).where(eq(s.invoices.householdId, hid)).orderBy(s.invoices.sentOn, s.invoices.createdAt),
+    // A member request (D45) is not client income: the forecast never sees it.
+    db.select().from(s.invoices).where(and(eq(s.invoices.householdId, hid), isNotNull(s.invoices.clientId))).orderBy(s.invoices.sentOn, s.invoices.createdAt),
     db.select().from(s.balanceUpdates).where(and(eq(s.balanceUpdates.householdId, hid), eq(s.balanceUpdates.status, "pending"))).orderBy(s.balanceUpdates.createdAt, s.balanceUpdates.id),
     db.select().from(s.pots).where(eq(s.pots.householdId, hid)).orderBy(s.pots.createdAt, s.pots.name, s.pots.id),
     loadSplitState(db, hid, household.splitSince, today, toHome),
@@ -251,7 +252,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
   for (const i of invoiceRows) {
     if (i.status !== "paid" || !i.sentOn || !i.paidOn) continue;
     const days = Math.max(0, Math.round((Date.parse(i.paidOn) - Date.parse(i.sentOn)) / 86_400_000));
-    daysToPay.set(i.clientId, [...(daysToPay.get(i.clientId) ?? []), days]);
+    daysToPay.set(i.clientId!, [...(daysToPay.get(i.clientId!) ?? []), days]);
   }
   const clients: Client[] = clientRows.map((c) => ({
     id: c.id,
@@ -266,7 +267,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     .filter((i) => i.status !== "paid" || (i.paidOn !== null && i.paidOn >= keepPaidFrom))
     .map((i) => ({
       id: i.id,
-      clientId: i.clientId,
+      clientId: i.clientId!, // the query keeps client invoices only
       ...(i.number !== null && { number: i.number }),
       item: i.item,
       amountUsd: inUsd(i.amountMinor, i.currency),

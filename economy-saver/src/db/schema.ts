@@ -218,7 +218,10 @@ export const invoices = pgTable(
   {
     id: id(),
     householdId: householdId(),
-    clientId: uuid("client_id").notNull(),
+    clientId: uuid("client_id"), // null for a member request (D45): then payer_member_id is set
+    // D45: a request for a household member's share. The invoice is in USD (PayPal's currency); owed_minor is what the member owed, in the household's currency, when it was made.
+    payerMemberId: uuid("payer_member_id"),
+    owedMinor: minor("owed_minor"),
     status: invoiceStatus("status").notNull(),
     number: text("number"),
     item: text("item").notNull(),
@@ -252,6 +255,9 @@ export const invoices = pgTable(
     index("invoices_client_idx").on(t.clientId),
     // Same-household guarantee: a client of another household cannot be referenced.
     foreignKey({ columns: [t.householdId, t.clientId], foreignColumns: [clients.householdId, clients.id], name: "invoices_client_fk" }).onDelete("cascade"),
+    foreignKey({ columns: [t.householdId, t.payerMemberId], foreignColumns: [members.householdId, members.id], name: "invoices_payer_member_fk" }).onDelete("cascade"),
+    check("invoices_client_xor_member", sql`(${t.clientId} is null) <> (${t.payerMemberId} is null)`),
+    check("invoices_owed_with_member", sql`(${t.payerMemberId} is null) = (${t.owedMinor} is null)`),
   ],
 ).enableRLS();
 

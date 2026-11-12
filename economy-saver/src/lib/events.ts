@@ -5,7 +5,8 @@ import { beginMoneyChange, lockRunway, observeRunway } from "@/db/runway-events"
 import { convertMinor, fromMinor, fromRateMicro, parseMinor } from "@/db/money";
 import { householdMoment } from "@/db/clock";
 import { fillPots } from "@/db/pots";
-import { clients, events, fxRates, households, invoices, paypalConnections, webhookDeliveries } from "@/db/schema";
+import { clients, events, fxRates, households, invoices, members, paypalConnections, webhookDeliveries } from "@/db/schema";
+import { settleUpInTx } from "@/db/settle";
 import { applyMerchantEvent, ownerPayPal } from "@/db/paypal-connection";
 import { InvoiceMatchError, readPaymentByCapture, settleReadPaymentInTx } from "@/db/invoice-match";
 import { paidTitle } from "@/lib/money/paid-title";
@@ -248,7 +249,7 @@ async function shownAt(tx: Db, owner: { householdId: string; timeZone: string; f
 /** The states a completed payment for the invoice's own order may still mark paid. */
 const OPEN: ("sent" | "draft" | "closed")[] = ["sent", "draft", "closed"];
 
-const PAID = { id: invoices.id, clientId: invoices.clientId, amount: invoices.amountMinor, currency: invoices.currency, rate: invoices.fxRateMicro, businessDate: invoices.paidOn };
+const PAID = { id: invoices.id, clientId: invoices.clientId, payerMemberId: invoices.payerMemberId, amount: invoices.amountMinor, currency: invoices.currency, rate: invoices.fxRateMicro, businessDate: invoices.paidOn };
 
 /**
  * Keeps the receipt and, when `mark` is given and the delivery is new, the paid transition with its balance credit, pots,
@@ -256,7 +257,7 @@ const PAID = { id: invoices.id, clientId: invoices.clientId, amount: invoices.am
  */
 async function settle(
   db: Db, hid: string, event: PayPalWebhookEvent, receipt: ReturnType<typeof receiptOf>,
-  mark: ((tx: Db, paidOn: SQL<string>) => Promise<{ id: string; clientId: string; amount: number; currency: string; rate: number | null; businessDate: string | null } | undefined>) | undefined,
+  mark: ((tx: Db, paidOn: SQL<string>) => Promise<{ id: string; clientId: string | null; payerMemberId: string | null; amount: number; currency: string; rate: number | null; businessDate: string | null } | undefined>) | undefined,
 ): Promise<boolean> {
   return withHousehold(db, hid, async tx => {
     await lockRunway(tx, hid);
@@ -292,8 +293,9 @@ async function settle(
     }
     // `effective` is PayPal's own instant: it is compared with the balance read's instant, which is PayPal's clock too.
     const effective = new Date(event.create_time);
-    const [client] = await tx.select({ name: clients.name }).from(clients)
-      .where(and(eq(clients.householdId, owner.householdId), eq(clients.id, paid.clientId)));
+    const [client] = paid.clientId !== null
+      ? await tx.select({ name: clients.name }).from(clients).where(and(eq(clients.householdId, owner.householdId), eq(clients.id, paid.clientId)))
+      : await tx.select({ name: members.displayName }).from(members).where(and(eq(members.householdId, owner.householdId), eq(members.id, paid.payerMemberId!)));
     const increment = connection.balanceAsOf && connection.balanceAsOf >= effective ? 0 : credit;
     await tx.update(paypalConnections).set({
       balanceMinor: sql`${paypalConnections.balanceMinor} + ${increment}`,
@@ -308,11 +310,13 @@ async function settle(
       notify: true, occurredAt: await shownAt(tx, owner, paid.id, effective),
     });
     // D43: a payment that credits the balance also fills the pots that have a rule; the credit is counted in the home currency.
-    if (increment > 0) {
+    if (increment > 0 && paid.payerMemberId === null) { // a member's share is not income: it fills no pot
       const homeCredit = connection.balanceCurrency === owner.home ? increment
         : convertMinor(increment, connection.balanceCurrency, owner.home, fromRateMicro(await usdRateMicro(tx, owner.householdId, owner.home, paid.businessDate!)));
       await fillPots(tx, owner.householdId, homeCredit, `${client.name}'s payment`);
     }
+    // D45: a member's request that is paid records the transfers as settled, exactly as Mark settled does, in this same transaction.
+    if (paid.payerMemberId !== null) await settleUpInTx(tx, owner.householdId);
     await observeRunway(tx, owner.householdId);
     return true;
   });

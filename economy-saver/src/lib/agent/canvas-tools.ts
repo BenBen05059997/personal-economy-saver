@@ -28,8 +28,8 @@ function figures(state: MoneyState, kind: "expected" | "worst") {
   return { lowPoint: { amountMinor: Math.round(point.amount * unit), date: point.date }, safeToSpendMinor: Math.round(safeToSpend(state, 0).amount * unit) };
 }
 
-/** The block and query list the model builds a recipe from (the full JSON Schema is ~20 KB; this is the short form). */
-const RECIPE_HELP = `Recipe: {version:1,title,scenario?,blocks:[1..12]}; scenario is what_if’s {case,changes}.
+/** The short form of the recipe schema the model builds from. */
+const RECIPE_HELP = `Recipe: {version:1,title,scenario?,blocks:[1..12]}; scenario = {case,changes}.
 Blocks:
 sentence: query sentence
 number: label, query safe_to_spend/cash/low_point/month_total/foreign_costs, note?
@@ -37,18 +37,19 @@ flow_chart: query flow, mark?
 timeline: query events, mark?
 table: title?, query events/month_by_category/compare_months/spending_search/regular_costs/foreign_costs/bills_for_month
 compare: query compare_months
+by_person: query month_by_person (Shared/each person, who owes)
 progress: label, targetMinor, query safe_to_spend/cash/month_total; or query goals alone
 note: text, by:"assistant"
 letter: text
 sliders: controls:[{clientId,maxDays}]
 action: label, href
-Query {q,...}: sentence/safe_to_spend/low_point/flow/events take scenario ({case,changes} or "canvas"); flow/events days (7–60); month_total/month_by_category month (YYYY-MM); compare_months a (earlier), b; spending_search text, months (1–12); regular_costs months? (2–24); bills_for_month month, text?; cash/foreign_costs/goals none. mark is a bill ID. Only targetMinor and what_if changes hold amounts (minor units).`;
+Query {q,...}: sentence/safe_to_spend/low_point/flow/events take scenario ({case,changes} or "canvas"); flow/events days (7–60); month_total/month_by_category/month_by_person month (YYYY-MM); compare_months a (earlier), b; spending_search text, months (1–12); regular_costs months? (2–24); bills_for_month month, text?; cash/foreign_costs/goals none. mark is a bill ID. Only targetMinor and changes hold amounts (minor units).`;
 
 export const canvasTools: Tool[] = [
   defineTool({
     name: "what_if", scope: "read",
     input: z.object({ case: z.enum(["usual", "late"]), changes: z.array(ChangeSchema).min(1).max(MAX_CHANGES) }),
-    description: "Before and after hypothetical changes. usual = usual pay days, late = slowest. Home-currency minor units. IDs from read tools.",
+    description: "Before/after hypothetical changes. usual = usual days, late = slowest. Minor units. IDs from read tools.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       let changed: MoneyState;
@@ -68,7 +69,7 @@ export const canvasTools: Tool[] = [
   defineTool({
     name: "make_canvas", scope: "read",
     input: z.object({ recipe: z.string().min(2).max(40_000) }),
-    description: `Draw a canvas from JSON text; the last valid one is shown.\n${RECIPE_HELP}`,
+    description: `Draw a canvas from JSON; the last valid one shows.\n${RECIPE_HELP}`,
     run: async (ctx, input) => {
       let json: unknown;
       try { json = JSON.parse(input.recipe); } catch { throw new InputError("The recipe is not valid JSON."); }

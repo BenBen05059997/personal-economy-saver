@@ -10,6 +10,10 @@ import { periodProblem } from "@/lib/money/period";
 import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { ReaderError } from "./settings";
 
+/** D61: whose a reading is, set by the person on the card or in Ask, never by the reader. A bill is one member's (`memberId`) or shared, and a shared bill names who pays (`paidByMemberId`, null: nobody); a charge is shared or not (the card's owner pays). */
+export const whoseSchema = z.object({ shared: z.boolean(), memberId: z.string().uuid().nullable(), paidByMemberId: z.string().uuid().nullable() }).strict();
+export type Whose = z.infer<typeof whoseSchema>;
+
 export const extractSchema = z.object({
   kind: z.enum(["bill", "charge"]),
   name: z.string().trim().min(1).max(160).nullable(),
@@ -30,9 +34,10 @@ export const extractSchema = z.object({
   periodEnd: z.string().date().nullable().optional(),
   // 27F: set by code, never by the model: on a bill whose due date is an estimate (the document showed a period and no due date), the words that say so. The person confirms the date or types the day.
   dateBasis: z.string().max(200).nullable().optional(),
+  whose: whoseSchema.nullable().optional(), // set by the person (the card's Whose choice, or Ask), only in a household of two or more
 }).strict();
 export type Extracted = z.infer<typeof extractSchema>;
-const recordItemSchema = extractSchema.omit({ dateBasis: true });
+const recordItemSchema = extractSchema.omit({ dateBasis: true, whose: true });
 const recordsSchema = z.object({ items: z.array(recordItemSchema).max(12) });
 export const mediaTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"] as const;
 export const uploadMime = z.enum(mediaTypes);

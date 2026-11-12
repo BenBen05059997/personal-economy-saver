@@ -7,6 +7,7 @@ import { dayLabel, minorMoney, minorPerUnit, money, ordinal, aboutMoney } from "
 import { goalPaces } from "@/lib/money/goals";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "@/lib/money/gaps";
 import { CATEGORIES, categoryLabel } from "@/lib/money/categories";
+import { splitBalance, splitSummary } from "@/lib/money/split";
 import { monthByCategory, type MonthView } from "@/lib/money/month";
 import { paceLine } from "@/lib/money/pace";
 import { regularCosts, REGULAR_MONTHS, type RegularCost } from "@/lib/money/regular";
@@ -49,6 +50,14 @@ type TableRow = { cells: string[]; tone: "short" | "up" | "down" | "plain" };
 export type TableData = { title: string | null; caption: string | null; head: string[]; rows: TableRow[]; foot: string[] | null; empty: string | null };
 type CompareRow = { label: string; aLabel: string; bLabel: string; aMinor: number; bMinor: number; change: string };
 export type CompareData = { aName: string; bName: string; aTotal: string; bTotal: string; difference: string; rows: CompareRow[]; empty: string | null };
+/** D57, D52, D45: the month by category, whose each part is (Shared, then each member), and who owes whom. `rows` draw the chart; `table` is the same figures as a table. */
+export type ByPersonData = {
+  month: string;
+  rows: { label: string; parts: { name: string; minor: number; label: string }[] }[];
+  table: TableData;
+  owes: string | null;
+  empty: string | null;
+};
 export type ProgressData = { label: string; valueLabel: string; targetLabel: string; valueMinor: number; targetMinor: number };
 type GoalProgressRow = ProgressData & { id: string; targetDate: string; dateLabel: string; summary: string };
 export type GoalsProgressData = { rows: GoalProgressRow[]; empty: string | null };
@@ -60,7 +69,7 @@ export type ActionData = { label: string; href: string };
 type Common = { index: number; source: string; live: boolean };
 export type ResolvedBlock = Common & (
   | { type: "sentence"; data: SentenceData } | { type: "number"; data: NumberData } | { type: "flow_chart"; data: FlowData }
-  | { type: "timeline"; data: TimelineData } | { type: "table"; data: TableData } | { type: "compare"; data: CompareData }
+  | { type: "timeline"; data: TimelineData } | { type: "table"; data: TableData } | { type: "compare"; data: CompareData } | { type: "by_person"; data: ByPersonData }
   | { type: "progress"; data: ProgressData | GoalsProgressData } | { type: "note"; data: NoteData } | { type: "letter"; data: LetterData }
   | { type: "sliders"; data: SlidersData } | { type: "action"; data: ActionData }
 );
@@ -246,6 +255,26 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     };
   };
 
+  const byPersonOf = (query: Extract<Block, { type: "by_person" }>["query"]): ByPersonData => {
+    const view = viewOf(query.month), month = monthLabel(query.month);
+    const members = state.split.members;
+    const none = { rows: [], table: { title: null, caption: null, head: [], rows: [], foot: null, empty: null }, owes: null };
+    if (members.length < 2) return { month, ...none, empty: `Only ${members[0]?.name ?? "you"} in this household. Add a person in Household → People to split.` };
+    if (view.categories.length === 0) return { month, ...none, empty: `Nothing confirmed in ${monthName(query.month)}.` };
+    const parts = (whose: { sharedMinor: number; byMember: { id: string; minor: number }[] }) =>
+      [{ name: "Shared", minor: whose.sharedMinor }, ...members.map(m => ({ name: m.name, minor: whose.byMember.find(x => x.id === m.id)?.minor ?? 0 }))].map(p => ({ ...p, label: p.minor > 0 ? minor(p.minor) : "—" }));
+    const rows = view.categories.map(c => ({ label: c.label, parts: parts(c), total: allUncounted(c.items) ? AMOUNT_NOT_KNOWN : minor(c.totalMinor) }));
+    return {
+      month, owes: splitSummary(state.split, splitBalance(state.split, state.today), currency), empty: null,
+      rows: rows.map(({ label, parts }) => ({ label, parts: parts.filter(p => p.minor > 0) })),
+      table: {
+        title: null, caption: uncountedNote(view), head: ["Category", ...parts(view).map(p => p.name), "Total"], empty: null,
+        rows: rows.map(row => ({ cells: [row.label, ...row.parts.map(p => p.label), row.total], tone: "plain" as const })),
+        foot: ["Total", ...parts(view).map(p => p.label), totalLabel(view)],
+      },
+    };
+  };
+
   const tableOf = (query: Extract<Block, { type: "table" }>["query"], title: string | null): TableData => {
     switch (query.q) {
       case "regular_costs": return { ...regularRows(query), title };
@@ -369,6 +398,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       }
       case "table": return { ...common(worked(block.query)), type: "table", data: tableOf(block.query, block.title ?? null) };
       case "compare": return { ...common("worked"), type: "compare", data: compareOf(block.query) };
+      case "by_person": return { ...common("worked"), type: "by_person", data: byPersonOf(block.query) };
       case "note": return { index, live: false, source: block.by === "you" ? "Your note" : "Written by the assistant", type: "note", data: { text: block.text, by: block.by } };
       case "letter": return { index, live: false, source: "Written by the assistant", type: "letter", data: { text: block.text } };
       case "action": return { index, live: false, source: "A link to a page in the app", type: "action", data: { label: block.label, href: block.href } };

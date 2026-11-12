@@ -111,7 +111,7 @@ export function scheduleWords(schedule: BillSchedule, currency: Currency, today:
  * `storedPayer` is the payer an edited bill already has: keeping it needs no second person (a household left with one person
  * after a removal keeps its payer, which counts again once someone joins).
  */
-async function checkWhose(tx: Db, hid: string, memberId: string | null, paidByMemberId: string | null, storedPayer: string | null = null): Promise<{ ownerName: string | null; paidByName: string | null }> {
+export async function checkWhose(tx: Db, hid: string, memberId: string | null, paidByMemberId: string | null, storedPayer: string | null = null): Promise<{ ownerName: string | null; paidByName: string | null }> {
   let ownerName: string | null = null;
   if (memberId) {
     const [member] = await tx.select({ name: members.displayName }).from(members).where(and(eq(members.householdId, hid), eq(members.id, memberId)));

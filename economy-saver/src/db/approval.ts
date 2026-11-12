@@ -1,10 +1,11 @@
 import { beginMoneyChange, observeRunway } from "./runway-events";
 import { and, eq } from "drizzle-orm";
-import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
+import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { fromMinor, toRateMicro } from "./money";
 import { orderRequestFor } from "./payment-link";
 import { payeeFor } from "./paypal-connection";
-import { clients, invoices } from "./schema";
+import { requestIsCurrent } from "./member-request";
+import { clients, invoices, members } from "./schema";
 import { addDays } from "@/lib/money/dates";
 import { NotConnected, type CreateOrder } from "@/lib/paypal/contracts";
 import { canHavePayLink, newPayToken, payLinkUrl } from "@/lib/paypal/pay-link";
@@ -16,11 +17,14 @@ export class ApprovalError extends Error {
 /** What the invoice page shows: the invoice, its client and the fipa link once Approve has made one. */
 export async function invoiceReview(db: Db, householdId: string, invoiceId: string) {
   const hid = requireHousehold(householdId);
-  const [row] = await db.select({ invoice: invoices, client: clients.name })
-    .from(invoices).innerJoin(clients, and(eq(clients.householdId, hid), eq(clients.id, invoices.clientId)))
+  const [row] = await db.select({ invoice: invoices, client: clients.name, member: members.displayName })
+    .from(invoices)
+    .leftJoin(clients, and(eq(clients.householdId, hid), eq(clients.id, invoices.clientId)))
+    .leftJoin(members, and(eq(members.householdId, hid), eq(members.id, invoices.payerMemberId)))
     .where(and(eq(invoices.householdId, hid), eq(invoices.id, invoiceId)));
   if (!row) return undefined;
-  return { ...row, payLink: row.invoice.payToken ? payLinkUrl(row.invoice.payToken) : null };
+  // `client` is who pays: the client, or for a member's request (D45) the member.
+  return { invoice: row.invoice, client: (row.client ?? row.member)!, isRequest: row.invoice.payerMemberId !== null, payLink: row.invoice.payToken ? payLinkUrl(row.invoice.payToken) : null };
 }
 
 export type ApprovalContext = {
@@ -45,16 +49,20 @@ export type ApprovalContext = {
 export async function approvePaymentLink(ctx: ApprovalContext): Promise<string> {
   const hid = requireHousehold(ctx.householdId);
   const draft = await withHousehold(ctx.db, hid, async tx => {
+    await lockHousehold(tx, hid); // the order every money writer locks in: the household row, then the invoice's
     const [invoice] = await tx.select().from(invoices)
       .where(and(eq(invoices.householdId, hid), eq(invoices.approveKey, ctx.approveKey))).for("update");
     if (!invoice) throw new ApprovalError("Invoice not found", 404);
     if (refusal(invoice)) return { invoice, payee: null };
+    // A member's request must still ask for what is owed (D45); one that does not is closed here.
+    if (invoice.payerMemberId !== null && !await requestIsCurrent(tx, hid, invoice)) return { invoice: { ...invoice, status: "closed" as const }, payee: null, stale: true };
     const payee = await payeeOf(tx, hid);
     if (invoice.payToken) return { invoice, payee };
     const [kept] = await tx.update(invoices).set({ payToken: newPayToken() })
       .where(and(eq(invoices.householdId, hid), eq(invoices.id, invoice.id))).returning();
     return { invoice: kept, payee };
   });
+  if ("stale" in draft) throw new ApprovalError("What is owed changed, so this request was closed. Request it again from Home.");
   const sentAlready = refusal(draft.invoice);
   if (sentAlready === "sent") return draft.invoice.id;
   if (sentAlready) throw sentAlready;
@@ -74,8 +82,10 @@ export async function approvePaymentLink(ctx: ApprovalContext): Promise<string> 
       || invoice.payToken !== token || await payeeOf(tx, hid) !== payee) {
       throw new ApprovalError("This invoice changed while its link was being made. Tap Approve again.");
     }
-    const [client] = await tx.select({ name: clients.name, termsDays: clients.termsDays }).from(clients)
-      .where(and(eq(clients.householdId, hid), eq(clients.id, invoice.clientId)));
+    if (invoice.payerMemberId !== null && !await requestIsCurrent(tx, hid, invoice, false)) throw new ApprovalError("What is owed changed while its link was being made. Request it again from Home.");
+    const [client] = invoice.clientId !== null
+      ? await tx.select({ name: clients.name, termsDays: clients.termsDays }).from(clients).where(and(eq(clients.householdId, hid), eq(clients.id, invoice.clientId)))
+      : (await tx.select({ name: members.displayName }).from(members).where(and(eq(members.householdId, hid), eq(members.id, invoice.payerMemberId!)))).map(m => ({ ...m, termsDays: 0 }));
     await tx.update(invoices).set({
       status: "sent", sentOn: ctx.today, dueOn: invoice.dueOn ?? addDays(ctx.today, client.termsDays),
       fxRateMicro: toRateMicro(ctx.usdRate), paypalOrderId: order.orderId, paypalOrderCreatedAt: order.createdAt,

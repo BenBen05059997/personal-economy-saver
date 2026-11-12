@@ -25,11 +25,13 @@ import { cardSummary } from "./card-summary";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
 import { Suggestions } from "./Suggestions";
 import type { openSuggestions } from "@/db/suggestions";
+import type { memberRequestsView } from "@/db/member-request";
 import { GetStarted, type GetStartedProgress } from "./GetStarted";
 import { Hints } from "./Hints";
 import "./home.css";
 
 type Props = { state: MoneyState };
+type MemberRequests = Awaited<ReturnType<typeof memberRequestsView>>;
 
 // What the ✓ marks mean in the engine: a bill's tick is "the worst-case balance on its due day is at least zero";
 // a card's is "the statement is paid from the bank, or once client payments land by its due date, with every other bill still paid".
@@ -127,7 +129,7 @@ function nextSharedBill(state: MoneyState) {
   return dates.sort((a, b) => (a.date < b.date ? -1 : 1))[0];
 }
 
-function SharedCosts({ state }: Props) {
+function SharedCosts({ state, requests, canRequest }: Props & { requests: MemberRequests; canRequest: boolean }) {
   if (state.split.members.length < 2) return null;
   const { transfers } = splitBalance(state.split, state.today);
   const next = nextSharedBill(state);
@@ -140,7 +142,18 @@ function SharedCosts({ state }: Props) {
         ? <PanelHint className="home-empty">All settled. New shared items split from here.</PanelHint>
         : <PanelHint className="home-empty" add="bill" label="Add a bill">Choose Shared on a bill or charge to split it by shares.</PanelHint>)}
     <p className="home-note"><Link prefetch={false} href={HOUSEHOLD_PEOPLE}>Share costs ›</Link></p>
-    {transfers.map(transfer => <div key={transfer.fromId + transfer.toId} className="home-row"><div>{transferLine(transfer, state.homeCurrency)}</div></div>)}
+    {transfers.map(transfer => {
+      // D45: only the owner is paid by PayPal, so only a transfer to the owner can be asked for by PayPal, and only by the owner's Approve.
+      const asked = requests.open.find(r => r.payerMemberId === transfer.fromId && r.owedMinor === transfer.amountMinor);
+      return <div key={transfer.fromId + transfer.toId} className="home-row"><div>{transferLine(transfer, state.homeCurrency)}</div>
+        {canRequest && transfer.toId === requests.ownerId && (asked
+          ? <Link prefetch={false} href={`/invoices/${asked.id}`}>{asked.status === "sent" ? "Request sent ›" : "Review request ›"}</Link>
+          : <ApiForm action="/api/settle/request">
+            <input type="hidden" name="fromMemberId" value={transfer.fromId} />
+            <button className="home-confirm">Request by PayPal</button>
+          </ApiForm>)}
+      </div>;
+    })}
     {transfers.length > 0 && <ApiForm action="/api/settle" className="home-settle">
       <input type="hidden" name="returnTo" value="/" />
       <button className="home-confirm">Mark settled</button>
@@ -253,7 +266,7 @@ function addedLine(state: MoneyState, id: string | null): string | null {
   return charge && card ? `Added ${charge.merchant} ${format(charge.amount)} on ${card.label}` : null;
 }
 
-export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, connection, isOwner, asOf }: Props & { inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; connection: ConnectionView; isOwner: boolean; asOf: string | null }) {
+export function HomeView({ requests, state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, connection, isOwner, asOf }: Props & { requests: MemberRequests; inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; connection: ConnectionView; isOwner: boolean; asOf: string | null }) {
   const date = homeDateLabel(state.today);
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
@@ -267,7 +280,7 @@ export function HomeView({ state, inbox, notice, balanceId, demo, tryIt, forward
     {tryIt && getStarted ? <GetStarted key={householdId} householdId={householdId} progress={getStarted} peopleCount={state.split.members.length} invoiceHref={(inv => inv ? `/invoices/${inv.id}` : "/clients")(state.invoices.find(i => i.status === "unbilled") ?? state.invoices.find(i => i.status === "sent"))} /> : <HintsPanel state={state} inbox={inbox} tryIt={tryIt} householdId={householdId} />}
     <HomeViews state={state} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{(tryIt || connection.state === "connected") && <PayPalBalance state={state} asOf={connection.state === "connected" ? asOf : null} />}{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
     <div className="home-panels">
-      <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} /></div>
+      <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} requests={requests} canRequest={isOwner} /></div>
       <div className="home-column"><ComingUp state={state} added={addedLine(state, added)} addedId={added} /></div>
     </div>
   </article>;

@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
-import { clients, invoices } from "./schema";
+import { clients, invoices, members } from "./schema";
 import { closeByRef, refreshSuggestions } from "./suggestions";
 
 /**
@@ -15,8 +15,9 @@ export async function endPaymentLink(db: Db, householdId: string, invoiceId: str
   const ended = await withHousehold(db, hid, async tx => {
     // Lock order, as in every money writer: the household row, then the invoice row; the status is read after the lock.
     await lockHousehold(tx, hid);
-    const [row] = await tx.select({ client: clients.name }).from(invoices)
-      .innerJoin(clients, and(eq(clients.householdId, hid), eq(clients.id, invoices.clientId)))
+    const [row] = await tx.select({ client: sql<string>`coalesce(${clients.name}, ${members.displayName})` }).from(invoices)
+      .leftJoin(clients, and(eq(clients.householdId, hid), eq(clients.id, invoices.clientId)))
+      .leftJoin(members, and(eq(members.householdId, hid), eq(members.id, invoices.payerMemberId)))
       .where(and(eq(invoices.householdId, hid), eq(invoices.id, id))).for("update", { of: invoices });
     if (!row) return false;
     const updated = await tx.update(invoices).set({ status: "closed" })

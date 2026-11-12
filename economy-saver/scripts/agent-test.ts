@@ -708,6 +708,18 @@ async function main() {
       assert.equal((await db.select().from(schema.pots).where(eq(schema.pots.id, trip))).length, 1);
     });
 
+    await check("set_whose (D61) is a draft tool with a strict schema; a household of one gets the tool's refusal as an error the model can relay", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const tool = tools.find(t => t.name === "set_whose")!;
+      assert.equal(tool.scope, "draft");
+      assert.deepEqual((toolInputSchema(tool) as unknown as { required: string[] }).required.sort(), ["person", "reading", "shared"], "strict schema: nullable, so required");
+      const run = transport([() => reply("tool_use", [toolUse("w", "set_whose", { reading: "Hikari Denki", shared: false, person: "Aki" })]), () => reply("end_turn", [text("There is only one person here.")])]);
+      assert.equal((await ask(c, "This one is Aki's.", run.fetch)).pending, false);
+      const [out] = toolResults(run.bodies[1]);
+      assert.ok(out.is_error);
+      assert.match(JSON.stringify(out.content), /needs a second person/);
+    });
+
     await check("who_owes_whom is a read tool that answers from the split; add_bill takes a payer by name and an unknown name comes back as a clear tool error", async () => {
       const c = await seedBen(db, { isDemo: true });
       await addMember(db, c, { name: "Aki" });

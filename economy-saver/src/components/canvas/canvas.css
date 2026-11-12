@@ -83,6 +83,10 @@
 .canvas-bar { display: flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--muted); font: 400 12px/1.2 var(--sans); font-variant-numeric: tabular-nums; }
 .canvas-bar.is-new { color: var(--ink); }
 .canvas-bar i { display: block; height: 10px; min-width: 2px; max-width: calc(100% - 7em); border-radius: 0 4px 4px 0; }
+.canvas-bar-name { flex: none; width: 4.5em; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canvas-bar-name ~ i { max-width: calc(100% - 12em); }
+.canvas-switch { display: flex; gap: var(--space-2); margin: var(--space-2) 0; }
+.canvas-switch .ui-button[aria-pressed="true"] { border-color: var(--accent-border); background: var(--accent); color: var(--on-accent); }
 .canvas-bar em { font-style: normal; white-space: nowrap; }
 /* sliders */
 .canvas-sliders { display: grid; gap: var(--space-4); }

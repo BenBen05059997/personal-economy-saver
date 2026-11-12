@@ -2,6 +2,7 @@
 // The checks are `checksFor` in src/lib/money/checks.ts, the same words To check shows. Information only: the agent quotes them and never decides one.
 import { z } from "zod";
 import { readerInbox } from "@/db/reader-inbox";
+import { setReadingWhose } from "@/db/readings";
 import { checksFor, pendingProposals, readingProposal, type Check, type Proposal } from "@/lib/money/checks";
 import { minorPerUnit } from "@/lib/money/format";
 import type { Tool, ToolContext } from "./tools";
@@ -37,6 +38,17 @@ export const checkTools: Tool[] = [
         ],
         reading: inbox.jobs.map(job => ({ documentId: job.id, status: job.status, error: job.error })),
       });
+    },
+  },
+  {
+    name: "set_whose",
+    description: "Set whose a waiting To check item is, by name. shared: person pays (null: nobody); else person owns it. Charges take no person.",
+    input: z.object({ reading: z.string().trim().min(1).max(160), shared: z.boolean(), person: z.string().trim().min(1).max(80).nullable().default(null) }),
+    scope: "draft",
+    run: async (ctx: ToolContext, input: { reading: string; shared: boolean; person: string | null }) => {
+      const { readingId, words } = await setReadingWhose(ctx.db, ctx.householdId, input);
+      ctx.addLink?.({ label: "Open in To check", href: new URL(`/to-check#reading-${readingId}`, ctx.appUrl).href });
+      return words;
     },
   },
 ] as unknown as Tool[];

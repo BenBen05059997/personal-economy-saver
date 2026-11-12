@@ -88,7 +88,7 @@ export async function loadAskView(db: Db, householdId: string, { spaceId, legacy
       spaces: spaces.map(({ id, name, status }) => ({ id, name, status })), earlier, legacyId: legacyId ?? null,
       pinId: pinId ?? null, pins: pins.map(({ id, title }) => ({ id, title })),
       turns, starters, shown, cloudBrief: brief,
-      form: { today, homeCurrency: state.homeCurrency, cards: state.cards.map(({ id, label }) => ({ id, label })), own: ownForms },
+      form: { today, homeCurrency: state.homeCurrency, cards: state.cards.map(({ id, label }) => ({ id, label })), own: ownForms, people: state.split.members.map(({ id, name }) => ({ id, name })) },
       pin: pinned && shown ? { id: pinned.id, title: pinned.title } : null, firstUse, questionsLeft: questions, documentsLeft: documents, unavailable: missing ? askMissingWords(missing, owner) : null,
     };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });

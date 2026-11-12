@@ -17,7 +17,7 @@ import "./invoice.css";
 type Review = NonNullable<Awaited<ReturnType<typeof invoiceReview>>>;
 
 export function InvoiceReview({ review, state, canApprove, connection, candidates, tryIt }: { review: Review; state: MoneyState; canApprove: boolean; connection: ConnectionView; candidates: ReadPaymentCandidate[]; tryIt: boolean }) {
-  const { invoice, client, payLink } = review;
+  const { invoice, client, payLink, isRequest } = review;
   const draft = invoice.status === "draft" || invoice.status === "unbilled";
   const sent = invoice.status === "sent";
   // PayPal has taken the payment (a capture is stored) but its verified event has not yet marked the invoice paid.
@@ -27,10 +27,11 @@ export function InvoiceReview({ review, state, canApprove, connection, candidate
   const late = forecast !== undefined && expectedPayOn(state, forecast) < state.today;
   const canTakePayments = connection.state === "demo" || connection.state === "connected";
   const currency = Currency.parse(invoice.currency);
-  const homeAmount = convertMinor(invoice.amountMinor, currency, state.homeCurrency,
+  // A member's request (D45) is for what they owed, in the household's currency; the dollar amount is only what PayPal is asked for.
+  const homeAmount = invoice.owedMinor ?? convertMinor(invoice.amountMinor, currency, state.homeCurrency,
     invoice.fxRateMicro === null ? state.fxPerUsd : fromRateMicro(invoice.fxRateMicro));
   const due = invoice.dueOn ? dayLabel(invoice.dueOn) : "On receipt";
-  const paidOutside = (draft || sent) && invoice.paypalCaptureId === null;
+  const paidOutside = !isRequest && (draft || sent) && invoice.paypalCaptureId === null; // a request is settled by Mark settled on Home
   const clientRow = state.clients.find(c => c.id === invoice.clientId);
   const pace = clientRow ? clientPace(clientRow) : null;
   const first = client.split(" ")[0];
@@ -46,17 +47,18 @@ export function InvoiceReview({ review, state, canApprove, connection, candidate
   </form>;
   return <article className="invoice-review">
     <Link prefetch={false} href="/" className="ui-hint ui-back">← Home</Link>
-    <h1 className="ui-title">{draft ? "Review invoice" : "Invoice"}</h1>
+    <h1 className="ui-title">{isRequest ? (draft ? "Review request" : "Request") : draft ? "Review invoice" : "Invoice"}</h1>
     <dl className="invoice-details">
       <div className="ui-row"><dt>To</dt><dd>{client}</dd></div>
       <div className="ui-row"><dt>For</dt><dd>{invoice.item}</dd></div>
       {invoice.number && <div className="ui-row"><dt>Number</dt><dd>{invoice.number}</dd></div>}
-      <div className="ui-row"><dt>Due</dt><dd>{due}</dd></div>
+      {!isRequest && <div className="ui-row"><dt>Due</dt><dd>{due}</dd></div>}
       <div className="ui-row"><dt>Amount</dt><dd className="invoice-amount">{amount}
         {currency !== state.homeCurrency && <small>≈ {minorMoney(homeAmount, state.homeCurrency)}</small>}</dd></div>
       {pace && <div className="ui-row"><dt>Pace</dt><dd className="invoice-pace">{client} usually pays {pace.usual} days after you send, slowest {pace.slowest}</dd></div>}
       {invoice.note && <div className="ui-row"><dt>Note</dt><dd>{invoice.note}</dd></div>}
     </dl>
+    {isRequest && draft && <p className="ui-hint">{`${first} owes you ${minorMoney(homeAmount, state.homeCurrency)} for shared costs. Approve makes a PayPal link for ${amount}; when ${first} pays it, those costs are marked settled.`}</p>}
     {draft && (canTakePayments
       ? canApprove
         // The sandbox call takes 5 to 10 s: ApiForm disables the button while it runs, and the busy line shows (invoice.css).
@@ -76,7 +78,7 @@ export function InvoiceReview({ review, state, canApprove, connection, candidate
       {tryIt && !taking && <ApiForm action="/api/try/pay-as-client" className="invoice-play-client">
         <input type="hidden" name="id" value={invoice.id} />
         <p className="ui-hint">{`Play the client: fipa pays this link with PayPal’s sandbox test card, so no PayPal login is needed. PayPal confirms in about 20 seconds; then the payment shows at the top of Activity and your PayPal balance rises by ${minorMoney(homeAmount, state.homeCurrency)}.`}</p>
-        <button className="ui-button primary">Pay as the client (sandbox test card)</button>
+        <button className="ui-button primary">{isRequest ? `Pay as ${first} (sandbox test card)` : "Pay as the client (sandbox test card)"}</button>
       </ApiForm>}
       {!taking && candidates.map(c => <form key={c.paymentId} method="post" action="/api/invoices/match" className="invoice-match">
         <input type="hidden" name="id" value={invoice.id} />

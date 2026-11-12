@@ -26,6 +26,12 @@ import type { CreateOrder, OrderRequest, PayPalCall, PayPalRequest } from "@/lib
 import { verifyWebhook } from "@/lib/paypal/webhook";
 import { captureOrder, createOrder, payWithSandboxTestCard } from "@/lib/paypal/send";
 import { payInvoiceAsTestClient } from "@/db/try-pay";
+import { billInput, insertBill } from "@/db/bills";
+import { loadMoneyState } from "@/db/household";
+import { InputError } from "@/db/input-error";
+import { memberRequestsView, requestFromMember } from "@/db/member-request";
+import { addMember } from "@/db/people";
+import { endPaymentLink } from "@/db/invoice-end";
 import { applyVerifiedDelivery } from "@/lib/events";
 import type { PayWithTestCard } from "@/lib/paypal/contracts";
 
@@ -88,7 +94,7 @@ async function main() {
     // ---- Approve for a Try it household: pays fipa's own sandbox account.
     const invoice = await unbilled(demo);
     const orders = fakeOrders();
-    const [client] = await db.select().from(schema.clients).where(eq(schema.clients.id, invoice.clientId));
+    const [client] = await db.select().from(schema.clients).where(eq(schema.clients.id, invoice.clientId!));
     await assert.rejects(approvePaymentLink(ctx(other, invoice.approveKey, orders.create)), (e: unknown) => e instanceof ApprovalError && e.status === 404);
     assert.equal(orders.requests.length, 0, "another household's key reaches nothing");
     orders.state.failNext = true;
@@ -131,7 +137,7 @@ async function main() {
     assert.equal(await invoiceReview(db, other, invoice.id), undefined);
 
     // ---- Two concurrent taps make one order.
-    const draft = { id: crypto.randomUUID(), clientId: invoice.clientId, item: "Design sketches", amount: "15.45", note: "" };
+    const draft = { id: crypto.randomUUID(), clientId: invoice.clientId!, item: "Design sketches", amount: "15.45", note: "" };
     await saveInvoiceDraft(db, demo, draft, { madeBy: "form" });
     const draftRow = await row(demo, draft.id);
     const race = fakeOrders();
@@ -141,7 +147,7 @@ async function main() {
     assert.equal(race.requests[0].amountMinor, 1545, "the exact cents");
     assert.equal((await listEvents(db, demo)).filter(e => e.kind === "invoice_sent" && e.refId === draft.id).length, 1);
     // A draft edited while PayPal was asked is not sent with the old order; the next tap asks for an order for the new amount.
-    const edited = { id: crypto.randomUUID(), clientId: invoice.clientId, item: "Icon set", amount: "40.00", note: "" };
+    const edited = { id: crypto.randomUUID(), clientId: invoice.clientId!, item: "Icon set", amount: "40.00", note: "" };
     await saveInvoiceDraft(db, demo, edited, { madeBy: "form" });
     const editedRow = await row(demo, edited.id);
     const slow = fakeOrders();
@@ -530,6 +536,73 @@ async function main() {
       const raced = await row(other, early.id);
       assert.equal(raced.status, "paid", "settled through custom_id before the order was stored");
       assert.deepEqual([raced.paypalCaptureId, raced.paypalOrderId], ["CARD-CAP-EARLY", "LINK-ORDER-EARLY"], "the late store changes nothing");
+    }
+
+    // ---- A member's share asked for by PayPal (D45): an invoice with a payer member, through the same Approve, pay page, test card and webhook.
+    {
+      const fam = await seedBen(db, { isDemo: true });
+      const stranger = await seedBen(db, { isDemo: true });
+      const [{ id: ben }] = await db.select({ id: schema.members.id }).from(schema.members).where(and(eq(schema.members.householdId, fam), eq(schema.members.role, "owner")));
+      await assert.rejects(requestFromMember(db, fam, ben), InputError, "nobody owes the owner anything yet");
+      const aki = await addMember(db, fam, { name: "Aki" });
+      const rent = (amount: string) => billInput.parse({ id: crypto.randomUUID(), biller: "Fictional landlord", amount, due: today, category: "housing", paidByMemberId: ben });
+      await insertBill(db, fam, rent("30000"), "confirmed", { madeBy: "form" });
+      await assert.rejects(requestFromMember(db, fam, ben), InputError, "the owner is never asked");
+      await assert.rejects(requestFromMember(db, stranger, aki), InputError, "another household's member");
+
+      const id = await requestFromMember(db, fam, aki);
+      assert.equal(await requestFromMember(db, fam, aki), id, "asking again for the same amount is the same request");
+      const draft = await row(fam, id);
+      assert.deepEqual([draft.status, draft.payerMemberId, draft.clientId, draft.currency, draft.owedMinor], ["draft", aki, null, "USD", 15_000], "Ben paid 30,000 and Aki owes half");
+      assert.ok(draft.amountMinor > 0);
+      assert.equal((await loadMoneyState(db, fam, today)).invoices.length, (await loadMoneyState(db, stranger, today)).invoices.length, "the forecast never sees a request");
+      const review = await invoiceReview(db, fam, id);
+      assert.deepEqual([review!.client, review!.isRequest], ["Aki", true]);
+      assert.deepEqual((await memberRequestsView(db, fam)).open.map(r => [r.id, r.owedMinor]), [[id, 15_000]]);
+
+      // Approve is the same function; the link is the client link's.
+      await approvePaymentLink(ctx(fam, draft.approveKey, fakeOrders().create));
+      const sent = await row(fam, id);
+      assert.deepEqual([sent.status, sent.sentOn, sent.dueOn], ["sent", today, today]);
+      assert.match(sent.payToken ?? "", /^[A-Za-z0-9_-]{43}$/);
+      assert.equal((await listEvents(db, fam)).filter(e => e.kind === "invoice_sent" && e.refId === id)[0].title, "Payment link made for Aki");
+      assert.deepEqual(await paymentLinkView(db, sent.payToken!), { state: "open", item: draft.item, amountMinor: draft.amountMinor, currency: "USD" }, "the public page shows the item and the amount only");
+
+      // The Try it test card pays it; only the verified webhook marks it paid, and records the settlement once.
+      const pay: PayWithTestCard = async o => ({ orderId: "MEMBER-ORDER-1", orderStatus: "COMPLETED", captureId: "MEMBER-CAP-1", captureStatus: "COMPLETED", ...(o && {}) });
+      await payInvoiceAsTestClient({ db, householdId: fam, invoiceId: id, pay });
+      assert.equal((await row(fam, id)).status, "sent");
+      assert.deepEqual(await db.select().from(schema.settlements).where(eq(schema.settlements.householdId, fam)), [], "nothing is settled before the webhook");
+      const completedFor = (event: string) => ({
+        id: event, event_type: "PAYMENT.CAPTURE.COMPLETED", create_time: "2026-11-14T16:00:00Z",
+        resource: { id: "MEMBER-CAP-1", status: "COMPLETED", amount: { currency_code: "USD", value: (draft.amountMinor / 100).toFixed(2) }, custom_id: id,
+          payee: { merchant_id: "PARTNERFICTIONAL" }, supplementary_data: { related_ids: { order_id: "MEMBER-ORDER-1" } } },
+      });
+      const noCapture = async () => { throw new Error("a card order is captured at creation"); };
+      await applyVerifiedDelivery(db, completedFor("WH-MEMBER-1"), noCapture);
+      await applyVerifiedDelivery(db, completedFor("WH-MEMBER-1"), noCapture);
+      await applyVerifiedDelivery(db, completedFor("WH-MEMBER-2"), noCapture);
+      assert.equal((await row(fam, id)).status, "paid");
+      const settled = await db.select().from(schema.settlements).where(eq(schema.settlements.householdId, fam));
+      assert.deepEqual(settled.map(r => [r.fromMemberId, r.toMemberId, r.amountMinor, r.currency, r.through]), [[aki, ben, 15_000, "JPY", today]], "the same effect as Mark settled, once");
+      assert.deepEqual((await memberRequestsView(db, fam)).open, [], "the line is gone");
+      assert.equal((await listEvents(db, fam)).filter(e => e.kind === "settled").length, 1);
+      assert.equal((await db.select().from(schema.pots).where(eq(schema.pots.householdId, fam))).reduce((n, p) => n + p.savedMinor, 0), 0, "a member's share fills no pot");
+
+      // A stale request: what is owed changes before it is paid, so Approve closes it and a new one is made.
+      await insertBill(db, fam, rent("10000"), "confirmed", { madeBy: "form" });
+      const second = await requestFromMember(db, fam, aki);
+      assert.equal((await row(fam, second)).owedMinor, 5_000);
+      await insertBill(db, fam, rent("10000"), "confirmed", { madeBy: "form" });
+      await assert.rejects(approvePaymentLink(ctx(fam, (await row(fam, second)).approveKey, fakeOrders().create)), /What is owed changed/);
+      assert.equal((await row(fam, second)).status, "closed");
+      const third = await requestFromMember(db, fam, aki);
+      assert.notEqual(third, second);
+      assert.equal((await row(fam, third)).owedMinor, 10_000);
+      // The owner can end a sent request's link like any other.
+      await approvePaymentLink(ctx(fam, (await row(fam, third)).approveKey, fakeOrders().create));
+      assert.equal(await endPaymentLink(db, fam, third), true);
+      assert.equal((await row(fam, third)).status, "closed");
     }
     console.log("Approval tests passed: household isolation, order body and headers, payee for Try it and connected, one order per invoice, retry with one Request-Id, link reuse and renewal, ended and processing links, PayPal's invoice number kept out of view.");
   } finally { globalThis.fetch = realFetch; await pg.close(); }

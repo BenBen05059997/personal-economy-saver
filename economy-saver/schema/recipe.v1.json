@@ -44,7 +44,7 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 60,
-                    "description": "Days later than the client's pace."
+                    "description": "Days later than usual."
                   }
                 },
                 "required": [
@@ -65,7 +65,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 80,
-                    "description": "Bill id, or `<id>@<date>` for one occurrence."
+                    "description": "Bill id, or `<id>@<date>`."
                   }
                 },
                 "required": [
@@ -88,7 +88,7 @@
                     "type": "integer",
                     "exclusiveMinimum": 0,
                     "maximum": 100000000,
-                    "description": "Positive minor units."
+                    "description": "Minor units."
                   }
                 },
                 "required": [
@@ -144,7 +144,7 @@
                   },
                   "date": {
                     "$ref": "#/properties/scenario/properties/changes/items/anyOf/3/properties/date",
-                    "description": "Tomorrow or later."
+                    "description": "Tomorrow on."
                   }
                 },
                 "required": [
@@ -534,6 +534,37 @@
               },
               "query": {
                 "$ref": "#/properties/blocks/items/anyOf/4/properties/query/anyOf/2"
+              }
+            },
+            "required": [
+              "type",
+              "query"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "by_person"
+              },
+              "query": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string",
+                    "const": "month_by_person"
+                  },
+                  "month": {
+                    "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/3/properties/month"
+                  }
+                },
+                "required": [
+                  "q",
+                  "month"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [

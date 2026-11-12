@@ -218,6 +218,8 @@ if (args[0] === "--guards") {
     ["bill-fill-cross-origin", "/api/bills", { method: "POST", session: "", form: { kind: "fill", id: "x", amount: "1000", returnTo: "/to-check" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["bill-with-schedule-without-household", "/api/bills", { method: "POST", form: { id: "x", biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", repeat: "year", cancelBy: "2026-11-20" } }, 401],
     ["settle-without-household", "/api/settle", { method: "POST" }, 401],
+    ["settle-request-without-household", "/api/settle/request", { method: "POST", session: "", form: { fromMemberId: "00000000-0000-4000-8000-000000000000" } }, 401],
+    ["settle-request-cross-origin", "/api/settle/request", { method: "POST", session: "", form: { fromMemberId: "00000000-0000-4000-8000-000000000000" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["canvas-resolve-without-household", "/api/canvas/resolve", { method: "POST", session: "", json: { recipe: { version: 1, title: "Probe", blocks: [] } } }, 401],
     ["canvas-resolve-cross-origin", "/api/canvas/resolve", { method: "POST", session: "", json: { recipe: { version: 1, title: "Probe", blocks: [] } }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["memory-without-household", "/api/memory", { method: "POST", session: "", form: { kind: "forget_all", returnTo: "/memory" } }, 401],
@@ -341,6 +343,9 @@ if (args[0] === "--extra") {
     expect(owed.response.status === 400 && owed.body === "Settle up with Fictional Wife first.", "nov5-settle-first");
     const owner = await request("/api/people", { method: "POST", form: { kind: "remove", id: ids[0], returnTo: "/household/people" } });
     expect(owner.response.status === 400 && owner.body === "The household’s owner cannot be removed", "nov5-owner-stays");
+    // D45: the wife paid this bill, so nothing is owed to Ben to ask for by PayPal (only a transfer to the owner can be).
+    const asked = await request("/api/settle/request", { method: "POST", form: { fromMemberId: wife } });
+    expect(asked.response.status === 400, "nov5-request-only-to-owner");
     const settled = await request("/api/settle", { method: "POST", form: { returnTo: "/" } });
     expect(settled.response.status === 303, "nov5-settled");
     const removed = await request("/api/people", { method: "POST", form: { kind: "remove", id: wife, returnTo: "/household/people" }, extraHeaders: { "x-form-fetch": "1" } });

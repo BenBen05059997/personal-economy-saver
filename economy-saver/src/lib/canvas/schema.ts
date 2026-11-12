@@ -21,16 +21,16 @@ const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "A month is YYYY-MM").
 const id = z.string().min(1).max(80);
 const mark = id.optional().describe("Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window.");
 const minorAmount = z.number().int("An amount is a whole number of minor units").positive("An amount is more than zero").max(100_000_000, "That amount is too large")
-  .describe("Positive minor units.");
+  .describe("Minor units.");
 
 // ---------------------------------------------------------------- what-if changes
 
 export const ChangeSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("client_late"), clientId: id, days: z.number().int().min(0).max(MAX_SLIDER_DAYS).describe("Days later than the client's pace.") }).strict(),
-  z.object({ kind: z.literal("remove_bill"), billId: id.describe("Bill id, or `<id>@<date>` for one occurrence.") }).strict(),
+  z.object({ kind: z.literal("client_late"), clientId: id, days: z.number().int().min(0).max(MAX_SLIDER_DAYS).describe("Days later than usual.") }).strict(),
+  z.object({ kind: z.literal("remove_bill"), billId: id.describe("Bill id, or `<id>@<date>`.") }).strict(),
   z.object({ kind: z.literal("change_bill"), billId: id, amountMinor: minorAmount }).strict(),
   z.object({ kind: z.literal("add_cost"), name: z.string().min(1).max(80), amountMinor: minorAmount, date: day }).strict(),
-  z.object({ kind: z.literal("add_income"), name: z.string().min(1).max(80), amountMinor: minorAmount, date: day.describe("Tomorrow or later.") }).strict(),
+  z.object({ kind: z.literal("add_income"), name: z.string().min(1).max(80), amountMinor: minorAmount, date: day.describe("Tomorrow on.") }).strict(),
 ]);
 export type Change = z.infer<typeof ChangeSchema>;
 
@@ -56,6 +56,7 @@ const FlowQuery = z.object({ q: z.literal("flow"), days, scenario: scenarioRef }
 const EventsQuery = z.object({ q: z.literal("events"), days, scenario: scenarioRef }).strict();
 const MonthTotalQuery = z.object({ q: z.literal("month_total"), month }).strict();
 const MonthByCategoryQuery = z.object({ q: z.literal("month_by_category"), month }).strict();
+const MonthByPersonQuery = z.object({ q: z.literal("month_by_person"), month }).strict();
 const CompareMonthsQuery = z.object({ q: z.literal("compare_months"), a: month.describe("The earlier month, the base."), b: month.describe("The month compared with it; the change is b minus a.") }).strict();
 const SpendingSearchQuery = z.object({ q: z.literal("spending_search"), text: z.string().max(80), months: z.number().int().min(1).max(12) }).strict();
 const RegularCostsQuery = z.object({ q: z.literal("regular_costs"), months: z.number().int().min(2).max(24).optional() }).strict();
@@ -65,7 +66,7 @@ const GoalsQuery = z.object({ q: z.literal("goals") }).strict();
 
 export type Query = z.infer<
   | typeof SentenceQuery | typeof SafeToSpendQuery | typeof CashQuery | typeof LowPointQuery | typeof FlowQuery | typeof EventsQuery
-  | typeof MonthTotalQuery | typeof MonthByCategoryQuery | typeof CompareMonthsQuery | typeof SpendingSearchQuery | typeof RegularCostsQuery | typeof ForeignCostsQuery | typeof BillsForMonthQuery | typeof GoalsQuery
+  | typeof MonthTotalQuery | typeof MonthByCategoryQuery | typeof MonthByPersonQuery | typeof CompareMonthsQuery | typeof SpendingSearchQuery | typeof RegularCostsQuery | typeof ForeignCostsQuery | typeof BillsForMonthQuery | typeof GoalsQuery
 >;
 
 // What each kind of block may ask. A block that shows one number asks for a number; a chart asks for a flow; and so on.
@@ -88,6 +89,7 @@ export const BlockSchema = z.union([
   z.object({ type: z.literal("timeline"), query: EventsQuery, mark }).strict(),
   z.object({ type: z.literal("table"), title: z.string().max(80).optional(), query: TableQuery }).strict(),
   z.object({ type: z.literal("compare"), query: CompareMonthsQuery }).strict(),
+  z.object({ type: z.literal("by_person"), query: MonthByPersonQuery }).strict(),
   z.object({ type: z.literal("progress"), label: z.string().min(1).max(60), query: ProgressQuery, targetMinor: minorAmount.describe("The person's own target, in minor units of the home currency.") }).strict(),
   z.object({ type: z.literal("note"), text: z.string().min(1).max(600), by: z.enum(["you", "assistant"]) }).strict(),
   z.object({ type: z.literal("letter"), text: z.string().min(1).max(4000) }).strict(),

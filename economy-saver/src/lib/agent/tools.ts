@@ -115,19 +115,19 @@ const categoryField = CategoryKeySchema.nullable().default(null)
   .describe("Null: guessed from the name.");
 // D75: the person's own categories are named, never given by id, and the agent never makes one.
 const ownCategoryField = z.string().trim().min(1).max(80).nullable().default(null)
-  .describe("An own_categories name, never invented. Null follows the last item with this name.");
+  .describe("An own_categories name, never invented. Null: as the last item of this name.");
 const businessField = BusinessBp.nullable().default(null)
-  .describe("Basis points; null is personal.");
+  .describe("Basis points; null: personal.");
 // D54's "amount varies" is set by the user on the form or in Settings, not by the agent; an agent's one-off still links on confirm.
 const addBillInput = billInput.omit({ ownCategoryId: true, ownCategoryNew: true, paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, repeatUntil: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true, periodStart: true, periodEnd: true }).extend({
   amount: z.string().trim().nullable().describe("Text number; null if unknown."),
-  due: z.string().date().nullable().describe("Null if unknown. Repeats and cancel_by need one."),
+  due: z.string().date().nullable().describe("Null if unknown. Repeats need one."),
   repeat: RepeatUnitSchema.nullable().default(null).describe("Null for a one-off."),
   next_amount: z.string().trim().nullable().default(null).describe("New amount."),
   next_amount_from: z.string().date().nullable().default(null).describe("After due."),
   cancel_by: z.string().date().nullable().default(null).describe("Before the next charge."),
   repeat_until: z.string().date().nullable().default(null).describe("Last charge, on or after due."),
-  period_start: z.string().date().nullable().default(null).describe("Service period start; with period_end, one-offs only."),
+  period_start: z.string().date().nullable().default(null).describe("Period start; one-offs only."),
   period_end: z.string().date().nullable().default(null).describe("On or after period_start."),
   category: categoryField,
   own_category: ownCategoryField,
@@ -137,8 +137,8 @@ const addBillInput = billInput.omit({ ownCategoryId: true, ownCategoryNew: true,
 });
 const logChargeInput = chargeInput.omit({ ownCategoryId: true, ownCategoryNew: true, category: true, businessBp: true, originalAmount: true, originalCurrency: true }).extend({
   category: categoryField, own_category: ownCategoryField, business_bp: businessField,
-  original_amount: z.string().trim().nullable().default(null).describe("Paid in original_currency; amount stays billed."),
-  original_currency: Currency.nullable().default(null).describe("Must differ from the card currency."),
+  original_amount: z.string().trim().nullable().default(null).describe("Paid in original_currency."),
+  original_currency: Currency.nullable().default(null).describe("Not the card currency."),
 });
 
 /** The category a tool saves: the one given, or the keyword table's guess from the name; and the sentence that tells the agent which. */
@@ -240,12 +240,12 @@ const insertPreparedCharge = (ctx: ToolContext) => (db: Db, p: Awaited<ReturnTyp
 export const tools: Tool[] = [
   defineTool({
     name: "where_am_i", scope: "read", input: none,
-    description: "The 30-day outlook in one sentence (fine if clients pay as usual, how short if late), plus Home’s safe-to-spend figure and what it covers.",
+    description: "The 30-day outlook in one sentence (fine if clients pay as usual, how short if late), plus Home’s safe-to-spend and what it covers.",
     run: async ctx => { const state = await ctx.state(); return `${statusAnswer(state)} ${safeToSpendLine(state)}`; },
   }),
   defineTool({
     name: "whats_due", scope: "read", input: none,
-    description: "For “what’s due?” or “what is due next?”: the next confirmed bill or statement, amount, date and coverage.",
+    description: "For “what’s due?”: the next confirmed bill or statement, amount, date and coverage.",
     run: async ctx => dueAnswer(await ctx.state()),
   }),
   defineTool({
@@ -264,7 +264,7 @@ export const tools: Tool[] = [
   defineTool({
     name: "can_i_spend", scope: "read",
     input: z.object({ amount_minor: z.number().int().positive().safe(), card_id: z.string().uuid().nullish() }),
-    description: "Check a purchase in minor units. Card ID from list_clients_and_cards, or null for all cards.",
+    description: "Check a purchase in minor units. Card ID from list_clients_and_cards; null: all cards.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       if (input.card_id && !state.cards.some(card => card.id === input.card_id)) throw new Error("Unknown card");
@@ -283,7 +283,7 @@ export const tools: Tool[] = [
   defineTool({
     name: "timeline", scope: "read",
     input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("One day (end-of-day balance) or null for all 30.") }),
-    description: "Cash flow for one day or the next 30 days: running balances and the lowest point, signed minor units. Use whats_due for “what is due” without a date. as_usual = usual pay day, late = slowest. fipa looks 30 days ahead only: a later day gets the 30-day figures and a note; never give a balance for it.",
+    description: "Cash flow for one day or the next 30 days: running balances and lowest point, signed minor units. as_usual = usual pay day, late = slowest. Only 30 days ahead: a later day gets the 30-day figures and a note; never give its balance.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const kind = CASE_KIND[input.scenario];
@@ -309,7 +309,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "options_when_short", scope: "read", input: none,
-    description: "Options to close a shortfall if clients pay late, cheapest first, with cost and status.",
+    description: "Ways to close a shortfall if clients pay late, cheapest first, with cost and status.",
     run: async ctx => {
       const state = await ctx.state();
       const plan = fundingOptions(state);
@@ -327,7 +327,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "list_invoices", scope: "read", input: none,
-    description: "Invoice counts by status (quote them; never count the list) and the 50 latest invoices: status, USD cents, dates, each client’s usual and slowest days to pay.",
+    description: "Invoice counts by status (quote them) and the 50 latest invoices: status, USD cents, dates, each client’s usual and slowest days to pay.",
     run: async ctx => {
       const hid = requireHousehold(ctx.householdId);
       const state = await ctx.state();
@@ -353,12 +353,12 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "household_snapshot", scope: "read", input: z.object({}).strict(),
-    description: `Household record for context and IDs: the ${SNAPSHOT_TOOL_WINDOW} latest rows per long list. Check truncated. Pending rows do not count.`,
+    description: `Household record for context and IDs: the ${SNAPSHOT_TOOL_WINDOW} latest rows per long list. Check truncated. Pending rows don’t count.`,
     run: async ctx => JSON.stringify(await loadHouseholdSnapshot(ctx.db, ctx.householdId, { events: false, recent: SNAPSHOT_TOOL_WINDOW })),
   }),
   defineTool({
     name: "goals", scope: "read", input: none,
-    description: "Dated pots, savings pace, gaps and needed monthly saving. Quote summary. The goals query draws a progress canvas.",
+    description: "Dated pots, savings pace, gaps and needed monthly saving. Quote summary. The goals query draws a canvas.",
     run: async ctx => {
       const state = await ctx.state();
       const goals = goalPaces(state);
@@ -373,7 +373,7 @@ export const tools: Tool[] = [
       monthly_minor: z.number().int().positive().safe().nullish(),
       pot_id: z.string().uuid().nullish(),
     }),
-    description: "A savings target’s monthly pace, completion date and 30-day room. A pot_id uses that pot’s savings and fills omitted target details. Quote summary.",
+    description: "A savings target’s monthly pace, completion date and 30-day room. A pot_id uses that pot’s savings and fills omitted details. Quote summary.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const pot = input.pot_id ? state.pots.find(p => p.id === input.pot_id) : undefined;
@@ -398,7 +398,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "who_owes_whom", scope: "read", input: none,
-    description: "Shared costs since the last settlement: what each person paid and owes, and the fewest payments to settle. Quote summary.",
+    description: "Shared costs since the last settlement: what each paid and owes, and the fewest payments to settle. Quote summary.",
     run: async ctx => {
       const state = await ctx.state();
       const balance = splitBalance(state.split, state.today);
@@ -430,7 +430,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "own_categories", scope: "read", input: none,
-    description: "The household's own categories under the fourteen, with default business share and use counts: the only own_category names add_bill and log_charge accept.",
+    description: "The household's own categories under the fourteen, with default business share and use counts: the only own_category names accepted.",
     run: async ctx => {
       const groups = await listOwnCategoriesGrouped(ctx.db, ctx.householdId);
       if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Spending → Your categories.";
@@ -441,7 +441,7 @@ export const tools: Tool[] = [
   defineTool({
     name: "search_spending", scope: "read",
     input: z.object({
-      query: z.string().max(SEARCH_QUERY_MAX).default("").describe("All words must match; empty lists all."),
+      query: z.string().max(SEARCH_QUERY_MAX).default("").describe("All words must match; empty: all."),
       months: z.number().int().min(1).max(HISTORY_MONTHS).nullable().default(null).describe(`Months back, 1 to ${HISTORY_MONTHS}, this one included; null = 3.`),
     }),
     description: "Search bills and charges by name or category, newest month first. Unknown amounts due later this month are listed, never summed. Quote summary.",
@@ -460,7 +460,7 @@ export const tools: Tool[] = [
       month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").describe("Service month, YYYY-MM."),
       text: z.string().max(SEARCH_QUERY_MAX).default("").describe("Name or category; empty lists all."),
     }),
-    description: "Bills whose service period overlaps the month, waiting items included, totals per currency. For when money was paid or due, or a bill without a period, use month_by_category or search_spending. Quote summary.",
+    description: "Bills whose service period overlaps the month, waiting items included, totals per currency. For paid or due dates, or no period, use month_by_category or search_spending. Quote summary.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       if (input.month > latestDate(today).slice(0, 7)) throw new InputError(`month must be no later than ${latestDate(today).slice(0, 7)}, two years from today`);
@@ -469,7 +469,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "suggestions", scope: "read", input: none,
-    description: "Open Home findings, most urgent first. Quote title and reason; name the space when spaceName is present.",
+    description: "Open Home findings, most urgent first. Quote title and reason; name the space if spaceName is set.",
     run: async ctx => JSON.stringify(await openSuggestions(ctx.db, ctx.householdId)),
   }),
   defineTool({
@@ -514,7 +514,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "draft_invoice", scope: "draft", input: draftInput,
-    description: "Draft a USD invoice for review. amount is dollars. client_id from list_clients_and_cards. New UUID, reused on retry.",
+    description: "Draft a USD invoice for review. amount in dollars. client_id from list_clients_and_cards. New UUID, reused on retry.",
     run: async (ctx, input) => {
       const id = await saveInvoiceDraft(ctx.db, ctx.householdId, input, by(ctx));
       const href = new URL("/invoices/" + id, ctx.appUrl).href;
@@ -524,7 +524,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bill", scope: "draft", input: addBillInput,
-    description: "Draft a bill for To check. New UUID, reused on retry. Shared: memberId null and paidBy by display name; else shared and paidBy null.",
+    description: "Draft a bill for To check. New UUID, reused on retry. Shared: memberId null, paidBy a display name.",
     run: async (ctx, input) => {
       const { biller, note } = await draftOne(ctx, input, prepareBill, insertPreparedBill(ctx));
       return `${biller} is waiting in To check for the user to confirm. ${note}`;
@@ -532,7 +532,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bills", scope: "draft", input: z.object({ items: z.array(addBillInput).min(1).max(10) }),
-    description: "1–10 bills atomically, each as add_bill. An error names the item.",
+    description: "1–10 bills atomically, as add_bill. An error names the item.",
     run: async (ctx, input) => {
       const prepared = await draftMany(ctx, input.items, prepareBill, insertPreparedBill(ctx));
       return `${prepared.length} bills are waiting in To check for the user to confirm: ${prepared.map(p => `${p.biller} (${p.note})`).join(" ")}`;
@@ -540,7 +540,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "log_charge", scope: "draft", input: logChargeInput,
-    description: "Draft a card purchase for To check. amount is billed, in home currency. cardId from list_clients_and_cards. Shared needs a member’s card. New UUID, reused on retry.",
+    description: "Draft a card purchase for To check. amount is billed, home currency. cardId from list_clients_and_cards. Shared needs a member’s card. New UUID, reused on retry.",
     run: async (ctx, input) => {
       const { merchant, note } = await draftOne(ctx, input, prepareCharge, insertPreparedCharge(ctx));
       return `${merchant} is waiting in To check for the user to confirm. ${note}`;
@@ -548,7 +548,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "log_charges", scope: "draft", input: z.object({ items: z.array(logChargeInput).min(1).max(10) }),
-    description: "1–10 card purchases atomically, each as log_charge. An error names the item.",
+    description: "1–10 card purchases atomically, as log_charge. An error names the item.",
     run: async (ctx, input) => {
       const prepared = await draftMany(ctx, input.items, prepareCharge, insertPreparedCharge(ctx));
       return `${prepared.length} charges are waiting in To check for the user to confirm: ${prepared.map(p => `${p.merchant} (${p.note})`).join(" ")}`;
@@ -556,7 +556,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_pot", scope: "draft", input: potInput.pick({ id: true, name: true, target: true, targetDate: true, fillPct: true }),
-    description: "Draft a savings pot for To check. target in home currency; fillPct is % of each client payment. New UUID, reused on retry.",
+    description: "Draft a savings pot for To check. target in home currency; fillPct: % of each client payment. New UUID, reused on retry.",
     run: async (ctx, input) => {
       await savePot(ctx.db, ctx.householdId, { ...input, saved: "0", memberId: null }, "pending", by(ctx));
       ctx.onPending?.();
@@ -565,7 +565,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "update_bank_balance", scope: "draft", input: bankBalanceInput,
-    description: "Draft a bank balance for To check. amount is home currency, may be negative. New UUID, reused on retry.",
+    description: "Draft a bank balance for To check. amount in home currency, may be negative. New UUID, reused on retry.",
     run: async (ctx, input) => {
       await setBankBalance(ctx.db, ctx.householdId, input, "pending", by(ctx));
       ctx.onPending?.();

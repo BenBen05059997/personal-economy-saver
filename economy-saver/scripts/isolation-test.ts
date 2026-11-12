@@ -52,6 +52,7 @@ import * as invoiceMatchMod from "@/db/invoice-match";
 import * as payTokenBackfillMod from "@/db/pay-token-backfill";
 import * as invoiceOfferedMod from "@/db/invoice-offered";
 import * as invoiceEndMod from "@/db/invoice-end";
+import * as memberRequestMod from "@/db/member-request";
 import * as paymentLinkMod from "@/db/payment-link";
 import { NotConnected, type PayPalCall } from "@/lib/paypal/contracts";
 import * as paypalRefresh from "@/db/paypal-refresh";
@@ -103,7 +104,7 @@ const covered = [
   // try-pay.ts
   "payInvoiceAsTestClient",
   // invoice-match.ts, invoice-offered.ts, invoice-end.ts, payment-link.ts
-  "readPaymentCandidates", "settleReadPayment", "settleReadPaymentInTx", "readPaymentByCapture", "backfillHouseholdPayTokens", "recordLinkOffered", "endPaymentLink", "paymentLinkView", "openPaymentLink",
+  "readPaymentCandidates", "requestFromMember", "memberRequestsView", "settleReadPayment", "settleReadPaymentInTx", "readPaymentByCapture", "backfillHouseholdPayTokens", "recordLinkOffered", "endPaymentLink", "paymentLinkView", "openPaymentLink",
   // bank-balance.ts, bills.ts, charges.ts, clients.ts, confirm.ts
   "setBankBalance", "confirmBalanceUpdate", "insertBill", "removeBill", "updateBill", "insertCharge", "removeCharge", "insertClient", "confirmPending",
   // daily.ts, demo.ts, document-cleanup.ts, event-feed.ts
@@ -126,7 +127,7 @@ const covered = [
   // people.ts, pots.ts
   "memberCount", "memberByName", "addMember", "savePeople", "removeMember", "savePot", "confirmPot", "removePot", "fillPots",
   // rate-limit.ts, reader-inbox.ts, reader-job.ts, readings.ts, reference-rate.ts
-  "consumeRequest", "consumeCanvasRequest", "spendAiBudget", "questionsLeft", "documentsLeft", "requireDocumentBudget", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "storeReferenceRate",
+  "consumeRequest", "consumeCanvasRequest", "spendAiBudget", "questionsLeft", "documentsLeft", "requireDocumentBudget", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "setReadingWhose", "storeReferenceRate",
   // runway-events.ts, settings.ts, settle.ts, snapshot.ts, statement-charge.ts, workspace.ts
   "lockRunway", "beginMoneyChange", "observeRunway", "loadSettings", "loadAddView", "updateSettings", "removeCard", "settleUp", "loadHouseholdSnapshot",
   "syncClosedStatementCharge", "unsyncClosedStatementCharge", "loadNavigationData", "loadWorkspaceData", "viewerRole",
@@ -164,6 +165,10 @@ const covered = [
 ];
 
 const notApplicable: Record<string, string> = {
+  checkWhose: "checks one member id against the household id it is given, inside the caller's transaction; reached through insertBill, updateBill and reviewReading (tested here)",
+  owedNow: "reads what is owed in the one household it is given, under that household's row lock; reached through requestFromMember and settleUp (tested here)",
+  settleUpInTx: "settleUp's body in the caller's household transaction; settleUp is tested here, and the webhook's use is tested in approve-test",
+  requestIsCurrent: "compares one request with what the same household owes now; reached through requestFromMember and approvePaymentLink (tested here)",
   backfillPayTokens: "the one-off script's loop over every household, one household at a time through backfillHouseholdPayTokens (tested here); it takes no household id by design",
   lockHousehold: "locks the one household row it is given and returns its id; every caller passes a validated id, and the lock is the scope (tested through bills, charges, clients, rules and mcp-tokens)",
   householdClockRow: "reads the three clock columns of the one household id it is given (requireHousehold throws without one)",
@@ -251,7 +256,7 @@ async function main() {
   const used = new Set<string>();
   const modules = {
     ...account, ...aiKeys, ...aiCap, ...approval, ...tryPay, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
-    ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...invitesMod, ...mcpTokens, ...paypalRefresh, ...paypalConnectMod, ...invoiceMatchMod, ...payTokenBackfillMod, ...invoiceOfferedMod, ...invoiceEndMod, ...paymentLinkMod, ...people, ...potsMod, ...rateLimit,
+    ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...invitesMod, ...mcpTokens, ...paypalRefresh, ...paypalConnectMod, ...invoiceMatchMod, ...payTokenBackfillMod, ...invoiceOfferedMod, ...invoiceEndMod, ...memberRequestMod, ...paymentLinkMod, ...people, ...potsMod, ...rateLimit,
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
     ...importChargesMod, // Stage 17 import
     ...spendingMod, // Stage 17 spending
@@ -878,6 +883,9 @@ async function main() {
         await untouched("payInvoiceAsTestClient");
         assert.equal(cardPayments, 0, "no test-card payment was made for the other household's invoice");
         await refuse("endPaymentLink", () => F.endPaymentLink(store, X.hid, y.invoiceSent));
+        await refuse("requestFromMember", () => F.requestFromMember(store, X.hid, Y.ids.aki));
+        assert.ok(!(await F.memberRequestsView(store, X.hid)).open.some(r => r.payerMemberId === Y.ids.aki), label("memberRequestsView"));
+        await untouched("memberRequestsView");
         await refuse("recordLinkOffered", () => F.recordLinkOffered(store, X.hid, y.invoiceSent));
         assert.deepEqual(await F.readPaymentCandidates(store, X.hid, y.invoiceSent), [], label("readPaymentCandidates"));
         await untouched("readPaymentCandidates");
@@ -1069,6 +1077,9 @@ async function main() {
         await mustThrow("draft_invoice for the other's client", () => runTool(X, "draft_invoice", { id: randomUUID(), clientId: y.client, item: "probe", amount: "1", note: "" }), /Client not found/);
         await mustThrow("add_bill for the other's member", () => runTool(X, "add_bill", { id: randomUUID(), ...probe, memberId: y.aki }), /member of this household/);
         await mustThrow("add_bill paid by the other's member by name", () => runTool(X, "add_bill", { id: randomUUID(), ...probe, shared: true, paidBy: Y.akiName }), /Nobody called/);
+        await refuse("setReadingWhose on the other's reading", () => F.setReadingWhose(store, X.hid, { reading: `${Y.name} reading`, shared: false, person: X.akiName }));
+        await mustThrow("set_whose on the other's waiting reading, by name", () => runTool(X, "set_whose", { reading: `${Y.name} reading`, shared: false, person: X.akiName }), /Nothing called .* is waiting/);
+        await mustThrow("set_whose on the other's waiting reading, to the other's member", () => runTool(X, "set_whose", { reading: `${X.name} reading`, shared: true, person: Y.akiName }), /Nobody called|Nothing called/);
         await mustThrow("log_charge on the other's card", () => runTool(X, "log_charge", { id: randomUUID(), cardId: y.card, merchant: "Isolation probe", amount: "100", date: "2026-11-13" }), /card of this household/);
         await mustThrow("add_pot with the other's pot id", () => runTool(X, "add_pot", { id: y.pot, name: "Isolation probe" }));
         await mustThrow("update_bank_balance with the other's update id", () => runTool(X, "update_bank_balance", { id: y.balancePending, amount: "1" }));

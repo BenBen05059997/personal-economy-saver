@@ -43,6 +43,7 @@ export const TOOL_WORDS: Record<string, string> = {
   update_brief: "Updating the space brief",
   offer_keep: "Thinking about what to keep",
   to_check: "Reading what needs checking",
+  set_whose: "Marking whose it is",
 };
 
 /** The line for a tool name. A name outside the catalogue (the model made it up) gets the plain line. */

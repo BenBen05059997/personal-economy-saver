@@ -18,6 +18,10 @@ import { loadMoneyState } from "@/db/household";
 import { moveToDevice } from "@/db/place";
 import { readDocument } from "@/db/reader-job";
 import { proposeReadings, reviewReading } from "@/db/readings";
+import { addMember } from "@/db/people";
+import { tools } from "@/lib/agent/tools";
+import { InputError } from "@/db/input-error";
+import { readingForm } from "@/lib/reader/form";
 import { readerInbox } from "@/db/reader-inbox";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe, type FlowData, type TimelineData } from "@/lib/canvas/resolve";
@@ -30,7 +34,7 @@ import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
 import { daysBetween, low, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { readUpload } from "@/lib/reader/accept";
-import { buildCard, cardContext, DOCUMENT_WORDS, documentCanvas, needsForm, readLine, savedCard, type CardReading } from "@/lib/reader/document-card";
+import { buildCard, cardContext, DOCUMENT_WORDS, documentCanvas, needsForm, readLine, savedCard, whoseWords, type CardReading } from "@/lib/reader/document-card";
 import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { TURN_VERSION, type ConversationTurn } from "@/lib/schema/turn";
@@ -439,6 +443,62 @@ async function main() {
     const accepted = await readUpload(post(multipart(new File(["%PDF-1.7 fine"], "a.pdf", { type: "application/pdf" }), { id: "abc", text: "hello" })));
     assert.deepEqual([accepted.mime, accepted.bytes.byteLength, accepted.form.get("id"), accepted.form.get("text")], ["application/pdf", 13, "abc", "hello"]);
     ok("readUpload: Upload's words for a non-multipart body, a wrong type, mismatched bytes and a body over the limit; a good file returns its form");
+
+    // ================================================================ D61: whose (D45), after everything else: the household gets a second person here
+    const tool = tools.find(t => t.name === "set_whose")!;
+    assert.equal(tool.scope, "draft");
+    const links: { label: string; href: string }[] = [];
+    const toolCtx = (hid: string) => ({ madeBy: "ask", db, householdId: hid, state: () => loadMoneyState(db, hid, TODAY), appUrl: new URL("http://127.0.0.1:3123"), addLink: (link: { label: string; href: string }) => links.push(link) }) as never;
+    const setWhose = (hid: string, input: { reading: string; shared: boolean; person?: string | null }) => tool.run(toolCtx(hid), tool.input.parse({ person: null, ...input }) as never);
+    items = [bill({ name: "Hikari Denki", amountMinor: 11_220, date: "2026-11-27", category: "utilities", repeat: "month" }), { kind: "charge", name: "Ramen Kita", amountMinor: 1200, currency: "JPY", category: "food", date: "2026-11-13", cardId: (await loadMoneyState(db, a, TODAY)).cards[0].id }];
+    const whoseCard = await read(a, (await attach(a, "whose")).documentId);
+    const denki = whoseCard.items.find(item => item.value.name === "Hikari Denki")!, ramen = whoseCard.items.find(item => item.value.name === "Ramen Kita")!;
+    await assert.rejects(setWhose(a, { reading: "Hikari Denki", shared: true, person: "Ben" }), (e: unknown) => e instanceof InputError && /second person/.test(e.message), "a household of one has no choice to make");
+    assert.equal(whoseWords("bill", { shared: true, memberId: null, paidByMemberId: null }, [{ id: "x", name: "Ben" }]), null, "one member: no words");
+    const aki = await addMember(db, a, { name: "Aki" });
+    const ben = (await loadMoneyState(db, a, TODAY)).split.members[0].id;
+    // the form's choice reaches readingForm
+    const formOf = (fields: Record<string, string>, target: "bill" | "charge" = "bill") => { const fd = new FormData(); for (const [k, v] of Object.entries({ target, name: "Hikari Denki", amount: "11220", currency: "JPY", date: "2026-11-27", category: "utilities", businessShare: "personal", cardId: "", ...fields })) fd.set(k, v); return fd; };
+    assert.equal(readingForm(formOf({})).whose, undefined, "no Whose field (one person): not set");
+    assert.deepEqual(readingForm(formOf({ whose: "shared", paidByMemberId: aki })).whose, { shared: true, memberId: null, paidByMemberId: aki });
+    assert.deepEqual(readingForm(formOf({ whose: aki })).whose, { shared: false, memberId: aki, paidByMemberId: null });
+    assert.deepEqual(readingForm(formOf({ whose: "shared" }, "charge")).whose, { shared: true, memberId: null, paidByMemberId: null });
+    assert.equal(readingForm(formOf({ whose: "own" }, "charge")).whose?.shared, false);
+    // the tool: a fixed sentence, a link to the item, nothing confirmed
+    assert.equal(await setWhose(a, { reading: "hikari denki", shared: false, person: "aki" }), "Marked Hikari Denki as Aki\u2019s. Confirm it on the card.");
+    assert.deepEqual(links, [{ label: "Open in To check", href: `http://127.0.0.1:3123/to-check#reading-${denki.readingId}` }]);
+    const reMarked = (await documentCard(db, a, whoseCard.documentId)).items.find(item => item.readingId === denki.readingId)!;
+    assert.deepEqual([reMarked.status, reMarked.value.whose], ["to_check", { shared: false, memberId: aki, paidByMemberId: null }], "a draft edit: still waiting");
+    assert.equal(await setWhose(a, { reading: "Hikari Denki", shared: true, person: "Aki" }), "Marked Hikari Denki as shared, Aki pays. Confirm it on the card.");
+    await assert.rejects(setWhose(a, { reading: "Hikari Denki", shared: true, person: "Chie" }), (e: unknown) => e instanceof InputError && e.message === "Nobody called Chie is in this household");
+    await assert.rejects(setWhose(a, { reading: "Hikari Denki", shared: false }), (e: unknown) => e instanceof InputError && /Say whose bill/.test(e.message));
+    await assert.rejects(setWhose(a, { reading: "Ramen Kita", shared: true, person: "Aki" }), (e: unknown) => e instanceof InputError && /leave person empty/.test(e.message));
+    await assert.rejects(setWhose(a, { reading: "No Such Bill", shared: true }), (e: unknown) => e instanceof InputError && /Nothing called No Such Bill is waiting/.test(e.message));
+    // Confirm saves it as the form does, and the saved line says whose
+    const waitingDenki = (await documentCard(db, a, whoseCard.documentId)).items.find(item => item.readingId === denki.readingId)!;
+    assert.equal(await reviewReading(db, a, denki.readingId, waitingDenki.value, {}), true);
+    const savedDenki = (await documentCard(db, a, whoseCard.documentId)).items.find(item => item.readingId === denki.readingId)!;
+    const [denkiBill] = await db.select().from(schema.bills).where(eq(schema.bills.id, savedDenki.target!.id));
+    assert.deepEqual([denkiBill.memberId, denkiBill.paidByMemberId], [null, aki]);
+    assert.match(savedDenki.saved!.words, /^Saved: Hikari Denki ¥11,220 · Shared, Aki pays · Utilities · due Nov 27/);
+    await assert.rejects(setWhose(a, { reading: "Hikari Denki", shared: false, person: "Ben" }), (e: unknown) => e instanceof InputError && /Nothing called Hikari Denki is waiting/.test(e.message), "a reading that is not waiting is refused");
+    // a person's own bill, and a shared charge (paid by the card's owner, who must be someone)
+    items = [bill({ name: "Aki Dojo", amountMinor: 5000, date: "2026-12-01" })];
+    const dojo = await read(a, (await attach(a, "dojo")).documentId);
+    assert.equal(await reviewReading(db, a, dojo.items[0].readingId, { ...dojo.items[0].value, whose: { shared: false, memberId: aki, paidByMemberId: null } }, {}), true);
+    const [dojoBill] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.biller, "Aki Dojo")));
+    assert.deepEqual([dojoBill.memberId, dojoBill.paidByMemberId], [aki, null]);
+    assert.match((await documentCard(db, a, dojo.documentId)).items[0].saved!.words, /^Saved: Aki Dojo ¥5,000 · Aki\u2019s · /);
+    const shareRamen = { ...ramen.value, whose: { shared: true, memberId: null, paidByMemberId: null } };
+    await db.update(schema.cards).set({ memberId: null }).where(eq(schema.cards.id, ramen.value.cardId!));
+    await assert.rejects(reviewReading(db, a, ramen.readingId, shareRamen, {}), (e: unknown) => e instanceof ReaderError && /belongs to a person/.test(e.message), "a shared charge needs a card with an owner");
+    await db.update(schema.cards).set({ memberId: ben }).where(eq(schema.cards.id, ramen.value.cardId!));
+    await setWhose(a, { reading: "Ramen Kita", shared: true });
+    assert.equal(await reviewReading(db, a, ramen.readingId, shareRamen, {}), true);
+    const [ramenCharge] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, a), eq(schema.charges.merchant, "Ramen Kita")));
+    assert.equal(ramenCharge.shared, true);
+    assert.match((await documentCard(db, a, whoseCard.documentId)).items.find(item => item.readingId === ramen.readingId)!.saved!.words, /^Saved: Ramen Kita ¥1,200 · Shared, Ben pays · /);
+    ok("whose: one person gets no choice; two get one; the form field and Ask's set_whose both fill it; Confirm saves the person or shared and who pays; the refusals");
 
     assert.equal(needsForm(bill()), false, "a complete reading goes to Confirm");
     assert.equal(needsForm(bill({ currency: null })), true, "an amount with no currency opens the full form, where the person picks one");

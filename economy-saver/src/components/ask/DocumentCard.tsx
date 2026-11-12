@@ -11,8 +11,9 @@ import { guessedOwn, type OwnChoices } from "@/lib/reader/own-choices";
 import { answerCheck, type CheckAnswers } from "@/components/reader/check-answers";
 import { majorText, ReadingForm } from "@/components/reader/ReadingForm";
 import { LoadingIndicator } from "@/components/ui/LoadingState";
+import { WhoseFields, type WhosePerson } from "@/components/reader/WhoseFields";
 
-export type CardForm = { today: string; homeCurrency: Currency; cards: { id: string; label: string }[]; own: OwnChoices };
+export type CardForm = { today: string; homeCurrency: Currency; cards: { id: string; label: string }[]; own: OwnChoices; people: WhosePerson[] };
 
 const POLL_MS = 2000, GIVE_UP_MS = 60_000;
 
@@ -99,7 +100,7 @@ function Item({ item, form, returnTo, onDone }: { item: DocumentCardItem; form: 
   const preset = { repeat: answers.repeat ?? value.repeat ?? "", date: answers.date, amountUnknown: answers.amountUnknown, dueUnknown: answers.dueUnknown };
   const reading = { id: item.readingId, value, link: item.link };
   const needsForm = readingNeedsForm(value);
-  const full = (focus?: "amount" | "date") => <ReadingForm key={`${answers.kinds.join()}-${focus ?? ""}`} reading={reading} today={form.today} homeCurrency={form.homeCurrency} cards={form.cards} own={form.own}
+  const full = (focus?: "amount" | "date") => <ReadingForm key={`${answers.kinds.join()}-${focus ?? ""}`} reading={reading} today={form.today} homeCurrency={form.homeCurrency} cards={form.cards} own={form.own} people={form.people}
     hidden={hidden} preset={preset} focus={focus} onDone={onDone} />;
 
   return <>
@@ -113,7 +114,7 @@ function Item({ item, form, returnTo, onDone }: { item: DocumentCardItem; form: 
         </ApiForm> : <Choices check={next} onChoose={answer} />}
       </div>
       : needsForm ? full()
-      : <ConfirmRow item={item} own={form.own} answers={answers} hidden={hidden} onEdit={() => setEditing({})} onDone={onDone} />}
+      : <ConfirmRow item={item} own={form.own} people={form.people} answers={answers} hidden={hidden} onEdit={() => setEditing({})} onDone={onDone} />}
   </>;
 }
 
@@ -123,7 +124,7 @@ function Choices({ check, onChoose }: { check: Check; onChoose: (check: Check, c
     : <button key={choice.label} type="button" className="ui-button" onClick={() => onChoose(check, choice)}>{choice.label}</button>)}</div>;
 }
 
-function ConfirmRow({ item, own, answers, hidden, onEdit, onDone }: { item: DocumentCardItem; own: OwnChoices; answers: CheckAnswers; hidden: React.ReactNode; onEdit: () => void; onDone: () => void }) {
+function ConfirmRow({ item, own, people, answers, hidden, onEdit, onDone }: { item: DocumentCardItem; own: OwnChoices; people: WhosePerson[]; answers: CheckAnswers; hidden: React.ReactNode; onEdit: () => void; onDone: () => void }) {
   const { value } = item;
   const bp = value.businessBp ?? 0;
   const share = bp <= 0 ? "personal" : bp >= 10000 ? "business" : "mixed";
@@ -136,6 +137,7 @@ function ConfirmRow({ item, own, answers, hidden, onEdit, onDone }: { item: Docu
     {field("ownCategory", guessedOwn(own, value.category ?? "", value.name ?? "")?.id ?? "")}{field("cardId", value.cardId ?? "")}{field("repeat", answers.repeat ?? value.repeat ?? "")}
     {amountUnknown && field("amountUnknown", "on")}{dueUnknown && field("dueUnknown", "on")}
     {hidden}
+    {people.length >= 2 && <div className="ask-document-whose"><WhoseFields kind={value.kind} people={people} value={value.whose} /></div>}
     <div className="check-line-choices ask-choices">
       <button className="ui-button primary" name="decision" value="confirm">Confirm</button>
       <button type="button" className="ui-button" onClick={onEdit}>Edit</button>

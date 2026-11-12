@@ -9,7 +9,7 @@ import { monthByCategory } from "@/lib/money/month";
 import { addDays, daysBetween, WINDOW_DAYS } from "@/lib/money/runway";
 import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, spendingItems } from "@/lib/money/spending";
 import type { LinkPreview } from "@/lib/money/varies";
-import type { Extracted } from "@/lib/reader/extract";
+import type { Extracted, Whose } from "@/lib/reader/extract";
 import { CanvasError, resolveRecipe, type CanvasContext, type ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
 
@@ -90,6 +90,8 @@ export function savedCard(
   const name = value.name ?? (bill ? "Bill" : "Card charge");
   const cardLabel = bill ? undefined : cards.find(c => c.id === value.cardId)?.label;
   const parts = [amount ? `${name} ${amount}` : name];
+  const whose = whoseWords(target.kind, value.whose, context.state.split.members, bill ? undefined : context.state.cards.find(c => c.id === value.cardId)?.ownerId ?? null);
+  if (whose) parts.push(whose);
   if (category) parts.push(categoryLabel(category));
   if (date) parts.push(bill ? `due ${dayLabel(date)}` : cardLabel ? `${cardLabel}, ${dayLabel(date)}` : dayLabel(date));
   const total = shown !== null && category && amount !== null && stored
@@ -102,6 +104,19 @@ export function savedCard(
   if (shown !== null && category) links.push({ label: `${categoryLabel(category)} in ${monthName(shown)}`, href: `${shown === current ? "/spending" : `/spending?month=${shown}`}#category-${category}` });
   if (bill && date && date >= today && date <= addDays(today, WINDOW_DAYS)) links.push({ label: "Coming up on Home", href: `/#${mark}` });
   return { words: `Saved: ${parts.join(" · ")}${parts.length > 1 ? "." : ""}`, links };
+}
+
+/**
+ * D45: whose a reading is, in words: "Aki's", "Shared, Aki pays", "Shared". A charge not marked shared is the card's owner's, so it has none (null).
+ * `payerId` is who pays: a shared bill's payer, or a shared charge's card owner.
+ */
+export function whoseWords(kind: "bill" | "charge", whose: Whose | null | undefined, members: readonly { id: string; name: string }[], payerId: string | null = whose?.paidByMemberId ?? null): string | null {
+  if (!whose || members.length < 2) return null;
+  const name = (id: string | null) => members.find(member => member.id === id)?.name;
+  if (kind === "bill" && whose.memberId) { const owner = name(whose.memberId); return owner ? `${owner}\u2019s` : null; }
+  if (!whose.shared) return null;
+  const payer = name(payerId);
+  return payer ? `Shared, ${payer} pays` : "Shared";
 }
 
 const later = (a: string, b: string) => (a > b ? a : b);

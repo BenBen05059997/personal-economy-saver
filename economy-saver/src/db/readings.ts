@@ -2,11 +2,12 @@ import { lockRunway, observeRunway } from "./runway-events";
 import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { type Db, loadMoneyState, recordEvent, requireHousehold, withHousehold } from "./household";
 import { bills, cards, charges, documents, fxRates, households, readings, rules } from "./schema";
-import { checkSchedule, linkToSeries, repeatDayFor } from "./bills";
+import { checkSchedule, checkWhose, linkToSeries, repeatDayFor } from "./bills";
+import { memberByName, memberCount } from "./people";
 import { clockForHousehold } from "./clock";
 import { InputError } from "./input-error";
 import { convertMinor, fromMinor, fromRateMicro } from "./money";
-import { extractSchema, type Extracted } from "@/lib/reader/extract";
+import { extractSchema, type Extracted, type Whose } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { syncClosedStatementCharge } from "./statement-charge";
 import { nameKey, sameName } from "@/lib/money/name-key";
@@ -119,10 +120,14 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     if (value.kind === "charge") {
       if (amount === null || !date) throw new ReaderError("A card charge needs its amount and its date.");
       if (!value.cardId) throw new ReaderError("Select the card used for this charge.");
-      const [card] = await tx.select({ id: cards.id }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, value.cardId)));
+      const [card] = await tx.select({ id: cards.id, memberId: cards.memberId }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, value.cardId)));
       if (!card) throw new ReaderError("Choose a card in this household.");
+      const shared = value.whose?.shared === true;
+      // D45: a shared charge needs two or more people and a card that belongs to one of them, who paid it.
+      if (shared && await memberCount(tx, hid) < 2) throw new ReaderError("Sharing a charge needs a second person; add one in Settings, People");
+      if (shared && !card.memberId) throw new ReaderError("A shared charge needs a card that belongs to a person; set the card's owner in Settings");
       const [charge] = await tx.insert(charges).values({
-        ...amounts, amountMinor: amount, ...category, cardId: card.id, date, merchant: name, status: "confirmed", source: row.source === "email" ? "card_email" : "receipt",
+        ...amounts, createdAt: sql`clock_timestamp()`, amountMinor: amount, ...category, shared, cardId: card.id, date, merchant: name, status: "confirmed", source: row.source === "email" ? "card_email" : "receipt",
         originalAmountMinor: fx === null ? null : amountMinor, originalCurrency: fx === null ? null : currency, fxEstimated: fx !== null,
       }).returning({ id: charges.id });
       targetId = charge.id;
@@ -132,8 +137,11 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
       const nextAmountMinor = value.nextAmountMinor === null ? null : fx === null || currency === null ? value.nextAmountMinor : convertMinor(value.nextAmountMinor, currency, row.currency, fromRateMicro(fx));
       try { if (date) checkSchedule(date, today, { repeat: value.repeat, nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy, amountVaries: false, repeatUntil: value.repeatUntil }); }
       catch (error) { throw error instanceof InputError ? new ReaderError(error.message) : error; }
+      let whose: { memberId: string | null; paidByMemberId: string | null };
+      try { whose = { memberId: value.whose?.memberId ?? null, paidByMemberId: value.whose?.paidByMemberId ?? null }; await checkWhose(tx, hid, whose.memberId, whose.paidByMemberId); }
+      catch (error) { throw error instanceof InputError ? new ReaderError(error.message) : error; }
       const [bill] = await tx.insert(bills).values({
-        ...amounts, ...category, due: date, biller: name, status: "confirmed", repeatUnit: value.repeat, repeatDay: date ? repeatDayFor(date, value.repeat) : null,
+        ...amounts, createdAt: sql`clock_timestamp()`, ...whose, ...category, due: date, biller: name, status: "confirmed", repeatUnit: value.repeat, repeatDay: date ? repeatDayFor(date, value.repeat) : null,
         nextAmountMinor, nextAmountFrom: value.nextAmountFrom, cancelBy: value.cancelBy, repeatUntil: value.repeatUntil,
         periodStart, periodEnd,
       }).returning({ id: bills.id });
@@ -166,4 +174,35 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
   });
   if (saved && fields) await refreshSuggestions(db, hid, "reviewReading");
   return saved;
+}
+
+/**
+ * D61: sets whose a reading waiting in To check is (the agent's draft edit, same as the card's Whose choice; it confirms nothing). The reading is found by its
+ * biller or merchant name among those waiting. `person` is a display name: the owner of a bill, or with `shared` the one who pays it (null: nobody). A charge is
+ * shared or not (the card's owner pays), so it takes no person. Refuses a household of one, a name that matches no waiting reading or more than one, and an unknown person.
+ * Returns the reading's id and the fixed sentence for the agent.
+ */
+export async function setReadingWhose(db: Db, id: string, input: { reading: string; shared: boolean; person: string | null }): Promise<{ readingId: string; words: string }> {
+  const hid = requireHousehold(id);
+  return withHousehold(db, hid, async tx => {
+    if (await memberCount(tx, hid) < 2) throw new InputError("Choosing whose needs a second person; add one in Household → People");
+    const rows = await tx.select({ id: readings.id, data: readings.extracted }).from(readings).where(and(eq(readings.householdId, hid), eq(readings.status, "to_check"))).for("update");
+    const waiting = rows.map(row => ({ id: row.id, data: row.data as { original: unknown; proposed: unknown }, value: extractSchema.parse((row.data as { proposed: unknown }).proposed) }));
+    const matches = waiting.filter(row => row.value.name !== null && sameName(row.value.name, input.reading));
+    if (matches.length === 0) throw new InputError(`Nothing called ${input.reading.trim()} is waiting in To check`);
+    if (matches.length > 1) throw new InputError(`More than one item called ${input.reading.trim()} is waiting in To check; ask the person which`);
+    const [{ id: readingId, data, value }] = matches;
+    const name = value.name!;
+    const person = input.person === null ? null : await memberByName(tx, hid, input.person);
+    let whose: Whose;
+    if (value.kind === "charge") {
+      if (person) throw new InputError("A charge is shared or the card owner's alone; leave person empty");
+      whose = { shared: input.shared, memberId: null, paidByMemberId: null };
+    } else if (input.shared) whose = { shared: true, memberId: null, paidByMemberId: person?.id ?? null };
+    else if (person) whose = { shared: false, memberId: person.id, paidByMemberId: null };
+    else throw new InputError("Say whose bill it is (person), or set shared to true");
+    await tx.update(readings).set({ extracted: { ...data, proposed: { ...(data.proposed as object), whose } } }).where(and(eq(readings.householdId, hid), eq(readings.id, readingId)));
+    const phrase = whose.memberId ? `${person!.name}\u2019s` : !whose.shared ? "not shared" : person ? `shared, ${person.name} pays` : value.kind === "charge" ? "shared, its card\u2019s owner pays" : "shared";
+    return { readingId, words: `Marked ${name} as ${phrase}. Confirm it on the card.` };
+  });
 }

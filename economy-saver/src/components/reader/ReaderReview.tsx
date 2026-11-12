@@ -8,13 +8,14 @@ import type { OwnChoices } from "@/lib/reader/own-choices";
 export function ReaderReview({ inbox, state, own }: { inbox: ReaderInbox; state: MoneyState; own: OwnChoices }) {
   const proposals = inbox.readings.map(readingProposal);
   const cards = state.cards.map(c => ({ id: c.id, label: c.label }));
+  const people = state.split.members.map(({ id, name }) => ({ id, name }));
   return <section aria-label="Document readings">
     {inbox.jobs.map(job => <div key={job.id} className="ui-row">
       <div>{job.status === "failed" ? "Document needs attention" : "Reading document…"}{job.error && <p className="ui-hint">{job.error}</p>}</div>
       {job.retry && <ApiForm action="/api/readings/retry"><input type="hidden" name="id" value={job.id}/><button className="ui-button">Retry</button></ApiForm>}
     </div>)}
     {inbox.readings.map(({ id, value, link }, index) => <ReviewReadingCard key={id}
-      reading={{ id, value, link }} today={state.today} homeCurrency={state.homeCurrency} cards={cards} own={own}
+      reading={{ id, value, link }} today={state.today} homeCurrency={state.homeCurrency} cards={cards} own={own} people={people}
       checks={checksFor(proposals[index], state, proposals)} />)}
   </section>;
 }

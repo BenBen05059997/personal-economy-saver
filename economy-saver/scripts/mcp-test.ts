@@ -66,7 +66,7 @@ async function main() {
     assert.ok(!/\btoday\b|JPY/i.test(instructions!), "the server cannot know the date or currency");
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "bills_for_month", "can_i_spend", "draft_invoice", "foreign_costs", "forget", "goals", "household_snapshot", "list_clients_and_cards", "list_invoices", "list_spaces", "log_charge", "log_charges", "make_canvas", "month_by_category", "open_gaps", "options_when_short", "own_categories", "plan_for", "recall", "regular_costs", "remember", "search_history", "search_spending", "suggestions", "timeline", "to_check", "update_bank_balance", "what_if", "whats_due", "where_am_i", "who_owes_whom"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "bills_for_month", "can_i_spend", "draft_invoice", "foreign_costs", "forget", "goals", "household_snapshot", "list_clients_and_cards", "list_invoices", "list_spaces", "log_charge", "log_charges", "make_canvas", "month_by_category", "open_gaps", "options_when_short", "own_categories", "plan_for", "recall", "regular_costs", "remember", "search_history", "search_spending", "set_whose", "suggestions", "timeline", "to_check", "update_bank_balance", "what_if", "whats_due", "where_am_i", "who_owes_whom"]);
     assert.ok(!list.tools.some(tool => tool.name === "clarify" || tool.name === "out_of_scope"), "the Ask-only tools are never offered over MCP");
     stage = "own categories over MCP";
     const ownTool = list.tools.find(tool => tool.name === "own_categories");

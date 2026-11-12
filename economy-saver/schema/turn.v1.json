@@ -99,7 +99,7 @@
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 60,
-                            "description": "Days later than the client's pace."
+                            "description": "Days later than usual."
                           }
                         },
                         "required": [
@@ -120,7 +120,7 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 80,
-                            "description": "Bill id, or `<id>@<date>` for one occurrence."
+                            "description": "Bill id, or `<id>@<date>`."
                           }
                         },
                         "required": [
@@ -145,7 +145,7 @@
                             "type": "integer",
                             "exclusiveMinimum": 0,
                             "maximum": 100000000,
-                            "description": "Positive minor units."
+                            "description": "Minor units."
                           }
                         },
                         "required": [
@@ -171,7 +171,7 @@
                             "type": "integer",
                             "exclusiveMinimum": 0,
                             "maximum": 100000000,
-                            "description": "Positive minor units."
+                            "description": "Minor units."
                           },
                           "date": {
                             "type": "string",
@@ -203,12 +203,12 @@
                             "type": "integer",
                             "exclusiveMinimum": 0,
                             "maximum": 100000000,
-                            "description": "Positive minor units."
+                            "description": "Minor units."
                           },
                           "date": {
                             "type": "string",
                             "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                            "description": "Tomorrow or later."
+                            "description": "Tomorrow on."
                           }
                         },
                         "required": [
@@ -282,7 +282,7 @@
                                               "type": "integer",
                                               "minimum": 0,
                                               "maximum": 60,
-                                              "description": "Days later than the client's pace."
+                                              "description": "Days later than usual."
                                             }
                                           },
                                           "required": [
@@ -303,7 +303,7 @@
                                               "type": "string",
                                               "minLength": 1,
                                               "maxLength": 80,
-                                              "description": "Bill id, or `<id>@<date>` for one occurrence."
+                                              "description": "Bill id, or `<id>@<date>`."
                                             }
                                           },
                                           "required": [
@@ -328,7 +328,7 @@
                                               "type": "integer",
                                               "exclusiveMinimum": 0,
                                               "maximum": 100000000,
-                                              "description": "Positive minor units."
+                                              "description": "Minor units."
                                             }
                                           },
                                           "required": [
@@ -354,7 +354,7 @@
                                               "type": "integer",
                                               "exclusiveMinimum": 0,
                                               "maximum": 100000000,
-                                              "description": "Positive minor units."
+                                              "description": "Minor units."
                                             },
                                             "date": {
                                               "type": "string",
@@ -386,12 +386,12 @@
                                               "type": "integer",
                                               "exclusiveMinimum": 0,
                                               "maximum": 100000000,
-                                              "description": "Positive minor units."
+                                              "description": "Minor units."
                                             },
                                             "date": {
                                               "type": "string",
                                               "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                              "description": "Tomorrow or later."
+                                              "description": "Tomorrow on."
                                             }
                                           },
                                           "required": [
@@ -486,7 +486,7 @@
                                                   "type": "integer",
                                                   "minimum": 0,
                                                   "maximum": 60,
-                                                  "description": "Days later than the client's pace."
+                                                  "description": "Days later than usual."
                                                 }
                                               },
                                               "required": [
@@ -507,7 +507,7 @@
                                                   "type": "string",
                                                   "minLength": 1,
                                                   "maxLength": 80,
-                                                  "description": "Bill id, or `<id>@<date>` for one occurrence."
+                                                  "description": "Bill id, or `<id>@<date>`."
                                                 }
                                               },
                                               "required": [
@@ -532,7 +532,7 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 }
                                               },
                                               "required": [
@@ -558,7 +558,7 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 },
                                                 "date": {
                                                   "type": "string",
@@ -590,12 +590,12 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 },
                                                 "date": {
                                                   "type": "string",
                                                   "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                  "description": "Tomorrow or later."
+                                                  "description": "Tomorrow on."
                                                 }
                                               },
                                               "required": [
@@ -682,7 +682,7 @@
                                                   "type": "integer",
                                                   "minimum": 0,
                                                   "maximum": 60,
-                                                  "description": "Days later than the client's pace."
+                                                  "description": "Days later than usual."
                                                 }
                                               },
                                               "required": [
@@ -703,7 +703,7 @@
                                                   "type": "string",
                                                   "minLength": 1,
                                                   "maxLength": 80,
-                                                  "description": "Bill id, or `<id>@<date>` for one occurrence."
+                                                  "description": "Bill id, or `<id>@<date>`."
                                                 }
                                               },
                                               "required": [
@@ -728,7 +728,7 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 }
                                               },
                                               "required": [
@@ -754,7 +754,7 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 },
                                                 "date": {
                                                   "type": "string",
@@ -786,12 +786,12 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 },
                                                 "date": {
                                                   "type": "string",
                                                   "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                  "description": "Tomorrow or later."
+                                                  "description": "Tomorrow on."
                                                 }
                                               },
                                               "required": [
@@ -924,7 +924,7 @@
                                               "type": "integer",
                                               "minimum": 0,
                                               "maximum": 60,
-                                              "description": "Days later than the client's pace."
+                                              "description": "Days later than usual."
                                             }
                                           },
                                           "required": [
@@ -945,7 +945,7 @@
                                               "type": "string",
                                               "minLength": 1,
                                               "maxLength": 80,
-                                              "description": "Bill id, or `<id>@<date>` for one occurrence."
+                                              "description": "Bill id, or `<id>@<date>`."
                                             }
                                           },
                                           "required": [
@@ -970,7 +970,7 @@
                                               "type": "integer",
                                               "exclusiveMinimum": 0,
                                               "maximum": 100000000,
-                                              "description": "Positive minor units."
+                                              "description": "Minor units."
                                             }
                                           },
                                           "required": [
@@ -996,7 +996,7 @@
                                               "type": "integer",
                                               "exclusiveMinimum": 0,
                                               "maximum": 100000000,
-                                              "description": "Positive minor units."
+                                              "description": "Minor units."
                                             },
                                             "date": {
                                               "type": "string",
@@ -1028,12 +1028,12 @@
                                               "type": "integer",
                                               "exclusiveMinimum": 0,
                                               "maximum": 100000000,
-                                              "description": "Positive minor units."
+                                              "description": "Minor units."
                                             },
                                             "date": {
                                               "type": "string",
                                               "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                              "description": "Tomorrow or later."
+                                              "description": "Tomorrow on."
                                             }
                                           },
                                           "required": [
@@ -1133,7 +1133,7 @@
                                               "type": "integer",
                                               "minimum": 0,
                                               "maximum": 60,
-                                              "description": "Days later than the client's pace."
+                                              "description": "Days later than usual."
                                             }
                                           },
                                           "required": [
@@ -1154,7 +1154,7 @@
                                               "type": "string",
                                               "minLength": 1,
                                               "maxLength": 80,
-                                              "description": "Bill id, or `<id>@<date>` for one occurrence."
+                                              "description": "Bill id, or `<id>@<date>`."
                                             }
                                           },
                                           "required": [
@@ -1179,7 +1179,7 @@
                                               "type": "integer",
                                               "exclusiveMinimum": 0,
                                               "maximum": 100000000,
-                                              "description": "Positive minor units."
+                                              "description": "Minor units."
                                             }
                                           },
                                           "required": [
@@ -1205,7 +1205,7 @@
                                               "type": "integer",
                                               "exclusiveMinimum": 0,
                                               "maximum": 100000000,
-                                              "description": "Positive minor units."
+                                              "description": "Minor units."
                                             },
                                             "date": {
                                               "type": "string",
@@ -1237,12 +1237,12 @@
                                               "type": "integer",
                                               "exclusiveMinimum": 0,
                                               "maximum": 100000000,
-                                              "description": "Positive minor units."
+                                              "description": "Minor units."
                                             },
                                             "date": {
                                               "type": "string",
                                               "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                              "description": "Tomorrow or later."
+                                              "description": "Tomorrow on."
                                             }
                                           },
                                           "required": [
@@ -1348,7 +1348,7 @@
                                                   "type": "integer",
                                                   "minimum": 0,
                                                   "maximum": 60,
-                                                  "description": "Days later than the client's pace."
+                                                  "description": "Days later than usual."
                                                 }
                                               },
                                               "required": [
@@ -1369,7 +1369,7 @@
                                                   "type": "string",
                                                   "minLength": 1,
                                                   "maxLength": 80,
-                                                  "description": "Bill id, or `<id>@<date>` for one occurrence."
+                                                  "description": "Bill id, or `<id>@<date>`."
                                                 }
                                               },
                                               "required": [
@@ -1394,7 +1394,7 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 }
                                               },
                                               "required": [
@@ -1420,7 +1420,7 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 },
                                                 "date": {
                                                   "type": "string",
@@ -1452,12 +1452,12 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 },
                                                 "date": {
                                                   "type": "string",
                                                   "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                  "description": "Tomorrow or later."
+                                                  "description": "Tomorrow on."
                                                 }
                                               },
                                               "required": [
@@ -1666,6 +1666,39 @@
                     "properties": {
                       "type": {
                         "type": "string",
+                        "const": "by_person"
+                      },
+                      "query": {
+                        "type": "object",
+                        "properties": {
+                          "q": {
+                            "type": "string",
+                            "const": "month_by_person"
+                          },
+                          "month": {
+                            "type": "string",
+                            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+                            "description": "A calendar month, YYYY-MM, within the last twelve months or this one."
+                          }
+                        },
+                        "required": [
+                          "q",
+                          "month"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
                         "const": "progress"
                       },
                       "label": {
@@ -1715,7 +1748,7 @@
                                                   "type": "integer",
                                                   "minimum": 0,
                                                   "maximum": 60,
-                                                  "description": "Days later than the client's pace."
+                                                  "description": "Days later than usual."
                                                 }
                                               },
                                               "required": [
@@ -1736,7 +1769,7 @@
                                                   "type": "string",
                                                   "minLength": 1,
                                                   "maxLength": 80,
-                                                  "description": "Bill id, or `<id>@<date>` for one occurrence."
+                                                  "description": "Bill id, or `<id>@<date>`."
                                                 }
                                               },
                                               "required": [
@@ -1761,7 +1794,7 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 }
                                               },
                                               "required": [
@@ -1787,7 +1820,7 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 },
                                                 "date": {
                                                   "type": "string",
@@ -1819,12 +1852,12 @@
                                                   "type": "integer",
                                                   "exclusiveMinimum": 0,
                                                   "maximum": 100000000,
-                                                  "description": "Positive minor units."
+                                                  "description": "Minor units."
                                                 },
                                                 "date": {
                                                   "type": "string",
                                                   "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                  "description": "Tomorrow or later."
+                                                  "description": "Tomorrow on."
                                                 }
                                               },
                                               "required": [

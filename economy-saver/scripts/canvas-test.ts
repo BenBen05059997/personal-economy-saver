@@ -9,7 +9,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { TableBlock } from "@/components/canvas/blocks";
+import { ByPersonBlock, TableBlock } from "@/components/canvas/blocks";
 import * as schema from "@/db/schema";
 import { savePot } from "@/db/pots";
 import { seedBen } from "@/db/seed";
@@ -24,6 +24,7 @@ import { blockWords } from "@/lib/canvas/words";
 import { foreignCosts } from "@/lib/money/fx-cost";
 import { money, minorMoney } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
+import { splitBalance, splitSummary } from "@/lib/money/split";
 import { regularCosts } from "@/lib/money/regular";
 import { addDays, low, planWindow, series, timeline, safeToSpend, availableCash } from "@/lib/money/runway";
 import { stateThrough } from "@/lib/money/window";
@@ -205,6 +206,10 @@ async function main() {
       assert.ok(!ScenarioSchema.safeParse({ case: "late", changes: [bad] }).success, JSON.stringify(bad));
     }
     assert.ok(BlockSchema.safeParse({ type: "note", text: "A note", by: "assistant" }).success);
+    // an added query value keeps version 1; the month is checked like every other month
+    assert.ok(RecipeSchema.safeParse({ version: 1, title: "x", blocks: [{ type: "by_person", query: { q: "month_by_person", month: "2026-11" } }] }).success);
+    for (const bad of [{ month: "2026-13" }, { month: "Nov 2026" }, { month: "2026-11", amountMinor: 5 }]) assert.ok(!BlockSchema.safeParse({ type: "by_person", query: { q: "month_by_person", ...bad } }).success, JSON.stringify(bad));
+    assert.ok(!BlockSchema.safeParse({ type: "by_person", query: { q: "month_by_category", month: "2026-11" } }).success);
   });
 
   await check("recipeJsonSchema: valid JSON made from the zod definition, strict objects, the block types named", () => {
@@ -213,7 +218,7 @@ async function main() {
     const json = JSON.parse(text);
     assert.equal(json.title, "CanvasRecipe");
     assert.equal(json.additionalProperties, false);
-    for (const type of ["sentence", "number", "flow_chart", "timeline", "table", "compare", "progress", "note", "letter", "sliders", "action"]) assert.ok(text.includes(`"${type}"`), type);
+    for (const type of ["sentence", "number", "flow_chart", "timeline", "table", "compare", "by_person", "progress", "note", "letter", "sliders", "action"]) assert.ok(text.includes(`"${type}"`), type);
     assert.ok(text.length < 60_000, `the agent is shown this: ${text.length} characters`);
   });
 
@@ -403,6 +408,41 @@ async function main() {
       const ev = (events as Extract<ResolvedBlock, { type: "table" }>).data;
       assert.ok(ev.rows.some(r => r.cells[1] === "Fictional lamp" && r.cells[2] === "−¥10,000"));
       assert.match(events.source, /with your what-if changes$/);
+    });
+
+    await check("month_by_person: the totals are the month split's to the yen, who owes whom is the D45 line, one member says so plainly", () => {
+      const recipe: Recipe = { version: 1, title: "By person", blocks: [{ type: "by_person", query: { q: "month_by_person", month: "2026-11" } }] };
+      const one = block(resolveRecipe(recipe, context), "by_person").data;
+      assert.equal(one.empty, "Only Ben in this household. Add a person in Household → People to split.");
+      assert.equal(one.rows.length, 0);
+      assert.match(blockWords(recipe.blocks[0]), /^By person: November 2026 by category/);
+
+      const ben = state.split.members[0];
+      const members = [{ ...ben, shareBp: 5_000 }, { id: "aki", name: "Aki", shareBp: 5_000 }];
+      // monthly bills carry their first due date; the month view expands them into November
+      const billsNov = context.spending.bills.filter(bill => bill.repeatUnit === "month");
+      assert.ok(billsNov.length >= 2);
+      const owned = new Set(billsNov.slice(0, Math.ceil(billsNov.length / 2)).map(bill => bill.id));
+      const two: typeof context = {
+        ...context,
+        state: { ...state, split: { members, since: "2026-11-01", settledThrough: null, settledAt: null, charges: [], bills: [{ id: "sh", biller: "Fictional internet", amountMinor: 10_000, due: "2026-11-05", paidBy: "aki", createdAt: "2026-11-01T00:00:00Z", repeatUnit: null, repeatDay: null, repeatUntil: null, nextAmountMinor: null, nextAmountFrom: null }] } },
+        spending: { ...context.spending, split: { members }, bills: context.spending.bills.map(bill => (owned.has(bill.id) ? { ...bill, ownerId: "aki" } : bill)) },
+      };
+      const view = monthByCategory(two.spending, TODAY, "2026-11");
+      const data = block(resolveRecipe(recipe, two), "by_person").data;
+      assert.equal(data.empty, null);
+      assert.ok(view.byMember.find(m => m.id === "aki")!.minor > 0 && view.sharedMinor > 0);
+      assert.deepEqual(data.table.head, ["Category", "Shared", "Ben", "Aki", "Total"]);
+      assert.deepEqual(data.table.foot, ["Total", minorMoney(view.sharedMinor, "JPY"), minorMoney(view.byMember[0].minor, "JPY"), minorMoney(view.byMember[1].minor, "JPY"), minorMoney(view.totalMinor, "JPY")]);
+      assert.equal(data.table.rows.length, view.categories.length);
+      view.categories.forEach((category, i) => {
+        assert.deepEqual(data.rows[i].parts.map(p => p.minor), [category.sharedMinor, ...category.byMember.map(m => m.minor)].filter(n => n > 0));
+        assert.equal(data.table.rows[i].cells.at(-1), minorMoney(category.totalMinor, "JPY"));
+      });
+      assert.equal(data.owes, splitSummary(two.state.split, splitBalance(two.state.split, TODAY), "JPY"));
+      assert.equal(data.owes, "Ben owes Aki ¥5,000.");
+      assert.match(canvasSummary(resolveRecipe(recipe, two)), /"type":"by_person"/);
+      assert.match(renderToStaticMarkup(createElement(ByPersonBlock, { data })), /Ben owes Aki/);
     });
 
     await check("a month outside the twelve kept, a bad slider client and a bad scenario are refused in words", () => {

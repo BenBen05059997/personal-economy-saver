@@ -19,7 +19,7 @@ export async function foreignCostInputs(db: Db, householdId: string, today: stri
       tx.select({ id: s.cards.id, label: s.cards.label, currency: s.cards.currency, foreignFeeBp: s.cards.foreignFeeBp }).from(s.cards).where(eq(s.cards.householdId, hid)).orderBy(s.cards.createdAt, s.cards.label),
       tx.select().from(s.charges).where(and(eq(s.charges.householdId, hid), eq(s.charges.status, "confirmed"), isNotNull(s.charges.originalAmountMinor), isNotNull(s.charges.originalCurrency)))
         .orderBy(s.charges.date, s.charges.id),
-      tx.select({ id: s.invoices.id, clientId: s.invoices.clientId, clientName: s.clients.name, amountMinor: s.invoices.amountMinor, paidOn: s.invoices.paidOn, fxRateMicro: s.invoices.fxRateMicro })
+      tx.select({ id: s.invoices.id, clientId: s.clients.id, clientName: s.clients.name, amountMinor: s.invoices.amountMinor, paidOn: s.invoices.paidOn, fxRateMicro: s.invoices.fxRateMicro })
         .from(s.invoices).innerJoin(s.clients, and(eq(s.clients.householdId, s.invoices.householdId), eq(s.clients.id, s.invoices.clientId)))
         .where(and(eq(s.invoices.householdId, hid), eq(s.invoices.status, "paid"), eq(s.invoices.currency, "USD"), isNotNull(s.invoices.paidOn)))
         .orderBy(s.invoices.paidOn, s.invoices.id),

@@ -5,6 +5,7 @@ import { and, eq, gte, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { requireHousehold, withHousehold, type Db } from "./household";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 import { clients, events, invoices, paypalConnections } from "./schema";
+import { settleUpInTx } from "./settle";
 import { refreshSuggestions } from "./suggestions";
 
 export class InvoiceMatchError extends Error {
@@ -37,7 +38,7 @@ export async function readPaymentCandidates(db: Db, householdId: string, invoice
       .where(and(eq(paypalConnections.householdId, hid), eq(paypalConnections.connectionStatus, "connected")));
     if (!connected) return [];
     const [invoice] = await tx.select().from(invoices).where(and(eq(invoices.householdId, hid), eq(invoices.id, invoiceId)));
-    if (!invoice || invoice.status !== "sent" || !invoice.sentOn || invoice.paypalCaptureId) return [];
+    if (!invoice || invoice.clientId === null || invoice.status !== "sent" || !invoice.sentOn || invoice.paypalCaptureId) return [];
     const own = eq(invoices.clientId, invoice.clientId);
     const rows = await tx.select({ paymentId: invoices.id, paidOn: invoices.paidOn, amountMinor: invoices.amountMinor, currency: invoices.currency,
       payer: clients.name, payerEmail: clients.email, ownClient: sql<boolean>`${own}` })
@@ -56,8 +57,8 @@ export async function readPaymentCandidates(db: Db, householdId: string, invoice
  * has none, so the read recognises the next payment from that address. A client that already has an email keeps it (the read
  * recognises a payer by one email per client), and a read-made client that still has other invoices stays as it is.
  */
-async function tidyReadClient(tx: Db, hid: string, payment: typeof invoices.$inferSelect, invoiceClientId: string) {
-  if (payment.clientId === invoiceClientId) return;
+async function tidyReadClient(tx: Db, hid: string, payment: typeof invoices.$inferSelect, invoiceClientId: string | null) {
+  if (invoiceClientId === null || payment.clientId === null || payment.clientId === invoiceClientId) return; // a member's request has no client to learn the payer's email
   const [made] = await tx.select().from(clients).where(and(eq(clients.householdId, hid), eq(clients.id, payment.clientId)));
   if (!made || made.createdAt.getTime() !== payment.createdAt.getTime()) return;
   const [other] = await tx.select({ id: invoices.id }).from(invoices)
@@ -107,6 +108,7 @@ export async function settleReadPaymentInTx(tx: Db, householdId: string, invoice
     .where(and(eq(events.householdId, hid), eq(events.refType, "invoice"), eq(events.refId, payment.id)));
   // The payment row is gone, so a read-made client for another payer can now be seen to have nothing left.
   await tidyReadClient(tx, hid, payment, invoice.clientId);
+  if (invoice.payerMemberId !== null) await settleUpInTx(tx, hid); // a member's request (D45) settles the transfers when it is paid
   await observeRunway(tx, hid);
 }
 

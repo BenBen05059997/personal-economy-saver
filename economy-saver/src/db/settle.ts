@@ -11,34 +11,44 @@ import { Currency } from "@/lib/catalogue/types";
 import { dayLabel, minorMoney } from "@/lib/money/format";
 import { splitBalance } from "@/lib/money/split";
 
+type Owed = { home: Currency; today: string; fxPerUsd: number; transfers: ReturnType<typeof splitBalance>["transfers"] };
+
+/** What is owed now, from the stored rows, under the household row's lock (the caller's transaction). */
+export async function owedNow(tx: Db, hid: string): Promise<Owed> {
+  const [household] = await tx.select({ id: households.id, home: households.homeCurrency, splitSince: households.splitSince })
+    .from(households).where(eq(households.id, hid)).for("update");
+  if (!household) throw new InputError("Household not found");
+  const today = (await householdClock(tx, hid)).today;
+  const home = Currency.parse(household.home);
+  const fxPerUsd = fromRateMicro(await usdRateMicro(tx, hid, home, today));
+  const split = await loadSplitState(tx, hid, household.splitSince, today, (minor, currency) => convertMinor(minor, currency, home, fxPerUsd));
+  if (split.members.length < 2) throw new InputError("Settling needs a second person; add one in Settings, People");
+  return { home, today, fxPerUsd, transfers: splitBalance(split, today).transfers };
+}
+
 /**
  * Settles what is owed as of the household's today. Returns the transfers it recorded; an empty list (nothing owed, or a
  * second tap after the first) records nothing, so a double submit settles once.
  */
 export async function settleUp(db: Db, householdId: string): Promise<{ fromId: string; toId: string; amountMinor: number }[]> {
   const hid = requireHousehold(householdId);
-  return db.transaction(async tx => {
-    const [household] = await tx.select({ id: households.id, home: households.homeCurrency, splitSince: households.splitSince })
-      .from(households).where(eq(households.id, hid)).for("update");
-    if (!household) throw new InputError("Household not found");
-    const today = (await householdClock(tx, hid)).today;
-    const home = Currency.parse(household.home);
-    const fxPerUsd = fromRateMicro(await usdRateMicro(tx, hid, home, today));
-    const split = await loadSplitState(tx, hid, household.splitSince, today, (minor, currency) => convertMinor(minor, currency, home, fxPerUsd));
-    if (split.members.length < 2) throw new InputError("Settling needs a second person; add one in Settings, People");
-    const { transfers } = splitBalance(split, today);
-    // One instant for every transfer of this settle-up, read from the database clock after the lock (shared items stamp created_at the same way).
-    const [{ at }] = await tx.select({ at: sql<string>`clock_timestamp()` }).from(households).where(eq(households.id, hid));
-    const settledAt = new Date(at);
-    for (const t of transfers) {
-      const [row] = await tx.insert(settlements).values({
-        householdId: hid, fromMemberId: t.fromId, toMemberId: t.toId, amountMinor: t.amountMinor, currency: home, through: today, settledAt,
-      }).returning({ id: settlements.id });
-      await recordEvent(tx, hid, { madeBy: "form",
-        kind: "settled", title: `${t.fromName} paid ${t.toName} ${minorMoney(t.amountMinor, home)}`, body: `Shared costs settled through ${dayLabel(today)}`,
-        amount: { value: fromMinor(t.amountMinor, home), currency: home }, ref: { type: "settlement", id: row.id },
-      });
-    }
-    return transfers.map(t => ({ fromId: t.fromId, toId: t.toId, amountMinor: t.amountMinor }));
-  });
+  return db.transaction(tx => settleUpInTx(tx, hid));
+}
+
+/** Mark settled inside the caller's transaction: the tap's, or the webhook's when a member's PayPal request is paid (D45). */
+export async function settleUpInTx(tx: Db, hid: string): Promise<{ fromId: string; toId: string; amountMinor: number }[]> {
+  const { home, today, transfers } = await owedNow(tx, hid);
+  // One instant for every transfer of this settle-up, read from the database clock after the lock (shared items stamp created_at the same way).
+  const [{ at }] = await tx.select({ at: sql<string>`clock_timestamp()` }).from(households).where(eq(households.id, hid));
+  const settledAt = new Date(at);
+  for (const t of transfers) {
+    const [row] = await tx.insert(settlements).values({
+      householdId: hid, fromMemberId: t.fromId, toMemberId: t.toId, amountMinor: t.amountMinor, currency: home, through: today, settledAt,
+    }).returning({ id: settlements.id });
+    await recordEvent(tx, hid, { madeBy: "form",
+      kind: "settled", title: `${t.fromName} paid ${t.toName} ${minorMoney(t.amountMinor, home)}`, body: `Shared costs settled through ${dayLabel(today)}`,
+      amount: { value: fromMinor(t.amountMinor, home), currency: home }, ref: { type: "settlement", id: row.id },
+    });
+  }
+  return transfers.map(t => ({ fromId: t.fromId, toId: t.toId, amountMinor: t.amountMinor }));
 }

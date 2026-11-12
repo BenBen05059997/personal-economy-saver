@@ -239,6 +239,13 @@
       "when": 1794369484584,
       "tag": "0033_quick_dorian_gray",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794490285788,
+      "tag": "0034_heavy_tyrannus",
+      "breakpoints": true
     }
   ]
 }

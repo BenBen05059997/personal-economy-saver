@@ -41,6 +41,7 @@
 .ask-document-places { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; }
 .ask-document-places .ui-button { min-height: 36px; text-decoration: none; }
 .ask-document-question { margin: 0; }
+.ask-document-whose { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
 .ask-document .ui-form, .ask-document .reader-fields { min-width: 0; }
 .ask-document .reader-fields { grid-template-columns: minmax(0, 1fr); }
 .ask-document-confirm .ask-choices .ui-button, .ask-document-question .ui-button, .ask-document .reader-buttons .ui-button, .ask-attach { min-height: 36px; }

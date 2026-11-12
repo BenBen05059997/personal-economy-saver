@@ -2,7 +2,7 @@
 // household_id; every select names its columns, so a column that holds a secret or a pointer (the AI key's Vault id
 // and hint, auth user ids, MCP token hashes, webhook payloads, storage paths, an invoice's approve key) is never read.
 // The result is parsed with the schema before it is returned, so the shape is enforced at the source.
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { HouseholdSnapshot, SNAPSHOT_VERSION } from "@/lib/schema/household";
 import { listSpaces } from "./spaces";
 import { listCanvases } from "./canvases";
@@ -82,7 +82,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
         note: s.invoices.note, amountMinor: s.invoices.amountMinor, currency: s.invoices.currency, fxRateMicro: s.invoices.fxRateMicro,
         sentOn: s.invoices.sentOn, dueOn: s.invoices.dueOn, paidOn: s.invoices.paidOn, paypalInvoiceId: s.invoices.paypalInvoiceId,
         paypalStatus: s.invoices.paypalStatus, remindedAt: s.invoices.remindedAt, madeBy: s.invoices.madeBy,
-      }).from(s.invoices).where(eq(s.invoices.householdId, hid)).orderBy(desc(s.invoices.createdAt), desc(s.invoices.id)).$dynamic()),
+      }).from(s.invoices).where(and(eq(s.invoices.householdId, hid), isNotNull(s.invoices.clientId))).orderBy(desc(s.invoices.createdAt), desc(s.invoices.id)).$dynamic()),
       tx.select({
         id: s.pots.id, memberId: s.pots.memberId, name: s.pots.name, targetMinor: s.pots.targetMinor, targetDate: s.pots.targetDate,
         savedMinor: s.pots.savedMinor, fillBp: s.pots.fillBp, currency: s.pots.currency, status: s.pots.status, madeBy: s.pots.madeBy,

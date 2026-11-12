@@ -1,5 +1,6 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
+import { memberRequestsView } from "@/db/member-request";
 import { openSuggestions } from "@/db/suggestions";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
@@ -24,8 +25,9 @@ async function SessionHome({ search }: { search: Search }) {
   const pins = loadHomePins(id);
   // The pins boundary will read the original promise after the workspace is ready.
   void pins.catch(() => {});
-  const [workspace, suggestions] = await Promise.all([workspaceRead, suggestionsRead]);
-  return <WorkspaceFrame workspace={workspace} section="home"><HomeView householdId={id} getStarted={workspace.getStarted} suggestions={suggestions} state={workspace.state} balanceId={crypto.randomUUID()} inbox={workspace.inbox} notice={workspace.freshness?.stale} demo={workspace.demo} tryIt={workspace.tryIt} connection={workspace.connection} isOwner={workspace.role.isOwner} asOf={workspace.freshness?.asOf?.toLocaleString("en-US", { timeZone: workspace.timeZone }) ?? null}
+  const requestsRead = withHousehold(db(), id, tx => memberRequestsView(tx, id));
+  const [workspace, suggestions, requests] = await Promise.all([workspaceRead, suggestionsRead, requestsRead]);
+  return <WorkspaceFrame workspace={workspace} section="home"><HomeView requests={requests} householdId={id} getStarted={workspace.getStarted} suggestions={suggestions} state={workspace.state} balanceId={crypto.randomUUID()} inbox={workspace.inbox} notice={workspace.freshness?.stale} demo={workspace.demo} tryIt={workspace.tryIt} connection={workspace.connection} isOwner={workspace.role.isOwner} asOf={workspace.freshness?.asOf?.toLocaleString("en-US", { timeZone: workspace.timeZone }) ?? null}
     forwarding={missingForwardingSetting() === null} added={typeof added === "string" ? added : null}
     pins={<Pinned householdId={id} state={workspace.state} pins={pins} />} />
     <ScrollToHash />

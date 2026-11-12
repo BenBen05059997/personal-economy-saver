@@ -24,6 +24,7 @@ function queryWords(query: Query): string {
     case "events": return `what is due and who pays, in date order, for ${query.days ?? 30} days${scenario}`;
     case "month_total": return `everything spent in ${monthWords(query.month)}`;
     case "month_by_category": return `${monthWords(query.month)} by category`;
+    case "month_by_person": return `${monthWords(query.month)} by category, split into shared and each person, and who owes whom`;
     case "compare_months": return `${monthWords(query.a)} against ${monthWords(query.b)}`;
     case "spending_search": return `spending that matches "${query.text.slice(0, SEARCH_QUERY_MAX)}" over the last ${query.months} months`;
     case "regular_costs": return `the bills and charges that come back every month, and what changed`;
@@ -42,6 +43,7 @@ export function blockWords(block: Block): string {
     case "timeline": return `Timeline: ${queryWords(block.query)}${block.mark ? ", one bill marked" : ""}`;
     case "table": return `Table${block.title ? ` "${block.title}"` : ""}: ${queryWords(block.query)}`;
     case "compare": return `Comparison: ${queryWords(block.query)}`;
+    case "by_person": return `By person: ${queryWords(block.query)}`;
     case "progress": return "label" in block
       ? `Progress "${block.label}": ${queryWords(block.query)}, against the target you set`
       : `Goals: ${queryWords(block.query)}`;
@@ -54,6 +56,6 @@ export function blockWords(block: Block): string {
 
 /** The short kind name drawn over an outlined block. */
 export const KIND_WORDS: Record<Block["type"], string> = {
-  sentence: "Sentence", number: "Number", flow_chart: "Chart", timeline: "Timeline", table: "Table", compare: "Comparison",
+  sentence: "Sentence", number: "Number", flow_chart: "Chart", timeline: "Timeline", table: "Table", compare: "Comparison", by_person: "By person",
   progress: "Progress", note: "Note", letter: "Letter", sliders: "Sliders", action: "Link",
 };

@@ -552,7 +552,7 @@ async function main() {
   await check("a payment the read found first: the completed payment settles the invoice with it, credits nothing, and is not retried for ever", async () => {
     await connectB();
     const inv = await orderedInvoice(b, "ORDER-DB-RACE");
-    const read = await readPayment(b, inv.clientId, "CAP-RACE", today);
+    const read = await readPayment(b, inv.clientId!, "CAP-RACE", today);
     const before = await moneyOf(b);
     const event = completed("WH-RACE", "ORDER-DB-RACE", { custom: inv.id, capture: "CAP-RACE" });
     await applyVerifiedDelivery(db, event, noCapture);
@@ -569,7 +569,7 @@ async function main() {
   await check("a payment the read found first: fipa's own capture settles the invoice with it, even when the read named another payer", async () => {
     await connectB();
     const inv = await orderedInvoice(b, "ORDER-DB-RACE2");
-    const [otherClient] = await db.select().from(schema.clients).where(and(eq(schema.clients.householdId, b), ne(schema.clients.id, inv.clientId))).limit(1);
+    const [otherClient] = await db.select().from(schema.clients).where(and(eq(schema.clients.householdId, b), ne(schema.clients.id, inv.clientId!))).limit(1);
     const read = await readPayment(b, otherClient.id, "CAP-RACE2", today);
     const before = await moneyOf(b);
     const capture: CaptureOrder = async () => ({ captureId: "CAP-RACE2" });
@@ -587,16 +587,16 @@ async function main() {
   await check("matching a read payment to an open invoice: the finder offers only same client, amount and currency on or after the link, and the settle refuses the rest", async () => {
     await connectB();
     const inv = await orderedInvoice(b, "ORDER-DB-MATCH");
-    const [otherClient] = await db.select().from(schema.clients).where(and(eq(schema.clients.householdId, b), ne(schema.clients.id, inv.clientId))).limit(1);
-    const good = await readPayment(b, inv.clientId, "CAP-MATCH-GOOD", addDays(today, 2));
-    const amount = await readPayment(b, inv.clientId, "CAP-MATCH-AMOUNT", today, 24_999);
+    const [otherClient] = await db.select().from(schema.clients).where(and(eq(schema.clients.householdId, b), ne(schema.clients.id, inv.clientId!))).limit(1);
+    const good = await readPayment(b, inv.clientId!, "CAP-MATCH-GOOD", addDays(today, 2));
+    const amount = await readPayment(b, inv.clientId!, "CAP-MATCH-AMOUNT", today, 24_999);
     const client = await readPayment(b, otherClient.id, "CAP-MATCH-CLIENT", today);
-    const early = await readPayment(b, inv.clientId, "CAP-MATCH-EARLY", addDays(today, -1));
+    const early = await readPayment(b, inv.clientId!, "CAP-MATCH-EARLY", addDays(today, -1));
     const [aClient] = await db.select().from(schema.clients).where(eq(schema.clients.householdId, a)).limit(1);
     const elsewhere = await readPayment(a, aClient.id, "CAP-MATCH-ELSEWHERE", today);
     const payerOf = async (clientId: string) => (await db.select({ payer: schema.clients.name, payerEmail: schema.clients.email }).from(schema.clients).where(eq(schema.clients.id, clientId)))[0];
     assert.deepEqual(await readPaymentCandidates(db, b, inv.id), [
-      { paymentId: good.id, paidOn: addDays(today, 2), amountMinor: 25_000, currency: "USD", ...await payerOf(inv.clientId), ownClient: true },
+      { paymentId: good.id, paidOn: addDays(today, 2), amountMinor: 25_000, currency: "USD", ...await payerOf(inv.clientId!), ownClient: true },
       { paymentId: client.id, paidOn: today, amountMinor: 25_000, currency: "USD", ...await payerOf(otherClient.id), ownClient: false },
     ], "same amount and currency on or after the link day, own client first, then another payer");
     assert.deepEqual(await readPaymentCandidates(db, a, inv.id), [], "another household sees nothing of it");
@@ -659,7 +659,7 @@ async function main() {
     assert.equal((await invoiceRow(ending.id)).status, "paid", "the money arrived, so the ended link's invoice is paid");
     // A person's Yes for another payment, tapped during the capture: refused, because this invoice's payment is on its way.
     const yes = await orderedInvoice(b, "ORDER-DB-RACE-YES");
-    const other = await readPayment(b, yes.clientId, "CAP-DB-RACE-YES-READ", today);
+    const other = await readPayment(b, yes.clientId!, "CAP-DB-RACE-YES-READ", today);
     let said2: Promise<unknown> = Promise.resolve();
     await applyVerifiedDelivery(db, approved("WH-RACE-YES", "ORDER-DB-RACE-YES", yes.id), async () => {
       said2 = settleReadPayment(db, b, yes.id, other.id).then(() => "settled", e => e);

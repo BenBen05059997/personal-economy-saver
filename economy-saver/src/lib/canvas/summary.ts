@@ -17,6 +17,7 @@ function describe(block: ResolvedBlock): Record<string, unknown> {
     case "timeline": return { caption: block.data.caption, rows: block.data.rows.slice(0, MAX_ROWS).map(row => `${row.dateLabel} ${row.label} ${row.amountLabel}, balance ${row.balanceLabel}`), ...(block.data.empty && { empty: block.data.empty }) };
     case "table": return { ...(block.data.title && { title: block.data.title }), head: block.data.head, rows: block.data.rows.slice(0, MAX_ROWS).map(row => row.cells), ...(block.data.foot && { foot: block.data.foot }), ...(block.data.empty && { empty: block.data.empty }) };
     case "compare": return { a: block.data.aName, b: block.data.bName, aTotal: block.data.aTotal, bTotal: block.data.bTotal, difference: block.data.difference, rows: block.data.rows.slice(0, MAX_ROWS).map(row => `${row.label}: ${row.aLabel} to ${row.bLabel} (${row.change})`) };
+    case "by_person": return { month: block.data.month, head: block.data.table.head, rows: block.data.table.rows.slice(0, MAX_ROWS).map(row => row.cells), ...(block.data.table.foot && { foot: block.data.table.foot }), ...(block.data.owes && { owes: block.data.owes }), ...(block.data.empty && { empty: block.data.empty }) };
     case "sliders": return { clients: block.data.controls.map(control => ({ name: control.name, maxDays: control.maxDays })) };
     case "action": return { label: block.data.label, href: block.data.href };
     case "note": case "letter": return {};

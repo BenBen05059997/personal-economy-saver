@@ -8,6 +8,15 @@ export function readingUnknown(form: FormData) {
   return { amount: form.get("amountUnknown") === "on", date: form.get("dueUnknown") === "on" };
 }
 
+/** The card's "Whose" choice (two or more people only): "shared", a member id, or for a charge "shared" / "own". Absent from the form: not asked, so not set. */
+function readingWhose(form: FormData, isBill: boolean) {
+  const chosen = form.get("whose");
+  if (typeof chosen !== "string" || chosen === "") return undefined;
+  if (!isBill) return { shared: chosen === "shared", memberId: null, paidByMemberId: null };
+  if (chosen === "shared") return { shared: true, memberId: null, paidByMemberId: String(form.get("paidByMemberId") ?? "") || null };
+  return { shared: false, memberId: chosen, paidByMemberId: null };
+}
+
 export function readingForm(form: FormData) {
   const unknown = readingUnknown(form);
   const amount = String(form.get("amount") ?? "").trim();
@@ -40,7 +49,8 @@ export function readingForm(form: FormData) {
     amountMinor, currency, category: form.get("category") || null, businessBp, cardId: form.get("cardId") || null,
     repeat: isBill ? form.get("repeat") || null : null, nextAmountMinor, nextAmountFrom: isBill ? form.get("nextAmountFrom") || null : null, cancelBy: isBill ? form.get("cancelBy") || null : null,
     repeatUntil: isBill && form.get("repeat") ? form.get("repeatUntil") || null : null,
-    periodStart: isBill ? form.get("periodStart") || null : null, periodEnd: isBill ? form.get("periodEnd") || null : null });
+    periodStart: isBill ? form.get("periodStart") || null : null, periodEnd: isBill ? form.get("periodEnd") || null : null,
+    whose: readingWhose(form, isBill) });
   if (!result.success) throw new ReaderError(result.error.issues.some(issue => issue.path[0] === "category") ? "Choose a category from the list." : "Check the reading fields and enter a valid date and amount.");
   return result.data;
 }

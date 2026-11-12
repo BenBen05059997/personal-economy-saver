@@ -12,6 +12,7 @@ import { minorMoney } from "@/lib/money/format";
 import { monthName } from "@/lib/money/spending";
 import { CorrectionOffer } from "./CorrectionOffer";
 import { ReadingFields } from "./ReadingFields";
+import { WhoseFields, type WhosePerson } from "./WhoseFields";
 
 /** The amount as the form field shows it: whole yen, or dollars with cents; empty when not known. */
 export function majorText(entry: Extracted) {
@@ -36,9 +37,9 @@ function LinkLine({ link, today, homeCurrency }: { link: LinkPreview | null; tod
  * `preset` carries the person’s answers. `focus` puts the cursor in the
  * amount or the date when the form opens.
  */
-export function ReadingForm({ reading, today, homeCurrency, cards, own, checks, hidden, preset, focus, onDone }: {
+export function ReadingForm({ reading, today, homeCurrency, cards, own, people, checks, hidden, preset, focus, onDone }: {
   reading: { id: string; value: Extracted; link: LinkPreview | null };
-  today: string; homeCurrency: Currency; cards: { id: string; label: string }[]; own: OwnChoices;
+  today: string; homeCurrency: Currency; cards: { id: string; label: string }[]; own: OwnChoices; people: WhosePerson[];
   checks?: ReactNode; hidden?: ReactNode;
   preset?: { repeat?: Repeat; date?: string; amountUnknown?: boolean; dueUnknown?: boolean };
   focus?: "amount" | "date";
@@ -51,6 +52,7 @@ export function ReadingForm({ reading, today, homeCurrency, cards, own, checks, 
   const repeat = schedule.preset === repeatPreset ? schedule.chosen : suggestedRepeat;
   // Apply a new check answer without resetting other fields, including the rest of the schedule.
   if (schedule.preset !== repeatPreset) setSchedule({ preset: repeatPreset, chosen: suggestedRepeat });
+  const [target, setTarget] = useState(value.kind);
   const fields = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (focus) fields.current?.querySelector<HTMLElement>(focus === "amount" ? "input[name=amount]" : "input[name=date]")?.focus();
@@ -61,7 +63,7 @@ export function ReadingForm({ reading, today, homeCurrency, cards, own, checks, 
     <LinkLine link={link} today={today} homeCurrency={homeCurrency} />
     {checks}
     <div className="reader-fields" ref={fields}>
-      <label className="ui-field">Entry<select name="target" defaultValue={value.kind}><option value="bill">Bill</option><option value="charge">Card charge</option></select></label>
+      <label className="ui-field">Entry<select name="target" value={target} onChange={event => setTarget(event.target.value as typeof target)}><option value="bill">Bill</option><option value="charge">Card charge</option></select></label>
       <label className="ui-field">Biller or merchant<input name="name" defaultValue={value.name ?? ""} required maxLength={160}/></label>
       <ReadingFields isBill={value.kind === "bill"} amount={majorText(value)} currency={value.currency ?? ""} date={preset?.date ?? value.date ?? ""} today={today}
         amountUnknown={preset?.amountUnknown} dueUnknown={preset?.dueUnknown} />
@@ -75,6 +77,7 @@ export function ReadingForm({ reading, today, homeCurrency, cards, own, checks, 
       <ScheduleFields id={`reading-${id}`} today={today} chosen={repeat} onChoose={chosen => setSchedule({ preset: repeatPreset, chosen })} />
       <CategoryFields name={value.name ?? ""} own={own} fileItself defaultCategory={value.category} defaultBp={value.businessBp ?? 0} />
       <label className="ui-field">Card for a charge<select name="cardId" defaultValue={value.cardId ?? ""}><option value="">Choose card</option>{cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
+      {people.length >= 2 && <WhoseFields key={target} kind={target} people={people} value={value.whose} />}
     </div>
     <CorrectionOffer read={{ kind: value.kind, name: value.name, category: value.category, businessBp: value.businessBp, cardId: value.cardId }} cards={cards} />
     <div className="reader-buttons"><button className="ui-button primary" name="decision" value="confirm">Confirm reading</button><button className="ui-button" name="decision" value="reject" formNoValidate>Dismiss</button></div>
