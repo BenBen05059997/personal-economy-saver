@@ -1,9 +1,9 @@
 // D61: the card for a file attached in Ask, drawn by code from the document's readings. Read-only apart from `attachDocument`, which stores
 // the file and the turn. The reading itself is scheduled by the route. Every query is scoped by the household.
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { requireHousehold, withHousehold, type Db } from "./household";
-import { documents, households, readings, spaces } from "./schema";
+import { bills, documents, households, readings, spaces } from "./schema";
 import { readPlaces } from "./place";
 import { readerInbox } from "./reader-inbox";
 import { storeDocument } from "./reader-job";
@@ -43,6 +43,11 @@ export async function documentCard(db: Db, householdId: string, documentId: stri
       link: links.get(row.id) ?? null, targetId: stored.targetId ?? null, confirmedAt: row.confirmedAt?.toISOString() ?? null,
     }];
   });
+  // The repeating series a confirmed bill is, or joined (D54): its own id when it repeats, else the series it was linked to.
+  const billIds = items.flatMap(item => item.status === "confirmed" && item.value.kind === "bill" && item.targetId ? [item.targetId] : []);
+  const series = new Map((billIds.length ? await db.select({ id: bills.id, repeatUnit: bills.repeatUnit, seriesBillId: bills.seriesBillId }).from(bills)
+    .where(and(eq(bills.householdId, hid), inArray(bills.id, billIds))) : []).map(row => [row.id, row.seriesBillId ?? (row.repeatUnit !== null ? row.id : null)]));
+  for (const item of items) item.seriesId = item.targetId ? series.get(item.targetId) ?? null : null;
   const waiting = (inbox?.readings ?? []).map(reading => readingProposal(reading));
   return buildCard({ documentId, doc: { status: doc.status as "queued" | "reading" | "read" | "failed", error: doc.error }, readings: items }, context, waiting);
 }

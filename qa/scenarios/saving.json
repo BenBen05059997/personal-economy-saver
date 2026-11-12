@@ -45,7 +45,7 @@
       "Ask How are my goals doing? Show them in a progress block."
     ],
     "expected": [
-      "The step reads Checking your goal progress and Based on links to Saving",
+      "The step reads Checking your goal progress and The answer ends with a See it button to Saving",
       "The Camera block gives the saved amount, expected amount, gap and projection in AJ4"
     ],
     "refs": [

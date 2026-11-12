@@ -215,7 +215,7 @@
     ],
     "expected": [
       "It calls who_owes_whom; Ben is the only person, so the answer says nobody owes anyone (or that nothing is shared) and invents no names or amounts",
-      "\"Based on:\" has a Shared costs link",
+      "The answer ends with a \"See it in Shared costs ›\" button",
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
@@ -274,7 +274,7 @@
     ],
     "expected": [
       "It calls timeline; the answer lists events in date order with the same amounts and dates as Coming up (Acme Nov 22, Northwind Nov 25, Card A statement Nov 26, Rent Nov 27)",
-      "\"Based on:\" has a Coming up link",
+      "The answer ends with a \"See it in Coming up ›\" button",
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
@@ -303,7 +303,7 @@
     ],
     "expected": [
       "It calls list_clients_and_cards; the answer names Acme Corp, Beacon Studio and Northwind and Card A and Card B and nothing else",
-      "\"Based on:\" has a Clients link"
+      "The answer ends with a \"See it in Clients ›\" button"
     ],
     "refs": [
       "qa/README Expected numbers"
@@ -331,7 +331,7 @@
     ],
     "expected": [
       "It calls open_gaps (or to_check); with a fresh household it says that Hikari Denki ¥11,220 due Nov 27 is waiting for confirmation, or that nothing has an unknown amount or date, matching To check and Coming up",
-      "\"Based on:\" has a To check link to /to-check",
+      "The answer ends with a \"See it in To check ›\" button to /to-check",
       "It never says anything is saved or confirmed"
     ],
     "refs": [
@@ -362,7 +362,7 @@
     ],
     "expected": [
       "It calls plan_for with target 300000 yen and the March date; the monthly figure is the tool's, not the model's own division",
-      "\"Based on:\" has a Saving link to /saving",
+      "The answer ends with a \"See it in Saving ›\" button to /saving",
       "No pot is created and nothing is added to To check (a pot is offered only when asked)",
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
@@ -392,7 +392,7 @@
     ],
     "expected": [
       "It calls search_spending with a food query; the answer quotes the tool's totals by month, nothing summed by the model",
-      "\"Based on:\" has a Spending link",
+      "The answer ends with a \"See it in Spending ›\" button",
       "An item whose amount is not known is described as unknown, never added in"
     ],
     "refs": [
@@ -421,7 +421,7 @@
     ],
     "expected": [
       "The status line passes through \"Finding the bills for that month\"",
-      "The reply names Harbor Energy (11月分), ¥9,800 and its due date; \"Based on:\" shows Spending",
+      "The reply names Harbor Energy (11月分), ¥9,800 and its due date; The answer ends with a \"See it in\" button for Spending",
       "The term electricity finds Harbor Energy through its Utilities category",
       "Information only: Spending's month view counts it on the day it is paid"
     ],
@@ -452,7 +452,7 @@
     ],
     "expected": [
       "The reply invents no amount",
-      "Based on links to Spending"
+      "The answer ends with a See it button to Spending"
     ],
     "refs": [
       "D63"
@@ -480,7 +480,7 @@
     ],
     "expected": [
       "It calls regular_costs; the answer names Rent ¥82,000, Mobaile Tsushin ¥4,800 and CloudBox Plus ¥1,980 and says which changed (Kissa Midori café down ¥920 so far), matching Over time's Regular costs",
-      "\"Based on:\" has a Spending link to /spending/over-time"
+      "The answer ends with a \"See it in Spending ›\" button to /spending/over-time"
     ],
     "refs": [
       "D54"
@@ -509,7 +509,7 @@
     "expected": [
       "It calls foreign_costs; the total cost over twelve months equals the figure on the foreign-money cost screen (qa/README AE)",
       "It names no provider other than PayPal and never tells the person to leave PayPal",
-      "\"Based on:\" has a Clients link"
+      "The answer ends with a \"See it in Clients ›\" button"
     ],
     "refs": [
       "qa/README AE",
@@ -540,7 +540,7 @@
     "expected": [
       "It calls to_check; the answer names Hikari Denki ¥11,220 due Nov 27 with the app's own check words and offers the choices",
       "It never says the bill is saved or counted",
-      "\"Based on:\" has a To check link to /to-check"
+      "The answer ends with a \"See it in To check ›\" button to /to-check"
     ],
     "refs": [
       "qa/README Expected numbers",
@@ -1094,7 +1094,7 @@
     ],
     "expected": [
       "Both tool step lines (“Reading what’s due” and “Reading your invoices”) appear, possibly briefly because the reads run together",
-      "The answer uses both and \"Based on:\" lists Coming up and Clients"
+      "The answer uses both and The answer ends with \"See it in\" buttons for Coming up and Clients"
     ],
     "refs": [
       "D40"
@@ -1305,7 +1305,7 @@
   {
     "id": "ASK-090",
     "area": "Ask",
-    "action": "Follow the Based on links",
+    "action": "Click the See it buttons",
     "user_goal": "I want to check where an answer came from",
     "type": "happy",
     "priority": "P2",
@@ -1323,7 +1323,7 @@
       "Press Enter"
     ],
     "expected": [
-      "\"Based on:\" is followed by links named for the pages used (Safe to spend, Coming up, Options, Clients, Spending, Saving, Shared costs, To check or Memory)",
+      "The answer ends with \"See it in <page>\" buttons (at most three) named for the pages used (Safe to spend, Coming up, Options, Clients, Spending, Saving, Shared costs, To check or Memory)",
       "Each link opens the page it names",
       "At 375px each link’s tap area is at least 44px tall, including its invisible ::after area"
     ],
@@ -1385,7 +1385,7 @@
     "expected": [
       "The declined reply has no Helpful or Not helpful buttons",
       "After \"Did the client pay?\" the clarifying question has none either",
-      "Neither has \"Based on\""
+      "Neither has a See it button"
     ],
     "refs": []
   },
@@ -1936,7 +1936,7 @@
     "expected": [
       "The answer's low-point equals the engine's for Northwind at 14 days (the same as moving Northwind's slider to 14 in CANVAS-006)",
       "A what-if canvas shows with the Northwind slider already at 14 days",
-      "\"Based on:\" lists Clients or none for a canvas-only source",
+      "The answer ends with \"See it in\" buttons for Clients or none for a canvas-only source",
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
     ],
     "refs": [
@@ -2267,7 +2267,7 @@
       "Open /memory"
     ],
     "expected": [
-      "The reply says what it remembered, with \"Based on: Memory\" linking to /memory",
+      "The reply says what it remembered, with \"a See it in Memory button\" linking to /memory",
       "/memory lists \"Rent goes up in April\" under Fact with \"Said in Ask · {date}\"",
       "The reply does not say it changed any number",
       "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
@@ -2326,7 +2326,7 @@
       "Type \"What do you remember about me?\""
     ],
     "expected": [
-      "The reply lists what /memory lists, with \"Based on: Memory\"",
+      "The reply lists what /memory lists, with \"a See it in Memory button\"",
       "It invents nothing that is not on the page"
     ],
     "refs": [
@@ -2845,7 +2845,7 @@
     ],
     "expected": [
       "The tool step says Reading what's due",
-      "The answer names the next confirmed item and its coverage, and Based on links to Coming up"
+      "The answer names the next confirmed item and its coverage, and The answer ends with a See it button to Coming up"
     ],
     "refs": [
       "db:ai-test"

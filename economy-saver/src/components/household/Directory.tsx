@@ -48,7 +48,7 @@ function CardPanel({ state, card, data }: { state: MoneyState; card: Card; data:
     </dl>
     <h3>Recent charges</h3>
     {state.charges.filter(c => c.cardId === card.id).reverse().map(charge =>
-      <div className="ui-row directory-charge" key={charge.id}><div>{charge.merchant}
+      <div className="ui-row directory-charge" key={charge.id} id={`charge-${charge.id}`}><div>{charge.merchant}
         <small>{dayLabel(charge.date)}{charge.place && ` · ${charge.place}`}{charge.status === "pending" && " · To check"}</small>
         <ConfirmRemove kind="charge" id={charge.id} returnTo={`/cards/${card.id}`} label={`${charge.merchant} ${format(charge.amount)}`} />
       </div><span className="num">{format(charge.amount)}</span></div>)}
@@ -101,7 +101,7 @@ export function Directory({ state, section, selected, cardsData }: { state: Mone
         </Link>;
       }) : state.clients.map(item => {
         const outstanding = state.invoices.filter(i => i.clientId === item.id && i.status === "sent").reduce((sum, i) => sum + i.amountUsd, 0);
-        return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={hrefFor({ type: "client", id: item.id })} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>
+        return <Link key={item.id} id={`client-${item.id}`} prefetch={false} className="ui-row directory-link" href={hrefFor({ type: "client", id: item.id })} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>
           <div>{item.name}<small>{item.email}</small>{paceLine(item) && <small>Time to pay: {paceLine(item)}</small>}</div><div>{outstanding > 0 ? <>{usd(outstanding)}<small>Outstanding</small></> : <small>Nothing outstanding</small>}</div>
         </Link>;
       })}

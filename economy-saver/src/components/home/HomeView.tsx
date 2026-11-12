@@ -163,6 +163,8 @@ function CancelRow({ notice, state }: { notice: CancelNotice; state: MoneyState 
   </div>;
 }
 
+const rowId = (billId: string, repeating: ReadonlySet<string>) => `${repeating.has(billId) ? "series" : "bill"}-${billId}`;
+
 function ComingUp({ state, added, addedId }: Props & { added: string | null; addedId: string | null }) {
   const format = formatter(state.homeCurrency);
   const usual = timeline(state, "expected");
@@ -172,7 +174,8 @@ function ComingUp({ state, added, addedId }: Props & { added: string | null; add
   // A short day says "Short by …" once, on its last row that can carry it (not a client's payment, not a pending bill).
   const canCarry = (event: (typeof usual)[number]) => !incoming.has(event.id) && !event.pending && late[daysBetween(state.today, event.date)] < 0;
   const carries = usual.map((event, index) => canCarry(event) && !usual.slice(index + 1).some((later) => later.date === event.date && canCarry(later)));
-  // A bill's first row in Coming up carries id="bill-<bill id>", so a link to /#bill-<id> lands on it (and :target highlights it).
+  // A bill's first row in Coming up carries its id (bill-<id>, or series-<id> when it repeats), so a link to /#bill-<id> lands on it and lights it up.
+  const repeating = new Set(state.bills.filter((bill) => bill.repeatUnit !== undefined).map((bill) => bill.id.split("@")[0]));
   const firstOfBill = new Set<number>();
   const seenBills = new Set<string>();
   usual.forEach((event, index) => {
@@ -187,7 +190,7 @@ function ComingUp({ state, added, addedId }: Props & { added: string | null; add
       const gapRow = gap !== undefined && event.date === gap.countedOn ? gap : null; // the row the gap's own words belong to
       const i = daysBetween(state.today, event.date);
       const short = late[i] < 0;
-      return <div key={event.id} id={firstOfBill.has(index) ? `bill-${event.id.split("@")[0]}` : undefined} className="home-row home-dated">
+      return <div key={event.id} id={firstOfBill.has(index) ? rowId(event.id.split("@")[0], repeating) : undefined} className="home-row home-dated">
         <time dateTime={event.date}>{dayLabel(event.date)}</time>
         <div>{payment ? <><Link prefetch={false} href={hrefFor({ type: "client", id: payment.clientId })}>{event.label}</Link> pays</>
           : event.kind === "statement" && event.cardId ? <Link prefetch={false} className="home-link-target" href={hrefFor({ type: "statement", id: event.cardId })}>{event.label}</Link>

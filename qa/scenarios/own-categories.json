@@ -910,7 +910,7 @@
     ],
     "expected": [
       "The answer lists Coffee under Food, and Books & films and Gear under Other, with their item counts",
-      "\"Based on\" lists \"Your categories\""
+      "a See it in Your categories button"
     ],
     "refs": [
       "D75"

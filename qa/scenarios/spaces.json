@@ -585,7 +585,7 @@
   {
     "id": "SPACE-028",
     "area": "Ask spaces",
-    "action": "Follow the note or profile item in Based on",
+    "action": "Follow the note (Also based on) or profile item (See it in Memory)",
     "user_goal": "I want to know which saved words Ask used",
     "type": "agent",
     "priority": "P2",
@@ -601,11 +601,11 @@
     ],
     "steps": [
       "Ask to use both items when reviewing the next bill",
-      "Follow each memory citation in Based on",
+      "Follow each memory citation (Also based on, or a See it in Memory button)",
       "Reopen the saved reply, delete its cited space note and reopen the reply again"
     ],
     "expected": [
-      "Based on names the items beside the tool sources",
+      "The answer names the items beside the tool sources",
       "Each source opens its visible item in Space notes or Profile",
       "The saved reply keeps its citation label after the note is deleted, with the first 59 characters and an ellipsis for a note longer than 60 characters"
     ],

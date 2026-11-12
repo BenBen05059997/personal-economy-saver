@@ -11,6 +11,7 @@ import type { AskScreen } from "@/lib/agent/screen";
 import type { EventFeed } from "@/db/event-feed";
 import { useEventFeed } from "./useEventFeed";
 import { ActivityList } from "./ActivityList";
+import { Arrival } from "./Arrival";
 import { AskButton } from "./AskButton";
 import { useAskPanel } from "./AskWorkspace";
 import { AddLink } from "@/components/add/AddLink";
@@ -126,6 +127,7 @@ export function Shell({ children, name, pending, feed, section, forwarding = fal
       for (let open = link?.closest<HTMLElement>("[popover]"); open; open = open.parentElement?.closest<HTMLElement>("[popover]") ?? null) open.hidePopover();
     }
   }}>
+    <Arrival />
     <Link prefetch={false} className="shell-skip" href="#shell-main">Skip to content</Link>
     <aside className="shell-sidebar"><Navigation name={name} pending={pending} section={section} /></aside>
     <div className="shell-workspace">

@@ -24,11 +24,13 @@ import { resolveRecipe, type FlowData, type TimelineData } from "@/lib/canvas/re
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { blockWords } from "@/lib/canvas/words";
 import { dayLabel, money } from "@/lib/money/format";
+import { categoryLabel } from "@/lib/money/categories";
+import { monthByCategory } from "@/lib/money/month";
 import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
 import { daysBetween, low, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { readUpload } from "@/lib/reader/accept";
-import { buildCard, cardContext, DOCUMENT_WORDS, documentCanvas, needsForm, readLine, type CardReading } from "@/lib/reader/document-card";
+import { buildCard, cardContext, DOCUMENT_WORDS, documentCanvas, needsForm, readLine, savedCard, type CardReading } from "@/lib/reader/document-card";
 import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { TURN_VERSION, type ConversationTurn } from "@/lib/schema/turn";
@@ -192,6 +194,24 @@ async function main() {
     assert.ok(withChecks.canvas, "a confirmed item draws the canvas when the money state is given");
     const text = cardContext(withChecks);
     assert.ok(text.startsWith(DOCUMENT_WORDS.confirmed) && text.includes("Kawa Gym · ¥6,000 · due Nov 27 (waiting for the user's OK)") && text.includes("(not added)") && text.includes("(added)"));
+    // savedCard (pure): the summary parts and the links, a part left out when unknown, never ¥0
+    const hikari = bill({ name: "Hikari Denki", amountMinor: 11220, category: "utilities" });
+    const target = { kind: "bill" as const, id: crypto.randomUUID() };
+    // the stored one-off bill, as the household's spending holds it once confirmed
+    const hikariRow = { id: target.id, biller: "Hikari Denki", amount: 11220, due: "2026-11-27", category: "utilities" as const, businessBp: 0, status: "confirmed" as const };
+    const withStored = { ...ctx, spending: { ...ctx.spending, bills: [...ctx.spending.bills, hikariRow] } };
+    const novUtilities = monthByCategory(withStored.spending, TODAY, "2026-11").categories.find(c => c.category === "utilities")!.totalMinor;
+    const oneOff = savedCard({ value: hikari, target, seriesId: null }, withStored);
+    assert.equal(oneOff.words, `Saved: Hikari Denki ¥11,220 · Utilities · due Nov 27 · Utilities in November: ${money(novUtilities, "JPY")} with this bill.`, "a one-off bill due later this month counts in the month");
+    assert.ok(novUtilities >= 11220);
+    assert.deepEqual(oneOff.links.map(link => link.href), [`/bills#bill-${target.id}`, "/spending#category-utilities", `/#bill-${target.id}`]);
+    assert.equal(savedCard({ value: hikari, target, seriesId: "series-1" }, ctx).links[0].href, "/bills#series-series-1", "a bill that joined a series links to the series");
+    const noAmount = savedCard({ value: bill({ name: "Hikari Denki", amountMinor: null, currency: null, date: null, category: "utilities" }), target, seriesId: null }, ctx);
+    assert.equal(noAmount.words, "Saved: Hikari Denki · Utilities.");
+    assert.ok(!noAmount.words.includes("¥0") && noAmount.links.length === 1, "no amount, no date: no ¥0, no month or Home link");
+    assert.ok(!savedCard({ value: bill({ date: "2027-01-27", category: "utilities" }), target, seriesId: null }, ctx).links.some(link => link.href.startsWith("/spending")), "Spending cannot show a future month");
+    assert.ok(!savedCard({ value: bill({ date: "2026-12-20", category: "utilities" }), target, seriesId: null }, ctx).links.some(link => link.href.startsWith("/#")), "beyond Home's 30 days: no Home link");
+    assert.equal(savedCard({ value: bill({ date: "2026-10-05", category: "utilities" }), target, seriesId: null }, ctx).links[1].href, "/spending?month=2026-10#category-utilities", "a past month names the month");
     ok("buildCard and cardContext: each row of the words table, item statuses, checks only on to_check");
 
     // ================================================================ the database
@@ -242,6 +262,13 @@ async function main() {
     const [readingRow] = await db.select().from(schema.readings).where(eq(schema.readings.id, readingId));
     assert.equal((readingRow.extracted as { targetId: string }).targetId, saved.id);
     ok("Confirm without the answer is refused and saves nothing; with it, a monthly bill is saved and the card names it");
+
+    // 5b. where it now lives: the line and the links, the month total the one Spending draws
+    const spendNow = (await loadCanvasContext(db, a, { blocks: [] })).spending;
+    const novOther = monthByCategory(spendNow, TODAY, "2026-11").categories.find(c => c.category === "other")!.totalMinor;
+    assert.equal(done.items[0].saved?.words, `Saved: Kawa Gym ¥6,000 · Other · due Nov 27 · Other in November: ${money(novOther, "JPY")} with this bill.`);
+    assert.deepEqual(done.items[0].saved?.links.map(link => link.href), [`/bills#series-${saved.id}`, "/spending#category-other", `/#series-${saved.id}`], "a repeating bill links to its series");
+    ok("a confirmed repeating bill: the saved line, the month total equal to Spending's, series links");
 
     // 6. the canvas after Confirm
     assert.equal(done.words, DOCUMENT_WORDS.confirmed);
@@ -306,6 +333,12 @@ async function main() {
     assert.equal(named(afterOne, "Bookshop").status, "to_check");
     assert.ok(afterOne.canvas && afterOne.canvas.blocks[1].type === "flow_chart" && afterOne.canvas.blocks[1].data.mark === null, "a charge sits in its card's row: no mark");
     assert.ok(afterOne.canvas.recipe.blocks.every(block => !("mark" in block)));
+    const noodle = named(afterOne, "Noodle shop");
+    const novFood = monthByCategory((await loadCanvasContext(db, a, { blocks: [] })).spending, TODAY, "2026-11").categories.find(c => c.category === noodle.value.category)!.totalMinor;
+    assert.ok(noodle.saved!.words.startsWith(`Saved: Noodle shop ¥3,800 · ${categoryLabel(noodle.value.category!)} · ${nowState.cards[0].label}, Nov 12 · `));
+    assert.ok(noodle.saved!.words.endsWith(`in November: ${money(novFood, "JPY")} with this charge.`));
+    assert.deepEqual(noodle.saved!.links.map(link => link.href), [`/cards/${noodle.value.cardId}#charge-${noodle.target!.id}`, `/spending#category-${noodle.value.category}`], "a charge has no Home link");
+    assert.equal(named(afterOne, "Bookshop").saved, null, "nothing is saved for an item still waiting");
     ok("a document with two charges: two items with their own checks; Confirming one leaves the other; the canvas has no mark");
 
     // readings from one file keep the model's order: distinct created_at, ids chosen so id order is the reverse of read order

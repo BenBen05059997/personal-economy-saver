@@ -1312,7 +1312,7 @@
       "Ask 'What do my PayPal payouts cost me?'"
     ],
     "expected": [
-      "Quotes ¥111,637 over twelve months, names only PayPal, never says to leave it; 'Based on' shows Clients"
+      "Quotes ¥111,637 over twelve months, names only PayPal, never says to leave it; the answer ends with a See it in Clients button"
     ],
     "refs": [
       "D62"

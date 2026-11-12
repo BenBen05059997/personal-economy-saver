@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useSyncExternalStore, type MouseEvent, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { SessionEnded } from "@/components/ui/SessionEnded";
@@ -8,6 +8,7 @@ import { DocumentCard } from "./DocumentCard";
 import { KeepOfferCard } from "./KeepOffer";
 import { OpenSpaceProposal } from "./OpenSpaceProposal";
 import { ASK_SCREEN_NAMES, type AskScreen } from "@/lib/agent/screen";
+import { seeItButtons } from "@/lib/agent/see-it";
 import { PROVIDERS } from "@/lib/ai/providers";
 import { NEEDS_KEY_OWNER, NEEDS_KEY_MEMBER } from "@/lib/agent/availability";
 import { SESSION_ENDED } from "@/lib/session-ended";
@@ -87,13 +88,7 @@ export function AskThread({
           : <p className="ui-hint">{DOCUMENT_WORDS.notKept}</p>)}
         {!readOnly && (!turn.incognito || incognito) && turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
           <button key={choice} type="button" className="ui-button" disabled={busy} onClick={() => onAsk(choice)}>{choice}</button>)}</div>}
-        {turn.links.length > 0 && <div className="ask-links">{turn.links.map(link => <Link key={link.href} className="ui-button primary" href={link.href} prefetch={false}>{link.label}</Link>)}</div>}
-        {turn.sources.length > 0 && <p className="ask-sources ui-hint">Based on: {turn.sources.map((item, index) => {
-          const { href, label } = sourceDisplay(item);
-          return <span key={"href" in item ? item.href + item.label : item.id}>
-            {index > 0 && ", "}{href ? href.startsWith("#") ? <a href={href} onClick={event => onNoteLink?.(event, href)}>{label}</a> : <Link href={href} prefetch={false}>{label}</Link> : label}
-          </span>;
-        })}</p>}
+        <SeeIt links={turn.links} sources={turn.sources} sourceDisplay={sourceDisplay} onNoteLink={onNoteLink} />
         {canWrite && !turn.incognito && turn.kind === "answer" && <div className="ask-thumbs">
           <button type="button" className="ui-button" aria-pressed={turn.thumb === 1} onClick={() => onThumb(turn, 1)}>Helpful</button>
           <button type="button" className="ui-button" aria-pressed={turn.thumb === -1} onClick={() => onThumb(turn, -1)}>Not helpful</button>
@@ -108,4 +103,18 @@ export function AskThread({
       ? <>{problem} <Link href="/settings/ai-model">Open Settings</Link></> : withSettingsLink(problem || speechProblem || "")}</p>}
     {canvas && <div className="ask-canvas" ref={canvasRef} tabIndex={-1} role="region" aria-label="Canvas">{canvas}</div>}
   </div>;
+}
+
+/** What ends an answer (D60): buttons to the pages where it can be seen, then any source that has no page as quiet text. */
+function SeeIt({ links, sources, sourceDisplay, onNoteLink }: {
+  links: TurnView["links"]; sources: TurnSource[]; sourceDisplay: (item: TurnSource) => { href?: string; label: string }; onNoteLink?: (event: MouseEvent<HTMLAnchorElement>, href: string) => void;
+}) {
+  const origin = useSyncExternalStore(() => () => {}, () => window.location.origin, () => "");
+  const { buttons, quiet } = seeItButtons(links, sources.map(sourceDisplay), origin);
+  return <>
+    {buttons.length > 0 && <div className="ask-links">{buttons.map(button => <Link key={button.href} className="ui-button primary" href={button.href} prefetch={false}>{button.label}</Link>)}</div>}
+    {quiet.length > 0 && <p className="ask-sources ui-hint">{buttons.length > 0 ? "Also based on" : "Based on"}: {quiet.map((item, index) => <span key={item.label + index}>
+      {index > 0 && ", "}{item.href ? <a href={item.href} onClick={event => onNoteLink?.(event, item.href!)}>{item.label}</a> : item.label}
+    </span>)}</p>}
+  </>;
 }

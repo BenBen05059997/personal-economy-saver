@@ -96,7 +96,7 @@ function nextDue(bill: Bill, today: string) {
 function BillRow({ bill, people, today, selected }: { bill: Bill; people: SettingsData["people"]; today: string; selected: boolean }) {
   const currency = Currency.parse(bill.currency);
   const last = lastOne(bill, today);
-  return <Link prefetch={false} id={`bill-${bill.id}`} className="ui-row directory-link" href={hrefFor({ type: "bill", id: bill.id })} aria-label={bill.biller} aria-current={selected ? "page" : undefined}>
+  return <Link prefetch={false} id={`${bill.repeatUnit === null ? "bill" : "series"}-${bill.id}`} className="ui-row directory-link" href={hrefFor({ type: "bill", id: bill.id })} aria-label={bill.biller} aria-current={selected ? "page" : undefined}>
     <div>{bill.biller}{billNote(bill, people) && <small>{billNote(bill, people)}</small>}{last && <small>{last}</small>}</div>
     <div>{bill.amountMinor === null ? AMOUNT_NOT_KNOWN : bill.amountVaries ? `${aboutMoney(bill.amountMinor, currency)} · varies` : minorMoney(bill.amountMinor, currency)}
       <small>{nextDue(bill, today) === null ? DATE_NOT_KNOWN : `due ${dueLabel(nextDue(bill, today)!, today)}`}</small></div>

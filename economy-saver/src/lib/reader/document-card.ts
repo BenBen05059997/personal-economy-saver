@@ -4,8 +4,10 @@ import type { Check, Proposal } from "@/lib/money/checks";
 import { checksFor, readingProposal } from "@/lib/money/checks";
 import { dayLabel, minorMoney } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN, DATE_NOT_KNOWN } from "@/lib/money/gaps";
-import { daysBetween } from "@/lib/money/runway";
-import { monthBounds } from "@/lib/money/spending";
+import { categoryLabel } from "@/lib/money/categories";
+import { monthByCategory } from "@/lib/money/month";
+import { addDays, daysBetween, WINDOW_DAYS } from "@/lib/money/runway";
+import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, spendingItems } from "@/lib/money/spending";
 import type { LinkPreview } from "@/lib/money/varies";
 import type { Extracted } from "@/lib/reader/extract";
 import { CanvasError, resolveRecipe, type CanvasContext, type ResolvedBlock } from "@/lib/canvas/resolve";
@@ -36,7 +38,11 @@ export type DocumentCardItem = {
   link: LinkPreview | null; // D54's line, for a to_check one-off bill only (from readerInbox); else null
   checks: Check[]; // checksFor(readingProposal(...), state, waiting); [] unless to_check
   target: { kind: "bill" | "charge"; id: string } | null; // the saved bill or charge once confirmed (readings.extracted.targetId); else null
+  saved: SavedCard | null; // where the confirmed item now lives; null unless confirmed (and the money state was loaded)
 };
+
+/** What a confirmed item shows instead of "Added.": one line and the pages it can be found on. */
+export type SavedCard = { words: string; links: { label: string; href: string }[] };
 
 export type DocumentCard = {
   documentId: string;
@@ -64,6 +70,40 @@ export function readLine(value: Extracted, cards: readonly { id: string; label: 
   return parts.join(" · ");
 }
 
+/**
+ * D61: the line and the links under a confirmed item. Code writes the line from the stored record and D53's month view (the same
+ * `monthByCategory` Spending draws, so the two agree to the yen). A part that is unknown is left out, and so is the month when Spending cannot
+ * show it (it shows the last HISTORY_MONTHS months up to the current one). `seriesId` is the repeating series the bill is, or joined (D54).
+ */
+export function savedCard(
+  item: { value: Extracted; target: { kind: "bill" | "charge"; id: string }; seriesId: string | null },
+  context: Pick<CanvasContext, "state" | "spending">,
+): SavedCard {
+  const { value, target } = item, { today, cards } = context.state;
+  const bill = target.kind === "bill", date = value.date, category = value.category;
+  const current = today.slice(0, 7), month = date?.slice(0, 7) ?? null;
+  const shown = month !== null && month >= monthsBack(current, HISTORY_MONTHS) && month <= current ? month : null;
+  // The stored row (in the home currency), found by id and day; absent when Spending cannot show that month.
+  const stored = shown !== null && date !== null ? spendingItems(context.spending, monthBounds(shown).first, monthBounds(shown).last).find(i => i.id === target.id && i.date === date) : undefined;
+  const amount = stored ? (stored.uncounted ? null : minorMoney(stored.amountMinor, context.spending.homeCurrency))
+    : value.amountMinor !== null && value.currency !== null ? minorMoney(value.amountMinor, value.currency) : null;
+  const name = value.name ?? (bill ? "Bill" : "Card charge");
+  const cardLabel = bill ? undefined : cards.find(c => c.id === value.cardId)?.label;
+  const parts = [amount ? `${name} ${amount}` : name];
+  if (category) parts.push(categoryLabel(category));
+  if (date) parts.push(bill ? `due ${dayLabel(date)}` : cardLabel ? `${cardLabel}, ${dayLabel(date)}` : dayLabel(date));
+  const total = shown !== null && category && amount !== null && stored
+    ? monthByCategory(context.spending, today, shown).categories.find(c => c.category === category)?.totalMinor : undefined;
+  if (category && shown !== null && total !== undefined) parts.push(`${categoryLabel(category)} in ${monthName(shown)}: ${minorMoney(total, context.spending.homeCurrency)} with this ${bill ? "bill" : "charge"}`);
+
+  const links: SavedCard["links"] = [];
+  const mark = item.seriesId ? `series-${item.seriesId}` : `bill-${target.id}`;
+  links.push(bill ? { label: "See it in Bills", href: `/bills#${mark}` } : { label: "See it in Cards", href: `/cards/${value.cardId}#charge-${target.id}` });
+  if (shown !== null && category) links.push({ label: `${categoryLabel(category)} in ${monthName(shown)}`, href: `${shown === current ? "/spending" : `/spending?month=${shown}`}#category-${category}` });
+  if (bill && date && date >= today && date <= addDays(today, WINDOW_DAYS)) links.push({ label: "Coming up on Home", href: `/#${mark}` });
+  return { words: `Saved: ${parts.join(" · ")}${parts.length > 1 ? "." : ""}`, links };
+}
+
 const later = (a: string, b: string) => (a > b ? a : b);
 
 /** The canvas drawn after Confirm: the sentence, the chart and the timeline over the days to the month end (or the bill), the bill marked. */
@@ -82,7 +122,7 @@ export function documentCanvas(today: string, item: { name: string; billId: stri
 }
 
 /** One reading of this document, as `src/db/document-card.ts` loads it. */
-export type CardReading = { id: string; status: "to_check" | "confirmed" | "rejected"; value: Extracted; link: LinkPreview | null; targetId: string | null; confirmedAt: string | null };
+export type CardReading = { id: string; status: "to_check" | "confirmed" | "rejected"; value: Extracted; link: LinkPreview | null; targetId: string | null; seriesId?: string | null; confirmedAt: string | null };
 
 /** The card. `context` is null only when nothing needs the money state (no readings, or `draw: false`); `waiting` is every to_check reading of the household as proposals. */
 export function buildCard(
@@ -99,7 +139,9 @@ export function buildCard(
     link: reading.status === "to_check" ? reading.link : null,
     checks: reading.status === "to_check" && context ? checksFor(readingProposal({ id: reading.id, value: reading.value }), context.state, waiting) : [],
     target: reading.status === "confirmed" && reading.targetId ? { kind: reading.value.kind, id: reading.targetId } : null,
+    saved: null,
   }));
+  if (context) for (const [index, item] of items.entries()) if (item.target) item.saved = savedCard({ value: item.value, target: item.target, seriesId: readings[index].seriesId ?? null }, context);
   let canvas: DocumentCard["canvas"] = null;
   if (context) {
     const last = readings.map((reading, index) => ({ reading, index })).filter(({ reading }) => reading.status === "confirmed")

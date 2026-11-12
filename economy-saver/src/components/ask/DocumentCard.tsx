@@ -80,7 +80,10 @@ function Item({ item, form, returnTo, onDone }: { item: DocumentCardItem; form: 
   const { value } = item;
   if (item.status !== "to_check") return <>
     <p className="ask-document-read">{item.read}</p>
-    <p className="ui-hint ask-document-status">{item.status === "confirmed" ? DOCUMENT_WORDS.added : DOCUMENT_WORDS.notAdded}</p>
+    {item.saved ? <>
+      <p className="ask-document-saved">{item.saved.words}</p>
+      <p className="ask-document-places">{item.saved.links.map(link => <Link key={link.href} prefetch={false} href={link.href} className="ui-button primary">{link.label} ›</Link>)}</p>
+    </> : <p className="ui-hint ask-document-status">{item.status === "confirmed" ? DOCUMENT_WORDS.added : DOCUMENT_WORDS.notAdded}</p>}
   </>;
 
   const next = item.checks.find(check => !answers.kinds.includes(check.kind));

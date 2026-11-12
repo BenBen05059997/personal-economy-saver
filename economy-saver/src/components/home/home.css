@@ -148,9 +148,7 @@
 .home-added { margin: 0 0 10px; padding-left: var(--space-3); border-left: 2px solid var(--green); font: 400 14px/1.4 var(--sans); }
 .home-upcoming { scroll-margin-top: 72px; }
 
-/* A link to /#bill-<id> marks that row for two seconds. */
-.home-row:target { animation: home-row-target 2s ease-out; scroll-margin-top: 96px; }
-@keyframes home-row-target { from { background: var(--accent-wash); } to { background: transparent; } }
+.home-row { scroll-margin-top: 96px; }
 /* D55: the sentence's note, a missing value's link, and a pending bill's gap words wrapping under the name instead of widening the amount column. */
 .home-sentence-note { max-width: 36em; margin: 8px 0 0; overflow-wrap: anywhere; color: var(--muted); font: 400 13px/1.45 var(--sans); }
 .home-row a.home-enter { color: var(--muted); font-size: 12.5px; text-decoration: none; white-space: nowrap; }

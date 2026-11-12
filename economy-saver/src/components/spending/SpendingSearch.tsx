@@ -36,7 +36,7 @@ export function SpendingResults({ result, typed, people }: { result: SearchResul
         <h3><span>{m.month.slice(0, 4) === latestYear ? m.name : `${m.name} ${m.month.slice(0, 4)}`}</span><span className="num">{allUncounted(m.items) ? AMOUNT_NOT_KNOWN : money(m.totalMinor)}</span></h3>
         <p className="ui-hint">{m.byCategory.map(c => `${c.label} ${allUncounted(m.items.filter(i => i.category === c.category)) ? AMOUNT_NOT_KNOWN : money(c.totalMinor)}`).join(" · ")}</p>
         <ul>
-          {m.items.map(item => <li key={`${item.kind}-${item.id}-${item.date}`}>
+          {m.items.map(item => <li key={`${item.kind}-${item.id}-${item.date}`} id={item.kind === "charge" ? `charge-${item.id}` : undefined}>
             <span>{item.label}<small>{dayLabel(item.date)}{item.own !== null && ` · ${ownLabel(item.category, item.own)}`}{together && ` · ${whoseName(item.ownerId, people)}`}{item.documentId !== null && " · from a document"}</small></span>
             <span className="num">{item.uncounted ? AMOUNT_NOT_KNOWN : item.estimated ? aboutMoney(item.amountMinor, result.currency) : money(item.amountMinor)}</span>
           </li>)}

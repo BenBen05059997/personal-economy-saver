@@ -64,7 +64,7 @@ export function MonthList({ view, people, past, filing }: { view: MonthView; peo
         };
         const head = (group: MonthOwn, name: string) => <li key={`own-${group.id ?? "rest"}`} className="spending-own-head">
           <span>{name}</span><span className="num">{allUncounted(group.items) ? AMOUNT_NOT_KNOWN : money(group.totalMinor)}</span></li>;
-        return <details key={category.category} className="spending-cat">
+        return <details key={category.category} id={`category-${category.category}`} className="spending-cat">
           <summary>
             <span className="spending-cat-name">{category.label}</span>
             <span className="num">{allUncounted(category.items) ? AMOUNT_NOT_KNOWN : money(category.totalMinor)}{split && <small>{split}</small>}</span>
