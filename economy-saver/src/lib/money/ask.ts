@@ -1,7 +1,7 @@
 import { fromMinor, toMinor } from "@/db/money";
 import { dayLabel, minorMoney } from "./format";
 import { AMOUNT_NOT_KNOWN, DATE_NOT_KNOWN } from "./gaps";
-import { dueItems, roomOnCard, safeToSpend } from "./runway";
+import { addDays, dueItems, roomOnCard, safeToSpend, WINDOW_DAYS } from "./runway";
 import { homeSentence } from "./sentence";
 import type { MoneyState } from "./types";
 
@@ -29,4 +29,10 @@ export function dueAnswer(state: MoneyState) {
 export function statusAnswer(state: MoneyState) {
   const sentence = homeSentence(state);
   return sentence.note === null ? sentence.text : `${sentence.text} ${sentence.note}`; // D55: the note beside the text
+}
+
+/** Home's "Safe to spend now" (D2): the lowest balance in the next 30 days if clients pay late, after every bill and card statement, unbilled card spend included. */
+export function safeToSpendLine(state: MoneyState) {
+  const amount = minorMoney(toMinor(safeToSpend(state, 0).amount, state.homeCurrency), state.homeCurrency);
+  return `Safe to spend now: ${amount}. This is the most you can spend without running short at any point in the next ${WINDOW_DAYS} days (to ${dayLabel(addDays(state.today, WINDOW_DAYS))}) if clients pay late, after every bill and card statement, including card spend not yet billed; it is ${minorMoney(0, state.homeCurrency)} when a late payment would already leave you short. It is one figure for the whole window; there is no separate figure for this week or this month.`;
 }

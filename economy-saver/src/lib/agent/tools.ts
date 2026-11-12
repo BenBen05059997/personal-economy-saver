@@ -27,7 +27,7 @@ import { clients, invoices } from "@/db/schema";
 import { minorPerUnit } from "@/lib/money/format";
 import { dayView } from "@/lib/money/window";
 import { gapAmountWords, gapDateWords, gapQuestion, openGaps } from "@/lib/money/gaps";
-import { dueAnswer, spendAnswer, statusAnswer } from "@/lib/money/ask";
+import { dueAnswer, safeToSpendLine, spendAnswer, statusAnswer } from "@/lib/money/ask";
 import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { ownLabel } from "@/lib/money/own-category";
 import { guessCategory } from "@/lib/money/categorise";
@@ -239,8 +239,8 @@ const insertPreparedCharge = (ctx: ToolContext) => (db: Db, p: Awaited<ReturnTyp
 export const tools: Tool[] = [
   defineTool({
     name: "where_am_i", scope: "read", input: none,
-    description: "The household's 30-day outlook in one sentence: whether it is fine if clients pay as usual, and how short it is if they pay late.",
-    run: async ctx => statusAnswer(await ctx.state()),
+    description: "The household's 30-day outlook in one sentence: whether it is fine if clients pay as usual, and how short it is if they pay late. Also the safe-to-spend figure Home shows: use it for “how much can I spend (this week, this month, now)?” and say what it covers.",
+    run: async ctx => { const state = await ctx.state(); return `${statusAnswer(state)} ${safeToSpendLine(state)}`; },
   }),
   defineTool({
     name: "whats_due", scope: "read", input: none,

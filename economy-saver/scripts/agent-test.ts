@@ -37,7 +37,7 @@ import { billsForMonth, type PeriodBill } from "@/lib/money/period";
 import { dayView } from "@/lib/money/window";
 import { latestDate } from "@/lib/money/horizon";
 import { homeSentence } from "@/lib/money/sentence";
-import { minorPerUnit } from "@/lib/money/format";
+import { minorMoney, minorPerUnit } from "@/lib/money/format";
 import { canvasWords, FIXED } from "@/lib/agent/reply";
 import { changeStandingRule } from "@/db/rules";
 import { savePot } from "@/db/pots";
@@ -1180,6 +1180,18 @@ async function main() {
         () => reply("end_turn", [text("The letter is on the canvas.")]),
       ]);
       assert.equal((await conversation(c, "Write a letter to Acme", good.fetch)).kind, "answer");
+    });
+
+    await check("where_am_i carries Home's safe-to-spend figure and says what it covers", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const state = await stateOf(c);
+      const tool = tools.find(t => t.name === "where_am_i")!;
+      const out = await tool.run({ madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never, {} as never);
+      const homeFigure = minorMoney(Math.round(safeToSpend(state, 0).amount * minorPerUnit(state.homeCurrency)), state.homeCurrency);
+      assert.ok(out.startsWith(statusAnswer(state)), "the sentence is unchanged");
+      assert.ok(out.includes(`Safe to spend now: ${homeFigure}.`), "the same figure Home shows");
+      assert.match(out, /next 30 days/);
+      assert.match(out, /card spend not yet billed/);
     });
 
     await check("Ask uses only a fixed screen name in the question context and omits the line without a screen", async () => {
