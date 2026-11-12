@@ -27,7 +27,7 @@ async function SessionHome({ search }: { search: Search }) {
   void pins.catch(() => {});
   const requestsRead = withHousehold(db(), id, tx => memberRequestsView(tx, id));
   const [workspace, suggestions, requests] = await Promise.all([workspaceRead, suggestionsRead, requestsRead]);
-  return <WorkspaceFrame workspace={workspace} section="home"><HomeView requests={requests} householdId={id} getStarted={workspace.getStarted} suggestions={suggestions} state={workspace.state} balanceId={crypto.randomUUID()} inbox={workspace.inbox} notice={workspace.freshness?.stale} demo={workspace.demo} tryIt={workspace.tryIt} connection={workspace.connection} isOwner={workspace.role.isOwner} asOf={workspace.freshness?.asOf?.toLocaleString("en-US", { timeZone: workspace.timeZone }) ?? null}
+  return <WorkspaceFrame workspace={workspace} section="home"><HomeView requests={requests} householdId={id} getStarted={workspace.getStarted} suggestions={suggestions} state={workspace.state} balanceId={crypto.randomUUID()} inbox={workspace.inbox} notice={workspace.freshness?.stale} demo={workspace.demo} tryIt={workspace.tryIt} connection={workspace.connection} isOwner={workspace.role.isOwner} canManage={workspace.role.canManage} asOf={workspace.freshness?.asOf?.toLocaleString("en-US", { timeZone: workspace.timeZone }) ?? null}
     forwarding={missingForwardingSetting() === null} added={typeof added === "string" ? added : null}
     pins={<Pinned householdId={id} state={workspace.state} pins={pins} />} />
     <ScrollToHash />

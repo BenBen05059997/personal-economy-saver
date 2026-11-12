@@ -12,7 +12,8 @@ assert.deepEqual(plain.buttons, [{ href: "/clients", label: "See it in Clients â
 assert.deepEqual(plain.quiet, []);
 
 const withLink = seeItButtons([{ href: "/bills#bill-1", label: "See it in Bills â€º" }, { href: "/clients", label: "Open Clients" }], [clients, due], APP);
-assert.deepEqual(withLink.buttons.map(button => button.href), ["/bills#bill-1", "/clients", "/#coming-up"], "links first; the source with the same address adds no second button");
+assert.deepEqual(withLink.buttons.map(button => button.href), ["/bills#bill-1", "/clients"], "a turn with its own links shows only them");
+assert.deepEqual(withLink.quiet, [clients, due], "the pages it only looked at stay quiet");
 
 const many = seeItButtons([], [clients, due, { label: "Saving", href: "/saving" }, { label: "Memory", href: "/memory" }], APP);
 assert.equal(many.buttons.length, SEE_IT_MAX);
@@ -24,7 +25,7 @@ assert.deepEqual(quiet.buttons.map(button => button.href), ["/clients"]);
 assert.deepEqual(quiet.quiet, [memory, unlinked]);
 
 const absolute = seeItButtons([{ href: `${APP}/bills?x=1#bill-1`, label: "Bills" }, { href: "https://evil.example/clients", label: "Elsewhere" }], [clients], APP);
-assert.deepEqual(absolute.buttons.map(button => button.href), ["/bills?x=1#bill-1", "/clients"], "an own-origin link becomes a path; another origin is dropped");
+assert.deepEqual(absolute.buttons.map(button => button.href), ["/bills?x=1#bill-1"], "an own-origin link becomes a path; another origin is dropped");
 assert.deepEqual(seeItButtons([{ href: `${APP}/clients`, label: "Open Clients" }], [clients], APP).buttons.map(button => button.href), ["/clients"], "the absolute link and the relative source dedupe");
 assert.deepEqual(seeItButtons([{ href: `${APP}/clients`, label: "x" }], [], "").buttons, [], "no known origin: absolute links are dropped");
 console.log("see-it: ok");

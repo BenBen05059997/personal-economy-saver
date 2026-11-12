@@ -266,7 +266,7 @@ function addedLine(state: MoneyState, id: string | null): string | null {
   return charge && card ? `Added ${charge.merchant} ${format(charge.amount)} on ${card.label}` : null;
 }
 
-export function HomeView({ requests, state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, connection, isOwner, asOf }: Props & { requests: MemberRequests; inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; connection: ConnectionView; isOwner: boolean; asOf: string | null }) {
+export function HomeView({ requests, state, inbox, notice, balanceId, demo, tryIt, forwarding, added, suggestions, pins, householdId, getStarted, connection, isOwner, canManage, asOf }: Props & { requests: MemberRequests; inbox: ReaderInbox; notice?: string | null; demo: boolean; tryIt: boolean; forwarding: boolean; added: string | null; balanceId: string; suggestions: Awaited<ReturnType<typeof openSuggestions>>; pins: ReactNode; householdId: string; getStarted: GetStartedProgress | null; connection: ConnectionView; isOwner: boolean; canManage: boolean; asOf: string | null }) {
   const date = homeDateLabel(state.today);
   return <article className="money-home">
     <time className="home-date" dateTime={state.today}>{date}</time>
@@ -280,7 +280,7 @@ export function HomeView({ requests, state, inbox, notice, balanceId, demo, tryI
     {tryIt && getStarted ? <GetStarted key={householdId} householdId={householdId} progress={getStarted} peopleCount={state.split.members.length} invoiceHref={(inv => inv ? `/invoices/${inv.id}` : "/clients")(state.invoices.find(i => i.status === "unbilled") ?? state.invoices.find(i => i.status === "sent"))} /> : <HintsPanel state={state} inbox={inbox} tryIt={tryIt} householdId={householdId} />}
     <HomeViews state={state} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{(tryIt || connection.state === "connected") && <PayPalBalance state={state} asOf={connection.state === "connected" ? asOf : null} />}{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
     <div className="home-panels">
-      <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} requests={requests} canRequest={isOwner} /></div>
+      <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} requests={requests} canRequest={canManage} /></div>
       <div className="home-column"><ComingUp state={state} added={addedLine(state, added)} addedId={added} /></div>
     </div>
   </article>;

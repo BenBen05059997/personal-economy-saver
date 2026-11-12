@@ -15,7 +15,7 @@ function inApp(href: string, origin: string): string | null {
 }
 
 /**
- * One row of buttons: the turn's own links first (they already say where something was kept), then "See it in <source> ›" for each
+ * One row of buttons: the turn's own links when it has any (they say where something was kept), else "See it in <source> ›" for each
  * source that has a page; an absolute address on the app's own `origin` is made a path, one on another origin is dropped. One button per address, at most SEE_IT_MAX. `quiet` is what is left over, shown as plain text.
  */
 export function seeItButtons<T extends { href?: string; label: string }>(links: readonly SeeIt[], sources: readonly T[], origin: string): { buttons: SeeIt[]; quiet: T[] } {
@@ -23,6 +23,8 @@ export function seeItButtons<T extends { href?: string; label: string }>(links: 
   const add = (button: SeeIt) => { if (buttons.length < SEE_IT_MAX && !buttons.some(known => known.href === button.href)) buttons.push(button); };
   for (const link of links) { const href = inApp(link.href, origin); if (href !== null) add({ ...link, href }); }
   const pages = sources.map(source => ({ source, href: source.href === undefined ? undefined : inApp(source.href, origin) ?? undefined }));
+  // A turn that did something links to what it did; the pages it only looked at stay quiet, so a saved charge never offers "See it in Clients".
+  if (buttons.length > 0) return { buttons, quiet: pages.map(({ source }) => source) };
   for (const { source, href } of pages) if (isPage(href)) add({ href, label: `See it in ${source.label} ›` });
   return { buttons, quiet: pages.filter(({ href }) => !isPage(href)).map(({ source }) => source) };
 }

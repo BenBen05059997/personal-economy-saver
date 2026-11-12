@@ -65,7 +65,7 @@
 .canvas-table :is(th, td):first-child { min-width: 8rem; padding-left: 0; text-align: left; overflow-wrap: break-word; }
 .canvas-table :is(th, td):last-child { padding-right: 0; }
 .canvas-table tbody th { font-weight: 400; }
-.canvas-table td { white-space: nowrap; }
+.canvas-table :is(th, td):not(:first-child) { white-space: nowrap; }
 .canvas-table tfoot :is(th, td) { font-weight: 600; }
 .canvas-table tr.is-up td:last-child { color: var(--red); }
 .canvas-table tr.is-down td:last-child { color: var(--green); }
