@@ -12,6 +12,7 @@ import { CHARGE_LOOKBACK_DAYS, householdClockRow, householdOwnerName, loadMoneyS
 
 import { addDays } from "@/lib/money/runway";
 import { confirmedGaps } from "@/lib/money/gaps";
+import { serverHasNoModel } from "@/lib/agent/availability";
 import { toCheck } from "@/lib/money/to-check";
 
 export type Viewer = { uid: string } | null;
@@ -67,7 +68,7 @@ export async function loadWorkspaceData(tx: Db, hid: string, home = false,
       household.journalPlace === "cloud" ? tx.select({ id: conversationTurns.id }).from(conversationTurns)
         .where(and(eq(conversationTurns.householdId, hid), eq(conversationTurns.kind, "answer"))).limit(1) : Promise.resolve([]),
     ]);
-    return { invoicePaid: paid.length > 0, billConfirmed: confirmed.length > 0, hasKey: household.aiKeySecretId !== null,
+    return { invoicePaid: paid.length > 0, billConfirmed: confirmed.length > 0, hasKey: household.aiKeySecretId !== null, serverHasModel: !serverHasNoModel(),
       answered: answer.length > 0, journalOnDevice: household.journalPlace === "device" };
   })() : null;
   if (home) await observeRunway(tx, hid, state, household);

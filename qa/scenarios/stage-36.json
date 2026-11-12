@@ -1000,7 +1000,7 @@
     "expected": [
       "It shows \"1 of 5 done\" with a short orange bar and Hide",
       "\"Read the sentence and the forecast\" is struck through with a green check",
-      "The other four have empty rings and link to /invoices, /to-check and /settings/ai-model, and the last one opens the Add a person dialog (/add/person) with the words \"Send Beacon’s payment link and watch the payment arrive\", \"Check the Hikari Denki bill in To check\", \"Add your AI key, then ask a question\" and \"Add a person who shares costs\""
+      "The other four have empty rings and link to /invoices, /to-check and /canvas#ask (or /settings/ai-model on a server with no AI of its own), and the last one opens the Add a person dialog (/add/person) with the words \"Send Beacon’s payment link and watch the payment arrive\", \"Check the Hikari Denki bill in To check\", \"Ask a question\" (\"Add your AI key, then ask a question\" on a server with no AI of its own) and \"Add a person who shares costs\""
     ],
     "refs": [
       "D47"

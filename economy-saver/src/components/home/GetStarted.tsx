@@ -8,7 +8,7 @@ import { useAskPanel } from "@/components/shell/AskWorkspace";
 import { listDevice } from "@/lib/store/device";
 import "./get-started.css";
 
-export type GetStartedProgress = { invoicePaid: boolean; billConfirmed: boolean; hasKey: boolean; answered: boolean; journalOnDevice: boolean };
+export type GetStartedProgress = { invoicePaid: boolean; billConfirmed: boolean; hasKey: boolean; serverHasModel: boolean; answered: boolean; journalOnDevice: boolean };
 const subscribe = (callback: () => void) => {
   window.addEventListener("storage", callback);
   window.addEventListener("pes-get-started-hidden", callback);
@@ -36,7 +36,8 @@ export function GetStarted({ householdId, progress, peopleCount, invoiceHref }: 
     { done: true, label: "Read the sentence and the forecast", href: "#next-30-days" },
     { done: progress.invoicePaid, label: "Send Beacon’s payment link and watch the payment arrive", hint: "Approve it, then press Pay as the client on the invoice; in about 20 seconds the payment lands.", href: invoiceHref },
     { done: progress.billConfirmed, label: "Check the Hikari Denki bill in To check", href: "/to-check" },
-    { done: progress.hasKey && (progress.journalOnDevice ? deviceAnswered : progress.answered), label: "Add your AI key, then ask a question", href: "/settings/ai-model" },
+    { done: (progress.hasKey || progress.serverHasModel) && (progress.journalOnDevice ? deviceAnswered : progress.answered),
+      ...(progress.hasKey || progress.serverHasModel ? { label: "Ask a question", href: "/canvas#ask" } : { label: "Add your AI key, then ask a question", href: "/settings/ai-model" }) },
     { done: peopleCount > 1, label: "Add a person who shares costs", add: "person" as const },
   ];
   const done = steps.filter(step => step.done).length;
