@@ -173,7 +173,7 @@ async function main() {
       assert.ok(!("thinking" in first) && !("temperature" in first));
       assert.ok(first.system.includes(aState.today) && first.system.includes("JPY"));
       assert.deepEqual(first.tools.map(t => t.name).sort(), tools.filter(t => t.name !== "update_brief").map(t => t.name).sort());
-      assert.ok(first.tools.every(t => t.strict === true));
+      assert.ok(first.tools.every(t => !("strict" in t)), "Ask has more tools than Anthropic's 20 strict tools; their inputs are checked in code");
       assert.deepEqual(first.messages, [{ role: "user", content: "What's due?" }]);
       assert.equal(second.messages.length, 3);
       assert.equal(second.messages[1].role, "assistant");

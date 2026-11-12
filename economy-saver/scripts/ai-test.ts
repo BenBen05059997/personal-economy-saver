@@ -361,7 +361,7 @@ async function main() {
       { type: "document", source: { type: "base64", media_type: "application/pdf", data: "BBBB" } }]);
     assert.deepEqual(body.messages[1], { role: "assistant", content: [{ type: "text", text: "earlier" }, { type: "tool_use", id: "tu_0", name: "look", input: { what: "x" } }] });
     assert.deepEqual(body.messages[2], { role: "user", content: [{ type: "tool_result", tool_use_id: "tu_0", content: "fine" }, { type: "tool_result", tool_use_id: "tu_9", content: "Unknown tool.", is_error: true }] });
-    assert.deepEqual(body.tools, [{ name: "look", description: "Look something up.", input_schema: TOOLS[0].schema, strict: true }]);
+    assert.deepEqual(body.tools, [{ name: "look", description: "Look something up.", input_schema: TOOLS[0].schema }], "Ask's tools are not strict: Anthropic allows at most 20");
     assert.deepEqual(body.tool_choice, { type: "auto" });
     assert.deepEqual(body.output_config, { effort: "low" });
     assert.deepEqual(reply, { text: "Checking.", calls: [{ id: "tu_1", name: "look", input: { what: "rent" } }], stop: "tools",
@@ -372,6 +372,7 @@ async function main() {
     assert.deepEqual(forced.seen[0].body.tool_choice, { type: "auto" }, "current Anthropic models reject a forced tool_choice");
     assert.ok(forced.seen[0].body.system.endsWith("Answer only by calling the look tool once."));
     assert.equal("thinking" in forced.seen[0].body, false);
+    assert.equal(forced.seen[0].body.tools[0].strict, true, "the forced tool is strict");
     assert.deepEqual(forced.seen[0].body.output_config, { effort: "low" });
     assert.equal(forced.seen[0].body.messages[0].content, "hello", "a single text turn goes as a string");
 

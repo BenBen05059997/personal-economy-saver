@@ -31,7 +31,8 @@ function sdkOptions(request: ModelRequest): Omit<LanguageModelV4CallOptions, "ab
     maxOutputTokens: request.maxTokens,
     tools: request.tools?.map(tool => ({
       type: "function", name: tool.name, description: tool.description, inputSchema: tool.schema as JSONSchema7,
-      ...(request.connection.protocol === "anthropic" && { strict: true }),
+      // Anthropic allows at most 20 strict tools; only the one tool a reply must call is strict. Ask checks every input in code.
+      ...(request.connection.protocol === "anthropic" && tool.name === request.forceTool && { strict: true }),
     })),
     // Current Anthropic models reject a forced tool_choice (400), so Anthropic always gets auto; its body
     // transform adds the instruction to call the tool. OpenAI-compatible endpoints keep the forced choice.

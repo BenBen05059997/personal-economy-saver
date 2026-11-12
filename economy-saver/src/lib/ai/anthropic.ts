@@ -33,7 +33,7 @@ export async function callAnthropic(request: ModelRequest): Promise<Reply> {
           message.content = message.content[0].text ?? "";
         }
       }
-      for (const tool of body.tools ?? []) tool.strict = true;
+      for (const tool of body.tools ?? []) if (tool.name === request.forceTool) tool.strict = true; else delete tool.strict;
       // Thinking counts toward max_tokens; low effort keeps short replies (voice fill, the reader) inside theirs.
       body.output_config = { ...body.output_config, effort: "low" };
       return JSON.stringify(body);
