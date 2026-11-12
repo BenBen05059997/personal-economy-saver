@@ -479,14 +479,14 @@ async function main() {
     assert.deepEqual(readingForm(formOf({ whose: "shared" }, "charge")).whose, { shared: true, memberId: null, paidByMemberId: null });
     assert.equal(readingForm(formOf({ whose: "own" }, "charge")).whose?.shared, false);
     // the tool: a fixed sentence, a link to the item, nothing confirmed
-    assert.equal(await setWhose(a, { reading: "hikari denki", shared: false, person: "aki" }), "Marked Hikari Denki as Aki\u2019s. Finish it on the card.");
+    assert.equal(await setWhose(a, { reading: "hikari denki", shared: false, person: "aki" }), "Marked Hikari Denki (¥11,220, due 2026-11-27) as Aki\u2019s. Finish it on the card.");
     assert.deepEqual(links, [{ label: "Open in To check", href: `http://127.0.0.1:3123/to-check#reading-${denki.readingId}` }]);
     assert.equal(whoseChoice("bill", (await documentCard(db, a, whoseCard.documentId)).items.find(item => item.readingId === denki.readingId)!.value.whose), aki, "the card's Whose follows the stored owner");
     assert.equal(whoseChoice("bill", undefined), "shared");
     assert.deepEqual([whoseChoice("charge", { shared: true, memberId: null, paidByMemberId: null }), whoseChoice("charge", undefined)], ["shared", "own"]);
     const reMarked = (await documentCard(db, a, whoseCard.documentId)).items.find(item => item.readingId === denki.readingId)!;
     assert.deepEqual([reMarked.status, reMarked.value.whose], ["to_check", { shared: false, memberId: aki, paidByMemberId: null }], "a draft edit: still waiting");
-    assert.equal(await setWhose(a, { reading: "Hikari Denki", shared: true, person: "Aki" }), "Marked Hikari Denki as shared, Aki pays. Finish it on the card.");
+    assert.equal(await setWhose(a, { reading: "Hikari Denki", shared: true, person: "Aki" }), "Marked Hikari Denki (¥11,220, due 2026-11-27) as shared, Aki pays. Finish it on the card.");
     await assert.rejects(setWhose(a, { reading: "Hikari Denki", shared: true, person: "Chie" }), (e: unknown) => e instanceof InputError && e.message === "Nobody called Chie is in this household");
     await assert.rejects(setWhose(a, { reading: "Hikari Denki", shared: false }), (e: unknown) => e instanceof InputError && /Say whose bill/.test(e.message));
     await assert.rejects(setWhose(a, { reading: "Ramen Kita", shared: true, person: "Aki" }), (e: unknown) => e instanceof InputError && /leave person empty/.test(e.message));

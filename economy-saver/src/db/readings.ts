@@ -7,6 +7,7 @@ import { memberByName, memberCount } from "./people";
 import { clockForHousehold } from "./clock";
 import { InputError } from "./input-error";
 import { convertMinor, fromMinor, fromRateMicro } from "./money";
+import { minorMoney } from "@/lib/money/format";
 import { extractSchema, type Extracted, type Whose } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { syncClosedStatementCharge } from "./statement-charge";
@@ -203,6 +204,8 @@ export async function setReadingWhose(db: Db, id: string, input: { reading: stri
     else throw new InputError("Say whose bill it is (person), or set shared to true");
     await tx.update(readings).set({ extracted: { ...data, proposed: { ...(data.proposed as object), whose } } }).where(and(eq(readings.householdId, hid), eq(readings.id, readingId)));
     const phrase = whose.memberId ? `${person!.name}\u2019s` : !whose.shared ? "not shared" : person ? `shared, ${person.name} pays` : value.kind === "charge" ? "shared, its card\u2019s owner pays" : "shared";
-    return { readingId, words: `Marked ${name} as ${phrase}. Finish it on the card.` };
+    // The amount and date ride along so an answer that repeats them is confirmed by this tool's words.
+    const what = value.amountMinor !== null && value.currency ? ` (${minorMoney(value.amountMinor, value.currency)}${value.date ? `, ${value.kind === "charge" ? "dated" : "due"} ${value.date}` : ""})` : "";
+    return { readingId, words: `Marked ${name}${what} as ${phrase}. Finish it on the card.` };
   });
 }
