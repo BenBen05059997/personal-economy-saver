@@ -301,5 +301,5 @@
 
 /* Where a link lands (D60): the item named by the URL hash holds an accent wash and outline for a moment. */
 @keyframes arriving { from { background-color: var(--accent-wash); outline-color: var(--accent); } to { background-color: transparent; outline-color: transparent; } }
-.is-arriving { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-control); animation: arriving 2.5s ease-out forwards; }
+.is-arriving { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-control); animation: arriving 4s ease-out forwards; }
 @media (prefers-reduced-motion: reduce) { .is-arriving { animation: none; background-color: var(--accent-wash); } }

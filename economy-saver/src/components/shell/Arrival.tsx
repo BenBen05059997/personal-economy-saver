@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 
-const LIT_MS = 2500;
+const LIT_MS = 4000;
 const LOOK_MS = 100;
 const LOOKS = 20;
 

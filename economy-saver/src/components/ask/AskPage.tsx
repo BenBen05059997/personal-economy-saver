@@ -345,6 +345,8 @@ export function AskPage({
       }
       if (onPanelChange) {
         if (reply.kind === "answer" || reply.pending || reply.links.length || reply.memoryChanged || reply.memoryChanges.length || reply.brief) onPanelChange();
+        // The page under the panel shows what the turn drafted or saved.
+        if (reply.pending || reply.links.length || reply.memoryChanged) router.refresh();
       } else if (reply.pending || (!onDevice.memory && reply.memoryChanged)) {
         router.refresh();
       }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { Currency } from "@/lib/catalogue/types";
 import type { Check, CheckChoice } from "@/lib/money/checks";
@@ -25,6 +26,7 @@ export function DocumentCard({ documentId, initial, form, readOnly, returnTo, bu
   const [card, setCard] = useState<Card | null>(initial);
   const [gaveUp, setGaveUp] = useState(false);
   const [ended, setEnded] = useState(false);
+  const router = useRouter();
   const started = useRef<number | null>(null);
   const callbacks = useRef({ onCard, onCanvas });
   useEffect(() => { callbacks.current = { onCard, onCanvas }; });
@@ -76,7 +78,7 @@ export function DocumentCard({ documentId, initial, form, readOnly, returnTo, bu
       {card.items.map(item => <li key={item.readingId} className="ask-document-item">
         {readOnly && item.status === "to_check"
           ? <><p className="ask-document-read">{item.read}</p><Link prefetch={false} href="/to-check">Open in To check ›</Link></>
-          : <Item item={item} form={form} returnTo={returnTo} onDone={() => void load(true)} />}
+          : <Item item={item} form={form} returnTo={returnTo} onDone={() => { void load(true); router.refresh(); }} />}
       </li>)}
     </ul>}
   </div>;

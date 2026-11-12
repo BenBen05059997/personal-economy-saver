@@ -77,25 +77,27 @@ export function InvoiceReview({ review, state, canApprove, connection, candidate
       <CopyLink url={payLink} invoiceId={invoice.id} client={first} plain={tryIt && !taking} />
       {tryIt && !taking && <ApiForm action="/api/try/pay-as-client" className="invoice-play-client">
         <input type="hidden" name="id" value={invoice.id} />
-        <p className="ui-hint">{`Play the client: fipa pays this link with PayPal’s sandbox test card, so no PayPal login is needed. PayPal confirms in about 20 seconds; then the payment shows at the top of Activity and your PayPal balance rises by ${minorMoney(homeAmount, state.homeCurrency)}.`}</p>
+        <p className="ui-hint">{isRequest
+          ? `Play ${first}: fipa pays this link with PayPal’s sandbox test card, so no PayPal login is needed. PayPal confirms in about 20 seconds; then the payment shows at the top of Activity and the shared costs are settled.`
+          : `Play the client: fipa pays this link with PayPal’s sandbox test card, so no PayPal login is needed. PayPal confirms in about 20 seconds; then the payment shows at the top of Activity and your PayPal balance rises by ${minorMoney(homeAmount, state.homeCurrency)}.`}</p>
         <button className="ui-button primary">{isRequest ? `Pay as ${first} (sandbox test card)` : "Pay as the client (sandbox test card)"}</button>
       </ApiForm>}
       {!taking && candidates.map(c => <form key={c.paymentId} method="post" action="/api/invoices/match" className="invoice-match">
         <input type="hidden" name="id" value={invoice.id} />
         <input type="hidden" name="paymentId" value={c.paymentId} />
-        <p className="invoice-status">{`${c.ownClient ? first : payerLabel(c)} paid ${minorMoney(c.amountMinor, Currency.parse(c.currency))} on PayPal on ${dayLabel(c.paidOn)}. Is this that invoice?`}</p>
-        <button className="ui-button primary">Yes, that’s this invoice</button>
+        <p className="invoice-status">{`${c.ownClient ? first : payerLabel(c)} paid ${minorMoney(c.amountMinor, Currency.parse(c.currency))} on PayPal on ${dayLabel(c.paidOn)}. Is this that ${isRequest ? "request" : "invoice"}?`}</p>
+        <button className="ui-button primary">{isRequest ? "Yes, that’s this request" : "Yes, that’s this invoice"}</button>
       </form>)}
       {canApprove && !taking && <details className="invoice-end">
         <summary>End this link</summary>
         <ApiForm action="/api/invoices/end">
           <input type="hidden" name="id" value={invoice.id} />
-          <p className="ui-hint">{`${first} will no longer be able to pay with this link, and fipa stops counting this invoice. This can’t be undone.`}</p>
+          <p className="ui-hint">{`${first} will no longer be able to pay with this link, and ${isRequest ? "fipa stops asking for this request" : "fipa stops counting this invoice"}. This can’t be undone.`}</p>
           <button className="ui-button">Yes, end the link</button>
         </ApiForm>
       </details>}
     </section>}
-    {sent && !payLink && <p className="invoice-status">Invoice sent. Awaiting payment.</p>}
+    {sent && !payLink && <p className="invoice-status">{isRequest ? "Request sent. Awaiting payment." : "Invoice sent. Awaiting payment."}</p>}
     {invoice.status === "paid" && <p className="invoice-status">{`Paid ${dayLabel(invoice.paidOn!)}.`}</p>}
     {invoice.status === "paid" && tryIt && <p className="ui-hint">{`Paid. ${first}’s payment is now at the top of Activity and in your PayPal balance on Home. `}<Link prefetch={false} href="/">Back to Home</Link></p>}
     {invoice.status === "closed" && <p className="invoice-status">This payment link has ended. No one can pay with it.</p>}
