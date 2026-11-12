@@ -16,3 +16,4 @@
 .get-started-done a, .get-started-done .get-started-row { color: var(--muted); }
 .get-started .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 @media (max-width: 760px) { .get-started { padding: 18px 0; border: 0; border-top: 1px solid var(--rule); border-radius: 0; background: none; } }
+.get-started-hint { display: block; font-size: 13px; color: var(--muted); }

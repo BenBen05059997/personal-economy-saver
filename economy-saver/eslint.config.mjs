@@ -8,6 +8,8 @@ const modelPath = { name: "ai", message: "Call models through callModel in src/l
 // Each payment call is matched by its module however the import is written (alias or relative path).
 const createOrderRule = { group: ["@/lib/paypal/send", "**/paypal/send"], importNames: ["createOrder"], message: "Only the approve route and the payment link's Pay route may make an order (D12)." };
 const captureOrderRule = { group: ["@/lib/paypal/send", "**/paypal/send"], importNames: ["captureOrder"], message: "Only the webhook route may take a payment (D12)." };
+const testCardRule = { group: ["@/lib/paypal/send", "**/paypal/send"], importNames: ["payWithSandboxTestCard"], message: "Only the Try it pay-as-the-client route may pay with the sandbox test card (D12)." };
+const tryPayRule = { group: ["@/db/try-pay", "**/db/try-pay", "./try-pay"], importNames: ["payInvoiceAsTestClient"], message: "Only the Try it pay-as-the-client route may run the test-card payment (D12)." };
 const paypalRequestRule = { group: ["@/lib/paypal/client", "**/paypal/client", "./client"], importNames: ["paypalRequest"], message: "Only src/lib/paypal/send.ts makes an unguarded PayPal call; use paypalRead (D12)." };
 // The same name reached through a dynamic import, destructured or read as a property.
 const paypalRequestSyntax = ["ObjectPattern > Property[key.name='paypalRequest']", "MemberExpression[property.name='paypalRequest']"]
@@ -43,15 +45,16 @@ const eslintConfig = defineConfig([
   // One rule entry per file, so the restrictions are written together.
   {
     files: ["src/**/*.{ts,tsx}", "scripts/**/*.{ts,tsx,mjs}"],
-    ignores: ["src/app/api/approve/route.ts", "src/app/api/pay/route.ts", "src/app/api/paypal/webhook/route.ts",
+    ignores: ["src/app/api/approve/route.ts", "src/app/api/pay/route.ts", "src/app/api/paypal/webhook/route.ts", "src/app/api/try/pay-as-client/route.ts",
       "src/lib/paypal/send.ts", "src/lib/paypal/client.ts", "src/lib/ai/**", "scripts/*-test.ts", "scripts/build-worker.mjs"],
-    rules: restricted({}, createOrderRule, captureOrderRule),
+    rules: restricted({}, createOrderRule, captureOrderRule, testCardRule, tryPayRule),
   },
   // The Worker build loads the OpenNext CLI from a resolved path, so only the computed-name import rule is waived there.
-  { files: ["scripts/build-worker.mjs"], rules: restricted({ computed: false }, createOrderRule, captureOrderRule) },
-  { files: ["src/lib/ai/**/*.{ts,tsx}"], rules: restricted({ models: false }, createOrderRule, captureOrderRule) },
-  { files: ["src/app/api/approve/route.ts", "src/app/api/pay/route.ts"], rules: restricted({}, captureOrderRule) },
-  { files: ["src/app/api/paypal/webhook/route.ts"], rules: restricted({}, createOrderRule) },
+  { files: ["scripts/build-worker.mjs"], rules: restricted({ computed: false }, createOrderRule, captureOrderRule, testCardRule, tryPayRule) },
+  { files: ["src/lib/ai/**/*.{ts,tsx}"], rules: restricted({ models: false }, createOrderRule, captureOrderRule, testCardRule, tryPayRule) },
+  { files: ["src/app/api/approve/route.ts", "src/app/api/pay/route.ts"], rules: restricted({}, captureOrderRule, testCardRule, tryPayRule) },
+  { files: ["src/app/api/paypal/webhook/route.ts"], rules: restricted({}, createOrderRule, testCardRule, tryPayRule) },
+  { files: ["src/app/api/try/pay-as-client/route.ts"], rules: restricted({}, createOrderRule, captureOrderRule) },
   { files: ["src/lib/paypal/send.ts", "src/lib/paypal/client.ts"], rules: restricted({ request: false }) },
   // Tests call the real createOrder and captureOrder against a stubbed fetch; they still never reach the unguarded call.
   { files: ["scripts/*-test.ts"], rules: restricted({}) },

@@ -20,7 +20,7 @@ async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
     withHousehold(db(), hid, tx => invoiceReview(tx, hid, id)), verifiedIdentity().then(viewer => loadWorkspace(hid, false, false, viewer)), readPaymentCandidates(db(), hid, id),
   ]);
   if (!review) notFound();
-  return <WorkspaceFrame workspace={workspace} section="invoices"><InvoiceReview review={review} state={workspace.state} canApprove={workspace.role.canManage} connection={workspace.connection} candidates={candidates} /></WorkspaceFrame>;
+  return <WorkspaceFrame workspace={workspace} section="invoices"><InvoiceReview review={review} state={workspace.state} canApprove={workspace.role.canManage} connection={workspace.connection} candidates={candidates} tryIt={workspace.tryIt} /></WorkspaceFrame>;
 }
 
 export default function Page({ params }: { params: Promise<{ id: string }> }) {

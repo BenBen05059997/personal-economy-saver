@@ -19,3 +19,4 @@
 .invoice-match { margin-top: var(--space-4); }
 .invoice-end { margin-top: var(--space-5); }
 .invoice-end summary { cursor: pointer; color: var(--muted); }
+.invoice-play-client { margin-top: var(--space-5); display: grid; gap: var(--space-3); justify-items: start; }

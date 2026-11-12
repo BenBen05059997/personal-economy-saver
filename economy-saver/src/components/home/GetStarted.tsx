@@ -34,7 +34,7 @@ export function GetStarted({ householdId, progress, peopleCount, invoiceHref }: 
   if (hidden || locallyHidden) return null;
   const steps = [
     { done: true, label: "Read the sentence and the forecast", href: "#next-30-days" },
-    { done: progress.invoicePaid, label: "Send Beacon’s payment link and watch the payment arrive", href: invoiceHref },
+    { done: progress.invoicePaid, label: "Send Beacon’s payment link and watch the payment arrive", hint: "Approve it, then press Pay as the client on the invoice; in about 20 seconds the payment lands.", href: invoiceHref },
     { done: progress.billConfirmed, label: "Check the Hikari Denki bill in To check", href: "/to-check" },
     { done: progress.hasKey && (progress.journalOnDevice ? deviceAnswered : progress.answered), label: "Add your AI key, then ask a question", href: "/settings/ai-model" },
     { done: peopleCount > 1, label: "Add a person who shares costs", add: "person" as const },
@@ -48,7 +48,7 @@ export function GetStarted({ householdId, progress, peopleCount, invoiceHref }: 
     rows={steps} />;
 }
 
-export type StepRow = { done: boolean; label: string; href?: string; add?: AddKind };
+export type StepRow = { done: boolean; label: string; hint?: string; href?: string; add?: AddKind };
 
 /** The panel Get started draws: a header, an optional progress bar and one row per step. */
 function StepsPanel({ id, title, meta, progress, onHide, rows, }: { id: string; title: string; meta?: string; progress?: { done: number; of: number }; onHide?: () => void; rows: StepRow[] }) {
@@ -61,7 +61,7 @@ function StepsPanel({ id, title, meta, progress, onHide, rows, }: { id: string; 
     </div>
     <ol>{rows.map(row => {
       const body = <><span className="get-started-tick" aria-hidden="true">{row.done && <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5l3 3 7-7" /></svg>}</span>
-        <span className="get-started-label">{row.label}</span><span className="sr-only">{row.done ? ", done" : ", not done"}</span></>;
+        <span className="get-started-label">{row.label}{row.hint && !row.done && <small className="get-started-hint">{row.hint}</small>}</span><span className="sr-only">{row.done ? ", done" : ", not done"}</span></>;
       return <li key={row.label} className={row.done ? "get-started-done" : undefined}>
         {row.add ? <AddLink kind={row.add}>{body}</AddLink> : row.href ? <Link href={row.href} prefetch={false}>{body}</Link> : <div className="get-started-row">{body}</div>}</li>;
     })}</ol>

@@ -1709,5 +1709,36 @@
       "D34",
       "D76"
     ]
+  },
+  {
+    "id": "HOME-115",
+    "area": "Home",
+    "action": "Play Beacon's client from the invoice page",
+    "user_goal": "I want to see a payment arrive without a PayPal login",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "paypal_webhook"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben)"
+    ],
+    "steps": [
+      "At 1440px, approve Beacon's invoice",
+      "On the invoice press Pay as the client (sandbox test card)",
+      "Wait without pressing anything",
+      "Open Home"
+    ],
+    "expected": [
+      "The invoice says PayPal is confirming the payment and updates by itself, with no buttons except the link copy",
+      "After about 20 seconds the invoice shows Paid and a line saying Beacon's payment is at the top of Activity and in the PayPal balance on Home",
+      "Home's PayPal balance is higher by the payment, the Get started Beacon step is ticked, and Activity's top entry is the payment"
+    ],
+    "refs": [
+      "D12",
+      "D15",
+      "D34"
+    ]
   }
 ]

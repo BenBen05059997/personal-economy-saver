@@ -10,15 +10,18 @@ import { expectedPayOn } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
 import type { ReadPaymentCandidate } from "@/db/invoice-match";
 import type { ConnectionView } from "@/lib/paypal/contracts";
+import { ConfirmingRefresh } from "./ConfirmingRefresh";
 import { CopyLink } from "./CopyLink";
 import "./invoice.css";
 
 type Review = NonNullable<Awaited<ReturnType<typeof invoiceReview>>>;
 
-export function InvoiceReview({ review, state, canApprove, connection, candidates }: { review: Review; state: MoneyState; canApprove: boolean; connection: ConnectionView; candidates: ReadPaymentCandidate[] }) {
+export function InvoiceReview({ review, state, canApprove, connection, candidates, tryIt }: { review: Review; state: MoneyState; canApprove: boolean; connection: ConnectionView; candidates: ReadPaymentCandidate[]; tryIt: boolean }) {
   const { invoice, client, payLink } = review;
   const draft = invoice.status === "draft" || invoice.status === "unbilled";
   const sent = invoice.status === "sent";
+  // PayPal has taken the payment (a capture is stored) but its verified event has not yet marked the invoice paid.
+  const taking = sent && invoice.paypalCaptureId !== null;
   // Late has one meaning everywhere: the day the forecast expects this invoice to be paid is already behind us.
   const forecast = sent ? state.invoices.find(i => i.id === invoice.id) : undefined;
   const late = forecast !== undefined && expectedPayOn(state, forecast) < state.today;
@@ -68,15 +71,20 @@ export function InvoiceReview({ review, state, canApprove, connection, candidate
       : <ConnectLine connection={connection} isOwner={canApprove} />)}
     {sent && payLink && <section className="invoice-link-section">
       <p className="invoice-status">{`Link made${invoice.sentOn ? ` ${dayLabel(invoice.sentOn)}` : ""}. Awaiting payment.`}</p>
-      {late && <p className="ui-hint">{`${first} is late. To send the link again, copy it again and send it the way you did before.`}</p>}
+      {taking ? <ConfirmingRefresh /> : late && <p className="ui-hint">{`${first} is late. To send the link again, copy it again and send it the way you did before.`}</p>}
       <CopyLink url={payLink} invoiceId={invoice.id} client={first} />
-      {candidates.map(c => <form key={c.paymentId} method="post" action="/api/invoices/match" className="invoice-match">
+      {tryIt && !taking && <ApiForm action="/api/try/pay-as-client" className="invoice-play-client">
+        <input type="hidden" name="id" value={invoice.id} />
+        <p className="ui-hint">{`Play the client: fipa pays this link with PayPal’s sandbox test card, so no PayPal login is needed. PayPal confirms in about 20 seconds; then the payment shows at the top of Activity and your PayPal balance rises by ${minorMoney(homeAmount, state.homeCurrency)}.`}</p>
+        <button className="ui-button primary">Pay as the client (sandbox test card)</button>
+      </ApiForm>}
+      {!taking && candidates.map(c => <form key={c.paymentId} method="post" action="/api/invoices/match" className="invoice-match">
         <input type="hidden" name="id" value={invoice.id} />
         <input type="hidden" name="paymentId" value={c.paymentId} />
         <p className="invoice-status">{`${c.ownClient ? first : payerLabel(c)} paid ${minorMoney(c.amountMinor, Currency.parse(c.currency))} on PayPal on ${dayLabel(c.paidOn)}. Is this that invoice?`}</p>
         <button className="ui-button primary">Yes, that’s this invoice</button>
       </form>)}
-      {canApprove && <details className="invoice-end">
+      {canApprove && !taking && <details className="invoice-end">
         <summary>End this link</summary>
         <ApiForm action="/api/invoices/end">
           <input type="hidden" name="id" value={invoice.id} />
@@ -87,6 +95,7 @@ export function InvoiceReview({ review, state, canApprove, connection, candidate
     </section>}
     {sent && !payLink && <p className="invoice-status">Invoice sent. Awaiting payment.</p>}
     {invoice.status === "paid" && <p className="invoice-status">{`Paid ${dayLabel(invoice.paidOn!)}.`}</p>}
+    {invoice.status === "paid" && tryIt && <p className="ui-hint">{`Paid. ${first}’s payment is now at the top of Activity and in your PayPal balance on Home. `}<Link prefetch={false} href="/">Back to Home</Link></p>}
     {invoice.status === "closed" && <p className="invoice-status">This payment link has ended. No one can pay with it.</p>}
     {paidOutside && (candidates.length > 0 && sent
       ? <details className="invoice-paid-outside invoice-paid-folded">

@@ -24,7 +24,10 @@ import { saveInvoiceDraft } from "@/db/invoice-draft";
 import { PayPalError, paypalRead } from "@/lib/paypal/client";
 import type { CreateOrder, OrderRequest, PayPalCall, PayPalRequest } from "@/lib/paypal/contracts";
 import { verifyWebhook } from "@/lib/paypal/webhook";
-import { captureOrder, createOrder } from "@/lib/paypal/send";
+import { captureOrder, createOrder, payWithSandboxTestCard } from "@/lib/paypal/send";
+import { payInvoiceAsTestClient } from "@/db/try-pay";
+import { applyVerifiedDelivery } from "@/lib/events";
+import type { PayWithTestCard } from "@/lib/paypal/contracts";
 
 const APP = "https://fipa.example.test";
 const decodePart = (jwt: string, i: number) => JSON.parse(Buffer.from(jwt.split(".")[i], "base64url").toString());
@@ -406,6 +409,128 @@ async function main() {
     assert.deepEqual(await paymentLinkView(db, token), { state: "ended" });
     assert.equal(shut.requests.length, 0, "an ended link asks PayPal for nothing");
     await assert.rejects(approvePaymentLink(ctx(demo, invoice.approveKey, shut.create)), /closed/);
+
+    // ---- Try it only: fipa pays the sent invoice as the client with the sandbox test card (D12). Only the webhook marks it paid (D15).
+    {
+      // The request itself: a card source, the Try it payee, the invoice's own ids, no act-for assertion.
+      let seen: { headers: Record<string, string>; body: Record<string, any> } | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/v1/oauth2/token")) return Response.json({ access_token: "token-fictional", expires_in: 3600 });
+        seen = { headers: init?.headers as Record<string, string>, body: JSON.parse(String(init?.body)) };
+        return Response.json({ id: "CARD-ORDER", status: "COMPLETED", purchase_units: [{ payments: { captures: [{ id: "CARD-CAP", status: "COMPLETED" }] } }] }, { status: 201 });
+      }) as typeof fetch;
+      const req: OrderRequest = { payee: "PARTNERFICTIONAL", requestId: "T-X", invoiceId: "11111111-1111-4111-8111-111111111111", number: "P-X",
+        item: "Logo", amountMinor: 25_000, currency: "USD", returnUrl: APP + "/r", cancelUrl: APP + "/c" };
+      assert.deepEqual(await payWithSandboxTestCard(req), { orderId: "CARD-ORDER", orderStatus: "COMPLETED", captureId: "CARD-CAP", captureStatus: "COMPLETED" });
+      const unit = seen!.body.purchase_units[0];
+      assert.equal(seen!.body.intent, "CAPTURE");
+      assert.equal(seen!.body.payment_source.card.number, "4005519200000004");
+      assert.equal(seen!.body.payment_source.paypal, undefined, "a card, not the PayPal wallet");
+      assert.deepEqual([unit.payee.merchant_id, unit.custom_id, unit.invoice_id, unit.amount], ["PARTNERFICTIONAL", req.invoiceId, "P-X", { currency_code: "USD", value: "250.00" }]);
+      assert.equal(seen!.headers["PayPal-Request-Id"], "T-X");
+      assert.equal(seen!.headers["PayPal-Partner-Attribution-Id"], "FIPA_TEST_BN");
+      assert.equal(seen!.headers["PayPal-Auth-Assertion"], undefined, "fipa pays into its own account without acting for anyone");
+      globalThis.fetch = realFetch;
+    }
+    {
+      const tryOrders = fakeOrders();
+      const target = await unbilled(other);
+      await approvePaymentLink(ctx(other, target.approveKey, tryOrders.create));
+      const sentOne = await row(other, target.id);
+      assert.equal(sentOne.status, "sent");
+      const cardCalls: OrderRequest[] = [];
+      const cardOrders = new Map<string, string>();
+      let captureStatus: string | null = "COMPLETED";
+      let cardCount = 0;
+      const pay: PayWithTestCard = async o => {
+        cardCalls.push(o);
+        let id = cardOrders.get(o.requestId);
+        if (!id) { cardCount += 1; id = "CARD-ORDER-" + cardCount; cardOrders.set(o.requestId, id); }
+        return { orderId: id, orderStatus: "COMPLETED", captureId: captureStatus ? "CARD-CAP-" + id : null, captureStatus };
+      };
+      const tryPay = (hid: string, id: string) => payInvoiceAsTestClient({ db, householdId: hid, invoiceId: id, pay });
+      const refused = (hid: string, id: string, status: number) =>
+        assert.rejects(tryPay(hid, id), (e: unknown) => e instanceof ApprovalError && e.status === status);
+
+      // A household that is not a Try it one, another household's invoice, a draft: nothing reaches PayPal.
+      const mineSigned = await unbilled(signedIn);
+      await db.update(schema.invoices).set({ status: "sent", payToken: "tok-signed-in-fictional-aaaaaaaaaaaaaaaaaaaa", paypalPayeeId: "SELLERFICTIONAL" })
+        .where(eq(schema.invoices.id, mineSigned.id));
+      await refused(signedIn, mineSigned.id, 403);
+      await refused(demo, sentOne.id, 404);
+      const [draftClient] = await db.select().from(schema.clients).where(eq(schema.clients.householdId, other)).limit(1);
+      const [draft] = await db.insert(schema.invoices).values({
+        householdId: other, clientId: draftClient.id, status: "unbilled", item: "Draft", number: "P-DRAFT", amountMinor: 9_000, currency: "USD", fxRateMicro: 150_000_000,
+        payToken: "tok-draft-fictional-aaaaaaaaaaaaaaaaaaaaaaaa", paypalPayeeId: "PARTNERFICTIONAL",
+      }).returning();
+      await refused(other, draft.id, 409);
+      assert.equal(cardCalls.length, 0, "refusals ask PayPal for nothing");
+
+      // A declined or failed capture keeps no capture id, and the invoice keeps the order it had.
+      for (const status of ["DECLINED", "FAILED"]) {
+        captureStatus = status;
+        await refused(other, sentOne.id, 402);
+        const after = await row(other, sentOne.id);
+        assert.deepEqual([after.paypalCaptureId, after.paypalOrderId, after.status], [null, sentOne.paypalOrderId, "sent"], status);
+      }
+      assert.equal(cardCalls.at(-1)!.requestId, "T-" + sentOne.id);
+
+      // Two taps send the same Request-Id and store one order.
+      captureStatus = "COMPLETED";
+      const [first, second] = await Promise.all([tryPay(other, sentOne.id), tryPay(other, sentOne.id)]);
+      assert.deepEqual([first, second], [sentOne.id, sentOne.id]);
+      assert.ok(cardCalls.every(c => c.requestId === "T-" + sentOne.id));
+      assert.equal(cardCalls.at(-1)!.payee, "PARTNERFICTIONAL");
+      assert.equal(cardCalls.at(-1)!.number, paypalInvoiceNumber(sentOne.id));
+      const taken = await row(other, sentOne.id);
+      assert.equal(taken.status, "sent", "the payment is taken, but only the webhook marks the invoice paid");
+      const stored = taken.paypalOrderId!;
+      assert.match(stored, /^CARD-ORDER-/);
+      assert.equal(taken.paypalCaptureId, "CARD-CAP-" + stored);
+      assert.equal(cardOrders.size, 1, "one PayPal order");
+      assert.deepEqual(await paymentLinkView(db, taken.payToken!), { state: "processing" });
+      await refused(other, sentOne.id, 409); // already taken
+
+      // The completed-payment event for the stored card order marks it paid once.
+      const completed = (id: string, order: string, over: { custom?: string; capture?: string; value?: string; invoice?: typeof sentOne } = {}) => ({
+        id, event_type: "PAYMENT.CAPTURE.COMPLETED", create_time: "2026-11-14T16:00:00Z",
+        resource: { id: over.capture ?? "CARD-CAP-" + order, status: "COMPLETED", amount: { currency_code: "USD", value: over.value ?? (sentOne.amountMinor / 100).toFixed(2) },
+          custom_id: over.custom ?? sentOne.id, payee: { merchant_id: "PARTNERFICTIONAL" }, supplementary_data: { related_ids: { order_id: order } } },
+      });
+      const noCapture = async () => { throw new Error("a card order is captured at creation; nothing is taken by the webhook"); };
+      await applyVerifiedDelivery(db, completed("WH-CARD-1", stored), noCapture);
+      await applyVerifiedDelivery(db, completed("WH-CARD-1", stored), noCapture);
+      await applyVerifiedDelivery(db, completed("WH-CARD-2", stored), noCapture);
+      const paidOne = await row(other, sentOne.id);
+      assert.equal(paidOne.status, "paid");
+      assert.equal(paidOne.paypalCaptureId, "CARD-CAP-" + stored);
+      const paidEvents = await db.select().from(schema.events).where(and(eq(schema.events.householdId, other), eq(schema.events.kind, "invoice_paid")));
+      assert.equal(paidEvents.length, 1, "paid once however often the event comes");
+      await refused(other, sentOne.id, 409); // paid
+      // Any other event type is received without throwing.
+      for (const type of ["CHECKOUT.ORDER.COMPLETED", "PAYMENT.CAPTURE.PENDING", "PAYMENT.CAPTURE.REFUNDED"]) {
+        await applyVerifiedDelivery(db, { id: "WH-" + type, event_type: type, resource: { id: stored } }, noCapture);
+      }
+
+      // The event arrives before the order is stored: found by the invoice id it carries, with its amount and payee, and
+      // the late store then changes nothing.
+      const [client2] = await db.select().from(schema.clients).where(eq(schema.clients.householdId, other)).limit(1);
+      const [early] = await db.insert(schema.invoices).values({
+        householdId: other, clientId: client2.id, status: "sent", item: "Early", number: "P-EARLY", amountMinor: 12_000, currency: "USD", fxRateMicro: 150_000_000,
+        sentOn: today, dueOn: today, paypalOrderId: "LINK-ORDER-EARLY", paypalPayeeId: "PARTNERFICTIONAL", payToken: "tok-early-fictional-aaaaaaaaaaaaaaaaaaaaaa",
+      }).returning();
+      const wrongAmount = completed("WH-CARD-WRONG", "CARD-ORDER-EARLY", { custom: early.id, capture: "CARD-CAP-EARLY", value: "119.99" });
+      await applyVerifiedDelivery(db, wrongAmount, noCapture);
+      assert.equal((await row(other, early.id)).status, "sent", "an event whose amount is not the invoice's settles nothing");
+      const payRacing: PayWithTestCard = async () => {
+        await applyVerifiedDelivery(db, completed("WH-CARD-EARLY", "CARD-ORDER-EARLY", { custom: early.id, capture: "CARD-CAP-EARLY", value: "120.00" }), noCapture);
+        return { orderId: "CARD-ORDER-EARLY", orderStatus: "COMPLETED", captureId: "CARD-CAP-EARLY", captureStatus: "COMPLETED" };
+      };
+      assert.equal(await payInvoiceAsTestClient({ db, householdId: other, invoiceId: early.id, pay: payRacing }), early.id);
+      const raced = await row(other, early.id);
+      assert.equal(raced.status, "paid", "settled through custom_id before the order was stored");
+      assert.deepEqual([raced.paypalCaptureId, raced.paypalOrderId], ["CARD-CAP-EARLY", "LINK-ORDER-EARLY"], "the late store changes nothing");
+    }
     console.log("Approval tests passed: household isolation, order body and headers, payee for Try it and connected, one order per invoice, retry with one Request-Id, link reuse and renewal, ended and processing links, PayPal's invoice number kept out of view.");
   } finally { globalThis.fetch = realFetch; await pg.close(); }
 }

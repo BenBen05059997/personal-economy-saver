@@ -24,6 +24,7 @@ import * as dataKindsMod from "@/db/data-kinds"; // D59 delete by kind
 import * as restoreMod from "@/db/restore"; // D59 import
 import * as placeMod from "@/db/place"; // D59 this device only
 import * as approval from "@/db/approval";
+import * as tryPay from "@/db/try-pay";
 import * as bankBalance from "@/db/bank-balance";
 import * as billsMod from "@/db/bills";
 import * as chargesMod from "@/db/charges";
@@ -98,6 +99,8 @@ const covered = [
   "activeInvites", "createInvite", "cancelInvite", "inviteView", "inviteMatchesEmail", "acceptInvite", "leaveHousehold",
   // approval.ts
   "invoiceReview", "approvePaymentLink",
+  // try-pay.ts
+  "payInvoiceAsTestClient",
   // invoice-match.ts, invoice-offered.ts, invoice-end.ts, payment-link.ts
   "readPaymentCandidates", "settleReadPayment", "settleReadPaymentInTx", "readPaymentByCapture", "backfillHouseholdPayTokens", "recordLinkOffered", "endPaymentLink", "paymentLinkView", "openPaymentLink",
   // bank-balance.ts, bills.ts, charges.ts, clients.ts, confirm.ts
@@ -246,7 +249,7 @@ async function main() {
   // The module functions, tracked: F.name records that the test called it, so `covered` cannot list an untested name.
   const used = new Set<string>();
   const modules = {
-    ...account, ...aiKeys, ...approval, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
+    ...account, ...aiKeys, ...approval, ...tryPay, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
     ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...invitesMod, ...mcpTokens, ...paypalRefresh, ...paypalConnectMod, ...invoiceMatchMod, ...payTokenBackfillMod, ...invoiceOfferedMod, ...invoiceEndMod, ...paymentLinkMod, ...people, ...potsMod, ...rateLimit,
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
     ...importChargesMod, // Stage 17 import
@@ -867,6 +870,12 @@ async function main() {
         assert.ok(approved.threw && approved.error instanceof ApprovalError && (approved.error as ApprovalError).status === 404, label("approvePaymentLink"));
         await untouched("approvePaymentLink");
         assert.equal(orders, 0, "no PayPal order was made for the other household's invoice");
+        let cardPayments = 0;
+        const pay = async () => { cardPayments++; return nothingCalled(); };
+        const tried = await attempt(() => F.payInvoiceAsTestClient({ db: store, householdId: X.hid, invoiceId: y.invoiceSent, pay }));
+        assert.ok(tried.threw && tried.error instanceof ApprovalError && (tried.error as ApprovalError).status === 404, label("payInvoiceAsTestClient"));
+        await untouched("payInvoiceAsTestClient");
+        assert.equal(cardPayments, 0, "no test-card payment was made for the other household's invoice");
         await refuse("endPaymentLink", () => F.endPaymentLink(store, X.hid, y.invoiceSent));
         await refuse("recordLinkOffered", () => F.recordLinkOffered(store, X.hid, y.invoiceSent));
         assert.deepEqual(await F.readPaymentCandidates(store, X.hid, y.invoiceSent), [], label("readPaymentCandidates"));

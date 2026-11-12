@@ -176,6 +176,8 @@ if (args[0] === "--guards") {
     ["callback-hands-off", "/api/auth/callback?code=x", {}, 303, "/signing-in?code=x"],
     ["finish-without-code", "/api/auth/finish", {}, 303, "/login?expired=1"],
     ["approve-without-household", "/api/approve", { method: "POST" }, 401],
+    ["pay-as-client-without-household", "/api/try/pay-as-client", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000" } }, 401],
+    ["pay-as-client-cross-origin", "/api/try/pay-as-client", { method: "POST", session: "", form: { id: "00000000-0000-4000-8000-000000000000" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["account-delete-without-login", "/api/account", { method: "POST", session: "", form: { confirmation: "delete" } }, 401],
     ["account-delete-cross-origin", "/api/account", { method: "POST", session: "", form: { confirmation: "delete" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["try-delete-without-household", "/api/try/delete", { method: "POST", session: "" }, 403],
@@ -793,6 +795,8 @@ await step("page", "sent-invoice-shows-its-link-field", async () => {
     seen++;
     expect(/<input[^>]*class="invoice-link"[^>]*value="[^"]*\/pay\/[^"]+"/.test(html) || /<input[^>]*value="[^"]*\/pay\/[^"]+"[^>]*class="invoice-link"/.test(html), "sent-invoice-link-field");
     expect(html.includes("Copy link for"), "sent-invoice-copy-button");
+    // Try it lets the judge play the client. The button is only looked for: pressing it pays through PayPal.
+    expect(html.includes("Pay as the client (sandbox test card)") && html.includes("/api/try/pay-as-client"), "sent-invoice-try-it-pay-as-client");
   }
   expect(seen > 0, "sent-invoice-seen");
 });
