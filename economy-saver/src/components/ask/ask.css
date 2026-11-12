@@ -105,7 +105,7 @@
 .ask-key-card summary { min-height: 44px; display: inline-flex; align-items: center; padding-inline: var(--space-2); font-weight: 600; font-size: 14px; cursor: pointer; }
 .ask-key-card ul { margin: 0; padding-inline-start: var(--space-4); }
 .ask-key-card li a { display: inline-flex; align-items: center; min-height: 32px; }
-.ask-try { margin: 0; font: 600 13px/1.4 var(--sans); color: var(--muted); }
+.ask-greeting { margin: 0; }
 .ask-page:is(.is-panel, .is-full) .ask-examples .ui-button { min-height: 44px; padding: 10px 14px; border-radius: 10px; font-size: 14px; line-height: 1.4; justify-content: flex-start; }
 .ask-page:is(.is-panel, .is-full) .ask-examples .ui-button:disabled { opacity: 0.5; }
 .ask-composer { flex: none; display: grid; gap: var(--space-2); box-sizing: border-box; background: var(--screen); }

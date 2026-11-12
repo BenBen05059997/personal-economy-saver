@@ -16,7 +16,9 @@ import type { AskView } from "@/db/ask-view";
 import type { TurnView } from "@/lib/agent/view";
 import type { TurnSource } from "@/lib/schema/turn";
 
-const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays two weeks late?", "Where did last month go?"];
+const GREETING = "Hi. What can I help you with?";
+/** Starter questions, each answerable at once without an ask-back (D60). */
+const EXAMPLES = ["Am I OK until the end of the month?", "How much can I safely spend now?", "Where did last month go?", "What's coming up in the next two weeks?"];
 const eyeProps = { width: 12, height: 12, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
 
 const SETTINGS_WORDS = "Settings → Your AI model";
@@ -27,7 +29,7 @@ function withSettingsLink(words: string): ReactNode {
   return <>{words.slice(0, at)}<Link href="/settings/ai-model">{SETTINGS_WORDS}</Link>{words.slice(at + SETTINGS_WORDS.length)}</>;
 }
 
-/** The scrolling middle of Ask: the examples while empty, the turns with their cards, then the answer’s canvas drawn in the thread. */
+/** The scrolling middle of Ask: the greeting and starter questions while empty, the turns with their cards, then the answer’s canvas drawn in the thread. */
 export function AskThread({
   panel, screen, legacyId, space, spaceHref, householdId, clock, form, onDeviceMemory, turns, cards, readOnly, canWrite, incognito, busy, step, deviceReady,
   unavailable, noModel, problem, speechProblem, canvas, canvasRef, scrollRef,
@@ -68,8 +70,8 @@ export function AskThread({
       </>}
     </div>}
     {!readOnly && deviceReady && turns.length === 0 && <div className="ask-empty">
-      <p className="ask-try">Try asking</p>
-      <ul className="ask-examples">{EXAMPLES.map(example => <li key={example}><button type="button" className="ui-button" disabled={busy || unavailable !== null} onClick={() => onAsk(example)}>{example}</button></li>)}</ul>
+      <p className="ask-reply ask-greeting">{GREETING}</p>
+      <ul className="ask-examples">{EXAMPLES.map(example => <li key={example}><button type="button" className="ui-button primary" disabled={busy || unavailable !== null} onClick={() => onAsk(example)}>{example}</button></li>)}</ul>
     </div>}
     <ol className="ask-turns" aria-live="polite">
       {turns.map(turn => <li key={turn.id} className="ask-turn">

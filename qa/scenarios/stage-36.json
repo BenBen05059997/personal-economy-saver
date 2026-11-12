@@ -1204,7 +1204,7 @@
     ],
     "expected": [
       "The header reads \"Ask\", a \"General ▾\" chooser, an expand icon (Open full) and a ✕ (Close Ask), and its bottom line lines up with the top bar's",
-      "A \"Looking at Home\" pill with an eye, then \"Try asking\" with \"Am I OK until the end of the month?\", \"What if a client pays two weeks late?\" and \"Where did last month go?\"",
+      "A \"Looking at Home\" pill with an eye, then the greeting \"Hi. What can I help you with?\" with four starter buttons: \"Am I OK until the end of the month?\", \"How much can I safely spend now?\", \"Where did last month go?\" and \"What's coming up in the next two weeks?\"",
       "The starters show only while the thread is empty"
     ],
     "refs": [

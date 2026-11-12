@@ -157,7 +157,7 @@
     ],
     "expected": [
       "Heading \"Ask\" and the hint \"Ask in your own words about your money. Every number comes from your records.\"",
-      "Three example buttons: \"Am I OK until the end of the month?\", \"What if a client pays two weeks late?\", \"Where did last month go?\"",
+      "The greeting \"Hi. What can I help you with?\" and four accent starter buttons: \"Am I OK until the end of the month?\", \"How much can I safely spend now?\", \"Where did last month go?\", \"What's coming up in the next two weeks?\"",
       "The composer is at the bottom of the one centred column: the label \"Ask a question\", one box with the placeholder \"What’s due this week? Can I spend ¥4,000?\", \"Use microphone\" and \"Ask\", then Incognito and Attach a bill",
       "Four starter canvases in the Space sheet with \"This month\" selected"
     ],
@@ -2047,7 +2047,7 @@
     ],
     "steps": [
       "Open full Ask at /canvas and switch through all four starters. Show the recipe on each to see its outlines.",
-      "Open the Ask panel from Home and read its header, the Looking at chip, Try asking and the composer"
+      "Open the Ask panel from Home and read its header, the Looking at chip, the greeting with its starter buttons and the composer"
     ],
     "expected": [
       "Text, bars, the chart and dotted recipe outlines are readable and do not overlap on the full page; the panel's header, chip, starters and composer are readable",

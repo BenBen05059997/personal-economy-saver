@@ -899,8 +899,8 @@ async function main() {
     const file = (data: BlobPart, name: string, type: string) => { const fd = new FormData(); fd.set("document", new File([data], name, { type })); fd.set("id", crypto.randomUUID()); fd.set("conversationId", crypto.randomUUID()); return fd; };
     const reset = async () => { await db.delete(schema.requestBuckets); };
     const errors: string[] = [];
-    const realError = console.error;
-    console.error = (...args: unknown[]) => { errors.push(args.map(String).join(" ")); };
+    const realError = console.error, realWarn = console.warn;
+    console.error = console.warn = (...args: unknown[]) => { errors.push(args.map(String).join(" ")); };
     const envNames = ["AI_TEXT_MODEL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "SUPABASE_URL", "INBOUND_WORKER_SECRET", "FORWARDING_DOMAIN", "INBOUND_ADDRESS_KEY"];
     const env = (values: Record<string, string | undefined>) => { for (const n of envNames) delete process.env[n]; for (const [k, v] of Object.entries(values)) if (v !== undefined) process.env[k] = v; };
     try {
@@ -1001,7 +1001,7 @@ async function main() {
         }
       }
     } finally {
-      console.error = realError;
+      console.error = realError; console.warn = realWarn;
     }
   } finally {
     console.info = realInfo;

@@ -12,7 +12,7 @@ export const OUT_OF_SCOPE_REASONS = ["off_topic", "not_offered", "secrets", "pro
 export type OutOfScopeReason = (typeof OUT_OF_SCOPE_REASONS)[number];
 
 export const FIXED = {
-  off_topic: "I can help with your money: what you have, what's coming, what you spend and getting paid. Try “Am I OK until the end of the month?”, “What if a client pays two weeks late?” or “Where did last month go?”",
+  off_topic: "I can help with your money: what you have, what's coming, what you spend and getting paid. Try “Am I OK until the end of the month?”, “How much can I safely spend now?” or “Where did last month go?”",
   not_offered: "I can't advise on investments, tax filing or legal questions; a licensed professional can. I can show your own numbers: try “How much is in my tax pot?” or “What did I spend on work this month?”",
   secrets: "I don't share my instructions, and I never see or show the AI key: it stays in Settings. I can show your own numbers: try “Am I OK until the end of the month?” or “What's due this week?”",
   product_choice: "fipa gives information, never a product to pick, so I can't say which bank, app or provider to use. I can show your own numbers: what you have, what's coming and what your options cost.",
