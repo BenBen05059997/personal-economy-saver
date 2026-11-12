@@ -27,7 +27,7 @@ import { AiKeyError } from "@/db/ai-key";
 import { InputError } from "@/db/input-error";
 import { AgentError } from "@/lib/agent/run";
 import { MissingAuthSetting } from "@/lib/supabase-auth";
-import { askUnavailable, missingAskSetting, NEEDS_KEY, serverDefaultHost } from "@/lib/agent/availability";
+import { askUnavailable, missingAskSetting, NEEDS_KEY, serverDefaultHost, serverModelFacts } from "@/lib/agent/availability";
 import { extractDocument, extractSchema } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { FORM_FETCH_HEADER, FORM_REDIRECT_HEADER } from "@/lib/form-fetch";
@@ -476,7 +476,8 @@ async function main() {
         const names = body.tools.map(tool => tool.name);
         assert.ok(names.includes("where_am_i") && names.includes("search_history"));
         for (const forbidden of ["update_brief", "remember", "forget", "log_charge", "draft_invoice", "open_space", "offer_keep"]) assert.ok(!names.includes(forbidden));
-        assert.ok(body.system.includes("Fictional existing brief") && body.system.includes("Fictional existing profile"));
+        const system = JSON.stringify(body.system);
+        assert.ok(system.includes("Fictional existing brief") && system.includes("Fictional existing profile"));
         assert.ok(JSON.stringify(body.messages).includes("Older fictional question"));
         return modelReply("tool_use", [
           call("where_am_i", {}), call("remember", { kind: "fact", text: "Incognito note" }),
@@ -488,7 +489,10 @@ async function main() {
       return modelReply("end_turn", [{ type: "text", text: "I checked the forecast." }]);
     });
     const privateQuestion = question({ conversationId: general.id, spaceId: general.id, text: "Remember that after checking.", incognito: true });
-    const privateReply = (await streamed(await ask(json("/api/ask", privateQuestion)))).last.reply!;
+    const privateStream = await streamed(await ask(json("/api/ask", privateQuestion)));
+    const privateReply = privateStream.last.reply!;
+    assert.equal((privateStream.last as { left?: number | null }).left, 29, "the line after the reply says how many questions fipa's model still allows today, outside the reply itself");
+    assert.ok(!("left" in privateReply), "the count is not part of the stored reply");
     assert.equal(privateReply.incognito, true);
     assert.equal(privateReply.text, "I checked the forecast.");
     assert.deepEqual(privateReply.memoryChanges, []);
@@ -507,6 +511,12 @@ async function main() {
     assert.equal(privateCalls(), 2, "retry made no further model call");
     assert.equal((await ask(json("/api/ask", { ...privateQuestion, incognito: false }))).status, 400);
     ok("Incognito reads the existing context, refuses even forced writes, and stores only the retry key");
+
+    await db.update(schema.households).set({ aiProtocol: "openai", aiBaseUrl: "https://models.example/v1", aiProvider: "custom", aiTextModel: "own", aiDocumentModel: "own" }).where(eq(schema.households.id, privateHid));
+    const ownLine = (await streamed(await ask(json("/api/ask", { ...privateQuestion, id: crypto.randomUUID() })))).last as { left?: number | null };
+    assert.equal(ownLine.left, null, "a household on its own key is never told a count");
+    await db.update(schema.households).set({ aiProtocol: null, aiBaseUrl: null, aiProvider: null, aiTextModel: null, aiDocumentModel: null }).where(eq(schema.households.id, privateHid));
+    ok("/api/ask: the remaining question count follows the reply for fipa's model and is null on an own key");
 
     for (const fail of ["model", "amount"]) {
       const input = { ...privateQuestion, id: crypto.randomUUID() };
@@ -539,7 +549,7 @@ async function main() {
     cookie = localHid;
     scripted((index, body) => {
       if (index === 0) {
-        assert.ok(body.system.includes("Fictional local brief"));
+        assert.ok(JSON.stringify(body.system).includes("Fictional local brief"));
         return modelReply("tool_use", [call("where_am_i", {})]);
       }
       return modelReply("end_turn", [{ type: "text", text: "Your forecast is here." }]);
@@ -615,13 +625,13 @@ async function main() {
     asking = async (...args: unknown[]) => { const deps = args[3] as Deps; deps.onStep!("Thinking about your question"); await new Promise(resolve => setTimeout(resolve, 5)); deps.onStep!("Reading what's due"); return replyObject; };
     const ok1 = await streamed(await ask(json("/api/ask", question())));
     assert.deepEqual(ok1.steps, ["Thinking about your question", "Reading what's due"]);
-    assert.deepEqual(ok1.last, { reply: replyObject }, "the last line is exactly the reply object");
+    assert.deepEqual(ok1.last, { reply: replyObject, left: 29 }, "the last line is the reply object and the questions still allowed today");
     asking = async (...args: unknown[]) => { (args[3] as Deps).onStep!("Thinking about your question"); throw new AgentError("That took too long. Try a simpler question."); };
     const bad = await streamed(await ask(json("/api/ask", question())));
-    assert.deepEqual([bad.steps, bad.last], [["Thinking about your question"], { error: "That took too long. Try a simpler question." }]);
+    assert.deepEqual([bad.steps, bad.last], [["Thinking about your question"], { error: "That took too long. Try a simpler question.", left: 28 }]);
     asking = async (...args: unknown[]) => { (args[3] as Deps).onStep!("Thinking about your question"); throw new InputError("Reload the page and ask again."); };
     const late = await streamed(await ask(json("/api/ask", question())));
-    assert.deepEqual(late.last, { error: "Reload the page and ask again." }, "an InputError after the stream started is an error line");
+    assert.deepEqual(late.last, { error: "Reload the page and ask again.", left: 27 }, "an InputError after the stream started is an error line");
     asking = async () => replyObject; // a reply with no model call (a kept turn) is still a stream
     assert.deepEqual((await streamed(await ask(json("/api/ask", question())))).steps, []);
     // a client that leaves mid-answer: later steps and the reply must not throw into the run, which still finishes
@@ -856,6 +866,13 @@ async function main() {
     set({ ...full, AI_BASE_URL: "not a url" }); assert.equal(serverDefaultHost(), null);
     set({ ...full, AI_BASE_URL: undefined }); assert.equal(serverDefaultHost(), null);
     set({ ...full, AI_PROTOCOL: "other" }); assert.equal(serverDefaultHost(), null);
+    set({ ...full, AI_PROTOCOL: "anthropic", AI_TEXT_MODEL: "claude-sonnet-5-5" });
+    assert.deepEqual(serverModelFacts(), { model: "Claude Sonnet 5.5", provider: "Anthropic", host: "api.anthropic.com" });
+    set({ ...full, AI_PROTOCOL: "anthropic", AI_TEXT_MODEL: "claude-haiku-4-5-20251001" }); assert.equal(serverModelFacts()?.model, "Claude Haiku 4.5");
+    set({ ...full, AI_PROTOCOL: "anthropic", AI_TEXT_MODEL: "claude-opus-5" }); assert.equal(serverModelFacts()?.model, "Claude Opus 5");
+    set(full); assert.deepEqual(serverModelFacts(), { model: "m", provider: "models.example", host: "models.example" });
+    set({ ...full, AI_BASE_URL: "https://api.openai.com/v1", AI_TEXT_MODEL: "gpt-x" }); assert.equal(serverModelFacts()?.provider, "OpenAI");
+    set({}); assert.equal(serverModelFacts(), null);
     ok("missingAskSetting: every branch and the order (own connection, model, protocol, openai address, key, daily limit; blanks count as unset); askUnavailable and serverDefaultHost");
 
     const { UploadLines } = await import("@/components/reader/UploadForm");

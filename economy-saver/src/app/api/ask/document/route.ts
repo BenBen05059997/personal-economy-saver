@@ -4,6 +4,7 @@ import { db } from "@/db/client";
 import { InputError } from "@/db/input-error";
 import { withHousehold } from "@/db/household";
 import { attachDocument, documentCard } from "@/db/document-card";
+import { documentsLeft } from "@/db/ai-cap";
 import { requireDocumentBudget, requireReaderModel } from "@/db/reader-job";
 import { readDocumentInBackground } from "@/db/reader-background";
 import { BAD_FIELDS, NO_STORE, text } from "@/lib/door";
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
     await requireDocumentBudget(db(), hid, mime, bytes);
     const { turn, card, documentId } = await attachDocument(db(), hid, { id: parsed.data.id, conversationId: parsed.data.conversationId, spaceId: parsed.data.spaceId, text: parsed.data.text || null, mime, bytes });
     after(() => readDocumentInBackground(hid, documentId));
-    return Response.json({ turn, card }, { headers: NO_STORE });
+    return Response.json({ turn, card, left: await documentsLeft(db(), hid) }, { headers: NO_STORE });
   } catch (error) {
     if (error instanceof InputError) return text(error.message, 400);
     return text(error instanceof ReaderError ? error.message : "Upload failed.", error instanceof ReaderError ? error.status : 500);

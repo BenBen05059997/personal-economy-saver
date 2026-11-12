@@ -55,24 +55,38 @@ const text = (value: string): Block => ({ type: "text", text: value });
 const toolUse = (id: string, name: string, input: unknown): Block => ({ type: "tool_use", id, name, input });
 const reply = (stop_reason: string, content: Block[]) => Response.json({
   id: "msg_fixture", type: "message", role: "assistant", model: "fixture-text", content, stop_reason, stop_sequence: null,
-  usage: { input_tokens: 1, output_tokens: 1 },
+  usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 3, cache_creation_input_tokens: 4 },
 });
 
 /** A scripted transport: each request gets the next response; every request body is recorded. */
+/** Bodies as the tests read them: the system blocks joined, the cache marks gone. `wires` keeps the body exactly as sent. */
+function plain(wire: any): Body { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const body = structuredClone(wire);
+  if (Array.isArray(body.system)) body.system = body.system.map((block: { text: string }) => block.text).join("\n\n");
+  for (const tool of body.tools ?? []) delete tool.cache_control;
+  for (const message of body.messages) if (Array.isArray(message.content)) {
+    for (const block of message.content) delete block.cache_control;
+    if (message.content.length === 1 && message.content[0].type === "text" && message.role === "user") message.content = message.content[0].text;
+  }
+  return body;
+}
 function transport(script: ((bodies: Body[]) => Response)[] | ((bodies: Body[]) => Response)) {
   const bodies: Body[] = [];
+  const wires: any[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
   const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const request = new Request(input, init);
     assert.equal(new URL(request.url).host, "api.anthropic.com");
     assert.equal(new URL(request.url).pathname, "/v1/messages");
     assert.equal(request.headers.get("x-api-key"), KEY);
     assert.equal(request.redirect, "manual");
-    bodies.push(await request.json());
+    const wire = await request.json();
+    wires.push(structuredClone(wire));
+    bodies.push(plain(wire));
     const next = Array.isArray(script) ? script[bodies.length - 1] : script;
     assert.ok(next, "unexpected extra model call");
     return next(bodies);
   }) as typeof globalThis.fetch;
-  return { fetch, bodies };
+  return { fetch, bodies, wires };
 }
 type Body = { model: string; max_tokens: number; system: string; tool_choice: unknown; output_config: unknown; thinking?: unknown;
   temperature?: unknown; tools: { name: string; strict: boolean; input_schema: Record<string, unknown> }[];
@@ -216,8 +230,8 @@ async function main() {
         assert.deepEqual([...schemaOut.required].sort(), Object.keys(schemaOut.properties).sort());
         assert.ok(!JSON.stringify(schemaOut).includes('"nullable"'));
       }
-      const spend = toolInputSchema(tools.find(t => t.name === "can_i_spend")!) as { properties: { card_id: { anyOf: { type: string }[] } } };
-      assert.ok(spend.properties.card_id.anyOf.some(v => v.type === "null"));
+      const spend = toolInputSchema(tools.find(t => t.name === "can_i_spend")!) as { properties: { card_id: { type: string[] } } };
+      assert.deepEqual(spend.properties.card_id.type, ["string", "null"], "nullable, not optional");
       const addBill = toolInputSchema(tools.find(t => t.name === "add_bill")!) as { properties: { repeat: unknown; next_amount: unknown; next_amount_from: unknown; cancel_by: unknown; repeat_until: unknown }; required: string[] };
       assert.ok(["repeat", "next_amount", "next_amount_from", "cancel_by", "repeat_until"].every(key => key in addBill.properties && addBill.required.includes(key)), "the D48 fields are required properties (nullable) of add_bill");
       assert.ok(!("monthly" in addBill.properties));
@@ -753,7 +767,7 @@ async function main() {
       await ask(a, "Hi", fetch);
       const system = bodies[0].system;
       assert.ok(system.includes(aState.today) && system.includes("JPY"));
-      assert.match(system, /matches more than one[^.]*or none, ask which one/);
+      assert.match(system, /about to be saved and one detail is missing or matches several[^.]*ask which one/);
       assert.match(system, /household_snapshot is background context/);
       assert.match(system, /usualDaysToPay, slowestDaysToPay/);
       assert.match(system, /add_bills or log_charges/);
@@ -849,6 +863,27 @@ async function main() {
       assert.ok(ev.length >= 4 && ev.every(e => e.madeBy === "ask" && e.askId === askId));
     });
 
+    await check("Ask asks Anthropic to cache the tools, the stable system block and the turns so far; two households send the same prefix", async () => {
+      const script = () => [() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Fine.")])];
+      const ra = transport(script()), rb = transport(script());
+      await ask(a, "Where am I?", ra.fetch);
+      await ask(b, "Where am I?", rb.fetch);
+      for (const run of [ra, rb]) for (const wire of run.wires) {
+        const marks = JSON.stringify(wire).match(/"cache_control":\{[^}]*\}/g)!;
+        assert.ok(marks.length === 3 && marks.every(m => m === '"cache_control":{"type":"ephemeral","ttl":"1h"}'), "three marks, one hour each, under the limit of four");
+        assert.deepEqual(wire.tools.slice(0, -1).filter((t: { cache_control?: unknown }) => t.cache_control), []);
+        assert.ok(wire.tools.at(-1).cache_control);
+        assert.equal(wire.system.length, 2);
+        assert.ok(wire.system[0].cache_control && !wire.system[1].cache_control);
+        const last = wire.messages.at(-1).content;
+        assert.ok(last.at(-1).cache_control && last.slice(0, -1).every((c: { cache_control?: unknown }) => !c.cache_control));
+      }
+      assert.equal(JSON.stringify(ra.wires[0].tools), JSON.stringify(rb.wires[0].tools));
+      assert.equal(JSON.stringify(ra.wires[0].tools), JSON.stringify(ra.wires[1].tools));
+      assert.equal(ra.wires[0].system[0].text, rb.wires[0].system[0].text);
+      assert.ok(!ra.wires[0].system[0].text.includes(aState.today) && ra.wires[0].system[1].text.includes(aState.today), "what varies is after the cached block");
+    });
+
     await check("one content-free log line per Ask, at every exit: its shape, and neither the question, the tool result, the answer nor the key is in it", async () => {
       const question = "Distinctive question zq81 about my fictional dentist";
       const answer = "Distinctive answer wx47 for you";
@@ -861,9 +896,9 @@ async function main() {
       await ask(a, question, run.fetch, { askId, source: "manual" });
       assert.equal(logged.length, 1);
       const [line] = logged;
-      assert.deepEqual(Object.keys(line).sort(), ["askId", "at", "canvas", "householdId", "inputTokens", "kind", "ms", "outcome", "outputTokens", "own", "protocol", "source", "stop", "tools", "turns"]);
+      assert.deepEqual(Object.keys(line).sort(), ["askId", "at", "cacheReadTokens", "cacheWriteTokens", "canvas", "householdId", "inputTokens", "kind", "ms", "outcome", "outputTokens", "own", "protocol", "source", "stop", "tools", "turns"]);
       assert.deepEqual([line.kind, line.canvas], ["answer", false]);
-      assert.deepEqual([line.at, line.householdId, line.askId, line.source, line.stop, line.turns, line.outcome, line.inputTokens, line.outputTokens, line.protocol, line.own], ["ask", a, askId, "manual", "end", 2, "answer", 2, 2, "anthropic", false]);
+      assert.deepEqual([line.at, line.householdId, line.askId, line.source, line.stop, line.turns, line.outcome, line.inputTokens, line.outputTokens, line.protocol, line.own, line.cacheReadTokens, line.cacheWriteTokens], ["ask", a, askId, "manual", "end", 2, "answer", 2, 2, "anthropic", false, 6, 8]);
       const lineTools = line.tools as { name: string; ok: boolean; ms: number }[];
       assert.deepEqual(lineTools.map(t => [t.name, t.ok]), [["where_am_i", true], ["can_i_spend", false]]);
       assert.ok(lineTools.every(t => Number.isInteger(t.ms)) && Number.isInteger(line.ms));

@@ -56,9 +56,9 @@ const chat = (finish_reason: string, msg: Record<string, unknown>, usage: unknow
   id: "c1", object: "chat.completion", created: 1, model: "m-text", choices: [{ index: 0, finish_reason, message: { role: "assistant", ...msg } }], usage });
 
 async function main() {
-  await check("the model tool catalogue stays below 25,000 characters and preserves bulk item fields", () => {
+  await check("the model tool catalogue stays below 20,000 characters and preserves bulk item fields", () => {
     const specs = tools.map(tool => ({ name: tool.name, description: tool.description, schema: toolInputSchema(tool) }));
-    assert.ok(JSON.stringify(specs).length < 25_000);
+    assert.ok(JSON.stringify(specs).length <= 20_000);
     for (const [single, bulk] of [["add_bill", "add_bills"], ["log_charge", "log_charges"]]) {
       const item = specs.find(spec => spec.name === single)!.schema;
       const { items } = specs.find(spec => spec.name === bulk)!.schema.properties as {
@@ -371,7 +371,7 @@ async function main() {
     assert.deepEqual(body.tool_choice, { type: "auto" });
     assert.deepEqual(body.output_config, { effort: "low" });
     assert.deepEqual(reply, { text: "Checking.", calls: [{ id: "tu_1", name: "look", input: { what: "rent" } }], stop: "tools",
-      raw: [{ type: "text", text: "Checking." }, { type: "tool_use", id: "tu_1", name: "look", input: { what: "rent" } }], inputTokens: 11, outputTokens: 22 });
+      raw: [{ type: "text", text: "Checking." }, { type: "tool_use", id: "tu_1", name: "look", input: { what: "rent" } }], inputTokens: 11, outputTokens: 22, cacheReadTokens: 0, cacheWriteTokens: 0 });
 
     const forced = fake(() => message("end_turn", [{ type: "tool_use", id: "tu_2", name: "look", input: {} }]));
     await callModel({ ...REQUEST, connection: anthropic, fetch: forced.fetch, tools: TOOLS, forceTool: "look" });
@@ -386,6 +386,33 @@ async function main() {
     const answer = await callModel({ ...REQUEST, connection: anthropic, fetch: plain.fetch });
     assert.equal(plain.seen[0].body.tools, undefined);
     assert.deepEqual([answer.text, answer.stop, answer.calls], ["A\nB", "end", []]);
+  });
+
+  await check("anthropic: with a stable system part the body marks the last tool, the stable block and the last message for one hour; the usage's cache counts come back", async () => {
+    const t = fake(() => message("end_turn", [{ type: "text", text: "x" }], { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 30, cache_creation_input_tokens: 40 } as never));
+    const reply = await callModel({ ...REQUEST, connection: anthropic, fetch: t.fetch, system: "STABLE\n\nVARYING", systemStable: "STABLE",
+      tools: [...TOOLS, { ...TOOLS[0], name: "look2" }], forceTool: "look2" });
+    const mark = { type: "ephemeral", ttl: "1h" };
+    const { body } = t.seen[0];
+    assert.deepEqual(body.system, [{ type: "text", text: "STABLE", cache_control: mark }, { type: "text", text: "VARYING\n\nAnswer only by calling the look2 tool once." }]);
+    assert.equal(body.tools[0].cache_control, undefined);
+    assert.deepEqual(body.tools[1].cache_control, mark);
+    assert.deepEqual(body.messages[0].content, [{ type: "text", text: "hello", cache_control: mark }]);
+    assert.equal(JSON.stringify(body).split("cache_control").length - 1, 3, "three marks, under the limit of four");
+    assert.deepEqual([reply.cacheReadTokens, reply.cacheWriteTokens], [30, 40]);
+    const bare = fake(() => message("end_turn", [{ type: "text", text: "x" }]));
+    await callModel({ ...REQUEST, connection: anthropic, fetch: bare.fetch, systemStable: "SYS", tools: TOOLS });
+    assert.deepEqual(bare.seen[0].body.system, [{ type: "text", text: "SYS", cache_control: mark }, { type: "text", text: "TEM" }]);
+    const oneShot = fake(() => message("end_turn", [{ type: "text", text: "x" }]));
+    await callModel({ ...REQUEST, connection: anthropic, fetch: oneShot.fetch, tools: TOOLS });
+    assert.equal(JSON.stringify(oneShot.seen[0].body).includes("cache_control"), false, "a one-shot call is not cached");
+  });
+
+  await check("openai: the body carries no cache_control even with a stable system part", async () => {
+    const t = fake(() => chat("stop", { content: "x" }));
+    await callModel({ ...REQUEST, connection: openai, fetch: t.fetch, system: "STABLE\n\nVARYING", systemStable: "STABLE", tools: TOOLS });
+    assert.equal(JSON.stringify(t.seen[0].body).includes("cache_control"), false);
+    assert.deepEqual(t.seen[0].body.messages[0], { role: "system", content: "STABLE\n\nVARYING" });
   });
 
   await check("anthropic: every stop reason maps; a missing key stops before any request", async () => {
@@ -675,7 +702,7 @@ async function main() {
   });
 
   await check("Settings and Ask name the default model and where a household can choose another", () => {
-    assert.equal(MODEL_HINT, "Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.");
+    assert.equal(MODEL_HINT, "Questions go to fipa’s model, and you can choose another in Settings → Your AI model.");
     assert.equal(firstUse("models.example", false), `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to models.example. ${MODEL_HINT}`);
     assert.equal(firstUse("models.example", true), `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to models.example. ${OWN_MODEL_HINT}`);
   });

@@ -290,7 +290,7 @@ async function main() {
         ];
         const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
           const body = await new Request(input, init).json() as { system: string };
-          systems.push(body.system);
+          systems.push(Array.isArray(body.system) ? body.system.map((block: { text: string }) => block.text).join("\n\n") : body.system);
           return answers[systems.length - 1].clone();
         }) as typeof globalThis.fetch;
         const result = await runAgent({ db, householdId: h, question: "How is my trip goal?", askId: randomUUID(), appUrl: new URL("http://127.0.0.1:3123"), connection: () => aiConnection(db, h, "text"), fetch });

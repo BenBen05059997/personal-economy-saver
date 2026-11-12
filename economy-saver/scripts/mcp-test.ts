@@ -62,7 +62,7 @@ async function main() {
     stage = "instructions";
     const instructions = client.getInstructions();
     assert.equal(instructions, MODEL_RULES);
-    assert.match(instructions!, /matches more than one[^.]*or none, ask which one/);
+    assert.match(instructions!, /about to be saved and one detail is missing or matches several[^.]*ask which one/);
     assert.ok(!/\btoday\b|JPY/i.test(instructions!), "the server cannot know the date or currency");
     stage = "list tools";
     const list = await client.listTools();

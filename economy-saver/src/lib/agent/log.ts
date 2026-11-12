@@ -22,6 +22,9 @@ type CallLog = {
   ms: number;
   inputTokens?: number;
   outputTokens?: number;
+  /** Tokens the provider read from, and wrote to, its prompt cache; summed over the turns. */
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   protocol?: string;
   own?: boolean;
 };

@@ -126,7 +126,7 @@ const covered = [
   // people.ts, pots.ts
   "memberCount", "memberByName", "addMember", "savePeople", "removeMember", "savePot", "confirmPot", "removePot", "fillPots",
   // rate-limit.ts, reader-inbox.ts, reader-job.ts, readings.ts, reference-rate.ts
-  "consumeRequest", "consumeCanvasRequest", "spendAiBudget", "questionsLeft", "requireDocumentBudget", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "storeReferenceRate",
+  "consumeRequest", "consumeCanvasRequest", "spendAiBudget", "questionsLeft", "documentsLeft", "requireDocumentBudget", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "storeReferenceRate",
   // runway-events.ts, settings.ts, settle.ts, snapshot.ts, statement-charge.ts, workspace.ts
   "lockRunway", "beginMoneyChange", "observeRunway", "loadSettings", "loadAddView", "updateSettings", "removeCard", "settleUp", "loadHouseholdSnapshot",
   "syncClosedStatementCharge", "unsyncClosedStatementCharge", "loadNavigationData", "loadWorkspaceData", "viewerRole",
@@ -1096,6 +1096,8 @@ async function main() {
         for (let n = 0; n < aiCap.DAILY_DOCUMENTS; n++) await F.requireDocumentBudget(store, W, "application/pdf", pdfOf(n));
         await assert.rejects(F.requireDocumentBudget(store, W, "application/pdf", pdfOf(99)), { status: 429 }, "the 11th document today is refused");
         await untouched("requireDocumentBudget");
+        assert.equal(await F.documentsLeft(store, W), 0);
+        assert.ok([null, aiCap.DAILY_DOCUMENTS].includes(await F.documentsLeft(store, Y.hid)), `${Y.name}'s documents are untouched by a household that used up its own`);
         await own("storeReferenceRate", () => F.storeReferenceRate(store, X.hid, { date: "2026-11-13", rateMicro: 148_000_000 }));
         await own("fillPots", async () => assert.equal(await db.transaction(tx => F.fillPots(tx as unknown as Db, X.hid, 100_000, "Isolation probe")), 1, "only the caller's one pot with a fill rule"));
         await own("lockRunway", () => F.lockRunway(store, X.hid));

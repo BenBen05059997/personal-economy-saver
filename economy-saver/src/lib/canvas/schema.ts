@@ -16,21 +16,21 @@ export const CASE_KIND = { usual: "expected", as_usual: "expected", late: "worst
 
 const day = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "A date is YYYY-MM-DD")
   .refine(isCalendarDay, "That day is not on the calendar")
-  .describe("A calendar day, YYYY-MM-DD, within the app's two-year horizon.");
+  .describe("YYYY-MM-DD.");
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "A month is YYYY-MM").describe("A calendar month, YYYY-MM, within the last twelve months or this one.");
 const id = z.string().min(1).max(80);
 const mark = id.optional().describe("Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window.");
 const minorAmount = z.number().int("An amount is a whole number of minor units").positive("An amount is more than zero").max(100_000_000, "That amount is too large")
-  .describe("Positive integer minor units of the home currency: whole yen, or cents for USD.");
+  .describe("Positive minor units.");
 
 // ---------------------------------------------------------------- what-if changes
 
 export const ChangeSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("client_late"), clientId: id, days: z.number().int().min(0).max(MAX_SLIDER_DAYS).describe("Days later than the client's own pace that all their invoices land.") }).strict(),
-  z.object({ kind: z.literal("remove_bill"), billId: id.describe("A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`.") }).strict(),
+  z.object({ kind: z.literal("client_late"), clientId: id, days: z.number().int().min(0).max(MAX_SLIDER_DAYS).describe("Days later than the client's pace.") }).strict(),
+  z.object({ kind: z.literal("remove_bill"), billId: id.describe("Bill id, or `<id>@<date>` for one occurrence.") }).strict(),
   z.object({ kind: z.literal("change_bill"), billId: id, amountMinor: minorAmount }).strict(),
   z.object({ kind: z.literal("add_cost"), name: z.string().min(1).max(80), amountMinor: minorAmount, date: day }).strict(),
-  z.object({ kind: z.literal("add_income"), name: z.string().min(1).max(80), amountMinor: minorAmount, date: day.describe("The day the money lands, tomorrow or later.") }).strict(),
+  z.object({ kind: z.literal("add_income"), name: z.string().min(1).max(80), amountMinor: minorAmount, date: day.describe("Tomorrow or later.") }).strict(),
 ]);
 export type Change = z.infer<typeof ChangeSchema>;
 

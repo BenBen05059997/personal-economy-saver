@@ -240,7 +240,7 @@ if (args[0] === "--guards") {
         const plain = text(body);
         for (const word of ["Supabase", "Tokyo", "seven days"]) expect(plain.includes(word), "privacy-" + word);
         // The host line streams in after a fallback; the full streamed HTML holds its final text.
-        expect(plain.includes("This server has no AI model set up.") || /By default, questions and documents go to [a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?\./.test(plain), "privacy-ai-host-line");
+        expect(plain.includes("This app has no AI model of its own; you add yours in Settings.") || /By default, questions and documents go to [a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?\./.test(plain), "privacy-ai-host-line");
       }
       if (location) expect(response.headers.get("location") === location, "guard-redirect");
     });
@@ -905,7 +905,8 @@ await step("page", "household-details", () => page("/household", /Household name
 await step("page", "settings-account-offers-start-over-with-my-numbers", () => page("/settings/account", /Start over with my numbers/));
 await step("page", "settings-ai-model-says-where-to-choose", async () => {
   const html = await page("/settings/ai-model", /Your AI model/);
-  expect(pageContent(html).includes("Every household starts on the server’s default model, and you can choose another in Settings → Your AI model."), "settings-model-hint");
+  const words = pageContent(html);
+  expect(words.includes("fipa’s model answers your questions:") && words.includes("Add your own key below to use your own model, with no daily limit.") || words.includes("Paste your own key below"), "settings-model-hint");
 });
 await step("action", "export-my-data", async () => {
   const result = await request("/api/export", { method: "POST" });

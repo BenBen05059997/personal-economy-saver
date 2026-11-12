@@ -28,3 +28,6 @@ prof*/
 # QA evidence: screenshots and screen recordings
 qa/evidence/
 .claude/worktrees/
+
+# QA live Ask check results (written by npm run qa:ask-live)
+qa/results-ask.json

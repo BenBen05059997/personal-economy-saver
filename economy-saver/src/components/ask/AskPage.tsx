@@ -57,7 +57,7 @@ const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 /** Ask’s thread, composer and canvas for both the full page and the docked panel (D60). */
 export function AskPage({
   householdId, places, clock, space, spaces, earlier, legacyId, pinId, pins, turns: initialTurns, starters, shown, pin,
-  firstUse, unavailable, form, cloudBrief, cloudMemory, memoryMoment, variant = "full", screen = "canvas", focusRequest = 0, chooseSpace, onPanelChange, handoff, onHandoffHandled, onClose,
+  firstUse, questionsLeft, documentsLeft, unavailable, form, cloudBrief, cloudMemory, memoryMoment, variant = "full", screen = "canvas", focusRequest = 0, chooseSpace, onPanelChange, handoff, onHandoffHandled, onClose,
 }: AskView & {
   variant?: "full" | "panel"; screen?: AskScreen; focusRequest?: number; chooseSpace?: (id: string) => void; onPanelChange?: () => void;
   handoff?: { id: string; question: string } | null; onHandoffHandled?: (id: string) => void; onClose?: () => void;
@@ -107,6 +107,8 @@ export function AskPage({
   const [step, setStep] = useState("");
   const [problem, setProblem] = useState(unavailable ?? "");
   const [intro, setIntro] = useState(firstUse);
+  const [questions, setQuestions] = useState(questionsLeft);
+  const [documents, setDocuments] = useState(documentsLeft);
   const [devicePin, setDevicePin] = useState<Pin | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [cards, setCards] = useState<Record<string, Card>>({});
@@ -233,8 +235,9 @@ export function AskPage({
       const body = new FormData();
       body.set("document", file); body.set("id", attached.current.id); body.set("conversationId", conversationId); body.set("spaceId", space.id); body.set("text", note);
       const response = await fetch("/api/ask/document", { method: "POST", body });
-      if (!response.ok) return response.status === 401 ? SESSION_ENDED : (await response.text()) || "Upload failed.";
-      const { turn, card } = await response.json() as { turn: ConversationTurn; card: Card };
+      if (!response.ok) { if (response.status === 429) setDocuments(0); return response.status === 401 ? SESSION_ENDED : (await response.text()) || "Upload failed."; }
+      const { turn, card, left } = await response.json() as { turn: ConversationTurn; card: Card; left: number | null };
+      setDocuments(left);
       attached.current = null;
       onPanelChange?.();
       setCards(current => ({ ...current, [card.documentId]: card }));
@@ -298,9 +301,10 @@ export function AskPage({
           ...(tail && { recent: tail.turns, earlierCount: tail.omitted, deviceBrief: storedBrief?.brief ?? {}, history }),
         }) });
       // A 503 carries a fixed message written for this box, such as a missing key.
-      if (!response.ok) { setProblem(response.status === 401 ? SESSION_ENDED : response.status === 503 || response.status === 400 || response.status === 429 ? await response.text() : "Couldn’t check your household. Try again."); return; }
+      if (!response.ok) { if (response.status === 429) setQuestions(0); setProblem(response.status === 401 ? SESSION_ENDED : response.status === 503 || response.status === 400 || response.status === 429 ? await response.text() : "Couldn’t check your household. Try again."); return; }
       const last = await readAskStream(response, setStep);
       if (!last) { setProblem("Couldn’t check your household. Try again."); return; }
+      setQuestions(last.left);
       // An error line reads like the 503 it replaced; the same question keeps its id for a retry.
       if ("error" in last) { setProblem(last.error); return; }
       const reply = last.reply;
@@ -480,7 +484,7 @@ export function AskPage({
         onRemoveTurn={removeFromThread} onRemoveLocalTurn={id => void removeLocalTurn(id)} removeOnDevice={onDevice.journal}
         onKept={() => { notesChanged(); onPanelChange?.(); }} sourceDisplay={sourceDisplay} onNoteLink={panel ? undefined : openNote} />
       {!readOnly && <AskComposer panel={panel} field={field} text={text} busy={busy} deviceReady={deviceReady} listening={listening} unavailable={unavailable}
-        incognito={incognito} intro={intro} onText={value => { setText(value); setSource("manual"); requestId.current = ""; }} onSubmit={submit}
+        incognito={incognito} intro={intro} questionsLeft={questions} documentsLeft={documents} onText={value => { setText(value); setSource("manual"); requestId.current = ""; }} onSubmit={submit}
         onMic={listening ? speech.stop : speak} onIncognito={switchIncognito} onAttach={attach} />}
     </section>
     {!panel && <SpaceDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} space={space} spaceHref={spaceHref} legacyId={legacyId} canWrite={canWrite}

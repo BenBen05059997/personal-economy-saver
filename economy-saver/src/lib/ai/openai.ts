@@ -43,6 +43,6 @@ export async function callOpenAI(request: ModelRequest): Promise<Reply> {
     text: typeof message.content === "string" ? message.content : "",
     calls, stop: stopOf(choice.finish_reason, calls.length > 0, typeof message.content === "string" && message.content.trim() !== ""),
     raw: calls.length ? { ...message, tool_calls: rawCalls.map((call, i) => ({ ...call, id: calls[i].id })) } : message,
-    inputTokens: wire.usage?.prompt_tokens ?? 0, outputTokens: wire.usage?.completion_tokens ?? 0,
+    inputTokens: wire.usage?.prompt_tokens ?? 0, outputTokens: wire.usage?.completion_tokens ?? 0, cacheReadTokens: 0, cacheWriteTokens: 0,
   };
 }

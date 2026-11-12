@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Privacy" };
 async function DefaultHost() {
   await connection();
   const host = serverDefaultHost();
-  return <>{host ? `By default, questions and documents go to ${host}.` : "This server has no AI model set up."}</>;
+  return <>{host ? `By default, questions and documents go to ${host}.` : "This app has no AI model of its own; you add yours in Settings."}</>;
 }
 
 const mb = (bytes: number) => Math.round(bytes / (1024 * 1024));
@@ -27,7 +27,7 @@ export default function PrivacyPage() {
     <ul>
       <li><strong>Supabase</strong> stores the database and files, and sends the sign-in link for your email address.</li>
       <li><strong>Cloudflare</strong> hosts the app and receives bills you forward by email.</li>
-      <li><strong>The AI model provider.</strong> <Suspense fallback="Reading this server’s AI settings…"><DefaultHost /></Suspense> The host gets your question and the household figures the assistant looks up when you use Ask, and the document or email the reader reads, only when you use those features. If you choose your own model in Settings, they go to the host Settings shows there instead, on your account with that provider.</li>
+      <li><strong>The AI model provider.</strong> <Suspense fallback="Checking which AI model is used…"><DefaultHost /></Suspense> The host gets your question and the household figures the assistant looks up when you use Ask, and the document or email the reader reads, only when you use those features. If you choose your own model in Settings, they go to the host Settings shows there instead, on your account with that provider.</li>
       <li><strong>Your browser’s speech service.</strong> When you tap a microphone, your browser turns what you say into text. Chrome sends the audio to Google to do this; Safari can do it on your device. The app never receives audio, only the words, handled like typed text: a question goes to Ask; words for a form go to the AI model provider above, with that form’s field names and choices (such as your card and client names), to fill its fields. Nothing is saved until you tap the form’s button.</li>
       <li><strong>PayPal</strong> (sandbox) gets the amount, currency and item of each payment link when your client taps Pay. If you connect your own PayPal, fipa also reads its balance and the payments it received.</li>
     </ul>

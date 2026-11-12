@@ -15,7 +15,10 @@ export type Turn = { role: "user"; parts: Part[] } | { role: "assistant"; raw: u
 export type ToolSpec = { name: string; description: string; schema: object };
 
 export type ModelRequest = {
-  connection: Connection; model: string; system: string; turns: Turn[]; tools?: ToolSpec[]; forceTool?: string;
+  connection: Connection; model: string;
+  /** The full system text. `systemStable` is its leading part that is the same on every call; a call that sets it is one of several turns over the same prefix, and Anthropic is told to cache the tools, that part and the turns so far. */
+  system: string; systemStable?: string;
+   turns: Turn[]; tools?: ToolSpec[]; forceTool?: string;
   maxTokens: number; timeoutMs: number; fetch?: typeof globalThis.fetch;
   /** The app's own address, for the localhost rule; defaults to the APP_URL setting. Tests inject it. */
   appUrl?: URL;
@@ -25,6 +28,8 @@ export type Reply = {
   text: string; calls: { id: string; name: string; input: unknown }[];
   stop: "end" | "tools" | "length" | "refusal" | "pause" | "other";
   raw: unknown; inputTokens: number; outputTokens: number;
+  /** Prompt-cache tokens the provider reported (0 where it reports none). */
+  cacheReadTokens: number; cacheWriteTokens: number;
 };
 
 /** Messages are fixed and free of secrets, URLs and model output; `status` is the HTTP status when the provider answered. */

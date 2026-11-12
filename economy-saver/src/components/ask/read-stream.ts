@@ -1,15 +1,15 @@
 import type { AskReply } from "@/db/ask";
 
 /** What /api/ask streams after its checks: step lines, then one `{ reply }` or `{ error }` line (newline-delimited JSON). */
-export type AskLine = { step: string } | { reply: AskReply } | { error: string };
+export type AskLine = { step: string } | { reply: AskReply; left: number | null } | { error: string; left: number | null };
 
 /** Reads the stream line by line; `onStep` hears each step's words. Returns the final line, or null when the stream ended without one. */
-export async function readAskStream(response: Response, onStep: (step: string) => void): Promise<{ reply: AskReply } | { error: string } | null> {
+export async function readAskStream(response: Response, onStep: (step: string) => void): Promise<{ reply: AskReply; left: number | null } | { error: string; left: number | null } | null> {
   const reader = response.body?.getReader();
   if (!reader) return null;
   const decoder = new TextDecoder();
   let buffer = "";
-  let last: { reply: AskReply } | { error: string } | null = null;
+  let last: { reply: AskReply; left: number | null } | { error: string; left: number | null } | null = null;
   const take = (line: string) => {
     if (!line.trim()) return;
     const parsed = JSON.parse(line) as AskLine;

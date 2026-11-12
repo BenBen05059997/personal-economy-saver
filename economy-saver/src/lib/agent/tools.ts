@@ -112,23 +112,23 @@ function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
 const none = z.object({});
 // D45: the agent names people, not ids. `shared` and `paidBy` replace the form's member ids.
 const categoryField = CategoryKeySchema.nullable().default(null)
-  .describe("Null lets the app guess from the name.");
+  .describe("Null: guessed from the name.");
 // D75: the person's own categories are named, never given by id, and the agent never makes one.
 const ownCategoryField = z.string().trim().min(1).max(80).nullable().default(null)
-  .describe("Name of one of the household's own categories under the category the item gets, from own_categories. Null lets the app file it like the last item with this name. Never invent one.");
+  .describe("An own_categories name, never invented. Null follows the last item with this name.");
 const businessField = BusinessBp.nullable().default(null)
-  .describe("Business share in basis points. Null is personal.");
+  .describe("Basis points; null is personal.");
 // D54's "amount varies" is set by the user on the form or in Settings, not by the agent; an agent's one-off still links on confirm.
 const addBillInput = billInput.omit({ ownCategoryId: true, ownCategoryNew: true, paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, repeatUntil: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true, periodStart: true, periodEnd: true }).extend({
-  amount: z.string().trim().nullable().describe("Home-currency number as text. Null if unknown."),
-  due: z.string().date().nullable().describe("Null if unknown. Repeating bills and cancel_by need a date."),
-  repeat: RepeatUnitSchema.nullable().default(null).describe("Uses the due day. Null for a one-off."),
-  next_amount: z.string().trim().nullable().default(null).describe("New home-currency amount for a repeating bill."),
-  next_amount_from: z.string().date().nullable().default(null).describe("First day of next_amount, after due."),
-  cancel_by: z.string().date().nullable().default(null).describe("Cancel-by date before the next charge."),
-  repeat_until: z.string().date().nullable().default(null).describe("Last charge date of a repeating bill, on or after due."),
-  period_start: z.string().date().nullable().default(null).describe("Start of the known service period. Use both period dates on one-offs only."),
-  period_end: z.string().date().nullable().default(null).describe("End of the known service period, on or after period_start."),
+  amount: z.string().trim().nullable().describe("Text number; null if unknown."),
+  due: z.string().date().nullable().describe("Null if unknown. Repeats and cancel_by need one."),
+  repeat: RepeatUnitSchema.nullable().default(null).describe("Null for a one-off."),
+  next_amount: z.string().trim().nullable().default(null).describe("New amount."),
+  next_amount_from: z.string().date().nullable().default(null).describe("After due."),
+  cancel_by: z.string().date().nullable().default(null).describe("Before the next charge."),
+  repeat_until: z.string().date().nullable().default(null).describe("Last charge, on or after due."),
+  period_start: z.string().date().nullable().default(null).describe("Service period start; with period_end, one-offs only."),
+  period_end: z.string().date().nullable().default(null).describe("On or after period_start."),
   category: categoryField,
   own_category: ownCategoryField,
   business_bp: businessField,
@@ -137,7 +137,7 @@ const addBillInput = billInput.omit({ ownCategoryId: true, ownCategoryNew: true,
 });
 const logChargeInput = chargeInput.omit({ ownCategoryId: true, ownCategoryNew: true, category: true, businessBp: true, originalAmount: true, originalCurrency: true }).extend({
   category: categoryField, own_category: ownCategoryField, business_bp: businessField,
-  original_amount: z.string().trim().nullable().default(null).describe("Number paid in original_currency. amount stays the billed amount."),
+  original_amount: z.string().trim().nullable().default(null).describe("Paid in original_currency; amount stays billed."),
   original_currency: Currency.nullable().default(null).describe("Must differ from the card currency."),
 });
 
@@ -240,17 +240,17 @@ const insertPreparedCharge = (ctx: ToolContext) => (db: Db, p: Awaited<ReturnTyp
 export const tools: Tool[] = [
   defineTool({
     name: "where_am_i", scope: "read", input: none,
-    description: "The household's 30-day outlook in one sentence: whether it is fine if clients pay as usual, and how short it is if they pay late. Also the safe-to-spend figure Home shows: use it for “how much can I spend (this week, this month, now)?” and say what it covers.",
+    description: "The 30-day outlook in one sentence (fine if clients pay as usual, how short if late), plus Home’s safe-to-spend figure and what it covers.",
     run: async ctx => { const state = await ctx.state(); return `${statusAnswer(state)} ${safeToSpendLine(state)}`; },
   }),
   defineTool({
     name: "whats_due", scope: "read", input: none,
-    description: "Use for “what’s due?” or “what is due next?” Returns the next confirmed bill or statement, amount, date and coverage.",
+    description: "For “what’s due?” or “what is due next?”: the next confirmed bill or statement, amount, date and coverage.",
     run: async ctx => dueAnswer(await ctx.state()),
   }),
   defineTool({
     name: "open_gaps", scope: "read", input: none,
-    description: "Bills and readings missing a date or amount, urgent first. Quote the gap words and question. Estimates count when available and unknown dates count today. The person fills gaps in To check.",
+    description: "Bills and readings missing a date or amount, urgent first. Quote the gap words and question. Unknown dates count today.",
     run: async ctx => {
       const [state, inbox] = await Promise.all([ctx.state(), readerInbox(ctx.db, ctx.householdId)]);
       const gaps = openGaps(state, inbox.readings.map(({ id, value }) => ({ id, value })));
@@ -264,7 +264,7 @@ export const tools: Tool[] = [
   defineTool({
     name: "can_i_spend", scope: "read",
     input: z.object({ amount_minor: z.number().int().positive().safe(), card_id: z.string().uuid().nullish() }),
-    description: "Check a purchase in home-currency minor units. Use a card ID from list_clients_and_cards or null for all cards.",
+    description: "Check a purchase in minor units. Card ID from list_clients_and_cards, or null for all cards.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       if (input.card_id && !state.cards.some(card => card.id === input.card_id)) throw new Error("Unknown card");
@@ -273,7 +273,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "list_clients_and_cards", scope: "read", input: none,
-    description: "Household client and card IDs and names, with each client’s usual and slowest days to pay. Mention pace when relevant.",
+    description: "Client and card IDs and names, with each client’s usual and slowest days to pay.",
     run: async ctx => {
       const state = await ctx.state();
       const pace = (c: (typeof state.clients)[number]) => { const p = clientPace(c); return { usualDaysToPay: p?.usual ?? null, slowestDaysToPay: p?.slowest ?? null }; };
@@ -282,8 +282,8 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "timeline", scope: "read",
-    input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("A day within 30 days, or null.") }),
-    description: "Cash flow for one specified day or the next 30 days, with running balances and the lowest point. Use whats_due for “what is due” questions without a date. Signed home-currency minor units. as_usual uses each client’s usual pay day and late uses their slowest day. Set on for one day in the next 30 days (end-of-day balance), or null for all 30. fipa looks 30 days ahead only: a later day gets the 30-day figures and a note; never give a balance for it.",
+    input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("One day (end-of-day balance) or null for all 30.") }),
+    description: "Cash flow for one day or the next 30 days: running balances and the lowest point, signed minor units. Use whats_due for “what is due” without a date. as_usual = usual pay day, late = slowest. fipa looks 30 days ahead only: a later day gets the 30-day figures and a note; never give a balance for it.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const kind = CASE_KIND[input.scenario];
@@ -327,7 +327,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "list_invoices", scope: "read", input: none,
-    description: "Invoice counts by status (quote them; never count the list) and the 50 latest invoices with status, USD cents, dates and each client’s usual and slowest days to pay.",
+    description: "Invoice counts by status (quote them; never count the list) and the 50 latest invoices: status, USD cents, dates, each client’s usual and slowest days to pay.",
     run: async ctx => {
       const hid = requireHousehold(ctx.householdId);
       const state = await ctx.state();
@@ -353,12 +353,12 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "household_snapshot", scope: "read", input: z.object({}).strict(),
-    description: `Version 4 household record for context and IDs. Up to ${SNAPSHOT_TOOL_WINDOW} most recent rows per long list. Check truncated. Pending rows do not count. Use engine tools for answers.`,
+    description: `Household record for context and IDs: the ${SNAPSHOT_TOOL_WINDOW} latest rows per long list. Check truncated. Pending rows do not count.`,
     run: async ctx => JSON.stringify(await loadHouseholdSnapshot(ctx.db, ctx.householdId, { events: false, recent: SNAPSHOT_TOOL_WINDOW })),
   }),
   defineTool({
     name: "goals", scope: "read", input: none,
-    description: "Dated pots and savings pace, gaps and needed monthly saving. Quote summary. The goals query draws a progress canvas.",
+    description: "Dated pots, savings pace, gaps and needed monthly saving. Quote summary. The goals query draws a progress canvas.",
     run: async ctx => {
       const state = await ctx.state();
       const goals = goalPaces(state);
@@ -373,7 +373,7 @@ export const tools: Tool[] = [
       monthly_minor: z.number().int().positive().safe().nullish(),
       pot_id: z.string().uuid().nullish(),
     }),
-    description: "Work out a savings target’s monthly pace, completion date and 30-day room. Amounts are home-currency minor units. A pot_id uses the existing pot’s savings and supplies omitted target details. Quote summary. Use add_pot for a draft.",
+    description: "A savings target’s monthly pace, completion date and 30-day room. A pot_id uses that pot’s savings and fills omitted target details. Quote summary.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const pot = input.pot_id ? state.pots.find(p => p.id === input.pot_id) : undefined;
@@ -398,7 +398,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "who_owes_whom", scope: "read", input: none,
-    description: "Shared bills and card charges since the last settlement, what each person paid and owes, and the fewest payments to settle. Quote summary.",
+    description: "Shared costs since the last settlement: what each person paid and owes, and the fewest payments to settle. Quote summary.",
     run: async ctx => {
       const state = await ctx.state();
       const balance = splitBalance(state.split, state.today);
@@ -416,9 +416,9 @@ export const tools: Tool[] = [
     name: "month_by_category", scope: "read",
     input: z.object({
       month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").nullable().default(null)
-        .describe(`YYYY-MM, one of the last ${HISTORY_MONTHS} months including the current one; null = the current month.`),
+        .describe(`YYYY-MM within the last ${HISTORY_MONTHS} months; null = this month.`),
     }),
-    description: "Confirmed bills and card charges by category and business share for one calendar month. Defaults to this month. Quote the tool’s words.",
+    description: "Confirmed bills and charges by category and business share for one month (default this one). Quote the tool’s words.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       const month = input.month ?? today.slice(0, 7);
@@ -430,7 +430,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "own_categories", scope: "read", input: none,
-    description: "The household's own categories under the fourteen, grouped by category, each with its default business share if set and how many bills and charges are filed under it. The only names add_bill and log_charge accept as own_category. Quote the tool's words.",
+    description: "The household's own categories under the fourteen, with default business share and use counts: the only own_category names add_bill and log_charge accept.",
     run: async ctx => {
       const groups = await listOwnCategoriesGrouped(ctx.db, ctx.householdId);
       if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Spending → Your categories.";
@@ -441,10 +441,10 @@ export const tools: Tool[] = [
   defineTool({
     name: "search_spending", scope: "read",
     input: z.object({
-      query: z.string().max(SEARCH_QUERY_MAX).default("").describe("All words must match. Empty lists everything."),
-      months: z.number().int().min(1).max(HISTORY_MONTHS).nullable().default(null).describe(`How many calendar months to look back, 1 to ${HISTORY_MONTHS}, the current month included; null = 3.`),
+      query: z.string().max(SEARCH_QUERY_MAX).default("").describe("All words must match; empty lists all."),
+      months: z.number().int().min(1).max(HISTORY_MONTHS).nullable().default(null).describe(`Months back, 1 to ${HISTORY_MONTHS}, this one included; null = 3.`),
     }),
-    description: "Search bills and card charges by name or category, newest month first. Unknown amounts due later this month are listed but never summed. Home-currency minor units. Quote summary.",
+    description: "Search bills and charges by name or category, newest month first. Unknown amounts due later this month are listed, never summed. Quote summary.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       const from = `${monthsBack(today.slice(0, 7), input.months ?? 3)}-01`;
@@ -458,9 +458,9 @@ export const tools: Tool[] = [
     name: "bills_for_month", scope: "read",
     input: z.object({
       month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").describe("Service month, YYYY-MM."),
-      text: z.string().max(SEARCH_QUERY_MAX).default("").describe("Matches name or category. Empty lists all."),
+      text: z.string().max(SEARCH_QUERY_MAX).default("").describe("Name or category; empty lists all."),
     }),
-    description: "Find bills whose service period overlaps the month, including waiting items. Returns biller, amount, due date, period, status and totals in each currency. For when money was paid or due, or a bill without a period, use month_by_category or search_spending. Quote summary.",
+    description: "Bills whose service period overlaps the month, waiting items included, totals per currency. For when money was paid or due, or a bill without a period, use month_by_category or search_spending. Quote summary.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       if (input.month > latestDate(today).slice(0, 7)) throw new InputError(`month must be no later than ${latestDate(today).slice(0, 7)}, two years from today`);
@@ -469,15 +469,15 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "suggestions", scope: "read", input: none,
-    description: "Open Home findings, most urgent first. Quote title and reason and name the space when spaceName is present.",
+    description: "Open Home findings, most urgent first. Quote title and reason; name the space when spaceName is present.",
     run: async ctx => JSON.stringify(await openSuggestions(ctx.db, ctx.householdId)),
   }),
   defineTool({
     name: "regular_costs", scope: "read",
     input: z.object({
-      months: z.number().int().min(2).max(6).nullable().default(null).describe(`How many calendar months to compare, 2 to 6, the current month included; null = ${REGULAR_MONTHS}.`),
+      months: z.number().int().min(2).max(6).nullable().default(null).describe(`Months, 2 to 6, this one included; null = ${REGULAR_MONTHS}.`),
     }),
-    description: "Recurring bills and card charges by month, with changes and usual dates. This month includes confirmed bills still due and charges through today. Quote summary.",
+    description: "Recurring bills and charges by month, with changes and usual dates. Quote summary.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       const months = input.months ?? REGULAR_MONTHS;
@@ -489,7 +489,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "foreign_costs", scope: "read", input: none,
-    description: "Past 12 months’ PayPal fees and conversion markup by client, and foreign card costs by card. Quote the words and use returned guidance without naming other providers or forecasting exchange rates. The foreign_costs query draws a canvas.",
+    description: "Past 12 months’ PayPal fees and markup by client, and foreign card costs by card. Quote the words; never name other providers or forecast rates.",
     run: async ctx => {
       const costs = await foreignCosts(ctx.db, ctx.householdId);
       const nothing = costs.chargeTotals.count === 0 && costs.payoutTotals.count === 0;
@@ -514,7 +514,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "draft_invoice", scope: "draft", input: draftInput,
-    description: "Draft a USD invoice for review. amount is dollars. Get client_id from list_clients_and_cards. Use a new UUID and reuse it on retry.",
+    description: "Draft a USD invoice for review. amount is dollars. client_id from list_clients_and_cards. New UUID, reused on retry.",
     run: async (ctx, input) => {
       const id = await saveInvoiceDraft(ctx.db, ctx.householdId, input, by(ctx));
       const href = new URL("/invoices/" + id, ctx.appUrl).href;
@@ -524,7 +524,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bill", scope: "draft", input: addBillInput,
-    description: "Draft a bill for To check. Use a new UUID and reuse it on retry. A shared bill needs two people, paidBy by display name, and memberId null. Otherwise leave shared and paidBy null. Only confirmed bills count.",
+    description: "Draft a bill for To check. New UUID, reused on retry. Shared: memberId null and paidBy by display name; else shared and paidBy null.",
     run: async (ctx, input) => {
       const { biller, note } = await draftOne(ctx, input, prepareBill, insertPreparedBill(ctx));
       return `${biller} is waiting in To check for the user to confirm. ${note}`;
@@ -532,7 +532,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bills", scope: "draft", input: z.object({ items: z.array(addBillInput).min(1).max(10) }),
-    description: "Draft 1–10 bills atomically. Each item follows add_bill, including retry IDs. An error names the zero-based item.",
+    description: "1–10 bills atomically, each as add_bill. An error names the item.",
     run: async (ctx, input) => {
       const prepared = await draftMany(ctx, input.items, prepareBill, insertPreparedBill(ctx));
       return `${prepared.length} bills are waiting in To check for the user to confirm: ${prepared.map(p => `${p.biller} (${p.note})`).join(" ")}`;
@@ -540,7 +540,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "log_charge", scope: "draft", input: logChargeInput,
-    description: "Draft a card purchase for To check. amount is in the household’s home currency. date defaults to today. Get cardId from list_clients_and_cards. Shared requires two people and a member’s card. Ask for the billed amount if only the foreign amount is known. Reuse the UUID on retry.",
+    description: "Draft a card purchase for To check. amount is billed, in home currency. cardId from list_clients_and_cards. Shared needs a member’s card. New UUID, reused on retry.",
     run: async (ctx, input) => {
       const { merchant, note } = await draftOne(ctx, input, prepareCharge, insertPreparedCharge(ctx));
       return `${merchant} is waiting in To check for the user to confirm. ${note}`;
@@ -548,7 +548,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "log_charges", scope: "draft", input: z.object({ items: z.array(logChargeInput).min(1).max(10) }),
-    description: "Draft 1–10 card purchases atomically. Each item follows log_charge, including retry IDs. An error names the zero-based item.",
+    description: "1–10 card purchases atomically, each as log_charge. An error names the item.",
     run: async (ctx, input) => {
       const prepared = await draftMany(ctx, input.items, prepareCharge, insertPreparedCharge(ctx));
       return `${prepared.length} charges are waiting in To check for the user to confirm: ${prepared.map(p => `${p.merchant} (${p.note})`).join(" ")}`;
@@ -556,7 +556,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_pot", scope: "draft", input: potInput.pick({ id: true, name: true, target: true, targetDate: true, fillPct: true }),
-    description: "Draft a savings pot for To check. target is in home currency. targetDate and fillPct (% of each client payment) are optional. Use a new UUID and reuse it on retry.",
+    description: "Draft a savings pot for To check. target in home currency; fillPct is % of each client payment. New UUID, reused on retry.",
     run: async (ctx, input) => {
       await savePot(ctx.db, ctx.householdId, { ...input, saved: "0", memberId: null }, "pending", by(ctx));
       ctx.onPending?.();
@@ -565,7 +565,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "update_bank_balance", scope: "draft", input: bankBalanceInput,
-    description: "Draft the stated bank balance for To check. amount is in home currency and may be negative. Use a new UUID and reuse it on retry.",
+    description: "Draft a bank balance for To check. amount is home currency, may be negative. New UUID, reused on retry.",
     run: async (ctx, input) => {
       await setBankBalance(ctx.db, ctx.householdId, input, "pending", by(ctx));
       ctx.onPending?.();
@@ -588,7 +588,41 @@ export const tools: Tool[] = [
 export function toolInputSchema(tool: Tool): Record<string, unknown> {
   const raw = zodToJsonSchema(tool.input, { $refStrategy: "none" }) as Record<string, unknown>;
   delete raw.$schema;
-  return strictJsonSchema(strictShape(raw, tool.name !== "add_bills" && tool.name !== "log_charges"));
+  const compact = compactSchema(strictJsonSchema(strictShape(raw, tool.name !== "add_bills" && tool.name !== "log_charges")));
+  // The model gets "no extra properties" once, at the top; the Zod schema still decides what a call may hold.
+  return { ...stripNested(compact), additionalProperties: false };
+}
+
+function stripNested<T>(node: T): T {
+  if (Array.isArray(node)) return node.map(stripNested) as T;
+  if (node === null || typeof node !== "object") return node;
+  return Object.fromEntries(Object.entries(node).filter(([k]) => k !== "additionalProperties").map(([k, v]) => [k, stripNested(v)])) as T;
+}
+
+// anyOf [{type: X}, {type: "null"}] says the same as type [X, "null"] in a third of the characters; the catalogue is sent on every model turn.
+function compactSchema<T>(node: T): T {
+  if (Array.isArray(node)) return node.map(compactSchema) as T;
+  if (node !== null && typeof node === "object" && (node as Record<string, unknown>).format === "uuid") {
+    const { format, ...rest } = node as Record<string, unknown>; void format; // the ids a tool takes come from tools; a new one is asked for in words
+    return compactSchema(rest) as T;
+  }
+  if (node === null || typeof node !== "object") return node;
+  const schema = Object.fromEntries(Object.entries(node).map(([k, v]) => [k, compactSchema(v)])) as Record<string, unknown>;
+  // The SDK's transform spells an enum or a constant as prose in the description; the keyword says it in fewer characters.
+  const spelled = typeof schema.description === "string" ? /^\{(enum|const): (.*)\}$/.exec(schema.description) : null;
+  if (spelled && schema.type === "string") {
+    const { description, ...rest } = schema; void description;
+    return { ...rest, [spelled[1]]: JSON.parse(spelled[2]) } as T;
+  }
+  const variants = schema.anyOf;
+  if (Array.isArray(variants) && variants.length === 2) {
+    const [value, empty] = variants as Record<string, unknown>[];
+    if (typeof value.type === "string" && value.const === undefined && JSON.stringify(empty) === '{"type":"null"}') {
+      const { anyOf, ...rest } = schema; void anyOf;
+      return { ...rest, ...value, type: [value.type, "null"], ...(Array.isArray(value.enum) && { enum: [...value.enum, null] }) } as T;
+    }
+  }
+  return schema as T;
 }
 
 // type: ["string", "null"] becomes anyOf, and every object lists all of its properties as required.

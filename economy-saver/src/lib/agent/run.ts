@@ -58,13 +58,15 @@ const MAX_TOKENS = 16_000;
 
 const definitions: ToolSpec[] = tools.map(tool => ({ name: tool.name, description: tool.description, schema: toolInputSchema(tool) }));
 
+/** The stable part is the same for every household and day, so a provider can cache it; what varies comes after it. */
 function systemPrompt(today: string, currency: string, memory: string) {
-  return `You are the money assistant inside Personal Economy Saver, for one household. Today is ${today} and the household's home currency is ${currency}.
+  const stable = `You are the money assistant inside Personal Economy Saver, for one household.
 
 ${MODEL_RULES.split("\n")[0]}
 Answer in one or two plain sentences, in the language of the person's latest message.
 ${MODEL_RULES.split("\n").slice(1).join("\n")}
-${ASK_RULES}${memory ? `\n\n${memory}` : ""}`;
+${ASK_RULES}`;
+  return { stable, full: `${stable}\n\nToday is ${today} and the household's home currency is ${currency}.${memory ? `\n\n${memory}` : ""}` };
 }
 
 const fail = {
@@ -85,7 +87,7 @@ function apiFailure(error: unknown): AgentError {
 }
 
 /** What the one log line is built from; filled in as the Ask runs. */
-type Trace = { kind?: string; canvas?: boolean; briefDropped?: BriefDropReason; stop: string; turns: number; tools: ToolLog[]; inputTokens: number; outputTokens: number; protocol?: string; own?: boolean };
+type Trace = { kind?: string; canvas?: boolean; briefDropped?: BriefDropReason; stop: string; turns: number; tools: ToolLog[]; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; protocol?: string; own?: boolean };
 
 type AskOptions = {
   db: Db; householdId: string; question: string; askId: string; appUrl: URL; source?: "voice" | "manual";
@@ -111,7 +113,7 @@ export type AskResult = {
 export async function runAgent(opts: AskOptions): Promise<AskResult> {
   const now = opts.now ?? Date.now;
   const started = now();
-  const trace: Trace = { stop: "none", turns: 0, tools: [], inputTokens: 0, outputTokens: 0 };
+  const trace: Trace = { stop: "none", turns: 0, tools: [], inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
   let outcome = "error";
   try {
     const result = await converse(opts, trace);
@@ -129,6 +131,7 @@ export async function runAgent(opts: AskOptions): Promise<AskResult> {
       ...(trace.briefDropped && { briefDropped: trace.briefDropped }),
       stop: trace.stop, turns: trace.turns, tools: trace.tools, outcome, ms: now() - started,
       inputTokens: trace.inputTokens, outputTokens: trace.outputTokens,
+      cacheReadTokens: trace.cacheReadTokens, cacheWriteTokens: trace.cacheWriteTokens,
       ...(trace.protocol && { protocol: trace.protocol, own: trace.own }),
     });
   }
@@ -213,7 +216,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       let reply;
       try {
         reply = await callModel({
-          connection, model: connection.textModel, system, turns, tools: availableTools, maxTokens: MAX_TOKENS,
+          connection, model: connection.textModel, system: system.full, systemStable: system.stable, turns, tools: availableTools, maxTokens: MAX_TOKENS,
           timeoutMs: remaining, fetch: opts.fetch, appUrl: opts.appUrl,
         });
       } catch (error) { trace.stop = "api_error"; throw apiFailure(error); }
@@ -221,6 +224,8 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       trace.turns++;
       trace.inputTokens += reply.inputTokens;
       trace.outputTokens += reply.outputTokens;
+      trace.cacheReadTokens += reply.cacheReadTokens;
+      trace.cacheWriteTokens += reply.cacheWriteTokens;
 
       if (reply.stop === "end") {
         const answer = reply.text.replace(/[ \t]*\[\[memory:([0-9a-f-]+)\]\]/gi, (_, id: string) => {

@@ -21,7 +21,7 @@ export const FIXED = {
   alreadySaved: "This question already saved what you told me. Open To check to see it.",
 } as const;
 
-export const MODEL_HINT = "Every household starts on the server’s default model, and you can choose another in Settings → Your AI model.";
+export const MODEL_HINT = "Questions go to fipa’s model, and you can choose another in Settings → Your AI model.";
 /** The same line on a server with no model of its own, where the household's key is the only one. */
 export const OWN_MODEL_HINT = "Ask runs on your household’s own AI key, set in Settings → Your AI model.";
 

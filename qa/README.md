@@ -20,6 +20,19 @@ One scenario is one user action with one expected outcome, so a failure points t
 - `npm run cf:preview` (port 8787) runs the Worker locally. It cannot reach the dev model bridge (the Worker refuses private addresses), so model scenarios are `skipped` there.
 - The Codex bridge is not a judge. A bridge timeout or a wrong Ask answer is not an app bug: record it `skipped` with "bridge" in `actual`, and judge Ask only on a real provider key.
 
+## Live Ask check
+
+`qa/ask-live/cases.json` holds 40 questions for Ask, grouped into conversations over three Try it households. `economy-saver/scripts/ask-live-check.mjs` runs them against a running app on its real model and grades what a script can: the kind of reply (answer, clarifying question, decline), required and forbidden words and amounts, key-like text, canvas block types, Japanese, and whether a write waits in To check. A case is PASS, FAIL, or REVIEW when its machine checks hold but a person must judge the wording; the `review` line says what to judge. The latest run is `results-ask.json` (git-ignored, not read by `qa-report.mjs`). Browser-only behaviour (panel, canvas drawing, pinning, thumbs, links) stays in the scenarios above.
+
+It calls the real model, so a run costs the owner about $1-2 and runs only with the owner's OK, never inside `db:test` or `qa:check`. Run it before the submission and after any change to Ask's rules, tools or model, on a fresh app (each run starts new Try it households, and a household has a daily question allowance).
+
+```
+cd economy-saver
+npm run qa:ask-live -- http://127.0.0.1:3123 --confirm-cost
+```
+
+The base URL is required, and without `--confirm-cost` it refuses. Read every REVIEW and FAIL in `results-ask.json`; a FAIL is either an app fault or an expectation in `cases.json` that is wrong, so fix whichever it is.
+
 ## Expected numbers on a fresh Try it household
 
 The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.

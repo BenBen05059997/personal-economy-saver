@@ -29,7 +29,7 @@ const forget = z.object({ id: z.string().uuid().describe("The id of the remember
 export const memoryTools: Tool[] = [
   {
     name: "remember",
-    description: "Keep what the person explicitly asks you to remember. Say what you kept.",
+    description: "Keep what the person explicitly asks you to remember.",
     input: remember, scope: "draft",
     run: async (ctx: ToolContext, input: z.infer<typeof remember>) => {
       if (ctx.canRemember === false) throw new InputError("Use Keep this? unless the person asks to remember it.");
@@ -49,7 +49,7 @@ export const memoryTools: Tool[] = [
   },
   {
     name: "forget",
-    description: "Forget one remembered item when the person asks you to, by its id.",
+    description: "Forget one remembered item by id.",
     input: forget, scope: "draft",
     run: async (ctx: ToolContext, input: z.infer<typeof forget>) => {
       room(ctx);

@@ -1,5 +1,6 @@
 "use client";
 
+import { AllowanceHint } from "@/components/ui/AllowanceHint";
 import type { FormEvent, KeyboardEvent, RefObject } from "react";
 
 const iconProps = { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
@@ -7,11 +8,11 @@ const PLACEHOLDER = "What’s due this week? Can I spend ¥4,000?";
 
 /** The box pinned at the bottom of Ask: question, microphone, Ask, then Incognito and Attach a bill. */
 export function AskComposer({
-  panel, field, text, busy, deviceReady, listening, unavailable, incognito, intro,
+  panel, field, text, busy, deviceReady, listening, unavailable, incognito, intro, questionsLeft, documentsLeft,
   onText, onSubmit, onMic, onIncognito, onAttach,
 }: {
   panel: boolean; field: RefObject<HTMLTextAreaElement | null>; text: string; busy: boolean; deviceReady: boolean; listening: boolean;
-  unavailable: string | null; incognito: boolean; intro: string | null;
+  unavailable: string | null; incognito: boolean; intro: string | null; questionsLeft: number | null; documentsLeft: number | null;
   onText: (text: string) => void; onSubmit: (event: FormEvent<HTMLFormElement>) => void; onMic: () => void;
   onIncognito: (enabled: boolean) => void; onAttach: (files: File[]) => Promise<void>;
 }) {
@@ -43,6 +44,8 @@ export function AskComposer({
           onChange={event => { const input = event.currentTarget; void onAttach(Array.from(input.files ?? [])).finally(() => { input.value = ""; }); }} />
       </label>}
     </div>
+    <AllowanceHint kind="questions" left={questionsLeft} className="ask-intro" />
+    {!incognito && <AllowanceHint kind="documents" left={documentsLeft} className="ask-intro" />}
     {incognito && <p className="ui-hint ask-intro">This question and reply won’t be saved.</p>}
     {intro && <details className="ask-model-line"><summary><span>{intro}</span><em>More</em></summary><p>{intro}</p></details>}
   </form>;

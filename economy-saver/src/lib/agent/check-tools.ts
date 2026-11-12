@@ -11,7 +11,7 @@ const checkOut = (checks: Check[]) => checks.map(({ kind, words, choices }) => (
 export const checkTools: Tool[] = [
   {
     name: "to_check",
-    description: "Read pending drafts, document readings and in-flight files. Quote the app’s checks and choices. Confirmation stays with the user. Amounts are minor units.",
+    description: "Pending drafts, document readings and in-flight files. Quote the app’s checks and choices.",
     input: z.object({}), scope: "read",
     run: async (ctx: ToolContext) => {
       const [state, inbox] = await Promise.all([ctx.state(), readerInbox(ctx.db, ctx.householdId)]);

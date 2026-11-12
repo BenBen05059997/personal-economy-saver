@@ -30,9 +30,14 @@ export async function spendAiBudget(db: Db, hid: string, budget: Budget): Promis
   return withHousehold(db, hid, tx => consumeRequest(tx, hid, PURPOSE[budget], LIMIT[budget], "day"));
 }
 
-/** Questions left today on the owner's connection, or null for a household on its own key. */
-export async function questionsLeft(db: Db, hid: string): Promise<number | null> {
+async function left(db: Db, hid: string, budget: Budget): Promise<number | null> {
   if (await usesOwnConnection(db, hid)) return null;
-  const used = await withHousehold(db, hid, tx => requestCount(tx, hid, PURPOSE.question, "day"));
-  return Math.max(0, DAILY_QUESTIONS - used);
+  const used = await withHousehold(db, hid, tx => requestCount(tx, hid, PURPOSE[budget], "day"));
+  return Math.max(0, LIMIT[budget] - used);
 }
+
+/** Questions left today on the owner's connection, or null for a household on its own key. */
+export const questionsLeft = (db: Db, hid: string) => left(db, hid, "question");
+
+/** Document reads left today on the owner's connection, or null for a household on its own key. */
+export const documentsLeft = (db: Db, hid: string) => left(db, hid, "document");

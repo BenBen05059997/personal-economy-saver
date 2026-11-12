@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { households } from "@/db/schema";
 import type { Drawn, TurnView } from "@/lib/agent/view";
+import { documentsLeft, questionsLeft } from "@/db/ai-cap";
 import { firstUseLine } from "@/db/ask";
 import { connectionView } from "@/db/ai-key";
 import { listCanvases } from "@/db/canvases";
@@ -48,7 +49,7 @@ export async function loadAskView(db: Db, householdId: string, { spaceId, legacy
     if (!space || (!space.isGeneral && legacyId)) return null;
     const earlier = space.isGeneral && places.journal === "cloud" ? await legacyThreads(tx, hid) : [];
     if (places.journal === "cloud" && legacyId && !earlier.some(item => item.id === legacyId)) return null;
-    const [state, suggestions, thread, pins, firstUse, memory, own] = await Promise.all([
+    const [state, suggestions, thread, pins, firstUse, memory, own, questions, documents] = await Promise.all([
       loadMoneyState(tx, hid, today, household),
       openSuggestions(tx, hid),
       places.journal === "device" ? [] : spaceThread(tx, hid, legacyId ?? space.id),
@@ -56,6 +57,8 @@ export async function loadAskView(db: Db, householdId: string, { spaceId, legacy
       firstUseLine(tx, hid, { skipAnswered: places.journal === "device" }),
       places.memory === "device" ? [] : listMemory(tx, hid),
       connectionView(tx, hid),
+      questionsLeft(tx, hid),
+      documentsLeft(tx, hid),
     ]);
     const current = today.slice(0, 7);
     const ownForms = await ownChoices(tx, hid); // D75: for the reading form a bill attached in Ask opens
@@ -86,7 +89,7 @@ export async function loadAskView(db: Db, householdId: string, { spaceId, legacy
       pinId: pinId ?? null, pins: pins.map(({ id, title }) => ({ id, title })),
       turns, starters, shown, cloudBrief: brief,
       form: { today, homeCurrency: state.homeCurrency, cards: state.cards.map(({ id, label }) => ({ id, label })), own: ownForms },
-      pin: pinned && shown ? { id: pinned.id, title: pinned.title } : null, firstUse, unavailable: missing ? askMissingWords(missing, owner) : null,
+      pin: pinned && shown ? { id: pinned.id, title: pinned.title } : null, firstUse, questionsLeft: questions, documentsLeft: documents, unavailable: missing ? askMissingWords(missing, owner) : null,
     };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }

@@ -19,6 +19,14 @@ import type { TurnSource } from "@/lib/schema/turn";
 const EXAMPLES = ["Am I OK until the end of the month?", "What if a client pays two weeks late?", "Where did last month go?"];
 const eyeProps = { width: 12, height: 12, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
 
+const SETTINGS_WORDS = "Settings → Your AI model";
+/** A refusal that names Settings → Your AI model (the daily limit, a missing model) links those words to it. */
+function withSettingsLink(words: string): ReactNode {
+  const at = words.indexOf(SETTINGS_WORDS);
+  if (at < 0) return words;
+  return <>{words.slice(0, at)}<Link href="/settings/ai-model">{SETTINGS_WORDS}</Link>{words.slice(at + SETTINGS_WORDS.length)}</>;
+}
+
 /** The scrolling middle of Ask: the examples while empty, the turns with their cards, then the answer’s canvas drawn in the thread. */
 export function AskThread({
   panel, screen, legacyId, space, spaceHref, householdId, clock, form, onDeviceMemory, turns, cards, readOnly, canWrite, incognito, busy, step, deviceReady,
@@ -95,7 +103,7 @@ export function AskThread({
     </ol>
     {busy && <p role="status" aria-live="polite" className="ui-hint">{step || "Checking your numbers…"}</p>}
     {(problem || speechProblem) && !(noModel && (problem === NEEDS_KEY_OWNER || problem === NEEDS_KEY_MEMBER)) && <p role="alert" className="ui-problem">{problem === SESSION_ENDED ? <SessionEnded /> : problem === NEEDS_KEY_OWNER
-      ? <>{problem} <Link href="/settings/ai-model">Open Settings</Link></> : problem || speechProblem}</p>}
+      ? <>{problem} <Link href="/settings/ai-model">Open Settings</Link></> : withSettingsLink(problem || speechProblem || "")}</p>}
     {canvas && <div className="ask-canvas" ref={canvasRef} tabIndex={-1} role="region" aria-label="Canvas">{canvas}</div>}
   </div>;
 }

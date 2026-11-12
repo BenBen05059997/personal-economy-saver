@@ -4,7 +4,7 @@ import { answerQuestion, askInput } from "@/db/ask";
 import { db } from "@/db/client";
 import { InputError } from "@/db/input-error";
 import { AgentError } from "@/lib/agent/run";
-import { QUESTIONS_USED_UP, spendAiBudget } from "@/db/ai-cap";
+import { QUESTIONS_USED_UP, questionsLeft, spendAiBudget } from "@/db/ai-cap";
 import { NO_STORE, limited, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
@@ -49,8 +49,10 @@ export async function POST(request: Request) {
     .then(reply => ({ reply }), (error: unknown) => ({ error }));
   const first = await Promise.race([start, finished]);
   if (first !== "began" && "error" in first && first.error instanceof InputError) return text(first.error.message, 400);
-  void finished.then(last => {
-    send("reply" in last ? { reply: last.reply } : { error: errorWords(last.error) });
+  void finished.then(async last => {
+    // How many questions fipa's model still allows today (null on the household's own key): beside the reply, never inside it, so it is not journaled.
+    const left = await questionsLeft(connection, hid).catch(() => null);
+    send("reply" in last ? { reply: last.reply, left } : { error: errorWords(last.error), left });
     if (closed) return;
     closed = true;
     try { controller.close(); } catch { /* the client already left */ }

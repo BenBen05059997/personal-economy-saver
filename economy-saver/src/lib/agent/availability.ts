@@ -1,4 +1,5 @@
 import { logSettingProblem } from "@/lib/operator-log";
+import { PROVIDERS } from "@/lib/ai/providers";
 const ASK_NOT_SET_UP = "Ask isn’t set up on this server yet.";
 
 /** The sentence for a missing Ask setting, in words a person can read; the setting's name goes to the operator log (never a value). */
@@ -44,4 +45,19 @@ export function serverDefaultHost(): string | null {
   const base = process.env.AI_BASE_URL?.trim();
   if (protocol !== "openai" || !base || !URL.canParse(base)) return null;
   return new URL(base).host;
+}
+
+/** A model id in words where the code knows the pattern (claude-sonnet-5-5 is Claude Sonnet 5.5); any other id as it is. */
+export function friendlyModel(id: string): string {
+  const match = /^claude-(opus|sonnet|haiku)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/.exec(id);
+  return match ? `Claude ${match[1][0].toUpperCase()}${match[1].slice(1)} ${match[2]}${match[3] ? `.${match[3]}` : ""}` : id;
+}
+
+/** What the server default runs on, for Settings: the model in words, who provides it and the host it is sent to; null when the server has no model. Never a key. */
+export function serverModelFacts(): { model: string; provider: string; host: string } | null {
+  const host = serverDefaultHost();
+  const model = process.env.AI_TEXT_MODEL?.trim();
+  if (!host || !model) return null;
+  const listed = PROVIDERS.find(provider => provider.baseUrl && new URL(provider.baseUrl).host === host);
+  return { model: friendlyModel(model), provider: listed?.label ?? host, host };
 }

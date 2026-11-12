@@ -2,7 +2,8 @@ import { db } from "@/db/client";
 import { mediumDate } from "@/components/ui/dates";
 import { withHousehold } from "@/db/household";
 import { connectionView } from "@/db/ai-key";
-import { askUnavailable, missingAskSetting, serverDefaultHost, serverHasNoModel } from "@/lib/agent/availability";
+import { DAILY_DOCUMENTS, DAILY_QUESTIONS } from "@/db/ai-cap";
+import { askUnavailable, missingAskSetting, serverDefaultHost, serverHasNoModel, serverModelFacts } from "@/lib/agent/availability";
 import { MODEL_HINT } from "@/lib/agent/reply";
 import { CHECK_NAMES, type ConnectionCheck } from "@/lib/ai/check";
 import { PROVIDERS } from "@/lib/ai/providers";
@@ -30,16 +31,18 @@ export async function AiModelPanel({ demo }: { demo: boolean }) {
   const missing = missingAskSetting(Boolean(view?.textModel));
   const host = view ? view.host : serverDefaultHost();
   const ownOnly = serverHasNoModel();
+  const facts = !view && !missing ? serverModelFacts() : null;
   return <section className="ui-panel" id="ai-model"><h2>Your AI model</h2>
     {missing ? <p className="ui-hint">{ownOnly ? "Paste your own key below to use Ask and document reading." : askUnavailable(missing)}</p>
+      : facts ? <p className="ui-hint"><strong>fipa’s model answers your questions:</strong> {facts.model} by {facts.provider}. Questions and documents go to {facts.host}. Up to {DAILY_QUESTIONS} questions and {DAILY_DOCUMENTS} documents a day.<br />Add your own key below to use your own model, with no daily limit.</p>
       : host ? <p className="ui-hint">Your questions and documents go to {host}.</p> : null}
-    {view ? <CheckLine tested={view.tested} check={view.check} /> : !ownOnly && <p className="ui-hint">{MODEL_HINT}</p>}
+    {view ? <CheckLine tested={view.tested} check={view.check} /> : !ownOnly && !facts && <p className="ui-hint">{MODEL_HINT}</p>}
     <AiModelForm key={view ? `${view.provider}|${view.baseUrl}|${view.textModel}|${view.documentModel}|${view.hint}` : "default"} demo={demo}
       providers={PROVIDERS.map(p => ({ id: p.id, label: p.label, getKeyUrl: p.getKeyUrl }))}
       initial={{ provider: view?.provider ?? "", baseUrl: view?.provider === "custom" ? view.baseUrl : "", textModel: view?.textModel ?? "",
         documentModel: view?.documentModel ?? "", same: view ? view.sameForDocuments : true, hint: view?.hint ?? null }} />
     {view && <ApiForm action="/api/settings/ai-model"><input type="hidden" name="kind" value="default" /><button className="ui-button">{ownOnly ? "Remove my key" : "Use this app’s default"}</button></ApiForm>}
     <details className="settings-dev"><summary>For developers</summary>
-      <p className="ui-hint">A saved key is encrypted in Supabase Vault and only its last four characters are shown. Without your own model, the server’s AI_PROTOCOL, AI_API_KEY and AI_TEXT_MODEL settings apply.</p></details>
+      <p className="ui-hint">A saved key is encrypted in Supabase Vault and only its last four characters are shown.</p></details>
   </section>;
 }

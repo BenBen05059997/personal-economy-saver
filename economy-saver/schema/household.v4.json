@@ -1585,7 +1585,7 @@
                               "type": "integer",
                               "minimum": 0,
                               "maximum": 60,
-                              "description": "Days later than the client's own pace that all their invoices land."
+                              "description": "Days later than the client's pace."
                             }
                           },
                           "required": [
@@ -1606,7 +1606,7 @@
                               "type": "string",
                               "minLength": 1,
                               "maxLength": 80,
-                              "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                              "description": "Bill id, or `<id>@<date>` for one occurrence."
                             }
                           },
                           "required": [
@@ -1631,7 +1631,7 @@
                               "type": "integer",
                               "exclusiveMinimum": 0,
                               "maximum": 100000000,
-                              "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                              "description": "Positive minor units."
                             }
                           },
                           "required": [
@@ -1657,12 +1657,12 @@
                               "type": "integer",
                               "exclusiveMinimum": 0,
                               "maximum": 100000000,
-                              "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                              "description": "Positive minor units."
                             },
                             "date": {
                               "type": "string",
                               "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                              "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                              "description": "YYYY-MM-DD."
                             }
                           },
                           "required": [
@@ -1689,12 +1689,12 @@
                               "type": "integer",
                               "exclusiveMinimum": 0,
                               "maximum": 100000000,
-                              "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                              "description": "Positive minor units."
                             },
                             "date": {
                               "type": "string",
                               "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                              "description": "The day the money lands, tomorrow or later."
+                              "description": "Tomorrow or later."
                             }
                           },
                           "required": [
@@ -1768,7 +1768,7 @@
                                                 "type": "integer",
                                                 "minimum": 0,
                                                 "maximum": 60,
-                                                "description": "Days later than the client's own pace that all their invoices land."
+                                                "description": "Days later than the client's pace."
                                               }
                                             },
                                             "required": [
@@ -1789,7 +1789,7 @@
                                                 "type": "string",
                                                 "minLength": 1,
                                                 "maxLength": 80,
-                                                "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                "description": "Bill id, or `<id>@<date>` for one occurrence."
                                               }
                                             },
                                             "required": [
@@ -1814,7 +1814,7 @@
                                                 "type": "integer",
                                                 "exclusiveMinimum": 0,
                                                 "maximum": 100000000,
-                                                "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                "description": "Positive minor units."
                                               }
                                             },
                                             "required": [
@@ -1840,12 +1840,12 @@
                                                 "type": "integer",
                                                 "exclusiveMinimum": 0,
                                                 "maximum": 100000000,
-                                                "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                "description": "Positive minor units."
                                               },
                                               "date": {
                                                 "type": "string",
                                                 "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                "description": "YYYY-MM-DD."
                                               }
                                             },
                                             "required": [
@@ -1872,12 +1872,12 @@
                                                 "type": "integer",
                                                 "exclusiveMinimum": 0,
                                                 "maximum": 100000000,
-                                                "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                "description": "Positive minor units."
                                               },
                                               "date": {
                                                 "type": "string",
                                                 "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                "description": "The day the money lands, tomorrow or later."
+                                                "description": "Tomorrow or later."
                                               }
                                             },
                                             "required": [
@@ -1972,7 +1972,7 @@
                                                     "type": "integer",
                                                     "minimum": 0,
                                                     "maximum": 60,
-                                                    "description": "Days later than the client's own pace that all their invoices land."
+                                                    "description": "Days later than the client's pace."
                                                   }
                                                 },
                                                 "required": [
@@ -1993,7 +1993,7 @@
                                                     "type": "string",
                                                     "minLength": 1,
                                                     "maxLength": 80,
-                                                    "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                    "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                   }
                                                 },
                                                 "required": [
@@ -2018,7 +2018,7 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   }
                                                 },
                                                 "required": [
@@ -2044,12 +2044,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                    "description": "YYYY-MM-DD."
                                                   }
                                                 },
                                                 "required": [
@@ -2076,12 +2076,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "The day the money lands, tomorrow or later."
+                                                    "description": "Tomorrow or later."
                                                   }
                                                 },
                                                 "required": [
@@ -2168,7 +2168,7 @@
                                                     "type": "integer",
                                                     "minimum": 0,
                                                     "maximum": 60,
-                                                    "description": "Days later than the client's own pace that all their invoices land."
+                                                    "description": "Days later than the client's pace."
                                                   }
                                                 },
                                                 "required": [
@@ -2189,7 +2189,7 @@
                                                     "type": "string",
                                                     "minLength": 1,
                                                     "maxLength": 80,
-                                                    "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                    "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                   }
                                                 },
                                                 "required": [
@@ -2214,7 +2214,7 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   }
                                                 },
                                                 "required": [
@@ -2240,12 +2240,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                    "description": "YYYY-MM-DD."
                                                   }
                                                 },
                                                 "required": [
@@ -2272,12 +2272,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "The day the money lands, tomorrow or later."
+                                                    "description": "Tomorrow or later."
                                                   }
                                                 },
                                                 "required": [
@@ -2410,7 +2410,7 @@
                                                 "type": "integer",
                                                 "minimum": 0,
                                                 "maximum": 60,
-                                                "description": "Days later than the client's own pace that all their invoices land."
+                                                "description": "Days later than the client's pace."
                                               }
                                             },
                                             "required": [
@@ -2431,7 +2431,7 @@
                                                 "type": "string",
                                                 "minLength": 1,
                                                 "maxLength": 80,
-                                                "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                "description": "Bill id, or `<id>@<date>` for one occurrence."
                                               }
                                             },
                                             "required": [
@@ -2456,7 +2456,7 @@
                                                 "type": "integer",
                                                 "exclusiveMinimum": 0,
                                                 "maximum": 100000000,
-                                                "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                "description": "Positive minor units."
                                               }
                                             },
                                             "required": [
@@ -2482,12 +2482,12 @@
                                                 "type": "integer",
                                                 "exclusiveMinimum": 0,
                                                 "maximum": 100000000,
-                                                "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                "description": "Positive minor units."
                                               },
                                               "date": {
                                                 "type": "string",
                                                 "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                "description": "YYYY-MM-DD."
                                               }
                                             },
                                             "required": [
@@ -2514,12 +2514,12 @@
                                                 "type": "integer",
                                                 "exclusiveMinimum": 0,
                                                 "maximum": 100000000,
-                                                "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                "description": "Positive minor units."
                                               },
                                               "date": {
                                                 "type": "string",
                                                 "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                "description": "The day the money lands, tomorrow or later."
+                                                "description": "Tomorrow or later."
                                               }
                                             },
                                             "required": [
@@ -2619,7 +2619,7 @@
                                                 "type": "integer",
                                                 "minimum": 0,
                                                 "maximum": 60,
-                                                "description": "Days later than the client's own pace that all their invoices land."
+                                                "description": "Days later than the client's pace."
                                               }
                                             },
                                             "required": [
@@ -2640,7 +2640,7 @@
                                                 "type": "string",
                                                 "minLength": 1,
                                                 "maxLength": 80,
-                                                "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                "description": "Bill id, or `<id>@<date>` for one occurrence."
                                               }
                                             },
                                             "required": [
@@ -2665,7 +2665,7 @@
                                                 "type": "integer",
                                                 "exclusiveMinimum": 0,
                                                 "maximum": 100000000,
-                                                "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                "description": "Positive minor units."
                                               }
                                             },
                                             "required": [
@@ -2691,12 +2691,12 @@
                                                 "type": "integer",
                                                 "exclusiveMinimum": 0,
                                                 "maximum": 100000000,
-                                                "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                "description": "Positive minor units."
                                               },
                                               "date": {
                                                 "type": "string",
                                                 "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                "description": "YYYY-MM-DD."
                                               }
                                             },
                                             "required": [
@@ -2723,12 +2723,12 @@
                                                 "type": "integer",
                                                 "exclusiveMinimum": 0,
                                                 "maximum": 100000000,
-                                                "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                "description": "Positive minor units."
                                               },
                                               "date": {
                                                 "type": "string",
                                                 "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                "description": "The day the money lands, tomorrow or later."
+                                                "description": "Tomorrow or later."
                                               }
                                             },
                                             "required": [
@@ -2834,7 +2834,7 @@
                                                     "type": "integer",
                                                     "minimum": 0,
                                                     "maximum": 60,
-                                                    "description": "Days later than the client's own pace that all their invoices land."
+                                                    "description": "Days later than the client's pace."
                                                   }
                                                 },
                                                 "required": [
@@ -2855,7 +2855,7 @@
                                                     "type": "string",
                                                     "minLength": 1,
                                                     "maxLength": 80,
-                                                    "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                    "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                   }
                                                 },
                                                 "required": [
@@ -2880,7 +2880,7 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   }
                                                 },
                                                 "required": [
@@ -2906,12 +2906,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                    "description": "YYYY-MM-DD."
                                                   }
                                                 },
                                                 "required": [
@@ -2938,12 +2938,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "The day the money lands, tomorrow or later."
+                                                    "description": "Tomorrow or later."
                                                   }
                                                 },
                                                 "required": [
@@ -3201,7 +3201,7 @@
                                                     "type": "integer",
                                                     "minimum": 0,
                                                     "maximum": 60,
-                                                    "description": "Days later than the client's own pace that all their invoices land."
+                                                    "description": "Days later than the client's pace."
                                                   }
                                                 },
                                                 "required": [
@@ -3222,7 +3222,7 @@
                                                     "type": "string",
                                                     "minLength": 1,
                                                     "maxLength": 80,
-                                                    "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                    "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                   }
                                                 },
                                                 "required": [
@@ -3247,7 +3247,7 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   }
                                                 },
                                                 "required": [
@@ -3273,12 +3273,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                    "description": "YYYY-MM-DD."
                                                   }
                                                 },
                                                 "required": [
@@ -3305,12 +3305,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "The day the money lands, tomorrow or later."
+                                                    "description": "Tomorrow or later."
                                                   }
                                                 },
                                                 "required": [
@@ -3660,7 +3660,7 @@
                                   "type": "integer",
                                   "minimum": 0,
                                   "maximum": 60,
-                                  "description": "Days later than the client's own pace that all their invoices land."
+                                  "description": "Days later than the client's pace."
                                 }
                               },
                               "required": [
@@ -3681,7 +3681,7 @@
                                   "type": "string",
                                   "minLength": 1,
                                   "maxLength": 80,
-                                  "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                  "description": "Bill id, or `<id>@<date>` for one occurrence."
                                 }
                               },
                               "required": [
@@ -3706,7 +3706,7 @@
                                   "type": "integer",
                                   "exclusiveMinimum": 0,
                                   "maximum": 100000000,
-                                  "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                  "description": "Positive minor units."
                                 }
                               },
                               "required": [
@@ -3732,12 +3732,12 @@
                                   "type": "integer",
                                   "exclusiveMinimum": 0,
                                   "maximum": 100000000,
-                                  "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                  "description": "Positive minor units."
                                 },
                                 "date": {
                                   "type": "string",
                                   "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                  "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                  "description": "YYYY-MM-DD."
                                 }
                               },
                               "required": [
@@ -3764,12 +3764,12 @@
                                   "type": "integer",
                                   "exclusiveMinimum": 0,
                                   "maximum": 100000000,
-                                  "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                  "description": "Positive minor units."
                                 },
                                 "date": {
                                   "type": "string",
                                   "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                  "description": "The day the money lands, tomorrow or later."
+                                  "description": "Tomorrow or later."
                                 }
                               },
                               "required": [
@@ -3843,7 +3843,7 @@
                                                     "type": "integer",
                                                     "minimum": 0,
                                                     "maximum": 60,
-                                                    "description": "Days later than the client's own pace that all their invoices land."
+                                                    "description": "Days later than the client's pace."
                                                   }
                                                 },
                                                 "required": [
@@ -3864,7 +3864,7 @@
                                                     "type": "string",
                                                     "minLength": 1,
                                                     "maxLength": 80,
-                                                    "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                    "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                   }
                                                 },
                                                 "required": [
@@ -3889,7 +3889,7 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   }
                                                 },
                                                 "required": [
@@ -3915,12 +3915,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                    "description": "YYYY-MM-DD."
                                                   }
                                                 },
                                                 "required": [
@@ -3947,12 +3947,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "The day the money lands, tomorrow or later."
+                                                    "description": "Tomorrow or later."
                                                   }
                                                 },
                                                 "required": [
@@ -4047,7 +4047,7 @@
                                                         "type": "integer",
                                                         "minimum": 0,
                                                         "maximum": 60,
-                                                        "description": "Days later than the client's own pace that all their invoices land."
+                                                        "description": "Days later than the client's pace."
                                                       }
                                                     },
                                                     "required": [
@@ -4068,7 +4068,7 @@
                                                         "type": "string",
                                                         "minLength": 1,
                                                         "maxLength": 80,
-                                                        "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                        "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                       }
                                                     },
                                                     "required": [
@@ -4093,7 +4093,7 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       }
                                                     },
                                                     "required": [
@@ -4119,12 +4119,12 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       },
                                                       "date": {
                                                         "type": "string",
                                                         "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                        "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                        "description": "YYYY-MM-DD."
                                                       }
                                                     },
                                                     "required": [
@@ -4151,12 +4151,12 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       },
                                                       "date": {
                                                         "type": "string",
                                                         "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                        "description": "The day the money lands, tomorrow or later."
+                                                        "description": "Tomorrow or later."
                                                       }
                                                     },
                                                     "required": [
@@ -4243,7 +4243,7 @@
                                                         "type": "integer",
                                                         "minimum": 0,
                                                         "maximum": 60,
-                                                        "description": "Days later than the client's own pace that all their invoices land."
+                                                        "description": "Days later than the client's pace."
                                                       }
                                                     },
                                                     "required": [
@@ -4264,7 +4264,7 @@
                                                         "type": "string",
                                                         "minLength": 1,
                                                         "maxLength": 80,
-                                                        "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                        "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                       }
                                                     },
                                                     "required": [
@@ -4289,7 +4289,7 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       }
                                                     },
                                                     "required": [
@@ -4315,12 +4315,12 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       },
                                                       "date": {
                                                         "type": "string",
                                                         "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                        "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                        "description": "YYYY-MM-DD."
                                                       }
                                                     },
                                                     "required": [
@@ -4347,12 +4347,12 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       },
                                                       "date": {
                                                         "type": "string",
                                                         "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                        "description": "The day the money lands, tomorrow or later."
+                                                        "description": "Tomorrow or later."
                                                       }
                                                     },
                                                     "required": [
@@ -4485,7 +4485,7 @@
                                                     "type": "integer",
                                                     "minimum": 0,
                                                     "maximum": 60,
-                                                    "description": "Days later than the client's own pace that all their invoices land."
+                                                    "description": "Days later than the client's pace."
                                                   }
                                                 },
                                                 "required": [
@@ -4506,7 +4506,7 @@
                                                     "type": "string",
                                                     "minLength": 1,
                                                     "maxLength": 80,
-                                                    "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                    "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                   }
                                                 },
                                                 "required": [
@@ -4531,7 +4531,7 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   }
                                                 },
                                                 "required": [
@@ -4557,12 +4557,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                    "description": "YYYY-MM-DD."
                                                   }
                                                 },
                                                 "required": [
@@ -4589,12 +4589,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "The day the money lands, tomorrow or later."
+                                                    "description": "Tomorrow or later."
                                                   }
                                                 },
                                                 "required": [
@@ -4694,7 +4694,7 @@
                                                     "type": "integer",
                                                     "minimum": 0,
                                                     "maximum": 60,
-                                                    "description": "Days later than the client's own pace that all their invoices land."
+                                                    "description": "Days later than the client's pace."
                                                   }
                                                 },
                                                 "required": [
@@ -4715,7 +4715,7 @@
                                                     "type": "string",
                                                     "minLength": 1,
                                                     "maxLength": 80,
-                                                    "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                    "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                   }
                                                 },
                                                 "required": [
@@ -4740,7 +4740,7 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   }
                                                 },
                                                 "required": [
@@ -4766,12 +4766,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                    "description": "YYYY-MM-DD."
                                                   }
                                                 },
                                                 "required": [
@@ -4798,12 +4798,12 @@
                                                     "type": "integer",
                                                     "exclusiveMinimum": 0,
                                                     "maximum": 100000000,
-                                                    "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                    "description": "Positive minor units."
                                                   },
                                                   "date": {
                                                     "type": "string",
                                                     "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                    "description": "The day the money lands, tomorrow or later."
+                                                    "description": "Tomorrow or later."
                                                   }
                                                 },
                                                 "required": [
@@ -4909,7 +4909,7 @@
                                                         "type": "integer",
                                                         "minimum": 0,
                                                         "maximum": 60,
-                                                        "description": "Days later than the client's own pace that all their invoices land."
+                                                        "description": "Days later than the client's pace."
                                                       }
                                                     },
                                                     "required": [
@@ -4930,7 +4930,7 @@
                                                         "type": "string",
                                                         "minLength": 1,
                                                         "maxLength": 80,
-                                                        "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                        "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                       }
                                                     },
                                                     "required": [
@@ -4955,7 +4955,7 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       }
                                                     },
                                                     "required": [
@@ -4981,12 +4981,12 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       },
                                                       "date": {
                                                         "type": "string",
                                                         "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                        "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                        "description": "YYYY-MM-DD."
                                                       }
                                                     },
                                                     "required": [
@@ -5013,12 +5013,12 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       },
                                                       "date": {
                                                         "type": "string",
                                                         "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                        "description": "The day the money lands, tomorrow or later."
+                                                        "description": "Tomorrow or later."
                                                       }
                                                     },
                                                     "required": [
@@ -5276,7 +5276,7 @@
                                                         "type": "integer",
                                                         "minimum": 0,
                                                         "maximum": 60,
-                                                        "description": "Days later than the client's own pace that all their invoices land."
+                                                        "description": "Days later than the client's pace."
                                                       }
                                                     },
                                                     "required": [
@@ -5297,7 +5297,7 @@
                                                         "type": "string",
                                                         "minLength": 1,
                                                         "maxLength": 80,
-                                                        "description": "A stored bill's id (every occurrence) or one occurrence's id, `<id>@<date>`."
+                                                        "description": "Bill id, or `<id>@<date>` for one occurrence."
                                                       }
                                                     },
                                                     "required": [
@@ -5322,7 +5322,7 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       }
                                                     },
                                                     "required": [
@@ -5348,12 +5348,12 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       },
                                                       "date": {
                                                         "type": "string",
                                                         "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                        "description": "A calendar day, YYYY-MM-DD, within the app's two-year horizon."
+                                                        "description": "YYYY-MM-DD."
                                                       }
                                                     },
                                                     "required": [
@@ -5380,12 +5380,12 @@
                                                         "type": "integer",
                                                         "exclusiveMinimum": 0,
                                                         "maximum": 100000000,
-                                                        "description": "Positive integer minor units of the home currency: whole yen, or cents for USD."
+                                                        "description": "Positive minor units."
                                                       },
                                                       "date": {
                                                         "type": "string",
                                                         "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                                                        "description": "The day the money lands, tomorrow or later."
+                                                        "description": "Tomorrow or later."
                                                       }
                                                     },
                                                     "required": [

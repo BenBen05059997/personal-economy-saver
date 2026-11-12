@@ -300,7 +300,7 @@ async function main() {
       assert.equal(tool.scope, "read");
       assert.deepEqual(tool.input.safeParse({}).success, true);
       assert.equal(tool.input.safeParse({ extra: 1 }).success, false);
-      assert.match(tool.description, new RegExp(`${SNAPSHOT_TOOL_WINDOW} most recent`));
+      assert.match(tool.description, new RegExp(`${SNAPSHOT_TOOL_WINDOW} latest`));
       const ctx = { madeBy: "mcp" as const, db, householdId: a, appUrl: new URL("http://127.0.0.1:3123"), state: () => Promise.reject(new Error("the snapshot reads no engine state")) };
       const out = await tool.run(ctx, {} as never);
       const parsed = HouseholdSnapshot.parse(JSON.parse(out));

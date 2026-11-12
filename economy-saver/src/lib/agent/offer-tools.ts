@@ -30,7 +30,7 @@ function positiveAmount(text: string, currency: string): number {
 
 export const offerTools: Tool[] = [{
   name: "offer_keep", scope: "ask", input,
-  description: "Offer up to three memory items, savings goals or standing rules. Use the person’s words. A rule value is days, percent or home-currency amount as applicable. Omit duplicates and secrets.",
+  description: "Offer up to three memory items, goals or standing rules, in the person’s words. A rule value is days, percent or an amount.",
   run: async (ctx: ToolContext, { offer }: z.infer<typeof input>) => {
     if (!ctx.onOffer) throw new InputError("Keep offers are available in Ask.");
     ctx.onOffer(offer);

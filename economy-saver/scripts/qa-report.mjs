@@ -74,7 +74,7 @@ for (const file of files) {
 let results = [];
 if (!args.has("--check")) {
   const seen = new Map();
-  const resultFiles = readdirSync(qaDir).filter((name) => /^results-[a-z-]+\.json$/.test(name)).sort();
+  const resultFiles = readdirSync(qaDir).filter((name) => /^results-[a-z-]+\.json$/.test(name) && name !== "results-ask.json").sort();
   for (const name of resultFiles) {
     const data = readJson(join(qaDir, name));
     if (data && !Array.isArray(data.results)) problems.push(`${name}: results must be a list`);
