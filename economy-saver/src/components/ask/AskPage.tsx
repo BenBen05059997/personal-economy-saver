@@ -298,7 +298,7 @@ export function AskPage({
           ...(tail && { recent: tail.turns, earlierCount: tail.omitted, deviceBrief: storedBrief?.brief ?? {}, history }),
         }) });
       // A 503 carries a fixed message written for this box, such as a missing key.
-      if (!response.ok) { setProblem(response.status === 401 ? SESSION_ENDED : response.status === 429 ? "Ask again in a minute." : response.status === 503 || response.status === 400 ? await response.text() : "Couldn’t check your household. Try again."); return; }
+      if (!response.ok) { setProblem(response.status === 401 ? SESSION_ENDED : response.status === 503 || response.status === 400 || response.status === 429 ? await response.text() : "Couldn’t check your household. Try again."); return; }
       const last = await readAskStream(response, setStep);
       if (!last) { setProblem("Couldn’t check your household. Try again."); return; }
       // An error line reads like the 503 it replaced; the same question keeps its id for a retry.

@@ -90,8 +90,7 @@ const NO_MODEL = (need: ModelNeed) => new AiKeyError(`Your AI model has no model
 /**
  * The connection for ONE model call (D56). Call immediately before EACH call, including retries. A household with its own
  * model (ai_protocol set) gets it: its saved address (checked again here), its Vault key or none, the model for the need.
- * Any other household gets the server default from the AI_ settings. No call is capped (no daily allowance or app-wide
- * budget). Never log the return value.
+ * Any other household gets the server default from the AI_ settings. The owner's connection (own: false) is capped per household per day by the callers (db/ai-cap.ts), not here. Never log the return value.
  */
 export async function aiConnection(db: Db, householdId: string, need: ModelNeed): Promise<Connection> {
   const hid = requireHousehold(householdId);

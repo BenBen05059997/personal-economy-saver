@@ -11,12 +11,13 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { aiConnection } from "@/db/ai-key";
+import { DOCUMENT_NOT_READ, questionsLeft, spendAiBudget } from "@/db/ai-cap";
 import { runDaily } from "@/db/daily";
 import { deleteDocument } from "@/db/data-kinds";
 import { DEMO_STORAGE_CAP_BYTES, RAW_FILE_RETENTION_DAYS, STORAGE_CAP_BYTES, removeExpiredFiles, requireStorageRoom, storedBytes } from "@/db/document-cleanup";
 import type { Db } from "@/db/household";
 import { ClientIpError, clientIp, consumeIpRequest, hashIp, pruneIpBuckets } from "@/db/rate-limit";
-import { storeDocument } from "@/db/reader-job";
+import { readDocument, requireDocumentBudget, storeDocument } from "@/db/reader-job";
 import { seedBen } from "@/db/seed";
 import { applyVerifiedDelivery, storedPayload } from "@/lib/events";
 import type { CaptureOrder } from "@/lib/paypal/contracts";
@@ -69,14 +70,37 @@ async function main() {
       assert.ok(gone >= 1 && after.length === before - gone && after.every(r => r.ipHash !== h21));
     });
 
-    // ---------------------------------------------------------------- 2. no AI cap
-    await check("the server's model is never capped: no allowance setting is needed and many calls across households all get a connection", async () => {
+    // ---------------------------------------------------------------- 2. the owner's AI connection is capped per household per day (D33)
+    await check("the server's model: 30 questions and 10 document reads a day per household; the 31st and 11th are refused; a household's own key is never counted", async () => {
       Object.assign(process.env, { AI_PROTOCOL: "anthropic", AI_API_KEY: "fictional-key", AI_TEXT_MODEL: "fictional-model" });
-      const a = await seedBen(db), b = await seedBen(db);
+      const a = await seedBen(db), b = await seedBen(db), own = await seedBen(db);
       assert.equal(missingAskSetting(false), null);
-      for (let i = 0; i < 12; i++) assert.equal((await aiConnection(store, i % 2 ? a : b, "text")).own, false);
+      assert.equal((await aiConnection(store, a, "text")).own, false);
+      await db.update(schema.households).set({ aiProtocol: "openai", aiBaseUrl: "https://models.example/v1", aiProvider: "custom", aiTextModel: "own", aiDocumentModel: "own" }).where(eq(schema.households.id, own));
+      assert.equal((await aiConnection(store, own, "text")).own, true);
+      assert.equal(await questionsLeft(store, a), 30);
+      assert.equal(await questionsLeft(store, own), null, "no hint for a household on its own key");
+      for (let i = 0; i < 30; i++) assert.equal(await spendAiBudget(store, a, "question"), true, `question ${i + 1}`);
+      assert.equal(await spendAiBudget(store, a, "question"), false, "the 31st is refused");
+      assert.equal(await questionsLeft(store, a), 0);
+      for (let i = 0; i < 10; i++) assert.equal(await spendAiBudget(store, a, "document"), true, `document ${i + 1}`);
+      assert.equal(await spendAiBudget(store, a, "document"), false, "the 11th is refused");
+      assert.equal(await spendAiBudget(store, b, "question"), true, "another household has its own day");
+      assert.equal(await questionsLeft(store, b), 29);
+      for (let i = 0; i < 40; i++) assert.equal(await spendAiBudget(store, own, "question"), true);
+      for (let i = 0; i < 15; i++) assert.equal(await spendAiBudget(store, own, "document"), true);
+      const rows = await db.select().from(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, own));
+      assert.equal(rows.filter(r => r.purpose.startsWith("ai-")).length, 0, "an own-key household leaves no count");
+      // the day window resets by day: yesterday's count starts again from one
+      await db.update(schema.requestBuckets).set({ window: sql`now() - interval '1 day'` }).where(eq(schema.requestBuckets.householdId, a));
+      assert.equal(await questionsLeft(store, a), 30, "yesterday's count is not today's");
+      assert.equal(await spendAiBudget(store, a, "question"), true);
+      assert.equal(await spendAiBudget(store, a, "document"), true);
+      assert.equal(await questionsLeft(store, a), 29);
+      // a household that adds its own key mid-day is no longer counted
       await db.update(schema.households).set({ aiProtocol: "openai", aiBaseUrl: "https://models.example/v1", aiProvider: "custom", aiTextModel: "own", aiDocumentModel: "own" }).where(eq(schema.households.id, b));
-      assert.equal((await aiConnection(store, b, "text")).own, true);
+      assert.equal(await spendAiBudget(store, b, "question"), true);
+      assert.equal(await questionsLeft(store, b), null);
     });
 
     // ---------------------------------------------------------------- 3. Storage bytes and the cap
@@ -99,6 +123,24 @@ async function main() {
       const extracted = { kind: "charge", name: "Fictional kiosk", date: "2026-10-01", amountMinor: 500, currency: "JPY", category: "food", businessBp: 0, cardId: null };
       return db.insert(schema.readings).values({ householdId: hid, documentId, extracted: { original: extracted, proposed: extracted }, target: "charge", status, confirmedAt });
     };
+
+    await check("documents on the server's model: an upload past 10 a day is refused before it is stored; the same file is not counted twice; forwarded mail waits in To check as not read and retries the next day", async () => {
+      const a = await seedBen(db);
+      const file = (n: number) => pdf(`budget ${n}`);
+      for (let n = 0; n < 10; n++) await requireDocumentBudget(store, a, "application/pdf", file(n));
+      await assert.rejects(requireDocumentBudget(store, a, "application/pdf", file(10)), (e: unknown) => e instanceof ReaderError && e.status === 429 && /Try again tomorrow/.test(e.message) && /Settings → Your AI model/.test(e.message));
+      const stored = await storeDocument(store, a, "upload", "application/pdf", file(0));
+      await requireDocumentBudget(store, a, "application/pdf", file(0)); // already held and not failed: no new read, no count
+      assert.ok(stored);
+      // forwarded mail is stored, then refused at the read with a failed state the person retries from To check
+      const mail = await addDoc(a, 100, { kind: "email", status: "queued", mime: "message/rfc822", storagePath: `${a}/mail` });
+      await readDocument(store, a, mail.id);
+      const [after] = await db.select().from(schema.documents).where(eq(schema.documents.id, mail.id));
+      assert.equal(after.status, "failed");
+      assert.equal(after.error, DOCUMENT_NOT_READ);
+      await db.update(schema.requestBuckets).set({ window: sql`now() - interval '1 day'` }).where(eq(schema.requestBuckets.householdId, a));
+      assert.equal(await spendAiBudget(store, a, "document"), true, "the next day there is room again");
+    });
 
     await check("storage cap: 200 MiB for a household, 20 MiB for Try it, counted over files still stored, refused with words a person reads", async () => {
       assert.equal(STORAGE_CAP_BYTES, 200 * MiB); assert.equal(DEMO_STORAGE_CAP_BYTES, 20 * MiB);

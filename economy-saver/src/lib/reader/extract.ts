@@ -137,7 +137,8 @@ export async function extractDocument(bytes: ArrayBuffer, mime: string, context:
   if (reply.stop === "refusal") throw new ReaderError("AI reader declined to read this document.");
   if (reply.stop === "length") throw new ReaderError("Document has too many records to read in one request.");
   const call = reply.calls.find(c => c.name === RECORD_ITEMS);
-  const parsed = recordsSchema.safeParse(cleanModelRecords(call?.input));
+  if (!call) throw new ReaderError("The AI model didn't return the items. Try again.", 502);
+  const parsed = recordsSchema.safeParse(cleanModelRecords(call.input));
   if (!parsed.success) {
     const paths = [...new Set(parsed.error.issues.map(issue => issue.path.join(".") || "output"))];
     throw new ReaderError(`Reader returned an invalid set of bill or charge fields (${paths.join(", ")}).`, 502);

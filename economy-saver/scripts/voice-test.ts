@@ -8,7 +8,9 @@ import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
+import { spendAiBudget } from "@/db/ai-cap";
+import type { Db } from "@/db/household";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { numbersSaid } from "@/lib/ai/number-check";
@@ -133,13 +135,16 @@ async function main() {
     let proposal: Record<string, unknown> = {};
     let modelStatus = 200;
     let modelCalls = 0;
-    let lastBody: { system: string; messages: { content: unknown }[]; tools: { name: string; input_schema: { properties: Record<string, { enum?: string[] }> } }[]; tool_choice: { name: string } } | null = null;
+    let noToolCall = false;
+    let lastBody: { system: string; messages: { content: unknown }[]; tools: { name: string; input_schema: { properties: Record<string, { enum?: string[] }> } }[]; tool_choice: { type: string } } | null = null;
     globalThis.fetch = async (input, init) => {
       const req = new Request(input, init);
       assert.equal(new URL(req.url).host, "api.anthropic.com", "the only host the route talks to");
       modelCalls++;
       if (modelStatus !== 200) return Response.json({ error: { type: "api_error", message: "provider detail sk-secret" } }, { status: modelStatus });
       lastBody = await req.json();
+      if (noToolCall) return Response.json({ id: "msg_fixture", type: "message", role: "assistant", model: "x", stop_reason: "end_turn", stop_sequence: null,
+        content: [{ type: "text", text: "Sure." }], usage: { input_tokens: 1, output_tokens: 1 } });
       return Response.json({ id: "msg_fixture", type: "message", role: "assistant", model: "x", stop_reason: "tool_use", stop_sequence: null,
         content: [{ type: "tool_use", id: "toolu_fixture", name: "fill_fields", input: proposal }], usage: { input_tokens: 1, output_tokens: 1 } });
     };
@@ -181,7 +186,8 @@ async function main() {
     assert.equal(filled.status, 200);
     assert.equal(filled.headers.get("cache-control"), "private, no-store");
     assert.deepEqual(await filled.json(), { values: { name: "家賃", amount: "120000", date: "2026-12-27", category: "housing", shared: "on" }, heard: rent, notes: [] });
-    assert.equal(lastBody!.tool_choice.name, "fill_fields", "a forced tool");
+    assert.equal(lastBody!.tool_choice.type, "auto", "no forced tool_choice on Anthropic");
+    assert.ok(lastBody!.system.endsWith("Answer only by calling the fill_fields tool once."));
     assert.deepEqual(lastBody!.tools[0].input_schema.properties.category.enum, ["housing", "food"], "the select's options are the tool's enum");
     assert.deepEqual(Object.keys(lastBody!.tools[0].input_schema.properties), ["name", "amount", "date", "category", "shared"]);
     assert.ok(lastBody!.system.includes(`Today is ${TODAY} (Saturday)`) && lastBody!.system.includes("JPY"), "today with its weekday and the currency");
@@ -235,26 +241,42 @@ async function main() {
     assert.ok(!downText.includes("sk-secret") && !downText.includes("provider detail"), "never the provider's message");
     modelStatus = 200;
     proposal = {};
+    noToolCall = true;
+    const noCall = await call(rent);
+    assert.equal(noCall.status, 502, "a reply without the tool call is a failure, not an empty fill");
+    assert.ok((await noCall.text()).includes("didn't return the fields"));
+    noToolCall = false;
     const empty = await (await call(rent)).json();
     assert.deepEqual(empty.values, {});
     assert.equal(empty.notes.length, 1, "nothing heard says so in words");
     ok("a model failure is a 502 in fixed words; a model that proposes nothing returns no values and a note");
 
-    // the other household, no rate limit, the log
+    // the other household, the daily cap on the owner's connection, the log
     proposal = good;
     cookie = b;
     assert.equal((await call(rent)).status, 200);
     cookie = a;
-    for (let i = 0; i < 30; i++) assert.equal((await call(rent)).status, 200, "no rate limit");
+    // D33: on the owner's connection a voice fill spends the same 30 a day as an Ask question
+    await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
+    for (let i = 0; i < 29; i++) assert.equal(await spendAiBudget(db as unknown as Db, a, "question"), true, "29 Ask questions");
+    assert.equal((await call(rent)).status, 200, "the 30th use of the day is a voice fill");
+    const callsAtCap = modelCalls;
+    const capped = await call(rent);
+    assert.equal(capped.status, 429);
+    assert.match(await capped.text(), /Ask again tomorrow, or add your own AI key in Settings → Your AI model/);
+    assert.equal(modelCalls, callsAtCap, "no model call once the day's budget is used");
+    cookie = b;
+    assert.equal((await call(rent)).status, 200, "another household is not affected");
+    cookie = a;
     const lines = infoLines.filter(l => l.startsWith('{"at":"voice"')).map(l => JSON.parse(l));
-    assert.ok(lines.length > 30);
+    assert.ok(lines.length > 5);
     for (const line of lines) {
       assert.deepEqual(Object.keys(line).sort(), ["at", "fields", "householdId", "ms", "ok"]);
       assert.ok([a, b].includes(line.householdId));
     }
     assert.ok(!infoLines.join("\n").includes("家賃") && !infoLines.join("\n").includes("ignore the rules"), "the log never holds the words or values");
     assert.ok(lines.some(l => l.ok === false) && lines.some(l => l.ok === true));
-    ok("the session's household is the only one used (b's call logs b); no limit; one content-free log line per call");
+    ok("the session's household is the only one used (b's call logs b); the owner's connection allows 30 a day shared with Ask; one content-free log line per call");
 
     assert.deepEqual(await counts(), before, "bills, charges, invoices, clients, balance updates, events and households are unchanged after every call");
     ok("no table changed row count across every call");

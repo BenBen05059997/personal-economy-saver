@@ -59,7 +59,8 @@ export async function fillByVoice(db: Db, householdId: string, request: VoiceFil
     throw error;
   }
   const call = reply.calls.find(c => c.name === FILL_FIELDS);
-  const proposed = call?.input && typeof call.input === "object" && !Array.isArray(call.input) ? call.input as Record<string, unknown> : {};
+  if (!call) throw new VoiceFillError("The AI model didn't return the fields. Try again, or type them.", 502);
+  const proposed = call.input && typeof call.input === "object" && !Array.isArray(call.input) ? call.input as Record<string, unknown> : {};
   const { values, notes } = checkFill(proposed, request, today);
   if (Object.keys(values).length === 0 && notes.length === 0) notes.push("I couldn't pick any fields out of that. Try again, or type them.");
   return { values, heard: request.text, notes };

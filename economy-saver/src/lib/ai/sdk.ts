@@ -33,8 +33,10 @@ function sdkOptions(request: ModelRequest): Omit<LanguageModelV4CallOptions, "ab
       type: "function", name: tool.name, description: tool.description, inputSchema: tool.schema as JSONSchema7,
       ...(request.connection.protocol === "anthropic" && { strict: true }),
     })),
-    toolChoice: request.tools && request.forceTool ? { type: "tool", toolName: request.forceTool }
-      : request.tools && request.connection.protocol === "anthropic" ? { type: "auto" } : undefined,
+    // Current Anthropic models reject a forced tool_choice (400), so Anthropic always gets auto; its body
+    // transform adds the instruction to call the tool. OpenAI-compatible endpoints keep the forced choice.
+    toolChoice: request.tools && request.connection.protocol === "anthropic" ? { type: "auto" }
+      : request.tools && request.forceTool ? { type: "tool", toolName: request.forceTool } : undefined,
   };
 }
 

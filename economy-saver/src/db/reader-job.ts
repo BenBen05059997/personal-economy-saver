@@ -2,6 +2,7 @@ import { logSettingProblem } from "@/lib/operator-log";
 import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { requireHousehold, recordEvent, withHousehold, type Db } from "./household";
 import { householdClock } from "./account";
+import { DOCUMENT_NOT_READ, DOCUMENTS_USED_UP, spendAiBudget } from "./ai-cap";
 import { AiKeyError, aiConnection, connectionView } from "./ai-key";
 import { missingAskSetting, serverHasNoModel } from "@/lib/agent/availability";
 import { cards, documents, households } from "./schema";
@@ -34,6 +35,20 @@ export async function requireReaderModel(db: Db, id: string) {
   if (missing) logSettingProblem("reader_not_set_up", `${missing} is not set`, id);
   if (missing) throw new ReaderError(serverHasNoModel() ? "Reading documents needs an AI key in Settings → Your AI model."
     : "Reading documents isn’t set up on this server.", 503);
+}
+
+/**
+ * D33: spends one of the household's daily document reads on the owner's connection, before the file is stored, so a refused file is
+ * never lost silently: the person sees the refusal. A file already held and not failed is not read again, so it is not counted twice.
+ */
+export async function requireDocumentBudget(db: Db, id: string, mime: string, bytes: ArrayBuffer) {
+  const hid = requireHousehold(id);
+  if (!bytes.byteLength || bytes.byteLength > MAX_DOCUMENT_BYTES) return; // storeDocument refuses it with its own words
+  const documentId = await contentId(hid, mime, bytes);
+  const [held] = await withHousehold(db, hid, tx => tx.select({ status: documents.status }).from(documents)
+    .where(and(eq(documents.householdId, hid), eq(documents.id, documentId))));
+  if (held && held.status !== "failed") return;
+  if (!await spendAiBudget(db, hid, "document")) throw new ReaderError(DOCUMENTS_USED_UP, 429);
 }
 
 export async function storeDocument(db: Db, id: string, kind: "email" | "upload", mime: string, bytes: ArrayBuffer) {
@@ -81,10 +96,12 @@ export async function readDocument(db: Db, id: string, documentId: string, retry
       .where(and(where, or(
         inArray(documents.status, retry ? ["queued", "failed"] : ["queued"]),
         and(eq(documents.status, "reading"), or(isNull(documents.processingAt), lt(documents.processingAt, staleBefore()))),
-      ))).returning({ path: documents.storagePath, mime: documents.mime }));
+      ))).returning({ path: documents.storagePath, mime: documents.mime, kind: documents.kind }));
   if (!doc) return;
   const claim = and(where, eq(documents.status, "reading"), eq(documents.processingAt, started));
   try {
+    // D33: an upload was counted when it arrived; forwarded mail and any retry are counted here. A refusal leaves the document in To check as failed, with the retry.
+    if ((doc.kind === "email" || retry) && !await spendAiBudget(db, hid, "document")) throw new ReaderError(DOCUMENT_NOT_READ, 429);
     if (doc.path !== hid + "/" + documentId) throw new ReaderError("Document storage path is invalid.");
     const bucket = await documentBucket();
     const { data, error } = await bucket.download(doc.path);

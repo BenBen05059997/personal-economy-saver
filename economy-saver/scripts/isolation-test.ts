@@ -15,6 +15,7 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import * as account from "@/db/account";
 import * as aiKeys from "@/db/ai-key";
+import * as aiCap from "@/db/ai-cap"; // D33 daily AI cap
 import * as askMod from "@/db/ask";
 import * as askViewMod from "@/db/ask-view"; // D60 Ask
 import * as canvasesMod from "@/db/canvases"; // D57 pins
@@ -125,7 +126,7 @@ const covered = [
   // people.ts, pots.ts
   "memberCount", "memberByName", "addMember", "savePeople", "removeMember", "savePot", "confirmPot", "removePot", "fillPots",
   // rate-limit.ts, reader-inbox.ts, reader-job.ts, readings.ts, reference-rate.ts
-  "consumeRequest", "consumeCanvasRequest", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "storeReferenceRate",
+  "consumeRequest", "consumeCanvasRequest", "spendAiBudget", "questionsLeft", "requireDocumentBudget", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "storeReferenceRate",
   // runway-events.ts, settings.ts, settle.ts, snapshot.ts, statement-charge.ts, workspace.ts
   "lockRunway", "beginMoneyChange", "observeRunway", "loadSettings", "loadAddView", "updateSettings", "removeCard", "settleUp", "loadHouseholdSnapshot",
   "syncClosedStatementCharge", "unsyncClosedStatementCharge", "loadNavigationData", "loadWorkspaceData", "viewerRole",
@@ -249,7 +250,7 @@ async function main() {
   // The module functions, tracked: F.name records that the test called it, so `covered` cannot list an untested name.
   const used = new Set<string>();
   const modules = {
-    ...account, ...aiKeys, ...approval, ...tryPay, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
+    ...account, ...aiKeys, ...aiCap, ...approval, ...tryPay, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
     ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...invitesMod, ...mcpTokens, ...paypalRefresh, ...paypalConnectMod, ...invoiceMatchMod, ...payTokenBackfillMod, ...invoiceOfferedMod, ...invoiceEndMod, ...paymentLinkMod, ...people, ...potsMod, ...rateLimit,
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
     ...importChargesMod, // Stage 17 import
@@ -1084,6 +1085,17 @@ async function main() {
         await untouched("markRead all");
         assert.equal(await F.consumeRequest(store, X.hid, "ask"), true);
         await untouched("consumeRequest");
+        const W = await seedBen(db); // a household on the owner's connection (the tenants above may hold their own key)
+        for (let i = 0; i < aiCap.DAILY_QUESTIONS; i++) assert.equal(await F.spendAiBudget(store, W, "question"), true);
+        assert.equal(await F.spendAiBudget(store, W, "question"), false, "the 31st question today is refused");
+        assert.equal(await F.questionsLeft(store, W), 0);
+        await untouched("spendAiBudget");
+        assert.equal(await F.questionsLeft(store, X.hid) === null || await F.questionsLeft(store, X.hid) === aiCap.DAILY_QUESTIONS, true, `${X.name} is not counted for W`);
+        assert.ok([null, aiCap.DAILY_QUESTIONS].includes(await F.questionsLeft(store, Y.hid)), `${Y.name}'s day is untouched by a household that used up its own`);
+        const pdfOf = (n: number) => new TextEncoder().encode(`%PDF-1.7 isolation budget w ${n}`).buffer as ArrayBuffer;
+        for (let n = 0; n < aiCap.DAILY_DOCUMENTS; n++) await F.requireDocumentBudget(store, W, "application/pdf", pdfOf(n));
+        await assert.rejects(F.requireDocumentBudget(store, W, "application/pdf", pdfOf(99)), { status: 429 }, "the 11th document today is refused");
+        await untouched("requireDocumentBudget");
         await own("storeReferenceRate", () => F.storeReferenceRate(store, X.hid, { date: "2026-11-13", rateMicro: 148_000_000 }));
         await own("fillPots", async () => assert.equal(await db.transaction(tx => F.fillPots(tx as unknown as Db, X.hid, 100_000, "Isolation probe")), 1, "only the caller's one pot with a fill rule"));
         await own("lockRunway", () => F.lockRunway(store, X.hid));

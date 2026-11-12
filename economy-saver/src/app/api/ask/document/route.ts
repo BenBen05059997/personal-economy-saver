@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { InputError } from "@/db/input-error";
 import { withHousehold } from "@/db/household";
 import { attachDocument, documentCard } from "@/db/document-card";
-import { requireReaderModel } from "@/db/reader-job";
+import { requireDocumentBudget, requireReaderModel } from "@/db/reader-job";
 import { readDocumentInBackground } from "@/db/reader-background";
 import { BAD_FIELDS, NO_STORE, text } from "@/lib/door";
 import { readUpload } from "@/lib/reader/accept";
@@ -26,6 +26,7 @@ export async function POST(request: Request) {
     const parsed = fields.safeParse({ id: form.get("id"), conversationId: form.get("conversationId"), spaceId: form.get("spaceId") ?? undefined, text: form.get("text") ?? undefined });
     if (!parsed.success) return text(BAD_FIELDS, 400);
     await requireReaderModel(db(), hid);
+    await requireDocumentBudget(db(), hid, mime, bytes);
     const { turn, card, documentId } = await attachDocument(db(), hid, { id: parsed.data.id, conversationId: parsed.data.conversationId, spaceId: parsed.data.spaceId, text: parsed.data.text || null, mime, bytes });
     after(() => readDocumentInBackground(hid, documentId));
     return Response.json({ turn, card }, { headers: NO_STORE });

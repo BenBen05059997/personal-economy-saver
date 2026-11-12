@@ -5,7 +5,7 @@ import { logSettingProblem } from "@/lib/operator-log";
  * the server calls (the model, Storage) failed.
  */
 export class ReaderError extends Error {
-  constructor(message: string, readonly status: 400 | 502 | 503 = 400) { super(message); }
+  constructor(message: string, readonly status: 400 | 429 | 502 | 503 = 400) { super(message); }
 }
 
 export function readerSetting(name: string) {

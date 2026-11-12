@@ -4,7 +4,8 @@ import { connectionView } from "@/db/ai-key";
 import { withHousehold } from "@/db/household";
 import { missingAskSetting, serverHasNoModel } from "@/lib/agent/availability";
 import { logVoice } from "@/lib/agent/log";
-import { boundedText, NO_STORE, text } from "@/lib/door";
+import { QUESTIONS_USED_UP, spendAiBudget } from "@/db/ai-cap";
+import { boundedText, NO_STORE, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 import { fillByVoice, VoiceFillError } from "@/lib/voice/fill";
 import { VoiceFillRequest } from "@/lib/voice/schema";
@@ -13,7 +14,7 @@ const MAX_BODY = 16 * 1024;
 
 /**
  * Voice fill (28B): `{ text, fields }` in (`VoiceFillRequest`), `{ values, heard, notes }` out. It only proposes values the code has
- * checked; nothing is written. No rate limit (the owner removed the AI caps).
+ * checked; nothing is written. On the owner's connection it spends the household's daily question budget (D33).
  */
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
@@ -30,6 +31,8 @@ export async function POST(request: Request) {
   if (missing) logSettingProblem("voice_fill_not_set_up", `${missing} is not set`, hid);
   if (missing) return text(serverHasNoModel() ? "Voice fill needs an AI key in Settings → Your AI model. Type the fields instead."
     : "Voice fill isn’t set up on this server. Type the fields instead.", 503);
+  // D33: a voice fill spends from the same daily budget as a question on the owner's connection.
+  if (!await spendAiBudget(connection, hid, "question")) return tooMany(QUESTIONS_USED_UP.replace("asked", "used"));
   const started = Date.now();
   try {
     const response = await fillByVoice(connection, hid, data.data);

@@ -2,10 +2,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { requireHousehold, withHousehold, type Db } from "./household";
 import { ipBuckets, requestBuckets } from "./schema";
 
-/** The length of a counting window: a minute (the default) or an hour (the sign-in link limit). */
-type Window = "minute" | "hour";
+/** The length of a counting window: a minute (the default), an hour (the sign-in link limit) or a day (the owner's AI connection, D33). */
+type Window = "minute" | "hour" | "day";
 
-export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp" | "draft" | "approve" | "try-pay" | "statement-import" | "export" | "people" | "settle" | "remove" | "family-links" | "canvas" | "ai-model" | "ai-model-list" | "thumb" | "pins" | "data" | "restore" | "move" | "suggestions" | "reminders" | "rules" | "invites" | "spaces" | "own-categories" | "mcp-tokens" | "add-view" | "paypal-connect" | "offered" | "invoice-paid" | "invoice-match", limit = 30, per: Window = "minute") {
+export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp" | "draft" | "approve" | "try-pay" | "statement-import" | "export" | "people" | "settle" | "remove" | "family-links" | "canvas" | "ai-model" | "ai-model-list" | "thumb" | "pins" | "data" | "restore" | "move" | "suggestions" | "reminders" | "rules" | "invites" | "spaces" | "own-categories" | "mcp-tokens" | "add-view" | "paypal-connect" | "offered" | "invoice-paid" | "invoice-match" | "ai-question-day" | "ai-document-day", limit = 30, per: Window = "minute") {
   const window = sql`date_trunc(${sql.raw(`'${per}'`)}, now())`;
   const sameWindow = sql`${requestBuckets.window} = ${window}`;
   const rows = await db.insert(requestBuckets).values({ householdId: requireHousehold(hid), purpose, window, count: 1 })

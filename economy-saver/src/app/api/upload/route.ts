@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { db } from "@/db/client";
-import { requireReaderModel, storeDocument } from "@/db/reader-job";
+import { requireDocumentBudget, requireReaderModel, storeDocument } from "@/db/reader-job";
 import { readDocumentInBackground } from "@/db/reader-background";
 import { readUpload } from "@/lib/reader/accept";
 import { ReaderError } from "@/lib/reader/settings";
@@ -13,6 +13,7 @@ export async function POST(request: Request) {
   try {
     const { mime, bytes } = await readUpload(request);
     await requireReaderModel(db(), hid);
+    await requireDocumentBudget(db(), hid, mime, bytes);
     const doc = await storeDocument(db(), hid, "upload", mime, bytes);
     after(() => readDocumentInBackground(hid, doc));
     return redirectTo("/to-check", request);

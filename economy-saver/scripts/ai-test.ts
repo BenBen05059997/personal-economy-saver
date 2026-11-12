@@ -369,8 +369,10 @@ async function main() {
 
     const forced = fake(() => message("end_turn", [{ type: "tool_use", id: "tu_2", name: "look", input: {} }]));
     await callModel({ ...REQUEST, connection: anthropic, fetch: forced.fetch, tools: TOOLS, forceTool: "look" });
-    assert.deepEqual(forced.seen[0].body.tool_choice, { type: "tool", name: "look" });
-    assert.equal(forced.seen[0].body.output_config, undefined);
+    assert.deepEqual(forced.seen[0].body.tool_choice, { type: "auto" }, "current Anthropic models reject a forced tool_choice");
+    assert.ok(forced.seen[0].body.system.endsWith("Answer only by calling the look tool once."));
+    assert.equal("thinking" in forced.seen[0].body, false);
+    assert.deepEqual(forced.seen[0].body.output_config, { effort: "low" });
     assert.equal(forced.seen[0].body.messages[0].content, "hello", "a single text turn goes as a string");
 
     const plain = fake(() => message("end_turn", [{ type: "text", text: "A" }, { type: "text", text: "B" }]));

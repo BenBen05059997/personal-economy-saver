@@ -21,7 +21,8 @@ export async function callAnthropic(request: ModelRequest): Promise<Reply> {
         system: unknown; messages: { role: string; content: Block[] | string }[];
         tools?: Record<string, unknown>[]; output_config?: Record<string, unknown>;
       };
-      body.system = request.system;
+      // tool_choice is auto here (forced choices are a 400 on current models), so the prompt asks for the one call.
+      body.system = request.forceTool ? `${request.system}\n\nAnswer only by calling the ${request.forceTool} tool once.` : request.system;
       for (const message of body.messages) {
         if (message.role === "assistant" && Array.isArray(message.content)) {
           message.content = message.content.flatMap(block => {
@@ -33,7 +34,8 @@ export async function callAnthropic(request: ModelRequest): Promise<Reply> {
         }
       }
       for (const tool of body.tools ?? []) tool.strict = true;
-      if (!request.forceTool) body.output_config = { ...body.output_config, effort: "low" };
+      // Thinking counts toward max_tokens; low effort keeps short replies (voice fill, the reader) inside theirs.
+      body.output_config = { ...body.output_config, effort: "low" };
       return JSON.stringify(body);
     }),
   });

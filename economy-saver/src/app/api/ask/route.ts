@@ -4,7 +4,8 @@ import { answerQuestion, askInput } from "@/db/ask";
 import { db } from "@/db/client";
 import { InputError } from "@/db/input-error";
 import { AgentError } from "@/lib/agent/run";
-import { NO_STORE, limited, text } from "@/lib/door";
+import { QUESTIONS_USED_UP, spendAiBudget } from "@/db/ai-cap";
+import { NO_STORE, limited, text, tooMany } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
 
 import { MissingAuthSetting } from "@/lib/supabase-auth";
@@ -29,6 +30,8 @@ export async function POST(request: Request) {
   const connection = db();
   const busy = await limited(hid, "ask", undefined, "Ask again in a minute.", connection);
   if (busy) return busy;
+  // D33: the owner's connection allows a number of questions a day per household; one is spent here, before any model call.
+  if (!await spendAiBudget(connection, hid, "question")) return tooMany(QUESTIONS_USED_UP);
   // After these checks the answer is one stream of JSON lines: `{"step":"…"}` lines, then `{"reply": AskReply}` or `{"error": "…"}`.
   // An InputError raised before the first model call (the question does not fit the household) is still a plain 400.
   const encoder = new TextEncoder();
