@@ -7,11 +7,11 @@ import { minorMoney, minorPerUnit, plural } from "./format";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "./gaps";
 import { CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
 import { ownLabel } from "./own-category";
-import { nameKey, normalise } from "./name-key";
+import { nameKey, normalise, sameName } from "./name-key";
 import { amountOn, datesIn, nextAmountOf, realBillsBySeries, unpricedBySeries, variesOccurrences } from "./repeat";
 import type { Bill, Card, Charge, RepeatUnit, SplitMember } from "./types";
 
-export { nameKey, normalise };
+export { nameKey, normalise, sameName };
 
 /** D55: true when there are items and none of them has a known amount: a total of them is not ¥0, it is not known. */
 export const allUncounted = (items: readonly { uncounted?: true }[]): boolean => items.length > 0 && items.every(item => item.uncounted);

@@ -1,9 +1,9 @@
 // Which amount-varies series a real bill belongs to (D54). Pure: the one rule the database (linking a bill as it is saved or
-// confirmed) and the reader's review card (saying it will link) share. Names match by D54's one key, `nameKey`.
+// confirmed) and the reader's review card (saying it will link) share. Names match by D54's name keys, `sameName`.
 import type { CategoryKey } from "./categories";
 import { gapEstimate } from "./gaps";
 import { occurrenceDates, variesEstimate } from "./repeat";
-import { monthBounds, nameKey } from "./spending";
+import { monthBounds, sameName } from "./spending";
 import type { RealBill } from "./types";
 
 /** A confirmed amount-varies monthly bill, as stored: where its series starts and its own amount (minor units). */
@@ -16,8 +16,7 @@ export type VariesSeries = { id: string; biller: string; category: CategoryKey; 
  * when two series match (the user links one by hand in Settings).
  */
 export function seriesToJoin(series: VariesSeries[], taken: { seriesBillId: string; due: string }[], bill: { biller: string; category: CategoryKey; due: string }): VariesSeries | null {
-  const key = nameKey(bill.biller);
-  const matches = series.filter(s => s.category === bill.category && nameKey(s.biller) === key && (s.until === undefined || s.until === null || bill.due <= s.until)); // D41: a bill after the last payment is its own
+  const matches = series.filter(s => s.category === bill.category && sameName(s.biller, bill.biller) && (s.until === undefined || s.until === null || bill.due <= s.until)); // D41: a bill after the last payment is its own
   if (matches.length !== 1) return null;
   const [match] = matches;
   const month = bill.due.slice(0, 7);

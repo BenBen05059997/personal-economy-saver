@@ -64,7 +64,8 @@ async function test() {
         assert.ok(body.system.endsWith("Answer only by calling the record_items tool once."));
         assert.equal("thinking" in body, false);
         assert.deepEqual(body.tools.map((t: { name: string }) => t.name), ["record_items"]);
-        assert.deepEqual(body.output_config, { effort: "low" }, "a forced tool carries low effort, like every Anthropic call");
+        assert.deepEqual(body.output_config, { effort: "medium" }, "the document reader thinks at medium effort");
+        assert.equal(body.max_tokens, 6000);
         if (expectedMime === "message/rfc822") {
           const content = body.messages[0].content;
           assert.ok((typeof content === "string" ? content : content.map((v: { text?: string }) => v.text).join("\n")).includes("Minato kiosk"));

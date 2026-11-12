@@ -9,7 +9,7 @@ import { convertMinor, fromMinor, fromRateMicro } from "./money";
 import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { syncClosedStatementCharge } from "./statement-charge";
-import { nameKey } from "@/lib/money/name-key";
+import { nameKey, sameName } from "@/lib/money/name-key";
 import { correctionText } from "@/lib/reader/correction";
 import { addMemory } from "./memory";
 import { checksFor, readingProposal, type CheckKind } from "@/lib/money/checks";
@@ -23,10 +23,9 @@ const patchSchema = extractSchema.pick({ name: true, kind: true, category: true,
 
 /** The day of the month a biller's confirmed bills usually fall due on: the latest confirmed bill with the same name key; null when there is none. */
 async function usualDueDay(db: Db, hid: string, name: string): Promise<number | null> {
-  const key = nameKey(name);
   const rows = await db.select({ biller: bills.biller, due: bills.due, repeatDay: bills.repeatDay }).from(bills)
     .where(and(eq(bills.householdId, hid), eq(bills.status, "confirmed"), sql`${bills.due} is not null`)).orderBy(desc(bills.due));
-  const row = rows.find(r => nameKey(r.biller) === key);
+  const row = rows.find(r => sameName(r.biller, name));
   return row ? row.repeatDay ?? Number(row.due!.slice(8, 10)) : null;
 }
 

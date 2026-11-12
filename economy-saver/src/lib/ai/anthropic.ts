@@ -51,8 +51,8 @@ export async function callAnthropic(request: ModelRequest): Promise<Reply> {
         last.content[last.content.length - 1].cache_control = cache;
       }
       for (const tool of body.tools ?? []) if (tool.name === request.forceTool) tool.strict = true; else delete tool.strict;
-      // Thinking counts toward max_tokens; low effort keeps short replies (voice fill, the reader) inside theirs.
-      body.output_config = { ...body.output_config, effort: "low" };
+      // Thinking counts toward max_tokens; low effort keeps short replies (voice fill, Ask) inside theirs; the reader asks for medium.
+      body.output_config = { ...body.output_config, effort: request.effort ?? "low" };
       return JSON.stringify(body);
     }),
   });

@@ -31,7 +31,6 @@ Only Ben can do these. Agents carry on with anything that doesn't wait on them.
 - Run the model eval on at least two real providers and add the passing pairs to the tested list (D56, O6). Waits on `EVAL_API_KEY`.
 - Live checks that wait on a real model, sign-in or deploy: answers, canvases and memory on a real model; document reading, including a bill's month; member sign-in, invite, permissions and leave (D68); MCP token issue, use and revoke; the family link copy with a real clipboard (D52); the full scripted and browser run on the deployed Worker.
 - Browser check at 1440 of the judges' path after the latest Ask changes: Try it, Home, the Ask panel, a canvas drawn, Pin to Home, Approve, Pay as the client.
-- Reading a photo, and Ask's Attach a bill, on the real model.
 - The daily-allowance line under Ask and Upload, and the limit message, seen in the app on fipa's model (D33).
 - Speed targets: Try it to Home within 1.5 s (the deployed median was 2.45 s), an answer within 8 s on a real model, a To check row within 30 s of an upload, "Sent" in Activity within 2 s. Use the request log on the deployed Worker to separate connection setup from SQL before changing anything.
 - V4: replace the placeholder US cash-advance terms in Options with verified references (D7).

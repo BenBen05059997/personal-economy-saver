@@ -13,7 +13,8 @@ import { confirmPending } from "@/db/confirm";
 import { seedBen } from "@/db/seed";
 import { loadSpending } from "@/db/spending";
 import { regularCosts, type RegularCost } from "@/lib/money/regular";
-import { monthBounds, nameKey, normalise, spendingItems, type SpendingInput, type SpendItem } from "@/lib/money/spending";
+import { nameKeys } from "@/lib/money/name-key";
+import { monthBounds, nameKey, normalise, sameName, spendingItems, type SpendingInput, type SpendItem } from "@/lib/money/spending";
 import type { Bill, Charge } from "@/lib/money/types";
 
 const TODAY = "2026-11-14";
@@ -59,6 +60,20 @@ const brief = (c: RegularCost) => [c.label, c.status, c.months.map(m => m.amount
 async function main() {
   let passed = 0;
   async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+
+  await check("sameName: a bracketed alternative is a name too; no transliteration, no date or company-form parts", () => {
+    for (const name of ["光電気 (HIKARI DENKI)", "Hikari Denki（光電気）", "光電気【Hikari Denki】", "光電気 [Hikari Denki]", "光電気「Hikari Denki」", "Hikari Denki (11月分)", "Hikari Denki Co., Ltd."]) assert.ok(sameName(name, "Hikari Denki"), name);
+    assert.ok(sameName("Hikari Denki", "光電気 (HIKARI DENKI)"), "both ways");
+    assert.ok(sameName("ABC 【エービーシー】", "エービーシー"));
+    assert.ok(sameName("光電気 (HIKARI DENKI)", "光電気"));
+    assert.ok(!sameName("Rent", "Rental car"));
+    assert.ok(!sameName("Hikari Denki", "ヒカリ電気"), "no transliteration");
+    assert.ok(!sameName("ABC (株)", "株"), "a company form is not a name");
+    assert.ok(!sameName("Hikari Denki (11月分)", "11月分"), "a date word is not a name");
+    assert.ok(!sameName("Rent (R)", "R"), "one character is not a name");
+    assert.deepEqual(nameKeys("ABC (株)"), ["abc"]);
+    assert.deepEqual(nameKeys("光電気 (HIKARI DENKI)").slice(1), ["光電気", "hikari denki"]);
+  });
 
   await check("nameKey: month and date words go, so each month's bill of one cost shares a key; other names stay apart", () => {
     const hikari = ["Hikari Denki 10月分", "Hikari Denki 11月分", "Hikari Denki", "Hikari Denki (11月分)", "Hikari Denki 2026年11月", "Hikari Denki 令和8年11月分",

@@ -7,7 +7,7 @@
 import type { Currency } from "@/lib/catalogue/types";
 import type { CategoryKey } from "./categories";
 import { dayLabel, minorMoney, minorPerUnit, plural } from "./format";
-import { nameKey } from "./name-key";
+import { sameName } from "./name-key";
 import { daysBetween, low, series, WINDOW_DAYS } from "./runway";
 import type { Bill, GapBasis, MoneyState, RealBill, RepeatUnit } from "./types";
 
@@ -53,9 +53,8 @@ type HistoryBill = {
  * minor units per unit of `Bill.amount`.
  */
 export function nameHistory(bills: readonly HistoryBill[], biller: string, category: CategoryKey, unit: number): RealBill[] {
-  const key = nameKey(biller);
   return bills.flatMap(bill => bill.status === "confirmed" && bill.repeatUnit === undefined && bill.category === category
-    && bill.amount !== null && !bill.amountUnknown && bill.due !== null && !bill.dueUnknown && nameKey(bill.biller) === key
+    && bill.amount !== null && !bill.amountUnknown && bill.due !== null && !bill.dueUnknown && sameName(bill.biller, biller)
     ? [{ due: bill.due, amountMinor: Math.round(bill.amount * unit) }] : []);
 }
 

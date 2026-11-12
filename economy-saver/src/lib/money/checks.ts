@@ -8,7 +8,7 @@ import type { Currency } from "@/lib/catalogue/types";
 import type { CategoryKey } from "./categories";
 import { dayLabel, minorMoney, minorPerUnit } from "./format";
 import { gapEstimate, gapQuestion } from "./gaps";
-import { nameKey } from "./name-key";
+import { sameName } from "./name-key";
 import { amountOn, datesIn, nextAmountOf } from "./repeat";
 import { regularCosts } from "./regular";
 import { addDays, daysBetween, pendingCharges } from "./runway";
@@ -91,7 +91,7 @@ function savedWords(kind: "bill" | "charge", waiting: boolean, name: string, min
 
 function alreadySaved(p: Proposal, state: MoneyState, waiting: readonly Proposal[]): Check | null {
   if (p.name === null || p.date === null) return null;
-  const key = nameKey(p.name), date = p.date;
+  const name = p.name, date = p.date;
   const unit = minorPerUnit(state.homeCurrency);
   const home = p.currency === state.homeCurrency;
   const near = (other: string) => Math.abs(daysBetween(date, other)) <= DUPLICATE_DAYS;
@@ -101,12 +101,12 @@ function alreadySaved(p: Proposal, state: MoneyState, waiting: readonly Proposal
   if (p.kind === "bill") {
     for (const bill of state.bills) {
       if (bill.startsOn !== undefined || bill.estimated || bill.uncounted || bill.amountUnknown || bill.dueUnknown) continue; // (a): a one-off or a pending bill with both known
-      if (storedId(bill.id) === p.id || nameKey(bill.biller) !== key || !near(bill.due)) continue;
+      if (storedId(bill.id) === p.id || !sameName(bill.biller, name) || !near(bill.due)) continue;
       const minor = Math.round(bill.amount * unit);
       if (equal(minor)) matches.push({ words: savedWords("bill", bill.status === "pending", bill.biller, minor, state.homeCurrency, bill.due), sameAmount: true, distance: Math.abs(daysBetween(date, bill.due)) });
     }
     for (const series of seriesOf(state)) { // (b): a confirmed repeating series, at any amount, wherever its next date falls; an amount-varies series links instead (D54)
-      if (series.varies || series.id === p.id || nameKey(series.biller) !== key) continue;
+      if (series.varies || series.id === p.id || !sameName(series.biller, name)) continue;
       const dates = datesIn({ due: series.startsOn, repeatUnit: series.unit, repeatDay: series.repeatDay, repeatUntil: series.until }, addDays(date, -DUPLICATE_DAYS), addDays(date, DUPLICATE_DAYS));
       if (dates.length === 0) continue;
       const found = dates.reduce((best, d) => (Math.abs(daysBetween(date, d)) < Math.abs(daysBetween(date, best)) ? d : best));
@@ -121,14 +121,14 @@ function alreadySaved(p: Proposal, state: MoneyState, waiting: readonly Proposal
     }
   } else {
     for (const charge of state.charges) { // (c)
-      if (charge.id === p.id || nameKey(charge.merchant) !== key || !near(charge.date)) continue;
+      if (charge.id === p.id || !sameName(charge.merchant, name) || !near(charge.date)) continue;
       if (p.cardId !== null && charge.cardId !== p.cardId) continue;
       const minor = Math.round(charge.amount * unit);
       if (equal(minor)) matches.push({ words: savedWords("charge", charge.status === "pending", charge.merchant, minor, state.homeCurrency, charge.date), sameAmount: true, distance: Math.abs(daysBetween(date, charge.date)) });
     }
   }
   for (const other of waiting) { // (d): under rule (a), or (c) for a charge
-    if (other.id === p.id || other.kind !== p.kind || other.name === null || other.date === null || other.amountMinor === null || nameKey(other.name) !== key || !near(other.date)) continue;
+    if (other.id === p.id || other.kind !== p.kind || other.name === null || other.date === null || other.amountMinor === null || !sameName(other.name, name) || !near(other.date)) continue;
     if (other.currency !== p.currency || !equal(other.amountMinor) || p.currency === null) continue;
     if (p.kind === "charge" && p.cardId !== null && other.cardId !== null && other.cardId !== p.cardId) continue;
     matches.push({ words: savedWords(p.kind, true, other.name, other.amountMinor, p.currency, other.date), sameAmount: true, distance: Math.abs(daysBetween(date, other.date)) });
@@ -175,9 +175,9 @@ function pastDue(p: Proposal, state: MoneyState): Check | null {
 
 function farFromUsual(p: Proposal, state: MoneyState): Check | null {
   if (p.kind !== "bill" || p.name === null || p.amountMinor === null || p.currency !== state.homeCurrency) return null;
-  const key = nameKey(p.name), unit = minorPerUnit(state.homeCurrency), money = (minor: number) => minorMoney(minor, state.homeCurrency);
+  const name = p.name, unit = minorPerUnit(state.homeCurrency), money = (minor: number) => minorMoney(minor, state.homeCurrency);
   const history = state.bills.flatMap(bill => bill.status === "confirmed" && bill.repeatUnit === undefined && bill.startsOn === undefined && !bill.amountUnknown && !bill.dueUnknown
-    && nameKey(bill.biller) === key && (p.date === null || bill.due < p.date)
+    && sameName(bill.biller, name) && (p.date === null || bill.due < p.date)
     ? [{ due: bill.due, amountMinor: Math.round(bill.amount * unit), biller: bill.biller, seriesId: bill.seriesBillId }] : []);
   const estimate = gapEstimate(history, null);
   const amount = p.amountMinor, this_ = `This one is ${money(amount)}.`;
@@ -185,13 +185,13 @@ function farFromUsual(p: Proposal, state: MoneyState): Check | null {
     if (!(amount * 100 > estimate.highMinor * (100 + FAR_PERCENT) || amount * 100 < estimate.lowMinor * (100 - FAR_PERCENT))) return null;
     const latest = history.reduce((newest, bill) => bill.due > newest.due || (bill.due === newest.due && bill.biller > newest.biller) ? bill : newest);
     const matchedSeries = latest.seriesId === undefined ? undefined : seriesOf(state).find(series => series.id === latest.seriesId);
-    const name = matchedSeries?.biller ?? latest.biller;
-    const usual = estimate.count === 1 ? `Your last ${name} bill was ${money(estimate.highMinor)}.`
-      : `${name} is usually ${money(estimate.lowMinor)}–${money(estimate.highMinor)} (your last ${estimate.count} bills).`;
+    const shown = matchedSeries?.biller ?? latest.biller;
+    const usual = estimate.count === 1 ? `Your last ${shown} bill was ${money(estimate.highMinor)}.`
+      : `${shown} is usually ${money(estimate.lowMinor)}–${money(estimate.highMinor)} (your last ${estimate.count} bills).`;
     return farCheck(`${usual} ${this_}`);
   }
   const date = p.date ?? state.today;
-  const series = seriesOf(state).find(one => !one.varies && one.amount !== null && nameKey(one.biller) === key);
+  const series = seriesOf(state).find(one => !one.varies && one.amount !== null && sameName(one.biller, name));
   if (!series || series.amount === null) return null;
   const usual = Math.round(amountOn(series.amount, series.next, date) * unit);
   if (!(amount * 100 > usual * (100 + FAR_PERCENT) || amount * 100 < usual * (100 - FAR_PERCENT))) return null;
@@ -205,11 +205,11 @@ const farCheck = (words: string): Check => ({
 
 function repeatUnknown(p: Proposal, state: MoneyState): Check | null {
   if (p.kind !== "bill" || p.repeat !== null || p.name === null) return null;
-  const key = nameKey(p.name);
-  if (seriesOf(state).some(one => nameKey(one.biller) === key)) return null;
+  const name = p.name;
+  if (seriesOf(state).some(one => sameName(one.biller, name))) return null;
   const from = `${monthsBack(state.today.slice(0, 7), 3)}-01`, to = monthBounds(state.today.slice(0, 7)).last;
   const regular = regularCosts(spendingItems(state, from, to), state.homeCurrency, state.today);
-  if (regular.items.some(item => nameKey(item.label) === key)) return null;
+  if (regular.items.some(item => sameName(item.label, name))) return null;
   return {
     kind: "repeat_unknown", words: `Does ${p.name} come again?`,
     choices: [

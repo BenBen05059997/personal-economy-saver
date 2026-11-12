@@ -33,7 +33,7 @@ const SEPARATOR = "[\\s\\-–—・:,/|]";
  * "Hikari Denki (11月分)" and "Hikari Denki" share a key, and "Rent" and "Rental car" do not. A name that is nothing but
  * a date keeps its normalised text as its key. Company forms go too: 株式会社, 有限会社, 合同会社, (株), ㈱ anywhere, and "Co.", "Ltd.", "Co., Ltd.", "Inc.",
  * "LLC", "Corp.", "K.K." as whole words at the end; then a trailing "." or ",". A name that is only a company form keeps its text. No transliteration:
- * "株式会社ヒカリ電気" and "Hikari Denki" are different keys.
+ * "株式会社ヒカリ電気" and "Hikari Denki" are different keys. (A name with a bracketed alternative has more than one key: see `nameKeys`.)
  */
 export function nameKey(label: string): string {
   const base = normalise(label);
@@ -51,4 +51,43 @@ export function nameKey(label: string): string {
     .replace(/\s+/g, " ")
     .trim();
   return key === "" ? base : key;
+}
+
+const BRACKETS = /\(([^()]*)\)|\[([^\[\]]*)\]|【([^【】]*)】|「([^「」]*)」|〔([^〔〕]*)〕/gu;
+
+/**
+ * Every key a name answers to (D54): the key of the whole name and, when the name holds a bracketed alternative ("光電気 (HIKARI DENKI)",
+ * "Hikari Denki（光電気）", "ABC 【エービーシー】"), the key of the part outside the brackets and of the part inside each pair, because
+ * a bill often prints its name in two scripts. A part counts only when its key is at least 2 characters and not just a date word or
+ * a company form ("(11月分)", "(株)"). No transliteration. Matching uses this; grouping uses `nameKey`.
+ */
+export function nameKeys(label: string): string[] {
+  const base = normalise(label);
+  const keys = [nameKey(label)];
+  const inside: string[] = [];
+  const outside = base.replace(BRACKETS, (_all, ...groups: (string | undefined)[]) => { inside.push(groups.slice(0, 5).find(g => g !== undefined) ?? ""); return " "; });
+  if (inside.length === 0) return keys;
+  for (const part of [outside, ...inside]) {
+    if (part.trim() === "") continue;
+    const key = nameKey(part);
+    const bare = key.replace(/[.,\s]+/gu, "");
+    if ([...bare].length < 2 || isOnlyNoise(part)) continue;
+    if (!keys.includes(key)) keys.push(key);
+  }
+  return keys;
+}
+
+// A part that is nothing but a date word or a company form: nameKey then falls back to its normalised text, so compare against the stripped remains.
+function isOnlyNoise(part: string): boolean {
+  let rest = normalise(part);
+  for (const words of DATE_WORDS) rest = rest.replace(words, " ");
+  rest = rest.replace(JP_FORMS, " ").trim();
+  for (let next = rest.replace(EN_FORM_END, " ").trim(); next !== rest; next = rest.replace(EN_FORM_END, " ").trim()) rest = next;
+  return rest.replace(/[.,\s\-–—・:/|]+/gu, "") === "";
+}
+
+/** True when two names are the same biller or merchant: their key sets (`nameKeys`) share a key. For matching only, never for grouping. */
+export function sameName(a: string, b: string): boolean {
+  const keys = nameKeys(b);
+  return nameKeys(a).some(key => keys.includes(key));
 }

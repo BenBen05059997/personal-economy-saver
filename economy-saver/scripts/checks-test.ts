@@ -78,6 +78,14 @@ async function main() {
     assert.equal(only(checksFor(proposal({ name: "KAWA gym" }), state), "already_saved")!.kind, "already_saved", "the name key");
   });
 
+  await check("already saved: a name printed in two scripts matches the saved one (D54)", () => {
+    const state = stateWith([stored({ id: "hikari", biller: "Hikari Denki", amount: 11_220, due: "2026-11-27", status: "pending" })]);
+    const found = only(checksFor(proposal({ name: "光電気 (HIKARI DENKI)", amountMinor: 11_220, date: "2026-11-29", repeat: null, category: "utilities" }), state), "already_saved");
+    assert.equal(found!.words, "Already waiting in To check: Hikari Denki, ¥11,220, due Nov 27.");
+    assert.equal(only(checksFor(proposal({ name: "光電気 (HIKARI DENKI)", amountMinor: 11_220, date: "2026-12-05", repeat: null }), state), "already_saved"), undefined, "more than 3 days apart");
+    assert.equal(only(checksFor(proposal({ name: "Rental car", amountMinor: 11_220, date: "2026-11-27", repeat: null }), stateWith([stored({ id: "r", biller: "Rent", amount: 11_220, due: "2026-11-27" })])), "already_saved"), undefined, "Rent is not Rental car");
+  });
+
   await check("already saved: a bill waiting in To check says so; the bill itself is not its own duplicate", () => {
     const state = stateWith([stored({ id: "gym", biller: "Kawa Gym", amount: 6_000, due: "2026-12-27", status: "pending" })]);
     assert.equal(only(checksFor(proposal(), state), "already_saved")!.words, "Already waiting in To check: Kawa Gym, ¥6,000, due Dec 27.");

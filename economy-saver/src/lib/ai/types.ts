@@ -19,6 +19,8 @@ export type ModelRequest = {
   /** The full system text. `systemStable` is its leading part that is the same on every call; a call that sets it is one of several turns over the same prefix, and Anthropic is told to cache the tools, that part and the turns so far. */
   system: string; systemStable?: string;
    turns: Turn[]; tools?: ToolSpec[]; forceTool?: string;
+  /** Anthropic thinking effort; low unless a call needs more care (the document reader). OpenAI-compatible requests ignore it. */
+  effort?: "low" | "medium";
   maxTokens: number; timeoutMs: number; fetch?: typeof globalThis.fetch;
   /** The app's own address, for the localhost rule; defaults to the APP_URL setting. Tests inject it. */
   appUrl?: URL;

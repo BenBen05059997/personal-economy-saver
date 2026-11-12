@@ -380,6 +380,9 @@ async function main() {
     assert.equal("thinking" in forced.seen[0].body, false);
     assert.equal(forced.seen[0].body.tools[0].strict, true, "the forced tool is strict");
     assert.deepEqual(forced.seen[0].body.output_config, { effort: "low" });
+    const careful = fake(() => message("end_turn", [{ type: "text", text: "A" }]));
+    await callModel({ ...REQUEST, connection: anthropic, fetch: careful.fetch, effort: "medium" });
+    assert.deepEqual(careful.seen[0].body.output_config, { effort: "medium" }, "a request may ask for medium effort");
     assert.equal(forced.seen[0].body.messages[0].content, "hello", "a single text turn goes as a string");
 
     const plain = fake(() => message("end_turn", [{ type: "text", text: "A" }, { type: "text", text: "B" }]));
