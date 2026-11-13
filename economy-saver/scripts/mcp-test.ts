@@ -66,7 +66,7 @@ async function main() {
     assert.ok(!/\btoday\b|JPY/i.test(instructions!), "the server cannot know the date or currency");
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "bills_for_month", "can_i_spend", "draft_invoice", "foreign_costs", "forget", "goals", "household_snapshot", "list_clients_and_cards", "list_invoices", "list_spaces", "log_charge", "log_charges", "make_canvas", "month_by_category", "open_gaps", "options_when_short", "own_categories", "plan_for", "recall", "regular_costs", "remember", "search_history", "search_spending", "set_whose", "suggestions", "timeline", "to_check", "update_bank_balance", "what_if", "whats_due", "where_am_i", "who_owes_whom"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "bills_for_month", "can_i_spend", "draft_invoice", "foreign_costs", "forget", "goals", "household_snapshot", "list_clients_and_cards", "list_invoices", "list_spaces", "log_charge", "log_charges", "make_canvas", "month_by_category", "open_gaps", "options_when_short", "own_categories", "plan_for", "recall", "regular_costs", "remember", "search_history", "search_spending", "set_whose", "show", "suggestions", "timeline", "to_check", "update_bank_balance", "what_if", "whats_due", "where_am_i", "who_owes_whom"]);
     assert.ok(!list.tools.some(tool => tool.name === "clarify" || tool.name === "out_of_scope"), "the Ask-only tools are never offered over MCP");
     stage = "own categories over MCP";
     const ownTool = list.tools.find(tool => tool.name === "own_categories");
@@ -80,6 +80,9 @@ async function main() {
     stage = "make_canvas over MCP";
     const drawn = JSON.parse(((await client.callTool({ name: "make_canvas", arguments: { recipe: JSON.stringify({ version: 1, title: "Cash", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] }) } })).content as { text: string }[])[0].text);
     assert.deepEqual([drawn.blocks.length, drawn.blocks[0].type, drawn.blocks[0].label], [1, "number", "Cash today"]);
+    stage = "show over MCP";
+    const shownCall = JSON.parse(((await client.callTool({ name: "show", arguments: { view: "forecast", args: null } })).content as { text: string }[])[0].text);
+    assert.deepEqual([shownCall.view, typeof shownCall.line, "figures" in shownCall, "blocks" in shownCall], ["forecast", "string", true, false], "figures and a line, no canvas");
     stage = "tool execution";
     const outlook = await client.callTool({ name: "where_am_i", arguments: {} });
     assert.match(JSON.stringify(outlook.content), /18,780 short/);

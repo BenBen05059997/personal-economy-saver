@@ -32,6 +32,7 @@ export const TOOL_WORDS: Record<string, string> = {
   update_bank_balance: "Updating the bank balance",
   what_if: "Trying the what-if",
   make_canvas: "Drawing the canvas",
+  show: "Drawing a chart",
   clarify: "Working out what to ask you",
   out_of_scope: "Checking if I can help with that",
   remember: "Noting that down",

@@ -22,6 +22,7 @@ Only Ben can do these. Agents carry on with anything that doesn't wait on them.
 - Sandbox sign-ins: the seller account to connect, and the US Personal client to pay a test link (D17).
 - Devpost: tick the Terms box and press Submit project before it closes, Nov 13 05:00 Tokyo (D1).
 - Approve the canvas concept; then it is saved under `design/`.
+- After the graph toolset is built: a paid live run of the Ask cases and the model eval on the new views (D56, D77).
 
 ## Open work
 
@@ -35,8 +36,12 @@ Only Ben can do these. Agents carry on with anything that doesn't wait on them.
 - Speed targets: Try it to Home within 1.5 s (the deployed median was 2.45 s), an answer within 8 s on a real model, a To check row within 30 s of an upload, "Sent" in Activity within 2 s. Use the request log on the deployed Worker to separate connection setup from SQL before changing anything.
 - V4: replace the placeholder US cash-advance terms in Options with verified references (D7).
 - The contract migration, after the owner's word (above).
+- The graph toolset's foundation: views as canvas blocks, the agent's show tool, the shared chart forms, Home's forecast and Spending's This month and Over time drawn through them, and Ben's sample paid history moved into the last six months with every current number unchanged (D77).
+- Views whose data exists: money in and how fast clients pay on Clients, the bills calendar, each card's cycle, what you keep on Saving with the 3- and 6-month guide, day by day on Over time, where you stand and the what-if ghost as starters, and what changed after Confirm (D77).
+- The rest of the views: regular costs and the search by month, foreign costs by month in Ask, each goal's pace and the tax ahead in the pot's panel, who owes whom on People, the family link drawn through the views, and the older canvas charts drawn through the same forms (D77).
+- After the agent acts: the draft card with Confirm in the thread, Saved with What changed, the reply's chip and To check's confirmation line (D60, D61).
 - Before real users: a production Supabase project separate from development, a secret-rotation procedure and Pro-plan backups (D38).
 
 ## Later
 
-Each with its evidence in [research/users/money-chores-worldwide.md](research/users/money-chores-worldwide.md): held PayPal money shown as expected on a date, never as cash; each client's pay run, so a reminder lands before it; one warning the day before a known debit when the forecast is short; the dispute clock; a recurring remittance with its fee; the agent proposing categories for unknown names; per-country calendars as content tables, never code. Also: income other than invoices (D28), the catalogue as an agent tool once households have a profile (D6), moving money between pots, an agent-led start (D47).
+Each with its evidence in [research/users/money-chores-worldwide.md](research/users/money-chores-worldwide.md): held PayPal money shown as expected on a date, never as cash; each client's pay run, so a reminder lands before it; one warning the day before a known debit when the forecast is short; the dispute clock; a recurring remittance with its fee; the agent proposing categories for unknown names; per-country calendars as content tables, never code. Also: income other than invoices (D28), the catalogue as an agent tool once households have a profile (D6), moving money between pots, an agent-led start (D47), the position over time from a daily record of balances (D77).

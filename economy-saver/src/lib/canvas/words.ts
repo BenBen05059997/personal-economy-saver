@@ -1,6 +1,7 @@
 // "Show the recipe": each block in plain words. Pure.
 import { plural } from "@/lib/plural";
 import { monthName, SEARCH_QUERY_MAX } from "@/lib/money/spending";
+import { VIEW_META } from "@/lib/views/catalogue";
 import type { Block, Query, ScenarioRef } from "./schema";
 
 const monthWords = (month: string) => `${monthName(month)} ${month.slice(0, 4)}`;
@@ -47,6 +48,7 @@ export function blockWords(block: Block): string {
     case "progress": return "label" in block
       ? `Progress "${block.label}": ${queryWords(block.query)}, against the target you set`
       : `Goals: ${queryWords(block.query)}`;
+    case "view": return `Picture: ${VIEW_META[block.view].question}`;
     case "note": return `Note (${block.by === "you" ? "yours" : "written by the assistant"})`;
     case "letter": return "Letter written by the assistant";
     case "sliders": return `Sliders: ${block.controls.length} ${plural(block.controls.length, "client")} that can pay late`;
@@ -57,5 +59,5 @@ export function blockWords(block: Block): string {
 /** The short kind name drawn over an outlined block. */
 export const KIND_WORDS: Record<Block["type"], string> = {
   sentence: "Sentence", number: "Number", flow_chart: "Chart", timeline: "Timeline", table: "Table", compare: "Comparison", by_person: "By person",
-  progress: "Progress", note: "Note", letter: "Letter", sliders: "Sliders", action: "Link",
+  progress: "Progress", note: "Note", letter: "Letter", sliders: "Sliders", action: "Link", view: "Picture",
 };

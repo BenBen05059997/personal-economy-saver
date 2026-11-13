@@ -30,6 +30,8 @@ import { billInput, insertBill } from "@/db/bills";
 import { MODEL_RULES } from "@/lib/agent/rules";
 import { THINKING_WORDS, TOOL_WORDS, toolWords } from "@/lib/agent/words";
 import { answerQuestion, askInput, assembleContext } from "@/db/ask";
+import { allTurns } from "@/db/conversation";
+import { liveViews } from "@/lib/views/resolve";
 import { askScreenForPath } from "@/lib/agent/screen";
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { whatIf } from "@/lib/money/whatif";
@@ -289,7 +291,7 @@ async function main() {
       }
       assert.equal(results[3].is_error, true);
       assert.equal(results[4].is_error, true);
-      assert.match(tools.find(t => t.name === "timeline")!.description, /30 days ahead/);
+      assert.match(tools.find(t => t.name === "timeline")!.description, /past 30 days/);
     });
 
     await check("options_when_short says 'not short' when the runway is fine", async () => {
@@ -1235,6 +1237,90 @@ async function main() {
         () => reply("end_turn", [text("The letter is on the canvas.")]),
       ]);
       assert.equal((await conversation(c, "Write a letter to Acme", good.fetch)).kind, "answer");
+    });
+
+    await check("show (D77): a drawn view joins the answer's canvas and names its page; wrong arguments, a view not live and a fifth show come back in words; Incognito can show; a reload keeps the view", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const live = liveViews();
+      const showCall = (id: string, view: string, args: unknown = null) => toolUse(id, "show", { view, args: args === null ? null : JSON.stringify(args) });
+      const lineOf = (body: Body, id: string) => JSON.parse(toolResults(body).find(r => r.tool_use_id === id)!.content) as { line: string; figures: Record<string, unknown>; table: { rows: unknown[] } | null; title: string };
+      const words = (body: Body, id: string) => { const r = toolResults(body).find(x => x.tool_use_id === id)!; assert.equal(r.is_error, true, id); return r.content; };
+
+      const t = transport([
+        () => reply("tool_use", [showCall("s", "forecast")]),
+        bodies => reply("end_turn", [text(`${lineOf(bodies.at(-1)!, "s").line}`)]),
+      ]);
+      const shown = await conversation(c, "Am I fine for 30 days?", t.fetch);
+      assert.equal(shown.kind, "answer");
+      assert.deepEqual(shown.canvas?.recipe.blocks.map(b => b.type), ["view"], "one view block");
+      assert.equal(shown.canvas?.recipe.blocks[0].type === "view" && shown.canvas.recipe.blocks[0].view, "forecast");
+      assert.ok(shown.sources.some(source => "href" in source && source.label === "Home" && source.href === "/"), "the view names its page for See it in Home");
+      const result = lineOf(t.bodies[1], "s");
+      assert.ok(!("args" in result) && typeof result.line === "string" && result.title, "the result is the view's words and figures, never an argument");
+
+      // a reload keeps the view block
+      const turns = await allTurns(db, c);
+      const kept = turns.find(turn => turn.question === "Am I fine for 30 days?")!;
+      assert.ok(RecipeSchema.parse(kept.recipe).blocks.some(b => b.type === "view"), "the stored turn keeps its view block");
+
+      // the arguments are checked in code, in words
+      const bad = transport([
+        () => reply("tool_use", [showCall("a", "month_trend", { text: "x" }), showCall("b", "month_trend", { months: 99 }), showCall("c", "nope"), toolUse("e", "show", { view: "forecast", args: "{not json" })]),
+        () => reply("end_turn", [text("I could not draw that.")]),
+      ]);
+      await conversation(c, "Show months", bad.fetch);
+      assert.equal(words(bad.bodies[1], "a"), "month_trend takes months only.");
+      assert.match(words(bad.bodies[1], "b"), /^months: /);
+      assert.match(words(bad.bodies[1], "c"), /^Unknown view\./);
+      assert.equal(words(bad.bodies[1], "e"), "args is not valid JSON.");
+      const notLive = (["position", "what_if", "client_pace", "card_cycle"] as const).find(view => !live.includes(view));
+      if (notLive) {
+        const nl = transport([() => reply("tool_use", [showCall("n", notLive)]), () => reply("end_turn", [text("Not yet.")])]);
+        await conversation(c, "Show what I have", nl.fetch);
+        assert.equal(words(nl.bodies[1], "n"), "That picture isn't available yet.");
+      }
+      for (const [view, name] of [["client_pace", "Nobody"], ["what_if", "Nobody"]] as const) {
+        if (!live.includes(view)) continue;
+        const args = view === "what_if" ? { client: name, days: 5 } : { client: name };
+        const un = transport([() => reply("tool_use", [showCall("u", view, args)]), () => reply("end_turn", [text("No.")])]);
+        await conversation(c, `Show ${view}`, un.fetch);
+        assert.match(words(un.bodies[1], "u"), /No client matches "Nobody"\. Use one of: /);
+      }
+
+      // at most four views in one answer
+      const five = transport([
+        () => reply("tool_use", [1, 2, 3, 4, 5].map(n => showCall(`f${n}`, "month_trend", { months: n + 1 }))),
+        () => reply("end_turn", [text("Here they are.")]),
+      ]);
+      const many = await conversation(c, "Show everything", five.fetch);
+      const results = toolResults(five.bodies[1]);
+      assert.equal(results.filter(r => r.is_error).length, 1);
+      assert.equal(results.find(r => r.is_error)!.content, "Show at most four views in one answer.");
+      assert.equal(many.canvas?.recipe.blocks.filter(b => b.type === "view").length, 4);
+
+      // make_canvas keeps its blocks and the shown views are appended, with the make_canvas title
+      const both = transport([
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas() }), showCall("s", "forecast")]),
+        bodies => reply("end_turn", [text(lineOf(bodies.at(-1)!, "s").line)]),
+      ]);
+      const mixed = await conversation(c, "Cash and forecast", both.fetch);
+      assert.deepEqual(mixed.canvas?.recipe.blocks.map(b => b.type), ["number", "view"]);
+      assert.equal(mixed.canvas?.recipe.title, "Cash");
+
+      // Incognito can show (a read tool)
+      const secret = transport([() => reply("tool_use", [showCall("s", "forecast")]), () => reply("end_turn", [text("Here.")])]);
+      const quiet = await answerQuestion(db, c, askInput.parse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "Am I fine?", source: "manual", canvas: null, incognito: true }), { fetch: secret.fetch });
+      assert.equal(quiet.kind, "answer");
+      assert.ok(!toolResults(secret.bodies[1])[0].is_error, "show is a read tool, so Incognito offers it");
+
+      // the number check: an amount only the model passed in is never returned, so the reply cannot confirm it
+      if (live.includes("what_if")) {
+        const echo = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥314,159 spend changes it.")])]);
+        await assert.rejects(conversation(c, "What if I spend something big?", echo.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+        assert.ok(!toolResults(echo.bodies[1])[0].content.includes("314159") && !toolResults(echo.bodies[1])[0].content.includes("314,159"), "the passed amount is not in the result");
+        const said = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥314,159 spend changes it.")])]);
+        assert.equal((await conversation(c, "What if I spend ¥314,159?", said.fetch)).kind, "answer");
+      }
     });
 
     await check("where_am_i carries Home's safe-to-spend figure and says what it covers", async () => {

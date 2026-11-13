@@ -1,0 +1,46 @@
+/* The step line (D77). Colours from the tokens: --chart is #F7A30A, the grey is the on-time line, red the short dot. */
+.sl-chart{--sl-main:var(--chart);--sl-soft:var(--accent);--sl-quiet:light-dark(#8a857c,#a39d92);--sl-ghost:light-dark(#8a857c,#a39d92);--sl-short:var(--red);--sl-in:light-dark(#1d7a4c,#5fc58c);--sl-band:light-dark(#fdecc8,#34312b);--sl-grid:var(--rule);--sl-ring:var(--screen);--sl-focus:light-dark(#1e1c19,#f2f0eb);display:flex;flex-direction:column;gap:10px;min-width:0}
+.sl-legend{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--muted)}
+.sl-legend span{display:flex;align-items:center;gap:8px}
+.sl-legend i,.sl-sw{display:inline-block;width:22px;height:0;flex:none;border-top:1.5px solid var(--sl-quiet)}
+.sl-legend .sl-t-main,.sl-sw.sl-t-main{border-top:3px solid var(--sl-main)}
+.sl-legend .sl-t-soft,.sl-sw.sl-t-soft{border-top:3px solid var(--sl-soft)}
+.sl-legend .sl-t-short,.sl-sw.sl-t-short{border-top:3px solid var(--sl-short)}
+.sl-legend .sl-t-in,.sl-sw.sl-t-in{border-top:3px solid var(--sl-in)}
+.sl-legend .sl-t-ghost,.sl-sw.sl-t-ghost{border-top:2px dashed var(--sl-ghost)}
+.sl-legend .sl-key-band{height:10px;width:16px;border:0;background:var(--sl-band)}
+.sl-sw{width:14px}
+.sl-plot{position:relative;border-radius:8px}
+.sl-plot svg{display:block;overflow:visible;max-width:100%}
+.sl-plot:focus-visible{outline:2px solid var(--sl-focus);outline-offset:4px}
+.sl-axis{font-size:11.5px;fill:var(--muted)}
+.sl-grid{stroke:var(--sl-grid);stroke-width:1;shape-rendering:crispEdges}
+.sl-base{stroke:var(--faint);stroke-width:1;shape-rendering:crispEdges}
+.sl-band{fill:var(--sl-band)}
+.sl-line{fill:none;stroke-linejoin:round;stroke-width:1.5}
+.sl-line.sl-t-main{stroke:var(--sl-main);stroke-width:2.75}
+.sl-line.sl-t-soft{stroke:var(--sl-soft);stroke-width:2.75}
+.sl-line.sl-t-quiet{stroke:var(--sl-quiet)}
+.sl-line.sl-t-ghost{stroke:var(--sl-ghost);stroke-dasharray:5 4}
+.sl-line.sl-t-short{stroke:var(--sl-short);stroke-width:2.75}
+.sl-line.sl-t-in{stroke:var(--sl-in);stroke-width:2.75}
+.sl-direct{font-size:12px;font-weight:600;fill:var(--muted)}
+.sl-mark{stroke:var(--faint);stroke-width:1;stroke-dasharray:2 3}
+.sl-dot-short{fill:var(--sl-short);stroke:var(--sl-ring);stroke-width:2}
+.sl-dot-low{fill:var(--ink);stroke:var(--sl-ring);stroke-width:2}
+.sl-low,.sl-low-sub{paint-order:stroke;stroke:var(--screen);stroke-width:7px;stroke-linejoin:round}
+.sl-low{font-size:13px;font-weight:600;fill:var(--ink)}
+.sl-low-short{fill:var(--sl-short)}
+.sl-low-sub{font-size:12px;fill:var(--muted)}
+.sl-cross{stroke:var(--ink);stroke-width:1;stroke-dasharray:3 3;opacity:.55}
+.sl-pt{stroke:var(--sl-ring);stroke-width:2;fill:var(--sl-quiet)}
+.sl-pt.sl-t-main{fill:var(--sl-main)}.sl-pt.sl-t-soft{fill:var(--sl-soft)}.sl-pt.sl-t-short{fill:var(--sl-short)}.sl-pt.sl-t-in{fill:var(--sl-in)}
+.sl-tip{position:absolute;z-index:3;width:250px;box-sizing:border-box;background:var(--screen);border:1px solid var(--rule);border-radius:10px;box-shadow:0 10px 28px rgba(0,0,0,.16);padding:10px 12px;font-size:13px;line-height:1.4;pointer-events:none;display:flex;flex-direction:column;gap:4px}
+.sl-tip strong{font-size:13px}
+.sl-tip p{margin:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sl-tip b{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.sl-tip p span{color:var(--muted)}
+.sl-tip .sl-neg{color:var(--red)}
+.sl-tip-what{display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--rule);margin-top:4px;padding-top:6px;color:var(--muted);font-size:12.5px}
+.sl-tip-what p{display:block}
+.sl-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}

@@ -20,13 +20,16 @@ import { allUncounted, HISTORY_MONTHS, monthBounds, monthName, monthsBack, searc
 import type { MoneyState } from "@/lib/money/types";
 import { stateThrough } from "@/lib/money/window";
 import { WhatIfError, whatIf } from "@/lib/money/whatif";
+import { resolveView } from "@/lib/views/resolve";
+import { ViewError, type ViewResult } from "@/lib/views/types";
+import type { IncomeRow, PotFill } from "@/lib/money/types";
 import { problemWords, RecipeSchema, ScenarioSchema, type Block, type Query, type Recipe, type Scenario, type ScenarioRef } from "./schema";
 
 /** A recipe that cannot be drawn: the message is written for the person (or for the agent to fix its recipe). */
 export class CanvasError extends Error {}
 
 /** What the engine needs: the money state as the household's page loads it, and the spending read over the last twelve months through the end of this one. */
-export type CanvasContext = { state: MoneyState; spending: SpendingInput; foreignCosts?: FxCosts; periodBills?: PeriodBill[] };
+export type CanvasContext = { state: MoneyState; spending: SpendingInput; foreignCosts?: FxCosts; periodBills?: PeriodBill[]; income?: IncomeRow[]; potFills?: PotFill[] };
 
 /** Whether any block of the recipe asks for the foreign costs (so the loader reads their inputs only then). */
 export const asksForeignCosts = (recipe: { blocks: readonly Block[] }): boolean => recipe.blocks.some(block => "query" in block && block.query.q === "foreign_costs");
@@ -71,7 +74,7 @@ export type ResolvedBlock = Common & (
   | { type: "sentence"; data: SentenceData } | { type: "number"; data: NumberData } | { type: "flow_chart"; data: FlowData }
   | { type: "timeline"; data: TimelineData } | { type: "table"; data: TableData } | { type: "compare"; data: CompareData } | { type: "by_person"; data: ByPersonData }
   | { type: "progress"; data: ProgressData | GoalsProgressData } | { type: "note"; data: NoteData } | { type: "letter"; data: LetterData }
-  | { type: "sliders"; data: SlidersData } | { type: "action"; data: ActionData }
+  | { type: "sliders"; data: SlidersData } | { type: "action"; data: ActionData } | { type: "view"; data: ViewResult }
 );
 
 // ---------------------------------------------------------------- scenarios
@@ -339,7 +342,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
 
   // ------------------------------------------------ each block
   return recipe.blocks.map((block, index): ResolvedBlock => {
-    const scenarioOf = (): Scenario | null => { const query = block.type === "sliders" || !("query" in block) ? null : block.query; return query === null ? null : readScenario(ownScenario(query), query, recipe, override); };
+    const scenarioOf = (): Scenario | null => { const query = block.type === "sliders" || block.type === "view" || !("query" in block) ? null : block.query; return query === null ? null : readScenario(ownScenario(query), query, recipe, override); };
     const live = "query" in block && ownScenario(block.query) === "canvas";
     const changed = "query" in block && FORECASTS.has(block.query.q) && (scenarioOf()?.changes.length ?? 0) > 0;
     const common = (kind: "records" | "worked"): Common => ({ index, live, source: `${kind === "records" ? "From your records" : "Worked out from your records"}${changed ? ", with your what-if changes" : ""}` });
@@ -399,6 +402,15 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       case "table": return { ...common(worked(block.query)), type: "table", data: tableOf(block.query, block.title ?? null) };
       case "compare": return { ...common("worked"), type: "compare", data: compareOf(block.query) };
       case "by_person": return { ...common("worked"), type: "by_person", data: byPersonOf(block.query) };
+      case "view": {
+        try {
+          const data = resolveView(block.view, block.args, context);
+          return { index, live: false, source: data.source, type: "view", data };
+        } catch (error) {
+          if (error instanceof ViewError) throw new CanvasError(error.message);
+          throw error;
+        }
+      }
       case "note": return { index, live: false, source: block.by === "you" ? "Your note" : "Written by the assistant", type: "note", data: { text: block.text, by: block.by } };
       case "letter": return { index, live: false, source: "Written by the assistant", type: "letter", data: { text: block.text } };
       case "action": return { index, live: false, source: "A link to a page in the app", type: "action", data: { label: block.label, href: block.href } };

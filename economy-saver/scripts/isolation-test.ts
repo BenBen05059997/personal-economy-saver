@@ -74,6 +74,8 @@ import * as spacesMod from "@/db/spaces";
 import * as statementCharge from "@/db/statement-charge";
 import * as spendingMod from "@/db/spending"; // Stage 17 spending
 import * as fxCostMod from "@/db/fx-cost"; // D62 foreign costs
+import * as incomeMod from "@/db/income"; // D77 money in
+import * as potFillsMod from "@/db/pot-fills"; // D77 what was set aside
 import * as workspace from "@/db/workspace";
 import { billEditInput, billInput } from "@/db/bills";
 import { chargeInput } from "@/db/charges";
@@ -137,6 +139,8 @@ const covered = [
   "loadSpending", "loadPeriodBills",
   // D62 foreign costs: fx-cost.ts
   "foreignCostInputs", "foreignCosts",
+  // D77 income.ts, pot-fills.ts
+  "loadIncome", "loadPotFills",
   // Stage 18 varies: bills.ts
   "linkToSeries", "previewLink",
   // Stage 19 missing data (D55): bills.ts
@@ -261,6 +265,7 @@ async function main() {
     ...importChargesMod, // Stage 17 import
     ...spendingMod, // Stage 17 spending
     ...fxCostMod, // D62 foreign costs
+    ...incomeMod, ...potFillsMod, // D77 money in, what was set aside
     ...rulesMod, ...suggestionsMod, ...remindersMod, // D64–D66
     ...memoryMod, // D58 memory
     ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
@@ -610,7 +615,7 @@ async function main() {
 
     // ---------------------------------------------------------------- reads
     const toolInputs: Record<string, unknown> = {
-      search_history: { text: "Isolation" },
+      search_history: { text: "Isolation" }, show: { view: "month_by_category", args: null },
       can_i_spend: { amount_minor: 1_000 }, timeline: { scenario: "late" }, plan_for: { target_minor: 100_000, target_date: "2027-06-01" }, bills_for_month: { month: "2026-11" },
     };
     function toolContext(t: Tenant): ToolContext {
@@ -1376,6 +1381,27 @@ async function main() {
         }
       } finally {
         for (const [hid, id] of temp) await db.delete(schema.charges).where(and(eq(schema.charges.householdId, hid), eq(schema.charges.id, id)));
+      }
+    });
+
+    await check("loadIncome and loadPotFills (D77): each household's rows hold its own paid invoices and pot fills and none of the other's; a household id is required; reading changes nothing", async () => {
+      const range = { from: "2026-01-01", to: "2026-12-31" };
+      await assert.rejects(F.loadIncome(store, "", range), "a household id is required");
+      await assert.rejects(F.loadPotFills(store, "", range), "a household id is required");
+      for (const [X, Y] of [[A, B], [B, A]] as const) {
+        const own = new Set((await db.select({ id: schema.invoices.id }).from(schema.invoices).where(eq(schema.invoices.householdId, X.hid))).map(row => row.id));
+        const yStart = await fingerprint(Y.hid);
+        const income = await F.loadIncome(store, X.hid, range);
+        assert.ok(income.length >= 16 && income.every(row => row.paidOn >= range.from), "Ben's sixteen paid invoices and any this household's tests settled");
+        assert.ok(income.every(row => own.has(row.id)), `${X.name}'s income holds only ${X.name}'s invoices`);
+        assert.deepEqual(leaks(JSON.stringify(income), await needlesOf(Y)), [], `${X.name}'s income shows ${Y.name}'s data`);
+        await db.transaction(tx => F.fillPots(tx as unknown as Db, X.hid, 50_000, "Isolation fills"));
+        const fills = await F.loadPotFills(store, X.hid, { from: "2026-01-01", to: "2027-12-31" });
+        assert.ok(fills.length > 0 && fills.every(fill => Number.isInteger(fill.minor) && fill.minor > 0));
+        const pots = new Set((await db.select({ id: schema.pots.id }).from(schema.pots).where(eq(schema.pots.householdId, X.hid))).map(row => row.id));
+        assert.ok(fills.every(fill => pots.has(fill.potId)), `${X.name}'s fills are of ${X.name}'s pots`);
+        assert.deepEqual(leaks(JSON.stringify(fills), await needlesOf(Y)), [], `${X.name}'s fills show ${Y.name}'s data`);
+        assert.equal((await fingerprint(Y.hid)).text, yStart.text, "a read of X's rows changed nothing of Y's");
       }
     });
 

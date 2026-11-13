@@ -19,9 +19,9 @@ type SeedOptions = {
 };
 
 // Past paid invoices give each client their days-to-pay history: paid_on - sent_on reproduces benMoney's arrays.
-// Fictional work, all paid well before the demo date.
-const HISTORY_START = "2026-03-02";
-const HISTORY_STEP_DAYS = 12;
+// Fictional work, spread over June to early November (every payment more than a week before the demo date, so none is a recent invoice) so the months of income have something to show.
+const HISTORY_START = "2026-06-05";
+const HISTORY_STEP_DAYS = 30;
 const HISTORY_AMOUNT_USD: Record<string, number> = { "c-beacon": 350, "c-northwind": 700, "c-acme": 1_000 };
 
 export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {

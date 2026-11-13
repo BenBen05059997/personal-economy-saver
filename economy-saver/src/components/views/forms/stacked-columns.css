@@ -1,0 +1,22 @@
+/* Stacked columns (D73, D77): colours only through the existing tokens. */
+.sc-col{outline:none;cursor:default}
+.sc-col .sc-hit{fill:transparent}
+.sc-col-on .sc-hit{fill:var(--wash);opacity:.6}
+.sc-col:focus-visible .sc-hit{stroke:var(--hv-focus);stroke-width:2}
+.sc-total{font-size:12.5px;font-weight:600;fill:var(--ink)}
+.sc-now{font-weight:700;fill:var(--ink)}
+.sc-seg-main{fill:var(--hv-late)}
+.sc-seg-soft{fill:var(--hv-coming)}
+.sc-seg-quiet{fill:var(--hv-usual)}
+.sc-seg-ghost{fill:none;stroke:var(--hv-usual);stroke-dasharray:3 2}
+.sc-seg-short{fill:var(--hv-short)}
+.sc-seg-in{fill:light-dark(#1d7a4c,#5fbf8a)}
+.sc-ref{stroke:var(--hv-usual);stroke-width:1;stroke-dasharray:4 3;shape-rendering:crispEdges}
+.sc-ref-label{font-size:11.5px;fill:var(--muted)}
+.hv-legend .sc-key{display:inline-block;width:12px;height:12px;border:0;border-radius:2px}
+.hv-legend .sc-key.sc-seg-main{background:var(--hv-late)}
+.hv-legend .sc-key.sc-seg-soft{background:var(--hv-coming)}
+.hv-legend .sc-key.sc-seg-quiet{background:var(--hv-usual)}
+.hv-legend .sc-key.sc-seg-ghost{background:none;border:1px dashed var(--hv-usual)}
+.hv-legend .sc-key.sc-seg-short{background:var(--hv-short)}
+.hv-legend .sc-key.sc-seg-in{background:light-dark(#1d7a4c,#5fbf8a)}

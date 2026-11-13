@@ -4,6 +4,8 @@ import { unconfirmedAmounts } from "@/lib/ai/number-check";
 import { serverHasNoModel } from "./availability";
 import type { LinkSource, TurnSource } from "@/lib/schema/turn";
 import type { Recipe } from "@/lib/canvas/schema";
+import { VIEW_META } from "@/lib/views/catalogue";
+import type { ViewBlock } from "./view-tools";
 
 export type ReplyKind = "answer" | "clarify" | "declined";
 export type Source = TurnSource;
@@ -28,7 +30,7 @@ export const OWN_MODEL_HINT = "Ask runs on your household’s own AI key, set in
 /** The line above the question box until the household has an answer. */
 export const firstUse = (host: string, ownOnly = serverHasNoModel()) => `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to ${host}. ${ownOnly ? OWN_MODEL_HINT : MODEL_HINT}`;
 
-/** The page each tool's answer came from. `make_canvas`, `what_if` and `household_snapshot` add none. */
+/** The page each tool's answer came from. `make_canvas`, `what_if`, `show` (its views name their own page) and `household_snapshot` add none. */
 const TOOL_SOURCES: Record<string, LinkSource> = {
   where_am_i: { label: "Your next 30 days", href: "/#next-30-days" },
   suggestions: { label: "From your assistant", href: "/#assistant-suggestions" },
@@ -57,11 +59,15 @@ const TOOL_SOURCES: Record<string, LinkSource> = {
 };
 
 /** The distinct sources of the tools an answer used, in the order first used. */
-function sourcesFor(toolNames: readonly string[]): LinkSource[] {
+function sourcesFor(toolNames: readonly string[], recipe: Recipe | null): LinkSource[] {
   const found: LinkSource[] = [];
-  for (const name of toolNames) {
-    const source = Object.hasOwn(TOOL_SOURCES, name) ? TOOL_SOURCES[name] : undefined;
-    if (source && !found.some(known => known.href === source.href && known.label === source.label)) found.push(source);
+  const add = (source: LinkSource | undefined) => { if (source && !found.some(known => known.href === source.href && known.label === source.label)) found.push(source); };
+  for (const name of toolNames) add(Object.hasOwn(TOOL_SOURCES, name) ? TOOL_SOURCES[name] : undefined);
+  // Each view the agent shows names the page it lives on (D77); a view with no page adds none.
+  for (const block of recipe?.blocks ?? []) {
+    const kind: string = block.type;
+    const home = kind === "view" ? VIEW_META[(block as unknown as ViewBlock).view]?.home : null;
+    if (home) add({ label: home.label, href: home.path });
   }
   return found;
 }
@@ -105,5 +111,5 @@ export function chooseReply(done: Finished): Chosen | null {
   if (done.outOfScope) return { kind: "declined", text: FIXED[done.outOfScope], choices: null, recipe: null, sources: [] };
   if (!done.called) return { kind: "declined", text: FIXED.off_topic, choices: null, recipe: null, sources: [] };
   if (unconfirmedAmounts([done.text, ...canvasWords(done.recipe)].join("\n"), done.sources).length) return null;
-  return { kind: "answer", text: done.text, choices: null, recipe: done.recipe, sources: sourcesFor(done.tools) };
+  return { kind: "answer", text: done.text, choices: null, recipe: done.recipe, sources: sourcesFor(done.tools, done.recipe) };
 }

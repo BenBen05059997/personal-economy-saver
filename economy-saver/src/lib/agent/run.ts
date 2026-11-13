@@ -16,6 +16,8 @@ import { ModelError, type Connection, type ToolResult, type ToolSpec, type Turn 
 import type { MoneyState } from "@/lib/money/types";
 import { logCall, type BriefDropReason, type ToolLog } from "./log";
 import type { Recipe } from "@/lib/canvas/schema";
+import { VIEW_META } from "@/lib/views/catalogue";
+import { MAX_SHOWN, type ViewBlock } from "./view-tools";
 import { canvasWords, chooseReply, type OutOfScopeReason, type ReplyKind, type Source } from "./reply";
 import { briefWords, type Brief } from "./brief";
 import { memorySourceLabel, type MemorySource } from "@/lib/schema/turn";
@@ -157,6 +159,13 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     && !/\b(?:do not|don't|never) remember\b|覚えないで|記憶しないで|記録しないで/i.test(opts.question);
   let recipe: Recipe | null = null;
   const drawn: Recipe[] = [];
+  const shown: ViewBlock[] = [];
+  // The answer's canvas: the last make_canvas recipe with the views `show` drew after it (D77); a title from the first view when there is no recipe.
+  const answerRecipe = (): Recipe | null => {
+    if (shown.length === 0) return recipe;
+    const blocks = [...(recipe?.blocks ?? []).slice(0, 12 - shown.length), ...shown] as unknown as Recipe["blocks"];
+    return { version: 1, title: recipe?.title ?? VIEW_META[shown[0].view].question, ...(recipe?.scenario && { scenario: recipe.scenario }), blocks };
+  };
   let clarify: { question: string; choices: string[] } | null = null;
   let outOfScope: OutOfScopeReason | null = null;
   const used: string[] = [];
@@ -174,6 +183,10 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     madeBy: "ask", db: opts.db, householdId: hid, state, appUrl: opts.appUrl, askId: opts.askId, source: opts.source,
     addLink: link => { if (!links.some(known => known.href === link.href)) links.push(link); },
     onCanvas: next => { recipe = next; drawn.push(next); },
+    onView: block => {
+      if (shown.length >= MAX_SHOWN) throw new InputError("Show at most four views in one answer.");
+      shown.push(block);
+    },
     onClarify: next => { clarify = next; },
     onOutOfScope: next => { outOfScope = next; },
     onOffer: offer => {
@@ -233,7 +246,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
           return "";
         }).trim();
         if (!answer) throw failure("empty");
-        return await finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe, sources }));
+        return await finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe: answerRecipe(), sources }));
       }
       if (reply.stop === "refusal") throw failure("refusal");
       if (reply.stop === "length") throw failure("cutOff");
@@ -253,7 +266,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       if (ending) {
         const { result, log } = await callTool(ctx, ending, now);
         trace.tools.push(log);
-        if (clarify !== null || outOfScope !== null) return await finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe, sources }));
+        if (clarify !== null || outOfScope !== null) return await finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe: answerRecipe(), sources }));
         results.push(result);
         await recordResult(result);
       }

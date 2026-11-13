@@ -1,0 +1,45 @@
+/* The ranked-bars form (D73): a bar per row, an optional tick, own categories under a row. Panel, legend and tip are home-views.css. */
+.hv-legend .rb-sq-main,.hv-legend .rb-sq-soft{width:12px;height:12px;border:0;border-radius:2px;background:var(--hv-late)}
+.hv-legend .rb-sq-soft{background:var(--hv-coming)}
+.hv-legend .rb-sq-quiet{width:12px;height:12px;border:0;border-radius:2px;background:var(--hv-personal)}
+.hv-legend .rb-key-tick{width:2px;height:14px;border:0;background:var(--ink)}
+.rb-cats{display:flex;flex-direction:column;gap:10px}
+.rb-cat-axis,.rb-cat{display:grid;grid-template-columns:150px minmax(0,1fr) 140px;gap:16px;align-items:center}
+.rb-cat-axis{height:16px}
+.rb-cat-axis>div{position:relative;height:16px}
+.rb-cat-axis>div span{position:absolute;transform:translateX(-50%);font-size:11.5px;color:var(--muted);white-space:nowrap}
+.rb-cat-axis>div span:first-child{transform:none}
+.rb-cat-axis>div span:last-child{transform:translateX(-100%)}
+.rb-cat-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.rb-cat{min-height:52px;padding:4px 0;border-radius:8px}
+.rb-cat-on{background:var(--wash)}
+.rb-cat-name{display:flex;align-items:center;gap:4px;min-width:0}
+.rb-cat-label{display:flex;flex-direction:column;gap:1px;min-width:0}
+.rb-cat-label b{font-size:14px;font-weight:600;overflow-wrap:anywhere}
+.rb-cat-toggle{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:44px;margin:-10px 0;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted)}
+.rb-cat-gap{flex:none;width:24px}
+.rb-cat-toggle svg{transition:transform .15s}
+.rb-cat-toggle[aria-expanded="true"] svg{transform:rotate(90deg)}
+.rb-cat-label small,.rb-cat-thin .rb-cat-label small,.rb-cat-total small{font-size:12px;color:var(--muted)}
+.rb-cat-total{display:flex;flex-direction:column;align-items:flex-end;gap:1px;text-align:right}
+.rb-cat-total b{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.rb-cat-track{position:relative;height:16px}
+.rb-vgrid{position:absolute;top:-18px;bottom:-18px;width:0;border-left:1px solid var(--hv-grid)}
+.rb-cat-bar{position:absolute;inset:0;display:flex;gap:2px}
+.rb-cat-bar .rb-seg-main{background:var(--hv-late);border-radius:4px 0 0 4px;height:100%}
+.rb-cat-bar .rb-seg-soft{background:var(--hv-coming);border-radius:0 4px 4px 0;height:100%}
+.rb-cat-bar .rb-seg-quiet{background:var(--hv-personal);border-radius:0 4px 4px 0;height:100%}
+.rb-cat-bar .rb-seg-main:last-child,.rb-cat-bar .rb-seg-soft:first-child,.rb-cat-bar .rb-seg-quiet:first-child{border-radius:4px}
+.rb-tick{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px solid var(--ink);transform:translateX(-1px)}
+.rb-cat-thin{min-height:40px;padding:2px 0}
+.rb-cat-thin .rb-cat-name{padding-left:24px}
+.rb-cat-thin .rb-cat-label b{font-size:13px;font-weight:500}
+.rb-cat-thin .rb-cat-total b{font-size:13.5px;font-weight:500}
+.rb-cat-thin .rb-cat-track{height:9px}
+.rb-cat-thin .rb-cat-bar .rb-seg-main,.rb-cat-thin .rb-cat-bar .rb-seg-soft,.rb-cat-thin .rb-cat-bar .rb-seg-quiet{border-radius:2px}
+.rb-cat-thin .rb-tick{top:-3px;bottom:-3px}
+.rb-cat-thin .rb-cat-tip{top:-80px}
+.rb-cat-tip{left:8px;top:-84px;width:210px}
+.rb-cat-tip>span{display:flex;justify-content:space-between;gap:12px}
+.rb-cat-tip b{font-size:13px}
+@media(max-width:600px){.rb-cat-axis{display:none}.rb-cat{grid-template-columns:1fr 1fr}.rb-cat-track{grid-column:1/-1;grid-row:2}}

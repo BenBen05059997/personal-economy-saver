@@ -20,7 +20,11 @@ import { CanvasError, resolveRecipe, type ResolvedBlock } from "@/lib/canvas/res
 import { BlockSchema, RecipeSchema, ScenarioSchema, recipeJsonSchema, type Change, type Recipe } from "@/lib/canvas/schema";
 import { canvasSummary } from "@/lib/canvas/summary";
 import { starterRecipes, STARTER_IDS } from "@/lib/canvas/starters";
-import { blockWords } from "@/lib/canvas/words";
+import { blockWords, KIND_WORDS } from "@/lib/canvas/words";
+import { loadViewContext } from "@/lib/views/load";
+import { VIEW_META } from "@/lib/views/catalogue";
+import { liveViews, needsOf, resolveView } from "@/lib/views/resolve";
+import type { ViewId } from "@/lib/views/types";
 import { foreignCosts } from "@/lib/money/fx-cost";
 import { money, minorMoney } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
@@ -234,6 +238,46 @@ async function main() {
     const clientId = (name: string) => state.clients.find(c => c.name.startsWith(name))!.id;
     const starters = starterRecipes(state);
     const block = <T extends ResolvedBlock["type"]>(resolved: ResolvedBlock[], type: T, nth = 0) => resolved.filter((r): r is Extract<ResolvedBlock, { type: T }> => r.type === type)[nth];
+
+    await check("a view block (D77): parses, resolves to what resolveView draws on the same context, and is worded and summarised without its arguments", async () => {
+      const recipe: Recipe = { version: 1, title: "Month", blocks: [{ type: "view", view: "month_by_category", args: { by: "category" } }, { type: "view", view: "forecast", args: {} }] };
+      assert.ok(RecipeSchema.safeParse(recipe).success);
+      const viewContext = await loadCanvasContext(db, a, recipe);
+      const resolved = resolveRecipe(recipe, viewContext);
+      assert.deepEqual(resolved.map(r => r.type), ["view", "view"]);
+      const first = block(resolved, "view");
+      assert.deepEqual(first.data, resolveView("month_by_category", { by: "category" }, viewContext));
+      assert.equal(first.source, first.data.source);
+      assert.equal(blockWords(recipe.blocks[0]), "Picture: Where does the month go?");
+      assert.equal(KIND_WORDS.view, "Picture");
+      const summary = JSON.parse(canvasSummary(resolved)).blocks[0];
+      assert.equal(summary.type, "view");
+      assert.ok(summary.title && summary.figures && Array.isArray(summary.rows) && summary.rows.length <= 12);
+      assert.ok(!("args" in summary) && !JSON.stringify(summary).includes("\"by\""), "the summary never carries the arguments");
+      assert.ok(JSON.stringify(JSON.parse(recipeJsonSchema())).includes("month_trend"), "the agent's schema names the live views");
+    });
+
+    await check("a view block is refused in words: an unknown view, an extra key, an amount on a view that takes none, a view that is not live", () => {
+      const refuse = (blockIn: unknown) => assert.throws(() => resolveRecipe({ version: 1, title: "x", blocks: [blockIn] } as unknown as Recipe, context), CanvasError);
+      refuse({ type: "view", view: "nope", args: {} });
+      refuse({ type: "view", view: "forecast", args: {}, extra: 1 });
+      refuse({ type: "view", view: "forecast", args: { amountMinor: 100 } });
+      refuse({ type: "view", view: "month_trend", args: { months: 1 } });
+      const notLive = (Object.keys(VIEW_META) as ViewId[]).find(view => !liveViews().includes(view));
+      if (notLive) refuse({ type: "view", view: notLive, args: {} });
+      assert.equal(RecipeSchema.safeParse({ version: 1, title: "x", blocks: [{ type: "view", view: "forecast", args: { amountMinor: 100 } }] }).success, false);
+    });
+
+    await check("loadCanvasContext loads what a recipe's views need: income and pot fills only when a view asks, foreign costs only for the foreign query", async () => {
+      assert.deepEqual(needsOf([{ type: "view", view: "income_months" }]), ["income"]);
+      assert.deepEqual(needsOf([{ type: "view", view: "money_flow" }, { type: "view", view: "savings_rate" }]).sort(), ["income", "potFills", "spending"]);
+      assert.deepEqual(needsOf([{ type: "sentence" }, { type: "view", view: "forecast" }]), []);
+      const plain = await loadCanvasContext(db, a, { blocks: [{ type: "view", view: "month_trend", args: {} }] });
+      assert.ok(plain.income === undefined && plain.potFills === undefined && plain.foreignCosts === undefined);
+      const asked = await loadViewContext(db, a, needsOf([{ type: "view", view: "money_flow" }]));
+      assert.equal(asked.income?.length, 16);
+      assert.deepEqual(asked.potFills, []);
+    });
 
     await check("every starter recipe is valid, resolves, and says in words what each block is", () => {
       assert.deepEqual(starters.map(s => s.id), [...STARTER_IDS]);

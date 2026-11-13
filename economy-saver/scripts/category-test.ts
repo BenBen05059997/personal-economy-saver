@@ -19,7 +19,7 @@ import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { toolInputSchema, tools, type ToolContext } from "@/lib/agent/tools";
-import { cardSummary } from "@/components/home/card-summary";
+import { cardSummary } from "@/lib/money/card-summary";
 import { BusinessBp, CATEGORIES, CATEGORY_KEYS, businessBpFromForm, businessPart, categoryLabel, CategoryKeySchema, shareLabel } from "@/lib/money/categories";
 import { guessCategory, guessRepeat } from "@/lib/money/categorise";
 import { businessLine, monthByCategory, monthText, monthWhen, splitLine } from "@/lib/money/month";

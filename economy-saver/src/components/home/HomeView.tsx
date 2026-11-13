@@ -6,6 +6,7 @@ import { categoryLabel } from "@/lib/money/categories";
 import type { ConnectionView } from "@/lib/paypal/contracts";
 import { ConnectLine } from "@/components/paypal/ConnectLine";
 import type { CancelNotice, MoneyState } from "@/lib/money/types";
+import type { ViewResult } from "@/lib/views/types";
 import { aboutMoney, dayLabel, formatter, minorPerUnit, repeatWords, usd } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN, confirmedGaps, gapAmountWords, gapDateWords, gapMeanwhileWords, gapQuestion, openGaps } from "@/lib/money/gaps";
 import { addDays, arrivals, daysBetween, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
@@ -18,10 +19,11 @@ import { HOUSEHOLD_PEOPLE, hrefFor } from "@/lib/links";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { BankBalance } from "./BankBalance";
 import { HomeViews } from "./HomeViews";
+import { resolveView } from "@/lib/views/resolve";
 import { homeSentence } from "@/lib/money/sentence";
 import { Suspense, type ReactNode } from "react";
 import { Sentence } from "./Sentence";
-import { cardSummary } from "./card-summary";
+import { cardSummary } from "@/lib/money/card-summary";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
 import { Suggestions } from "./Suggestions";
 import type { openSuggestions } from "@/db/suggestions";
@@ -278,7 +280,7 @@ export function HomeView({ requests, state, inbox, notice, balanceId, demo, tryI
     <Actions state={state} forwarding={forwarding} />
     <Suspense fallback={null}>{pins}</Suspense>
     {tryIt && getStarted ? <GetStarted key={householdId} householdId={householdId} progress={getStarted} peopleCount={state.split.members.length} invoiceHref={(inv => inv ? `/invoices/${inv.id}` : "/clients")(state.invoices.find(i => i.status === "unbilled") ?? state.invoices.find(i => i.status === "sent"))} /> : <HintsPanel state={state} inbox={inbox} tryIt={tryIt} householdId={householdId} />}
-    <HomeViews state={state} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{(tryIt || connection.state === "connected") && <PayPalBalance state={state} asOf={connection.state === "connected" ? asOf : null} />}{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
+    <HomeViews state={state} result={resolveView("forecast", {}, { state }) as ViewResult<"step_line">} bankBalance={<><BankBalance key={balanceId} currency={state.homeCurrency} balance={formatter(state.homeCurrency)(state.bank)} balanceId={balanceId} />{(tryIt || connection.state === "connected") && <PayPalBalance state={state} asOf={connection.state === "connected" ? asOf : null} />}{state.pots.length > 0 && <ul className="home-pots">{state.pots.map(pot => <li key={pot.id}><Link prefetch={false} href="/plan">{potSummary(pot, state)}</Link></li>)}</ul>}</>} />
     <div className="home-panels">
       <div className="home-column"><ToCheck state={state} inbox={inbox} forwarding={forwarding} /><Suggestions rows={suggestions} /><Cards state={state} /><SharedCosts state={state} requests={requests} canRequest={canManage} /></div>
       <div className="home-column"><ComingUp state={state} added={addedLine(state, added)} addedId={added} /></div>

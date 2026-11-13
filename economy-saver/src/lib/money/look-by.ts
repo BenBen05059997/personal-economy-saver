@@ -91,10 +91,10 @@ export function lookBy(input: SpendingInput, today: string, by: LookBy, members:
 /** One column of Over time: what was spent by the end of `today` and, for the current month only, the bills still to come. */
 export type TrendMonth = { month: string; name: string; spent: number; coming: number; total: number; current: boolean; unknown: boolean; biggest: { label: string; amount: number } | null };
 
-/** The last six months, oldest first, leaving out empty past months (the current month always stays). */
-export function monthTrend(input: SpendingInput, today: string): TrendMonth[] {
+/** The last `months` months (six unless asked), oldest first, leaving out empty past months (the current month always stays). */
+export function monthTrend(input: SpendingInput, today: string, months = 6): TrendMonth[] {
   const month = today.slice(0, 7);
-  return Array.from({ length: 6 }, (_, index) => monthsBack(month, 6 - index)).map(date => {
+  return Array.from({ length: months }, (_, index) => monthsBack(month, months - index)).map(date => {
     const bounds = monthBounds(date), entries = spendingItems(input, bounds.first, bounds.last);
     const spent = sum(entries.filter(item => item.date <= today).map(item => item.amountMinor));
     const coming = date === month ? sum(entries.filter(item => item.date > today && item.kind === "bill").map(item => item.amountMinor)) : 0;

@@ -4,11 +4,14 @@ import { LoadingState } from "@/components/ui/LoadingState";
 import { LinkTabs } from "@/components/ui/LinkTabs";
 import { ScrollToHash } from "@/components/ui/ScrollToHash";
 import { OwnCategories } from "@/components/settings/OwnCategories";
-import { OverTime, ThisMonth, chosenMonth, chosenQuery, type SpendingAsk } from "@/components/spending/SpendingView";
+import { OverTime } from "@/components/spending/OverTime";
+import { ThisMonth } from "@/components/spending/ThisMonth";
+import { chosenMonth, chosenQuery, type SpendingAsk } from "@/components/spending/SpendingView";
 import { SpendingSearchForm } from "@/components/spending/SpendingSearch";
 import { loadWorkspace, WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
+import { readPlaces } from "@/db/place";
 import { listOwnCategoriesGrouped } from "@/db/own-categories";
 import { loadSpending } from "@/db/spending";
 import { HISTORY_MONTHS, monthBounds, monthsBack } from "@/lib/money/spending";
@@ -35,15 +38,17 @@ async function Spending({ params, search }: { params: Params; search: Search }) 
   const thisMonth = today.slice(0, 7);
   const oldest = monthsBack(thisMonth, HISTORY_MONTHS);
   // One read for the page: the twelve months the month view and the search reach, and the month before the oldest for its comparison.
-  const [spending, ownGroups] = await withHousehold(db(), hid, tx => Promise.all([
+  const [spending, ownGroups, places] = await withHousehold(db(), hid, tx => Promise.all([
     current === "categories" ? null : loadSpending(tx, hid, { from: monthBounds(monthsBack(oldest, 2)).first, to: monthBounds(thisMonth).last }),
     current === "categories" ? listOwnCategoriesGrouped(tx, hid) : null,
+    readPlaces(tx, hid),
   ]), { isolationLevel: "repeatable read", accessMode: "read only" });
+  const device = places.canvases === "device" ? { householdId: hid } : undefined;
   const ask: SpendingAsk = { today, current: thisMonth, oldest, month: month ?? null, query: q ?? null };
   const { query } = chosenQuery(ask), shown = chosenMonth(ask).month;
   const content = current === "categories" ? <OwnCategories groups={ownGroups!} />
-    : current === "over-time" ? <OverTime state={workspace.state} spending={spending!} today={today} />
-    : <ThisMonth state={workspace.state} spending={spending!} ask={ask} own={workspace.own} />;
+    : current === "over-time" ? <OverTime state={workspace.state} spending={spending!} today={today} device={device} />
+    : <ThisMonth state={workspace.state} spending={spending!} ask={ask} own={workspace.own} device={device} />;
   return <WorkspaceFrame workspace={workspace} section="spending">
     <article className="spending">
       <h1 className="ui-title">Spending</h1>

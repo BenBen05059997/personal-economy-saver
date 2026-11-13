@@ -172,3 +172,9 @@ export type MoneyState = {
   storedBills: StoredBill[]; // the bills as stored (a repeating bill once): lets the checks see a series whose next date is past the plan window, and `stateThrough` expand a later day. Set by loadMoneyState
   split: SplitState; // D45: members, shares and the shared items since the last settlement
 };
+
+/** One paid client invoice as income: the day it was paid, the day it was sent (null for a payment read from a connected PayPal) and its value in the home currency's minor units (null when no rate is known; it is named, never counted as zero). */
+export type IncomeRow = { id: string; clientId: string | null; clientName: string; paidOn: string; sentOn: string | null; homeMinor: number | null };
+
+/** One fill of a pot, from its `pot_filled` event: the household day and the integer minor units set aside. */
+export type PotFill = { potId: string; potName: string; date: string; minor: number };

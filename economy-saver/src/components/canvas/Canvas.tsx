@@ -9,6 +9,8 @@ import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Change, Recipe, Scenario } from "@/lib/canvas/schema";
 import { ActionBlock, ByPersonBlock, CompareBlock, LetterBlock, NoteBlock, NumberBlock, ProgressBlock, SentenceBlock, TableBlock, TimelineBlock } from "./blocks";
 import { FlowChart } from "./FlowChart";
+import { ViewCard } from "@/components/views/ViewCard";
+import { ViewFigure } from "@/components/views/ViewFigure";
 import { SlidersBlock } from "./SlidersBlock";
 import "./canvas.css";
 
@@ -16,7 +18,7 @@ const DEBOUNCE_MS = 250;
 
 /** How many of the six columns a block takes at desktop width (one column at phone width): full, half or a third. */
 const SPAN: Record<ResolvedBlock["type"], 2 | 3 | 6> = {
-  sentence: 6, number: 2, flow_chart: 6, timeline: 6, table: 6, compare: 6, by_person: 6, progress: 2, note: 3, letter: 6, sliders: 6, action: 2,
+  sentence: 6, number: 2, flow_chart: 6, timeline: 6, table: 6, compare: 6, by_person: 6, progress: 2, note: 3, letter: 6, sliders: 6, action: 2, view: 6,
 };
 
 function Body({ block, values, onSlide }: { block: ResolvedBlock; values: Record<string, number>; onSlide: (clientId: string, days: number) => void }) {
@@ -33,6 +35,7 @@ function Body({ block, values, onSlide }: { block: ResolvedBlock; values: Record
     case "letter": return <LetterBlock data={block.data} />;
     case "sliders": return <SlidersBlock data={block.data} values={values} onChange={onSlide} />;
     case "action": return <ActionBlock data={block.data} />;
+    case "view": return <><h3 className="canvas-view-title">{block.data.title}</h3><ViewCard result={block.data} figure={<ViewFigure result={block.data} />} /></>;
   }
 }
 

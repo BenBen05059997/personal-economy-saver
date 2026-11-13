@@ -62,68 +62,9 @@
 .spending-file-every { display: flex; align-items: center; gap: var(--space-2); margin-block: var(--space-2); font: 400 14px var(--sans); }
 .spending-file-buttons { display: flex; gap: var(--space-2); }
 /* Spending's charts and controls; the panel, tables, legend and tip they sit in are home-views.css. */
-.hv-legend .hv-sq-late,.hv-legend .hv-sq-coming{width:12px;height:12px;border:0;border-radius:2px;background:var(--hv-late)}
-.hv-legend .hv-sq-coming{background:var(--hv-coming)}
-.hv-legend .hv-sq-personal{width:12px;height:12px;border:0;border-radius:2px;background:var(--hv-personal)}
-.hv-legend .hv-key-tick{width:2px;height:14px;border:0;background:var(--ink)}
-.hv-strip{display:flex;gap:28px;flex-wrap:wrap;border-bottom:1px solid var(--rule);padding-bottom:12px}
-.hv-strip div{display:flex;flex-direction:column;gap:2px}
-.hv-strip span{font-size:12.5px;color:var(--muted)}
-.hv-strip strong{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
-.hv-controls>div[aria-label="Look at it by"]{flex:none}
 .hv-controls>.hv-look{border:0;background:transparent;padding:0;border-radius:0}
 .hv-look>div{display:flex;gap:2px;border:1px solid var(--rule);background:var(--wash);border-radius:10px;padding:3px}
-.hv-sentence{margin:0;font-size:14px;line-height:1.55;border-top:1px solid var(--rule);padding-top:14px}
 .hv-empty{margin:0;font-size:14px;color:var(--muted);padding:18px 0}
 .hv-empty a{color:var(--ink);font-weight:600}
-.hv-cats{display:flex;flex-direction:column;gap:10px}
-.hv-cat-axis,.hv-cat{display:grid;grid-template-columns:150px minmax(0,1fr) 140px;gap:16px;align-items:center}
-.hv-cat-axis{height:16px}
-.hv-cat-axis>div{position:relative;height:16px}
-.hv-cat-axis>div span{position:absolute;transform:translateX(-50%);font-size:11.5px;color:var(--muted);white-space:nowrap}
-.hv-cat-axis>div span:first-child{transform:none}
-.hv-cat-axis>div span:last-child{transform:translateX(-100%)}
-.hv-cat-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
-.hv-cat{min-height:52px;padding:4px 0;border-radius:8px}
-.hv-cat-on{background:var(--wash)}
-.hv-cat-name{display:flex;align-items:center;gap:4px;min-width:0}
-.hv-cat-label{display:flex;flex-direction:column;gap:1px;min-width:0}
-.hv-cat-label b{font-size:14px;font-weight:600;overflow-wrap:anywhere}
-.hv-cat-toggle{flex:none;display:inline-flex;align-items:center;justify-content:center;width:24px;height:44px;margin:-10px 0;padding:0;border:0;border-radius:8px;background:transparent;color:var(--muted)}
-.hv-cat-gap{flex:none;width:24px}
-.hv-cat-toggle svg{transition:transform .15s}
-.hv-cat-toggle[aria-expanded="true"] svg{transform:rotate(90deg)}
-.hv-cat-label small,.hv-cat-thin .hv-cat-label small,.hv-cat-total small{font-size:12px;color:var(--muted)}
-.hv-cat-total{display:flex;flex-direction:column;align-items:flex-end;gap:1px;text-align:right}
-.hv-cat-total b{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
-.hv-cat-track{position:relative;height:16px}
-.hv-vgrid{position:absolute;top:-18px;bottom:-18px;width:0;border-left:1px solid var(--hv-grid)}
-.hv-cat-bar{position:absolute;inset:0;display:flex;gap:2px}
-.hv-col .hv-seg-late{fill:var(--hv-late)}
-.hv-col .hv-seg-coming{fill:var(--hv-coming)}
-.hv-cat-bar .hv-seg-late{background:var(--hv-late);border-radius:4px 0 0 4px;height:100%}
-.hv-cat-bar .hv-seg-coming{background:var(--hv-coming);border-radius:0 4px 4px 0;height:100%}
-.hv-cat-bar .hv-seg-personal{background:var(--hv-personal);border-radius:0 4px 4px 0;height:100%}
-.hv-cat-bar .hv-seg-late:last-child,.hv-cat-bar .hv-seg-coming:first-child,.hv-cat-bar .hv-seg-personal:first-child{border-radius:4px}
-.hv-tick{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px solid var(--ink);transform:translateX(-1px)}
-.hv-cat-thin{min-height:40px;padding:2px 0}
-.hv-cat-thin .hv-cat-name{padding-left:24px}
-.hv-cat-thin .hv-cat-label b{font-size:13px;font-weight:500}
-.hv-cat-thin .hv-cat-total b{font-size:13.5px;font-weight:500}
-.hv-cat-thin .hv-cat-track{height:9px}
-.hv-cat-thin .hv-cat-bar .hv-seg-late,.hv-cat-thin .hv-cat-bar .hv-seg-coming,.hv-cat-thin .hv-cat-bar .hv-seg-personal{border-radius:2px}
-.hv-cat-thin .hv-tick{top:-3px;bottom:-3px}
-.hv-cat-thin .hv-cat-tip{top:-80px}
-.hv-table-wrap tr.hv-own th{font-weight:400;padding-left:28px;color:var(--ink)}
-.hv-table-wrap tr.hv-own td{color:var(--muted)}
 .hv-look{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .hv-look>span{font-size:12.5px;color:var(--muted)}
-.hv-cat-tip{left:8px;top:-84px;width:210px}
-.hv-cat-tip>span{display:flex;justify-content:space-between;gap:12px}
-.hv-cat-tip b{font-size:13px}
-.hv-col{outline:none;cursor:default}
-.hv-col .hv-hit{fill:transparent}
-.hv-col-on .hv-hit{fill:var(--wash);opacity:.6}
-.hv-col:focus-visible .hv-hit{stroke:var(--hv-focus);stroke-width:2}
-.hv-bar-total{font-size:12.5px;font-weight:600;fill:var(--ink)}
-@media(max-width:600px){.hv-cat-axis{display:none}.hv-cat{grid-template-columns:1fr 1fr}.hv-cat-track{grid-column:1/-1;grid-row:2}}

@@ -1,0 +1,15 @@
+/* The graph toolset's shell (D77): colours only through the existing tokens (--chart, --accent, --red, grey). */
+.view-card{display:flex;flex-direction:column;gap:12px;min-width:0}
+.view-line{margin:0;color:var(--muted);font-size:13px}
+.view-strip{display:flex;flex-wrap:wrap;gap:8px 28px;margin:0;border-bottom:1px solid var(--rule);padding-bottom:12px}
+.view-strip>div{display:flex;flex-direction:column;gap:2px}
+.view-strip dt{font-size:12.5px;color:var(--muted)}
+.view-strip dd{margin:0;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
+.view-table .view-text{text-align:left;white-space:normal}
+.view-table th[scope="row"]{text-align:left;font-weight:400}
+.view-table .view-child th[scope="row"]{padding-left:24px;color:var(--muted)}
+.view-table .view-row-short td{color:var(--red)}
+.view-table .view-row-in td{color:var(--ink);font-weight:600}
+.view-table .view-row-muted :is(th,td){color:var(--muted)}
+.view-table tfoot :is(th,td){font-weight:600}
+.view-pin{display:flex;gap:12px;align-items:center}

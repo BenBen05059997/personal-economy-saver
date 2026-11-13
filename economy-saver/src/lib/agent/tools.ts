@@ -44,6 +44,7 @@ import { planFor, planLine } from "@/lib/money/plan";
 import { daysBetween, low, series, timeline as engineTimeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
+import { viewTools, type ViewBlock } from "./view-tools";
 import { memoryTools } from "./memory-tools";
 import type { OutOfScopeReason } from "./reply";
 import type { ContextTurn } from "./context";
@@ -75,6 +76,8 @@ export type ToolContext = {
   onPending?: () => void;
   /** Ask only (D60): `make_canvas` hands over its last valid recipe; `clarify` and `out_of_scope` end the question. */
   onCanvas?: (recipe: Recipe) => void;
+  /** Ask only (D77): `show` hands over the view it drew; the run adds it to the answer's canvas. */
+  onView?: (block: ViewBlock) => void;
   onClarify?: (clarify: { question: string; choices: string[] }) => void;
   onOutOfScope?: (reason: OutOfScopeReason) => void;
   /** Ask only (D59): when the household keeps its memory on one device, the list the question carried and the changes `remember` and `forget` made to it (sent back in the reply, never stored). */
@@ -283,7 +286,7 @@ export const tools: Tool[] = [
   defineTool({
     name: "timeline", scope: "read",
     input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("One day (end-of-day balance) or null for all 30.") }),
-    description: "Cash flow for one day or the next 30 days: running balances and lowest point, signed minor units. as_usual = usual pay day, late = slowest. Only 30 days ahead: a later day gets the 30-day figures and a note; never give its balance.",
+    description: "Cash flow for a day or next 30: balances and lowest point. as_usual = usual days, late = slowest. None past 30 days.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const kind = CASE_KIND[input.scenario];
@@ -358,7 +361,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "goals", scope: "read", input: none,
-    description: "Dated pots, savings pace, gaps and needed monthly saving. Quote summary. The goals query draws a canvas.",
+    description: "Dated pots: pace, gaps, monthly saving needed. Quote summary.",
     run: async ctx => {
       const state = await ctx.state();
       const goals = goalPaces(state);
@@ -398,7 +401,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "who_owes_whom", scope: "read", input: none,
-    description: "Shared costs since the last settlement: what each paid and owes, and the fewest payments to settle. Quote summary.",
+    description: "Shared costs since last settled: each person’s paid and owed, fewest payments to settle. Quote summary.",
     run: async ctx => {
       const state = await ctx.state();
       const balance = splitBalance(state.split, state.today);
@@ -418,7 +421,7 @@ export const tools: Tool[] = [
       month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").nullable().default(null)
         .describe(`YYYY-MM within the last ${HISTORY_MONTHS} months; null = this month.`),
     }),
-    description: "Confirmed bills and charges by category and business share for one month (default this one). Quote the tool’s words.",
+    description: "Confirmed bills and charges by category and business share for a month. Quote its words.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       const month = input.month ?? today.slice(0, 7);
@@ -430,7 +433,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "own_categories", scope: "read", input: none,
-    description: "The household's own categories under the fourteen, with default business share and use counts: the only own_category names accepted.",
+    description: "Own categories with business share and use; the only own_category names.",
     run: async ctx => {
       const groups = await listOwnCategoriesGrouped(ctx.db, ctx.householdId);
       if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Spending → Your categories.";
@@ -444,7 +447,7 @@ export const tools: Tool[] = [
       query: z.string().max(SEARCH_QUERY_MAX).default("").describe("All words must match; empty: all."),
       months: z.number().int().min(1).max(HISTORY_MONTHS).nullable().default(null).describe(`Months back, 1 to ${HISTORY_MONTHS}, this one included; null = 3.`),
     }),
-    description: "Search bills and charges by name or category, newest month first. Unknown amounts due later this month are listed, never summed. Quote summary.",
+    description: "Search bills and charges by name or category, newest first. Unknown amounts not summed. Quote summary.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       const from = `${monthsBack(today.slice(0, 7), input.months ?? 3)}-01`;
@@ -460,7 +463,7 @@ export const tools: Tool[] = [
       month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").describe("Service month, YYYY-MM."),
       text: z.string().max(SEARCH_QUERY_MAX).default("").describe("Name or category; empty lists all."),
     }),
-    description: "Bills whose service period overlaps the month, waiting items included, totals per currency. For paid or due dates, or no period, use month_by_category or search_spending. Quote summary.",
+    description: "Bills whose service period overlaps the month, waiting too, totals per currency. Quote summary.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       if (input.month > latestDate(today).slice(0, 7)) throw new InputError(`month must be no later than ${latestDate(today).slice(0, 7)}, two years from today`);
@@ -477,7 +480,7 @@ export const tools: Tool[] = [
     input: z.object({
       months: z.number().int().min(2).max(6).nullable().default(null).describe(`Months, 2 to 6, this one included; null = ${REGULAR_MONTHS}.`),
     }),
-    description: "Recurring bills and charges by month, with changes and usual dates. Quote summary.",
+    description: "Recurring bills, charges by month, changes, usual dates. Quote summary.",
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       const months = input.months ?? REGULAR_MONTHS;
@@ -489,7 +492,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "foreign_costs", scope: "read", input: none,
-    description: "Past 12 months’ PayPal fees and markup by client, and foreign card costs by card. Quote the words; never name other providers or forecast rates.",
+    description: "12 months’ PayPal fees and markup by client, foreign card costs by card. Quote the words.",
     run: async ctx => {
       const costs = await foreignCosts(ctx.db, ctx.householdId);
       const nothing = costs.chargeTotals.count === 0 && costs.payoutTotals.count === 0;
@@ -573,6 +576,7 @@ export const tools: Tool[] = [
     },
   }),
   ...canvasTools,
+  ...viewTools,
   ...checkTools,
   ...memoryTools,
   ...offerTools,

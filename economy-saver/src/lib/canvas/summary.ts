@@ -20,6 +20,7 @@ function describe(block: ResolvedBlock): Record<string, unknown> {
     case "by_person": return { month: block.data.month, head: block.data.table.head, rows: block.data.table.rows.slice(0, MAX_ROWS).map(row => row.cells), ...(block.data.table.foot && { foot: block.data.table.foot }), ...(block.data.owes && { owes: block.data.owes }), ...(block.data.empty && { empty: block.data.empty }) };
     case "sliders": return { clients: block.data.controls.map(control => ({ name: control.name, maxDays: control.maxDays })) };
     case "action": return { label: block.data.label, href: block.data.href };
+    case "view": return { title: block.data.title, ...(block.data.line && { line: block.data.line }), figures: block.data.figures, ...(block.data.table && { head: block.data.table.head, rows: block.data.table.rows.slice(0, MAX_ROWS).map(row => row.cells) }), ...(block.data.empty && { empty: block.data.empty.words }) };
     case "note": case "letter": return {};
   }
 }

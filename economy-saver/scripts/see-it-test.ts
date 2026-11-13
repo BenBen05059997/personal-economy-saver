@@ -1,6 +1,7 @@
 // The "See it" buttons under an Ask answer: links first, deduplicated by address, at most three, memory notes left as quiet text.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/see-it-test.ts
 import assert from "node:assert/strict";
+import { chooseReply } from "@/lib/agent/reply";
 import { seeItButtons, SEE_IT_MAX } from "@/lib/agent/see-it";
 
 const APP = "http://127.0.0.1:3123";
@@ -17,6 +18,12 @@ assert.deepEqual(withLink.quiet, [clients, due], "the pages it only looked at st
 
 const many = seeItButtons([], [clients, due, { label: "Saving", href: "/saving" }, { label: "Memory", href: "/memory" }], APP);
 assert.equal(many.buttons.length, SEE_IT_MAX);
+
+// A turn that showed a view whose page is Spending offers "See it in Spending ›" (the source comes from chooseReply).
+const shownView = chooseReply({ clarify: null, outOfScope: null, text: "Groceries lead.", tools: ["show"], called: true, sources: [],
+  recipe: { version: 1, title: "Where does the month go?", blocks: [{ type: "view", view: "month_by_category", args: {} }] } as never });
+assert.deepEqual(shownView?.sources, [{ label: "Spending", href: "/spending" }]);
+assert.deepEqual(seeItButtons([], shownView!.sources, APP).buttons, [{ href: "/spending", label: "See it in Spending ›" }]);
 
 const memory = { label: "Rent goes up", href: "#ask-memory-1" };
 const unlinked = { label: "Memory on this device" };

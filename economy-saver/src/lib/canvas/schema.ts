@@ -6,6 +6,8 @@ import { isCalendarDay } from "@/lib/calendar-day";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { InputError } from "@/db/input-error";
+import { viewBlockSchema } from "@/lib/views/args";
+import { liveViews } from "@/lib/views/resolve";
 
 export const RECIPE_VERSION = 1;
 const MAX_BLOCKS = 12;
@@ -96,6 +98,7 @@ export const BlockSchema = z.union([
   z.object({ type: z.literal("sliders"), controls: z.array(z.object({ clientId: id, maxDays: z.number().int().min(1).max(MAX_SLIDER_DAYS) }).strict()).min(1).max(4) }).strict(),
   z.object({ type: z.literal("action"), label: z.string().min(1).max(60), href: z.string().max(200).refine(isAppPath, "A link goes to a page inside the app, never an outside address or an /api/ path") }).strict(),
   z.object({ type: z.literal("progress"), query: GoalsQuery }).strict(),
+  viewBlockSchema(liveViews()), // D77: a picture of the person's money, named by view and arguments; never an amount
 ]);
 export type Block = z.infer<typeof BlockSchema>;
 

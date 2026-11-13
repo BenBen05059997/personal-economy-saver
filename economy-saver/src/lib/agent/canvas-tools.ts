@@ -30,20 +30,17 @@ function figures(state: MoneyState, kind: "expected" | "worst") {
 
 /** The short form of the recipe schema the model builds from. */
 const RECIPE_HELP = `Recipe: {version:1,title,scenario?,blocks:[1..12]}; scenario = {case,changes}.
-Blocks:
 sentence: query sentence
 number: label, query safe_to_spend/cash/low_point/month_total/foreign_costs, note?
-flow_chart: query flow, mark?
 timeline: query events, mark?
-table: title?, query events/month_by_category/compare_months/spending_search/regular_costs/foreign_costs/bills_for_month
-compare: query compare_months
-by_person: query month_by_person (Shared/each person, who owes)
-progress: label, targetMinor, query safe_to_spend/cash/month_total; or query goals alone
+table: title?, query events/bills_for_month
+view: view, args (as show; ids, not names). Every chart is a view.
+progress: label, targetMinor, query safe_to_spend/cash/month_total
 note: text, by:"assistant"
 letter: text
 sliders: controls:[{clientId,maxDays}]
 action: label, href
-Query {q,...}: sentence/safe_to_spend/low_point/flow/events take scenario ({case,changes} or "canvas"); flow/events days (7–60); month_total/month_by_category/month_by_person month (YYYY-MM); compare_months a (earlier), b; spending_search text, months (1–12); regular_costs months? (2–24); bills_for_month month, text?; cash/foreign_costs/goals none. mark is a bill ID. Only targetMinor and changes hold amounts (minor units).`;
+Query {q,...}: sentence/safe_to_spend/low_point/events take scenario ({case,changes} or "canvas"); events days (7–60); month_total month (YYYY-MM); bills_for_month month, text?; cash/foreign_costs none. mark is a bill ID. Only targetMinor and changes hold amounts.`;
 
 export const canvasTools: Tool[] = [
   defineTool({
@@ -69,7 +66,7 @@ export const canvasTools: Tool[] = [
   defineTool({
     name: "make_canvas", scope: "read",
     input: z.object({ recipe: z.string().min(2).max(40_000) }),
-    description: `Draw a canvas from JSON; the last valid one shows.\n${RECIPE_HELP}`,
+    description: `Draw a canvas from JSON; the last valid shows.\n${RECIPE_HELP}`,
     run: async (ctx, input) => {
       let json: unknown;
       try { json = JSON.parse(input.recipe); } catch { throw new InputError("The recipe is not valid JSON."); }
