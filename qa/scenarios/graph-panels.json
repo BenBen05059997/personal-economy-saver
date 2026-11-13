@@ -1,0 +1,215 @@
+[
+  {
+    "id": "GRAPH-001",
+    "area": "Graph panels",
+    "action": "Read When bills fall on Bills",
+    "user_goal": "I want to see which days the bills land on",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Bills",
+      "Find the panel \"When bills fall\" above the list",
+      "Hover or focus Fri, Nov 27"
+    ],
+    "expected": [
+      "The panel shows the next 30 days as whole weeks from Sunday, today (Nov 14) marked, no sideways scroll and no overlap",
+      "Every item sits inside its cell in short words with no cut-off ellipsis; Nov 27 reads \"Hikari Denki ¥11,220 · to check\" and \"Rent −¥82,000\"",
+      "The line under it reads \"¥207,780 goes out in the next 30 days and ¥300,000 comes in as clients pay as usual. The heaviest day is Fri, Nov 27 (¥82,000). If clients pay late you are short from Nov 27 to Nov 28.\"",
+      "The readout under the grid, for Nov 27, keeps the long words: \"Hikari Denki ¥11,220 waits in To check and is not counted yet; Rent −¥82,000\" and says short if clients pay late"
+    ],
+    "refs": [
+      "D73",
+      "D77",
+      "db:views-test"
+    ]
+  },
+  {
+    "id": "GRAPH-002",
+    "area": "Graph panels",
+    "action": "Switch When bills fall between Chart and Table",
+    "user_goal": "I want the days as a list",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Bills",
+      "In \"When bills fall\" press Table, then Chart",
+      "Reload"
+    ],
+    "expected": [
+      "Table has the columns Day, What, Goes out and Comes in, one row per day with something on it, in date order: Wed, Nov 18 CloudBox Plus −¥1,980 through Thu, Dec 10 Card B statement −¥61,000",
+      "The Fri, Nov 27 row carries the full words about Hikari Denki and \"short if clients pay late\", with ¥82,000 out",
+      "The choice is kept on this device after the reload (D59)"
+    ],
+    "refs": [
+      "D59",
+      "D73",
+      "D77"
+    ]
+  },
+  {
+    "id": "GRAPH-003",
+    "area": "Graph panels",
+    "action": "Read Money in on Clients",
+    "user_goal": "I want to know what I really earn a month and which client pays late",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Clients",
+      "Read the panel \"Money in\" above the client list",
+      "Press How fast they pay, then By month"
+    ],
+    "expected": [
+      "The panel \"Money in\" sits above the list at 1440px with two questions: By month and How fast they pay, and Chart · Table",
+      "By month draws payments received month by month as columns split by client, with a legend naming Acme Corp, Northwind and Beacon Studio",
+      "How fast they pay draws one row per client with a dot for each paid invoice and the days it took; its Table twin lists the same days",
+      "Every figure in the line under the chart appears in the Table twin; nothing is cut off"
+    ],
+    "refs": [
+      "D77",
+      "db:views-test"
+    ]
+  },
+  {
+    "id": "GRAPH-004",
+    "area": "Graph panels",
+    "action": "Read a card's cycle on its panel",
+    "user_goal": "I want to know when I pay for this card and from what",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Cards, then Card A",
+      "Read its cycle, then press Table",
+      "Open Card B"
+    ],
+    "expected": [
+      "Card A: the cycle has three tracks, This cycle (Building ¥28,450 to the close on Nov 30), You pay (¥58,000 due Nov 26, then ¥28,450) and Covered by (Cash on hand); the line reads \"Card A closes Nov 30 and is paid Dec 26. The ¥58,000 statement paid Nov 26 is covered by cash on hand.\"",
+      "Card B: This cycle Building ¥61,000 to the close on Nov 15, You pay ¥61,000 due Dec 10, Covered by Northwind pays ¥120,000; the line reads \"Card B closes Nov 15 and is paid Dec 10. The ¥61,000 statement paid Dec 10 is covered once Northwind pays.\"",
+      "The Table has the columns Day, What happens and Amount; labels do not overlap at 1440px"
+    ],
+    "refs": [
+      "D77",
+      "db:views-test"
+    ]
+  },
+  {
+    "id": "GRAPH-005",
+    "area": "Graph panels",
+    "action": "Read What you keep on Saving",
+    "user_goal": "I want to see what I kept and how long my cash lasts",
+    "type": "happy",
+    "priority": "P1",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Saving",
+      "Read the panel \"What you keep\"",
+      "Press each of Where each payment went, What you kept and How long it lasts, then Table where it is offered"
+    ],
+    "expected": [
+      "The heading stays \"What you keep\" for all three questions, with the switch captioned \"Look at\"",
+      "Where each payment went draws money in, what was set aside and what was spent as a flow; What you kept draws money in each month split into spent and kept; How long it lasts draws one bar of months against a month of spending with marks at 3 and 6 months",
+      "The figures in each line match its Table twin; one y-axis, no overlap, nothing clipped at 1440px"
+    ],
+    "refs": [
+      "D77",
+      "db:views-test"
+    ]
+  },
+  {
+    "id": "GRAPH-006",
+    "area": "Graph panels",
+    "action": "Pin a view from a page panel",
+    "user_goal": "I want a page's picture on Home",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px",
+      "Bills open"
+    ],
+    "steps": [
+      "In \"When bills fall\" press Pin to Home",
+      "Open Home",
+      "Do the same from Clients → Money in and Spending → Over time"
+    ],
+    "expected": [
+      "Pinning says it is pinned (on this device when the household keeps canvases here)",
+      "Home draws the picture with the same numbers and no model call; the pinned title is the panel's title",
+      "Unpinning removes it"
+    ],
+    "refs": [
+      "D57",
+      "D59",
+      "D77"
+    ]
+  },
+  {
+    "id": "GRAPH-007",
+    "area": "Graph panels",
+    "action": "Ask for a view and follow See it in",
+    "user_goal": "I want the picture in Ask and then its page",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px",
+      "A working model (the server's or the Codex bridge)",
+      "Ask open at /canvas"
+    ],
+    "steps": [
+      "Type \"What's due, and when?\" and press Enter",
+      "Press See it in Bills ›",
+      "Back in Ask type \"Which client pays late?\" and press Enter",
+      "Press See it in Clients ›"
+    ],
+    "expected": [
+      "The answer holds the same calendar as Bills → When bills fall, with the same line (¥207,780 goes out ... ¥300,000 comes in), and ends with See it in Bills ›, which opens /bills",
+      "The second answer draws the clients' pace picture and ends with See it in Clients ›, which opens /clients",
+      "No amount typed by the model appears in a block"
+    ],
+    "refs": [
+      "D57",
+      "D60",
+      "D77"
+    ]
+  }
+]

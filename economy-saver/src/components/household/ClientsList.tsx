@@ -3,12 +3,14 @@ import { usd } from "@/lib/money/format";
 import { paceLine } from "@/lib/money/pace";
 import type { MoneyState } from "@/lib/money/types";
 import { hrefFor } from "@/lib/links";
+import { MoneyIn } from "@/components/clients/MoneyIn";
 import { PanelHint } from "@/components/ui/PanelHint";
 import "./household.css";
 
 /** The Clients page's rows and the empty hint. */
 export function ClientsList({ state, selected }: { state: MoneyState; selected?: string }) {
   return <>
+    <MoneyIn state={state} />
     {state.clients.map(item => {
       const outstanding = state.invoices.filter(i => i.clientId === item.id && i.status === "sent").reduce((sum, i) => sum + i.amountUsd, 0);
       return <Link key={item.id} id={`client-${item.id}`} prefetch={false} className="ui-row directory-link" href={hrefFor({ type: "client", id: item.id })} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>

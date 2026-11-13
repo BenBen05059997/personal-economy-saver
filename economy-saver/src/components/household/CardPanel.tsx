@@ -2,6 +2,9 @@ import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { dayLabel, formatter } from "@/lib/money/format";
 import { cycle, paybackFor, roomOnCard } from "@/lib/money/runway";
 import type { Card, MoneyState } from "@/lib/money/types";
+import { ViewCard } from "@/components/views/ViewCard";
+import { ViewFigure } from "@/components/views/ViewFigure";
+import { resolveView } from "@/lib/views/resolve";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { CardFields } from "@/components/settings/CardFields";
 import type { CardsData } from "./Directory";
@@ -17,10 +20,12 @@ export function CardPanel({ state, card, data }: { state: MoneyState; card: Card
   for (const charge of current.charges) {
     if (charge.place) trips.set(charge.place, (trips.get(charge.place) ?? 0) + charge.amount);
   }
+  const cycleView = resolveView("card_cycle", { cardId: card.id }, { state });
   const row = data.cards.find(item => item.id === card.id);
   const charges = state.charges.filter(c => c.cardId === card.id).length;
   const note = `${charges === 1 ? "Its 1 charge" : `Its ${charges} charges`} and all of its statements go with it, and the forecast stops counting them.`;
   return <Detail title={card.label} close="/cards">
+    <ViewCard result={cycleView} figure={<ViewFigure result={cycleView} />} />
     <p className="directory-big">{format(current.openTotal)}</p><p className="ui-hint">Unbilled this cycle</p>
     <dl>
       <div className="ui-row"><dt>Closes</dt><dd>{dayLabel(current.closesOn)}</dd></div>

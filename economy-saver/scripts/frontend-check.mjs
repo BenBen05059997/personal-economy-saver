@@ -661,7 +661,7 @@ await step("action", "a-card-is-removed-with-its-own-id-only", async () => {
 await step("page", "cards", () => page("/cards", /Card B/));
 await step("page", "clients", () => page("/clients", /Beacon/));
 await step("page", "saving", () => page("/saving", /Add a pot/));
-await step("page", "spending-where-the-month-goes", () => page("/spending", /Where the month goes[\s\S]*Housing 1 item ¥82,000/));
+await step("page", "spending-where-the-month-goes", () => page("/spending", /Where this month goes[\s\S]*Housing 1 item ¥82,000/));
 // S-A and S-B (D52): the two-person month and the public read-only family link.
 {
   const prior = cookie;
@@ -764,6 +764,25 @@ await step("page", "stage17-spending-last-month", async () => {
 await step("guard", "stage17-spending-month-out-of-range-refused-in-words", async () => {
   const content = plain(pageContent(await page("/spending?month=2020-01", /Spending shows the last 12 months/)));
   expect(content.includes("Spending shows the last 12 months, December 2025 to November 2026. Here is November.") && content.includes("Where the month goes"), "month-refusal");
+});
+// The graph panels (D77): each page's panel heading and its questions render on the Try it household.
+await step("page", "panel-clients-money-in", async () => {
+  const content = plain(pageContent(await page("/clients", /Money in/)));
+  expect(content.includes("Money in") && content.includes("How fast they pay"), "clients-money-in");
+});
+await step("page", "panel-bills-when-bills-fall", async () => { await page("/bills", /When bills fall/); });
+await step("page", "panel-card-cycle-tracks", async () => {
+  const id = /href="\/cards\/([0-9a-f-]{36})"/.exec(markup((await request("/cards")).body))?.[1];
+  expect(id !== undefined, "panel-card-id");
+  await page(`/cards/${id}`, /'s cycle/);
+});
+await step("page", "panel-saving-what-you-keep", async () => {
+  const content = plain(pageContent(await page("/saving", /What you keep/)));
+  expect(content.includes("Where each payment went") && content.includes("How long it lasts"), "saving-questions");
+});
+await step("page", "panel-spending-over-time-both-questions", async () => {
+  const content = plain(pageContent(await page("/spending/over-time", /Month by month/)));
+  expect(content.includes("Day by day") && content.includes("Spending over time"), "over-time-questions");
 });
 // Stage 18 regular (D54): Over time's Regular costs panel on the Try it household, before and after confirming Hikari Denki.
 const regularPanel = (html) => { const content = plain(pageContent(html)); const at = content.indexOf("Regular costs"); return at < 0 ? "" : content.slice(at); };

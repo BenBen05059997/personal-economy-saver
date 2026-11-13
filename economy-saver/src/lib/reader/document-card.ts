@@ -125,14 +125,15 @@ export const whoseChoice = (kind: "bill" | "charge", whose: Whose | null | undef
 
 const later = (a: string, b: string) => (a > b ? a : b);
 
-/** The canvas drawn after Confirm: the sentence, the chart and the timeline over the days to the month end (or the bill), the bill marked. */
-export function documentCanvas(today: string, item: { name: string; billId: string | null; due: string | null }): Recipe {
+/** The canvas drawn after Confirm: what the item changed first (a bill or a card charge), then the sentence, the chart and the timeline over the days to the month end (or the bill), the bill marked. */
+export function documentCanvas(today: string, item: { name: string; billId: string | null; chargeId?: string | null; due: string | null }): Recipe {
   const end = later(monthBounds(today.slice(0, 7)).last, item.due ?? today);
   const days = Math.min(60, Math.max(7, daysBetween(today, end) + 1));
   const mark = item.billId ? { mark: item.billId } : {};
   return {
     version: 1, title: `${item.name.slice(0, 64)} in your month`,
     blocks: [
+      ...(item.billId ?? item.chargeId ? [{ type: "view" as const, view: "what_changed" as const, args: { itemId: (item.billId ?? item.chargeId)! } }] : []),
       { type: "sentence", query: { q: "sentence" } },
       { type: "flow_chart", query: { q: "flow", days }, ...mark },
       { type: "timeline", query: { q: "events", days }, ...mark },
@@ -167,8 +168,13 @@ export function buildCard(
       .sort((a, b) => (b.reading.confirmedAt ?? "").localeCompare(a.reading.confirmedAt ?? "") || b.index - a.index)[0];
     if (last) {
       const item = items[last.index];
-      const recipe = documentCanvas(context.state.today, { name: item.value.name ?? (item.value.kind === "bill" ? "Bill" : "Card charge"), billId: item.target?.kind === "bill" ? item.target.id : null, due: item.value.date });
-      try { canvas = { recipe, blocks: resolveRecipe(recipe, context) }; } catch (error) { if (!(error instanceof CanvasError)) throw error; }
+      const recipe = documentCanvas(context.state.today, { name: item.value.name ?? (item.value.kind === "bill" ? "Bill" : "Card charge"), billId: item.target?.kind === "bill" ? item.target.id : null, chargeId: item.target?.kind === "charge" ? item.target.id : null, due: item.value.date });
+      // What it changed needs the item in the money state; an item the state no longer holds (a charge long past) leaves the month as it was drawn before.
+      const target = item.target, held = target !== null && (target.kind === "bill"
+        ? context.state.bills.some(bill => bill.id === target.id || bill.id.split("@")[0] === target.id) || context.state.storedBills.some(bill => bill.id === target.id)
+        : context.state.charges.some(charge => charge.id === target.id));
+      const drawn = held ? recipe : { ...recipe, blocks: recipe.blocks.filter(block => block.type !== "view") };
+      try { canvas = { recipe: drawn, blocks: resolveRecipe(drawn, context) }; } catch (error) { if (!(error instanceof CanvasError)) throw error; }
     }
   }
   const words = items.length === 0 ? DOCUMENT_WORDS.nothing : canvas ? DOCUMENT_WORDS.confirmed : DOCUMENT_WORDS.read;

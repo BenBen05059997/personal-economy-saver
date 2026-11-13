@@ -8,6 +8,17 @@ import { ApiForm } from "@/components/ui/ApiForm";
 import { ConfirmDo } from "@/components/ui/ConfirmRemove";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { Detail, ListPage } from "@/components/household/ListPage";
+import { Sankey } from "@/components/views/forms/Sankey";
+import { RunwayBar } from "@/components/views/forms/RunwayBar";
+import { StackedColumns } from "@/components/views/forms/StackedColumns";
+import { ViewPanel, type PanelQuestion } from "@/components/views/ViewPanel";
+import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
+import { readPlaces } from "@/db/place";
+import { currentHouseholdId } from "@/lib/session";
+import { loadViewContext } from "@/lib/views/load";
+import { bufferMonthsView, moneyFlowView, savingsRateView } from "@/lib/views/v/keep";
+import type { ViewResult } from "@/lib/views/types";
 import { PotFields } from "./PotFields";
 import "@/components/household/household.css";
 import "./saving.css";
@@ -36,6 +47,24 @@ function PotPanel({ state, pot }: { state: MoneyState; pot: Pot }) {
   </Detail>;
 }
 
+/** Saving → What you keep (D77): where each payment went, what was kept each month and how long the cash lasts, drawn from the keep views. */
+async function WhatYouKeep({ state }: { state: MoneyState }) {
+  const hid = await currentHouseholdId();
+  if (!hid) return null;
+  const [ctx, places] = await Promise.all([
+    loadViewContext(db(), hid, ["spending", "income", "potFills"], { state }),
+    withHousehold(db(), hid, tx => readPlaces(tx, hid), { isolationLevel: "repeatable read", accessMode: "read only" }),
+  ]);
+  const heading = "What you keep";
+  const flow = moneyFlowView({}, ctx) as ViewResult<"sankey">, kept = savingsRateView({}, ctx) as ViewResult<"stacked_columns">, lasts = bufferMonthsView({}, ctx) as ViewResult<"runway_bar">;
+  const questions: PanelQuestion[] = [
+    { key: "flow", label: "Where each payment went", heading, result: flow, figure: <Sankey result={flow} /> },
+    { key: "kept", label: "What you kept", heading, result: kept, figure: <StackedColumns result={kept} /> },
+    { key: "lasts", label: "How long it lasts", heading, result: lasts, figure: <RunwayBar result={lasts} /> },
+  ];
+  return <ViewPanel id="keep" questions={questions} switchLabel="Look at" device={places.canvases === "device" ? { householdId: hid } : undefined} />;
+}
+
 export function SavingView({ state, selected }: { state: MoneyState; selected?: string }) {
   const pot = selected ? state.pots.find(row => row.id === selected) : undefined;
   if (selected && !pot) notFound();
@@ -48,6 +77,7 @@ export function SavingView({ state, selected }: { state: MoneyState; selected?: 
       {roomNote(state) && <p className="ui-hint">{roomNote(state)}</p>}
       {inPots && <p className="ui-hint">{inPots}</p>}
     </div>
+    <WhatYouKeep state={state} />
     {state.pots.map(item => {
       const goal = goalPace(item, state);
       return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={`/saving/${item.id}`} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>

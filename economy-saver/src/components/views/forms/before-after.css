@@ -1,0 +1,13 @@
+/* The before-and-after form (D77): ink text, a yellow rule marks the "with it" side (--chart #F7A30A). */
+.ba-chart{display:flex;flex-direction:column;gap:14px;min-width:0}
+.ba-head,.ba-row{display:grid;grid-template-columns:minmax(150px,1.6fr) minmax(90px,1fr) 20px minmax(90px,1fr) minmax(90px,.8fr);gap:0 10px;align-items:baseline}
+.ba-head{font-size:12px;color:var(--muted);padding:0 0 4px;border-bottom:1px solid var(--rule)}
+.ba-head span:nth-child(2){text-align:right}
+.ba-head span:nth-child(4){text-align:right}
+.ba-rows{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.ba-row{padding:9px 0;border-bottom:1px solid var(--rule);font-size:14px;font-variant-numeric:tabular-nums}
+.ba-label{color:var(--ink)}
+.ba-before{text-align:right;color:var(--muted)}
+.ba-arrow{color:var(--faint);text-align:center}
+.ba-after{justify-self:end;text-align:right;font-weight:700;color:var(--ink);box-shadow:inset 0 -3px 0 var(--chart)}
+.ba-change{text-align:right;color:var(--muted);font-size:13px}

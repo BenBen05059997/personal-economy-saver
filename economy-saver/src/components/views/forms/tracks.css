@@ -1,0 +1,24 @@
+/* Tracks (D73, D77): colours only through the existing tokens (--chart #F7A30A, --accent #FCCB78, grey, red, green). */
+.tk-chart{--tk-main:var(--chart);--tk-soft:var(--accent);--tk-quiet:light-dark(#8a857c,#a39d92);--tk-short:var(--red);--tk-in:light-dark(#1d7a4c,#5fc58c);min-width:0}
+.tk-chart svg{display:block;overflow:visible;max-width:100%}
+.tk-today{stroke:var(--faint);stroke-width:1;stroke-dasharray:2 3}
+.tk-today-label{font-size:11.5px;fill:var(--muted)}
+.tk-track{font-size:11.5px;font-weight:600;letter-spacing:.02em;fill:var(--muted)}
+.tk-rail{stroke:var(--rule);stroke-width:1;shape-rendering:crispEdges}
+.tk-first{font-size:12px;font-weight:600;fill:var(--ink)}
+.tk-second{font-size:11.5px;fill:var(--muted)}
+.tk-event{outline:none}
+.tk-hit{fill:transparent}
+.tk-event:focus-visible .tk-hit{stroke:var(--hv-focus);stroke-width:2}
+.tk-dot,.tk-due,.tk-span{stroke:var(--screen);stroke-width:2}
+.tk-t-main{fill:var(--tk-main);stroke:var(--tk-main)}
+.tk-t-soft{fill:var(--tk-soft);stroke:var(--tk-soft)}
+.tk-t-quiet{fill:var(--tk-quiet);stroke:var(--tk-quiet)}
+.tk-t-ghost{fill:none;stroke:var(--tk-quiet);stroke-dasharray:3 2}
+.tk-t-short{fill:var(--tk-short);stroke:var(--tk-short)}
+.tk-t-in{fill:var(--tk-in);stroke:var(--tk-in)}
+.tk-dot,.tk-due{stroke:var(--screen)}
+.tk-tick{stroke-width:2;fill:none}
+.tk-span{stroke:none}
+.tk-arrow{fill:none;stroke:var(--tk-main);stroke-width:2;stroke-dasharray:4 3}
+.tk-head{fill:var(--tk-main)}

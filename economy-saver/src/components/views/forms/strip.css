@@ -1,0 +1,20 @@
+/* The strip form (D77): colours only through the existing tokens; marks stay thin, the text stays in ink. */
+.st-rows{display:flex;flex-direction:column;gap:6px}
+.st-row,.st-axis{display:grid;grid-template-columns:168px minmax(0,1fr);align-items:center;border-radius:8px;outline:none}
+.st-row-on{background:var(--wash)}
+.st-row:focus-visible{outline:2px solid var(--hv-focus);outline-offset:2px}
+.st-name{display:flex;flex-direction:column;gap:2px;min-width:0;padding-right:12px}
+.st-name b{font-size:14px;font-weight:600;overflow-wrap:anywhere;color:var(--ink)}
+.st-name small{font-size:12.5px;color:var(--muted)}
+.st-row svg,.st-axis svg{display:block;overflow:visible}
+.st-track{stroke:var(--hv-grid);stroke-width:1}
+.st-usual{stroke:var(--ink);stroke-width:2;shape-rendering:crispEdges}
+.st-dot{fill:var(--hv-late);stroke:var(--hv-ring);stroke-width:1.5}
+.st-open{fill:var(--screen);stroke:var(--ink);stroke-width:2}
+.st-open-late{fill:var(--screen);stroke:var(--hv-short);stroke-width:2.5}
+.st-open-label{font-size:11.5px;fill:var(--ink)}
+.hv-legend .st-key{display:inline-block;flex:none;box-sizing:border-box;border-top:0}
+.hv-legend .st-key-dot{width:10px;height:10px;border-radius:50%;background:var(--hv-late)}
+.hv-legend .st-key-usual{width:2px;height:14px;background:var(--ink)}
+.hv-legend .st-key-open{width:12px;height:12px;border-radius:50%;border:2px solid var(--ink)}
+.hv-legend .st-key-late{width:12px;height:12px;border-radius:50%;border:2.5px solid var(--hv-short)}

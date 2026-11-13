@@ -2124,6 +2124,83 @@
                           },
                           "view": {
                             "type": "string",
+                            "const": "what_if"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {
+                              "amountMinor": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              },
+                              "date": {
+                                "type": "string",
+                                "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                              },
+                              "late": {
+                                "type": "object",
+                                "properties": {
+                                  "clientId": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 80
+                                  },
+                                  "days": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 120
+                                  }
+                                },
+                                "required": [
+                                  "clientId",
+                                  "days"
+                                ],
+                                "additionalProperties": false
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
+                            "const": "position"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {},
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
                             "const": "month_by_category"
                           },
                           "args": {
@@ -2191,6 +2268,282 @@
                                 "maximum": 12
                               }
                             },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
+                            "const": "month_pace"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {
+                              "month": {
+                                "type": "string",
+                                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
+                            "const": "money_flow"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {
+                              "month": {
+                                "type": "string",
+                                "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
+                            "const": "savings_rate"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {
+                              "months": {
+                                "type": "integer",
+                                "minimum": 2,
+                                "maximum": 12
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
+                            "const": "buffer_months"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {},
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
+                            "const": "income_months"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {
+                              "months": {
+                                "type": "integer",
+                                "minimum": 2,
+                                "maximum": 12
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
+                            "const": "client_pace"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {
+                              "clientId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 80
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
+                            "const": "bills_calendar"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {
+                              "days": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 90
+                              },
+                              "whose": {
+                                "type": "string",
+                                "const": "shared"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
+                            "const": "card_cycle"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {
+                              "cardId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 80
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "exclusiveMinimum": 0
+                              }
+                            },
+                            "required": [
+                              "cardId"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "view",
+                          "args"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "view"
+                          },
+                          "view": {
+                            "type": "string",
+                            "const": "what_changed"
+                          },
+                          "args": {
+                            "type": "object",
+                            "properties": {
+                              "itemId": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 80
+                              }
+                            },
+                            "required": [
+                              "itemId"
+                            ],
                             "additionalProperties": false
                           }
                         },

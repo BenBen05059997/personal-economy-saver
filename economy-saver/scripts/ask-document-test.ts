@@ -109,7 +109,8 @@ async function main() {
     const daysOf = (today: string, due: string | null, billId: string | null = "x") => {
       const recipe = documentCanvas(today, { name: "Kawa Gym", billId, due });
       assert.equal(RecipeSchema.safeParse(recipe).success, true, "the recipe passes RecipeSchema");
-      const [, flow, events] = recipe.blocks;
+      const [changed, , flow, events] = recipe.blocks;
+      assert.ok(changed.type === "view" && changed.view === "what_changed" && (changed.args as { itemId: string }).itemId === billId, "what it changed comes first");
       assert.ok(flow.type === "flow_chart" && events.type === "timeline");
       assert.equal(flow.query.days, events.query.days);
       return flow.query.days;
@@ -197,6 +198,7 @@ async function main() {
     assert.equal(withChecks.items[1].target, null);
     assert.equal(withChecks.words, DOCUMENT_WORDS.confirmed);
     assert.ok(withChecks.canvas, "a confirmed item draws the canvas when the money state is given");
+    assert.ok(withChecks.canvas.recipe.blocks.every(block => block.type !== "view") && withChecks.canvas.blocks.length === 3, "an item the money state no longer holds leaves out what it changed: the month is drawn once, without it");
     const text = cardContext(withChecks);
     assert.ok(text.startsWith(DOCUMENT_WORDS.confirmed) && text.includes("Kawa Gym · ¥6,000 · due Nov 27 (waiting for the user's OK)") && text.includes("(not added)") && text.includes("(added)"));
     // savedCard (pure): the summary parts and the links, a part left out when unknown, never ¥0
@@ -278,9 +280,10 @@ async function main() {
     // 6. the canvas after Confirm
     assert.equal(done.words, DOCUMENT_WORDS.confirmed);
     assert.ok(done.canvas);
-    const [sentenceBlock, flowBlock, timelineBlock] = done.canvas.blocks;
+    const [changedBlock, sentenceBlock, flowBlock, timelineBlock] = done.canvas.blocks;
+    assert.ok(changedBlock.type === "view" && changedBlock.data.view === "what_changed" && changedBlock.data.form === "before_after", "D61: what changed is the first block");
     assert.ok(sentenceBlock.type === "sentence" && flowBlock.type === "flow_chart" && timelineBlock.type === "timeline");
-    const flowQuery = done.canvas.recipe.blocks[1];
+    const flowQuery = done.canvas.recipe.blocks[2];
     assert.ok(flowQuery.type === "flow_chart");
     assert.equal(flowQuery.query.days, daysBetween(TODAY, "2026-11-30") + 1);
     assert.equal(flowQuery.mark, saved.id);
@@ -349,7 +352,7 @@ async function main() {
     assert.deepEqual(afterOne.items.map(item => item.status).sort(), ["confirmed", "to_check"]);
     assert.equal(named(afterOne, "Noodle shop").target?.kind, "charge");
     assert.equal(named(afterOne, "Bookshop").status, "to_check");
-    assert.ok(afterOne.canvas && afterOne.canvas.blocks[1].type === "flow_chart" && afterOne.canvas.blocks[1].data.mark === null, "a charge sits in its card's row: no mark");
+    assert.ok(afterOne.canvas && afterOne.canvas.blocks[2].type === "flow_chart" && afterOne.canvas.blocks[2].data.mark === null, "a charge sits in its card's row: no mark");
     assert.ok(afterOne.canvas.recipe.blocks.every(block => !("mark" in block)));
     const noodle = named(afterOne, "Noodle shop");
     const novFood = monthByCategory((await loadCanvasContext(db, a, { blocks: [] })).spending, TODAY, "2026-11").categories.find(c => c.category === noodle.value.category)!.totalMinor;
@@ -379,8 +382,8 @@ async function main() {
     const far = await read(a, (await attach(a, "far pool")).documentId);
     assert.equal(await reviewReading(db, a, far.items[0].readingId, far.items[0].value, {}, false, []), true);
     const farDone = await documentCard(db, a, far.documentId);
-    assert.ok(farDone.canvas && farDone.canvas.blocks[1].type === "flow_chart" && farDone.canvas.blocks[1].data.mark !== null && farDone.canvas.blocks[1].data.mark.index === 43 && /Far Pool/.test(farDone.canvas.blocks[1].data.mark.label));
-    assert.equal(farDone.canvas.recipe.blocks[1].type === "flow_chart" && farDone.canvas.recipe.blocks[1].query.days, 44);
+    assert.ok(farDone.canvas && farDone.canvas.blocks[2].type === "flow_chart" && farDone.canvas.blocks[2].data.mark !== null && farDone.canvas.blocks[2].data.mark.index === 43 && /Far Pool/.test(farDone.canvas.blocks[2].data.mark.label));
+    assert.equal(farDone.canvas.recipe.blocks[2].type === "flow_chart" && farDone.canvas.recipe.blocks[2].query.days, 44);
 
     // 8. the same file twice
     items = [bill({ name: "Tama Bus Pass", date: "2026-12-02" })];

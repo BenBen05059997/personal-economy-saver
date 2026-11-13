@@ -20,8 +20,12 @@ type SeedOptions = {
 
 // Past paid invoices give each client their days-to-pay history: paid_on - sent_on reproduces benMoney's arrays.
 // Fictional work, spread over June to early November (every payment more than a week before the demo date, so none is a recent invoice) so the months of income have something to show.
-const HISTORY_START = "2026-06-05";
-const HISTORY_STEP_DAYS = 30;
+// Each client has its own cadence, so the months differ: Acme's slow fourth payment crosses from August into September (July gets two Acme payments, August none).
+const HISTORY_SENT_ON: Record<string, string[]> = {
+  "c-beacon": ["2026-06-09", "2026-07-13", "2026-08-03", "2026-08-27", "2026-10-10", "2026-11-02"],
+  "c-northwind": ["2026-06-04", "2026-07-07", "2026-08-13", "2026-09-13", "2026-10-19"],
+  "c-acme": ["2026-06-08", "2026-06-26", "2026-07-15", "2026-08-18", "2026-10-06"],
+};
 const HISTORY_AMOUNT_USD: Record<string, number> = { "c-beacon": 350, "c-northwind": 700, "c-acme": 1_000 };
 
 export async function seedBen(db: Db, opts: SeedOptions = {}): Promise<string> {
@@ -85,7 +89,7 @@ export async function seedBenRows(tx: Db, opts: SeedOptions): Promise<string> {
   const history: (typeof s.invoices.$inferInsert)[] = [];
   for (const c of m.clients) {
     c.daysToPay.forEach((days, i) => {
-      const sentOn = addDays(HISTORY_START, i * HISTORY_STEP_DAYS);
+      const sentOn = HISTORY_SENT_ON[c.id][i];
       history.push({
         householdId: hid, madeBy: "form" as const,
         clientId: clientIds.get(c.id)!,

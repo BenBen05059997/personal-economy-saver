@@ -3,7 +3,7 @@
 .sc-col .sc-hit{fill:transparent}
 .sc-col-on .sc-hit{fill:var(--wash);opacity:.6}
 .sc-col:focus-visible .sc-hit{stroke:var(--hv-focus);stroke-width:2}
-.sc-total{font-size:12.5px;font-weight:600;fill:var(--ink)}
+.sc-total{font-size:12.5px;font-weight:600;fill:var(--ink);paint-order:stroke;stroke:var(--screen);stroke-width:5px;stroke-linejoin:round}
 .sc-now{font-weight:700;fill:var(--ink)}
 .sc-seg-main{fill:var(--hv-late)}
 .sc-seg-soft{fill:var(--hv-coming)}

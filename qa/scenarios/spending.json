@@ -32,8 +32,8 @@
   {
     "id": "SPEND-002",
     "area": "Spending",
-    "action": "Come back to the choice I made",
-    "user_goal": "I want my chart or table to stay as I left it on this device",
+    "action": "Come back to the choices I made on Spending",
+    "user_goal": "I want each panel to open the way I left it on this device",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -45,14 +45,15 @@
     ],
     "steps": [
       "On This month press Table and Business or personal",
-      "Reload, then open Over time and come back",
+      "On Over time press Day by day and Table",
+      "Reload, leave to another page and come back to both",
       "Open a past month with ‹ October",
       "Clear this site's data for the address and reload"
     ],
     "expected": [
-      "After the reload and after leaving and returning, This month is still Table and Business or personal; the choice is kept on this device only, nothing is saved in the household",
-      "A past month opens with the same choice",
-      "After clearing site data This month is back to Chart and Category"
+      "After the reload and after leaving and returning, This month is still Table and Business or personal and Over time is still Day by day and Table; each panel keeps its own choice, kept on this device only, nothing is saved in the household",
+      "A past month opens with This month's choice",
+      "After clearing site data This month is back to Chart and Category and Over time to Month by month and Chart"
     ],
     "refs": [
       "D59",
@@ -62,8 +63,8 @@
   {
     "id": "SPEND-003",
     "area": "Spending",
-    "action": "Switch Over time between chart and table",
-    "user_goal": "I want to compare the months and read my regular costs",
+    "action": "Switch Over time between its two questions, chart and table",
+    "user_goal": "I want to compare the months, see this month's pace and read my regular costs",
     "type": "happy",
     "priority": "P2",
     "needs": [
@@ -75,17 +76,22 @@
     ],
     "steps": [
       "Open Spending → Over time",
-      "Press Table, then Chart",
+      "Read Month by month, press Table, then Chart",
+      "Press Day by day, then Table, then Chart",
       "Reload"
     ],
     "expected": [
-      "Chart shows the months side by side with the current month marked; Table lists Month, Spent, Still to come and Total for each",
-      "Over time's choice is separate from This month's and is still there after the reload",
-      "Regular costs follow the months, as in qa/README U-A"
+      "Over time has the switch Month by month · Day by day and Chart · Table. Month by month draws stacked columns, spent and still to come, with November marked as the current month; its Table has Month, Spent, Still to come and Total (August 2026 ¥88,780, September ¥150,380, October ¥132,060, November ¥63,450 spent + ¥88,780 still to come = ¥152,230) and its line reads \"September was the highest month (¥150,380), mostly because of Hotel Kazemachi Hakone (¥28,600).\"",
+      "Day by day draws two lines, November and October, as the running total by day, today (Nov 14) marked; the line reads \"By the 14th you have spent ¥63,450 in November, ¥59,790 more than October by the same day (¥3,660). October ended at ¥132,060.\" and its Table has Day, November and October",
+      "The question and the look are kept together on this device (D59), separate from This month's, and are still there after the reload",
+      "Regular costs follow the panel, as in qa/README U-A"
     ],
     "refs": [
       "D54",
-      "D73"
+      "D59",
+      "D73",
+      "D77",
+      "db:views-test"
     ]
   },
   {

@@ -507,9 +507,9 @@
       "Press Enter"
     ],
     "expected": [
-      "It calls foreign_costs; the total cost over twelve months equals the figure on the foreign-money cost screen (qa/README AE)",
+      "It calls foreign_costs; the total cost over twelve months equals the figure in qa/README AE (foreign costs show in Ask only; no page shows them)",
       "It names no provider other than PayPal and never tells the person to leave PayPal",
-      "The answer ends with a \"See it in Clients ›\" button"
+      "The answer has no \"See it in\" button: foreign costs show in Ask only (D62, D77)"
     ],
     "refs": [
       "qa/README AE",
@@ -2021,7 +2021,7 @@
       "Press Enter"
     ],
     "expected": [
-      "A table or number block built from the foreign_costs query whose total equals the figure on the foreign cost screen",
+      "A table or number block built from the foreign_costs query whose total equals the figure in qa/README AE",
       "No amount was typed by the model into a block"
     ],
     "refs": [

@@ -1,0 +1,11 @@
+/* The runway-bar form (D77): the bar in the chart colour, the marks as thin grey ticks, text in ink. */
+.rw{gap:6px}
+.rw-sum{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.rw-sum b{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums}
+.rw-sum span{font-size:13px;color:var(--muted)}
+.rw-track{position:relative;height:22px;margin-bottom:26px;background:var(--wash);border-radius:4px}
+.rw-fill{position:absolute;left:0;top:0;bottom:0;background:var(--hv-late);border-radius:4px 0 0 4px;min-width:2px}
+.rw-mark{position:absolute;top:-6px;bottom:-6px;width:0}
+.rw-mark i{position:absolute;left:0;top:0;bottom:0;border-left:1.5px dashed var(--hv-usual)}
+.rw-mark small{position:absolute;top:100%;left:0;transform:translateX(-50%);margin-top:2px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.rw-guide{margin:0;font-size:13px;color:var(--muted)}

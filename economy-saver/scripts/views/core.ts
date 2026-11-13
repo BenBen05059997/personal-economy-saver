@@ -28,7 +28,8 @@ const defaultArgs = (view: ViewId, ctx: ViewContext): Record<string, unknown> =>
     case "search_months": return { text: "rent" };
     case "goal_pace": case "tax_ahead": throw new Error(`${view} needs a pot; add its default to defaultArgs`);
     case "card_cycle": return { cardId: ctx.state.cards[0].id };
-    case "what_changed": throw new Error("what_changed needs an item; add its default to defaultArgs");
+    case "what_changed": return { itemId: ctx.state.bills.find(bill => bill.status === "pending")!.id };
+    case "what_if": return { amountMinor: 40_000 };
     default: return {};
   }
 };

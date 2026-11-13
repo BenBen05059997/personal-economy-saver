@@ -65,6 +65,8 @@ export function StepLine({ result }: { result: ViewResult<"step_line"> }) {
   const day = selected === null ? null : data.dayWords[selected];
   const tipLeft = selected === null ? 0 : x(selected) > width / 2 ? Math.max(8, x(selected) - 14 - 250) : Math.min(width - 258, x(selected) + 14);
   const readout = (text: string) => text.charAt(0).toLowerCase() + text.slice(1);
+  // A ghost line (the days as they are now, under a what-if) gets its own lowest point and is named by the legend, not at its end; without one nothing here draws.
+  const ghost = lines.find(l => l.tone === "ghost"), ghostLow = ghost ? ghost.points.reduce((best, v, i) => v < ghost.points[best] ? i : best, 0) : 0;
   const drawn = [...lines].reverse(); // the first line (the one that matters) is painted last, on top
   return <div className="sl-chart" ref={ref}>
     <div className="sl-legend">{lines.map(l => <span key={l.key}><i className={`sl-t-${l.tone}`} />{l.label}</span>)}{bandPath && <span><i className="sl-key-band" />Depends on when they pay</span>}</div>
@@ -75,8 +77,9 @@ export function StepLine({ result }: { result: ViewResult<"step_line"> }) {
         {bandPath && <path className="sl-band" d={bandPath} />}
         {drawn.map(l => <path key={l.key} className={`sl-line sl-t-${l.tone}`} d={path(l.points)} />)}
         {showGap && top && bottom && <><text className="sl-direct" x={x(gapAt) + 6} y={y(top.points[gapAt]) - 6}>{directOf(top.key)}</text><text className="sl-direct" x={x(gapAt) + 6} y={y(bottom.points[gapAt]) + 18}>{directOf(bottom.key)}</text></>}
-        {!band && lines.map(l => directOf(l.key) && <text key={l.key} className="sl-direct" x={x(n - 1)} y={y(l.points[n - 1]) - 8} textAnchor="end">{directOf(l.key)}</text>)}
+        {!band && !ghost && lines.map(l => directOf(l.key) && <text key={l.key} className="sl-direct" x={x(n - 1)} y={y(l.points[n - 1]) - 8} textAnchor="end">{directOf(l.key)}</text>)}
         {data.xTicks.map(tick => <text className="sl-axis" key={tick.index} x={x(tick.index)} y={H - 8} textAnchor={tick.index === 0 ? "start" : "middle"}>{tick.label}</text>)}
+        {ghost && <circle className="sl-dot-ghost" cx={x(ghostLow)} cy={y(ghost.points[ghostLow])} r="4" />}
         <circle className={low.short ? "sl-dot-short" : "sl-dot-low"} cx={lowX} cy={lowY} r="5" />
         <text className={low.short ? "sl-low sl-low-short" : "sl-low"} x={labelX} y={labelY}>{low.label}</text>
         {subLines.map((line, index) => <text className="sl-low-sub" key={`${index}-${line}`} x={labelX} y={labelY + 16 * (index + 1)}>{line}</text>)}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import type { loadSettings } from "@/db/settings";
 import { fromMinor } from "@/db/money";
@@ -20,6 +20,15 @@ import { Person } from "@/components/settings/CardFields";
 import { hrefFor } from "@/lib/links";
 import type { OwnChoices } from "@/lib/reader/own-choices";
 import { ApiForm } from "@/components/ui/ApiForm";
+import { Calendar } from "@/components/views/forms/Calendar";
+import { ViewPanel } from "@/components/views/ViewPanel";
+import { db } from "@/db/client";
+import { withHousehold } from "@/db/household";
+import { readPlaces } from "@/db/place";
+import { currentHouseholdId } from "@/lib/session";
+import { loadViewContext } from "@/lib/views/load";
+import { calendarView } from "@/lib/views/v/calendar";
+import type { ViewResult } from "@/lib/views/types";
 import "@/components/household/household.css";
 
 type SettingsData = Awaited<ReturnType<typeof loadSettings>>;
@@ -121,6 +130,15 @@ function BillPanel({ bill, bills, people, today, own }: { bill: Bill; bills: Bil
   </Detail>;
 }
 
+/** "When bills fall" (D73, D77): the next 30 days as a month grid above the list, drawn by the bills_calendar view. */
+async function BillsCalendar() {
+  const hid = await currentHouseholdId();
+  if (!hid) return null;
+  const [{ state }, places] = await Promise.all([loadViewContext(db(), hid, []), withHousehold(db(), hid, tx => readPlaces(tx, hid), { isolationLevel: "repeatable read", accessMode: "read only" })]);
+  const result = calendarView({}, { state }) as ViewResult<"calendar">;
+  return <ViewPanel id="bills_calendar" questions={[{ key: "calendar", label: "Calendar", result, figure: <Calendar result={result} /> }]} device={places.canvases === "device" ? { householdId: hid } : undefined} />;
+}
+
 /**
  * The Bills page: the household's current bills, one row each, then Past bills as a fold (a one-off already due is history). A row opens its
  * panel on the right with Edit and Remove; the forwarding address, where bills arrive, is a section under the list.
@@ -134,6 +152,7 @@ export function BillsView({ data, own, selected, forwarding }: { data: SettingsD
   const past = bills.filter(isPast);
   return <ListPage title="Bills" hint={`Every bill stays in the household runway.${people.length > 1 ? " Choose who it belongs to." : ""}`} add="bill" addLabel="Add a bill"
     panel={bill && <BillPanel bill={bill} bills={bills} people={people} today={today} own={own} />}>
+    <Suspense fallback={null}><BillsCalendar /></Suspense>
     {current.map(row => <BillRow key={row.id} bill={row} people={people} today={today} selected={row.id === selected} />)}
     {bills.length === 0 && <PanelHint className="directory-empty" add="bill" label="Add a bill">No bills yet.</PanelHint>}
     {past.length > 0 && <details className="directory-fold" open={bill !== undefined && isPast(bill)}><summary>Past bills ({past.length})</summary>

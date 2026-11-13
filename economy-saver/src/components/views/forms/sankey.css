@@ -1,0 +1,15 @@
+/* The sankey form (D77): colours only through the existing tokens; text in ink, never the series colour. */
+.sk-node.sk-main{fill:var(--hv-late)}
+.sk-node.sk-soft{fill:var(--hv-coming)}
+.sk-node.sk-quiet{fill:var(--hv-usual)}
+.sk-node.sk-in{fill:light-dark(#1d7a4c,#5fbf8a)}
+.sk-link{fill:none;opacity:.32;outline:none;cursor:default}
+.sk-link.sk-main{stroke:var(--hv-late)}
+.sk-link.sk-soft{stroke:var(--hv-coming)}
+.sk-link.sk-quiet{stroke:var(--hv-usual)}
+.sk-link.sk-in{stroke:light-dark(#1d7a4c,#5fbf8a)}
+.sk-link-on,.sk-link:focus-visible{opacity:.7}
+.sk-link:focus-visible{stroke-dasharray:none;outline:2px solid var(--hv-focus)}
+.sk-label{font-size:12.5px;fill:var(--ink)}
+.sk-amount{font-weight:600;font-variant-numeric:tabular-nums}
+.sk-mid{font-weight:600}

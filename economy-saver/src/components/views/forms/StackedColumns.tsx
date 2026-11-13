@@ -7,7 +7,7 @@ import { compact, niceStep, useWidth } from "../chart-utils";
 import "@/components/home/home-views.css";
 import "./stacked-columns.css";
 
-const H = 270, M = { left: 54, right: 12, top: 28, bottom: 30 };
+const H = 270, M = { left: 54, right: 12, top: 28, bottom: 30 }, GUTTER = 104;
 
 /** The stacked-columns form: up to five segments per column, dashed labelled reference lines, a part below zero in the `short` tone, and the current column's label in bold. Hover or focus a column for its parts. */
 export function StackedColumns({ result }: { result: ViewResult<"stacked_columns"> }) {
@@ -15,12 +15,17 @@ export function StackedColumns({ result }: { result: ViewResult<"stacked_columns
   const [active, setActive] = useState<number | null>(null);
   const data = result.data!, { segments, columns, refs } = data, currency = result.currency;
   const format = (value: number) => minorMoney(value, currency);
-  const plotW = Math.max(200, width - M.left - M.right), plotH = H - M.top - M.bottom;
+  const right = M.right + (data.refs.length ? GUTTER : 0), plotW = Math.max(200, width - M.left - right), plotH = H - M.top - M.bottom;
   const up = (col: { parts: number[] }) => col.parts.reduce((sum, v) => sum + Math.max(0, v), 0), down = (col: { parts: number[] }) => col.parts.reduce((sum, v) => sum + Math.min(0, v), 0);
   const top = Math.max(1, ...columns.map(up), ...refs.map(r => r.minor)), step = niceStep(Math.max(top, -Math.min(0, ...columns.map(down))), 4);
   const max = Math.ceil(top / step) * step, min = -Math.ceil(-Math.min(0, ...columns.map(down)) / step) * step;
   const y = (v: number) => M.top + plotH - ((v - min) / (max - min)) * plotH;
   const ticks: number[] = []; for (let v = min; v <= max + step / 2; v += step) ticks.push(v);
+  const refLabelYs = (() => { // labels sit in the right gutter, stepped apart when their lines are close
+    const sorted = refs.map(line => ({ line, ly: y(line.minor) })).sort((a, b) => a.ly - b.ly);
+    for (let i = 1; i < sorted.length; i++) sorted[i].ly = Math.max(sorted[i].ly, sorted[i - 1].ly + 14);
+    return sorted;
+  })();
   const col = plotW / columns.length, barW = Math.min(64, col * 0.5);
   const hovered = active === null ? null : columns[active];
   const tipLeft = active === null ? 0 : Math.min(width - 218, Math.max(8, M.left + col * (active + 0.5) - 105));
@@ -29,7 +34,8 @@ export function StackedColumns({ result }: { result: ViewResult<"stacked_columns
     <div className="hv-plot">
       <svg width={width} height={H} viewBox={`0 0 ${width} ${H}`} role="group" aria-label={result.aria}>
         {ticks.map(v => <g key={v}><line className={v === 0 ? "hv-base" : "hv-grid"} x1={M.left} x2={M.left + plotW} y1={y(v)} y2={y(v)} /><text className="hv-axis" x={M.left - 8} y={y(v) + 4} textAnchor="end">{compact(v / minorPerUnit(currency), currency)}</text></g>)}
-        {refs.map(line => <g key={line.label}><line className="sc-ref" x1={M.left} x2={M.left + plotW} y1={y(line.minor)} y2={y(line.minor)} /><text className="sc-ref-label" x={M.left + plotW} y={y(line.minor) - 4} textAnchor="end">{line.label}</text></g>)}
+        {refs.map(line => <line key={line.label} className="sc-ref" x1={M.left} x2={M.left + plotW + 6} y1={y(line.minor)} y2={y(line.minor)} />)}
+        {refLabelYs.map(({ line, ly }) => <text key={line.label} className="sc-ref-label" x={M.left + plotW + 10} y={ly + 4} textAnchor="start">{line.label}</text>)}
         {columns.map((column, i) => {
           const cx = M.left + col * (i + 0.5);
           let above = 0, below = 0;

@@ -7,7 +7,7 @@ import { RECIPE_VERSION, type Block, type Recipe } from "./schema";
 
 type Starter = { id: string; title: string; summary: string; recipe: Recipe };
 
-export const STARTER_IDS = ["this-month", "what-if-late", "month-vs-last", "regular"] as const;
+export const STARTER_IDS = ["this-month", "what-if-late", "month-vs-last", "regular", "where-you-stand"] as const;
 const SLIDER_DAYS = 30;
 
 const first = (name: string) => name.split(" ")[0];
@@ -71,10 +71,13 @@ export function starterRecipes(state: MoneyState, nudgeIds: readonly string[] = 
     ],
   };
 
+  const whereYouStand: Recipe = { version: RECIPE_VERSION, title: "Where you stand", blocks: [{ type: "view", view: "position", args: {} }] };
+
   return [
     { id: "this-month", title: thisMonth.title, summary: "Your sentence, safe to spend, the 30 days and what is coming up.", recipe: thisMonth },
     { id: "what-if-late", title: whatIfLate.title, summary: openClients.length > 0 ? "Slide a client later and watch the 30 days move. Nothing is saved." : "No client has an open invoice, so there is nothing to slide.", recipe: whatIfLate },
     { id: "month-vs-last", title: monthVsLast.title, summary: `${monthName(last)} and ${monthName(current)}, category by category.`, recipe: monthVsLast },
     { id: "regular", title: regular.title, summary: "The bills and charges that come back, and what changed.", recipe: regular },
+    { id: "where-you-stand", title: whereYouStand.title, summary: "What you hold, what the cards will take and what clients owe you.", recipe: whereYouStand },
   ];
 }
