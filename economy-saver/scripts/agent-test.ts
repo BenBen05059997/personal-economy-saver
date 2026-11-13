@@ -1258,6 +1258,18 @@ async function main() {
       const result = lineOf(t.bodies[1], "s");
       assert.ok(!("args" in result) && typeof result.line === "string" && result.title, "the result is the view's words and figures, never an argument");
 
+      // forecast marks a bill by name; what_if with a late client gives the engine's low point
+      const marked = transport([
+        () => reply("tool_use", [showCall("m", "forecast", { days: 30, mark: "Rent" }), showCall("w", "what_if", { client: "Acme", days: 10 })]),
+        () => reply("end_turn", [text("Shown.")]),
+      ]);
+      await conversation(c, "Show my cash for 30 days and mark the rent", marked.fetch);
+      assert.ok(JSON.stringify(toolResults(marked.bodies[1]).find(r => r.tool_use_id === "m")).includes("lowLateMinor"), "forecast with a mark draws");
+      const lateOne = toolResults(marked.bodies[1]).find(r => r.tool_use_id === "w")!;
+      assert.notEqual(lateOne.is_error, true, lateOne.content);
+      assert.match(lateOne.content, /101,220/);
+      assert.match(lateOne.content, /Nov 27/);
+
       // a reload keeps the view block
       const turns = await allTurns(db, c);
       const kept = turns.find(turn => turn.question === "Am I fine for 30 days?")!;

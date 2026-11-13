@@ -3589,6 +3589,11 @@
                                   "type": "integer",
                                   "minimum": 1,
                                   "maximum": 90
+                                },
+                                "mark": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 80
                                 }
                               },
                               "additionalProperties": false
@@ -6370,6 +6375,11 @@
                                       "type": "integer",
                                       "minimum": 1,
                                       "maximum": 90
+                                    },
+                                    "mark": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 80
                                     }
                                   },
                                   "additionalProperties": false

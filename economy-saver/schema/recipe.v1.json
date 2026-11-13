@@ -774,6 +774,11 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 90
+                      },
+                      "mark": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
                       }
                     },
                     "additionalProperties": false
@@ -812,9 +817,7 @@
                         "type": "object",
                         "properties": {
                           "clientId": {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 80
+                            "$ref": "#/properties/blocks/items/anyOf/13/anyOf/0/properties/args/properties/mark"
                           },
                           "days": {
                             "type": "integer",
@@ -1164,7 +1167,7 @@
                     "type": "object",
                     "properties": {
                       "clientId": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/1/properties/args/properties/late/properties/clientId"
+                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/0/properties/args/properties/mark"
                       }
                     },
                     "additionalProperties": false
@@ -1220,7 +1223,7 @@
                     "type": "object",
                     "properties": {
                       "potId": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/1/properties/args/properties/late/properties/clientId"
+                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/0/properties/args/properties/mark"
                       }
                     },
                     "required": [
@@ -1283,7 +1286,7 @@
                     "type": "object",
                     "properties": {
                       "cardId": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/1/properties/args/properties/late/properties/clientId"
+                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/0/properties/args/properties/mark"
                       },
                       "amountMinor": {
                         "$ref": "#/properties/blocks/items/anyOf/13/anyOf/1/properties/args/properties/amountMinor"
@@ -1341,7 +1344,7 @@
                     "type": "object",
                     "properties": {
                       "itemId": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/1/properties/args/properties/late/properties/clientId"
+                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/0/properties/args/properties/mark"
                       }
                     },
                     "required": [
@@ -1372,7 +1375,7 @@
                     "type": "object",
                     "properties": {
                       "potId": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/1/properties/args/properties/late/properties/clientId"
+                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/0/properties/args/properties/mark"
                       },
                       "days": {
                         "type": "integer",

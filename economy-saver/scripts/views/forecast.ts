@@ -24,6 +24,15 @@ check("the low and safe to spend match the engine", () => {
   assert.equal(result.data!.low.label, "Short ¥18,780 on Fri, Nov 27");
 });
 
+check("mark names a bill: Rent is drawn on Nov 27, no mark leaves Home's forecast alone, and a bill outside the window is refused in words", () => {
+  const rentId = benMoney.bills.find(bill => bill.biller === "Rent")!.id.split("@")[0];
+  const marked = forecastView({ mark: rentId }, { state: benMoney }) as ViewResult<"step_line">;
+  assert.deepEqual(marked.data!.marks, [{ index: 13, label: "Rent ¥82,000 · Nov 27" }]);
+  assert.deepEqual(result.data!.marks, []);
+  assert.deepEqual({ ...marked.data!, marks: [] }, result.data);
+  assert.throws(() => forecastView({ mark: "no-such-bill" }, { state: benMoney }), /not due in the next 30 days/);
+});
+
 check("both lines have 30 integer points and the band lies between them", () => {
   const data = result.data!;
   assert.deepEqual(data.lines.map(l => [l.key, l.tone, l.points.length]), [["main", "main", 30], ["quiet", "quiet", 30]]);

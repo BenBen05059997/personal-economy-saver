@@ -2,10 +2,10 @@
 import type { Currency } from "@/lib/catalogue/types";
 import { forecastCosts } from "@/lib/money/forecast-causes";
 import { dayLabel, formatter, minorMoney, minorPerUnit, ordinal } from "@/lib/money/format";
-import { addDays, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { addDays, daysBetween, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { hasNothingToForecast } from "@/lib/money/sentence";
 import { VIEW_META } from "../catalogue";
-import type { FormData, Resolver, TableTwin, ViewResult } from "../types";
+import { ViewError, type FormData, type Resolver, type TableTwin, type ViewResult } from "../types";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 /** "2026-11-27" -> "Fri, Nov 27" (server side; the browser copy lives in chart-utils, which imports hooks). */
@@ -68,8 +68,13 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
   const lines: StepLine["lines"] = [];
   if (which !== "usual") lines.push({ key: "main", label: LATE, tone: "main", points: late.map(minor) });
   if (which !== "late") lines.push({ key: "quiet", label: USUAL, tone: "quiet", points: usual.map(minor) });
+  // A bill named by `mark` is drawn on the day it falls due; a bill not due in these days is refused in words.
+  const markLine = which === "usual" ? usualEvents : lateEvents;
+  const marked = args.mark === undefined ? undefined : markLine.find(event => event.kind === "bill" && event.id.split("@")[0] === args.mark);
+  if (args.mark !== undefined && !marked) throw new ViewError(`That bill is not due in the next ${days} days, so there is no day to mark.`);
+  const marks = marked ? [{ index: daysBetween(state.today, marked.date), label: `${marked.label} ${marked.uncounted ? "amount not known" : format(Math.abs(marked.amount))} · ${dayLabel(marked.date)}` }] : [];
   const data = stepLine({
-    startDate: state.today, currency, lines, band: which === "both" ? ["quiet", "main"] : null, lowLine, sub, dayWords,
+    startDate: state.today, currency, lines, band: which === "both" ? ["quiet", "main"] : null, lowLine, sub, marks, dayWords,
     direct: lines.map(l => ({ line: l.key, text: l.key === "main" ? "If late" : "If on time" })),
   });
 

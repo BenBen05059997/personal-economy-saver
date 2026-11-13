@@ -31,7 +31,7 @@ function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "is YYYY-MM");
 const FIELDS = {
   month, months: z.number().int().min(2).max(12), case: z.enum(["usual", "late"]), by: z.enum(["category", "business", "person"]), open: z.enum(CATEGORY_KEYS),
-  text: z.string().trim().min(1).max(80), client: z.string().trim().min(1).max(80), card: z.string().trim().min(1).max(80), pot: z.string().trim().min(1).max(80),
+  text: z.string().trim().min(1).max(80), mark: z.string().trim().min(1).max(80), client: z.string().trim().min(1).max(80), card: z.string().trim().min(1).max(80), pot: z.string().trim().min(1).max(80),
   amount: z.union([z.string().trim().min(1).max(40), z.number().positive()]), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "is YYYY-MM-DD"),
   days: z.number().int().min(1).max(180), whose: z.literal("shared"), item: z.string().trim().min(1).max(80),
 };
@@ -39,7 +39,7 @@ type Field = keyof typeof FIELDS;
 
 /** The names each view takes; the id-form schemas in `VIEW_ARGS` are what the stored block must satisfy. */
 const TAKES: Record<ViewId, Field[]> = {
-  forecast: ["case", "days"], what_if: ["amount", "date", "client", "days"], position: [], month_by_category: ["month", "by", "open"], month_trend: ["months"],
+  forecast: ["case", "days", "mark"], what_if: ["amount", "date", "client", "days"], position: [], month_by_category: ["month", "by", "open"], month_trend: ["months"],
   month_pace: ["month"], fixed_costs: ["months"], search_months: ["text", "months"], money_flow: ["month"], savings_rate: ["months"], buffer_months: [],
   income_months: ["months"], client_pace: ["client"], fx_cost: ["months"], goal_pace: ["pot"], bills_calendar: ["days", "whose"], card_cycle: ["card", "amount"],
   who_owes_whom: [], what_changed: ["item"], tax_ahead: ["pot", "days"],
@@ -47,7 +47,7 @@ const TAKES: Record<ViewId, Field[]> = {
 const NAME_ARGS = Object.fromEntries(Object.entries(TAKES).map(([view, keys]) =>
   [view, z.object(Object.fromEntries(keys.map(key => [key, FIELDS[key].optional()]))).strict()])) as unknown as Record<ViewId, z.ZodObject<z.ZodRawShape>>;
 
-const DESCRIPTION = `Chart their money. args: JSON text or null. forecast(case usual|late,days); what_if(amount,date,client+days); position; month_by_category(month,by category|business|person,open); month_trend(months); month_pace(month); fixed_costs(months); search_months(text,months); money_flow(month); savings_rate(months); buffer_months; income_months(months); client_pace(client); fx_cost(months); goal_pace(pot); bills_calendar(days,whose); card_cycle(card,amount); who_owes_whom; what_changed(item); tax_ahead(pot,days).`;
+const DESCRIPTION = `Chart their money. args: JSON text or null. forecast(case usual|late,days,mark=bill); what_if(amount,date,client+days); position; month_by_category(month,by category|business|person,open); month_trend(months); month_pace(month); fixed_costs(months); search_months(text,months); money_flow(month); savings_rate(months); buffer_months; income_months(months); client_pace(client); fx_cost(months); goal_pace(pot); bills_calendar(days,whose); card_cycle(card,amount); who_owes_whom; what_changed(item); tax_ahead(pot,days).`;
 
 const normal = (text: string) => text.normalize("NFKC").trim().toLowerCase();
 
@@ -74,6 +74,11 @@ async function idArgs(ctx: Parameters<Tool["run"]>[0], view: ViewId, given: Reco
           : key === "card" ? ["card", current.cards.map(c => ({ id: c.id, name: c.label })), "cardId"] as const
           : ["pot", current.pots.map(p => ({ id: p.id, name: p.name })), "potId"] as const;
         out[field] = byName(kind, String(value), [...things]);
+        break;
+      }
+      case "mark": {
+        const bills = new Map((await state()).bills.map(bill => [bill.id.split("@")[0], { id: bill.id.split("@")[0], name: bill.biller }]));
+        out.mark = byName("bill", String(value), [...bills.values()]);
         break;
       }
       case "item": out.itemId = value; break;

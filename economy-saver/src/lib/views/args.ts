@@ -13,7 +13,7 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 /** The arguments of each view; the stored block holds ids, `show` takes names that code turns into these. */
 export const VIEW_ARGS = {
-  forecast: z.object({ case: z.enum(["usual", "late"]).optional(), days: days.optional() }).strict(),
+  forecast: z.object({ case: z.enum(["usual", "late"]).optional(), days: days.optional(), mark: id.optional() }).strict(), // mark: a bill's id, drawn on the day it falls due
   // An amount and its date, or one client paying late (`late.days`); three keys at most.
   what_if: z.object({ amountMinor: amountMinor.optional(), date: date.optional(), late: z.object({ clientId: id, days: z.number().int().min(1).max(120) }).strict().optional() }).strict(),
   position: z.object({}).strict(),
