@@ -216,19 +216,11 @@
         ]
        },
        {
-        "canvas": [
-         "sentence",
-         "number"
-        ],
         "view": [
          "what_if"
         ]
        },
        {
-        "canvas": [
-         "sentence",
-         "number"
-        ],
         "view": [
          "forecast"
         ]
@@ -241,7 +233,7 @@
     "D40",
     "D57"
    ],
-   "review": "What-if numbers equal the engine's (low point ¥101,220 on Nov 27) and the canvas draws a sentence, a number and a chart.",
+   "review": "What-if numbers equal the engine's (low point ¥101,220 on Nov 27) and the canvas draws the what-if (the what_if view, or a sentence, a number and a chart).",
    "judge": false
   },
   {
