@@ -9,7 +9,7 @@ Only Ben can do these. Agents carry on with anything that doesn't wait on them.
 - Supabase Authentication → Redirect URLs: list the deployed URL's sign-in callback, then sign in once and verify a real magic link, onboarding and session refresh (V9).
 - On the live site, paste a real AI key, ask one question, then remove the key: the first live model call on a household's own model (D33, D56).
 - `EVAL_API_KEY` in `.env.local` for each provider the model eval runs on (O6).
-- Settings still unset: the forwarding domain and its two keys, then Email Routing on the domain with delivery checked through the live Worker; reminders by email (the sender address and API key) and by push (`npm run push:keys`, the push subject); optionally a server default AI connection for development.
+- Settings still unset: the forwarding domain and its two keys, then Email Routing on the domain with delivery checked through the live Worker; reminders by email (the sender address and API key) and by push (`npm run push:keys`, the push subject).
 - Voice with a microphone in his own Chrome or Safari, in English and Japanese (D26).
 - Supabase's Security Advisor; an uptime monitor and Worker error alerting; a manual encrypted database dump before demo day.
 - Say when the contract migration may run: it drops the unused AI-cap columns and table, the old nudge column (D66) and the columns PayPal invoices, reminders and the import left behind, and it lets the same PayPal payment be recorded once per household rather than once overall, so a PayPal account that moves to another household keeps its history; it runs only once no running Worker reads the old shape.
@@ -20,7 +20,7 @@ Only Ben can do these. Agents carry on with anything that doesn't wait on them.
 - Answer O2, O5 and O10 in DECISIONS.md.
 - Set the two new partner settings and the new PayPal app's keys and webhook id on the Worker (D13, D76).
 - Sandbox sign-ins: the seller account to connect, and the US Personal client to pay a test link (D17).
-- Devpost: join the hackathon; the early eligibility check (D30); the OK to make the repo public; the final video on a Try it household on the deployed URL; submit by the evening of Nov 12, Tokyo (D1).
+- Devpost: tick the Terms box and press Submit project before it closes, Nov 13 05:00 Tokyo (D1).
 - Approve the canvas concept; then it is saved under `design/`.
 
 ## Open work
