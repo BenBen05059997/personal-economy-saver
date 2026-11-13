@@ -1,5 +1,7 @@
 // The live Ask check: runs qa/ask-live/cases.json through a running app on its real model and grades what a script can.
-//   node scripts/ask-live-check.mjs <base-url> --confirm-cost
+//   node scripts/ask-live-check.mjs <base-url> --confirm-cost [--only 14,J1,J2]
+// --only runs just those case ids (in file order, each on its household's fresh Try it start) and merges their entries into the existing qa/results-ask.json.
+// A case that needs an earlier case's state or conversation (a confirm after a draft) must be named together with it.
 // It costs the owner real money (about $1-2 a run), so it never runs inside db:test or qa:check, only with the owner's OK.
 // Each case is PASS (every machine check holds), FAIL (one does not) or REVIEW (the machine checks hold but a person must read the answer).
 // Writes qa/results-ask.json (git-ignored) and prints a summary. Only starts Try it households; sends nothing to PayPal.
@@ -10,7 +12,11 @@ import { fileURLToPath } from "node:url";
 const qaDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "qa");
 const args = process.argv.slice(2);
 const confirmed = args.includes("--confirm-cost");
-const baseArg = args.find((a) => !a.startsWith("--"));
+const onlyAt = args.indexOf("--only");
+const onlyRaw = onlyAt >= 0 ? args[onlyAt + 1] : undefined;
+if (onlyAt >= 0 && (!onlyRaw || onlyRaw.startsWith("--"))) { console.error("--only needs case ids, like --only 14,J1,J2."); process.exit(2); }
+const only = onlyRaw ? onlyRaw.split(",").map((x) => x.trim()).filter(Boolean) : null;
+const baseArg = args.find((a, i) => !a.startsWith("--") && i !== onlyAt + 1);
 
 if (!baseArg) {
   console.error("Usage: node scripts/ask-live-check.mjs <base-url> --confirm-cost\nThe base URL is required; there is no default.");
@@ -28,7 +34,10 @@ try {
   process.exit(2);
 }
 
-const { cases } = JSON.parse(readFileSync(join(qaDir, "ask-live", "cases.json"), "utf8"));
+const { cases: allCases } = JSON.parse(readFileSync(join(qaDir, "ask-live", "cases.json"), "utf8"));
+const unknown = (only ?? []).filter((id) => !allCases.some((c) => String(c.id) === id));
+if (unknown.length) { console.error(`No such case: ${unknown.join(", ")}.`); process.exit(2); }
+const cases = only ? allCases.filter((c) => only.includes(String(c.id))) : allCases;
 const same = { Origin: base, "Sec-Fetch-Site": "same-origin" };
 const households = new Map();
 
@@ -56,6 +65,7 @@ async function ask(cookie, conversationId, text) {
   return { status: res.status, seconds, reply: last.reply ?? null, error: last.error ?? (res.ok ? null : body.slice(0, 300)) };
 }
 
+const viewsOf = (reply) => (reply?.canvas?.blocks ?? []).filter((b) => b.type === "view").map((b) => b.data?.view);
 const kindOf = (turn) => (turn.reply ? (turn.reply.kind === "declined" ? "out_of_scope" : turn.reply.kind) : "error");
 const JA = /[぀-ヿ一-鿿]/g;
 
@@ -77,7 +87,7 @@ function grade(expect, turn) {
   for (const r of expect.excludesRegex ?? []) if (new RegExp(r, "i").test(text)) fails.push(`forbidden pattern /${r}/`);
   if (expect.language === "ja" && (text.match(JA) ?? []).length < 5) fails.push("not Japanese");
   if (expect.view) {
-    const shown = (turn.reply?.canvas?.blocks ?? []).filter((b) => b.type === "view").map((b) => b.view);
+    const shown = viewsOf(turn.reply);
     for (const v of expect.view) if (!shown.includes(v)) fails.push(`canvas has no ${v} view (has ${shown.join(", ") || "none"})`);
   }
   if (expect.canvas) {
@@ -113,14 +123,22 @@ for (const c of cases) {
     previous = got;
     const f = grade(turn.expect ?? {}, got);
     fails.push(...f.map((x) => `${turns.length + 1}: ${x}`));
-    turns.push({ question: text, seconds: got.seconds, kind: kindOf(got), text: got.reply?.text ?? null, error: got.error, choices: got.reply?.choices ?? null, canvasBlocks: (got.reply?.canvas?.blocks ?? []).map((b) => b.type), pending: Boolean(got.reply?.pending) });
+    turns.push({ question: text, seconds: got.seconds, kind: kindOf(got), text: got.reply?.text ?? null, error: got.error, choices: got.reply?.choices ?? null, canvasBlocks: (got.reply?.canvas?.blocks ?? []).map((b) => b.type), views: viewsOf(got.reply), pending: Boolean(got.reply?.pending) });
   }
   const verdict = fails.length ? "FAIL" : c.judge ? "REVIEW" : "PASS";
   results.push({ case: c.id, group: c.group, household: c.household, refs: c.refs, verdict, why: fails.join("; "), review: c.review, seconds: turns.map((t) => t.seconds), turns });
   console.log(`${verdict.padEnd(6)} ${String(c.id).padEnd(4)} ${turns.map((t) => t.seconds.toFixed(1)).join("/")}s ${fails.join("; ")}`);
 }
 
-writeFileSync(join(qaDir, "results-ask.json"), JSON.stringify(results, null, 1) + "\n");
+const resultsPath = join(qaDir, "results-ask.json");
+let saved = results;
+if (only) {
+  let before = [];
+  try { before = JSON.parse(readFileSync(resultsPath, "utf8")); } catch { /* no earlier run to merge into */ }
+  const ran = new Set(results.map((r) => String(r.case)));
+  saved = [...before.filter((r) => !ran.has(String(r.case))), ...results];
+}
+writeFileSync(resultsPath, JSON.stringify(saved, null, 1) + "\n");
 const n = (v) => results.filter((r) => r.verdict === v).length;
 const all = results.flatMap((r) => r.seconds);
 console.log(`\n${results.length} cases: ${n("PASS")} PASS, ${n("FAIL")} FAIL, ${n("REVIEW")} REVIEW. Slowest ${Math.max(...all).toFixed(1)}s, median ${all.sort((a, b) => a - b)[Math.floor(all.length / 2)].toFixed(1)}s.`);

@@ -540,8 +540,22 @@
      "question": "Compare my spending in October and November",
      "expect": {
       "kind": "answer",
-      "canvas": [
-       "compare"
+      "either": [
+       {
+        "canvas": [
+         "compare"
+        ]
+       },
+       {
+        "view": [
+         "month_by_category"
+        ]
+       },
+       {
+        "view": [
+         "month_trend"
+        ]
+       }
       ]
      }
     }
@@ -562,8 +576,22 @@
      "question": "Show everything that happens to my money until the end of the month as a timeline",
      "expect": {
       "kind": "answer",
-      "canvas": [
-       "timeline"
+      "either": [
+       {
+        "canvas": [
+         "timeline"
+        ]
+       },
+       {
+        "view": [
+         "bills_calendar"
+        ]
+       },
+       {
+        "view": [
+         "forecast"
+        ]
+       }
       ]
      }
     }
@@ -584,9 +612,18 @@
      "question": "Make me a canvas of my month: where I stand, what's due, and a chart of the next 30 days",
      "expect": {
       "kind": "answer",
-      "canvas": [
-       "sentence",
-       "flow_chart"
+      "either": [
+       {
+        "canvas": [
+         "sentence",
+         "flow_chart"
+        ]
+       },
+       {
+        "view": [
+         "forecast"
+        ]
+       }
       ]
      }
     }

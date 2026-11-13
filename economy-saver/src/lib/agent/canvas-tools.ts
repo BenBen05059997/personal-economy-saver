@@ -33,14 +33,14 @@ const RECIPE_HELP = `Recipe: {version:1,title,scenario?,blocks:[1..12]}; scenari
 sentence: query sentence
 number: label, query safe_to_spend/cash/low_point/month_total/foreign_costs, note?
 timeline: query events, mark?
-table: title?, query events/bills_for_month
+table: title?, query events/month_by_category/bills_for_month (bills for that month, not spending)
 view: view, args (as show; ids, not names). Every chart is a view.
 progress: label, targetMinor, query safe_to_spend/cash/month_total
 note: text, by:"assistant"
 letter: text
 sliders: controls:[{clientId,maxDays}]
 action: label, href
-Query {q,...}: sentence/safe_to_spend/low_point/events take scenario ({case,changes} or "canvas"); events days (7–60); month_total month (YYYY-MM); bills_for_month month, text?; cash/foreign_costs none. mark is a bill ID. Only targetMinor and changes hold amounts.`;
+Query {q,...}: sentence/safe_to_spend/low_point/events take scenario ({case,changes} or "canvas"); events days (7–60); month_total/month_by_category month (YYYY-MM); bills_for_month month, text?; cash/foreign_costs none. mark is a bill ID. Only targetMinor and changes hold amounts.`;
 
 export const canvasTools: Tool[] = [
   defineTool({

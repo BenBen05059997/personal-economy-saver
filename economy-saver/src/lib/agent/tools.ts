@@ -248,7 +248,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "whats_due", scope: "read", input: none,
-    description: "For “what’s due?”: the next confirmed bill or statement, amount, date and coverage.",
+    description: "The one next confirmed bill or statement, amount, date, coverage. Others, any card’s statement: timeline.",
     run: async ctx => dueAnswer(await ctx.state()),
   }),
   defineTool({
