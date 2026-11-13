@@ -29,7 +29,7 @@ export const monthByCategoryView: Resolver<"month_by_category"> = (args: ViewArg
   const format = (value: number) => minorMoney(value, currency);
   const business = view.by === "business";
   const when = past ? `in ${view.name}` : "this month", before = past ? "the month before" : "last month";
-  const title = past === undefined ? `Where the month goes · ${view.name}` : `Where ${past} went`;
+  const title = past === undefined ? "Where this month goes" : `Where ${past} went`;
   const [hint, question] = TEXT[view.by];
   const parts = (row: LookRow) => business ? [row.business, row.personal] : [row.spent, row.coming];
   const segments = business ? BUSINESS : SPENT;

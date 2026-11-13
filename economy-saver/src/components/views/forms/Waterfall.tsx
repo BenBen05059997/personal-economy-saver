@@ -33,7 +33,7 @@ export function Waterfall({ result }: { result: ViewResult<"waterfall"> }) {
   const values = bars.flatMap(bar => [bar.from, bar.to, 0]).map(v => v / per);
   const rawMin = Math.min(...values), rawMax = Math.max(...values), step = niceStep(rawMax - rawMin, 4);
   const yMax = Math.ceil(rawMax / step) * step, yMin = Math.floor(rawMin / step) * step;
-  const plotW = Math.max(240, width - M.left - M.right), col = plotW / steps.length, barW = Math.min(64, col * 0.56);
+  const plotW = Math.max(120, width - M.left - M.right), col = plotW / steps.length, barW = Math.min(64, col * 0.56);
   // In a narrow panel the amounts are written short (¥128k) and the names run to three lines, so nothing collides.
   const narrow = col < 80, perLine = Math.max(6, Math.floor(col / (narrow ? 6 : 6.6))), names = steps.map(s => lines(s.label, perLine, narrow ? 3 : 2));
   const bottom = 18 + LINE * Math.max(...names.map(n => n.length)) + 4, height = H - M.bottom + bottom, plotH = H - M.top - M.bottom;

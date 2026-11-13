@@ -15,12 +15,13 @@ export function StackedColumns({ result }: { result: ViewResult<"stacked_columns
   const [active, setActive] = useState<number | null>(null);
   const data = result.data!, { segments, columns, refs } = data, currency = result.currency;
   const format = (value: number) => minorMoney(value, currency);
-  const right = M.right + (data.refs.length ? GUTTER : 0), plotW = Math.max(200, width - M.left - right), plotH = H - M.top - M.bottom;
+  const right = M.right + (data.refs.length ? GUTTER : 0), plotW = Math.max(120, width - M.left - right), plotH = H - M.top - M.bottom;
   const up = (col: { parts: number[] }) => col.parts.reduce((sum, v) => sum + Math.max(0, v), 0), down = (col: { parts: number[] }) => col.parts.reduce((sum, v) => sum + Math.min(0, v), 0);
-  const top = Math.max(1, ...columns.map(up), ...refs.map(r => r.minor)), step = niceStep(Math.max(top, -Math.min(0, ...columns.map(down))), 4);
-  const max = Math.ceil(top / step) * step, min = -Math.ceil(-Math.min(0, ...columns.map(down)) / step) * step;
-  const y = (v: number) => M.top + plotH - ((v - min) / (max - min)) * plotH;
-  const ticks: number[] = []; for (let v = min; v <= max + step / 2; v += step) ticks.push(v);
+  const per = minorPerUnit(currency), top = Math.max(0, ...columns.map(up), ...refs.map(r => r.minor)), deep = -Math.min(0, ...columns.map(down)), flat = top === 0 && deep === 0;
+  const step = niceStep(Math.max(top, deep), 4, per);
+  const max = flat ? 0 : Math.ceil(top / step) * step, min = -Math.ceil(deep / step) * step;
+  const y = (v: number) => flat ? M.top + plotH : M.top + plotH - ((v - min) / (max - min)) * plotH;
+  const ticks: number[] = []; if (flat) ticks.push(0); else for (let v = min; v <= max + step / 2; v += step) ticks.push(v);
   const refLabelYs = (() => { // labels sit in the right gutter, stepped apart when their lines are close
     const sorted = refs.map(line => ({ line, ly: y(line.minor) })).sort((a, b) => a.ly - b.ly);
     for (let i = 1; i < sorted.length; i++) sorted[i].ly = Math.max(sorted[i].ly, sorted[i - 1].ly + 14);
@@ -57,7 +58,7 @@ export function StackedColumns({ result }: { result: ViewResult<"stacked_columns
         })}
       </svg>
       {hovered && <div className="hv-tip" style={{ left: tipLeft, top: 4 }} role="status"><strong>{hovered.label}</strong>
-        {segments.map((segment, index) => (index === 0 || hovered.current || hovered.parts[index] !== 0) && <p key={segment.key}>{segment.legend} <b>{format(hovered.parts[index] ?? 0)}</b></p>)}
+        {segments.map((segment, index) => (index === 0 || hovered.current || hovered.parts[index] !== 0) && <p key={segment.key}>{segment.legend} <b>{hovered.unknown ? hovered.totalLabel : format(hovered.parts[index] ?? 0)}</b></p>)}
         <p>Total <b>{hovered.totalLabel}</b></p></div>}
     </div>
   </div>;

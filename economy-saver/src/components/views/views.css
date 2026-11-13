@@ -1,5 +1,5 @@
 /* The graph toolset's shell (D77): colours only through the existing tokens (--chart, --accent, --red, grey). */
-.view-card{display:flex;flex-direction:column;gap:12px;min-width:0}
+.view-card{display:flex;flex-direction:column;gap:12px;min-width:0;overflow-x:clip}
 .view-line{margin:0;color:var(--muted);font-size:13px}
 .view-strip{display:flex;flex-wrap:wrap;gap:8px 28px;margin:0;border-bottom:1px solid var(--rule);padding-bottom:12px}
 .view-strip>div{display:flex;flex-direction:column;gap:2px}
@@ -13,3 +13,13 @@
 .view-table .view-row-muted :is(th,td){color:var(--muted)}
 .view-table tfoot :is(th,td){font-weight:600}
 .view-pin{display:flex;gap:12px;align-items:center}
+/* The panel's switch row: the label stays on one line, the options wrap below it as a group, Chart | Table follows tidily. */
+.view-panel .hv-controls{justify-content:flex-start;gap:8px 16px}
+.view-panel .hv-look{flex-wrap:wrap;gap:6px 8px}
+.view-panel .hv-look>span{white-space:nowrap}
+.view-panel .hv-look>div,.view-panel .hv-controls>div{flex-wrap:wrap}
+/* Inside a side panel the heading is a section heading with space above, not a page title. */
+.directory-detail .view-panel{margin-top:var(--space-4)}
+.directory-detail .view-panel>header h2{font:500 18px/1.4 var(--sans)}
+.view-panel .hv-controls>.hv-look{border:0;background:transparent;padding:0;border-radius:0}
+.view-panel .hv-look>div{display:flex;gap:2px;border:1px solid var(--rule);background:var(--wash);border-radius:10px;padding:3px}

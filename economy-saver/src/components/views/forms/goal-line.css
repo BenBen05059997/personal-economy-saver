@@ -1,0 +1,17 @@
+/* The goal-line form (D77): the saved dot and the pace line in the chart colour, the goal's own line in grey, text in ink. */
+.gl-axis{font-size:11.5px;fill:var(--muted)}
+.gl-base{stroke:var(--faint);stroke-width:1;shape-rendering:crispEdges}
+.gl-target{stroke:var(--faint);stroke-width:1;stroke-dasharray:2 3}
+.gl-today{stroke:var(--hv-grid);stroke-width:1;shape-rendering:crispEdges}
+.gl-goal{stroke:var(--hv-usual);stroke-width:2}
+.gl-pace{stroke:var(--hv-late);stroke-width:2.5;stroke-dasharray:6 4}
+.gl-saved{fill:var(--hv-late);stroke:var(--hv-ring);stroke-width:2}
+.gl-expected{fill:var(--hv-ring);stroke:var(--hv-usual);stroke-width:2}
+.gl-reach{fill:var(--hv-ring);stroke:var(--hv-late);stroke-width:2.5}
+.gl-label,.gl-sub{paint-order:stroke;stroke:var(--screen);stroke-width:6px;stroke-linejoin:round}
+.gl-label{font-size:13px;font-weight:600;fill:var(--ink)}
+.gl-sub{font-size:12px;fill:var(--muted)}
+.hv-legend .gl-key{display:inline-block;flex:none;box-sizing:border-box}
+.hv-legend .gl-key-saved{width:11px;height:11px;border:0;border-radius:50%;background:var(--hv-late)}
+.hv-legend .gl-key-goal{border-top:2px solid var(--hv-usual)}
+.hv-legend .gl-key-pace{border-top:2.5px dashed var(--hv-late)}

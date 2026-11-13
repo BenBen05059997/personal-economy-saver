@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { SessionEnded } from "@/components/ui/SessionEnded";
 import { DocumentCard } from "./DocumentCard";
+import { DraftCard } from "./DraftCard";
+import { ReplyChip } from "./ReplyChip";
 import { KeepOfferCard } from "./KeepOffer";
 import { OpenSpaceProposal } from "./OpenSpaceProposal";
 import { ASK_SCREEN_NAMES, type AskScreen } from "@/lib/agent/screen";
@@ -14,7 +16,7 @@ import { NEEDS_KEY_OWNER, NEEDS_KEY_MEMBER } from "@/lib/agent/availability";
 import { SESSION_ENDED } from "@/lib/session-ended";
 import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document-card";
 import type { AskView } from "@/db/ask-view";
-import type { TurnView } from "@/lib/agent/view";
+import type { DraftView, TurnView } from "@/lib/agent/view";
 import type { TurnSource } from "@/lib/schema/turn";
 
 const GREETING = "Hi. What can I help you with?";
@@ -34,16 +36,17 @@ function withSettingsLink(words: string): ReactNode {
 export function AskThread({
   panel, screen, legacyId, space, spaceHref, householdId, clock, form, onDeviceMemory, turns, cards, readOnly, canWrite, incognito, busy, step, deviceReady,
   unavailable, noModel, problem, speechProblem, canvas, canvasRef, scrollRef,
-  onAsk, onTakeCard, onDocumentCanvas, onThumb, onRemoveTurn, onRemoveLocalTurn, removeOnDevice, onKept, sourceDisplay, onNoteLink,
+  onAsk, onTakeCard, onDocumentCanvas, onThumb, onRemoveTurn, onRemoveLocalTurn, removeOnDevice, pinDevice, onKept, sourceDisplay, onNoteLink,
 }: {
   panel: boolean; screen: AskScreen; legacyId: string | null; space: AskView["space"]; spaceHref: string; householdId: string; clock: AskView["clock"]; form: AskView["form"];
   onDeviceMemory: boolean; turns: TurnView[]; cards: Record<string, Card>; readOnly: boolean; canWrite: boolean; incognito: boolean; busy: boolean; step: string; deviceReady: boolean;
   unavailable: string | null; noModel: boolean; problem: string; speechProblem: string | null; canvas: ReactNode; canvasRef: RefObject<HTMLDivElement | null>; scrollRef: RefObject<HTMLDivElement | null>;
   onAsk: (question: string) => void; onTakeCard: (card: Card) => void; onDocumentCanvas: (documentId: string, drawn: NonNullable<Card["canvas"]>) => void;
-  onThumb: (turn: TurnView, which: 1 | -1) => void; onRemoveTurn: (id: string) => void; onRemoveLocalTurn: (id: string) => void; removeOnDevice: boolean; onKept: () => void;
+  onThumb: (turn: TurnView, which: 1 | -1) => void; onRemoveTurn: (id: string) => void; onRemoveLocalTurn: (id: string) => void; removeOnDevice: boolean; pinDevice?: { householdId: string }; onKept: () => void;
   sourceDisplay: (item: TurnSource) => { href?: string; label: string }; onNoteLink?: (event: MouseEvent<HTMLAnchorElement>, href: string) => void;
 }) {
   const keyProviders = PROVIDERS.filter(provider => provider.getKeyUrl);
+  const { drafts, changed } = useDrafts(turns, busy);
   // A new turn scrolls the thread to its newest end; the first render keeps the top.
   const seen = useRef(turns.length);
   useEffect(() => {
@@ -78,6 +81,10 @@ export function AskThread({
       {turns.map(turn => <li key={turn.id} className="ask-turn">
         <p className="ask-question">{turn.question}</p>
         <p className={`ask-reply is-${turn.kind}`}>{turn.text}</p>
+        {(drafts[turn.id] ?? []).length > 0 && <>
+          <ReplyChip drafts={drafts[turn.id]} />
+          {drafts[turn.id].map(draft => <DraftCard key={draft.id} draft={draft} returnTo={spaceHref} canWrite={canWrite} device={pinDevice} onChanged={() => changed(turn.id)} />)}
+        </>}
         {turn.incognito && <p className="ui-hint">Not saved</p>}
         {!readOnly && turn.openSpace && <OpenSpaceProposal name={turn.openSpace.name} hidden={incognito} />}
         {!readOnly && turn.offers?.map(offer => <KeepOfferCard key={JSON.stringify(offer)}
@@ -88,7 +95,7 @@ export function AskThread({
           : <p className="ui-hint">{DOCUMENT_WORDS.notKept}</p>)}
         {!readOnly && (!turn.incognito || incognito) && turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
           <button key={choice} type="button" className="ui-button" disabled={busy} onClick={() => onAsk(choice)}>{choice}</button>)}</div>}
-        <SeeIt links={turn.links} sources={turn.sources} sourceDisplay={sourceDisplay} onNoteLink={onNoteLink} />
+        {(drafts[turn.id] ?? []).length === 0 && <SeeIt links={turn.links} sources={turn.sources} sourceDisplay={sourceDisplay} onNoteLink={onNoteLink} />}
         {canWrite && !turn.incognito && turn.kind === "answer" && <div className="ask-thumbs">
           <button type="button" className="ui-button" aria-pressed={turn.thumb === 1} onClick={() => onThumb(turn, 1)}>Helpful</button>
           <button type="button" className="ui-button" aria-pressed={turn.thumb === -1} onClick={() => onThumb(turn, -1)}>Not helpful</button>
@@ -103,6 +110,59 @@ export function AskThread({
       ? <>{problem} <Link href="/settings/ai-model">Open Settings</Link></> : withSettingsLink(problem || speechProblem || "")}</p>}
     {canvas && <div className="ask-canvas" ref={canvasRef} tabIndex={-1} role="region" aria-label="Canvas">{canvas}</div>}
   </div>;
+}
+
+const POLL_MS = 5000;
+
+/**
+ * What each turn drafted, read from the rows now (D60). A turn loaded with the thread brings its drafts; a turn answered just now has none until this asks,
+ * once its answer is in. While anything waits for the person's OK it asks again every few seconds, so a Confirm made in To check shows here too.
+ */
+function useDrafts(turns: TurnView[], busy: boolean) {
+  const [fetched, setFetched] = useState<Record<string, DraftView[]>>({});
+  const drafts: Record<string, DraftView[]> = {};
+  for (const turn of turns) drafts[turn.id] = fetched[turn.id] ?? turn.drafts ?? [];
+  const load = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+    try {
+      const response = await fetch(`/api/ask/drafts?ids=${ids.join(",")}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const body = await response.json() as { drafts: Record<string, DraftView[]> };
+      setFetched(current => ({ ...current, ...Object.fromEntries(ids.map(id => [id, body.drafts[id] ?? []])) }));
+    } catch { /* the next turn or the next poll asks again */ }
+  }, []);
+  const unknown = turns.filter(turn => turn.drafts === undefined && !turn.incognito && fetched[turn.id] === undefined).map(turn => turn.id);
+  const key = unknown.join(",");
+  useEffect(() => {
+    if (busy || !key) return;
+    const timer = window.setTimeout(() => void load(key.split(",")), 0); // asked from a callback, never from the effect body
+    return () => window.clearTimeout(timer);
+  }, [busy, key, load]);
+  const waiting = turns.filter(turn => drafts[turn.id].some(draft => draft.state === "waiting")).map(turn => turn.id);
+  const waitingKey = waiting.join(",");
+  // One timer at most: it exists only while something waits and the tab is shown, and a read still on its way is never joined by another.
+  useEffect(() => {
+    if (!waitingKey) return;
+    let timer: number | null = null, reading = false, gone = false;
+    const read = async () => {
+      if (reading || gone || document.visibilityState !== "visible") return;
+      reading = true;
+      try { await load(waitingKey.split(",")); } finally { reading = false; }
+    };
+    const stop = () => { if (timer !== null) { window.clearInterval(timer); timer = null; } };
+    const sync = () => {
+      stop();
+      if (gone || document.visibilityState !== "visible") return;
+      void read();
+      timer = window.setInterval(() => void read(), POLL_MS);
+    };
+    sync();
+    document.addEventListener("visibilitychange", sync);
+    return () => { gone = true; stop(); document.removeEventListener("visibilitychange", sync); };
+  }, [waitingKey, load]);
+  // After Confirm or Don't add (the form refreshes the screen behind): this turn's rows again.
+  const changed = useCallback((id: string) => { void load([id]); }, [load]);
+  return { drafts, changed };
 }
 
 /** What ends an answer (D60): buttons to the pages where it can be seen, then any source that has no page as quiet text. */

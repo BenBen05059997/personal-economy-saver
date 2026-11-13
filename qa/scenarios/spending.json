@@ -113,7 +113,7 @@
       "Open each category row"
     ],
     "expected": [
-      "\"Where the month goes · November\", the line 'Business ¥32,830 of ¥152,230 this month' and the six rows in qa/README M1 with their splits and items, each chevron turning when opened",
+      "\"Where this month goes · November\", the line 'Business ¥32,830 of ¥152,230 this month' and the six rows in qa/README M1 with their splits and items, each chevron turning when opened",
       "Choosing Chart shows the same totals as bars, each row \"N items ¥amount vs ¥last month\""
     ],
     "refs": [

@@ -1,0 +1,47 @@
+/* The draft card, its Saved card, the What changed canvas and the reply's chip in the Ask thread (D60, D61). Tokens only; the yellow is --accent. */
+.ask-chip-line { margin: 0; }
+.ask-chip { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border-radius: 13px; background: var(--wash); color: var(--muted); font: 600 12px/1 var(--sans); }
+.ask-chip.is-waiting { background: var(--accent-wash); color: var(--ink); }
+.ask-chip.is-confirmed { background: var(--green-wash); color: var(--green); }
+
+.ask-draft { display: grid; gap: 10px; min-width: 0; padding: 14px 16px; border: 1px solid var(--rule); border-radius: var(--radius-panel); background: var(--screen); }
+.ask-draft.is-quiet { padding: 10px 16px; }
+.ask-draft p, .ask-draft h3, .ask-draft dl { margin: 0; }
+.ask-draft-kind { color: var(--muted); font: 500 12px/1.3 var(--sans); }
+.ask-draft-line { font: 400 14px/1.4 var(--sans); overflow-wrap: anywhere; }
+.ask-draft-fields { display: grid; font: 400 14px/1.4 var(--sans); }
+.ask-draft-fields > div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--rule); }
+.ask-draft-fields > div:last-child { border-bottom: 0; }
+.ask-draft-fields dt { color: var(--muted); flex: none; }
+.ask-draft-fields dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.ask-draft-fields > div:first-child dd { font-weight: 500; }
+
+.ask-draft-change { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--radius-control); background: var(--wash); font-size: 13px; }
+.ask-draft-change-head { color: var(--muted); font: 600 12px/1.3 var(--sans); }
+.ask-draft .view-card { gap: 6px; }
+.ask-draft .ba-chart { gap: 0; }
+.ask-draft .ba-head { display: none; }
+.ask-draft .ba-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; padding: 5px 0; border-bottom: 0; font-size: 13px; }
+.ask-draft-changed .ba-row { padding: 6px 0; border-top: 1px solid var(--rule); font-size: 14px; }
+.ask-draft-changed .ba-row:last-child { border-bottom: 1px solid var(--rule); }
+.ask-draft .ba-label { flex: 1 1 auto; }
+.ask-draft .ba-before { color: var(--faint); text-decoration: line-through; text-align: right; }
+.ask-draft .ba-arrow { color: var(--ink); }
+.ask-draft .ba-after { box-shadow: none; font-weight: 600; }
+.ask-draft .ba-change { font-size: 12px; color: var(--muted); }
+.ask-draft .view-line { margin: 0; color: var(--muted); font: 400 13px/1.45 var(--sans); }
+
+.ask-draft-actions, .ask-draft-places { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.ask-draft-actions .ui-form, .ask-draft-places .ui-form, .ask-draft-places .view-pin { display: contents; }
+.ask-draft-actions fieldset, .ask-draft-places fieldset { display: contents; border: 0; padding: 0; margin: 0; }
+.ask-draft-actions .ui-form-status:empty { display: none; }
+.ask-draft-actions .ui-button, .ask-draft-places .ui-button { min-height: 36px; text-decoration: none; }
+.ask-draft-places .view-pin .ui-button { background: var(--wash); }
+.ask-draft-also { color: var(--muted); font: 400 12px/1.3 var(--sans); }
+.ask-draft-also a { color: var(--ink); }
+
+.ask-draft-saved { gap: 4px; padding: 12px 16px; }
+.ask-draft-saved-head { display: flex; align-items: center; gap: 6px; color: var(--green); font: 600 14px/1.3 var(--sans); }
+.ask-draft-saved-head span { color: var(--muted); font-weight: 500; }
+.ask-draft-title { font: 500 19px/1.25 var(--serif); }
+@media (max-width: 899px) { .ask-draft-actions .ui-button, .ask-draft-places .ui-button { min-height: 44px; } }

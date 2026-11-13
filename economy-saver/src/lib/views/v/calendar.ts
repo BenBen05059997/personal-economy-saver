@@ -2,6 +2,7 @@
 import { dayLabel, minorMoney } from "@/lib/money/format";
 import { addDays } from "@/lib/money/runway";
 import { calendarDays, type CalendarItem } from "@/lib/money/calendar";
+import { sharedBillsComing } from "@/lib/money/family";
 import { VIEW_META } from "../catalogue";
 import type { FormData, Resolver, TableTwin, ViewResult } from "../types";
 import { longDay } from "./forecast";
@@ -26,6 +27,10 @@ export const calendarView: Resolver<"bills_calendar"> = (args, ctx): ViewResult 
     const sign = item.kind === "arrival" ? "+" : "−";
     return `${item.label} ${item.estimated ? "about " : ""}${sign}${format(item.amountMinor)}`;
   };
+  // The family link's table names each shared bill, without its amount (the next column has it), and who pays it.
+  const payers = new Map(shared ? sharedBillsComing(state).map(bill => [`${bill.date}|${bill.biller}`, bill.paidBy] as const) : []);
+  const nameOf = (item: CalendarItem) => item.pending || item.uncounted ? words(item) : item.label;
+  const paidBy = (date: string, items: CalendarItem[]) => items.map(item => payers.get(`${date}|${item.label}`) ?? "").filter(Boolean).join("; ") || "–";
   // The cells: whole weeks from the Sunday on or before today, to the Saturday on or after the last day.
   const start = addDays(state.today, -dayOfWeek(state.today)), end = rows[rows.length - 1].date, lastWeekEnd = addDays(end, 6 - dayOfWeek(end));
   const byDate = new Map(rows.map(row => [row.date, row]));
@@ -40,11 +45,11 @@ export const calendarView: Resolver<"bills_calendar"> = (args, ctx): ViewResult 
   const shortDays = rows.filter(row => row.short), pendingCount = rows.reduce((sum, row) => sum + row.items.filter(item => item.pending).length, 0);
   const lastShort = shortDays.length > 0 ? shortDays[shortDays.length - 1].date : null;
   const table: TableTwin = {
-    caption: shared ? "Shared bills by day" : "Bills and money coming, by day", head: ["Day", "What", "Goes out", ...(shared ? [] : ["Comes in"])], foot: null,
-    align: shared ? ["start", "start", "end"] : ["start", "start", "end", "end"],
+    caption: shared ? "Shared bills by day" : "Bills and money coming, by day", head: ["Day", "What", ...(shared ? ["Paid by"] : []), "Goes out", ...(shared ? [] : ["Comes in"])], foot: null,
+    align: shared ? ["start", "start", "start", "end"] : ["start", "start", "end", "end"],
     rows: rows.filter(row => row.items.length > 0 || row.short).map(row => ({
       key: row.date, ...(row.short && { tone: "short" as const }),
-      cells: [longDay(row.date), [...row.items.map(words), ...(row.short ? ["short if clients pay late"] : [])].join("; "), row.outMinor ? format(row.outMinor) : "–", ...(shared ? [] : [row.inMinor ? format(row.inMinor) : "–"])],
+      cells: [longDay(row.date), [...row.items.map(shared ? nameOf : words), ...(row.short ? ["short if clients pay late"] : [])].join("; "), ...(shared ? [paidBy(row.date, row.items)] : []), row.outMinor ? format(row.outMinor) : "–", ...(shared ? [] : [row.inMinor ? format(row.inMinor) : "–"])],
     })),
   };
   const line = `${format(outMinor)} goes out in the next ${days} days${shared ? "" : ` and ${format(inMinor)} comes in as clients pay as usual`}. The heaviest day is ${longDay(heaviest.date)} (${format(heaviest.outMinor)}).`

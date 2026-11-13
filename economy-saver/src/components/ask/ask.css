@@ -81,7 +81,6 @@
 .ask-page.is-panel .canvas-block { padding: var(--space-3); overflow-wrap: anywhere; }
 .ask-page.is-panel .canvas-table :is(th, td) { padding-inline: var(--space-1); white-space: normal; }
 .ask-page.is-panel .canvas-number { white-space: normal; }
-.ask-page.is-panel .canvas-plot { height: 128px; }
 
 .ask-scroll { display: grid; gap: var(--space-3); min-width: 0; align-content: start; }
 

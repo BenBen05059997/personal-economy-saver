@@ -36,7 +36,7 @@ export function text(message: string, status: number, headers: Record<string, st
 export { tooMany } from "@/db/rate-limit";
 
 const RETURN_PAGES = new Set(["/", "/to-check", "/bills", "/cards", "/clients", "/spending", "/spending/over-time", "/spending/categories", "/saving", "/memory", "/canvas", "/household", "/household/people", "/settings", "/settings/ai-model", "/settings/paypal", "/settings/data", "/settings/account", "/options", "/upload"]);
-const RETURN_PATTERNS = [/^\/(?:bills|cards|clients|saving)\/[0-9a-f-]{36}$/, /^\/canvas\?space=[0-9a-f-]{36}$/, /^\/setup\?step=(?:bank|income|bills|card)$/];
+const RETURN_PATTERNS = [/^\/(?:bills|cards|clients|saving)\/[0-9a-f-]{36}$/, /^\/canvas\?space=[0-9a-f-]{36}$/, /^\/setup\?step=(?:bank|income|bills|card)$/, /^\/to-check\?saved=(?:bill|charge):[0-9a-f-]{36}$/];
 
 /** Only a fixed list of app pages is a valid return target; anything else goes Home. */
 export function returnPath(value: FormDataEntryValue | null) {

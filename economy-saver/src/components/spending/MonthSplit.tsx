@@ -82,11 +82,3 @@ export function MonthList({ view, people, past, filing }: { view: MonthView; peo
     </>}
   </div>;
 }
-
-/** The family link's "Where the month goes": a heading over the month's list (D46, D52). */
-export function MonthSplit({ view, people }: { view: MonthView; people: MonthPerson[] }) {
-  return <section className="spending-month" aria-labelledby="spending-month-title">
-    <h2 id="spending-month-title">Where the month goes <small>{view.name}</small></h2>
-    <MonthList view={view} people={people} />
-  </section>;
-}

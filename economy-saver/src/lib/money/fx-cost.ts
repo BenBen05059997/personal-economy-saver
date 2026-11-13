@@ -171,3 +171,32 @@ export function foreignCostWords(costs: FxCosts): { charges: string | null; payo
   const unknown = t.unknownCount > 0 ? `${plural(t.unknownCount, "purchase")} in another currency ${t.unknownCount === 1 ? "has" : "have"} no cost yet. ${FX_WORDS.unknown}` : null;
   return { charges, payouts, unknown };
 }
+
+export type FxMonth = {
+  month: string; // YYYY-MM
+  current: boolean;
+  payoutMinor: number; // what receiving and converting the month's paid invoices cost
+  chargeExactMinor: number; // card purchases whose statement amount is known
+  chargeEstimatedMinor: number; // card purchases estimated from the card's fee: shown as "about"
+  unknownCount: number; // card purchases with no cost yet
+};
+
+/** The last `months` months, oldest first and ending with today's: what receiving dollars and paying in another currency cost in each, from the same rows `foreignCosts` totals (the last twelve months only). */
+export function fxByMonth(costs: FxCosts, today: string, months: number): FxMonth[] {
+  const current = today.slice(0, 7);
+  const list: FxMonth[] = [];
+  for (let k = months - 1; k >= 0; k--) {
+    const [year, month] = current.split("-").map(Number), index = year * 12 + month - 1 - k;
+    list.push({ month: `${Math.floor(index / 12)}-${String(index % 12 + 1).padStart(2, "0")}`, current: k === 0, payoutMinor: 0, chargeExactMinor: 0, chargeEstimatedMinor: 0, unknownCount: 0 });
+  }
+  const at = (date: string) => list.find(entry => entry.month === date.slice(0, 7));
+  for (const payout of costs.payouts) { const entry = at(payout.paidOn); if (entry) entry.payoutMinor += payout.receiveFeeMinor + payout.markupMinor; }
+  for (const charge of costs.charges) {
+    const entry = charge.inWindow ? at(charge.date) : undefined;
+    if (!entry) continue;
+    if (charge.costKind === "exact" && charge.costMinor !== null) entry.chargeExactMinor += charge.costMinor;
+    else if (charge.costKind === "estimated" && charge.costMinor !== null) entry.chargeEstimatedMinor += charge.costMinor;
+    else entry.unknownCount += 1;
+  }
+  return list;
+}

@@ -60,9 +60,9 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 
 Scenarios cite these blocks by name. The old check letters stay in the headings so a reader can match them.
 
-### M1. Where the month goes, November (and M2, after Hikari Denki is confirmed)
+### M1. Where this month goes, November (and M2, after Hikari Denki is confirmed)
 
-- Spending → This month, in Table, shows "Where the month goes · November" and the line "Business ¥32,830 of ¥152,230 this month" (a household with no business share this month reads "All personal this month" instead), then these rows in this order (each has a dark › chevron that turns down when the row opens to its items):
+- Spending → This month, in Table, shows "Where this month goes · November" (D74) and the line "Business ¥32,830 of ¥152,230 this month" (a household with no business share this month reads "All personal this month" instead), then these rows in this order (each has a dark › chevron that turns down when the row opens to its items):
 
 | Row | Total | Split | Items |
 |---|---|---|---|
@@ -78,7 +78,7 @@ Scenarios cite these blocks by name. The old check letters stay in the headings 
 
 ### S-A. The month by whose, with two people
 
-The month by whose (D52). Spending → This month → Where the month goes shows "Together ¥88,780 · Ben ¥63,450 · Wife ¥0 this month" on top; Housing reads ¥82,000 with "Shared ¥82,000" under it, Food ¥10,700 with "Ben ¥10,700" (no "Shared ¥0"); opening a category marks each item Shared, Ben or Wife. Ben alone (Reset) shows no Together line and no whose lines. At 375px the amount stays on the category's row and nothing scrolls sideways.
+The month by whose (D52). Spending → This month → Where this month goes shows "Together ¥88,780 · Ben ¥63,450 · Wife ¥0 this month" on top; Housing reads ¥82,000 with "Shared ¥82,000" under it, Food ¥10,700 with "Ben ¥10,700" (no "Shared ¥0"); opening a category marks each item Shared, Ben or Wife. Ben alone (Reset) shows no Together line and no whose lines. At 375px the amount stays on the category's row and nothing scrolls sideways.
 
 ### T-A. October and September
 
@@ -91,6 +91,14 @@ Search on Spending (`/spending?q=…`): the field "Search spending: hotel, food,
 ### U-A. Regular costs
 
 Spending → Over time → Regular costs (under the months), before confirming Hikari Denki: "Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far" on top; rows Kissa Midori café Food ¥1,880 so far (Last month ¥2,800 · down ¥920; Sep ¥0 · Oct ¥2,800 · Nov ¥1,880), Minato Fresh Market ¥8,820 so far (up ¥180), Rent ¥82,000 (same), Mobaile Tsushin ¥4,800, CloudBox Plus ¥1,980, and Hikari Denki Utilities "not in yet" (Last month ¥10,020 · usually on the 25th; Sep ¥8,640 · Oct ¥10,020 · Nov not in yet). Up reads in red, down in green, the words carry it too. At 375px each amount stays on its label's line.
+
+### W2. The wave-2 views on Ben's sample (computed by the views, `npm run db:views-test`)
+
+- Regular costs by month (Spending → Over time, above the Regular costs list): August ¥88,780 regular / ¥0 other = ¥88,780; September ¥103,380 / ¥47,000 = ¥150,380; October ¥110,240 / ¥21,820 = ¥132,060; November (so far) ¥99,480 / ¥52,750 = ¥152,230. The line: "November: ¥99,480 of ¥152,230 is regular costs (65%); the biggest is Rent (¥82,000)."
+- Search by month, "food": September ¥5,960, October ¥11,440, November ¥10,700, ¥28,100 in all; "hotel": September ¥28,600.
+- A pot's Its pace, for a pot of ¥15,000 saved toward ¥60,000 by 2027-03-31 started Nov 1: "By today: ¥5,200. ¥9,800 ahead of pace. At this pace: Dec 23, 2026. ¥11,250 a month to reach ¥60,000 by Mar 31." Tax ahead needs a fill rule and a Government & tax bill; Ben has no pots, so the household adds them.
+- Foreign costs by month (Ask only, no panel and no See it): June to November, ¥111,637 in all (the same total as AE).
+- Who owes whom (Household → People): Ben alone says "Add a person in Household → People to split shared costs."; with Wife and nothing shared it says nothing has been shared; the figures with shared items come from what the household marks shared.
 
 ### AA1. Your data, fresh counts
 

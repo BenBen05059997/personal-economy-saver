@@ -80,6 +80,12 @@ check("whose: shared lists only the shared bills, with no money in", () => {
   assert.ok(shared.every(row => row.inMinor === 0 && !row.short));
   const view = calendarView({ whose: "shared" }, ctx);
   assert.equal(view.title, "When shared bills fall");
+  // The table names each bill without its amount and adds who pays it.
+  const member = benMoney.split.members[0], withPayer = { ...benMoney, bills: benMoney.bills.map(bill => bill.id === coming[0]?.key && member ? { ...bill, paidBy: member.id } : bill) };
+  const table = calendarView({ whose: "shared" }, { state: withPayer }).table!;
+  assert.deepEqual(table.head, ["Day", "What", "Paid by", "Goes out"]);
+  assert.ok(table.rows.every(row => row.cells.length === 4 && !/[¥$−]/.test(row.cells[1])), "the What column holds names only");
+  if (coming[0] && member) assert.ok(table.rows.some(row => row.cells[2].includes(member.name)));
 });
 
 check("fewer days narrow the window; no bills or clients is an empty state with Add a bill", () => {

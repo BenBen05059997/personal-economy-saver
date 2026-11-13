@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { ChartForm, ViewResult } from "@/lib/views/types";
 import { Calendar } from "./forms/Calendar";
+import { GoalLine } from "./forms/GoalLine";
 import { PaceLines } from "./forms/PaceLines";
 import { BeforeAfter } from "./forms/BeforeAfter";
 import { RankedBars } from "./forms/RankedBars";
@@ -25,6 +26,7 @@ const FORMS: { [F in ChartForm]?: (props: { result: ViewResult<F> }) => ReactNod
   strip: Strip,
   runway_bar: RunwayBar,
   pace_lines: PaceLines,
+  goal_line: GoalLine,
   tracks: Tracks,
   before_after: BeforeAfter,
 };

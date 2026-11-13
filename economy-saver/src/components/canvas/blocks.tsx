@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { hrefFor } from "@/lib/links";
-import type { ActionData, ByPersonData, CompareData, GoalsProgressData, LetterData, NoteData, NumberData, ProgressData, SentenceData, TableData, TimelineData } from "@/lib/canvas/resolve";
+import type { ActionData, GoalsProgressData, LetterData, NoteData, NumberData, ProgressData, SentenceData, TableData, TimelineData } from "@/lib/canvas/resolve";
 
 // One component per block type that shows resolved data. None does any arithmetic on money beyond drawing a bar's length.
 
@@ -19,7 +19,7 @@ export function NumberBlock({ data }: { data: NumberData }) {
   return <>
     <p className="canvas-label">{data.label}</p>
     <p className={`canvas-number ${data.tone === "short" ? "is-short" : ""}`}>{data.value}</p>
-    {data.sub && <p className="canvas-sub">{data.sub}</p>}
+    {data.sub && data.sub !== data.label && <p className="canvas-sub">{data.sub}</p>}
     {data.note && <p className="canvas-note">{data.note}</p>}
   </>;
 }
@@ -73,48 +73,6 @@ export function TableBlock({ data }: { data: TableData }) {
         {data.foot && <tfoot><tr>{data.foot.map((cell, i) => (i === 0 ? <th key={i} scope="row">{cell}</th> : <td key={i}>{cell}</td>))}</tr></tfoot>}
       </table>
     </div>}
-  </>;
-}
-
-export function CompareBlock({ data }: { data: CompareData }) {
-  if (data.empty) return <p className="canvas-note">{data.empty}</p>;
-  const biggest = Math.max(1, ...data.rows.flatMap(row => [row.aMinor, row.bMinor]));
-  const width = (minor: number) => `${Math.max(0, (minor / biggest) * 100)}%`;
-  return <>
-    <p className="canvas-sub"><b>{data.aName}</b> {data.aTotal} · <b>{data.bName}</b> {data.bTotal} · {data.difference}</p>
-    <div className="canvas-legend" aria-hidden="true"><span>{data.aName}</span><span className="is-new">{data.bName}</span></div>
-    <div className="canvas-compare">
-      {data.rows.map(row => <div key={row.label} className="canvas-compare-row">
-        <span className="canvas-compare-name">{row.label}<small>{row.change}</small></span>
-        <div className="canvas-bars" role="img" aria-label={`${row.label}: ${data.aName} ${row.aLabel}, ${data.bName} ${row.bLabel}`}>
-          <span className="canvas-bar"><i style={{ width: width(row.aMinor) }} /><em>{row.aLabel}</em></span>
-          <span className="canvas-bar is-new"><i style={{ width: width(row.bMinor) }} /><em>{row.bLabel}</em></span>
-        </div>
-      </div>)}
-    </div>
-  </>;
-}
-
-/** Chart (a bar per person under each category) or the same figures as a table; the line under it says who owes whom. */
-export function ByPersonBlock({ data }: { data: ByPersonData }) {
-  const [asTable, setAsTable] = useState(false);
-  if (data.empty) return <p className="canvas-note">{data.empty}</p>;
-  const biggest = Math.max(1, ...data.rows.flatMap(row => row.parts.map(part => part.minor)));
-  return <>
-    <p className="canvas-sub"><b>{data.month}</b> by category and whose it is</p>
-    <div className="canvas-switch" role="group" aria-label="Show as">
-      <button type="button" className="ui-button" aria-pressed={!asTable} onClick={() => setAsTable(false)}>Chart</button>
-      <button type="button" className="ui-button" aria-pressed={asTable} onClick={() => setAsTable(true)}>Table</button>
-    </div>
-    {asTable ? <TableBlock data={data.table} /> : <div className="canvas-compare">
-      {data.rows.map(row => <div key={row.label} className="canvas-compare-row">
-        <span className="canvas-compare-name">{row.label}</span>
-        <div className="canvas-bars" role="img" aria-label={`${row.label}: ${row.parts.map(part => `${part.name} ${part.label}`).join(", ")}`}>
-          {row.parts.map(part => <span key={part.name} className="canvas-bar is-new"><b className="canvas-bar-name">{part.name}</b><i style={{ width: `${(part.minor / biggest) * 100}%` }} /><em>{part.label}</em></span>)}
-        </div>
-      </div>)}
-    </div>}
-    {data.owes && <p className="canvas-sub">{data.owes}</p>}
   </>;
 }
 

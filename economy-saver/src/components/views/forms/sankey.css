@@ -13,3 +13,5 @@
 .sk-label{font-size:12.5px;fill:var(--ink)}
 .sk-amount{font-weight:600;font-variant-numeric:tabular-nums}
 .sk-mid{font-weight:600}
+.sk-cap{margin:0;font-size:12.5px;color:var(--ink)}
+.sk-cap b{font-weight:600;font-variant-numeric:tabular-nums}

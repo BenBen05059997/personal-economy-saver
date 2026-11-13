@@ -1,5 +1,5 @@
 // What did this change (D77). Pure: the picture without an item and the picture with it, side by side. A pending bill, charge, pot or bank
-// balance gives "if you confirm" (now against with it confirmed); a confirmed bill or charge gives "what it changed" (the state without it against
+// balance gives "if you confirm" (now against with it confirmed); a confirmed bill, charge or pot gives "what it changed" (the state without it against
 // now). Nothing is stored for either side: both are worked out here from the money state and the spending, by the engine's own functions.
 import { categoryLabel } from "./categories";
 import { dayLabel, minorMoney, minorPerUnit } from "./format";
@@ -78,7 +78,8 @@ function sides(state: MoneyState, spending: SpendingInput, itemId: string): { na
   if (pot) return { name: pot.name, kind: "pot", when: "pending", without: now, with: { state: { ...state, pots: [...state.pots, pot], pendingPots: state.pendingPots.filter(item => item.id !== itemId) }, spending }, category: null };
   const update = state.balanceUpdates.find(item => item.id === itemId);
   if (update) return { name: "Your new bank balance", kind: "balance", when: "pending", without: now, with: { state: { ...state, bank: update.amount, balanceUpdates: state.balanceUpdates.filter(item => item.id !== itemId) }, spending }, category: null };
-  if (state.pots.some(item => item.id === itemId)) throw new WhatChangedError("That pot is already confirmed. What it changed can be shown for a bill or a card charge once it is confirmed.");
+  const saved: Pot | undefined = state.pots.find(item => item.id === itemId);
+  if (saved) return { name: saved.name, kind: "pot", when: "confirmed", without: { state: { ...state, pots: state.pots.filter(item => item.id !== itemId) }, spending }, with: now, category: null };
   throw new WhatChangedError("That item is not in your records.");
 }
 
@@ -90,6 +91,7 @@ export function whatChanged(input: { state: MoneyState; spending: SpendingInput 
   const rows: ChangedRow[] = [];
   const money = (key: string, label: string, a: number, b: number) => { if (a !== b) rows.push({ key, label, before: format(a), after: format(b), change: delta(a, b) }); };
 
+  if (item.kind === "pot") { const [a, b] = [before.state.pots.length, after.state.pots.length]; if (a !== b) rows.push({ key: "pots", label: "Saving pots", before: String(a), after: String(b), change: `${b - a < 0 ? "−" : "+"}${Math.abs(b - a)}` }); }
   money("bank", "Bank balance", minor(before.state.bank), minor(after.state.bank));
   money("cash", "Cash to spend", minor(availableCash(before.state)), minor(availableCash(after.state)));
   for (const card of state.cards) {

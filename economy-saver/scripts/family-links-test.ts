@@ -8,7 +8,7 @@ import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
-import { createFamilyLink, listFamilyLinks, resolveFamilyLink, stopFamilyLink } from "@/db/family-links";
+import { createFamilyLink, listFamilyLinks, loadFamilyView, resolveFamilyLink, stopFamilyLink } from "@/db/family-links";
 import { FAMILY_LINK_DAYS, MAX_LIVE_FAMILY_LINKS } from "@/lib/family-links";
 import { InputError } from "@/db/input-error";
 import { seedBen } from "@/db/seed";
@@ -120,6 +120,22 @@ async function main() {
       await db.delete(schema.households).where(eq(schema.households.id, d));
       assert.equal((await rows(d)).length, 0);
       assert.equal(await resolveFamilyLink(db, made.token, t0), null);
+    });
+
+    await check("loadFamilyView returns the view context (the state and the spending), and the page it draws holds no email and no PayPal details", async () => {
+      const extensions = require.extensions as unknown as Record<string, (module: { exports: unknown }) => void>;
+      extensions[".css"] = module => { module.exports = {}; }; // the page's stylesheets load as nothing: this only renders markup
+      const { createElement } = await import("react");
+      const { renderToStaticMarkup } = await import("react-dom/server");
+      const { FamilyView } = await import("@/components/family/FamilyView");
+      const { AppRouterContext } = await import("next/dist/shared/lib/app-router-context.shared-runtime");
+      const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
+      const view = await loadFamilyView(db, a);
+      assert.equal(view.context.state, view.state);
+      assert.ok(view.context.spending && view.context.spending.homeCurrency === view.state.homeCurrency);
+      assert.equal(view.context.income, undefined, "only what the family page draws is loaded");
+      const html = renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: router as never }, createElement(FamilyView, { name: view.name, context: view.context })));
+      assert.ok(html.includes("Where this month goes") && !html.includes("@") && !/paypal/i.test(html));
     });
 
     console.log(`Family link checks passed (${passed}).`);

@@ -211,5 +211,222 @@
       "D60",
       "D77"
     ]
+  },
+  {
+    "id": "GRAPH-008",
+    "area": "Graph panels",
+    "action": "Read Regular costs by month on Over time",
+    "user_goal": "I want to see how much of each month is fixed",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Spending → Over time",
+      "Find the columns panel above the Regular costs list",
+      "Press Table, then Chart"
+    ],
+    "expected": [
+      "The panel \"Regular costs by month\" sits above the Regular costs list and is not the Month by month panel at the top; it draws four columns, August to November, each split into Regular costs and Everything else, with a legend of both",
+      "November reads (so far) with ¥99,480 regular of ¥152,230 and the line \"November: ¥99,480 of ¥152,230 is regular costs (65%); the biggest is Rent (¥82,000).\"",
+      "The Table has the head Month, Regular costs, Everything else, Total and the rows August ¥88,780 / ¥0 / ¥88,780, September ¥103,380 / ¥47,000 / ¥150,380, October ¥110,240 / ¥21,820 / ¥132,060, November ¥99,480 / ¥52,750 / ¥152,230",
+      "One y-axis, no overlap, nothing clipped; the list below is unchanged"
+    ],
+    "refs": [
+      "D54",
+      "D77",
+      "db:views-test"
+    ]
+  },
+  {
+    "id": "GRAPH-009",
+    "area": "Graph panels",
+    "action": "Search Spending and read it by month",
+    "user_goal": "I want to see a shop or a word across months",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Spending and search \"food\"",
+      "Read the panel \"Month by month\" above the month lists",
+      "Press Table, then Chart"
+    ],
+    "expected": [
+      "Three columns draw, September ¥5,960, October ¥11,440 and November ¥10,700 (current month marked), one colour per category the search found, no more than four, the rest as Other",
+      "The Table has the head Month, Food, Total with the same three rows; the summary line says \"Food: ¥10,700 in November (3 items), ¥11,440 in October (3 items), ¥5,960 in September (1 item); nothing in the other 9 months. ¥28,100 in all.\"",
+      "The month-by-month lists with their items stay below, in the same order; \"zzz\" shows no chart, only \"Nothing matches “zzz” in the last 12 months.\""
+    ],
+    "refs": [
+      "D53",
+      "D77",
+      "db:views-test"
+    ]
+  },
+  {
+    "id": "GRAPH-010",
+    "area": "Graph panels",
+    "action": "Read a pot's Its pace and Tax ahead",
+    "user_goal": "I want to know if my pot is on pace and covers the tax",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px",
+      "On Saving add a pot \"Trip to Osaka\" with ¥15,000 saved, a target of ¥60,000 by 2027-03-31 and no fill rule; later a pot \"Tax\" with a fill rule and a Resident tax bill (Government & tax) due before its target"
+    ],
+    "steps": [
+      "Open Saving and find the pot's own panel",
+      "Read Its pace; on the Tax pot press Tax ahead, then Table"
+    ],
+    "expected": [
+      "A pot with a target and a date shows Its pace as one panel with no switch: a dotted line from ¥0 on the day it started to the target, the saved dot, and where the pot is expected by today; for the Osaka pot (started Nov 1) the line reads \"By today: ¥5,200. ¥9,800 ahead of pace. At this pace: Dec 23, 2026. ¥11,250 a month to reach ¥60,000 by Mar 31.\"",
+      "A pot with a fill rule and a tax bill shows Tax ahead as a step line of what is in the pot against the tax bills due so far, with the bill's date marked; when it falls short the line says how much and on which day",
+      "A pot with both shows a \"Look at\" switch between Its pace and Tax ahead; a pot with neither has no panel; Pin to Home is on the panel"
+    ],
+    "refs": [
+      "D77",
+      "db:views-test"
+    ]
+  },
+  {
+    "id": "GRAPH-011",
+    "area": "Graph panels",
+    "action": "Ask what foreign payments cost by month",
+    "user_goal": "I want my PayPal conversion cost month by month",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px",
+      "A working model (the server's or the Codex bridge)",
+      "Ask open at /canvas"
+    ],
+    "steps": [
+      "Type \"What have foreign payments cost me by month?\" and press Enter"
+    ],
+    "expected": [
+      "The answer draws columns for June to November, each month's fees to receive and the conversion rate, with the line quoting ¥111,637 as the total (16 paid invoices; Acme Corp ¥52,545, Northwind ¥36,850, Beacon Studio ¥22,242 if asked per client)",
+      "There is no See it in button and no page has a panel for it (Ask only, D62); Pin to Home pins it to Home",
+      "No provider other than PayPal is named and the answer never says to leave PayPal; no amount typed by the model appears in the drawing"
+    ],
+    "refs": [
+      "D62",
+      "D77",
+      "qa/README AE",
+      "db:views-test"
+    ]
+  },
+  {
+    "id": "GRAPH-012",
+    "area": "Graph panels",
+    "action": "Read Who owes whom on People",
+    "user_goal": "I want to see who has paid more of the shared costs",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px",
+      "On Household → People add a person \"Wife\" with an equal share, and mark a bill or card charge Shared"
+    ],
+    "steps": [
+      "Open Household → People",
+      "Read the panel \"Who owes whom\" above the shares form",
+      "Press Table"
+    ],
+    "expected": [
+      "The panel draws a bar per person for what they paid of the shared costs with a tick for each fair share, a legend Paid / Fair share, and a line such as \"Wife owes Ben ¥4,200.\" when Ben alone paid ¥8,400 of ¥8,400 shared",
+      "The Table has the head Person, Paid, Fair share, Balance and a Together row; before anything is shared the panel says \"Nothing has been shared since the split began or was last settled. Mark a bill or a card charge as shared and it shows here.\"",
+      "With Ben alone the panel says \"Add a person in Household → People to split shared costs.\"; Pin to Home is on the panel"
+    ],
+    "refs": [
+      "D45",
+      "D77",
+      "db:views-test"
+    ]
+  },
+  {
+    "id": "GRAPH-013",
+    "area": "Graph panels",
+    "action": "Open the family link drawn through the views",
+    "user_goal": "I want my wife's read-only page to look like the app",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px",
+      "Wife added on Household → People and a live family link (Household → People → Make a link)",
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open the link",
+      "Press Table under Where this month goes, then Person",
+      "Read Who owes whom and Shared bills coming up"
+    ],
+    "expected": [
+      "The month panel is headed \"Where this month goes\" with a Look at it by switch (Category, Person) and Chart | Table; Who owes whom draws the same bars as on People",
+      "Shared bills coming up is a table with its line, no calendar picture",
+      "No Ask about this, no Pin to Home and no File on any panel, no sign-in prompt, no email and no PayPal word; nothing on the page changes data",
+      "A link that was stopped or never existed shows only \"This link has ended.\""
+    ],
+    "refs": [
+      "D52",
+      "D77",
+      "db:family-links-test",
+      "db:views-test"
+    ]
+  },
+  {
+    "id": "GRAPH-014",
+    "area": "Graph panels",
+    "action": "See older pins and the what-if sliders with the step line",
+    "user_goal": "I want my earlier pinned canvases to still draw",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px",
+      "A canvas pinned before this build (a flow chart, a compare and a by-person block) on Home, or the starters on Ask → Canvases"
+    ],
+    "steps": [
+      "Open Home and read each pinned canvas",
+      "On the What if starter move the sliders (amount, late client) and press the scenario's change"
+    ],
+    "expected": [
+      "The older flow chart draws as the forecast's step line, with the same low point as before, and when the scenario has a change a lighter ghost line shows the unchanged forecast behind it with a legend of both",
+      "The compare block draws two segments per row and the by-person block a segment per person, each with its Table twin and the same totals as before",
+      "The sliders redraw the line to the engine's late case without a model call; no overlap, no clipping, one y-axis"
+    ],
+    "refs": [
+      "D57",
+      "D73",
+      "D77",
+      "db:canvas-test"
+    ]
   }
 ]

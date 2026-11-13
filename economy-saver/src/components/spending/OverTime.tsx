@@ -21,6 +21,6 @@ export function OverTime({ state, spending, today, device }: { state: MoneyState
         <div className="hv-blank-actions"><AddLink kind="bill" className="ui-button primary">Add a bill</AddLink><AddLink kind="charge" className="ui-button">Add a card charge</AddLink></div>
       </section>
       : <OverTimePanel result={result} pace={pace} device={device} />}
-    <RegularCosts spending={spending} today={today} />
+    <RegularCosts spending={spending} today={today} device={device} />
   </>;
 }

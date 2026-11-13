@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { Currency } from "@/lib/catalogue/types";
 
-/** A round step (1, 2 or 5 times a power of ten) that gives about `ticks` gridlines over `range`. */
-export function niceStep(range: number, ticks = 4): number {
+/** A round step (1, 2 or 5 times a power of ten) that gives about `ticks` gridlines over `range`, never smaller than `unit` (a whole currency unit, so no two labels repeat). */
+export function niceStep(range: number, ticks = 4, unit = 1): number {
   const raw = Math.max(range, 1e-9) / ticks, power = 10 ** Math.floor(Math.log10(raw)), f = raw / power;
-  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * power;
+  return Math.max((f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * power, unit);
 }
 
 /** "¥200k", "$1.5k", "−¥20k", "¥0": a whole-unit amount on an axis. */

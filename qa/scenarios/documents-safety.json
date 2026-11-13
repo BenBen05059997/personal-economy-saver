@@ -1540,7 +1540,7 @@
     ],
     "steps": [
       "Open Home, Ask, To check, Spending, Settings and the bell at 375px",
-      "In Ask open This month. In Spending choose Table and expand the bill’s category under Where the month goes",
+      "In Ask open This month. In Spending choose Table and expand the bill’s category under Where this month goes",
       "Compare document scrollWidth with clientWidth"
     ],
     "expected": [

@@ -102,7 +102,13 @@ async function main() {
       assert.deepEqual([row(withPot.data!.rows, "cash")!.before, row(withPot.data!.rows, "cash")!.after], ["¥128,000", "¥108,000"]);
       const update = resolveView("what_changed", { itemId: "bal-1" }, { ...ctx, state: { ...state, balanceUpdates: [{ id: "bal-1", amount: 80_000 }] } }) as ViewResult<"before_after">;
       assert.deepEqual([row(update.data!.rows, "bank")!.before, row(update.data!.rows, "bank")!.after, row(update.data!.rows, "bank")!.change], ["¥67,000", "¥80,000", "+¥13,000"]);
-      assert.throws(() => resolveView("what_changed", { itemId: "pot-new" }, { ...ctx, state: { ...state, pots: [pot] } }), /already confirmed/);
+      assert.deepEqual(row(withPot.data!.rows, "pots"), { key: "pots", label: "Saving pots", before: "0", after: "1", change: "+1" });
+      // Confirmed, the same rule as a bill or a charge: before is the state without it, after is now.
+      const saved = resolveView("what_changed", { itemId: "pot-new" }, { ...ctx, state: { ...state, pots: [pot] } }) as ViewResult<"before_after">;
+      assert.equal(saved.figures.status, "confirmed");
+      assert.deepEqual(saved.table!.head, ["", "Without it", "With it", "Change"]);
+      assert.deepEqual([row(saved.data!.rows, "cash")!.before, row(saved.data!.rows, "cash")!.after], ["¥128,000", "¥108,000"]);
+      assert.deepEqual(row(saved.data!.rows, "pots"), { key: "pots", label: "Saving pots", before: "0", after: "1", change: "+1" });
     });
 
     await check("an item of another household is refused in words", () => {

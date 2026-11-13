@@ -5,10 +5,10 @@ import { SessionEnded } from "@/components/ui/SessionEnded";
 import { SESSION_ENDED } from "@/lib/session-ended";
 import { drawCanvas } from "@/lib/canvas/draw";
 import { blockWords, KIND_WORDS } from "@/lib/canvas/words";
-import type { ResolvedBlock } from "@/lib/canvas/resolve";
+import type { FlowData, ResolvedBlock } from "@/lib/canvas/resolve";
+import type { ViewResult } from "@/lib/views/types";
 import type { Change, Recipe, Scenario } from "@/lib/canvas/schema";
-import { ActionBlock, ByPersonBlock, CompareBlock, LetterBlock, NoteBlock, NumberBlock, ProgressBlock, SentenceBlock, TableBlock, TimelineBlock } from "./blocks";
-import { FlowChart } from "./FlowChart";
+import { ActionBlock, LetterBlock, NoteBlock, NumberBlock, ProgressBlock, SentenceBlock, TableBlock, TimelineBlock } from "./blocks";
 import { ViewCard } from "@/components/views/ViewCard";
 import { ViewFigure } from "@/components/views/ViewFigure";
 import { SlidersBlock } from "./SlidersBlock";
@@ -21,15 +21,26 @@ const SPAN: Record<ResolvedBlock["type"], 2 | 3 | 6> = {
   sentence: 6, number: 2, flow_chart: 6, timeline: 6, table: 6, compare: 6, by_person: 6, progress: 2, note: 3, letter: 6, sliders: 6, action: 2, view: 6,
 };
 
+/** A chart the older blocks draw through its form (D77): the card with its Chart | Table switch and the one sentence under it. */
+function Drawn({ result }: { result: ViewResult }) {
+  return <ViewCard result={result} figure={<ViewFigure result={result} />} />;
+}
+
+/** The flow block's marked bill is a vertical line on the step line. */
+function withMark(data: FlowData): ViewResult<"step_line"> {
+  const { view, mark } = data;
+  return mark && view.data ? { ...view, aria: `${view.aria} Marked: ${mark.label}.`, data: { ...view.data, marks: [mark] } } : view;
+}
+
 function Body({ block, values, onSlide }: { block: ResolvedBlock; values: Record<string, number>; onSlide: (clientId: string, days: number) => void }) {
   switch (block.type) {
     case "sentence": return <SentenceBlock data={block.data} />;
     case "number": return <NumberBlock data={block.data} />;
-    case "flow_chart": return <FlowChart data={block.data} />;
+    case "flow_chart": return <Drawn result={withMark(block.data)} />;
     case "timeline": return <TimelineBlock data={block.data} />;
     case "table": return <TableBlock data={block.data} />;
-    case "compare": return <CompareBlock data={block.data} />;
-    case "by_person": return <ByPersonBlock data={block.data} />;
+    case "compare": return <Drawn result={block.data.view} />;
+    case "by_person": return <Drawn result={block.data.view} />;
     case "progress": return <ProgressBlock data={block.data} />;
     case "note": return <NoteBlock data={block.data} />;
     case "letter": return <LetterBlock data={block.data} />;

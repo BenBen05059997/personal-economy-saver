@@ -60,6 +60,12 @@ const kindOf = (turn) => (turn.reply ? (turn.reply.kind === "declined" ? "out_of
 const JA = /[぀-ヿ一-鿿]/g;
 
 function grade(expect, turn) {
+  // `either`: alternatives for what the canvas draws (a block type or the view `show` drew); the case passes when one holds, and the rest of `expect` is graded as usual.
+  if (expect.either) {
+    const { either, ...rest } = expect;
+    const tries = either.map((alt) => grade({ ...rest, ...alt }, turn));
+    return tries.find((fails) => fails.length === 0) ?? tries[0];
+  }
   const fails = [];
   const text = turn.reply?.text ?? turn.error ?? "";
   const low = text.toLowerCase();
@@ -70,6 +76,10 @@ function grade(expect, turn) {
   for (const s of expect.excludes ?? []) if (low.includes(s.toLowerCase())) fails.push(`forbidden "${s}"`);
   for (const r of expect.excludesRegex ?? []) if (new RegExp(r, "i").test(text)) fails.push(`forbidden pattern /${r}/`);
   if (expect.language === "ja" && (text.match(JA) ?? []).length < 5) fails.push("not Japanese");
+  if (expect.view) {
+    const shown = (turn.reply?.canvas?.blocks ?? []).filter((b) => b.type === "view").map((b) => b.view);
+    for (const v of expect.view) if (!shown.includes(v)) fails.push(`canvas has no ${v} view (has ${shown.join(", ") || "none"})`);
+  }
   if (expect.canvas) {
     const types = (turn.reply?.canvas?.blocks ?? []).map((b) => b.type);
     for (const t of expect.canvas) if (!types.includes(t)) fails.push(`canvas has no ${t} block (has ${types.join(", ") || "none"})`);

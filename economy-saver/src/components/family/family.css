@@ -1,6 +1,6 @@
 .family-page { width: min(100%, 1040px); margin: 0 auto; padding: 32px var(--space-6) 72px; color: var(--ink); font: 15px/1.5 var(--sans); }
-.family-page .home-panel h2 { margin-top: 0; }
-.family-bill-paid { display: block; }
+.family-page .home-panel h2 { display: block; margin: 0 0 var(--space-2); color: var(--ink); font: 500 18px/1.3 var(--sans); } /* the same heading the app's view panels have */
+.family-page .hv-panel > header h2 { margin: 0; }
 .family-note { margin: var(--space-6) 0 0; color: var(--muted); font-size: 13px; }
 .family-ended { width: min(100%, 550px); margin: 0 auto; padding: 72px var(--space-6); color: var(--ink); font: 15px/1.5 var(--sans); }
 .family-ended h1 { margin: 0 0 var(--space-3); font: 400 28px/1.2 var(--serif); }

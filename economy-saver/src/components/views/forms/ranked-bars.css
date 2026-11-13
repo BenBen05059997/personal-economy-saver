@@ -1,9 +1,11 @@
 /* The ranked-bars form (D73): a bar per row, an optional tick, own categories under a row. Panel, legend and tip are home-views.css. */
 .hv-legend .rb-sq-main,.hv-legend .rb-sq-soft{width:12px;height:12px;border:0;border-radius:2px;background:var(--hv-late)}
 .hv-legend .rb-sq-soft{background:var(--hv-coming)}
+.hv-legend .rb-sq-deep{width:12px;height:12px;border:0;border-radius:2px;background:var(--hv-deep)}
+.hv-legend .rb-sq-pale{width:12px;height:12px;border:0;border-radius:2px;background:var(--hv-pale)}
 .hv-legend .rb-sq-quiet{width:12px;height:12px;border:0;border-radius:2px;background:var(--hv-personal)}
 .hv-legend .rb-key-tick{width:2px;height:14px;border:0;background:var(--ink)}
-.rb-cats{display:flex;flex-direction:column;gap:10px}
+.rb-cats{display:flex;flex-direction:column;gap:10px;container-type:inline-size}
 .rb-cat-axis,.rb-cat{display:grid;grid-template-columns:150px minmax(0,1fr) 140px;gap:16px;align-items:center}
 .rb-cat-axis{height:16px}
 .rb-cat-axis>div{position:relative;height:16px}
@@ -28,8 +30,10 @@
 .rb-cat-bar{position:absolute;inset:0;display:flex;gap:2px}
 .rb-cat-bar .rb-seg-main{background:var(--hv-late);border-radius:4px 0 0 4px;height:100%}
 .rb-cat-bar .rb-seg-soft{background:var(--hv-coming);border-radius:0 4px 4px 0;height:100%}
+.rb-cat-bar .rb-seg-deep{background:var(--hv-deep);border-radius:0 4px 4px 0;height:100%}
+.rb-cat-bar .rb-seg-pale{background:var(--hv-pale);border-radius:0 4px 4px 0;height:100%}
 .rb-cat-bar .rb-seg-quiet{background:var(--hv-personal);border-radius:0 4px 4px 0;height:100%}
-.rb-cat-bar .rb-seg-main:last-child,.rb-cat-bar .rb-seg-soft:first-child,.rb-cat-bar .rb-seg-quiet:first-child{border-radius:4px}
+.rb-cat-bar .rb-seg-main:last-child,.rb-cat-bar .rb-seg-soft:first-child,.rb-cat-bar .rb-seg-deep:first-child,.rb-cat-bar .rb-seg-pale:first-child,.rb-cat-bar .rb-seg-quiet:first-child{border-radius:4px}
 .rb-tick{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px solid var(--ink);transform:translateX(-1px)}
 .rb-cat-thin{min-height:40px;padding:2px 0}
 .rb-cat-thin .rb-cat-name{padding-left:24px}
@@ -43,3 +47,4 @@
 .rb-cat-tip>span{display:flex;justify-content:space-between;gap:12px}
 .rb-cat-tip b{font-size:13px}
 @media(max-width:600px){.rb-cat-axis{display:none}.rb-cat{grid-template-columns:1fr 1fr}.rb-cat-track{grid-column:1/-1;grid-row:2}}
+@container (max-width:450px){.rb-cat-axis,.rb-cat{grid-template-columns:84px minmax(0,1fr) 78px;gap:10px}.rb-cat-axis>div span:nth-child(even){display:none}.rb-cat-label b{font-size:13px}.rb-cat-total b{font-size:14px}.rb-cat-name{gap:2px}.rb-cat-toggle,.rb-cat-gap{width:18px}.rb-cat-thin .rb-cat-name{padding-left:18px}.rb-cat-tip{width:180px}}

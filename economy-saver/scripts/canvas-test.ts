@@ -9,7 +9,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
-import { ByPersonBlock, TableBlock } from "@/components/canvas/blocks";
+import { TableBlock } from "@/components/canvas/blocks";
 import * as schema from "@/db/schema";
 import { savePot } from "@/db/pots";
 import { seedBen } from "@/db/seed";
@@ -24,9 +24,9 @@ import { blockWords, KIND_WORDS } from "@/lib/canvas/words";
 import { loadViewContext } from "@/lib/views/load";
 import { VIEW_META } from "@/lib/views/catalogue";
 import { liveViews, needsOf, resolveView } from "@/lib/views/resolve";
-import type { ViewId } from "@/lib/views/types";
+import type { ViewId, ViewResult } from "@/lib/views/types";
 import { foreignCosts } from "@/lib/money/fx-cost";
-import { money, minorMoney } from "@/lib/money/format";
+import { money, minorMoney, minorPerUnit } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
 import { splitBalance, splitSummary } from "@/lib/money/split";
 import { regularCosts } from "@/lib/money/regular";
@@ -66,7 +66,12 @@ const deepFreeze = <T,>(value: T): T => {
 };
 const cashMinor = (n: number) => n; // JPY: minor units are yen
 
+// The canvas imports stylesheets; the test only renders markup, so a stylesheet loads as nothing (a CSS module as its own class names).
+const extensions = require.extensions as unknown as Record<string, (module: { exports: unknown }) => void>;
+extensions[".css"] = module => { module.exports = new Proxy({}, { get: (_, key) => String(key) }); };
+
 async function main() {
+  const { Canvas } = await import("@/components/canvas/Canvas");
   let passed = 0;
   async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 
@@ -328,9 +333,12 @@ async function main() {
       assert.equal(numbers[0].value, format(safeToSpend(state, 0).amount));
       assert.equal(numbers[1].value, format(availableCash(state)));
       assert.equal(numbers[2].value, format(lowOf(state, "worst").amount));
-      const chart = block(resolved, "flow_chart").data;
-      assert.deepEqual(chart.points, [...series(state, "worst")]);
-      assert.equal(chart.lowLabel, `${format(lowOf(state, "worst").amount)} · Nov 27`);
+      const forecast = block(resolved, "view").data as ViewResult<"step_line">;
+      assert.equal(forecast.view, "forecast");
+      assert.equal(forecast.form, "step_line");
+      assert.equal(forecast.figures.lowLateMinor, Math.round(lowOf(state, "worst").amount * minorPerUnit("JPY")));
+      assert.deepEqual(forecast.data!.lines.find(l => l.key === "main")!.points, [...series(state, "worst")]);
+      assert.ok(!resolved.some(r => r.type === "flow_chart"), "This month no longer holds an older chart block");
       const rows = block(resolved, "timeline").data.rows;
       const events = timeline(state, "expected");
       assert.deepEqual(rows.map(r => r.id), events.map(e => e.id));
@@ -400,6 +408,38 @@ async function main() {
       // The state is the same afterwards, and a second draw is the same.
       assert.deepEqual(resolveRecipe(recipe, context, scenario), resolved);
       assert.equal(block(resolveRecipe(recipe, context), "flow_chart").data.points.join(), series(state, "expected").join());
+      // The step line: with the changes the late case is the main line and the days as they are now are the ghost; with none there is no ghost.
+      const drawn = block(resolved, "flow_chart").data.view;
+      assert.equal(drawn.form, "step_line");
+      assert.deepEqual(drawn.data!.lines.map(l => [l.key, l.tone]), [["main", "main"], ["before", "ghost"]]);
+      assert.deepEqual(drawn.data!.lines[0].points, [...series(state, "worst")]);
+      assert.deepEqual(drawn.data!.lines[1].points, [...series(state, "expected")]);
+      assert.equal(drawn.data!.low.minor, low(series(state, "worst")).amount);
+      assert.equal(block(resolved0, "flow_chart").data.view.data!.lines.length, 1, "no ghost without changes");
+      const markup = renderToStaticMarkup(createElement(Canvas, { recipe, initial: resolved }));
+      assert.match(markup, /sl-t-ghost/);
+      assert.match(markup, /as it is now/);
+    });
+
+    await check("a recipe saved before the forms (fixture JSON, version 1) still draws, with the same low point, comparison and by-person table", () => {
+      const saved = JSON.parse(JSON.stringify({ version: 1, title: "Pinned long ago", scenario: { case: "late", changes: [] }, blocks: [
+        { type: "sentence", query: { q: "sentence", scenario: "canvas" } },
+        { type: "flow_chart", query: { q: "flow", days: 30 } },
+        { type: "compare", query: { q: "compare_months", a: "2026-10", b: "2026-11" } },
+        { type: "by_person", query: { q: "month_by_person", month: "2026-11" } },
+      ] }));
+      assert.ok(RecipeSchema.safeParse(saved).success);
+      assert.equal(saved.version, 1);
+      const resolved = resolveRecipe(saved, context);
+      const flow = block(resolved, "flow_chart").data;
+      assert.equal(flow.view.data!.low.minor, low(series(state, "worst")).amount);
+      assert.equal(flow.lowLabel, `${format(low(series(state, "worst")).amount)} · Nov 27`);
+      assert.equal(block(resolved, "compare").data.view.form, "ranked_bars");
+      assert.equal(block(resolved, "by_person").data.empty !== null, true, "one member: says so in words");
+      const markup = renderToStaticMarkup(createElement(Canvas, { recipe: saved, initial: resolved }));
+      assert.match(markup, /class="sl-chart"/);
+      assert.match(markup, /Only Ben in this household/);
+      assert.match(canvasSummary(resolved), /"type":"flow_chart"/);
     });
 
     await check("This month against last month: totals, the comparison and the table of changes are the month view's", () => {
@@ -423,6 +463,16 @@ async function main() {
       assert.deepEqual(table.head, ["Category", "October", "November", "Change"]);
       assert.deepEqual(table.foot, ["Total", minorMoney(october.totalMinor, "JPY"), minorMoney(november.totalMinor, "JPY"), compare.difference]);
       assert.equal(block(resolved, "compare").source, "Worked out from your records");
+      // It draws as ranked bars: a bar for this month, last month as the tick, one row a category in the same order, the same totals.
+      const view = compare.view;
+      assert.equal(view.form, "ranked_bars");
+      assert.deepEqual(view.data!.segments.map(seg => seg.legend), ["November"]);
+      assert.equal(view.data!.tick!.legend, "October");
+      assert.deepEqual(view.data!.rows.map(r => r.label), compare.rows.map(r => r.label));
+      assert.deepEqual(view.data!.rows.map(r => [r.parts[0], r.tick]), compare.rows.map(r => [r.bMinor, r.aMinor]));
+      assert.equal(view.figures.aTotalMinor, october.totalMinor);
+      assert.equal(view.figures.bTotalMinor, november.totalMinor);
+      assert.deepEqual(view.table!.foot, table.foot);
     });
 
     await check("Regular costs, month totals, by category and the spending search are the engine's own", () => {
@@ -459,6 +509,8 @@ async function main() {
       const one = block(resolveRecipe(recipe, context), "by_person").data;
       assert.equal(one.empty, "Only Ben in this household. Add a person in Household → People to split.");
       assert.equal(one.rows.length, 0);
+      assert.equal(one.view.empty!.words, one.empty);
+      assert.equal(one.view.data, null);
       assert.match(blockWords(recipe.blocks[0]), /^By person: November 2026 by category/);
 
       const ben = state.split.members[0];
@@ -486,7 +538,17 @@ async function main() {
       assert.equal(data.owes, splitSummary(two.state.split, splitBalance(two.state.split, TODAY), "JPY"));
       assert.equal(data.owes, "Ben owes Aki ¥5,000.");
       assert.match(canvasSummary(resolveRecipe(recipe, two)), /"type":"by_person"/);
-      assert.match(renderToStaticMarkup(createElement(ByPersonBlock, { data })), /Ben owes Aki/);
+      // It draws as ranked bars with a segment per person (Shared first), the same figures as the table, and the owes line under it.
+      const ranked = data.view.data!;
+      assert.deepEqual(ranked.segments.map(seg => seg.legend), ["Shared", "Ben", "Aki"]);
+      assert.deepEqual(ranked.segments.map(seg => seg.tone), ["quiet", "main", "soft"], "each person a distinct colour in a fixed order");
+      assert.deepEqual(ranked.rows.map(r => r.parts), view.categories.map(c => [c.sharedMinor, ...c.byMember.map(m => m.minor)]));
+      assert.deepEqual(data.view.table!.head, data.table.head);
+      assert.equal(data.view.line, "Ben owes Aki ¥5,000.");
+      const markup = renderToStaticMarkup(createElement(Canvas, { recipe, initial: resolveRecipe(recipe, two) }));
+      assert.match(markup, /Ben owes Aki/);
+      assert.match(markup, /class="rb-cat-bar"/);
+      assert.ok(!/canvas-bar|canvas-compare/.test(markup), "none of the old bar markup");
     });
 
     await check("a month outside the twelve kept, a bad slider client and a bad scenario are refused in words", () => {

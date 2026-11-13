@@ -124,6 +124,19 @@ async function main() {
     await responseMatches(await removeOwnCharge(), 400, "Choose a charge of this household");
     assert.equal((await db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, "charge_removed"), eq(schema.events.refId, plain.id)))).length, 1);
     ok("/api/remove charge: the first request redirects and records one event, the second is refused");
+
+    // D61: To check's Confirm returns to the page with the saved item named, so the page can draw what it changed; any other query goes Home.
+    const confirm = (await import("@/app/api/confirm/route")).POST as Handler;
+    const [pendingBill] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, hid), eq(schema.bills.status, "pending")));
+    assert.ok(pendingBill, "the sample has a pending bill");
+    const back = `/to-check?saved=bill:${pendingBill.id}`;
+    const confirmed = await confirm(form("/api/confirm", { kind: "bill", id: pendingBill.id, returnTo: back }));
+    assert.equal(confirmed.status, 303);
+    assert.equal(confirmed.headers.get("location"), back);
+    assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.id, pendingBill.id)))[0].status, "confirmed");
+    const odd = await confirm(form("/api/confirm", { kind: "bill", id: pendingBill.id, returnTo: "/to-check?saved=bill:x" }));
+    assert.equal(odd.headers.get("location"), "/");
+    ok("/api/confirm: returnTo /to-check?saved=bill:<id> is kept, a malformed one goes Home");
   } finally {
     loader._load = realLoad;
     await pg.close();

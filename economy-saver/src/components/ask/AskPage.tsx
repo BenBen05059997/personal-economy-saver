@@ -483,7 +483,7 @@ export function AskPage({
         unavailable={unavailable} noModel={noModel} problem={problem} speechProblem={speech.problem} canvas={currentCanvas ? canvasBlock(currentCanvas) : null}
         canvasRef={canvasRef} scrollRef={scrollRef} onAsk={question => void ask(question, "manual")} onTakeCard={takeCard}
         onDocumentCanvas={(documentId, drawn) => showDocumentCanvas(documentId, drawn, true)} onThumb={(turn, which) => void thumb(turn, which)}
-        onRemoveTurn={removeFromThread} onRemoveLocalTurn={id => void removeLocalTurn(id)} removeOnDevice={onDevice.journal}
+        onRemoveTurn={removeFromThread} onRemoveLocalTurn={id => void removeLocalTurn(id)} removeOnDevice={onDevice.journal} pinDevice={onDevice.canvases ? { householdId } : undefined}
         onKept={() => { notesChanged(); onPanelChange?.(); }} sourceDisplay={sourceDisplay} onNoteLink={panel ? undefined : openNote} />
       {!readOnly && <AskComposer panel={panel} field={field} text={text} busy={busy} deviceReady={deviceReady} listening={listening} unavailable={unavailable}
         incognito={incognito} intro={intro} questionsLeft={questions} documentsLeft={documents} onText={value => { setText(value); setSource("manual"); requestId.current = ""; }} onSubmit={submit}

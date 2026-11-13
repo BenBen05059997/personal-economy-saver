@@ -47,7 +47,7 @@ check("The table has the old columns with children indented, and the line is the
   assert.equal(table.rows.filter(row => row.child).length, rows.reduce((n, row) => n + (row.children?.length ?? 0), 0));
   assert.equal(table.caption, "Where November goes, by category");
   assert.match(category.line!, /^November so far ¥[\d,]+ spent, ¥[\d,]+ still to come: ¥152,230 for the month, against ¥[\d,]+ in October\.$/);
-  assert.equal(category.title, "Where the month goes · November");
+  assert.equal(category.title, "Where this month goes");
 });
 
 check("month 2026-10 total 132,060, nothing still to come, titled for the past", () => {
@@ -99,7 +99,7 @@ check("Figures are integers and confirm every amount the line says; the card car
     assert.ok(result.aria.length > 0);
   }
   const html = renderToStaticMarkup(createElement(RankedBars, { result: resolve({ open: "food" }) }));
-  assert.match(html, /aria-label="Where the month goes/);
+  assert.match(html, /aria-label="Where this month goes/);
   assert.match(html, /Spent so far/);
   assert.match(html, /Still to come \(bills and statements you know of\)/);
   assert.match(html, /<i class="rb-key-tick"><\/i>October/);

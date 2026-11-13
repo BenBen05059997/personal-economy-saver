@@ -20,6 +20,19 @@ import { contextTail, THREAD_CONTEXT_MAX, turnWords } from "@/lib/agent/context"
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { restoreHousehold } from "@/db/restore";
 import { HouseholdSnapshot } from "@/lib/schema/household";
+import { householdDate } from "@/db/account";
+import { draftsOfTurns } from "@/db/ask-drafts";
+import { setBankBalance } from "@/db/bank-balance";
+import { billInput, insertBill, removeBill } from "@/db/bills";
+import { chargeInput, insertCharge, removeCharge } from "@/db/charges";
+import { confirmPending } from "@/db/confirm";
+import { loadMoneyState } from "@/db/household";
+import { addMember } from "@/db/people";
+import { potInput, savePot } from "@/db/pots";
+import { loadSpending } from "@/db/spending";
+import type { ViewResult } from "@/lib/views/types";
+import { chipOf } from "@/lib/agent/draft-card";
+import { HISTORY_MONTHS, monthBounds, monthsBack } from "@/lib/money/spending";
 
 const T0 = new Date("2026-11-06T09:00:00Z");
 const at = (minutes: number) => new Date(T0.getTime() + minutes * 60_000);
@@ -197,6 +210,83 @@ async function main() {
       assert.equal((await listCanvases(db, a))[0].recipe.title, "Changed");
       await assert.rejects(pinCanvas(db, b, { title: "x".repeat(81), recipe: recipe("x") }, { madeBy: "form" }), InputError);
       await assert.rejects(pinCanvas(db, b, { title: "ok", recipe: { ...recipe("x"), extra: 1 } }, { madeBy: "form" }), InputError);
+    });
+
+    await check("a turn's drafts are read from the rows now: waiting, confirmed, then not added, for a bill, a charge, a pot and a balance", async () => {
+      const d = await seedBen(db, { isDemo: true });
+      const aki = await addMember(db, d, { name: "Aki" });
+      const [card] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, d));
+      const owners = await db.select().from(schema.members).where(eq(schema.members.householdId, d));
+      await db.update(schema.cards).set({ memberId: owners.find(m => m.displayName === "Ben")!.id }).where(eq(schema.cards.id, card.id));
+      const rowsOf = (draft: { result: ViewResult | null }) => (draft.result as ViewResult<"before_after">).data!.rows;
+      const today = await householdDate(db, d);
+      const context = async () => {
+        const state = await loadMoneyState(db, d, today);
+        const current = today.slice(0, 7);
+        return { state, spending: await loadSpending(db, d, { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last }) };
+      };
+      const turnId = crypto.randomUUID(), by = { madeBy: "ask", askId: turnId } as const;
+      const ids = { bill: crypto.randomUUID(), charge: crypto.randomUUID(), pot: crypto.randomUUID(), balance: crypto.randomUUID() };
+      await insertBill(db, d, billInput.parse({ id: ids.bill, biller: "Fictional Water Works", amount: "6200", due: today.slice(0, 8) + "28", category: "utilities", memberId: aki }), "pending", by);
+      await insertCharge(db, d, chargeInput.parse({ id: ids.charge, cardId: card.id, merchant: "Fictional Market", amount: "8400", date: today, category: "food", shared: true }), "pending", "manual", by);
+      await savePot(db, d, potInput.parse({ id: ids.pot, name: "Trip to Osaka", target: "60000", targetDate: "2027-03-31", fillPct: "10" }), "pending", by);
+      await setBankBalance(db, d, { id: ids.balance, amount: "92000" }, "pending", by);
+      const other = crypto.randomUUID();
+      await insertBill(db, d, billInput.parse({ id: crypto.randomUUID(), biller: "Fictional unrelated", amount: "100", due: today, category: "other" }), "pending", { madeBy: "ask", askId: other });
+      await insertBill(db, d, billInput.parse({ id: crypto.randomUUID(), biller: "Fictional by hand", amount: "100", due: today, category: "other" }), "pending", { madeBy: "form" });
+
+      let read = await draftsOfTurns(db, d, [turnId], await context());
+      const [bill, charge, pot, balance] = read[turnId];
+      assert.deepEqual(read[turnId].map(x => [x.kind, x.state]), [["bill", "waiting"], ["charge", "waiting"], ["pot", "waiting"], ["balance", "waiting"]]);
+      assert.equal(chipOf(read[turnId]), "waiting");
+      assert.equal(Object.keys(read).length, 1, "only the turns asked about; a draft by hand belongs to no turn");
+      assert.deepEqual(bill.fields.map(f => f.label), ["Item", "Due", "Category", "Whose"]);
+      assert.equal(bill.fields[0].value, "Fictional Water Works · ¥6,200");
+      assert.equal(charge.fields.find(f => f.label === "Shared")?.value, "Ben ¥4,200, Aki ¥4,200");
+      assert.equal(pot.fields.find(f => f.label === "Target")?.value, "¥60,000 by Mar 31");
+      assert.equal(balance.fields[0].value, "¥92,000");
+      for (const draft of read[turnId]) { assert.equal(draft.result?.view, "what_changed"); assert.equal(draft.result?.figures.status, "pending"); assert.equal(draft.saved, null); }
+      const owed = rowsOf(charge).find(row => row.key.startsWith("owed-"));
+      assert.equal(owed?.change, "+¥8,400", "the charge moves the card's owed amount by exactly its amount");
+      assert.ok(rowsOf(charge).some(row => row.label === "Aki owes Ben" && row.after === "¥4,200"));
+      assert.equal(rowsOf(balance).find(row => row.key === "bank")?.after, "¥92,000");
+      assert.equal(bill.remove, "/api/remove"); assert.equal(pot.remove, "/api/pots/remove"); assert.equal(balance.remove, null, "To check has no way to remove a balance update");
+
+      for (const kind of ["charge", "pot", "balance"] as const) assert.equal(await confirmPending(db, d, kind, ids[kind]), true);
+      read = await draftsOfTurns(db, d, [turnId], await context());
+      assert.deepEqual(read[turnId].map(x => [x.kind, x.state]), [["bill", "waiting"], ["charge", "confirmed"], ["pot", "confirmed"], ["balance", "confirmed"]]);
+      assert.equal(chipOf(read[turnId]), "waiting", "one still waiting keeps the chip on waiting");
+      const [, c2, p2, b2] = read[turnId];
+      assert.equal(c2.title, `What changed: Fictional Market ¥8,400 on ${card.label}`);
+      assert.equal(c2.saved?.line.startsWith("Fictional Market · ¥8,400"), true);
+      assert.deepEqual(c2.result?.table?.head, ["", "Without it", "With it", "Change"]);
+      assert.equal(c2.result?.figures.status, "confirmed");
+      const moved = (draft: { result: ViewResult | null }) => rowsOf(draft).filter(row => row.change !== null && row.key !== "low").map(row => [row.key, row.before, row.after]);
+      assert.deepEqual(moved(c2), moved(charge), "after Confirm it shows the same two sides");
+      assert.equal(p2.title, "What changed: Pot \u201cTrip to Osaka\u201d");
+      assert.equal(p2.result?.figures.status, "confirmed");
+      assert.deepEqual(rowsOf(pot)[0], { key: "pots", label: "Saving pots", before: "0", after: "1", change: "+1" });
+      assert.deepEqual(rowsOf(p2)[0], rowsOf(pot)[0], "a saved pot reads the same count, from the engine");
+      assert.deepEqual(p2.result?.table?.head, ["", "Without it", "With it", "Change"]);
+      assert.match(pot.fields.find(f => f.label === "To get there")?.value ?? "", /^¥1[25],000 a month$/, "the monthly sum comes from the goal engine");
+      assert.ok(rowsOf(charge).every(row => row.key !== "low"), "the lowest-day row is left out when the item does not move it");
+      assert.equal(b2.result, null, "a saved balance keeps only its new amount, so there is no before to draw");
+      assert.equal(b2.saved?.line, "Bank balance ¥92,000");
+      assert.equal(b2.state, "confirmed");
+      assert.ok(b2.places.some(place => place.href === "/"));
+
+      assert.equal(await removeBill(db, d, ids.bill), true);
+      read = await draftsOfTurns(db, d, [turnId], await context());
+      assert.equal(read[turnId][0].state, "not_added");
+      assert.equal(read[turnId][0].name, "Fictional Water Works");
+      assert.equal(chipOf(read[turnId]), "confirmed");
+      assert.equal(chipOf([{ state: "not_added" }]), "not_added");
+      assert.equal(chipOf([]), null);
+      assert.equal(await removeCharge(db, d, ids.charge), true);
+      read = await draftsOfTurns(db, d, [turnId, other], await context());
+      assert.equal(read[turnId][1].state, "not_added");
+      assert.deepEqual(read[other].map(x => x.state), ["waiting"]);
+      assert.deepEqual(await draftsOfTurns(db, a, [turnId], await context()), {}, "another household's turn id reads nothing");
     });
 
     await check("turns and pins go with the household, and a Reset starts clean", async () => {

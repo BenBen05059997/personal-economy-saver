@@ -2023,8 +2023,8 @@
       "Open the link"
     ],
     "expected": [
-      "The page shows \"Ben · family view\", the date, the sentence with client names as plain text, Where the month goes, Shared bills coming up, Who owes whom and \"Nothing can be changed from here.\"",
-      "It has no links, buttons or forms and nothing scrolls sideways at 375px"
+      "The page shows \"Ben · family view\", the date, the sentence with client names as plain text, Where this month goes, Shared bills coming up, Who owes whom and \"Nothing can be changed from here.\"",
+      "It has no links or forms, no Ask about this, Pin to Home or File, and nothing scrolls sideways at 375px"
     ],
     "refs": []
   },
@@ -2097,7 +2097,7 @@
       "Wife added"
     ],
     "steps": [
-      "Open Spending, Where the month goes",
+      "Open Spending, Where this month goes",
       "Open a category",
       "Reset to Ben alone and look again"
     ],

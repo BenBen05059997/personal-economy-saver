@@ -22,11 +22,14 @@ import type { ViewContext, ViewId } from "@/lib/views/types";
 let passed = 0;
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+/** Ben has no pots: the views that take one draw this pot, with a tax bill to meet, added to his state. */
+const FIXTURE_POT = { id: "pot-fixture", name: "Tax", saved: 10_000, target: 60_000, targetDate: "2027-03-31", startedOn: "2026-11-01", fillPct: 20 };
+const withPot = (ctx: ViewContext): ViewContext => ({ ...ctx, state: { ...ctx.state, pots: [FIXTURE_POT], bills: [...ctx.state.bills, { id: "bill-fixture-tax", biller: "Resident tax", amount: 40_000, due: "2026-12-20", category: "government_tax" as const, businessBp: 0, status: "confirmed" as const }] } });
 /** The arguments a view needs to draw at all (the ones it requires); a view with none draws on `{}`. A later stage adds a line here for each view that takes a required id. */
 const defaultArgs = (view: ViewId, ctx: ViewContext): Record<string, unknown> => {
   switch (view) {
     case "search_months": return { text: "rent" };
-    case "goal_pace": case "tax_ahead": throw new Error(`${view} needs a pot; add its default to defaultArgs`);
+    case "goal_pace": case "tax_ahead": return { potId: FIXTURE_POT.id };
     case "card_cycle": return { cardId: ctx.state.cards[0].id };
     case "what_changed": return { itemId: ctx.state.bills.find(bill => bill.status === "pending")!.id };
     case "what_if": return { amountMinor: 40_000 };
@@ -67,8 +70,8 @@ async function main() {
 
     for (const view of liveViews()) {
       await check(`${view}: form, default arguments, integer figures, checked words, table or empty, aria and a figure`, () => {
-        const args = defaultArgs(view, ctx);
-        const result = resolveView(view, args, ctx);
+        const drawn = view === "goal_pace" || view === "tax_ahead" ? withPot(ctx) : ctx, args = defaultArgs(view, drawn);
+        const result = resolveView(view, args, drawn);
         assert.equal(result.view, view);
         assert.equal(result.form, VIEW_META[view].form, "VIEW_META and the resolver agree on the form");
         for (const [key, value] of Object.entries(result.figures)) if (key.endsWith("Minor") && value !== null) assert.ok(Number.isInteger(value), `${key} is an integer`);

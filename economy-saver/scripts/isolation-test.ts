@@ -21,6 +21,7 @@ import * as askViewMod from "@/db/ask-view"; // D60 Ask
 import * as canvasesMod from "@/db/canvases"; // D57 pins
 import * as conversationMod from "@/db/conversation"; // D60 conversation
 import * as askReceiptsMod from "@/db/ask-receipts"; // D59 ask receipts
+import * as askDraftsMod from "@/db/ask-drafts"; // D60 what a turn drafted
 import * as dataKindsMod from "@/db/data-kinds"; // D59 delete by kind
 import * as restoreMod from "@/db/restore"; // D59 import
 import * as placeMod from "@/db/place"; // D59 this device only
@@ -154,6 +155,8 @@ const covered = [
   "loadAskView", "listSpaceChoices", "listSpaces", "generalSpace", "seedGeneralSpace", "requireSpace", "createSpace", "renameSpace", "archiveSpace", "deleteSpace", "spaceThread", "legacyThreads", "saveBrief",
   // D70 history.ts
   "searchHistory", "resolveMemorySpace",
+  // D60 ask-drafts.ts
+  "draftsOfTurns",
   // D59 ask-receipts.ts
   "noteAskWrote", "claimAskReceipt", "releaseAskReceipt", "noteAskReply", "askReceipt", "pruneAskReceipts",
   // D61 document-card.ts
@@ -269,7 +272,7 @@ async function main() {
     ...rulesMod, ...suggestionsMod, ...remindersMod, // D64–D66
     ...memoryMod, // D58 memory
     ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
-    ...askViewMod, ...spacesMod, ...historyMod, // D69 spaces and D70 history
+    ...askViewMod, ...askDraftsMod, ...spacesMod, ...historyMod, // D69 spaces and D70 history
     ...ownCategoriesMod, ...addViewMod, // D75 own categories, the Add forms' view
     ...dataKindsMod, ...restoreMod, ...placeMod, // D59 delete by kind, import, where a kind is kept
   };
@@ -726,6 +729,18 @@ async function main() {
       assert.equal(await F.askReceipt(store, hid, receiptId) !== null, false);
       assert.equal(await F.turnById(store, hid, other.ids.turn), null, "another household's turn id reads nothing");
       assert.deepEqual(await F.spaceThread(store, hid, other.ids.turn), [], "another household's conversation id reads nothing");
+      // D60 drafts: each household's turn drafted its own pending bill; a turn id read through the other household's id returns nothing of it
+      await F.recordEvent(store, hid, { madeBy: "ask", askId: viewer.ids.turn, kind: "to_check", title: `${viewer.name} pending bill to check`, ref: { type: "bill", id: viewer.ids.billPending } });
+      await F.recordEvent(store, other.hid, { madeBy: "ask", askId: other.ids.turn, kind: "to_check", title: `${other.name} pending bill to check`, ref: { type: "bill", id: other.ids.billPending } });
+      const draftCtx = async (h: string) => ({ state: await F.loadMoneyState(store, h, DEMO_DATE), spending: await F.loadSpending(store, h, { from: "2025-11-01", to: "2027-12-31" }) });
+      const mineDrafts = await F.draftsOfTurns(store, hid, [viewer.ids.turn], await draftCtx(hid));
+      seen("draftsOfTurns", mineDrafts);
+      assert.deepEqual(mineDrafts[viewer.ids.turn]?.map(d => d.id), [viewer.ids.billPending], "the household's own turn brings its own draft");
+      const foreignDrafts = await F.draftsOfTurns(store, hid, [other.ids.turn], await draftCtx(hid));
+      assert.deepEqual(foreignDrafts, {}, "another household's turn id, read as this household, has no drafts");
+      assert.ok(!JSON.stringify(foreignDrafts).includes(other.ids.billPending) && !JSON.stringify(foreignDrafts).includes(other.name), "none of the other household's rows");
+      const both = await F.draftsOfTurns(store, hid, [viewer.ids.turn, other.ids.turn], await draftCtx(hid));
+      assert.deepEqual(Object.keys(both), [viewer.ids.turn], "asking for both turns returns only this household's");
       const assembled = await F.assembleContext(store, hid, { conversationId: mine.conversationId, canvas: null });
       assert.ok(assembled.context.includes(turns[0].question));
       seen("assembleContext", turns);

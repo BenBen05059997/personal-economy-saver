@@ -57,7 +57,7 @@ export function ThisMonth({ state, spending, ask, own, device }: { state: MoneyS
   if (questions[0].result.figures.unknown === 1) notes.unshift("Some amounts are not known and are not included in these totals.");
   return <>
     {queryRefusal && <p className="spending-line" role="alert">{queryRefusal}</p>}
-    {result && <SpendingResults result={result} typed={query} people={people} />}
+    {result && <SpendingResults result={result} typed={query} people={people} device={device} />}
     {monthRefusal && <p className="spending-line" role="alert">{monthRefusal}</p>}
     <ViewPanel id="month" questions={questions} nav={nav} notes={notes} device={device} switchLabel="Look at it by" />
   </>;

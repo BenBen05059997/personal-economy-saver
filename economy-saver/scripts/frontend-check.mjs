@@ -671,15 +671,19 @@ await step("page", "spending-where-the-month-goes", () => page("/spending", /Whe
   });
   if (familySession) {
     const together = /Together ¥88,780 · Ben ¥63,450 · Wife ¥0 this month/;
-    const familyWords = ["Ben · family view", "Where the month goes", "Shared bills coming up",
+    const familyWords = ["Ben · family view", "Where this month goes", "Shared bills coming up",
       "Who owes whom", "Nothing can be changed from here."];
     const privateWords = [...familyWords, "Acme Corp", "Northwind", "CloudBox Plus", "Wife", "¥88,780"];
     await step("action", "family-s-a-month-split", async () => {
-      expect(!together.test(pageContent(await page("/spending", /Where the month goes/))), "family-single-person");
+      expect(!together.test(pageContent(await page("/spending", /Where this month goes/))), "family-single-person");
       const added = await request("/api/people", { method: "POST", form: { kind: "add", name: "Wife" } });
       expect(added.response.status === 303, "family-add-person");
       const month = plain(pageContent(await page("/spending", together)));
       expect(month.includes("Shared ¥82,000") && month.includes("Ben ¥10,700"), "family-month-shares");
+    });
+    await step("page", "w4-people-who-owes-whom-with-two-people", async () => {
+      const content = plain(pageContent(await page("/household/people", /Who owes whom/)));
+      expect(content.includes("Who owes whom") && /Nothing has been shared since|Ben[\s\S]*Wife/.test(content), "people-who-owes-whom");
     });
     const link = await step("action", "family-s-b-make-a-link", async () => {
       const created = await request("/api/family-links", { method: "POST", form: { kind: "create" } });
@@ -704,7 +708,10 @@ await step("page", "spending-where-the-month-goes", () => page("/spending", /Whe
         const content = plain(pageContent(body));
         expect(together.test(content) && familyWords.every(word => content.includes(word)), "family-open-content");
         const view = markup(body).match(/<main\b[^>]*class="family-page"[^>]*>([\s\S]*?)<\/main>/i)?.[1];
-        expect(view && !/<(?:a|button|form)\b/i.test(view), "family-read-only");
+        // The only buttons are the pressed-state switches (Look at it by, Chart | Table) and the bars' expanders; they change what is drawn, never data.
+        expect(view && !/<(?:a|form)\b/i.test(view) && [...view.matchAll(/<button\b[^>]*>/gi)].every(([tag]) => /aria-pressed=|aria-expanded=/.test(tag)), "family-read-only");
+        expect(view && !/Ask about this|Pin to Home|File this|File it/i.test(text(view)), "family-no-ask-pin-file");
+        expect(content.includes("Where this month goes") && content.includes("Who owes whom"), "family-drawn-through-views");
       });
       await step("action", "family-s-b-stop-sharing", async () => {
         const stopped = await request("/api/family-links", { method: "POST", form: { kind: "stop", id: link.id } });
@@ -738,17 +745,26 @@ await step("page", "stage17-spending-search-box-and-no-results-without-a-query",
   expect(html.includes(`href="/spending?month=${lastMonth}"`) && !/aria-label="Next month/.test(html), "month-links-on-current-month");
 });
 await step("page", "stage17-spending-search-food", async () => {
-  const content = plain(pageContent(await page("/spending?q=food", /¥28,100 in all/)));
+  const html = await page("/spending?q=food", /¥28,100 in all/);
+  const content = plain(pageContent(html));
   expect(content.includes("Food: ¥10,700 in November (3 items), ¥11,440 in October (3 items), ¥5,960 in September (1 item); nothing in the other 9 months. ¥28,100 in all."), "food-summary-line");
-  const november = content.slice(content.indexOf("November ¥10,700"), content.indexOf("October ¥11,440"));
-  expect(november.includes("Food ¥10,700"), "food-november-by-category");
-  for (const item of ["Minato Fresh Market Nov 13 ¥1,400", "Kissa Midori café Nov 12 · Food › Coffee ¥1,880", "Minato Fresh Market Nov 8 ¥7,420"]) expect(november.includes(item), "food-november-item");
-  expect(!content.includes("August ¥0"), "zero-month-block");
+  // The month lists sit in the panel's Table, so the page carries them as server-tree data, not as visible text.
+  const list = flight(html);
+  const novemberAt = list.indexOf('"aria-label":"November 2026"'), octoberAt = list.indexOf('"aria-label":"October 2026"');
+  const november = list.slice(novemberAt, octoberAt);
+  expect(novemberAt >= 0 && octoberAt > novemberAt && november.includes('"children":"Food ¥10,700"'), "food-november-by-category");
+  for (const item of ["Minato Fresh Market", "Kissa Midori café", "¥1,400", "¥1,880", "¥7,420", " · Food › Coffee"]) expect(november.includes(item), "food-november-item");
+  expect(!list.includes('"aria-label":"August 2026"'), "zero-month-block");
   expect(content.includes("Business ¥32,830 of ¥152,230 this month"), "month-view-unchanged-by-search");
 });
+await step("page", "w4-spending-search-by-month-columns", async () => {
+  const content = plain(pageContent(await page("/spending?q=food", /by month/)));
+  expect(content.includes("“food” by month") && content.includes("Pin to Home"), "search-by-month-columns");
+});
 await step("page", "stage17-spending-search-hotel-finds-hakone", async () => {
-  const content = plain(pageContent(await page("/spending?q=hotel", /Hakone/))).replaceAll("&quot;", "\"");
-  expect(content.includes("\"hotel\": ¥28,600 in September (1 item); nothing in the other 11 months. ¥28,600 in all.") && content.includes("Hotel Kazemachi Hakone Sep 22 ¥28,600"), "hotel-result");
+  const html = await page("/spending?q=hotel", /Hakone/);
+  const content = plain(pageContent(html)).replaceAll("&quot;", "\"");
+  expect(content.includes("\"hotel\": ¥28,600 in September (1 item); nothing in the other 11 months. ¥28,600 in all.") && flight(html).includes("Hotel Kazemachi Hakone") && flight(html).includes('"Sep 22"'), "hotel-result");
 });
 await step("page", "stage17-spending-search-nothing-matches", async () => {
   const content = plain(pageContent(await page("/spending?q=zzz", /Nothing matches/)));
@@ -763,7 +779,7 @@ await step("page", "stage17-spending-last-month", async () => {
 });
 await step("guard", "stage17-spending-month-out-of-range-refused-in-words", async () => {
   const content = plain(pageContent(await page("/spending?month=2020-01", /Spending shows the last 12 months/)));
-  expect(content.includes("Spending shows the last 12 months, December 2025 to November 2026. Here is November.") && content.includes("Where the month goes"), "month-refusal");
+  expect(content.includes("Spending shows the last 12 months, December 2025 to November 2026. Here is November.") && content.includes("Where this month goes"), "month-refusal");
 });
 // The graph panels (D77): each page's panel heading and its questions render on the Try it household.
 await step("page", "panel-clients-money-in", async () => {
@@ -791,6 +807,12 @@ await step("page", "stage18-regular-costs-before-confirm", async () => {
   expect(panel.includes("Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far"), "regular-changed-line");
   expect(/Hikari Denki Utilities not in yet Last month ¥10,020 · usually on the 25th Sep ¥8,640 · Oct ¥10,020 · Nov not in yet/.test(panel), "regular-hikari-not-yet");
   expect(panel.includes("Rent Housing ¥82,000 Last month ¥82,000 · same Sep ¥82,000 · Oct ¥82,000 · Nov ¥82,000"), "regular-rent-same");
+});
+await step("page", "w4-regular-costs-columns-on-over-time", async () => {
+  const html = await page("/spending/over-time", /Regular costs/);
+  const content = plain(pageContent(html));
+  expect(content.indexOf("Month by month") >= 0 && content.indexOf("Regular costs") > content.indexOf("Month by month"), "regular-costs-after-columns");
+  expect((content.match(/Pin to Home/g) ?? []).length >= 2, "regular-costs-pin");
 });
 await step("page", "seeded-invoice-review-read-only", async () => {
   const id = home?.match(/href="\/invoices\/([0-9a-f-]{36})"/i)?.[1]
@@ -1296,12 +1318,14 @@ await step("action", "stage15b-three-field-bill-with-guessed-defaults", async ()
   await step("page", "stage19-gaps-b-to-check-and-the-month-view", async () => {
     const check = await content("/to-check", /Missing/);
     expect(check.includes("Minato Gas, due Nov 20: how much?") && check.includes("Not counted until you enter it") && check.includes("Could change your forecast"), "s19b-missing-row");
-    const month = await content("/spending", /Where the month goes/);
+    const month = await content("/spending", /Where this month goes/);
     expect(month.includes("1 bill not counted: Minato Gas (amount not known)") && !/Utilities\s*¥0/.test(month), "s19b-month-line");
-    const search = await content("/spending?q=gas", /Minato Gas Nov 20/);
+    // The search's month lists sit in the panel's Table, so the page carries them as server-tree data.
+    const searchHtml = await page("/spending?q=gas", /Minato Gas/);
+    const search = plain(pageContent(searchHtml)), list = flight(searchHtml);
     expect(!search.includes("Nothing matches"), "s19b-search-not-empty");
-    expect(search.includes("Minato Gas Nov 20 amount not known") && search.includes("1 bill not counted: Minato Gas (amount not known)"), "s19b-search-row");
-    expect(search.includes("November amount not known") && !/Utilities\s*¥0/.test(search), "s19b-search-header-not-zero");
+    expect(list.includes("Minato Gas") && list.includes('"Nov 20"') && list.includes("amount not known") && search.includes("1 bill not counted: Minato Gas (amount not known)"), "s19b-search-row");
+    expect(list.includes('"children":"amount not known"') && !/Utilities\s*¥0/.test(list), "s19b-search-header-not-zero");
   });
   await step("action", "stage19-gaps-b-fill-removes-the-note", async () => {
     const filled = await request("/api/bills", { method: "POST", form: { kind: "fill", id: gas.id, amount: "6,800", returnTo: "/" } });
@@ -1317,7 +1341,7 @@ await step("action", "long-uncounted-bill-appears-in-ask-and-spending-notes", as
     due: "2026-11-25", category: "utilities", businessShare: "personal", amountUnknown: "on" } });
   expect(added.response.status === 303, "long-bill-saved");
   const ask = plain(pageContent(await page("/canvas", /This month/)));
-  const month = plain(pageContent(await page("/spending", /Where the month goes/)));
+  const month = plain(pageContent(await page("/spending", /Where this month goes/)));
   expect(ask.includes(`Not counted: ${name} (amount not known).`), "long-bill-ask-note");
   expect(month.includes(`1 bill not counted: ${name} (amount not known)`), "long-bill-month-note");
 });

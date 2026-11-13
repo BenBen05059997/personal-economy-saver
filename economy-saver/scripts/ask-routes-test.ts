@@ -298,6 +298,63 @@ async function main() {
       ok("/api/ask/view and /api/canvas/resolve share the per-household canvas bucket of 120 a minute");
     }
 
+    // ------------------------------------------------------------ the draft card and the reply's chip (D60, D61)
+    {
+      const drafts = (await import("@/app/api/ask/drafts/route")).GET;
+      const view = (await import("@/app/api/ask/view/route")).GET;
+      const remove = (await import("@/app/api/remove/route")).POST as Handler;
+      const { insertCharge } = await import("@/db/charges"), { chargeInput } = await import("@/db/charges");
+      const { insertBill, billInput } = await import("@/db/bills");
+      const { savePot, potInput } = await import("@/db/pots");
+      const { setBankBalance } = await import("@/db/bank-balance");
+      const { AskPage } = await import("@/components/ask/AskPage");
+      const hid = await seedBen(db, { isDemo: true }), general = await generalSpace(db, hid);
+      const [card] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid));
+      const day = (await db.select({ today: schema.households.fixedToday }).from(schema.households).where(eq(schema.households.id, hid)))[0].today!;
+      const turn = crypto.randomUUID(), by = { madeBy: "ask", askId: turn } as const;
+      await saveTurn(db, hid, { id: turn, conversationId: general.id, question: "I paid 1,200 for lunch", kind: "answer", reply: "I have drafted it. Check it below, then confirm.", choices: null, recipe: null, sources: [] });
+      const charge = crypto.randomUUID(), bill = crypto.randomUUID(), pot = crypto.randomUUID(), balance = crypto.randomUUID();
+      await insertCharge(db, hid, chargeInput.parse({ id: charge, cardId: card.id, merchant: "Fictional Lunch Bar", amount: "1200", date: day, category: "food" }), "pending", "manual", by);
+      await insertBill(db, hid, billInput.parse({ id: bill, biller: "Fictional Gas Works", amount: "4300", due: day, category: "utilities" }), "pending", by);
+      await savePot(db, hid, potInput.parse({ id: pot, name: "Fictional trip", target: "50000", targetDate: "2027-03-31" }), "pending", by);
+      await setBankBalance(db, hid, { id: balance, amount: "70000" }, "pending", by);
+
+      const get = (ids: string, site = "same-origin") => drafts(new Request(`${ORIGIN}/api/ask/drafts?ids=${ids}`, { headers: { "sec-fetch-site": site } }));
+      cookie = null;
+      assert.equal((await get(turn)).status, 401, "no session");
+      cookie = hid;
+      for (const ids of ["", "not-a-uuid", `${turn},nope`, Array.from({ length: 41 }, () => crypto.randomUUID()).join(",")]) assert.equal((await get(ids)).status, 400, `ids ${ids.slice(0, 20)}`);
+      const read = async (ids = turn) => { const r = await get(ids); assert.equal(r.status, 200); assert.equal(r.headers.get("cache-control"), "private, no-store"); return (await r.json() as { drafts: Record<string, import("@/lib/agent/view").DraftView[]> }).drafts; };
+      assert.deepEqual((await read())[turn].map(d => [d.kind, d.state]), [["charge", "waiting"], ["bill", "waiting"], ["pot", "waiting"], ["balance", "waiting"]]);
+      cookie = b;
+      assert.deepEqual(await read(), {}, "another household reads nothing of this turn");
+      cookie = hid;
+
+      const page = async () => { const r = await view(new Request(`${ORIGIN}/api/ask/view`, { headers: { "sec-fetch-site": "same-origin" } })); return r.json() as Promise<AskView>; };
+      const waiting = renderToStaticMarkup(createElement(AskPage, { ...(await page()), variant: "panel" }));
+      assert.match(waiting, /ask-chip is-waiting[^>]*>Waiting for your OK</);
+      for (const words of ["Card charge · drafted by Ask · not saved yet", "If you confirm", "Fictional Lunch Bar · ¥1,200", "Don&#x27;t add Fictional Lunch Bar", "Also waiting in"]) assert.ok(waiting.includes(words) || waiting.includes(words.replace("&#x27;", "&rsquo;")) || waiting.includes(words.replace("&#x27;", "\u2019")), words);
+      assert.equal((waiting.match(/>Confirm</g) ?? []).length, 4, "Confirm on every card");
+      assert.equal((waiting.match(/>Edit</g) ?? []).length, 4);
+      assert.equal((waiting.match(/>Don(?:&#x27;|\u2019|’)t add</g) ?? []).length, 3, "a bank balance has no Don't add (To check has none either)");
+
+      const confirmed = async (kind: string, id: string) => { const f = new FormData(); f.set("kind", kind); f.set("id", id); f.set("returnTo", `/canvas?space=${general.id}`); return say(await confirm(post("/api/confirm", f))); };
+      assert.equal((await confirmed("charge", charge)).status, 303);
+      let now = await read();
+      assert.deepEqual(now[turn].map(d => d.state), ["confirmed", "waiting", "waiting", "waiting"]);
+      assert.equal(now[turn][0].title, `What changed: Fictional Lunch Bar ¥1,200 on ${card.label}`);
+      const removeForm = new FormData(); removeForm.set("kind", "bill"); removeForm.set("id", bill);
+      assert.equal((await say(await remove(post("/api/remove", removeForm)))).status, 303);
+      for (const [kind, id] of [["pot", pot], ["balance", balance]] as const) assert.equal((await confirmed(kind, id)).status, 303);
+      now = await read();
+      assert.deepEqual(now[turn].map(d => d.state), ["confirmed", "not_added", "confirmed", "confirmed"]);
+      const saved = renderToStaticMarkup(createElement(AskPage, { ...(await page()), variant: "panel" }));
+      assert.match(saved, /ask-chip is-confirmed[^>]*>.*Confirmed</, "a reload shows the current state, not the state the words were written in");
+      for (const words of ["Saved", "What changed: Fictional Lunch Bar ¥1,200 on", "Bank balance ¥70,000", "Pin to Home", "See Saving", "See Home", "Not added: Fictional Gas Works"]) assert.ok(saved.includes(words), words);
+      assert.ok(!saved.includes("If you confirm"), "nothing waits any more");
+      ok("the draft card and the reply's chip: read from the rows now through /api/ask/drafts and the thread, Confirm and Don't add use To check's routes, a reload shows the current state");
+    }
+
     // ------------------------------------------------------------ /api/ask: body, input, limit
     cookie = a;
     const MAX = 128 * 1024;

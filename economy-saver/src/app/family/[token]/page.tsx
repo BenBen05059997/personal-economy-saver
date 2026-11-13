@@ -20,9 +20,9 @@ async function Family({ params }: { params: Promise<{ token: string }> }) {
   await connection(); // whether a link is still live depends on the time of the request
   const hid = await resolveFamilyLink(db(), token);
   if (!hid) notFound();
-  const { name, state } = await withHousehold(db(), hid, tx => loadFamilyView(tx, hid),
+  const { name, context } = await withHousehold(db(), hid, tx => loadFamilyView(tx, hid),
     { isolationLevel: "repeatable read", accessMode: "read only" });
-  return <FamilyView name={name} state={state} />;
+  return <FamilyView name={name} context={context} />;
 }
 
 export default function Page({ params }: { params: Promise<{ token: string }> }) {

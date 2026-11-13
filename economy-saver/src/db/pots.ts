@@ -12,6 +12,7 @@ import { observeRunway } from "./runway-events";
 import { households, members, pots } from "./schema";
 import { Currency } from "@/lib/catalogue/types";
 import { minorMoney } from "@/lib/money/format";
+import { fillShare } from "@/lib/money/pots";
 
 export const potInput = z.object({
   id: z.string().uuid(),
@@ -190,7 +191,7 @@ export async function fillPots(tx: Db, householdId: string, creditedMinor: numbe
     .orderBy(pots.createdAt, pots.name, pots.id);
   let filled = 0;
   for (const pot of rules) {
-    const share = Number((BigInt(creditedMinor) * BigInt(pot.fillBp!) * BigInt(2) + BigInt(10_000)) / BigInt(20_000)); // half up, exact beyond 2^53
+    const share = fillShare(creditedMinor, pot.fillBp!);
     if (share === 0) continue;
     await tx.update(pots).set({ savedMinor: sql`${pots.savedMinor} + ${share}` }).where(and(eq(pots.householdId, hid), eq(pots.id, pot.id)));
     await recordEvent(tx, hid, { madeBy: "form",

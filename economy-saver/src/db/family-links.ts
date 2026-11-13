@@ -6,6 +6,7 @@ import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { FAMILY_LINK_DAYS, MAX_LIVE_FAMILY_LINKS } from "@/lib/family-links";
 import { InputError } from "./input-error";
 import { householdClockRow, loadMoneyState, recordEvent, requireHousehold, type Db } from "./household";
+import { loadViewContext } from "@/lib/views/load";
 import { clockForHousehold, householdMoment, type ClockHousehold } from "./clock";
 import { familyLinks, households, members } from "./schema";
 
@@ -84,13 +85,14 @@ export async function resolveFamilyLink(db: Db, token: string, now = new Date())
   return row?.householdId ?? null;
 }
 
-/** What the family page shows for a household the token opened: its name and the money state at its own clock. Read only. */
+/** What the family page shows for a household the token opened: its name and what the views draw from, at the household's own clock. Read only; no PayPal details and no emails. The page draws the month by category and by person, who owes whom and the shared bills; only the month needs the spending. */
 export async function loadFamilyView(db: Db, householdId: string) {
   const hid = requireHousehold(householdId);
   return db.transaction(async tx => {
     const [household] = await tx.select().from(households).where(eq(households.id, hid));
     if (!household) throw new Error("Household not found");
     const { today } = clockForHousehold(household);
-    return { name: household.name, state: await loadMoneyState(tx, hid, today, household) };
+    const state = await loadMoneyState(tx, hid, today, household);
+    return { name: household.name, state, context: await loadViewContext(tx, hid, ["spending"], { state }) };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }

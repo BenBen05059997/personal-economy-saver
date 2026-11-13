@@ -11,27 +11,42 @@ import { Detail, ListPage } from "@/components/household/ListPage";
 import { Sankey } from "@/components/views/forms/Sankey";
 import { RunwayBar } from "@/components/views/forms/RunwayBar";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
+import { GoalLine } from "@/components/views/forms/GoalLine";
+import { StepLine } from "@/components/views/forms/StepLine";
 import { ViewPanel, type PanelQuestion } from "@/components/views/ViewPanel";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { readPlaces } from "@/db/place";
 import { currentHouseholdId } from "@/lib/session";
 import { loadViewContext } from "@/lib/views/load";
+import { goalPaceView } from "@/lib/views/v/goal-pace";
+import { taxAheadView } from "@/lib/views/v/tax-ahead";
 import { bufferMonthsView, moneyFlowView, savingsRateView } from "@/lib/views/v/keep";
 import type { ViewResult } from "@/lib/views/types";
 import { PotFields } from "./PotFields";
 import "@/components/household/household.css";
 import "./saving.css";
 
+/** A pot's own panel (D77): only the questions that apply to it, its pace when it has a target and a date and the tax ahead when it has a fill rule; the switch only when both do (D73). */
+async function PotViews({ state, pot }: { state: MoneyState; pot: Pot }) {
+  const hid = await currentHouseholdId();
+  if (!hid) return null;
+  const ctx = { state }, questions: PanelQuestion[] = [];
+  if (goalPace(pot, state)) { const pace = goalPaceView({ potId: pot.id }, ctx) as ViewResult<"goal_line">; questions.push({ key: "pace", label: "Its pace", heading: "Its pace", result: pace, figure: <GoalLine key="pace" result={pace} /> }); }
+  if (pot.fillPct !== undefined) { const tax = taxAheadView({ potId: pot.id }, ctx) as ViewResult<"step_line">; questions.push({ key: "tax", label: "Tax ahead", heading: "Tax ahead", result: tax, figure: <StepLine key="tax" result={tax} /> }); }
+  if (questions.length === 0) return null;
+  const places = await withHousehold(db(), hid, tx => readPlaces(tx, hid), { isolationLevel: "repeatable read", accessMode: "read only" });
+  return <ViewPanel id={`pot-${pot.id}`} questions={questions} switchLabel="Look at" device={places.canvases === "device" ? { householdId: hid } : undefined} />;
+}
+
 function PotPanel({ state, pot }: { state: MoneyState; pot: Pot }) {
   const money = (n: number) => majorMoney(n, state.homeCurrency);
   const line = potLine(pot, state);
-  const goal = goalPace(pot, state);
   const back = `/saving/${pot.id}`;
   return <Detail title={pot.name} close="/saving">
     <p className="directory-big">{money(pot.saved)}</p><p className="ui-hint">Saved</p>
     {line && <p className="saving-line">{line}</p>}
-    {goal && goal.neededMinor > 0 && <p className="ui-hint">{goal.paceLine}</p>}
+    <PotViews state={state} pot={pot} />
     <details className="directory-edit" open>
       <summary>Edit</summary>
       <ApiForm action="/api/pots">
@@ -58,9 +73,9 @@ async function WhatYouKeep({ state }: { state: MoneyState }) {
   const heading = "What you keep";
   const flow = moneyFlowView({}, ctx) as ViewResult<"sankey">, kept = savingsRateView({}, ctx) as ViewResult<"stacked_columns">, lasts = bufferMonthsView({}, ctx) as ViewResult<"runway_bar">;
   const questions: PanelQuestion[] = [
-    { key: "flow", label: "Where each payment went", heading, result: flow, figure: <Sankey result={flow} /> },
-    { key: "kept", label: "What you kept", heading, result: kept, figure: <StackedColumns result={kept} /> },
-    { key: "lasts", label: "How long it lasts", heading, result: lasts, figure: <RunwayBar result={lasts} /> },
+    { key: "flow", label: "Where each payment went", heading, result: flow, figure: <Sankey key="flow" result={flow} /> },
+    { key: "kept", label: "What you kept", heading, result: kept, figure: <StackedColumns key="kept" result={kept} /> },
+    { key: "lasts", label: "How long it lasts", heading, result: lasts, figure: <RunwayBar key="lasts" result={lasts} /> },
   ];
   return <ViewPanel id="keep" questions={questions} switchLabel="Look at" device={places.canvases === "device" ? { householdId: hid } : undefined} />;
 }

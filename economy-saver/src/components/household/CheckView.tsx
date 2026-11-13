@@ -13,9 +13,11 @@ import { missingForwardingSetting } from "@/components/reader/ForwardingSettings
 import { PanelHint } from "@/components/ui/PanelHint";
 import { ConfirmButton } from "./ConfirmButton";
 import { GapFill } from "./GapFill";
+import { SavedLine } from "./SavedLine";
+import type { ViewResult } from "@/lib/views/types";
 
-export function CheckView({ state, inbox, own, from }: {
-  from?: "home";
+export function CheckView({ state, inbox, own, from, saved }: {
+  from?: "home"; saved?: { what: string; result: ViewResult | null };
   state: MoneyState; inbox: ReaderInbox; own: OwnChoices;
 }) {
   const forwarding = missingForwardingSetting() === null;
@@ -27,6 +29,7 @@ export function CheckView({ state, inbox, own, from }: {
   const checkWords = (id: string) => { const proposal = proposals.get(id); return proposal ? checksFor(proposal, state, readings).filter(check => check.kind !== "missing").map(check => check.words) : []; };
   return <>
     <h1 className="ui-title">To check</h1>
+    {saved && <SavedLine what={saved.what} result={saved.result} />}
     {rows.length + missing.length + inbox.readings.length + inbox.jobs.length === 0 && <PanelHint href={forwarding ? "/bills#forwarding" : "/upload"} label={forwarding ? "Forward a bill or upload a receipt" : "Upload a receipt"}>Things the app read or drafted, waiting for your OK. Nothing here now.</PanelHint>}
     {missing.length > 0 && <section aria-labelledby="check-missing" className="check-missing">
       <h2 id="check-missing" className="check-missing-title">Missing</h2>
@@ -41,7 +44,7 @@ export function CheckView({ state, inbox, own, from }: {
         {checkWords(row.id).map(words => <p key={words} className="ui-hint check-line">{words}</p>)}
         {row.kind === "bill" && row.gap && <GapFill id={row.id} missing={[...(row.gap.amount ? ["amount" as const] : []), ...(row.gap.date ? ["date" as const] : [])]} today={state.today} currency={state.homeCurrency} />}</div>
       <div className={row.amount !== null ? "num check-amount" : "num"}>{row.amount !== null ? format(row.amount) : row.kind === "bill" && row.gap && [row.gap.amount, row.gap.date].filter(Boolean).join(" · ")}</div>
-      <ConfirmButton kind={row.kind} id={row.id} title={row.title} onCheckPage returnTo={from === "home" ? "/" : "/to-check"} />
+      <ConfirmButton kind={row.kind} id={row.id} title={row.title} onCheckPage returnTo={from === "home" ? "/" : row.kind === "bill" || row.kind === "charge" ? `/to-check?saved=${row.kind}:${row.id.split("@")[0]}` : "/to-check"} />
     </div>)}
     {inbox.jobs.some(job => job.status !== "failed") && <p className="ui-hint">Reading the document… usually under 30 seconds</p>}
     <ReaderReview state={state} inbox={inbox} own={own} />

@@ -32,19 +32,6 @@
 .canvas-goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
 .canvas-goals li { display: grid; min-width: 0; align-content: start; gap: var(--space-2); overflow-wrap: anywhere; }
 .canvas-goals .canvas-number { white-space: normal; }
-/* flow chart */
-.canvas-chart { margin: 0; }
-.canvas-plot { position: relative; height: 180px; }
-.canvas-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.canvas-baseline { fill: none; stroke: var(--rule); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.canvas-line { fill: none; stroke: var(--chart); stroke-width: 2; vector-effect: non-scaling-stroke; }
-.canvas-zero { position: absolute; left: 0; transform: translateY(-110%); color: var(--faint); font: 400 11px/1 var(--sans); }
-.canvas-dot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; border: 2px solid var(--chart); background: var(--screen); }
-.canvas-dot.is-short { border-color: var(--red); }
-.canvas-low { position: absolute; transform: translate(-50%, 10px); white-space: nowrap; color: var(--ink); font: 500 12px/1 var(--sans); font-variant-numeric: tabular-nums; }
-.canvas-mark { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; box-sizing: border-box; border-radius: 50%; border: 2px solid var(--ink); pointer-events: none; }
-.canvas-mark-label { position: absolute; transform: translate(-50%, calc(-100% - 12px)); white-space: nowrap; color: var(--ink); font: 600 12px/1 var(--sans); font-variant-numeric: tabular-nums; }
-.canvas-chart figcaption { display: flex; justify-content: space-between; gap: var(--space-2); margin-top: var(--space-1); color: var(--muted); font: 400 12px/1.3 var(--sans); }
 /* timeline */
 .canvas-rows { display: grid; margin: 0; padding: 0; list-style: none; }
 .canvas-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto auto; gap: var(--space-3); align-items: baseline; padding-block: var(--space-2); border-top: 1px solid var(--rule); font: 400 14px/1.4 var(--sans); }
@@ -71,24 +58,6 @@
 .canvas-table tr.is-up td:last-child { color: var(--red); }
 .canvas-table tr.is-down td:last-child { color: var(--green); }
 .canvas-table tr.is-short td { color: var(--red); }
-/* comparison */
-.canvas-legend { display: flex; gap: var(--space-4); color: var(--muted); font: 400 12px/1.3 var(--sans); }
-.canvas-legend span::before, .canvas-bar i { background: var(--faint); }
-.canvas-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; }
-.canvas-legend span.is-new::before, .canvas-bar.is-new i { background: var(--chart); }
-.canvas-compare { display: grid; gap: var(--space-3); }
-.canvas-compare-row { display: grid; grid-template-columns: 9em minmax(0, 1fr); gap: var(--space-1) var(--space-3); align-items: center; }
-.canvas-compare-name { font: 400 14px/1.3 var(--sans); overflow-wrap: anywhere; }
-.canvas-compare-name small { display: block; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.canvas-bars { display: grid; gap: 3px; min-width: 0; }
-.canvas-bar { display: flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--muted); font: 400 12px/1.2 var(--sans); font-variant-numeric: tabular-nums; }
-.canvas-bar.is-new { color: var(--ink); }
-.canvas-bar i { display: block; height: 10px; min-width: 2px; max-width: calc(100% - 7em); border-radius: 0 4px 4px 0; }
-.canvas-bar-name { flex: none; width: 4.5em; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.canvas-bar-name ~ i { max-width: calc(100% - 12em); }
-.canvas-switch { display: flex; gap: var(--space-2); margin: var(--space-2) 0; }
-.canvas-switch .ui-button[aria-pressed="true"] { border-color: var(--accent-border); background: var(--accent); color: var(--on-accent); }
-.canvas-bar em { font-style: normal; white-space: nowrap; }
 /* sliders */
 .canvas-sliders { display: grid; gap: var(--space-4); }
 .canvas-slider { display: grid; gap: var(--space-1); }
@@ -105,8 +74,5 @@
   .canvas-sentence { font-size: 22px; }
   .canvas-row { grid-template-columns: 48px minmax(0, 1fr) auto; }
   .canvas-balance { grid-column: 2 / -1; text-align: left; min-width: 0; }
-  .canvas-compare-row { grid-template-columns: minmax(0, 1fr); }
-  .canvas-plot { height: 160px; }
 }
-@media (prefers-reduced-motion: no-preference) { .canvas-line { transition: d .2s ease; } }
 /* the page around it */

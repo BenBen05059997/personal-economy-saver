@@ -986,6 +986,70 @@
                   },
                   "view": {
                     "type": "string",
+                    "const": "fixed_costs"
+                  },
+                  "args": {
+                    "type": "object",
+                    "properties": {
+                      "months": {
+                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/4/properties/args/properties/months"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "view",
+                  "args"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "view"
+                  },
+                  "view": {
+                    "type": "string",
+                    "const": "search_months"
+                  },
+                  "args": {
+                    "type": "object",
+                    "properties": {
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "months": {
+                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/4/properties/args/properties/months"
+                      }
+                    },
+                    "required": [
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "view",
+                  "args"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "view"
+                  },
+                  "view": {
+                    "type": "string",
                     "const": "money_flow"
                   },
                   "args": {
@@ -1122,6 +1186,65 @@
                   },
                   "view": {
                     "type": "string",
+                    "const": "fx_cost"
+                  },
+                  "args": {
+                    "type": "object",
+                    "properties": {
+                      "months": {
+                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/4/properties/args/properties/months"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "view",
+                  "args"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "view"
+                  },
+                  "view": {
+                    "type": "string",
+                    "const": "goal_pace"
+                  },
+                  "args": {
+                    "type": "object",
+                    "properties": {
+                      "potId": {
+                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/1/properties/args/properties/late/properties/clientId"
+                      }
+                    },
+                    "required": [
+                      "potId"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "view",
+                  "args"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "view"
+                  },
+                  "view": {
+                    "type": "string",
                     "const": "bills_calendar"
                   },
                   "args": {
@@ -1188,6 +1311,30 @@
                   },
                   "view": {
                     "type": "string",
+                    "const": "who_owes_whom"
+                  },
+                  "args": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "view",
+                  "args"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "view"
+                  },
+                  "view": {
+                    "type": "string",
                     "const": "what_changed"
                   },
                   "args": {
@@ -1199,6 +1346,42 @@
                     },
                     "required": [
                       "itemId"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "type",
+                  "view",
+                  "args"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "view"
+                  },
+                  "view": {
+                    "type": "string",
+                    "const": "tax_ahead"
+                  },
+                  "args": {
+                    "type": "object",
+                    "properties": {
+                      "potId": {
+                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/1/properties/args/properties/late/properties/clientId"
+                      },
+                      "days": {
+                        "type": "integer",
+                        "minimum": 30,
+                        "maximum": 180
+                      }
+                    },
+                    "required": [
+                      "potId"
                     ],
                     "additionalProperties": false
                   }

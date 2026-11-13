@@ -36,7 +36,7 @@ export function starterRecipes(state: MoneyState, nudgeIds: readonly string[] = 
       { type: "number", label: "Safe to spend", query: { q: "safe_to_spend" }, note: "The lowest your balance gets in the next 30 days, if clients pay late." },
       { type: "number", label: "Cash today", query: { q: "cash" }, note: "Bank and PayPal, less your pots." },
       { type: "number", label: "Lowest point", query: { q: "low_point" } },
-      { type: "flow_chart", query: { q: "flow" } },
+      { type: "view", view: "forecast", args: {} },
       { type: "timeline", query: { q: "events" } },
       ...(action ? [action] : []),
     ],

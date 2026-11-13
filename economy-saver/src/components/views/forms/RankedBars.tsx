@@ -13,8 +13,9 @@ export function RankedBars({ result }: { result: ViewResult<"ranked_bars"> }) {
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set(data.open ? [data.open] : [])); // which rows show their children; kept here, not stored
   const toggle = (key: string) => setOpened(previous => { const next = new Set(previous); if (!next.delete(key)) next.add(key); return next; });
   const everyRow = data.rows.flatMap(row => [row, ...(row.children ?? [])]);
-  const top = Math.max(1, ...everyRow.flatMap(row => [row.total, row.tick ?? 0])), step = niceStep(top, 4), max = Math.ceil(top / step) * step;
+  const top = Math.max(1, ...everyRow.flatMap(row => [row.total, row.tick ?? 0])), step = niceStep(top, 4, minorPerUnit(result.currency)), max = Math.ceil(top / step) * step;
   const ticks: number[] = []; for (let v = 0; v <= max + step / 2; v += step) ticks.push(v);
+  if (everyRow.every(row => row.total === 0 && (row.tick ?? 0) === 0)) ticks.splice(1); // nothing to measure: the baseline alone
   const pct = (value: number) => `${(value / max) * 100}%`;
   const row = everyRow.find(item => item.key === active);
   const hasKids = data.rows.some(item => (item.children ?? []).length > 0);

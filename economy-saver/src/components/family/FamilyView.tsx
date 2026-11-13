@@ -1,23 +1,38 @@
-import { MonthSplit } from "@/components/spending/MonthSplit";
+import { MonthList } from "@/components/spending/MonthSplit";
 import { homeDateLabel } from "@/components/ui/dates";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { Sentence } from "@/components/home/Sentence";
-import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
+import { RankedBars } from "@/components/views/forms/RankedBars";
+import { ViewPanel, type PanelQuestion } from "@/components/views/ViewPanel";
+import { ViewTable } from "@/components/views/ViewTable";
 import { homeSentence } from "@/lib/money/sentence";
-import { sharedBillsComing } from "@/lib/money/family";
-import { aboutMoney, dayLabel, minorMoney } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
-import { splitBalance, transferLine } from "@/lib/money/split";
-import type { MoneyState } from "@/lib/money/types";
+import { resolveView } from "@/lib/views/resolve";
+import type { ViewContext, ViewResult } from "@/lib/views/types";
 import "@/components/home/home.css";
 import "./family.css";
 
-/** D52: the read-only family page. No buttons, no forms, no links into the signed-in app, nothing from PayPal and no emails. */
-export function FamilyView({ name, state }: { name: string; state: MoneyState }) {
+const LOOKS = [["category", "Category"], ["person", "Person"]] as const;
+
+/**
+ * D52: the read-only family page, drawn by the same views as the app (D77). The month by Category or Person (Chart · Table, D74), who owes whom and the shared
+ * bills coming up. No buttons, no forms, no Ask, Pin or File, no links into the signed-in app, nothing from PayPal and no emails: a view with nothing to
+ * draw says so in words and never offers an Add.
+ */
+export function FamilyView({ name, context }: { name: string; context: ViewContext }) {
+  const { state } = context;
   const date = homeDateLabel(state.today);
-  const bills = sharedBillsComing(state);
-  const { transfers } = splitBalance(state.split, state.today);
   const together = state.split.members.length >= 2;
+  const people = state.split.members.map(({ id, name }) => ({ id, name }));
+  const month = monthByCategory(context.spending!, state.today);
+  const look = (by: "category" | "person") => resolveView("month_by_category", { by }, context) as ViewResult<"ranked_bars">;
+  const headings = { category: <>Where this month goes <small className="spending-month-name">· {month.name}</small></>, person: "Who this month's spending belongs to" };
+  const questions: PanelQuestion[] = (together ? LOOKS : LOOKS.slice(0, 1)).map(([by, label]) => {
+    const result = look(by);
+    return { key: by, label, result, heading: headings[by], figure: <RankedBars result={result} />, ...(by === "category" ? { tableSlot: <MonthList view={month} people={people} /> } : {}) };
+  });
+  const owes = resolveView("who_owes_whom", {}, context) as ViewResult<"ranked_bars">;
+  const bills = resolveView("bills_calendar", { whose: "shared" }, context) as ViewResult<"calendar">;
   return <main className="family-page"><article className="money-home">
     <p className="home-note">{name} · family view</p>
     <time className="home-date" dateTime={state.today}>{date}</time>
@@ -25,23 +40,20 @@ export function FamilyView({ name, state }: { name: string; state: MoneyState })
     {homeSentence(state).note && <p className="home-sentence-note">{homeSentence(state).note}</p>}
     <div className="home-panels">
       <div className="home-column">
-        <div className="home-panel family-month"><MonthSplit view={monthByCategory(state, state.today)} people={state.split.members} /></div>
+        {questions[0].result.empty
+          ? <section id="family-month" className="home-panel"><h2>{headings.category}</h2><PanelHint className="home-empty">{questions[0].result.empty.words}</PanelHint></section>
+          : <ViewPanel id="family-month" questions={questions} readOnly switchLabel="Look at it by" />}
+        {together && (owes.empty
+          ? <section id="shared-costs" className="home-panel"><h2>{owes.title}</h2><PanelHint className="home-empty">Nobody owes anyone anything.</PanelHint></section>
+          : <ViewPanel id="family-owes" questions={[{ key: "owes", label: "Who owes whom", result: owes, figure: <RankedBars result={owes} /> }]} readOnly />)}
       </div>
       <div className="home-column">
         <section id="shared-bills" className="home-panel">
           <h2>Shared bills coming up</h2>
-          {bills.length === 0 && <PanelHint className="home-empty">{together ? "No shared bills in the next 30 days." : "Nothing is shared in this household yet."}</PanelHint>}
-          {bills.map(bill => <div key={bill.key} className="home-row home-dated">
-            <time dateTime={bill.date}>{dayLabel(bill.date)}</time>
-            <div>{bill.biller}{bill.paidBy && <small className="family-bill-paid">Paid by {bill.paidBy}</small>}</div>
-            <div className="home-number">{bill.uncounted ? AMOUNT_NOT_KNOWN : bill.estimated ? aboutMoney(bill.amountMinor, state.homeCurrency) : minorMoney(bill.amountMinor, state.homeCurrency)}</div>
-          </div>)}
+          {bills.empty || !bills.table
+            ? <PanelHint className="home-empty">{together ? "No shared bills in the next 30 days." : "Nothing is shared in this household yet."}</PanelHint>
+            : <><ViewTable table={bills.table} />{bills.line && <p className="view-line">{bills.line}</p>}</>}
         </section>
-        {together && <section id="shared-costs" className="home-panel">
-          <h2>Who owes whom</h2>
-          {transfers.length === 0 && <PanelHint className="home-empty">Nobody owes anyone anything.</PanelHint>}
-          {transfers.map(transfer => <div key={transfer.fromId + transfer.toId} className="home-row"><div>{transferLine(transfer, state.homeCurrency)}</div></div>)}
-        </section>}
       </div>
     </div>
     <p className="family-note">This is a read-only view that {name} shared by link. Nothing can be changed from here.</p>

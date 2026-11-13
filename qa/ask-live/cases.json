@@ -1,5 +1,5 @@
 {
- "note": "Run with: npm run qa:ask-live -- <base-url> --confirm-cost. turns: question or tap (a choice label); expect keys: kind (answer|clarify|out_of_scope), includes (all), includesAny (one), excludes, excludesRegex, canvas (block types), language (ja), choices, pending. judge: a person must read the answer. Groups share one conversation per household; a household has at most 30 questions a day.",
+ "note": "Run with: npm run qa:ask-live -- <base-url> --confirm-cost. turns: question or tap (a choice label); expect keys: kind (answer|clarify|out_of_scope), includes (all), includesAny (one), excludes, excludesRegex, canvas (block types), either (a list of alternatives, each a canvas and/or view expectation, one must hold), view (the views `show` drew, by id), language (ja), choices, pending. judge: a person must read the answer. Groups share one conversation per household; a household has at most 30 questions a day.",
  "cases": [
   {
    "id": "1",
@@ -207,10 +207,32 @@
        "¥101,220",
        "Nov 27"
       ],
-      "canvas": [
-       "sentence",
-       "number",
-       "flow_chart"
+      "either": [
+       {
+        "canvas": [
+         "sentence",
+         "number",
+         "flow_chart"
+        ]
+       },
+       {
+        "canvas": [
+         "sentence",
+         "number"
+        ],
+        "view": [
+         "what_if"
+        ]
+       },
+       {
+        "canvas": [
+         "sentence",
+         "number"
+        ],
+        "view": [
+         "forecast"
+        ]
+       }
       ]
      }
     }
@@ -231,8 +253,17 @@
      "question": "Show my cash for the next 30 days and mark the rent",
      "expect": {
       "kind": "answer",
-      "canvas": [
-       "flow_chart"
+      "either": [
+       {
+        "canvas": [
+         "flow_chart"
+        ]
+       },
+       {
+        "view": [
+         "forecast"
+        ]
+       }
       ]
      }
     }
@@ -253,8 +284,17 @@
      "question": "Show where October went as a table",
      "expect": {
       "kind": "answer",
-      "canvas": [
-       "table"
+      "either": [
+       {
+        "canvas": [
+         "table"
+        ]
+       },
+       {
+        "view": [
+         "month_by_category"
+        ]
+       }
       ]
      }
     }
@@ -995,6 +1035,204 @@
    ],
    "review": "A letter block labelled as written by the assistant, with name and address placeholders; nothing sent.",
    "judge": true
+  },
+  {
+   "id": "J1",
+   "group": "J",
+   "household": 3,
+   "turns": [
+    {
+     "question": "How much do I really earn a month?",
+     "expect": {
+      "kind": "answer",
+      "includes": [
+       "¥202,500"
+      ],
+      "includesAny": [
+       "¥286,500",
+       "¥228,750"
+      ],
+      "view": [
+       "income_months"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D77"
+   ],
+   "review": "Money in by month on Ben's sample: June to October average ¥286,500 (¥228,750 over three months), the lowest month October ¥202,500. No sum of its own.",
+   "judge": false
+  },
+  {
+   "id": "J2",
+   "group": "J",
+   "household": 3,
+   "turns": [
+    {
+     "question": "Which client pays me slowest?",
+     "expect": {
+      "kind": "answer",
+      "includes": [
+       "Acme",
+       "14",
+       "25"
+      ],
+      "view": [
+       "client_pace"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D77"
+   ],
+   "review": "Acme Corp is the slowest: 14 days usual, 25 at most; Northwind 12 and 16, Beacon Studio 2 and 3. Nothing about risk it was not given.",
+   "judge": false
+  },
+  {
+   "id": "J3",
+   "group": "J",
+   "household": 3,
+   "turns": [
+    {
+     "question": "If I put ¥40,000 on Card A today, when do I pay for it?",
+     "expect": {
+      "kind": "answer",
+      "includes": [
+       "¥40,000",
+       "Dec 26"
+      ],
+      "view": [
+       "card_cycle"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D77"
+   ],
+   "review": "The purchase lands on the statement that closes Nov 30 and is paid Dec 26; the ¥40,000 is the one the person named. No recommendation of a payment plan.",
+   "judge": true
+  },
+  {
+   "id": "J4",
+   "group": "J",
+   "household": 3,
+   "turns": [
+    {
+     "question": "When is Card B paid, and what covers it?",
+     "expect": {
+      "kind": "answer",
+      "includes": [
+       "Dec 10",
+       "¥61,000",
+       "Northwind"
+      ],
+      "view": [
+       "card_cycle"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D77"
+   ],
+   "review": "Card B closes Nov 15 and its ¥61,000 is paid Dec 10, covered once Northwind pays.",
+   "judge": false
+  },
+  {
+   "id": "J5",
+   "group": "J",
+   "household": 3,
+   "turns": [
+    {
+     "question": "What would confirming the Hikari Denki bill change?",
+     "expect": {
+      "kind": "answer",
+      "includes": [
+       "¥30,000",
+       "¥18,780"
+      ],
+      "view": [
+       "what_changed"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D77"
+   ],
+   "review": "Utilities ¥0 to ¥11,220; the late-case low point goes from ¥18,780 short to ¥30,000 short on the 27th. It confirms nothing.",
+   "judge": true
+  },
+  {
+   "id": "J6",
+   "group": "J",
+   "household": 3,
+   "turns": [
+    {
+     "question": "What have foreign fees cost me, month by month?",
+     "expect": {
+      "kind": "answer",
+      "includes": [
+       "¥111,637"
+      ],
+      "excludes": [
+       "wise",
+       "revolut",
+       "payoneer"
+      ],
+      "excludesRegex": [
+       "(leave|quit|switch from|instead of)\\s+(your\\s+)?paypal"
+      ],
+      "view": [
+       "fx_cost"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D62",
+    "D77"
+   ],
+   "review": "The fx_cost view draws the foreign costs by month, June to November, totalling ¥111,637 (the view's default months; the twelve-month tool figure is the same, fees ¥65,913 plus markup ¥45,724). Names no provider but PayPal, never says to leave it, forecasts no rate. Ask only: no See it button.",
+   "judge": true
+  },
+  {
+   "id": "J7",
+   "group": "J",
+   "household": 3,
+   "turns": [
+    {
+     "question": "Where did October go?",
+     "expect": {
+      "kind": "answer",
+      "includes": [
+       "Housing",
+       "¥82,000"
+      ],
+      "includesAny": [
+       "¥132,060",
+       "October"
+      ],
+      "view": [
+       "month_by_category"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D77"
+   ],
+   "review": "October by category with Housing ¥82,000; the month's total is ¥132,060.",
+   "judge": false
   }
  ]
 }

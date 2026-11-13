@@ -607,7 +607,7 @@ async function main() {
     try {
       const db = drizzle(pg, { schema });
       await migrate(db, { migrationsFolder: "./drizzle" });
-      assert.equal(CASE_NAMES.length, 19);
+      assert.equal(CASE_NAMES.length, 20);
       for (const connection of [anthropic, openai]) {
         const seen: string[] = [];
         const results = await runEval({ db, connection, fetch: scriptedModel().fetch, appUrl: APP, onResult: r => seen.push(r.name) });
@@ -648,6 +648,11 @@ async function main() {
       for (const name of AGENT_CASES) assert.match((await gradeOutcome(name, outcome({ error: "The assistant gave no answer. Try again." })))!, /The question failed: The assistant gave no answer/);
       // a canvas that is not there
       assert.match((await gradeOutcome("makes_canvas", outcome({ calls: [{ name: "make_canvas", input: {} }], result: answer("Here.") })))!, /No valid canvas/);
+      // `show` draws the October picture instead of a make_canvas table: it passes for October and fails for another month
+      const shownRecipe = (month?: string) => ({ version: 1 as const, title: "Where does the month go?", blocks: [{ type: "view" as const, view: "month_by_category" as const, args: month ? { month } : {} }] });
+      assert.equal(await gradeOutcome("makes_canvas", outcome({ calls: [{ name: "show", input: {} }], result: { ...answer("Here is October.")!, recipe: shownRecipe("2026-10") } })), null);
+      assert.match((await gradeOutcome("makes_canvas", outcome({ calls: [{ name: "show", input: {} }], result: { ...answer("Here.")!, recipe: shownRecipe("2026-09") } })))!, /not 2026-10/);
+      assert.match((await gradeOutcome("makes_canvas", outcome({ calls: [{ name: "show", input: {} }], result: { ...answer("Here.")!, recipe: shownRecipe() } })))!, /current month/);
       // a charge that was never saved, and a reply that claims it was sent
       assert.match((await gradeOutcome("logs_charge", outcome({ calls: [{ name: "log_charge", input: {} }], result: answer("Sent.") })))!, /No charge/);
     } finally { await pg.close(); }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { households } from "@/db/schema";
 import type { Drawn, TurnView } from "@/lib/agent/view";
 import { documentsLeft, questionsLeft } from "@/db/ai-cap";
+import { draftsOfTurns } from "@/db/ask-drafts";
 import { firstUseLine } from "@/db/ask";
 import { connectionView } from "@/db/ai-key";
 import { listCanvases } from "@/db/canvases";
@@ -71,8 +72,10 @@ export async function loadAskView(db: Db, householdId: string, { spaceId, legacy
     const pinned = pinId ? pins.find(item => item.id === pinId) ?? null : null;
     const last = thread.findLast(turn => turn.recipe !== null);
     const shown = pinned ? draw(`pin-${pinned.id}`, pinned.recipe, context) : last?.recipe ? draw(last.id, last.recipe, context) : null;
+    const drafts = await draftsOfTurns(tx, hid, thread.map(turn => turn.id), context);
     const turns: TurnView[] = thread.map(turn => ({
       id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, ...splitSources(turn.sources), thumb: turn.thumb, documentId: turn.documentId ?? null,
+      drafts: drafts[turn.id] ?? [],
     }));
     const missing = missingAskSetting(own !== null);
     const brief: BriefRecord | null = !legacyId && space.briefUpdatedAt && (space.briefUpdatedBy === "ask" || space.briefUpdatedBy === "form")

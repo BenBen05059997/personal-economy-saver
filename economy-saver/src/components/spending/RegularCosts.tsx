@@ -1,6 +1,10 @@
 import { aboutMoney, minorMoney, ordinal } from "@/lib/money/format";
 import { REGULAR_MONTHS, regularCosts, type RegularCost, type RegularCosts as Regulars } from "@/lib/money/regular";
 import { monthBounds, monthName, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
+import { StackedColumns } from "@/components/views/forms/StackedColumns";
+import { ViewPanel } from "@/components/views/ViewPanel";
+import { fixedCostsFor } from "@/lib/views/v/fixed-costs";
+import type { ViewResult } from "@/lib/views/types";
 import "./spending.css";
 
 
@@ -20,14 +24,17 @@ function change(cost: RegularCost, currency: Regulars["currency"]): { words: str
 /**
  * Spending's Regular costs panel (D54): the what-changed line, then each regular cost with this month (marked "so far" while card
  * charges can still come in), last month and the change in words, and a row of the window's months. Server-rendered from the
- * page's one spending read; no links or buttons.
+ * page's one spending read; no links or buttons. Above the list, the same costs month by month as columns (D77: regular costs against everything else).
  */
-export function RegularCosts({ spending, today }: { spending: SpendingInput; today: string }) {
+export function RegularCosts({ spending, today, device }: { spending: SpendingInput; today: string; device?: { householdId: string } }) {
   const current = today.slice(0, 7);
   const from = monthBounds(monthsBack(current, REGULAR_MONTHS)).first, to = monthBounds(current).last;
   const result = regularCosts(spendingItems(spending, from, to), spending.homeCurrency, today, REGULAR_MONTHS);
   const money = (minor: number, estimated?: true) => estimated ? aboutMoney(minor, result.currency) : minorMoney(minor, result.currency);
-  return <section className="spending-regular" aria-labelledby="regular-costs">
+  const columns = fixedCostsFor({}, spending, today) as ViewResult<"stacked_columns">;
+  return <>
+    {!columns.empty && <div style={{ marginTop: "var(--space-5)" }}><ViewPanel id="fixed" questions={[{ key: "months", label: "Month by month", result: columns, figure: <StackedColumns result={columns} /> }]} device={device} /></div>}
+  <section className="spending-regular" aria-labelledby="regular-costs">
     <h2 id="regular-costs">Regular costs</h2>
     {result.items.length === 0 ? <p className="ui-hint">Regular costs show up once a bill repeats or a name comes back two months running.</p> : <>
       <p className="spending-line">{result.changedLine}</p>
@@ -47,5 +54,6 @@ export function RegularCosts({ spending, today }: { spending: SpendingInput; tod
         })}
       </ul>
     </>}
-  </section>;
+  </section>
+  </>;
 }
