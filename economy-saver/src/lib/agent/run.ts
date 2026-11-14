@@ -31,6 +31,9 @@ import type { KeepOffer } from "./keep-offer";
 import { MAX_KEEP_OFFERS, offerValue } from "./offer-tools";
 import type { DeviceMemory } from "@/lib/store/memory-ops";
 import { ASK_RULES, MODEL_RULES } from "./rules";
+import { outlookFacts } from "@/lib/money/ask";
+import { engineFact } from "@/lib/money/facts";
+import { WINDOW_DAYS } from "@/lib/money/runway";
 import { tools, toolInputSchema, type ToolContext } from "./tools";
 import { THINKING_WORDS, toolWords } from "./words";
 
@@ -187,6 +190,8 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     opts.assembled?.memory ?? opts.deviceMemory?.items ?? listMemory(tx, hid),
   ]));
   const { today, homeCurrency } = initialState;
+  // What Home always shows (D79): its outlook and the window. They only confirm a number; the model is never sent them.
+  toolFacts.push(...outlookFacts(initialState, "home"), engineFact("next_30_days", WINDOW_DAYS, { from: "home" }));
   const ctx: ScopedToolContext = {
     madeBy: "ask", db: opts.db, householdId: hid, state, appUrl: opts.appUrl, askId: opts.askId, source: opts.source,
     addLink: link => { if (!links.some(known => known.href === link.href)) links.push(link); },

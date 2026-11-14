@@ -22,6 +22,6 @@ export const VIEW_META: Record<ViewId, ViewMeta> = {
   bills_calendar: { form: "calendar", question: "What's due, and when?", hint: "Bills and money coming, day by day.", home: { path: "/bills", label: "Bills" }, needs: [] },
   card_cycle: { form: "tracks", question: "If I put it on this card, when do I pay, and from what?", hint: "The card's cycle, its due date and what covers it.", home: { path: "/cards", label: "Cards" }, needs: [] },
   who_owes_whom: { form: "ranked_bars", question: "Who owes whom?", hint: "Each person's share of what the household shared.", home: { path: "/household", label: "Household" }, needs: [] },
-  what_changed: { form: "before_after", question: "What did this change?", hint: "The picture without it and with it.", home: { path: "/to-check", label: "To check" }, needs: ["spending"] },
+  what_changed: { form: "before_after", question: "What would confirming this change, or what did it change?", hint: "The picture without it and with it.", home: { path: "/to-check", label: "To check" }, needs: ["spending"] },
   tax_ahead: { form: "step_line", question: "Will I have the tax money?", hint: "What the pot gathers from payments coming, against the tax bills due.", home: { path: "/saving", label: "Saving" }, needs: [] },
 };

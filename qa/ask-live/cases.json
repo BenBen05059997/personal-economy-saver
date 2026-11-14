@@ -1162,11 +1162,6 @@
       ],
       "facts": [
        {
-        "name": "amount_tested",
-        "case": "none",
-        "value": 40000
-       },
-       {
         "name": "due",
         "case": "none",
         "value": "2026-12-26"

@@ -4,7 +4,7 @@
 import { engineFact, fact, personFact, type Fact } from "@/lib/money/facts";
 import { WhatIfError, whatIf } from "@/lib/money/whatif";
 import { formatter, minorMoney, minorPerUnit } from "@/lib/money/format";
-import { addDays, daysBetween, low, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { addDays, arrivals, daysBetween, low, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { hasNothingToForecast } from "@/lib/money/sentence";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type TableTwin, type ViewResult } from "../types";
@@ -50,7 +50,15 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
   if (loWith.amount < 0) facts.push(engineFact("short", toMinor(-loWith.amount), money_));
   if (loNow.amount < 0) facts.push(engineFact("short", toMinor(-loNow.amount), money_));
   if (late) facts.push(personFact("days_later_than_usual", late.days, { from, case: "as_usual", about: { type: "client", id: client!.id, name: client!.name } }));
-  else facts.push(personFact("amount_tested", amountMinor!, { from, currency, period: { on: spendDate } }));
+  if (late) {
+    // The payment the change moves, from the engine's own arrivals: the day as usual, and the day the change puts it on.
+    const moved = new Map(arrivals(changed).map(arrival => [arrival.invoiceId, arrival]));
+    for (const arrival of arrivals(state).filter(item => item.clientId === late.clientId)) {
+      const about = { type: "client" as const, id: client!.id, name: client!.name }, after = moved.get(arrival.invoiceId)!;
+      facts.push(engineFact("client_pays", toMinor(arrival.amountHome), { from, currency, case: "as_usual", about, period: { on: arrival.expectedOn } }),
+        engineFact("client_pays_after_change", toMinor(after.amountHome), { from, currency, case: "as_usual", about, period: { on: after.expectedOn } }));
+    }
+  } else facts.push(personFact("amount_tested", amountMinor!, { from, currency, period: { on: spendDate } }));
   const read = (name: "low_point_after_change" | "low_point_day_after_change" | "low_point_before_change" | "low_point_day_before_change") => fact(facts, name, c)!.value;
   const [withMinor, withDay, nowMinor, nowDay] = [Number(read("low_point_after_change")), String(read("low_point_day_after_change")), Number(read("low_point_before_change")), String(read("low_point_day_before_change"))];
   const phrase = (minor: number, day: string) => minor < 0 ? `${money(-minor)} short on ${longDay(day)}` : `lowest ${money(minor)} on ${longDay(day)}`;

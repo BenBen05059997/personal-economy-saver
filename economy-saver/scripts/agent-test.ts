@@ -211,6 +211,16 @@ async function main() {
       assert.ok(!result1.is_error);
     });
 
+    await check("the Home outlook and the window confirm a number in every Ask: a reply that says Home's short and the 30 days passes after only a card picture", async () => {
+      const { fetch } = transport([
+        () => reply("tool_use", [toolUse("cc", "show", { view: "card_cycle", args: null })]),
+        () => reply("end_turn", [text("Over the next 30 days you would be ¥18,780 short on Nov 27 if clients pay late.")]),
+      ]);
+      const result = await ask(a, "When do I pay Card A?", fetch);
+      assert.equal(result.kind, "answer");
+      assert.equal(result.kind === "answer" ? result.wording : "", "model");
+    });
+
     await check("snapshot, spending and foreign costs share one read group; the snapshot is scoped, event-free and schema-valid", async () => {
       const { fetch, bodies } = transport([
         () => reply("tool_use", [
@@ -1484,11 +1494,11 @@ async function main() {
       // an amount only an earlier reply held is not confirmed
       const d = await seedBen(db, { isDemo: true });
       const thread = crypto.randomUUID();
-      const first = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("If clients pay late you are ¥18,780 short.")])]);
+      const first = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("Card A's statement is ¥58,000, due Nov 26.")])]);
       await conversation(d, "Am I OK?", first.fetch, { conversationId: thread, at: t0 });
-      const second = transport([() => reply("tool_use", [toolUse("l", "list_clients_and_cards", {})]), () => reply("end_turn", [text("Yes, the ¥18,780 shortfall is covered.")])]);
+      const second = transport([() => reply("tool_use", [toolUse("l", "list_clients_and_cards", {})]), () => reply("end_turn", [text("Yes, the ¥58,000 statement is covered.")])]);
       await assert.rejects(conversation(d, "Is that covered?", second.fetch, { conversationId: thread, at: minutes(1) }), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
-      assert.ok(JSON.stringify(second.bodies[0].messages[0]).includes("18,780"), "the earlier reply was shown to the model as context");
+      assert.ok(JSON.stringify(second.bodies[0].messages[0]).includes("58,000"), "the earlier reply was shown to the model as context");
       // an amount the person typed in an earlier question of this conversation is theirs: it counts, so "Card A" can be answered with the ¥1,200 they gave
       const e = await seedBen(db, { isDemo: true });
       const lunch = crypto.randomUUID();
@@ -1677,14 +1687,14 @@ async function main() {
     await check("an amount found in history still needs a current tool result", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const space = await generalSpace(db, hid);
-      const earlier = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("If clients pay late the fixture leaves you ¥18,780 short.")])]);
+      const earlier = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("If clients pay late the fixture leaves Card A's statement at ¥58,000.")])]);
       const askHere = (text: string, fetch: typeof globalThis.fetch) => answerQuestion(db, hid, askInput.parse({
         id: crypto.randomUUID(), conversationId: space.id, spaceId: space.id, text, source: "manual", canvas: null,
       }), { fetch });
       await askHere("Was the fixture due?", earlier.fetch);
       const later = transport([
         () => reply("tool_use", [toolUse("h", "search_history", { text: "fixture", space: "General" })]),
-        () => reply("end_turn", [text("You owe ¥18,780.")]),
+        () => reply("end_turn", [text("You owe ¥58,000.")]),
       ]);
       await assert.rejects(askHere("Find the old question.", later.fetch), (error: unknown) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
       assert.ok(toolResults(later.bodies[1])[0].content.includes("Was the fixture due?"));
