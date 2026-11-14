@@ -191,7 +191,7 @@ function factMention(f: CheckFact): Mention[] {
  * fact (amount_tested) may be quoted back, and confirms exactly its own value in its own unit and nothing else.
  * Limit: matching is by value and unit, so the person's "¥40,000" also lets an answer say "¥40,000 left"; numbers alone cannot
  * tell a quote ("¥40,000 on Card A") from a claim. What the person said never lets any other number through.
- * A rounded form ("¥18.8k" for 18,780) is flagged: only the exact figure is a fact. `today` (ISO) counts as a known date.
+ * A rounded money form ("¥18.8k" for 18,780) is flagged: only the exact figure is a fact. A percent written as a whole number ("12%" for 12.2) is confirmed. `today` (ISO) counts as a known date.
  */
 export function unconfirmedNumbers(text: string, facts: readonly CheckFact[], opts: { today?: string; person?: readonly string[] } = {}): string[] {
   const { today, person = [] } = opts;
@@ -216,7 +216,7 @@ export function unconfirmedNumbers(text: string, facts: readonly CheckFact[], op
     let ok: boolean;
     if (m.unit === "date") ok = knownDates.some(k => sameDate(k, m.date));
     else if (m.unit === "money") ok = m.minor === 0 || moneyFacts.some(f => typeof f.value === "number" && Math.abs(f.value) === m.minor && (!f.currency || f.currency === m.currency));
-    else if (m.unit === "percent") ok = percents.some(f => typeof f.value === "number" && Math.abs(Math.abs(f.value) - m.value) < 0.05);
+    else if (m.unit === "percent") ok = percents.some(f => typeof f.value === "number" && (Math.abs(Math.abs(f.value) - m.value) < 0.05 || (Number.isInteger(m.value) && !/\./.test(m.text) && Math.round(Math.abs(f.value)) === m.value)));
     else ok = days.some(f => typeof f.value === "number" && Math.abs(f.value) === m.value);
     if (!ok && !quotedBack(m) && !out.includes(m.text)) out.push(m.text);
   }

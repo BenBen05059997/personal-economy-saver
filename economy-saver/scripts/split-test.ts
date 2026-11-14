@@ -315,7 +315,7 @@ async function main() {
       assert.deepEqual([...(toolInputSchema(tool("add_bill")) as unknown as { required: string[] }).required].sort(),
         ["amount", "biller", "business_bp", "cancel_by", "category", "due", "memberId", "next_amount", "next_amount_from", "own_category", "paidBy", "period_end", "period_start", "repeat", "repeat_until", "shared"]);
       assert.ok((toolInputSchema(tool("log_charge")) as unknown as { required: string[] }).required.includes("shared"));
-      assert.equal(tools.filter(t => t.scope === "read").length, 19);
+      assert.equal(tools.filter(t => t.scope === "read").length, 20, "search_spending stays: no picture holds its items");
 
       const owes = (hid: string) => run(hid, "show", { view: "who_owes_whom", args: null }).then(text => JSON.parse(text) as { facts: { name: string; value: number | string; about?: { name: string } }[]; line: string | null; empty: string | null });
       const mine = await owes(a);

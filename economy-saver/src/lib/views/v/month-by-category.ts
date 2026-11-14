@@ -69,14 +69,22 @@ export const monthByCategoryView: Resolver<"month_by_category"> = (args: ViewArg
     const about = { type: aboutType, id: row.key, name: row.label };
     facts.push(engineFact("change_from_last_month", row.change.amount, { from: "month_by_category", currency, period: span(month), about }));
     if (row.change.percent !== null) facts.push(engineFact("change_from_last_month_percent", row.change.percent, { from: "month_by_category", period: span(month), about }));
+    if (row.share !== null && row.share !== undefined) facts.push(engineFact("share_of_total", row.share, { from: "month_by_category", period: span(month), about }));
     if (row.unknown) facts.push(engineFact("not_counted", 1, { from: "month_by_category", period: span(month), about }));
   }
   if (view.by !== "person") for (const row of view.rows) facts.push(engineFact("category_total", row.total, { from: "month_by_category", currency, period: span(month), about: { type: "category", id: row.key, name: row.label } }));
   const said = (item: Fact) => format(item.value as number);
-  const against = lastFact ? said(lastFact) : "nothing recorded";
+  // The change and the biggest category, read back from facts (a person's rows are not categories).
+  const factOf = (name: Fact["name"], key: string) => facts.find(f => f.name === name && f.about?.id === key);
+  const top = view.by === "category" ? [...view.rows].sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))[0] : undefined;
+  const topFact = top ? factOf("category_total", top.key) : undefined;
+  const biggestWords = topFact && view.rows.length > 1 ? ` Most went to ${top!.label}, ${said(topFact)}.` : "";
+  const changeFact = facts.find(f => f.name === "change_from_last_month" && !f.about)!, percentFact = facts.find(f => f.name === "change_from_last_month_percent" && !f.about);
+  const moved = Number(changeFact.value), percentWords = percentFact ? ` (${Math.abs(Number(percentFact.value))}%)` : "";
+  const changeWords = !lastFact ? `, with nothing recorded in ${view.lastName}` : moved === 0 ? `, the same as ${view.lastName}'s ${said(lastFact)}` : `, ${format(Math.abs(moved))}${percentWords} ${moved < 0 ? "less" : "more"} than ${view.lastName}'s ${said(lastFact)}`;
   const line = business ? (view.businessMinor === 0 ? view.businessLine : `Business ${said(facts.find(f => f.name === "business_share")!)} of ${said(totalFact)} ${when}`)
-    : past ? `${view.name}: ${said(totalFact)} spent, against ${against} in ${view.lastName}.`
-    : `${view.name} so far ${said(spentFact)} spent, ${said(comingFact)} still to come: ${said(totalFact)} for the month, against ${against} in ${view.lastName}.`;
+    : past ? `${view.name}: ${said(totalFact)}${changeWords}.${biggestWords}`
+    : `${view.name} so far ${said(spentFact)} spent, ${said(comingFact)} still to come: ${said(totalFact)} for the month${changeWords}.${biggestWords}`;
   const data: FormData["ranked_bars"] = {
     segments, tick: { legend: view.lastName }, rows: view.rows.map(rowOf),
     ...(args.open && !business && view.rows.some(row => row.key === args.open && (row.children?.length ?? 0) > 0) ? { open: args.open } : {}),

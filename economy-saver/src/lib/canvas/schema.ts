@@ -37,7 +37,7 @@ export const ChangeSchema = z.discriminatedUnion("kind", [
 export type Change = z.infer<typeof ChangeSchema>;
 
 export const ScenarioSchema = z.object({
-  case: z.enum(["usual", "late"]).describe("usual: clients pay on their usual day. late: on their slowest."),
+  case: z.enum(["usual", "late"]).describe("usual: each client pays after their usual days. late: every client pays as slowly as they ever have."),
   changes: z.array(ChangeSchema).max(MAX_CHANGES),
 }).strict();
 export type Scenario = z.infer<typeof ScenarioSchema>;

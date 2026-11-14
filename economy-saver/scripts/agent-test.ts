@@ -924,7 +924,7 @@ async function main() {
       await ask(a, question, run.fetch, { askId, source: "manual" });
       assert.equal(logged.length, 1);
       const [line] = logged;
-      assert.deepEqual(Object.keys(line).sort(), ["askId", "at", "cacheReadTokens", "cacheWriteTokens", "canvas", "householdId", "inputTokens", "kind", "ms", "outcome", "outputTokens", "own", "protocol", "source", "stop", "tools", "turns"]);
+      assert.deepEqual(Object.keys(line).sort(), ["askId", "at", "cacheReadTokens", "cacheWriteTokens", "canvas", "householdId", "inputTokens", "kind", "ms", "outcome", "outputTokens", "own", "protocol", "source", "stop", "tools", "turns", "wording"]);
       assert.deepEqual([line.kind, line.canvas], ["answer", false]);
       assert.deepEqual([line.at, line.householdId, line.askId, line.source, line.stop, line.turns, line.outcome, line.inputTokens, line.outputTokens, line.protocol, line.own, line.cacheReadTokens, line.cacheWriteTokens], ["ask", a, askId, "manual", "end", 2, "answer", 2, 2, "anthropic", false, 6, 8]);
       const lineTools = line.tools as { name: string; ok: boolean; ms: number }[];
@@ -1123,7 +1123,8 @@ async function main() {
         await assert.rejects(ask(a, question, bad.fetch), (error: Error) => error instanceof AgentError && error.message === refusal && error.outcome === "unconfirmed_amount");
         assert.deepEqual([logged[0].outcome, logged[0].protocol, logged[0].own, logged[0].stop], ["unconfirmed_amount", "openai", false, "end"]);
         const raw = JSON.stringify(logged[0]);
-        for (const needle of [OPENAI_BASE, OPENAI_HOST, OPENAI_KEY, "fixture-text", question, "123,457"]) assert.ok(!raw.includes(needle), `the log line leaks ${needle}`);
+        for (const needle of [OPENAI_BASE, OPENAI_HOST, OPENAI_KEY, "fixture-text", question]) assert.ok(!raw.includes(needle), `the log line leaks ${needle}`);
+        assert.deepEqual((logged[0] as { unconfirmed?: string[] }).unconfirmed?.map(word => word.replace(/\s/g, "")), ["¥123,457"], "the log names what the check rejected, and only that");
       });
     });
 
@@ -1330,14 +1331,14 @@ async function main() {
 
       // the number check: an amount only the model passed in is never returned, so the reply cannot confirm it
       if (live.includes("what_if")) {
-        const echo = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥314,159 spend changes it.")])]);
+        const echo = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥999,999 spend changes it.")])]);
         const coded = await conversation(c, "What if I spend something big?", echo.fetch);
         const echoed = lineOf(echo.bodies[1], "w");
         // The picture is there, so code's own sentence stands in: no second model call, and the model's amount is never shown.
         assert.deepEqual([coded.kind, coded.text, coded.wording, echo.bodies.length], ["answer", echoed.line, "code", 2]);
-        assert.ok(!coded.text.includes("314,159"));
+        assert.ok(coded.text.startsWith("If you spend ¥314,159 today:"), "code's sentence names the change that was tested");
+        assert.ok(!coded.text.includes("999,999"), "and none of the model's invented amount");
         assert.deepEqual(echoed.facts.filter(f => f.value === 314159).map(f => [f.name, f.by]), [["amount_tested", "person"]], "the passed amount comes back only as the person's own fact");
-        assert.ok(!echoed.line.includes("314,159"), "and in no sentence");
         const said = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥314,159 spend changes it.")])]);
         const quoted = await conversation(c, "What if I spend ¥314,159?", said.fetch);
         assert.deepEqual([quoted.kind, quoted.wording, quoted.text], ["answer", "model", "A ¥314,159 spend changes it."], "the person's own amount may be quoted back");
@@ -2321,7 +2322,7 @@ async function main() {
     });
 
     await check("D80: each retired read tool's facts are in its picture's show result on Ben's sample, and the retired tools are gone", async () => {
-      const retired = ["where_am_i", "whats_due", "month_by_category", "who_owes_whom", "regular_costs", "search_spending", "foreign_costs"];
+      const retired = ["where_am_i", "whats_due", "month_by_category", "who_owes_whom", "regular_costs", "foreign_costs"];
       assert.deepEqual(retired.filter(name => tools.some(t => t.name === name)), [], "retired tools are not offered");
       assert.throws(() => tools.find(t => t.name === "timeline")!.input.parse({ scenario: "as_usual", on: null }), "timeline says usual, like show and what_if");
       const c = await seedBen(db, { isDemo: true });
@@ -2353,6 +2354,11 @@ async function main() {
         ...(cost.status === "started" ? [{ name: "regular_cost_started", value: cost.thisMinor, about: cost.label }] : cost.status === "stopped" ? [{ name: "regular_cost_stopped", value: cost.lastMinor, about: cost.label }]
           : cost.changeMinor !== null ? [{ name: "change_from_last_month", value: cost.changeMinor, about: cost.label }] : []),
       ]));
+      // search_spending stays a tool (item-level amounts, one month); search_months draws two or more months
+      const searchTool = tools.find(t => t.name === "search_spending")!;
+      const searched = JSON.parse(await searchTool.run(ctx, searchTool.input.parse({ query: "food", months: 1 }) as never)) as { facts: CompactFact[] };
+      assert.ok(searched.facts.some(f => f.name === "search_total"), "search_spending keeps its total");
+      assert.ok(searched.facts.some(f => (f.name === "bill_amount" || f.name === "charge_amount") && typeof f.value === "number"), "each matching item's amount is a fact");
       // search_spending -> search_months
       const searchFrom = `${monthsBack(current, 3)}-01`, last = monthBounds(current).last;
       const data = await loadSpending(db, c, { from: searchFrom, to: last });

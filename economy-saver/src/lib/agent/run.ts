@@ -92,7 +92,7 @@ function apiFailure(error: unknown): AgentError {
 }
 
 /** What the one log line is built from; filled in as the Ask runs. */
-type Trace = { kind?: string; canvas?: boolean; briefDropped?: BriefDropReason; stop: string; turns: number; tools: ToolLog[]; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; protocol?: string; own?: boolean };
+type Trace = { kind?: string; wording?: string; unconfirmed?: string[]; canvas?: boolean; briefDropped?: BriefDropReason; stop: string; turns: number; tools: ToolLog[]; inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; protocol?: string; own?: boolean };
 
 type AskOptions = {
   db: Db; householdId: string; question: string; askId: string; appUrl: URL; source?: "voice" | "manual";
@@ -133,6 +133,7 @@ export async function runAgent(opts: AskOptions): Promise<AskResult> {
     logCall({
       at: "ask", householdId: opts.householdId, askId: opts.askId, ...(opts.source && { source: opts.source }),
       kind: trace.kind ?? "error", canvas: trace.canvas ?? false,
+      ...(trace.wording && { wording: trace.wording }), ...(trace.unconfirmed && { unconfirmed: trace.unconfirmed }),
       ...(trace.briefDropped && { briefDropped: trace.briefDropped }),
       stop: trace.stop, turns: trace.turns, tools: trace.tools, outcome, ms: now() - started,
       inputTokens: trace.inputTokens, outputTokens: trace.outputTokens,
@@ -224,6 +225,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   // Every number in the answer must be an engine fact of this Ask, or one the person said and is quoted back (D56, D79). The household
   // snapshot, the model's own drafts and any earlier reply confirm nothing. No document is given in an Ask: a document is its own turn.
   const person = [opts.question, ...(opts.assembled?.earlierQuestions ?? []), ...(opts.assembled?.memoryForAmounts ?? (memory ? [memory] : []))];
+  const rejected = (mentions: string[]) => { trace.unconfirmed = mentions; };
   const checked = (text: string, facts: readonly CheckFact[] = toolFacts) => unconfirmedNumbers(text, facts, { today, person }).length === 0;
 
   try {
@@ -254,7 +256,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
           return "";
         }).trim();
         if (!answer) throw failure("empty");
-        return await finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe: answerRecipe(), facts: toolFacts, person, today, readings }));
+        return await finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe: answerRecipe(), facts: toolFacts, person, today, readings, rejected }));
       }
       if (reply.stop === "refusal") throw failure("refusal");
       if (reply.stop === "length") throw failure("cutOff");
@@ -274,7 +276,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       if (ending) {
         const { result, log } = await callTool(ctx, ending, now);
         trace.tools.push(log);
-        if (clarify !== null || outOfScope !== null) return await finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe: answerRecipe(), facts: toolFacts, person, today, readings }));
+        if (clarify !== null || outOfScope !== null) return await finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe: answerRecipe(), facts: toolFacts, person, today, readings, rejected }));
         results.push(result);
         await recordResult(result);
       }
@@ -317,6 +319,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
 
   async function finish(chosen: ReturnType<typeof chooseReply>): Promise<AskResult> {
     if (!chosen) throw new AgentError("The model gave an amount the app could not confirm from your numbers, so the answer is not shown. Ask again, or choose another model in Settings.", "unconfirmed_amount");
+    if (chosen.kind === "answer") trace.wording = chosen.wording ?? "model";
     const candidates = chosen.kind === "answer" ? [...offers.values()] : [];
     const readMemory = !opts.deviceMemory && wroteMemory && candidates.some(({ offer }) => offer.kind === "memory");
     const readRules = candidates.some(({ offer }) => offer.kind === "rule");

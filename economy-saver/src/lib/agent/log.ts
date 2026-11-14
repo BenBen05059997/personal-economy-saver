@@ -1,6 +1,6 @@
 // The one content-free log line per Ask and per MCP call (D50): ids, tool names, counts, outcome, timings and token counts.
 // Ask also says the kind of reply and whether it had a canvas; thumbs write one line of their own (askId and the thumb, nothing else).
-// Never the question, the answer, a tool argument or result, the key or a provider's error message. Every line goes
+// Never the question, the answer, a tool argument or result, the key or a provider's error message. The one exception: the mentions the number check rejected (`unconfirmed`). Every line goes
 // through here so tests can capture it.
 export type ToolLog = { name: string; ok: boolean; ms: number };
 
@@ -18,6 +18,10 @@ type CallLog = {
   /** Ask only: answer, clarify, declined or error; and whether the reply carried a canvas. */
   kind?: string;
   canvas?: boolean;
+  /** Ask only: who worded the answer, the model or code (D80). */
+  wording?: string;
+  /** Ask only: the numbers and dates the check rejected in the model's words (fictional data; never a key). */
+  unconfirmed?: string[];
   briefDropped?: BriefDropReason;
   ms: number;
   inputTokens?: number;

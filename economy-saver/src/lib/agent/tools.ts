@@ -19,7 +19,7 @@ import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
 import { memberByName, memberCount } from "@/db/people";
 import { potInput, savePot } from "@/db/pots";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
-import { loadPeriodBills } from "@/db/spending";
+import { loadPeriodBills, loadSpending } from "@/db/spending";
 import { toMinor } from "@/db/money";
 import { clients, invoices } from "@/db/schema";
 import { minorPerUnit } from "@/lib/money/format";
@@ -30,7 +30,7 @@ import { engineFact, forModel, type Fact } from "@/lib/money/facts";
 import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { ownLabel } from "@/lib/money/own-category";
 import { guessCategory } from "@/lib/money/categorise";
-import { monthBounds, SEARCH_QUERY_MAX } from "@/lib/money/spending";
+import { HISTORY_MONTHS, monthBounds, monthsBack, SEARCH_QUERY_MAX, searchLine, searchSpending, spendingItems } from "@/lib/money/spending";
 import { latestDate } from "@/lib/money/horizon";
 import { billsForMonth } from "@/lib/money/period";
 import { fundingOptions } from "@/lib/money/options";
@@ -466,6 +466,30 @@ export const tools: Tool[] = [
       if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Spending → Your categories.";
       const part = (o: (typeof groups)[number]["categories"][number]) => `${o.name} (${o.businessBp === null ? "no default business share" : `default business share ${o.businessBp / 100}%`}, ${o.items} ${o.items === 1 ? "item" : "items"})`;
       return groups.map(g => `Under ${g.label}: ${g.categories.map(part).join("; ")}.`).join("\n");
+    },
+  }),
+  defineTool({
+    name: "search_spending", scope: "read",
+    input: z.object({
+      query: z.string().max(SEARCH_QUERY_MAX).default("").describe("All words must match; empty: all."),
+      months: z.number().int().min(1).max(HISTORY_MONTHS).nullable().default(null).describe(`Months back, 1 to ${HISTORY_MONTHS}, this one included; null = 3.`),
+    }),
+    description: "Search bills and charges by name or category, newest first, with each item's amount. Unknown amounts not summed. Quote summary.",
+    run: async (ctx, input) => {
+      const today = await householdDate(ctx.db, ctx.householdId);
+      const from = `${monthsBack(today.slice(0, 7), input.months ?? 3)}-01`;
+      const monthEnd = monthBounds(today.slice(0, 7)).last;
+      const data = await loadSpending(ctx.db, ctx.householdId, { from, to: monthEnd });
+      const result = searchSpending(spendingItems(data, from, monthEnd), input.query, data.homeCurrency, { from, to: today, uncountedTo: monthEnd });
+      const factFrom = "search_spending", period = { from, to: today };
+      // Each matching item's amount is a fact too (newest first, at most 60), so an answer naming one item is confirmed.
+      const items = result.months.flatMap(month => month.items).filter(item => !item.uncounted).slice(0, 60);
+      const facts = [
+        engineFact("search_total", result.totalMinor, { from: factFrom, currency: result.currency, period }),
+        ...items.map(item => engineFact(item.kind === "bill" ? "bill_amount" : "charge_amount", item.amountMinor, { from: factFrom, currency: result.currency, period: { on: item.date }, about: { type: item.kind, id: item.id, name: item.label } })),
+        ...result.uncounted.map(name => engineFact("not_counted", 1, { from: factFrom, about: { type: "cost", id: name, name } })),
+      ];
+      return JSON.stringify({ ...forModel(facts), summary: searchLine(result), from, to: today, ...result });
     },
   }),
   defineTool({

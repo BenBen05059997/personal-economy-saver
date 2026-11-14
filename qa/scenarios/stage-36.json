@@ -643,7 +643,7 @@
       "Select Forecast then Table"
     ],
     "expected": [
-      "The table has day, what happens, balance if late and balance if on time"
+      "The table has day, what happens, balance if clients pay late and balance if as usual"
     ],
     "refs": [
       "D25",
@@ -1025,8 +1025,8 @@
     ],
     "expected": [
       "The view switch is on the left and Chart/Table on the right with Forecast and Chart pressed (yellow with dark text)",
-      "The legend reads \"If clients pay late (what safe to spend uses)\", \"If they pay on time\", \"Depends on when they pay\"",
-      "Gridlines are solid; y labels −¥100k, ¥0, ¥100k … ¥500k; x labels Today, Nov 21, Nov 28, Dec 5, Dec 12; the direct labels \"If on time\" and \"If late\" sit at the widest gap"
+      "The legend reads \"If clients pay late (what safe to spend uses)\", \"If as usual\", \"Depends on when they pay\"",
+      "Gridlines are solid; y labels −¥100k, ¥0, ¥100k … ¥500k; x labels Today, Nov 21, Nov 28, Dec 5, Dec 12; the direct labels \"If as usual\" and \"If late\" sit at the widest gap"
     ],
     "refs": [
       "D73"
@@ -1077,7 +1077,7 @@
       "Hover the plot at Nov 27"
     ],
     "expected": [
-      "A crosshair and a tooltip show Fri, Nov 27, −¥18,780 if late, ¥281,220 if on time, \"Hikari Denki ¥11,220 waits in To check and is not counted yet\" and \"Rent −¥82,000\""
+      "A crosshair and a tooltip show Fri, Nov 27, −¥18,780 if late, ¥281,220 if as usual, \"Hikari Denki ¥11,220 waits in To check and is not counted yet\" and \"Rent −¥82,000\""
     ],
     "refs": [
       "D73"
@@ -1128,7 +1128,7 @@
     "expected": [
       "Safe to spend now ¥0 with \"Includes ¥61,000 on Card B not yet billed.\"",
       "Lowest if clients pay late −¥18,780 in red with \"Fri, Nov 27\"",
-      "Lowest if they pay on time ¥121,220 with \"Fri, Nov 20\"",
+      "Lowest if clients pay as usual ¥121,220 with \"Fri, Nov 20\"",
       "\"The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late.\" and Bank balance ¥67,000 with Update"
     ],
     "refs": [
@@ -1153,8 +1153,8 @@
       "Choose Table on Forecast"
     ],
     "expected": [
-      "Columns: Day, What happens, If clients pay late, If they pay on time",
-      "Rows: Nov 14 (¥128,000), Nov 18, 20, 22, 25, 26, 27 (−¥18,780 late, ¥281,220 on time), 29, Dec 3 and Dec 10"
+      "Columns: Day, What happens, If clients pay late, If as usual",
+      "Rows: Nov 14 (¥128,000), Nov 18, 20, 22, 25, 26, 27 (−¥18,780 late, ¥281,220 as usual), 29, Dec 3 and Dec 10"
     ],
     "refs": [
       "D73"

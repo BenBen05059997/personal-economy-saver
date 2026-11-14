@@ -437,7 +437,7 @@ export function ladder(state: MoneyState): Rung[] {
       detail: `${usd(p.amountUsd)}${cur === "USD" ? "" : ` (about ${home(p.amountHome)})`}. ${short(p.clientName)} usually pays in ${plural(med, "day")}.`,
       cost: 0,
       costLabel: `${home(0)} extra`,
-      verdict: covers ? "Cheapest. Covers it." : p.worstOn >= lw.date ? "May land too late" : `Covers ${home(p.amountHome)} of it`,
+      verdict: covers ? "Cheapest. Covers it." : p.worstOn >= lw.date ? "May land after the day you need it" : `Covers ${home(p.amountHome)} of it`,
     });
   }
 
@@ -450,7 +450,7 @@ export function ladder(state: MoneyState): Rung[] {
       title: `Send ${names.join(" and ")} the link again`,
       cost: 0,
       costLabel: home(0),
-      verdict: late ? "May be too late" : "Should land in time",
+      verdict: late ? "May land after the day you need it" : "Should land in time",
     });
   }
 

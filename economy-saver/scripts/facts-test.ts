@@ -1,6 +1,8 @@
 // The list of money terms (D78) and the fact record (D79). Pure, no database.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/facts-test.ts
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { engineFact, fact, forModel, personFact } from "@/lib/money/facts";
 import { CASES, TERMS, termOf } from "@/lib/money/terms";
 
@@ -76,6 +78,62 @@ check("forModel keeps each term's meaning once, by name, and the person's number
   assert.equal(out.facts[0].case, "late");
   assert.equal(out.facts[2].by, "person");
   assert.equal("case" in out.facts[2], false);
+});
+
+// D78: the app says "if clients pay late" (the case) and "overdue" (an invoice past its day); never "on time", and "late" nowhere else.
+// The scan reads the words people see (quoted strings and JSX text) in every component, view and canvas file; comments and code names are not words.
+const WORD_DIRS = ["src/components", "src/lib/views", "src/lib/canvas"];
+/** The only places "late" may stand: the case's own phrases and the word as a code key or name inside a string. */
+const LATE_ALLOWED: RegExp[] = [
+  /\bclients? (?:pay|pays|paying) late\b/gi, // "if clients pay late", "clients paying late"
+  /\blater than usual\b/gi, // "pays later than usual", "days later than usual"
+  /\bif late\b/gi, // the short chart label of the case: "If late" beside "If as usual"
+  /^late$/g, // the case key as a string
+  /\blate: /g, // the case key named as a value in a description: "usual: … late: …"
+  /[\w-]late\b|\blate[-_]\w+/g, // names inside strings: client_late, what-if-late, st-open-late
+];
+/** The words in a source file: each quoted string, each template's text (its ${...} parts are code, read on their own) and JSX text. Comments are skipped. */
+function wordsIn(source: string): string[] {
+  const words: string[] = [];
+  let i = 0;
+  const template = () => { // i is just after the opening backtick
+    let text = "";
+    while (i < source.length && source[i] !== "`") {
+      if (source[i] === "\\") { i += 2; continue; }
+      if (source[i] === "$" && source[i + 1] === "{") { i += 2; words.push(text); text = ""; code(1); continue; }
+      text += source[i++];
+    }
+    i++; words.push(text);
+  };
+  const code = (depth: number) => { // reads code until the brace that closes `depth` open braces (0: to the end)
+    while (i < source.length) {
+      const c = source[i];
+      if (c === "/" && source[i + 1] === "/") { while (i < source.length && source[i] !== "\n") i++; continue; }
+      if (c === "/" && source[i + 1] === "*") { i = source.indexOf("*/", i + 2) + 2 || source.length; continue; }
+      if (c === '"' || c === "'") { const quote = c; let text = ""; i++; while (i < source.length && source[i] !== quote && source[i] !== "\n") { if (source[i] === "\\") i++; text += source[i++]; } i++; words.push(text); continue; }
+      if (c === "`") { i++; template(); continue; }
+      if (c === "{") { depth++; i++; continue; }
+      if (c === "}") { i++; if (depth > 0 && --depth === 0) return; continue; }
+      i++;
+    }
+  };
+  code(0);
+  const plain = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+  return [...words, ...[...plain.matchAll(/>([^<>{}=;]*[A-Za-z][^<>{}=;]*)</g)].map(m => m[1])];
+}
+function filesUnder(dir: string): string[] {
+  return readdirSync(dir).flatMap(name => { const path = join(dir, name); return statSync(path).isDirectory() ? filesUnder(path) : /\.tsx?$/.test(name) ? [path] : []; });
+}
+check("the words people see never say \"on time\" and say \"late\" only as the case's own phrases", () => {
+  const bad: string[] = [];
+  for (const file of WORD_DIRS.flatMap(filesUnder)) {
+    for (const words of wordsIn(readFileSync(file, "utf8"))) {
+      if (/\bon[- ]time\b/i.test(words)) bad.push(`${file}: "${words.trim().slice(0, 80)}" says on time`);
+      const rest = LATE_ALLOWED.reduce((text, allowed) => text.replace(allowed, " "), words.trim());
+      if (/\blate(?:r|ly)?\b/i.test(rest)) bad.push(`${file}: "${words.trim().slice(0, 80)}" says late`);
+    }
+  }
+  assert.deepEqual(bad, []);
 });
 
 console.log(`\n${passed} checks passed`);

@@ -131,6 +131,7 @@ export const TERMS = [
   term("safe_to_spend_after_change", "safe to spend after the change", "money", "late", "Safe to spend with the change being tested."),
   term("sentence_day", "the sentence's day", "date", "none", "The day your sentence names: the day of the lowest point it states."),
   term("bill_amount", "bill amount", "money", "none", "What a bill is for: its amount, or its estimate when it is marked about."),
+  term("charge_amount", "charge amount", "money", "none", "What a card charge is for."),
   term("bill_counted", "bill counted", "money", "named", "What a bill counts for on its day in the case named: its estimate as usual, the high end of its estimate if late."),
   term("client_pays", "client pays", "money", "named", "What a client's invoice brings in on the day the case named expects it: after the client's usual days as usual, after their slowest days if late."),
   term("option_cost", "option cost", "money", "none", "What closing a shortfall one way costs you in fees or interest, before any repayment."),
@@ -139,6 +140,7 @@ export const TERMS = [
   term("owes_to", "owes to", "text", "none", "The person that the person in `about` pays so everyone has paid their fair share."),
   term("difference_between_months", "difference between the months", "money", "none", "The second month's total less the first's, for the two months compared."),
   term("cancel_by", "cancel by", "date", "none", "The last day to cancel a regular cost before it renews."),
+  term("low_point_change", "change in the low point", "money", "named", "How much the change moves the low point: after less before."),
 ] as const satisfies readonly Term[];
 
 export type TermName = (typeof TERMS)[number]["name"];

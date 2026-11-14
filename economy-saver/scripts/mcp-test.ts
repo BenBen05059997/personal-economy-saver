@@ -66,8 +66,8 @@ async function main() {
     assert.ok(!/\btoday\b|JPY/i.test(instructions!), "the server cannot know the date or currency");
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "bills_for_month", "can_i_spend", "draft_invoice", "forget", "goals", "household_snapshot", "list_clients_and_cards", "list_invoices", "list_spaces", "log_charge", "log_charges", "make_canvas", "open_gaps", "options_when_short", "own_categories", "plan_for", "recall", "remember", "search_history", "set_whose", "show", "suggestions", "timeline", "to_check", "update_bank_balance", "what_if"]);
-    for (const retired of ["where_am_i", "whats_due", "month_by_category", "who_owes_whom", "regular_costs", "search_spending", "foreign_costs"]) assert.ok(!list.tools.some(tool => tool.name === retired), `${retired} is shown through show`);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "bills_for_month", "can_i_spend", "draft_invoice", "forget", "goals", "household_snapshot", "list_clients_and_cards", "list_invoices", "list_spaces", "log_charge", "log_charges", "make_canvas", "open_gaps", "options_when_short", "own_categories", "plan_for", "recall", "remember", "search_history", "search_spending", "set_whose", "show", "suggestions", "timeline", "to_check", "update_bank_balance", "what_if"]);
+    for (const retired of ["where_am_i", "whats_due", "month_by_category", "who_owes_whom", "regular_costs", "foreign_costs"]) assert.ok(!list.tools.some(tool => tool.name === retired), `${retired} is shown through show`);
     for (const name of ["draft_invoice", "add_bill", "add_bills", "log_charge", "log_charges", "add_pot", "update_bank_balance"]) assert.ok(!("id" in (list.tools.find(tool => tool.name === name)!.inputSchema as { properties: Record<string, unknown> }).properties), `${name} offers no id: code makes it`);
     assert.ok(!list.tools.some(tool => tool.name === "clarify" || tool.name === "out_of_scope"), "the Ask-only tools are never offered over MCP");
     stage = "own categories over MCP";

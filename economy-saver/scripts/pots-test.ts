@@ -103,8 +103,8 @@ async function main() {
       assert.equal(planLine(pace, planFor(pace, benMoney), benMoney), "At ¥92,220 a month (left over each month) you would reach ¥1,200,000 around Jan 2028.");
       assert.equal(planLine({ ...pace, monthly: 100_000 }, planFor({ ...pace, monthly: 100_000 }, benMoney), benMoney), "At ¥100,000 a month you would reach ¥1,200,000 around Nov 2027.");
       assert.equal(planLine(pace, planFor(pace, { ...benMoney, invoices: [] }), { ...benMoney, invoices: [] }), "Left over each month: nothing if clients pay as usual, so there is no date to give for ¥1,200,000.");
-      assert.equal(potLine(pot({ target: 1_200_000, targetDate: "2027-03-31", saved: 0 }), benMoney), "¥300,000 a month to reach ¥1,200,000 by Mar 2027. More than the left over each month.");
-      assert.equal(potLine(pot({ target: 270_000, targetDate: "2027-02-14", saved: 0 }), benMoney), "¥90,000 a month to reach ¥270,000 by Feb 2027. Fits within the left over each month.");
+      assert.equal(potLine(pot({ target: 1_200_000, targetDate: "2027-03-31", saved: 0 }), benMoney), "¥300,000 a month to reach ¥1,200,000 by Mar 2027. More than what is left over each month.");
+      assert.equal(potLine(pot({ target: 270_000, targetDate: "2027-02-14", saved: 0 }), benMoney), "¥90,000 a month to reach ¥270,000 by Feb 2027. Fits within what is left over each month.");
       assert.equal(potLine(pot({ target: 5_000 }), benMoney), "Target reached");
       assert.equal(potLine(pot(), benMoney), undefined);
       assert.equal(potSummary(pot(), benMoney), "Tax ¥10,000 set aside");

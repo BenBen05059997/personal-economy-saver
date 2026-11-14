@@ -33,7 +33,7 @@ export function SetupForm({ action, title, hint, button, notice, privacy = false
           <label className="ui-field">Time zone<input name="timeZone" value={timeZone} onChange={event => setTimeZone(event.target.value)} maxLength={80} required /></label>
         </div>
       </details>
-      <p className="ui-hint">{forwarding ? "You can add a card, set up bill forwarding and an AI key later." : "You can add a card and an AI key later."}</p>
+      <p className="ui-hint">{forwarding ? "You can add a card, set up bill forwarding and an AI key afterwards." : "You can add a card and an AI key afterwards."}</p>
       <button className="ui-button primary">{button}</button>
       {privacy && <p className="ui-hint">Your numbers stay in this browser’s demo household. <Link className="account-link" href="/privacy">Privacy ›</Link></p>}
     </ApiForm>

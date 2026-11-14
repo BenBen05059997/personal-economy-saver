@@ -29,7 +29,7 @@ function Forecast({ state, result, mode, bankBalance }: { state: MoneyState; res
   return <>
     {mode === "chart" ? <StepLine result={result} /> : table && <ViewTable table={table} />}
     <div className="hv-summary">
-      <div><span>{labelOf("safe_to_spend")} now</span><strong>{money(safe)}</strong><small>{open.length ? `Includes ${termOf("card_charges_not_on_statement").label}: ${open.map(item => `${format(item.amount)} on ${state.cards.find(card => card.id === item.cardId)?.label ?? item.label}`).join(" and ")}.` : `No ${termOf("card_charges_not_on_statement").label} fall due in the next 30 days.`}</small></div>
+      <div><span>{labelOf("safe_to_spend")} now</span><strong>{money(safe)}</strong><small>{open.length ? `Includes ${termOf("card_charges_not_on_statement").label}: ${open.map(item => `${format(item.amount)} on ${state.cards.find(card => card.id === item.cardId)?.label ?? item.label}`).join(" and ")}.` : "No card charges are waiting for a statement in the next 30 days."}</small></div>
       <div><span>{labelOf("low_point")} if clients pay {CASES.late.label}</span><strong className={lowLate < 0 ? "hv-neg" : undefined}>{money(lowLate)}</strong><small>{longDay(lowLateDay)}</small></div>
       <div><span>{labelOf("low_point")} if clients pay {CASES.as_usual.label}</span><strong>{money(lowUsual)}</strong><small>{longDay(lowUsualDay)}</small></div>
     </div>

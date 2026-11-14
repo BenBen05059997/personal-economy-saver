@@ -14,6 +14,7 @@ export const TOOL_WORDS: Record<string, string> = {
   goals: "Checking your goal progress",
   plan_for: "Working out the plan",
   own_categories: "Reading your own categories",
+  search_spending: "Searching your spending",
   bills_for_month: "Finding the bills for that month",
   suggestions: "Checking what needs your attention",
   draft_invoice: "Drafting the invoice",

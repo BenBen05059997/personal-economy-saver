@@ -43,7 +43,7 @@ check("Category rows equal what Home's spendingRows gave: same categories, order
   const view = lookBy(ben, today, "category", members);
   assert.equal(view.by, "category");
   const old = oldRows(ben);
-  assert.deepEqual(view.rows.map(({ business, personal, children, change, ...row }) => { void business; void personal; void children; void change; return row; }), old);
+  assert.deepEqual(view.rows.map(({ business, personal, children, change, share, ...row }) => { void business; void personal; void children; void change; void share; return row; }), old);
   assert.equal(view.spent, old.reduce((s, r) => s + r.spent, 0));
   assert.equal(view.coming, old.reduce((s, r) => s + r.coming, 0));
   assert.equal(view.total, view.spent + view.coming);

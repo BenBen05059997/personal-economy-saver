@@ -41,6 +41,7 @@ const TOOL_SOURCES: Record<string, LinkSource> = {
   goals: { label: "Saving", href: "/saving" },
   plan_for: { label: "Saving", href: "/saving" },
   own_categories: { label: "Your categories", href: "/spending/categories" },
+  search_spending: { label: "Spending", href: "/spending" },
   bills_for_month: { label: "Spending", href: "/spending" },
   open_gaps: { label: "To check", href: "/to-check" },
   to_check: { label: "To check", href: "/to-check" },
@@ -97,6 +98,8 @@ type Finished = {
   today: string;
   /** The sentence of each picture `show` drew, written by code from its facts. */
   readings: readonly { sentence: string | null }[];
+  /** Called with the mentions the check rejected, so the log can name them. */
+  rejected?: (mentions: string[]) => void;
 };
 /** Who worded the answer: the model, or code when the model's words failed the check and the pictures' own sentences stand instead (D80). */
 export type Wording = "model" | "code";
@@ -105,13 +108,16 @@ type Chosen = { kind: ReplyKind; text: string; choices: string[] | null; recipe:
 /** `null` means an answer whose numbers the app could not confirm and no picture to stand in for it: the caller keeps its fixed error. */
 export function chooseReply(done: Finished): Chosen | null {
   if (done.clarify) {
-    if (unconfirmedNumbers([done.clarify.question, ...done.clarify.choices].join("\n"), done.facts, { today: done.today, person: done.person }).length) return null;
+    const rejected = unconfirmedNumbers([done.clarify.question, ...done.clarify.choices].join("\n"), done.facts, { today: done.today, person: done.person });
+    if (rejected.length) { done.rejected?.(rejected); return null; }
     return { kind: "clarify", text: done.clarify.question, choices: done.clarify.choices, recipe: null, sources: [] };
   }
   if (done.outOfScope) return { kind: "declined", text: FIXED[done.outOfScope], choices: null, recipe: null, sources: [] };
   if (!done.called) return { kind: "declined", text: FIXED.off_topic, choices: null, recipe: null, sources: [] };
   const sources = sourcesFor(done.tools, done.recipe);
-  if (unconfirmedNumbers([done.text, ...canvasWords(done.recipe)].join("\n"), done.facts, { today: done.today, person: done.person }).length) {
+  const rejected = unconfirmedNumbers([done.text, ...canvasWords(done.recipe)].join("\n"), done.facts, { today: done.today, person: done.person });
+  if (rejected.length) {
+    done.rejected?.(rejected);
     // No second model call: the pictures already say it, in code's words (D80).
     const sentences = done.readings.flatMap(reading => reading.sentence ? [reading.sentence] : []);
     if (sentences.length === 0) return null;

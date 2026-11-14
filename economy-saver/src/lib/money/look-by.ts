@@ -14,6 +14,8 @@ export type LookRow = {
   spent: number; coming: number; total: number; previous: number;
   /** Change from last month: this month's total less last month's, and that as a percent of last month to one decimal (null when last month had nothing). */
   change: Change;
+  /** This row's total as a percent of the month's total, to one decimal (null when the month has nothing); top-level rows only. */
+  share?: number | null;
   business: number; personal: number;
   unknown: boolean;
   /** D75, Category only: one row per own category with items this month or last month (largest first), then "Everything else in <category>"; they add up to this row in both months. Absent when the category has none. */
@@ -88,6 +90,7 @@ export function lookBy(input: SpendingInput, today: string, by: LookBy, members:
     }).filter(row => row.total !== 0 || row.previous !== 0 || row.unknown);
   }
   const spent = sum(rows.map(row => row.spent)), coming = sum(rows.map(row => row.coming));
+  rows = rows.map(row => ({ ...row, share: spent + coming > 0 ? Math.round(row.total * 1000 / (spent + coming)) / 10 : null }));
   return {
     by: effective, rows, spent, coming, total: spent + coming, name: current.name, lastName: last.name, lastTotal: last.totalMinor, change: changeOf(spent + coming, last.totalMinor),
     businessMinor: current.businessMinor, personalMinor: current.personalMinor, businessLine: businessLine(current, monthWhen(month === today.slice(0, 7) ? undefined : monthLabel(month, today))),

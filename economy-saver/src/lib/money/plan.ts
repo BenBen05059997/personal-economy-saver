@@ -94,7 +94,7 @@ export function potLine(pot: Pot, state: MoneyState): string | undefined {
   const plan = planFor(request, state);
   if (plan.needed === 0) return "Target reached";
   if (plan.monthlyNeeded !== undefined && pot.targetDate) {
-    return `${money(plan.monthlyNeeded)} a month to reach ${money(pot.target)} by ${monthYear(pot.targetDate)}. ${plan.fits ? "Fits within" : "More than"} the ${termOf("left_over_each_month").label}.`;
+    return `${money(plan.monthlyNeeded)} a month to reach ${money(pot.target)} by ${monthYear(pot.targetDate)}. ${plan.fits ? "Fits within" : "More than"} what is left over each month.`;
   }
   if (plan.reachedOn !== undefined && plan.pace !== undefined) return `At ${money(plan.pace)} a month you would reach ${money(pot.target)} around ${monthYear(plan.reachedOn)}.`;
   return `Nothing is left over each month yet, so there is no date to give.`;

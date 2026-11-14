@@ -17,7 +17,7 @@ export const whatChangedView: Resolver<"what_changed"> = (args, ctx): ViewResult
     rows: result.rows.map(row => ({ key: row.key, cells: [row.label, row.before, row.after, row.change ?? (row.key === "low" ? "No change" : "")] })),
   };
   const sentence = result.sentence;
-  const line = sentence.changed ? `${pending ? "If you confirm it, your sentence becomes" : "Because of it, your sentence reads"}: ${sentence.after}` : `Your sentence is unchanged: ${sentence.after}`;
+  const line = sentence.changed ? `${pending ? `Now: ${sentence.before} If you confirm it, your sentence becomes: ${sentence.after}` : `Without it: ${sentence.before} Because of it, your sentence reads: ${sentence.after}`}` : `Your sentence is unchanged: ${sentence.after}`;
   const side = (before: boolean, late: number, usual: number, safe: number) => [
     engineFact(before ? "low_point_before_change" : "low_point_after_change", late, { from: "what_changed", currency, case: "late" }),
     engineFact(before ? "low_point_before_change" : "low_point_after_change", usual, { from: "what_changed", currency, case: "as_usual" }),
@@ -26,6 +26,8 @@ export const whatChangedView: Resolver<"what_changed"> = (args, ctx): ViewResult
   const facts: Fact[] = [
     ...side(true, result.lowLateMinor.before, result.lowUsualMinor.before, result.safeMinor.before),
     ...side(false, result.lowLateMinor.after, result.lowUsualMinor.after, result.safeMinor.after),
+    engineFact("low_point_change", result.lowLateMinor.after - result.lowLateMinor.before, { from: "what_changed", currency, case: "late" }),
+    engineFact("low_point_change", result.lowUsualMinor.after - result.lowUsualMinor.before, { from: "what_changed", currency, case: "as_usual" }),
     engineFact("days_shown", WINDOW_DAYS, { from: "what_changed" }),
     ...(sentence.day.after ? [engineFact("sentence_day", sentence.day.after, { from: "what_changed" })] : []),
   ];

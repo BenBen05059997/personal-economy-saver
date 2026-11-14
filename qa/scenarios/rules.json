@@ -20,7 +20,7 @@
       "Open /memory?tab=rules"
     ],
     "expected": [
-      "Late-client link, card statement and bill rules are on at 3 days and the goal pace rule is on",
+      "Overdue-client link, card statement and bill rules are on at 3 days and the goal pace rule is on",
       "Regular-cost increase and Safe to spend rules are off",
       "/memory?tab=rules moves to /settings with the Assistant rules tab selected",
       "Memory has no Rules tab"

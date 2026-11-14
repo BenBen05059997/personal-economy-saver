@@ -54,7 +54,7 @@ async function main() {
       assert.equal(result.table!.rows.length, 6);
       reads(result, TODAY);
       assert.equal(VIEW_META.fx_cost.askOnly, true);
-      assert.equal(VIEW_META.fx_cost.home, null);
+      assert.deepEqual(VIEW_META.fx_cost.home, { path: "/clients", label: "Clients" });
       assert.match(renderToStaticMarkup(createElement(StackedColumns, { result })), /sc-col/);
       assert.equal(fact(resolveView("fx_cost", { months: 12 }, ctx).facts, "foreign_cost")!.value, 111_637);
       assert.throws(() => resolveView("fx_cost", { months: 1 }, ctx), ViewError);

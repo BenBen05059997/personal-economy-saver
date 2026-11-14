@@ -70,7 +70,7 @@ export const cardCycleView: Resolver<"card_cycle"> = (args, ctx): ViewResult => 
     : pb.source === "clients" ? ` The ${format(stmt!.amount)} statement paid ${dayLabel(stmt!.dueOn)} is covered once ${pb.arrivals.map(a => a.clientName).join(" and ")} ${pb.arrivals.length === 1 ? "pays" : "pay"}.`
     : ` The ${format(stmt!.amount)} statement paid ${dayLabel(stmt!.dueOn)} is not covered: you would be ${format(Number(said("short")))} short.`;
   const line = c.landing
-    ? `A purchase today lands on the statement that closes ${dayLabel(String(said("closes_on")))} and is paid ${dayLabel(String(said("due")))}. ${c.landing.fits ? `It fits: ${format(Number(said("card_room")))} more can go on this card with every bill still covered.` : `It does not fit: only ${format(Number(said("card_room")))} more can go on this card with every bill still covered.`}`
+    ? `A purchase today lands on the statement that closes ${dayLabel(String(said("closes_on")))} and is paid ${dayLabel(String(said("due")))}. ${c.landing.fits ? (c.roomAfterMinor !== null ? `It fits: ${format(Number(said("card_room_after")))} more can go on this card after it, with every bill still covered.` : `It fits: ${format(Number(said("card_room")))} more can go on this card with every bill still covered.`) : `It does not fit: only ${format(Number(said("card_room")))} more can go on this card with every bill still covered.`}`
     : `${c.label} closes ${dayLabel(String(said("closes_on")))} and is paid ${dayLabel(String(said("due")))}.${cover}`;
   const days = daysBetween(c.today, c.dueOn);
   return {

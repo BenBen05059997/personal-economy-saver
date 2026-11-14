@@ -29,6 +29,18 @@ check("the low and safe to spend match the engine", () => {
   assert.equal(result.data!.low.label, "Short ¥18,780 on Fri, Nov 27");
 });
 
+check("drawing only the as-usual line still carries both cases' low point and the shortfall (the Home sentence's parts)", () => {
+  const usual = forecastView({ case: "usual" }, { state: benMoney }) as ViewResult<"step_line">;
+  assert.equal(usual.line, "The lowest if clients pay as usual is ¥121,220 on Fri, Nov 20.");
+  assert.equal(fact(usual.facts, "short", "late")!.value, 18780);
+  assert.equal(fact(usual.facts, "low_point", "late")!.value, -18780);
+  assert.equal(fact(usual.facts, "low_point_day", "late")!.value, "2026-11-27");
+  assert.equal(fact(usual.facts, "low_point", "as_usual")!.value, 121220);
+  const late = forecastView({ case: "late" }, { state: benMoney }) as ViewResult<"step_line">;
+  assert.equal(fact(late.facts, "low_point", "as_usual")!.value, 121220);
+  assert.equal(fact(late.facts, "low_point_day", "as_usual")!.value, "2026-11-20");
+});
+
 check("mark names a bill: Rent is drawn on Nov 27, no mark leaves Home's forecast alone, and a bill outside the window is refused in words", () => {
   const rentId = benMoney.bills.find(bill => bill.biller === "Rent")!.id.split("@")[0];
   const marked = forecastView({ mark: rentId }, { state: benMoney }) as ViewResult<"step_line">;

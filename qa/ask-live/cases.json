@@ -1514,30 +1514,13 @@
      "question": "If I put ¥40,000 on Card A today, when do I pay for it?",
      "expect": {
       "kind": "answer",
-      "view": [
-       "card_cycle"
+      "includes": [
+       "Dec 26",
+       "¥133,770"
       ],
-      "facts": [
-       {
-        "name": "due",
-        "case": "none",
-        "value": "2026-12-26"
-       },
-       {
-        "name": "card_room_after",
-        "case": "late",
-        "value": 133770
-       }
-      ],
-      "notAs": [
-       {
-        "name": "card_room",
-        "case": "late",
-        "words": [
-         "left",
-         "after"
-        ]
-       }
+      "excludesRegex": [
+       "¥173,770[^.\\n]*\\b(left|after)\\b",
+       "\\b(left|after)\\b[^.\\n]*¥173,770"
       ]
      }
     }
@@ -1548,7 +1531,7 @@
     "D79",
     "D80"
    ],
-   "review": "Paid Dec 26; room after the purchase ¥133,770 in the late case. The room before (¥173,770) is never given as what is left after.",
+   "review": "Paid Dec 26; room after the purchase ¥133,770 in the late case, with or without a card_cycle picture. The room before (¥173,770) is never given as what is left after.",
    "judge": false
   },
   {

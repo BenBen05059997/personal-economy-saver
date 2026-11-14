@@ -568,7 +568,7 @@
       "Press Enter"
     ],
     "expected": [
-      "The answer's numbers come from engine tools (where_am_i, whats_due, can_i_spend, timeline), not from the snapshot",
+      "The answer's numbers come from engine tools (show, can_i_spend, timeline), not from the snapshot",
       "Amounts equal Home's (bank ¥67,000, safe to spend ¥0)",
       "Sources are listed"
     ],
@@ -1640,7 +1640,7 @@
       "Move to 20 days, then back to 0"
     ],
     "expected": [
-      "\"Acme Corp pays\" and \"Northwind pays\" sliders read \"on their usual day\" with \"14 days usual · 25 slowest\" and \"12 days usual · 16 slowest\", and \"Your what-if, not saved\"",
+      "\"Acme Corp pays\" and \"Northwind pays\" sliders read \"as usual\" with \"14 days usual · 25 slowest\" and \"12 days usual · 16 slowest\", and \"Your what-if, not saved\"",
       "As usual: Lowest point ¥121,220 \"on Nov 20\"",
       "At 14 days the label reads \"14 days later\", \"Redrawing…\" shows briefly, then ¥101,220 \"on Nov 27\" and the line reads \"Worked out from your records, with your what-if changes\"",
       "At 20 days ¥40,220 \"on Dec 10\"; back to 0 ¥121,220 on Nov 20",
@@ -1671,7 +1671,7 @@
       "Open Home, Coming up and Spending"
     ],
     "expected": [
-      "The slider is back at \"on their usual day\"",
+      "The slider is back at \"as usual\"",
       "Home's sentence and every other page are exactly as before; nothing was saved"
     ],
     "refs": [

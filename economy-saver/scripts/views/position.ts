@@ -64,6 +64,10 @@ async function main() {
       const acme = state.clients.find(c => c.name.startsWith("Acme"))!;
       const later = resolveView("what_if", { late: { clientId: acme.id, days: 10 } }, ctx) as ViewResult<"step_line">;
       assert.ok(later.facts!.filter(item => item.name === "low_point_before_change" || item.name === "low_point_after_change").every(item => item.case === "as_usual"));
+      assert.equal(fact(spend.facts!, "low_point_change", "late")!.value, -40_000, "after less before");
+      assert.equal(spend.line, "If you spend ¥40,000 today: ¥58,780 short on Fri, Nov 27. Now: ¥18,780 short on Fri, Nov 27.");
+      assert.match(later.line!, /^If Acme Corp pays 10 days later than usual: lowest ¥\d[\d,]* on \w{3}, \w{3} \d+\. Now: lowest ¥121,220 on Fri, Nov 20\.$/);
+      assert.equal(fact(later.facts!, "low_point_change", "as_usual")!.value, Number(fact(later.facts!, "low_point_after_change", "as_usual")!.value) - 121_220);
       const days = fact(later.facts!, "days_later_than_usual")!;
       assert.deepEqual([days.value, days.by, days.case, days.about?.id], [10, "person", "as_usual", acme.id]);
       for (const view of [position, spend, later]) {

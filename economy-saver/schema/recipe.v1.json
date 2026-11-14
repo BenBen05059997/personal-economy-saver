@@ -22,7 +22,7 @@
             "usual",
             "late"
           ],
-          "description": "usual: clients pay on their usual day. late: on their slowest."
+          "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
         },
         "changes": {
           "type": "array",

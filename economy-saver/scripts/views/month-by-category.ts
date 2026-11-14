@@ -48,7 +48,7 @@ check("The table has the old columns with children indented, and the line is the
   assert.deepEqual(table.head, ["Category", "Spent", "Still to come", "November", "October"]);
   assert.equal(table.rows.filter(row => row.child).length, rows.reduce((n, row) => n + (row.children?.length ?? 0), 0));
   assert.equal(table.caption, "Where November goes, by category");
-  assert.match(category.line!, /^November so far ¥[\d,]+ spent, ¥[\d,]+ still to come: ¥152,230 for the month, against ¥[\d,]+ in October\.$/);
+  assert.match(category.line!, /^November so far ¥[\d,]+ spent, ¥[\d,]+ still to come: ¥152,230 for the month, ¥[\d,]+ \([\d.]+%\) more than October's ¥132,060\. Most went to Housing, ¥82,000\.$/);
   assert.equal(category.title, "Where this month goes");
 });
 
@@ -57,7 +57,7 @@ check("month 2026-10 total 132,060, nothing still to come, titled for the past",
   assert.equal(fact(october.facts, "month_total")!.value, 132_060);
   assert.equal(fact(october.facts, "month_still_to_come")!.value, 0);
   assert.equal(october.title, "Where October went");
-  assert.match(october.line!, /^October: ¥132,060 spent, against /);
+  assert.equal(october.line, "October: ¥132,060, ¥18,320 (12.2%) less than September's ¥150,380. Most went to Housing, ¥82,000.");
   assert.deepEqual(october.args, { month: "2026-10" });
 });
 

@@ -48,7 +48,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 | Card B | ¥61,000 owed now · ¥239,000 limit left · So far ¥61,000 due Dec 10 · Covered ✓ |
 | To check | 1: Hikari Denki ¥11,220, due Nov 27 |
 | Coming up | CloudBox Plus ¥1,980 Nov 18 and Mobaile Tsushin ¥4,800 Nov 20 (every month); Acme +$1,200 Nov 22 (if late Dec 3); Northwind +$800 Nov 25 (if late Nov 29); Card A statement ¥58,000 Nov 26; Rent ¥82,000 Nov 27 (every month, "Short by ¥18,780 if clients pay late") |
-| Saving | "The next 30 days leave about ¥92,220 if clients pay as usual. That's what you could put aside." No pots. |
+| Saving | "Left over each month: about ¥92,220 if clients pay as usual. That's what you could put aside." No pots. |
 | Options | "Cover ¥18,780 by Nov 27."; first option Invoice Beacon Studio, ¥0 extra cost |
 | Clients | Acme $1,200 outstanding; Beacon Studio nothing outstanding; Northwind $800 outstanding |
 | Spending → This month → Look at it by | November: Business ¥32,830, Personal ¥119,400, total ¥152,230; the sentence "Business ¥32,830 of ¥152,230 this month". Person is not offered with one person |

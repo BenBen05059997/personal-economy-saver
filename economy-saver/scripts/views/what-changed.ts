@@ -51,7 +51,7 @@ async function main() {
       assert.equal(result.title, "If you confirm Hikari Denki");
       assert.deepEqual(result.table!.head, ["", "Now", "If you confirm", "Change"]);
       assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: state.today }), []);
-      assert.match(result.line!, /^If you confirm it, your sentence becomes: .*¥30,000 short on the 27th\.$/);
+      assert.match(result.line!, /^Now: .*¥18,780 short on the 27th\. If you confirm it, your sentence becomes: .*¥30,000 short on the 27th\.$/);
     });
 
     await check("the pending Hikari Denki and an unchanged item read clean; the before and after sides carry both cases and the sentence's day", () => {
@@ -97,7 +97,7 @@ async function main() {
       const rows = result.data!.rows;
       assert.deepEqual([row(rows, "category")!.before, row(rows, "category")!.after], ["¥0", "¥11,220"]);
       assert.deepEqual([row(rows, "low")!.before, row(rows, "low")!.after], ["−¥18,780", "−¥30,000"]);
-      assert.match(result.line!, /^Because of it, your sentence reads: /);
+      assert.match(result.line!, /^Without it: .* Because of it, your sentence reads: /);
       const b8 = resolveView("what_changed", { itemId: chargeOf(1_400) }, ctx) as ViewResult<"before_after">;
       assert.equal(b8.data!.pending, false, "a confirmed charge");
       assert.deepEqual([row(b8.data!.rows, `owed-${cardB.id}`)!.before, row(b8.data!.rows, `owed-${cardB.id}`)!.after], ["¥59,600", "¥61,000"]);

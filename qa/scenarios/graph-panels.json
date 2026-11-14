@@ -64,7 +64,7 @@
     "id": "GRAPH-003",
     "area": "Graph panels",
     "action": "Read Money in on Clients",
-    "user_goal": "I want to know what I really earn a month and which client pays late",
+    "user_goal": "I want to know what I really earn a month and which client pays slowest",
     "type": "happy",
     "priority": "P1",
     "needs": [
@@ -198,7 +198,7 @@
     "steps": [
       "Type \"What's due, and when?\" and press Enter",
       "Press See it in Bills ›",
-      "Back in Ask type \"Which client pays late?\" and press Enter",
+      "Back in Ask type \"Which client pays slowest?\" and press Enter",
       "Press See it in Clients ›"
     ],
     "expected": [

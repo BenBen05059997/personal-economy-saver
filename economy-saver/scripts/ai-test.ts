@@ -788,6 +788,11 @@ async function main() {
     // Percentages to one decimal.
     assert.deepEqual(un("up 12.2% and 7%", [f("percent", 12.2), f("percent", 7)]), []);
     assert.deepEqual(un("up 12.3%", [f("percent", 12.2)]), ["12.3%"]);
+    // A percent written as a whole number confirms against the fact it rounds from; a decimal must match; money stays exact.
+    assert.deepEqual(un("about 12% less", [f("percent", -12.2)]), []);
+    assert.deepEqual(un("about 13% less", [f("percent", 12.2)]), ["13%"]);
+    assert.deepEqual(un("12.0% less", [f("percent", 12.2)]), ["12.0%"]);
+    assert.deepEqual(un("¥18,800", [f("money", 18_780, { currency: "JPY" })]), ["¥18,800"]);
   });
 
   await check("unconfirmedNumbers: what the person said may be quoted back and confirms nothing else", () => {

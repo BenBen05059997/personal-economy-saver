@@ -16,9 +16,9 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
   if ((amountMinor === undefined) === (late === undefined)) throw new ViewError("what_if takes an amount to spend, or one client paying late, not both and not neither.");
   if (amountMinor !== undefined && args.date !== undefined && late !== undefined) throw new ViewError("A date goes with an amount.");
   const client = late ? state.clients.find(c => c.id === late.clientId) : undefined;
-  if (late && !client) throw new ViewError("That client is not in your records, so they cannot be late in a what-if.");
+  if (late && !client) throw new ViewError("That client is not in your records, so they cannot pay later than usual in a what-if.");
   const spendDate = args.date ?? state.today, kind = late ? "expected" as const : "worst" as const;
-  const base = { view: "what_if" as const, args: { ...args }, form: "step_line" as const, title: late ? `What if ${client!.name.split(" ")[0]} pays late` : "What if you spend it", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "Your next days, worked out again with the change. Nothing is saved." };
+  const base = { view: "what_if" as const, args: { ...args }, form: "step_line" as const, title: late ? `What if ${client!.name.split(" ")[0]} pays later than usual` : "What if you spend it", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "Your next days, worked out again with the change. Nothing is saved." };
   if (hasNothingToForecast(state)) return { ...base, data: null, table: null, line: null, aria: "Nothing to forecast yet.", facts: [], empty: { words: "Nothing to forecast yet. Add a bill or a client and a what-if shows here.", add: "bill", addLabel: "Add a bill" } };
 
   let changed;
@@ -46,6 +46,7 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
     engineFact("low_point_after_change", toMinor(loWith.amount), money_), engineFact("low_point_day_after_change", loWith.date, { from, case: c }),
     engineFact("low_point_before_change", toMinor(loNow.amount), money_), engineFact("low_point_day_before_change", loNow.date, { from, case: c }),
   ];
+  facts.push(engineFact("low_point_change", toMinor(loWith.amount) - toMinor(loNow.amount), money_));
   if (loWith.amount < 0) facts.push(engineFact("short", toMinor(-loWith.amount), money_));
   if (loNow.amount < 0) facts.push(engineFact("short", toMinor(-loNow.amount), money_));
   if (late) facts.push(personFact("days_later_than_usual", late.days, { from, case: "as_usual", about: { type: "client", id: client!.id, name: client!.name } }));
@@ -61,7 +62,7 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
   return {
     ...base, data, table, empty: null,
     facts,
-    line: `With it: ${phrase(withMinor, withDay)}. Now: ${phrase(nowMinor, nowDay)}.`,
+    line: `${late ? `If ${client!.name} pays ${late.days} ${late.days === 1 ? "day" : "days"} later than usual` : `If you spend ${money(amountMinor!)}${args.date === undefined ? " today" : ` on ${longDay(spendDate)}`}`}: ${phrase(withMinor, withDay)}. Now: ${phrase(nowMinor, nowDay)}.`,
     aria: `Cash for the next ${days} days with the change, against as things are now. With it you are ${phrase(withMinor, withDay)}; now you are ${phrase(nowMinor, nowDay)}. Use the left and right arrow keys to look at each day.`,
   };
 };

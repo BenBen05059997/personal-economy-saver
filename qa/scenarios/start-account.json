@@ -180,7 +180,7 @@
       "Home shows today's real date in the date line, not Sat Nov 14",
       "Before the update the sentence reads \"Add your bills and the clients who pay you to see your next 30 days. Bank balance ¥0.\"; after it, it includes \"Bank balance ¥250,000.\" and Cards says \"No card yet.\"",
       "\"What you can do here\" shows six cards; after the update \"Set today’s bank balance\" is ticked and \"First steps\" does not exist",
-      "Settings → Assistant rules: Late-client link shows 3"
+      "Settings → Assistant rules: Overdue-client link shows 3"
     ],
     "refs": [
       "D47"
@@ -821,7 +821,7 @@
       "Open Household and its two tabs: Details, People"
     ],
     "expected": [
-      "Settings has five tabs: Assistant rules (Late-client link and the other rules, Reminders), Your AI model, PayPal, Your data and Account; each has its own address (/settings, /settings/ai-model, /settings/paypal, /settings/data, /settings/account) and the current one is selected",
+      "Settings has five tabs: Assistant rules (Overdue-client link and the other rules, Reminders), Your AI model, PayPal, Your data and Account; each has its own address (/settings, /settings/ai-model, /settings/paypal, /settings/data, /settings/account) and the current one is selected",
       "Household has Details (name, currency, time zone, the bank balance with a link to Home) and People (names and shares, invitations, family view, who has access) at /household and /household/people",
       "Nothing scrolls sideways; light and dark both read clearly"
     ],

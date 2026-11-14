@@ -90,6 +90,7 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
   const facts: Fact[] = [];
   const from = "forecast", money = { from, currency }, window = { from: state.today, to: addDays(state.today, days - 1) };
   const showLate = which !== "usual", showUsual = which !== "late";
+  // The Home sentence's parts (both cases' low point, and the shortfall) are facts whichever line is drawn.
   const sts = safeToSpend(state, { days });
   if (days === WINDOW_DAYS) facts.push(engineFact("safe_to_spend", minor(sts.amount), money));
   else facts.push(engineFact("safe_to_spend_for_period", minor(sts.amount), { ...money, period: window }));
@@ -106,6 +107,12 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
   };
   if (showLate) addCase("late", lo, lateEvents, late);
   if (showUsual) addCase("as_usual", hi, usualEvents, usual);
+  const spare = (c: "late" | "as_usual", point: ReturnType<typeof low>) => {
+    facts.push(engineFact("low_point", minor(point.amount), { ...money, case: c }), engineFact("low_point_day", point.date, { from, case: c }));
+    if (point.amount < 0) facts.push(engineFact("short", minor(-point.amount), { ...money, case: c }));
+  };
+  if (!showLate) spare("late", lo);
+  if (!showUsual) spare("as_usual", hi);
 
   const short = data.low.short, caseKey = which === "usual" ? "as_usual" as const : "late" as const;
   const lowMinor = Number(fact(facts, "low_point", caseKey)!.value), lowDay = longDay(String(fact(facts, "low_point_day", caseKey)!.value)), who = which === "usual" ? "if clients pay as usual" : "if clients pay late";

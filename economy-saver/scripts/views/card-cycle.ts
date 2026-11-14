@@ -40,6 +40,7 @@ check("an amount lands on the statement due Dec 26 and is drawn as the purchase 
   assert.deepEqual(purchase.map(e => [e.date, e.kind, e.tone]), [["2026-11-14", "dot", "main"]]);
   assert.match(a.line!, /lands on the statement that closes Nov 30 and is paid Dec 26/);
   assert.equal(/It fits:/.test(a.line!), 40000 <= (fact(a.facts, "card_room", "late")!.value as number));
+  assert.match(a.line!, /It fits: ¥133,770 more can go on this card after it, with every bill still covered\./, "the room stated is the room after");
 });
 
 check("the amount tested is a person fact, and the room after it is the engine's: ¥173,770 before and ¥133,770 after ¥40,000 on Card A", () => {
