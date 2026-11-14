@@ -20,7 +20,7 @@ export type WhatChanged = {
   kind: "bill" | "charge" | "pot" | "balance";
   when: "pending" | "confirmed"; // pending: before = now, after = if confirmed; confirmed: before = without it, after = now
   rows: ChangedRow[]; // the fixed order, only the rows that move, then the lowest day, then the sentence
-  sentence: { before: string; after: string; changed: boolean };
+  sentence: { before: string; after: string; changed: boolean; day: { before: string | null; after: string | null } };
   lowLateMinor: { before: number; after: number };
   lowUsualMinor: { before: number; after: number };
   safeMinor: { before: number; after: number };
@@ -121,11 +121,11 @@ export function whatChanged(input: { state: MoneyState; spending: SpendingInput 
   const lowOf = (side: Side, kind: "worst" | "expected") => minor(low(series(side.state, kind)).amount);
   const lateA = lowOf(before, "worst"), lateB = lowOf(after, "worst");
   rows.push({ key: "low", label: "Lowest if clients pay late", before: format(lateA), after: format(lateB), change: lateA === lateB ? null : delta(lateA, lateB) });
-  const sentenceBefore = homeSentence(before.state).text, sentenceAfter = homeSentence(after.state).text;
+  const parsedBefore = homeSentence(before.state), parsedAfter = homeSentence(after.state), sentenceBefore = parsedBefore.text, sentenceAfter = parsedAfter.text;
   rows.push({ key: "sentence", label: "Your sentence", before: sentenceBefore, after: sentenceAfter, change: null });
   return {
     name: item.name, kind: item.kind, when: item.when, rows,
-    sentence: { before: sentenceBefore, after: sentenceAfter, changed: sentenceBefore !== sentenceAfter },
+    sentence: { before: sentenceBefore, after: sentenceAfter, changed: sentenceBefore !== sentenceAfter, day: { before: parsedBefore.day, after: parsedAfter.day } },
     lowLateMinor: { before: lateA, after: lateB }, lowUsualMinor: { before: lowOf(before, "expected"), after: lowOf(after, "expected") },
     safeMinor: { before: safe(before), after: safe(after) },
   };

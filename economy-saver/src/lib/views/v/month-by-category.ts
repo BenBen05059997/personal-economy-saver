@@ -1,7 +1,8 @@
 // Where the month goes (D73, D74, D75) as a view: lookBy's rows for one month and one question, drawn as ranked bars. Pure; every amount is integer minor units.
+import { engineFact, type Fact } from "@/lib/money/facts";
 import { minorMoney } from "@/lib/money/format";
 import { lookBy, type LookBy, type LookByView, type LookRow } from "@/lib/money/look-by";
-import { HISTORY_MONTHS, monthLabel, monthsBack } from "@/lib/money/spending";
+import { HISTORY_MONTHS, monthBounds, monthLabel, monthsBack } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
 import type { ViewArgs } from "../args";
 import { ViewError, type FormData, type RankedRow, type Resolver, type TableTwin, type ViewResult } from "../types";
@@ -46,26 +47,42 @@ export const monthByCategoryView: Resolver<"month_by_category"> = (args: ViewArg
     };
   };
   const unknown = view.rows.some(row => row.unknown);
-  const figures: ViewResult["figures"] = { month, spentMinor: view.spent, comingMinor: view.coming, totalMinor: view.total, lastTotalMinor: view.lastTotal, businessMinor: view.businessMinor, personalMinor: view.personalMinor, count: view.rows.length };
   const base = {
     view: "month_by_category" as const, args: { ...args }, form: "ranked_bars" as const, title, question, hint, home: VIEW_META.month_by_category.home, currency,
-    source: `Confirmed bills and card charges in ${view.name}, in ${currency}.`, figures,
+    source: `Confirmed bills and card charges in ${view.name}, in ${currency}.`,
   };
   if (view.rows.length === 0) {
-    return { ...base, data: null, table: null, strip: null, line: null, aria: `Nothing spent in ${view.name}.`, empty: past === undefined ? { words: `Nothing spent in ${view.name} yet. Add a bill or a card charge and it shows here.`, add: "bill", addLabel: "Add a bill" } : { words: `Nothing spent in ${past}.`, add: null, addLabel: null } };
+    return { ...base, data: null, table: null, strip: null, line: null, facts: [], aria: `Nothing spent in ${view.name}.`, empty: past === undefined ? { words: `Nothing spent in ${view.name} yet. Add a bill or a card charge and it shows here.`, add: "bill", addLabel: "Add a bill" } : { words: `Nothing spent in ${past}.`, add: null, addLabel: null } };
   }
-  const line = business ? view.businessLine
-    : past ? `${view.name}: ${format(view.total)} spent, against ${view.lastTotal > 0 ? format(view.lastTotal) : "nothing recorded"} in ${view.lastName}.`
-    : `${view.name} so far ${format(view.spent)} spent, ${format(view.coming)} still to come: ${format(view.total)} for the month, against ${view.lastTotal > 0 ? format(view.lastTotal) : "nothing recorded"} in ${view.lastName}.`;
+  // The facts first (D79): the totals, the change from last month, then each row's change, biggest first. The line is written from them.
+  const span = (m: string) => ({ from: monthBounds(m).first, to: monthBounds(m).last });
+  const money = (name: "month_spent_so_far" | "month_still_to_come" | "month_total" | "business_share" | "change_from_last_month", value: number, period: ReturnType<typeof span> | null = span(month)) =>
+    engineFact(name, value, { from: "month_by_category", currency, ...(period ? { period } : {}) });
+  const spentFact = money("month_spent_so_far", view.spent), comingFact = money("month_still_to_come", view.coming), totalFact = money("month_total", view.total);
+  const lastFact = view.lastTotal > 0 ? money("month_total", view.lastTotal, span(monthsBack(month, 2))) : null;
+  const facts: Fact[] = [spentFact, comingFact, totalFact, ...(lastFact ? [lastFact] : []), money("change_from_last_month", view.change.amount)];
+  if (view.change.percent !== null) facts.push(engineFact("change_from_last_month_percent", view.change.percent, { from: "month_by_category", period: span(month) }));
+  if (business) facts.push(money("business_share", view.businessMinor));
+  const aboutType = view.by === "person" ? "person" as const : "category" as const;
+  for (const row of [...view.rows].sort((a, b) => Math.abs(b.change.amount) - Math.abs(a.change.amount) || a.label.localeCompare(b.label))) {
+    const about = { type: aboutType, id: row.key, name: row.label };
+    facts.push(engineFact("change_from_last_month", row.change.amount, { from: "month_by_category", currency, period: span(month), about }));
+    if (row.change.percent !== null) facts.push(engineFact("change_from_last_month_percent", row.change.percent, { from: "month_by_category", period: span(month), about }));
+    if (row.unknown) facts.push(engineFact("not_counted", 1, { from: "month_by_category", period: span(month), about }));
+  }
+  const said = (item: Fact) => format(item.value as number);
+  const against = lastFact ? said(lastFact) : "nothing recorded";
+  const line = business ? (view.businessMinor === 0 ? view.businessLine : `Business ${said(facts.find(f => f.name === "business_share")!)} of ${said(totalFact)} ${when}`)
+    : past ? `${view.name}: ${said(totalFact)} spent, against ${against} in ${view.lastName}.`
+    : `${view.name} so far ${said(spentFact)} spent, ${said(comingFact)} still to come: ${said(totalFact)} for the month, against ${against} in ${view.lastName}.`;
   const data: FormData["ranked_bars"] = {
     segments, tick: { legend: view.lastName }, rows: view.rows.map(rowOf),
     ...(args.open && !business && view.rows.some(row => row.key === args.open && (row.children?.length ?? 0) > 0) ? { open: args.open } : {}),
   };
   return {
-    ...base, data, table: tableOf(view, format), empty: null, line,
+    ...base, data, table: tableOf(view, format), empty: null, line, facts,
     strip: business ? [{ label: "Business", value: format(view.businessMinor) }, { label: "Personal", value: format(view.personalMinor) }] : null,
     aria: `${title}. ${line}${unknown ? " Some amounts are not known and are not counted." : ""}`,
-    figures: { ...figures, unknown: unknown ? 1 : 0 },
   };
 };
 

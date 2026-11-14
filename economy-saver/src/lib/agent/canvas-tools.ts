@@ -7,6 +7,7 @@ import { CanvasError, resolveRecipe } from "@/lib/canvas/resolve";
 import { CASE_KIND, ChangeSchema, MAX_CHANGES, problemWords, RecipeSchema, type Recipe } from "@/lib/canvas/schema";
 import { canvasSummary } from "@/lib/canvas/summary";
 import { InputError } from "@/db/input-error";
+import { engineFact, forModel } from "@/lib/money/facts";
 import { homeSentence } from "@/lib/money/sentence";
 import { low, safeToSpend, series } from "@/lib/money/runway";
 import { minorPerUnit } from "@/lib/money/format";
@@ -55,8 +56,19 @@ export const canvasTools: Tool[] = [
       const kind = CASE_KIND[input.case];
       const after = figures(changed, kind), before = figures(state, kind);
       const note = homeSentence(changed).note;
+      const from = "what_if", currency = state.homeCurrency, factCase = input.case === "usual" ? "as_usual" as const : "late" as const;
+      const period = { on: after.lowPoint.date };
+      const facts = [
+        engineFact("low_point_after_change", after.lowPoint.amountMinor, { from, currency, case: factCase, period }),
+        engineFact("low_point_day_after_change", after.lowPoint.date, { from, case: factCase }),
+        engineFact("low_point_before_change", before.lowPoint.amountMinor, { from, currency, case: factCase, period: { on: before.lowPoint.date } }),
+        engineFact("low_point_day_before_change", before.lowPoint.date, { from, case: factCase }),
+        engineFact("safe_to_spend_after_change", after.safeToSpendMinor, { from, currency }),
+        engineFact("safe_to_spend_before_change", before.safeToSpendMinor, { from, currency }),
+        ...(after.lowPoint.amountMinor < 0 ? [engineFact("short", -after.lowPoint.amountMinor, { from, currency, case: factCase, period })] : []),
+      ];
       return JSON.stringify({
-        case: input.case, sentence: homeSentence(changed).text + (note ? ` ${note}` : ""),
+        ...forModel(facts), case: input.case, sentence: homeSentence(changed).text + (note ? ` ${note}` : ""),
         lowPoint: after.lowPoint, safeToSpendMinor: after.safeToSpendMinor,
         now: { lowPoint: before.lowPoint, safeToSpendMinor: before.safeToSpendMinor },
         lowPointChangeMinor: after.lowPoint.amountMinor - before.lowPoint.amountMinor,

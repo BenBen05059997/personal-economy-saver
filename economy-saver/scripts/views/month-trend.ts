@@ -1,11 +1,12 @@
 // Spending by month (D73): the month_trend view on Ben's sample and the stacked-columns form.
 import assert from "node:assert/strict";
+import { unconfirmedNumbers } from "@/lib/ai/number-check";
+import { TERMS } from "@/lib/money/terms";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { minorMoney } from "@/lib/money/format";
 import { monthTrend } from "@/lib/money/look-by";
 import { benMoney } from "@/lib/sample/ben";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
 import { monthTrendView } from "@/lib/views/v/month-trend";
 import type { ViewResult } from "@/lib/views/types";
@@ -48,8 +49,8 @@ check("The line is the sentence Over time printed before; the table has Month, S
 check("months narrows the columns; figures are integers and say every amount the line does", () => {
   const two = monthTrendView({ months: 2 }, ctx).data as typeof data;
   assert.ok(two.columns.length <= 2);
-  for (const [key, value] of Object.entries(result.figures)) if (key.endsWith("Minor") && value !== null) assert.ok(Number.isInteger(value), key);
-  assert.deepEqual(unconfirmedAmounts(result.line ?? "", [JSON.stringify(result.figures)]), []);
+  for (const item of result.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
+  assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, benMoney.today), []);
 });
 
 check("No spending at all reads as empty with an Add a bill button", () => {
@@ -72,6 +73,22 @@ check("A part below zero draws in the short tone and a reference line is labelle
   const html = renderToStaticMarkup(createElement(StackedColumns, { result: custom }));
   assert.ok(html.includes("sc-seg-short"));
   assert.ok(html.includes("Budget"));
+});
+
+check("month_trend: every fact is a term and the line has no number a fact does not confirm", () => {
+  for (const r of [result]) {
+    assert.ok(r.facts && r.facts.length > 0);
+    assert.ok(r.facts.every(f => TERMS.some(t => t.name === f.name)));
+    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts as Parameters<typeof unconfirmedNumbers>[1], benMoney.today), []);
+  }
+});
+
+check("month_trend: the highest month and its largest one-off item are facts with their period and name", () => {
+  const high = result.facts!.find(f => f.name === "highest_month")!, biggest = result.facts!.find(f => f.name === "biggest_one_off");
+  assert.equal(high.value, Math.max(...result.facts.filter(f => f.name === "month_total" && f.period && "to" in f.period && f.period.to < benMoney.today).map(f => Number(f.value))));
+  assert.ok(high.period && "from" in high.period);
+  assert.equal(biggest?.about?.type, "charge");
+  assert.ok(result.line!.includes(biggest!.about!.name));
 });
 
 console.log(`month-trend: ${passed} passed`);

@@ -1,5 +1,6 @@
 // Will the pot cover the tax bills? (D77) The pot's day-by-day amount against the Government & tax bills due, from the engine's `taxAhead`. Pure; integer minor units.
 import { addDays } from "@/lib/money/dates";
+import { engineFact, type Fact } from "@/lib/money/facts";
 import { dayLabel, minorMoney } from "@/lib/money/format";
 import { taxAhead } from "@/lib/money/tax-ahead";
 import { VIEW_META } from "../catalogue";
@@ -11,7 +12,7 @@ export const taxAheadView: Resolver<"tax_ahead"> = (args, ctx): ViewResult => {
   if (!pot) throw new ViewError("I couldn't find that pot.");
   const meta = VIEW_META.tax_ahead, currency = state.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
   const base = { view: "tax_ahead" as const, args: args as Record<string, unknown>, form: meta.form as "step_line", title: `${pot.name}: tax ahead`, question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "The pot, your open invoices on their usual pay days and your Government & tax bills" };
-  const none = (words: string, add: "bill" | null, addLabel: string | null) => ({ ...base, data: null, table: null, line: null, aria: "No tax picture yet.", figures: {}, empty: { words, add, addLabel } });
+  const none = (words: string, add: "bill" | null, addLabel: string | null) => ({ ...base, data: null, table: null, line: null, aria: "No tax picture yet.", facts: [] as Fact[], empty: { words, add, addLabel } });
   const ahead = taxAhead(state, args.potId, days);
   if (!ahead) return none("Set a fill rule on this pot to see the tax ahead.", null, null);
   if (ahead.taxBills.length === 0) return none("Add your tax bills (Government & tax) to see whether this pot covers them.", "bill", "Add a bill");
@@ -42,14 +43,25 @@ export const taxAheadView: Resolver<"tax_ahead"> = (args, ctx): ViewResult => {
   const note = pending.length ? ` ${pending.map(bill => bill.biller).join(" and ")} waits in To check and is not counted yet.` : "";
   const eventDays = new Set(ahead.taxBills.map(bill => bill.index).concat(ahead.steps.map(step => step.index)));
   const rows = ahead.pot.map((_, i) => i).filter(i => i === 0 || eventDays.has(i));
-  const potEnd = ahead.pot[days - 1], billsEnd = ahead.bills[days - 1];
+  const potAbout = { type: "pot" as const, id: pot.id, name: pot.name }, billAbout = (bill: (typeof ahead.taxBills)[number]) => ({ type: "bill" as const, id: bill.id, name: bill.biller });
+  const facts: Fact[] = [
+    engineFact("pot", ahead.pot[0], { from: "tax_ahead", currency, about: potAbout }),
+    ...(low.short ? [
+      engineFact("tax_ahead", low.shortMinor, { from: "tax_ahead", currency, about: potAbout }),
+      engineFact("tax_short_on", lowDate, { from: "tax_ahead", about: potAbout }),
+      // The bill that makes the pot short: the one due on that day.
+      ...ahead.taxBills.filter(bill => bill.index === low.index).flatMap(bill => bill.counted
+        ? [engineFact("bill_amount", bill.amountMinor, { from: "tax_ahead", currency, about: billAbout(bill), period: { on: bill.date } }), engineFact("due", bill.date, { from: "tax_ahead", about: billAbout(bill) })]
+        : [engineFact("not_counted", 1, { from: "tax_ahead", about: billAbout(bill) })]),
+    ] : [engineFact("tax_covered_through", through, { from: "tax_ahead" })]),
+    ...pending.filter(bill => !(low.short && bill.index === low.index)).map(bill => engineFact("not_counted", 1, { from: "tax_ahead", about: billAbout(bill) })),
+  ];
   return {
-    ...base, data, empty: null, line: line + note,
+    ...base, data, empty: null, line: line + note, facts,
     table: {
       caption: `${pot.name} against the tax bills`, head: ["Day", "What happens", "In the pot", "Tax bills so far"], foot: null, align: ["start", "end", "end"],
       rows: rows.map(i => ({ key: date(i), cells: [longDay(date(i)), dayWords[i].lines.join("; "), format(ahead.pot[i]), format(ahead.bills[i])] })),
     },
     aria: `${pot.name} against the tax bills for the next ${days} days. ${low.short ? `The pot is ${format(low.shortMinor)} short on ${lowWords}.` : `The pot covers the tax bills counted so far.`} Use the left and right arrow keys to look at each day.`,
-    figures: { savedMinor: ahead.pot[0], potEndMinor: potEnd, billsMinor: billsEnd, shortMinor: low.short ? low.shortMinor : null, days, fillBp: ahead.fillBp },
   };
 };

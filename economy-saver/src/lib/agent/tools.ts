@@ -27,7 +27,8 @@ import { clients, invoices } from "@/db/schema";
 import { minorPerUnit } from "@/lib/money/format";
 import { dayView } from "@/lib/money/window";
 import { gapAmountWords, gapDateWords, gapQuestion, openGaps } from "@/lib/money/gaps";
-import { dueAnswer, safeToSpendLine, spendAnswer, statusAnswer } from "@/lib/money/ask";
+import { dueAnswer, dueFacts, outlookFacts, safeToSpendLine, spendReading, statusAnswer, withFacts } from "@/lib/money/ask";
+import { engineFact, forModel, type Fact } from "@/lib/money/facts";
 import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { ownLabel } from "@/lib/money/own-category";
 import { guessCategory } from "@/lib/money/categorise";
@@ -41,7 +42,7 @@ import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { clientPace } from "@/lib/money/pace";
 import { goalPaces } from "@/lib/money/goals";
 import { planFor, planLine } from "@/lib/money/plan";
-import { daysBetween, low, series, timeline as engineTimeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { clientsOwe, daysBetween, low, overdue, series, timeline as engineTimeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
 import { viewTools, type ViewBlock } from "./view-tools";
@@ -240,16 +241,42 @@ export const SNAPSHOT_TOOL_WINDOW = 100;
 const insertPreparedBill = (ctx: ToolContext) => (db: Db, p: Awaited<ReturnType<typeof prepareBill>>) => insertBill(db, ctx.householdId, p.bill, p.status, by(ctx));
 const insertPreparedCharge = (ctx: ToolContext) => (db: Db, p: Awaited<ReturnType<typeof prepareCharge>>) => insertCharge(db, ctx.householdId, p.charge, "pending", ctx.source ?? "manual", by(ctx));
 
+/** One fact per timeline event, about its bill, card or client, on its day and in the case tested. An amount not known is "not counted", never 0. */
+function eventFacts(state: MoneyState, events: ReturnType<typeof engineTimeline>, scenario: "as_usual" | "late"): Fact[] {
+  const from = "timeline", currency = state.homeCurrency, period = (date: string) => ({ on: date });
+  return events.flatMap(event => {
+    const about = event.kind === "bill" ? { type: "bill" as const, id: event.id, name: event.label }
+      : event.kind === "statement" ? { type: "card" as const, id: event.cardId ?? event.id, name: event.label }
+      : { type: "client" as const, id: event.clientId ?? event.id, name: event.label };
+    if (event.uncounted) return [engineFact("not_counted", 1, { from, about, period: period(event.date) })];
+    const minor = Math.abs(toMinor(event.amount, currency));
+    const name = event.kind === "bill" ? "bill_counted" : event.kind === "arrival" ? "client_pays" : event.open ? "statement_open" : "statement_closed";
+    const named = name === "bill_counted" || name === "client_pays";
+    const money = engineFact(name, minor, { from, currency, about, period: period(event.date), ...(named ? { case: scenario } : {}) });
+    return event.estimated ? [money, engineFact("about_estimate", 1, { from, about, period: period(event.date) })] : [money];
+  });
+}
+
+/** The lowest point of a timeline and any shortfall, in the case tested. */
+function lowFacts(state: MoneyState, lowest: { date: string; amount: number }, scenario: "as_usual" | "late", from: string): Fact[] {
+  const currency = state.homeCurrency, period = { on: lowest.date };
+  return [
+    engineFact("low_point", toMinor(lowest.amount, currency), { from, currency, case: scenario, period }),
+    engineFact("low_point_day", lowest.date, { from, case: scenario }),
+    ...(lowest.amount < 0 ? [engineFact("short", toMinor(-lowest.amount, currency), { from, currency, case: scenario, period })] : []),
+  ];
+}
+
 export const tools: Tool[] = [
   defineTool({
     name: "where_am_i", scope: "read", input: none,
     description: "The 30-day outlook in one sentence (fine if clients pay as usual, how short if late), plus Home’s safe-to-spend and what it covers.",
-    run: async ctx => { const state = await ctx.state(); return `${statusAnswer(state)} ${safeToSpendLine(state)}`; },
+    run: async ctx => { const state = await ctx.state(); return withFacts(`${statusAnswer(state)} ${safeToSpendLine(state)}`, outlookFacts(state, "where_am_i")); },
   }),
   defineTool({
     name: "whats_due", scope: "read", input: none,
     description: "The one next confirmed bill or statement, amount, date, coverage. Others, any card’s statement: timeline.",
-    run: async ctx => dueAnswer(await ctx.state()),
+    run: async ctx => { const state = await ctx.state(); return withFacts(dueAnswer(state), dueFacts(state, "whats_due")); },
   }),
   defineTool({
     name: "open_gaps", scope: "read", input: none,
@@ -271,7 +298,8 @@ export const tools: Tool[] = [
     run: async (ctx, input) => {
       const state = await ctx.state();
       if (input.card_id && !state.cards.some(card => card.id === input.card_id)) throw new Error("Unknown card");
-      return spendAnswer(state, input.amount_minor, input.card_id ?? undefined);
+      const reading = spendReading(state, input.amount_minor, input.card_id ?? undefined);
+      return withFacts(reading.text, reading.facts);
     },
   }),
   defineTool({
@@ -280,7 +308,11 @@ export const tools: Tool[] = [
     run: async ctx => {
       const state = await ctx.state();
       const pace = (c: (typeof state.clients)[number]) => { const p = clientPace(c); return { usualDaysToPay: p?.usual ?? null, slowestDaysToPay: p?.slowest ?? null }; };
-      return JSON.stringify({ clients: state.clients.map(c => ({ id: c.id, name: c.name, ...pace(c) })), cards: state.cards.map(c => ({ id: c.id, label: c.label })) });
+      const facts = state.clients.flatMap(c => {
+        const p = clientPace(c), about = { type: "client" as const, id: c.id, name: c.name };
+        return p ? [engineFact("usual_days_to_pay", p.usual, { from: "list_clients_and_cards", about }), engineFact("slowest_days_to_pay", p.slowest, { from: "list_clients_and_cards", about })] : [];
+      });
+      return JSON.stringify({ ...forModel(facts), clients: state.clients.map(c => ({ id: c.id, name: c.name, ...pace(c) })), cards: state.cards.map(c => ({ id: c.id, label: c.label })) });
     },
   }),
   defineTool({
@@ -299,14 +331,16 @@ export const tools: Tool[] = [
       if (input.on != null && !beyond) {
         let view;
         try { view = dayView(state, kind, input.on); } catch (error) { throw new InputError(error instanceof Error ? error.message : "That day cannot be read"); }
-        return JSON.stringify({ scenario: input.scenario, today: state.today, currency: state.homeCurrency, on: view.date, balanceAfterMinor: minor(view.balance), events: view.events.map(eventOut) });
+        return JSON.stringify({ ...forModel(eventFacts(state, view.events, input.scenario)), scenario: input.scenario, today: state.today, currency: state.homeCurrency, on: view.date, balanceAfterMinor: minor(view.balance), events: view.events.map(eventOut) });
       }
       const lowest = low(series(state, kind));
+      const events = engineTimeline(state, kind);
       return JSON.stringify({
+        ...forModel([...lowFacts(state, lowest, input.scenario, "timeline"), ...eventFacts(state, events, input.scenario)]),
         scenario: input.scenario, today: state.today, currency: state.homeCurrency,
         ...(beyond && { note: `fipa looks ${WINDOW_DAYS} days ahead, so it has no balance for ${input.on}. These are the figures for the next ${WINDOW_DAYS} days; tell the person that fipa looks ${WINDOW_DAYS} days ahead and give no balance for the later day.` }),
         low: { date: lowest.date, amountMinor: minor(lowest.amount) },
-        events: engineTimeline(state, kind).map(eventOut),
+        events: events.map(eventOut),
       });
     },
   }),
@@ -316,10 +350,15 @@ export const tools: Tool[] = [
     run: async ctx => {
       const state = await ctx.state();
       const plan = fundingOptions(state);
-      if (!plan.gap) return "not short";
+      if (!plan.gap) return withFacts("not short", outlookFacts(state, "options_when_short"));
       const minor = (amount: number) => toMinor(amount, state.homeCurrency);
+      const from = "options_when_short", currency = state.homeCurrency;
+      const facts = [
+        engineFact("short", minor(plan.gap), { from, currency, case: "late", period: { on: plan.date } }),
+        ...plan.rows.map(row => engineFact("option_cost", minor(row.cost), { from, currency, about: { type: "cost", id: row.id, name: row.title } })),
+      ];
       return JSON.stringify({
-        currency: state.homeCurrency, gapMinor: minor(plan.gap), shortOn: plan.date, repayOn: plan.repayOn,
+        ...forModel(facts), currency: state.homeCurrency, gapMinor: minor(plan.gap), shortOn: plan.date, repayOn: plan.repayOn,
         options: plan.rows.map(row => ({
           id: row.id, title: row.title, detail: row.detail, status: row.status, recommended: row.pick,
           costMinor: minor(row.cost), principalMinor: minor(row.principal),
@@ -344,8 +383,13 @@ export const tools: Tool[] = [
       const byStatus = await ctx.db.select({ status: invoices.status, n: count() }).from(invoices).where(eq(invoices.householdId, hid)).groupBy(invoices.status);
       const countsByStatus = Object.fromEntries(byStatus.map(row => [row.status, row.n]));
       const total = byStatus.reduce((sum, row) => sum + row.n, 0);
+      const factFrom = "list_invoices", currency = state.homeCurrency;
+      const facts = [
+        engineFact("clients_owe", toMinor(clientsOwe(state), currency), { from: factFrom, currency }),
+        ...state.invoices.filter(invoice => invoice.status === "sent").map(invoice => engineFact("days_overdue", overdue(state, invoice).daysOverdue, { from: factFrom, about: { type: "invoice", id: invoice.id, name: invoice.number ?? invoice.item } })),
+      ];
       return JSON.stringify({
-        total, countsByStatus,
+        ...forModel(facts), total, countsByStatus,
         ...(total > rows.length && { listed: `Only the ${rows.length} latest invoices are listed; the counts cover all ${total}.` }),
         invoices: rows.map(({ clientId, ...row }) => {
           const pace = clientPace(state.clients.find(c => c.id === clientId) ?? { daysToPay: [] } as never);
@@ -365,7 +409,17 @@ export const tools: Tool[] = [
     run: async ctx => {
       const state = await ctx.state();
       const goals = goalPaces(state);
-      return JSON.stringify({ currency: state.homeCurrency, goals, summary: goals.length ? null : "No dated savings goals yet." });
+      const from = "goals", currency = state.homeCurrency;
+      const facts = goals.flatMap(goal => {
+        const about = { type: "pot" as const, id: goal.id, name: goal.name };
+        return [
+          engineFact("goal_pace", goal.deltaMinor, { from, currency, about }),
+          engineFact("goal_still_to_set_aside", goal.neededMinor, { from, currency, about }),
+          engineFact("goal_monthly_needed", goal.monthlyNeededMinor, { from, currency, about }),
+          ...(goal.reachedOn ? [engineFact("goal_reaches_on", goal.reachedOn, { from, about })] : []),
+        ];
+      });
+      return JSON.stringify({ ...forModel(facts), currency, goals, summary: goals.length ? null : "No dated savings goals yet." });
     },
   }),
   defineTool({
@@ -389,8 +443,15 @@ export const tools: Tool[] = [
       const monthly = input.monthly_minor != null ? unit(input.monthly_minor) : undefined;
       const request = { target, saved: pot?.saved ?? 0, ...(targetDate && { targetDate }), ...(monthly !== undefined && { monthly }) };
       const plan = planFor(request, state);
+      const from = "plan_for", currency = state.homeCurrency, about = pot ? { type: "pot" as const, id: pot.id, name: pot.name } : undefined;
+      const facts = [
+        engineFact("left_over_each_month", minor(plan.leftOverEachMonth), { from, currency, case: "as_usual" }),
+        engineFact("goal_still_to_set_aside", minor(plan.needed), { from, currency, ...(about && { about }) }),
+        ...(plan.monthlyNeeded !== undefined ? [engineFact("goal_monthly_needed", minor(plan.monthlyNeeded), { from, currency, ...(about && { about }) })] : []),
+        ...(plan.reachedOn ? [engineFact("goal_reaches_on", plan.reachedOn, { from, ...(about && { about }) })] : []),
+      ];
       return JSON.stringify({
-        summary: planLine(request, plan, state), currency: state.homeCurrency,
+        ...forModel(facts), summary: planLine(request, plan, state), currency,
         targetMinor: minor(target), savedMinor: minor(request.saved), neededMinor: minor(plan.needed), leftOverEachMonthMinor: minor(plan.leftOverEachMonth),
         ...(plan.months !== undefined && { months: plan.months }),
         ...(plan.monthlyNeeded !== undefined && { monthlyNeededMinor: minor(plan.monthlyNeeded) }),
@@ -405,8 +466,13 @@ export const tools: Tool[] = [
     run: async ctx => {
       const state = await ctx.state();
       const balance = splitBalance(state.split, state.today);
+      const from = "who_owes_whom", currency = state.homeCurrency;
+      const facts = balance.transfers.flatMap(t => {
+        const about = { type: "person" as const, id: t.fromId, name: t.fromName };
+        return [engineFact("who_owes_whom", t.amountMinor, { from, currency, about }), engineFact("owes_to", t.toName, { from, about })];
+      });
       return JSON.stringify({
-        summary: splitSummary(state.split, balance, state.homeCurrency), currency: state.homeCurrency,
+        ...forModel(facts), summary: splitSummary(state.split, balance, state.homeCurrency), currency: state.homeCurrency,
         split: state.split.members.length > 1, since: state.split.since, settledThrough: state.split.settledThrough, items: balance.items,
         transfers: balance.transfers.map(t => ({ from: t.fromName, to: t.toName, amountMinor: t.amountMinor })),
         members: balance.members.map((m, i) => ({
@@ -428,7 +494,13 @@ export const tools: Tool[] = [
       if (month > today.slice(0, 7) || month < monthsBack(today.slice(0, 7), HISTORY_MONTHS)) throw new InputError(`month must be one of the last ${HISTORY_MONTHS} months, ${monthsBack(today.slice(0, 7), HISTORY_MONTHS)} to ${today.slice(0, 7)}`);
       const { first, last } = monthBounds(month);
       const view = monthByCategory(await loadSpending(ctx.db, ctx.householdId, { from: first, to: last }), today, month);
-      return monthText(view, monthWhen(month === today.slice(0, 7) ? undefined : view.name));
+      const from = "month_by_category", currency = view.currency, period = { from: first, to: last };
+      const facts = [
+        engineFact("month_total", view.totalMinor, { from, currency, period }),
+        ...(view.businessMinor > 0 ? [engineFact("business_share", view.businessMinor, { from, currency, period })] : []),
+        ...view.categories.map(c => engineFact("category_total", c.totalMinor, { from, currency, period, about: { type: "category", id: c.category, name: c.label } })),
+      ];
+      return withFacts(monthText(view, monthWhen(month === today.slice(0, 7) ? undefined : view.name)), facts);
     },
   }),
   defineTool({
@@ -454,7 +526,12 @@ export const tools: Tool[] = [
       const monthEnd = monthBounds(today.slice(0, 7)).last;
       const data = await loadSpending(ctx.db, ctx.householdId, { from, to: monthEnd });
       const result = searchSpending(spendingItems(data, from, monthEnd), input.query, data.homeCurrency, { from, to: today, uncountedTo: monthEnd });
-      return JSON.stringify({ summary: searchLine(result), from, to: today, ...result });
+      const factFrom = "search_spending", period = { from, to: today };
+      const facts = [
+        engineFact("search_total", result.totalMinor, { from: factFrom, currency: result.currency, period }),
+        ...result.uncounted.map(name => engineFact("not_counted", 1, { from: factFrom, about: { type: "cost", id: name, name } })),
+      ];
+      return JSON.stringify({ ...forModel(facts), summary: searchLine(result), from, to: today, ...result });
     },
   }),
   defineTool({
@@ -467,7 +544,10 @@ export const tools: Tool[] = [
     run: async (ctx, input) => {
       const today = await householdDate(ctx.db, ctx.householdId);
       if (input.month > latestDate(today).slice(0, 7)) throw new InputError(`month must be no later than ${latestDate(today).slice(0, 7)}, two years from today`);
-      return JSON.stringify(billsForMonth(await loadPeriodBills(ctx.db, ctx.householdId, input.month), input.month, input.text));
+      const result = billsForMonth(await loadPeriodBills(ctx.db, ctx.householdId, input.month), input.month, input.text);
+      const { first, last } = monthBounds(input.month);
+      const facts = result.totals.map(t => engineFact("bills_for_month_total", t.totalMinor, { from: "bills_for_month", currency: t.currency as Currency, period: { from: first, to: last } }));
+      return JSON.stringify({ ...forModel(facts), ...result });
     },
   }),
   defineTool({
@@ -487,7 +567,15 @@ export const tools: Tool[] = [
       const from = `${monthsBack(today.slice(0, 7), months)}-01`, to = monthBounds(today.slice(0, 7)).last;
       const data = await loadSpending(ctx.db, ctx.householdId, { from, to });
       const result = regularCosts(spendingItems(data, from, to), data.homeCurrency, today, months);
-      return JSON.stringify({ summary: result.changedLine, from, to, ...result });
+      const factFrom = "regular_costs", currency = result.currency, period = { from: `${result.month}-01`, to: monthBounds(result.month).last };
+      const facts = result.items.flatMap(cost => {
+        const about = { type: "cost" as const, id: cost.key, name: cost.label };
+        return [
+          engineFact("regular_costs", cost.thisMinor, { from: factFrom, currency, about, period }),
+          ...(cost.changeMinor !== null ? [engineFact("change_from_last_month", cost.changeMinor, { from: factFrom, currency, about, period })] : []),
+        ];
+      });
+      return JSON.stringify({ ...forModel(facts), summary: result.changedLine, from, to, ...result });
     },
   }),
   defineTool({
@@ -499,8 +587,19 @@ export const tools: Tool[] = [
       const move = catalogueMove("JP", "jp-payout-cost");
       if (!move) throw new Error("The catalogue has no jp-payout-cost move");
       const source = move.sources[0];
+      const from = "foreign_costs", currency = costs.homeCurrency as Currency;
+      const cardCost = (t: { exactMinor: number; estimatedMinor: number }) => t.exactMinor + t.estimatedMinor;
+      const facts: Fact[] = nothing ? [] : [
+        engineFact("foreign_cost_receiving", costs.payoutTotals.costMinor, { from, currency }),
+        engineFact("foreign_cost_card", cardCost(costs.chargeTotals), { from, currency }),
+        ...costs.perClient.map(c => engineFact("foreign_cost", c.costMinor, { from, currency, about: { type: "client", id: c.clientId, name: c.clientName } })),
+        ...costs.perCard.flatMap(c => {
+          const about = { type: "card" as const, id: c.cardId, name: c.label };
+          return [engineFact("foreign_cost", cardCost(c), { from, currency, about }), ...(c.estimatedMinor > 0 ? [engineFact("about_foreign_estimate", 1, { from, about })] : [])];
+        }),
+      ];
       return JSON.stringify({
-        months: 12, homeCurrency: costs.homeCurrency,
+        ...forModel(facts), months: 12, homeCurrency: costs.homeCurrency,
         charges: {
           ...costs.chargeTotals,
           perCard: costs.perCard,

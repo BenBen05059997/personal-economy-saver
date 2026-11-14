@@ -22,8 +22,8 @@ function Forecast() {
   const area = `${line(usual)} L${x(late.length - 1)} ${y(late[late.length - 1])} ${late.slice(0, -1).reduceRight((path, value, i) => `${path} V${y(value)} H${x(i)}`, "")} Z`;
   const index = daysBetween(benMoney.today, point.date);
   return <figure className={styles.forecast}>
-    <div className={styles.legend}><span><i className={styles.lateKey} />If clients pay late</span><span><i className={styles.usualKey} />If they pay on time</span></div>
-    <svg viewBox="0 0 560 175" role="img" aria-label={`Cash over the next 30 days. If clients pay late, the lowest balance is ${format(point.amount)} on ${dayLabel(point.date)}; if they pay on time, the lowest is ${format(low(usual).amount)}.`}>
+    <div className={styles.legend}><span><i className={styles.lateKey} />If clients pay late</span><span><i className={styles.usualKey} />If clients pay as usual</span></div>
+    <svg viewBox="0 0 560 175" role="img" aria-label={`Cash over the next 30 days. If clients pay late, the lowest balance is ${format(point.amount)} on ${dayLabel(point.date)}; if clients pay as usual, the lowest is ${format(low(usual).amount)}.`}>
       <path d={area} fill="#fdecc8" /><line x1="0" x2="560" y1={y(0)} y2={y(0)} stroke="#8a857c" />
       <path d={line(usual)} fill="none" stroke="#8a857c" strokeWidth="1.5" /><path d={line(late)} fill="none" stroke="#F7A30A" strokeWidth="2.5" />
       <circle cx={x(index)} cy={y(point.amount)} r="5" fill="#b3261e" stroke="#fbfaf8" strokeWidth="2" />

@@ -1,8 +1,9 @@
 // What foreign money cost (D62, D77): by month, what receiving dollars and paying in another currency cost. Ask only. Pure; every amount integer minor units.
 import type { Currency } from "@/lib/catalogue/types";
+import { engineFact, type Fact } from "@/lib/money/facts";
 import { aboutMoney, minorMoney, plural } from "@/lib/money/format";
 import { fxByMonth } from "@/lib/money/fx-cost";
-import { monthLabel } from "@/lib/money/spending";
+import { monthBounds, monthLabel } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type ViewResult } from "../types";
 
@@ -16,7 +17,7 @@ export const fxCostView: Resolver<"fx_cost"> = (args, ctx): ViewResult => {
   const base = { view: "fx_cost" as const, args: args as Record<string, unknown>, form: meta.form as "stacked_columns", title: "What foreign money cost", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "PayPal's published business rates on your paid dollar invoices, and your card purchases in another currency" };
   const costOf = (m: (typeof months)[number]) => m.payoutMinor + m.chargeExactMinor + m.chargeEstimatedMinor;
   if (months.every(m => costOf(m) === 0 && m.unknownCount === 0)) {
-    return { ...base, data: null, table: null, line: null, aria: "No foreign costs to show.", figures: { months: months.length }, empty: { words: "Foreign costs show here once a client has paid you in dollars or you have a card purchase in another currency.", add: "client", addLabel: "Add a client" } };
+    return { ...base, data: null, table: null, line: null, aria: "No foreign costs to show.", facts: [], empty: { words: "Foreign costs show here once a client has paid you in dollars or you have a card purchase in another currency.", add: "client", addLabel: "Add a client" } };
   }
   const label = (m: (typeof months)[number]) => `${MONTH_NAMES[Number(m.month.slice(5)) - 1]} ${m.month.slice(0, 4)}`;
   const shown = (minor: number, estimated: boolean) => estimated ? about(minor) : format(minor);
@@ -26,8 +27,17 @@ export const fxCostView: Resolver<"fx_cost"> = (args, ctx): ViewResult => {
   const high = [...months].sort((a, b) => costOf(b) - costOf(a))[0];
   const first = months[0].month, last = months[months.length - 1].month;
   const line = `Over ${monthLabel(first, state.today)} to ${monthLabel(last, state.today)}, foreign money cost you ${shown(totalMinor, estimated)}: ${format(payoutMinor)} to receive and convert payments${chargeMinor > 0 ? ` and ${shown(chargeMinor, estimated)} on card purchases in another currency` : ""}. ${label(high)} cost the most (${guess(high) ? about(costOf(high)) : format(costOf(high))}).${unknown > 0 ? ` ${plural(unknown, "purchase")} in another currency ${unknown === 1 ? "has" : "have"} no cost yet.` : ""}`;
+  const span = { from: monthBounds(first).first, to: monthBounds(last).last }, highBounds = monthBounds(high.month);
+  const facts: Fact[] = [
+    engineFact("foreign_cost", totalMinor, { from: "fx_cost", currency, period: span }),
+    engineFact("foreign_cost_receiving", payoutMinor, { from: "fx_cost", currency, period: span }),
+    ...(chargeMinor > 0 ? [engineFact("foreign_cost_card", chargeMinor, { from: "fx_cost", currency, period: span })] : []),
+    engineFact("foreign_cost_highest_month", costOf(high), { from: "fx_cost", currency, period: { from: highBounds.first, to: highBounds.last } }),
+    ...(estimated ? [engineFact("about_foreign_estimate", 1, { from: "fx_cost" })] : []),
+    ...(unknown > 0 ? [engineFact("foreign_cost_unknown_count", unknown, { from: "fx_cost" })] : []),
+  ];
   return {
-    ...base,
+    ...base, facts,
     data: {
       segments: [{ key: "payouts", legend: "Receiving and converting payments", tone: "main" }, { key: "charges", legend: "Card purchases in another currency", tone: "soft" }],
       columns: months.map(m => ({
@@ -42,6 +52,5 @@ export const fxCostView: Resolver<"fx_cost"> = (args, ctx): ViewResult => {
     },
     empty: null, line,
     aria: "What foreign money cost, month by month. Use Tab to move between months.",
-    figures: { months: months.length, totalMinor, payoutMinor, chargeMinor, highestMinor: costOf(high), unknownCount: unknown },
   };
 };

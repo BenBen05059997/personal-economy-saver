@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { unconfirmedNumbers } from "@/lib/ai/number-check";
+import { fact } from "@/lib/money/facts";
+import { termOf } from "@/lib/money/terms";
 import { splitBalance } from "@/lib/money/split";
 import type { MoneyState } from "@/lib/money/types";
 import { benMoney } from "@/lib/sample/ben";
@@ -14,6 +16,11 @@ import { whoOwesWhomView } from "@/lib/views/v/who-owes-whom";
 import type { ViewResult } from "@/lib/views/types";
 
 let passed = 0;
+const reads = (view: ViewResult, today: string) => {
+  assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
+  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, today), [], `${view.view}: every number in the line is one of its facts`);
+  for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
+};
 function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
 const render = (element: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: router as never }, element));
@@ -35,17 +42,26 @@ check("a shared ¥8,400 charge on Ben's card: Wife owes Ben ¥4,200, bars paid 8
   assert.deepEqual([wife.label, wife.total, wife.parts, wife.tick, wife.sub], ["Wife", 0, [0], 4_200, "owes ¥4,200"]);
   assert.deepEqual(owes.data!.segments, [{ key: "paid", legend: "Paid", tone: "main" }]);
   assert.equal(owes.data!.tick?.legend, "Fair share");
-  assert.equal(owes.figures.owedMinor, 4_200);
+  assert.equal(fact(owes.facts, "who_owes_whom")!.value, 4_200);
   const balance = splitBalance(two.split, two.today);
   assert.deepEqual(balance.members.map(m => [m.paidMinor, m.shareMinor]), [[8_400, 4_200], [0, 4_200]]);
+});
+
+check("who_owes_whom reads clean; a transfer is named from, to and amount", () => {
+  reads(owes, two.today);
+  const transfer = owes.facts!.find(f => f.name === "who_owes_whom")!;
+  assert.deepEqual([transfer.value, transfer.about!.name, transfer.about!.id, transfer.currency], [4_200, "Wife", "m-wife", "JPY"]);
+  assert.equal(owes.facts!.find(f => f.name === "owes_to")!.value, "Ben");
+  assert.deepEqual(owes.facts!.filter(f => f.name === "shared_paid").map(f => [f.about!.name, f.value]), [["Ben", 8_400], ["Wife", 0]]);
+  assert.deepEqual(owes.facts!.filter(f => f.name === "fair_share").map(f => f.value), [4_200, 4_200]);
 });
 
 check("the line, the table twin and the figures agree; every Minor figure is an integer", () => {
   assert.deepEqual(owes.table!.head, ["Person", "Paid", "Fair share", "Balance"]);
   assert.deepEqual(owes.table!.rows.map(row => row.cells), [["Ben", "¥8,400", "¥4,200", "is owed ¥4,200"], ["Wife", "¥0", "¥4,200", "owes ¥4,200"]]);
   assert.deepEqual(owes.table!.foot, ["Together", "¥8,400", "¥8,400", ""]);
-  assert.deepEqual(unconfirmedAmounts(owes.line ?? "", [JSON.stringify(owes.figures)]), []);
-  for (const [key, value] of Object.entries(owes.figures)) if (key.endsWith("Minor")) assert.ok(Number.isInteger(value), key);
+  reads(owes, two.today);
+  for (const item of owes.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
   const html = render(createElement(RankedBars, { result: owes }));
   assert.ok(html.includes("Fair share") && html.includes("is owed ¥4,200") && html.includes("owes ¥4,200"));
 });

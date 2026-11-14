@@ -1,6 +1,7 @@
 // A card's cycle (D77): today, when it closes, what it comes to, when it is paid and what covers it, drawn on tracks along one date line.
-// With an amount, a purchase today is drawn on the track and an arrow shows the statement it lands on. The amount the agent passes is never
-// written into the line or the figures, so the number check cannot confirm the model's own number.
+// With an amount, a purchase today is drawn on the track and an arrow shows the statement it lands on. The amount is a person fact (D79): it is
+// there for the model to read, and it confirms nothing. The rooms before and after come from the engine.
+import { engineFact, personFact, type Fact } from "@/lib/money/facts";
 import { cardCycle } from "@/lib/money/card-cycle";
 import { dayLabel, minorMoney } from "@/lib/money/format";
 import { daysBetween } from "@/lib/money/runway";
@@ -52,16 +53,28 @@ export const cardCycleView: Resolver<"card_cycle"> = (args, ctx): ViewResult => 
   rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   const table: TableTwin = { caption: `${c.label}'s cycle`, head: ["Day", "What happens", "Amount"], foot: null, align: ["end", "start", "end"], rows: rows.map((row, i) => ({ key: `${i}-${row.date}`, cells: row.cells, tone: row.tone })) };
 
-  const cover = !pb ? "" : pb.source === "bank" ? ` The ${format(pb.amountMinor)} statement paid ${dayLabel(pb.dueOn)} is covered by cash on hand.`
-    : pb.source === "clients" ? ` The ${format(pb.amountMinor)} statement paid ${dayLabel(pb.dueOn)} is covered once ${pb.arrivals.map(a => a.clientName).join(" and ")} ${pb.arrivals.length === 1 ? "pays" : "pay"}.`
-    : ` The ${format(pb.amountMinor)} statement paid ${dayLabel(pb.dueOn)} is not covered: you would be ${format(pb.shortMinor)} short.`;
+  // The facts first (D79); the line reads every number and date back from them.
+  const from = "card_cycle", money = { from, currency }, about = { type: "card" as const, id: args.cardId, name: c.label };
+  const facts: Fact[] = [engineFact("closes_on", c.closesOn, { from, about }), engineFact("due", c.dueOn, { from, about }), engineFact("statement_open", c.openMinor, { ...money, about, period: { on: c.dueOn } })];
+  if (c.closed) facts.push(engineFact("closed_statement_due", c.closed.dueOn, { from, about }), engineFact("statement_closed", c.closed.amountMinor, { ...money, about, period: { on: c.closed.dueOn } }));
+  facts.push(engineFact("card_room", c.roomMinor, { ...money, about }));
+  if (c.roomAfterMinor !== null) facts.push(engineFact("card_room_after", c.roomAfterMinor, { ...money, about }));
+  if (c.limitLeftMinor !== null) facts.push(engineFact("limit_left", c.limitLeftMinor, { ...money, about }));
+  if (args.amountMinor !== undefined) facts.push(personFact("amount_tested", args.amountMinor, { ...money, about, period: { on: c.today } }));
+  if (pb?.source === "clients") for (const a of pb.arrivals) facts.push(engineFact("covering_payment", a.amountMinor, { ...money, period: { on: a.on }, about: { type: "client", id: a.clientName, name: a.clientName } }));
+  if (pb?.source === "short") facts.push(engineFact("short", pb.shortMinor, { ...money, case: "late", about }));
+  const said = (name: Fact["name"]) => facts.find(item => item.name === name)!.value;
+  const statementOf = (open: boolean) => ({ amount: Number(said(open ? "statement_open" : "statement_closed")), dueOn: String(said(open ? "due" : "closed_statement_due")) });
+  const stmt = pb ? statementOf(pb.open) : null;
+  const cover = !pb ? "" : pb.source === "bank" ? ` The ${format(stmt!.amount)} statement paid ${dayLabel(stmt!.dueOn)} is covered by cash on hand.`
+    : pb.source === "clients" ? ` The ${format(stmt!.amount)} statement paid ${dayLabel(stmt!.dueOn)} is covered once ${pb.arrivals.map(a => a.clientName).join(" and ")} ${pb.arrivals.length === 1 ? "pays" : "pay"}.`
+    : ` The ${format(stmt!.amount)} statement paid ${dayLabel(stmt!.dueOn)} is not covered: you would be ${format(Number(said("short")))} short.`;
   const line = c.landing
-    ? `A purchase today lands on the statement that closes ${dayLabel(c.closesOn)} and is paid ${dayLabel(c.dueOn)}. ${c.landing.fits ? `It fits: ${format(c.roomMinor)} more can go on this card with every bill still covered.` : `It does not fit: only ${format(c.roomMinor)} more can go on this card with every bill still covered.`}`
-    : `${c.label} closes ${dayLabel(c.closesOn)} and is paid ${dayLabel(c.dueOn)}.${cover}`;
+    ? `A purchase today lands on the statement that closes ${dayLabel(String(said("closes_on")))} and is paid ${dayLabel(String(said("due")))}. ${c.landing.fits ? `It fits: ${format(Number(said("card_room")))} more can go on this card with every bill still covered.` : `It does not fit: only ${format(Number(said("card_room")))} more can go on this card with every bill still covered.`}`
+    : `${c.label} closes ${dayLabel(String(said("closes_on")))} and is paid ${dayLabel(String(said("due")))}.${cover}`;
   const days = daysBetween(c.today, c.dueOn);
   return {
-    ...base, data, table, empty: null, line,
+    ...base, data, table, empty: null, line, facts,
     aria: `${c.label}: today is ${dayLabel(c.today)}, the cycle closes ${dayLabel(c.closesOn)} and is paid ${dayLabel(c.dueOn)}, in ${days} days.${c.landing ? ` A purchase today lands on that statement.` : ""}${cover}`,
-    figures: { openMinor: c.openMinor, closedMinor: c.closed?.amountMinor ?? null, paybackMinor: pb?.amountMinor ?? null, shortMinor: pb?.source === "short" ? pb.shortMinor : null, roomMinor: c.roomMinor, limitLeftMinor: c.limitLeftMinor, closesOn: c.closesOn, dueOn: c.dueOn, paidFrom: pb?.source ?? null, landsOn: c.landing ? c.dueOn : null, fitsRoom: c.landing ? (c.landing.fits ? "yes" : "no") : null, days },
   };
 };

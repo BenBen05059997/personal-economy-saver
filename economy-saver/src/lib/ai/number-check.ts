@@ -127,7 +127,7 @@ export type CheckFact = {
   unit: string;
   currency?: string;
   by?: string;
-  period?: string | { from?: string; to?: string } | null;
+  period?: string | { on?: string; from?: string; to?: string } | null;
 };
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
@@ -159,10 +159,11 @@ export function unconfirmedNumbers(text: string, facts: readonly CheckFact[], to
 
   // Dates first: "11月27日" and "27th" must not be read as days or money.
   const knownDates: DateMention[] = [...(today ? isoParts(today) : [])];
-  for (const f of of("date")) {
-    knownDates.push(...isoParts(String(f.value)));
+  // A date fact's value, and the period of any engine fact (the day a figure is on, or its range), are known dates.
+  for (const f of of("date")) knownDates.push(...isoParts(String(f.value)));
+  for (const f of engine) {
     const p = f.period;
-    if (typeof p === "string") knownDates.push(...isoParts(p)); else if (p) knownDates.push(...isoParts(`${p.from ?? ""} ${p.to ?? ""}`));
+    if (typeof p === "string") knownDates.push(...isoParts(p)); else if (p) knownDates.push(...isoParts(`${p.on ?? ""} ${p.from ?? ""} ${p.to ?? ""}`));
   }
   for (const form of DATE_FORMS) {
     for (const m of [...rest.matchAll(form.re)] as RegExpExecArray[]) {

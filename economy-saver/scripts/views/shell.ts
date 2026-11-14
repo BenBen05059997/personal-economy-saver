@@ -17,7 +17,7 @@ const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {},
 const render = (element: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: router as never }, element));
 
 const table: TableTwin = { caption: "Spending by group", head: ["Group", "Spent"], rows: [{ key: "a", cells: ["Food", "¥1,000"] }, { key: "b", cells: ["Eating out", "¥400"], child: true }], foot: ["Total", "¥1,000"] };
-const base: ViewResult = { view: "month_by_category", args: {}, form: "ranked_bars", title: "Where the month goes", question: "Where does the month go?", hint: "hint", home: null, currency: "JPY", data: null, table, empty: null, line: "One sentence.", strip: null, aria: "", source: "", figures: {} };
+const base: ViewResult = { view: "month_by_category", args: {}, form: "ranked_bars", title: "Where the month goes", question: "Where does the month go?", hint: "hint", home: null, currency: "JPY", data: null, table, empty: null, line: "One sentence.", strip: null, aria: "", source: "", facts: [] };
 const empty: ViewResult = { ...base, table: null, empty: { words: "Nothing spent yet.", add: "bill", addLabel: "Add a bill" } };
 
 check("every view has arguments and metadata, strict and at most three keys", () => {

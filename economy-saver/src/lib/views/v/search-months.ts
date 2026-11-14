@@ -1,8 +1,9 @@
 // A search by month (D53, D77): what a word in Spending's search matches, month by month, split by category. Pure; every amount integer minor units.
+import { engineFact, type Fact } from "@/lib/money/facts";
 import { minorMoney } from "@/lib/money/format";
 import { categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
-import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, searchLine, searchSpending, spendingItems, type SpendingSearch } from "@/lib/money/spending";
+import { allUncounted, HISTORY_MONTHS, monthBounds, monthName, monthsBack, searchLine, searchSpending, spendingItems, type SpendingSearch } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type FormData, type Resolver, type Tone, type ViewResult } from "../types";
 
@@ -14,7 +15,7 @@ export function searchMonthsFrom(result: SpendingSearch, typed: string, args: Re
   const oldestFirst = [...result.months].reverse(), firstHit = oldestFirst.findIndex(month => month.items.length > 0);
   const base = { view: "search_months" as const, args, form: meta.form as "stacked_columns", title: `“${typed}” by month`, question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "Your bills and card charges" };
   if (firstHit < 0) {
-    return { ...base, data: null, table: null, line: null, aria: "Nothing matches.", figures: { months: 0, totalMinor: 0 },
+    return { ...base, data: null, table: null, line: null, aria: "Nothing matches.", facts: [],
       empty: { words: `Nothing matches “${typed}” in the last ${result.months.length} months.`, add: null, addLabel: null } };
   }
   const months = oldestFirst.slice(firstHit), latest = months[months.length - 1].month;
@@ -32,16 +33,18 @@ export function searchMonthsFrom(result: SpendingSearch, typed: string, args: Re
       aria: `${nameOf(month.month)}: ${unknown ? AMOUNT_NOT_KNOWN : format(month.totalMinor)}${month.items.length ? ` in ${month.items.length} ${month.items.length === 1 ? "item" : "items"}` : ""}${segments.length > 1 && parts.some(v => v > 0) ? `. ${segments.filter((_, i) => parts[i] > 0).map(segment => `${segment.legend} ${format(parts[segments.indexOf(segment)])}`).join(", ")}` : ""}.` };
   });
   const head = ["Month", ...segments.map(segment => segment.legend), "Total"];
-  const figures: ViewResult["figures"] = { months: columns.length, matches: months.reduce((sum, month) => sum + month.items.length, 0), totalMinor: result.totalMinor };
-  for (const month of months) figures[`m${month.month.replace("-", "")}Minor`] = month.totalMinor;
+  // The facts (D79): each month's total and the total of the search; a bill with no known amount is named, never summed. `searchLine` writes the sentence from the same result.
+  const facts: Fact[] = months.filter(month => month.items.length > 0 && !allUncounted(month.items)).map(month => engineFact("search_month_total", month.totalMinor, { from: "search_months", currency, period: { from: monthBounds(month.month).first, to: monthBounds(month.month).last } }));
+  facts.push(engineFact("search_total", result.totalMinor, { from: "search_months", currency }));
+  for (const name of result.uncounted) facts.push(engineFact("not_counted", 1, { from: "search_months", about: { type: "bill", id: name, name } }));
   return {
     ...base,
+    facts,
     data: { segments, columns, refs: [] },
     table: { caption: `“${typed}” by month`, head, foot: null,
       rows: columns.map((column, i) => ({ key: column.key, cells: [`${months[i].name} ${column.key.slice(0, 4)}`, ...column.parts.map(part => column.unknown ? AMOUNT_NOT_KNOWN : format(part)), column.totalLabel] })) },
     empty: null, line: searchLine(result), strip: null,
     aria: `“${typed}” by month. Use Tab to move between months.`,
-    figures,
   };
 }
 

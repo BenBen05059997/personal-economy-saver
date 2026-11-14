@@ -245,7 +245,7 @@ async function main() {
       assert.equal(charge.fields.find(f => f.label === "Shared")?.value, "Ben ¥4,200, Aki ¥4,200");
       assert.equal(pot.fields.find(f => f.label === "Target")?.value, "¥60,000 by Mar 31");
       assert.equal(balance.fields[0].value, "¥92,000");
-      for (const draft of read[turnId]) { assert.equal(draft.result?.view, "what_changed"); assert.equal(draft.result?.figures.status, "pending"); assert.equal(draft.saved, null); }
+      for (const draft of read[turnId]) { assert.equal(draft.result?.view, "what_changed"); assert.equal((draft.result as ViewResult<"before_after">).data!.pending, true); assert.equal(draft.saved, null); }
       const owed = rowsOf(charge).find(row => row.key.startsWith("owed-"));
       assert.equal(owed?.change, "+¥8,400", "the charge moves the card's owed amount by exactly its amount");
       assert.ok(rowsOf(charge).some(row => row.label === "Aki owes Ben" && row.after === "¥4,200"));
@@ -260,11 +260,11 @@ async function main() {
       assert.equal(c2.title, `What changed: Fictional Market ¥8,400 on ${card.label}`);
       assert.equal(c2.saved?.line.startsWith("Fictional Market · ¥8,400"), true);
       assert.deepEqual(c2.result?.table?.head, ["", "Without it", "With it", "Change"]);
-      assert.equal(c2.result?.figures.status, "confirmed");
+      assert.equal((c2.result as ViewResult<"before_after">).data!.pending, false);
       const moved = (draft: { result: ViewResult | null }) => rowsOf(draft).filter(row => row.change !== null && row.key !== "low").map(row => [row.key, row.before, row.after]);
       assert.deepEqual(moved(c2), moved(charge), "after Confirm it shows the same two sides");
       assert.equal(p2.title, "What changed: Pot \u201cTrip to Osaka\u201d");
-      assert.equal(p2.result?.figures.status, "confirmed");
+      assert.equal((p2.result as ViewResult<"before_after">).data!.pending, false);
       assert.deepEqual(rowsOf(pot)[0], { key: "pots", label: "Saving pots", before: "0", after: "1", change: "+1" });
       assert.deepEqual(rowsOf(p2)[0], rowsOf(pot)[0], "a saved pot reads the same count, from the engine");
       assert.deepEqual(p2.result?.table?.head, ["", "Without it", "With it", "Change"]);

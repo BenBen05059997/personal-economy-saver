@@ -2,6 +2,7 @@
 // Fictional data only; PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/canvas-test.ts
 import assert from "node:assert/strict";
+import { fact } from "@/lib/money/facts";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -257,8 +258,8 @@ async function main() {
       assert.equal(KIND_WORDS.view, "Picture");
       const summary = JSON.parse(canvasSummary(resolved)).blocks[0];
       assert.equal(summary.type, "view");
-      assert.ok(summary.title && summary.figures && Array.isArray(summary.rows) && summary.rows.length <= 12);
-      assert.ok(!("args" in summary) && !JSON.stringify(summary).includes("\"by\""), "the summary never carries the arguments");
+      assert.ok(summary.title && Array.isArray(summary.facts) && summary.facts.length > 0 && typeof summary.meanings === "object" && Array.isArray(summary.rows) && summary.rows.length <= 12);
+      assert.ok(!("args" in summary) && !JSON.stringify(summary).includes("\"by\":\"category\""), "the summary never carries the arguments");
       assert.ok(JSON.stringify(JSON.parse(recipeJsonSchema())).includes("month_trend"), "the agent's schema names the live views");
     });
 
@@ -336,7 +337,7 @@ async function main() {
       const forecast = block(resolved, "view").data as ViewResult<"step_line">;
       assert.equal(forecast.view, "forecast");
       assert.equal(forecast.form, "step_line");
-      assert.equal(forecast.figures.lowLateMinor, Math.round(lowOf(state, "worst").amount * minorPerUnit("JPY")));
+      assert.equal(fact(forecast.facts, "low_point", "late")!.value, Math.round(lowOf(state, "worst").amount * minorPerUnit("JPY")));
       assert.deepEqual(forecast.data!.lines.find(l => l.key === "main")!.points, [...series(state, "worst")]);
       assert.ok(!resolved.some(r => r.type === "flow_chart"), "This month no longer holds an older chart block");
       const rows = block(resolved, "timeline").data.rows;
@@ -470,8 +471,8 @@ async function main() {
       assert.equal(view.data!.tick!.legend, "October");
       assert.deepEqual(view.data!.rows.map(r => r.label), compare.rows.map(r => r.label));
       assert.deepEqual(view.data!.rows.map(r => [r.parts[0], r.tick]), compare.rows.map(r => [r.bMinor, r.aMinor]));
-      assert.equal(view.figures.aTotalMinor, october.totalMinor);
-      assert.equal(view.figures.bTotalMinor, november.totalMinor);
+      assert.equal(fact(view.facts, "month_total")!.value, october.totalMinor);
+      assert.equal(view.facts.filter(item => item.name === "month_total")[1].value, november.totalMinor);
       assert.deepEqual(view.table!.foot, table.foot);
     });
 

@@ -10,7 +10,9 @@ import * as schema from "@/db/schema";
 import { foreignCostInputs } from "@/db/fx-cost";
 import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { unconfirmedNumbers } from "@/lib/ai/number-check";
+import { fact } from "@/lib/money/facts";
+import { termOf } from "@/lib/money/terms";
 import { foreignCosts, fxByMonth } from "@/lib/money/fx-cost";
 import { goalPace } from "@/lib/money/goals";
 import type { Pot } from "@/lib/money/types";
@@ -21,6 +23,11 @@ import { GoalLine } from "@/components/views/forms/GoalLine";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
 
 let passed = 0;
+const reads = (view: ViewResult, today: string) => {
+  assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
+  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, today), [], `${view.view}: every number in the line is one of its facts`);
+  for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
+};
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 const TODAY = "2026-11-14";
 
@@ -42,14 +49,14 @@ async function main() {
       const result = resolveView("fx_cost", {}, ctx) as ViewResult<"stacked_columns">;
       assert.equal(result.data!.columns.reduce((sum, c) => sum + c.total, 0), 111_637);
       for (const c of result.data!.columns) assert.equal(c.parts.reduce((a, b) => a + b, 0), c.total);
-      assert.equal(result.figures.totalMinor, 111_637);
+      assert.equal(fact(result.facts, "foreign_cost")!.value, 111_637);
       assert.equal(result.table!.foot![3], "¥111,637");
       assert.equal(result.table!.rows.length, 6);
-      assert.deepEqual(unconfirmedAmounts(result.line ?? "", [JSON.stringify(result.figures)]), []);
+      reads(result, TODAY);
       assert.equal(VIEW_META.fx_cost.askOnly, true);
       assert.equal(VIEW_META.fx_cost.home, null);
       assert.match(renderToStaticMarkup(createElement(StackedColumns, { result })), /sc-col/);
-      assert.equal(resolveView("fx_cost", { months: 12 }, ctx).figures.totalMinor, 111_637);
+      assert.equal(fact(resolveView("fx_cost", { months: 12 }, ctx).facts, "foreign_cost")!.value, 111_637);
       assert.throws(() => resolveView("fx_cost", { months: 1 }, ctx), ViewError);
     });
 
@@ -89,9 +96,22 @@ async function main() {
       assert.equal(result.data!.expected.minor, goal.expectedMinor);
       assert.equal(result.data!.projection!.date, goal.reachedOn);
       assert.equal(result.line, goal.summary);
-      assert.equal(result.figures.deltaMinor, goal.deltaMinor);
-      assert.deepEqual(unconfirmedAmounts(result.line ?? "", [JSON.stringify(result.figures)]), []);
+      assert.equal(fact(result.facts, "goal_pace")!.value, goal.deltaMinor);
+      reads(result, TODAY);
       assert.equal(result.table!.rows.length, 4);
+    });
+
+    await check("fx_cost on Ben and goal_pace on a behind and a reached pot read clean; goal_pace carries one signed amount and the date at this pace", () => {
+      reads(resolveView("fx_cost", {}, ctx) as ViewResult, TODAY);
+      const behind = pot({ saved: 1_000 }), goal = goalPace(behind, state)!;
+      const result = resolveView("goal_pace", { potId: behind.id }, withPots(behind)) as ViewResult;
+      reads(result, TODAY);
+      assert.ok(goal.deltaMinor < 0);
+      assert.equal(result.facts!.filter(f => f.name === "goal_pace").length, 1);
+      assert.equal(result.facts!.find(f => f.name === "goal_pace")!.value, goal.deltaMinor);
+      assert.equal(result.facts!.find(f => f.name === "goal_reaches_on")!.value, goal.reachedOn);
+      reads(resolveView("goal_pace", { potId: "pot-trip" }, withPots(pot({ saved: 60_000 }))) as ViewResult, TODAY);
+      reads(resolveView("goal_pace", { potId: "pot-trip" }, withPots(pot({ saved: 30_000, startedOn: "2026-06-01" }))) as ViewResult, TODAY);
     });
 
     await check("goal_pace: a reached target draws today as the projection; a pot with no target or date is not a goal; unknown pot refused", () => {

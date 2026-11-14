@@ -66,13 +66,16 @@ check("the reader picks by name and case", () => {
   assert.equal(fact(facts, "pot"), null);
   assert.equal(fact(facts, "short", "none"), null);
 });
-check("forModel keeps the meaning beside the value and the person's number marked", () => {
-  const out = forModel([engineFact("safe_to_spend", 18000, { from: "forecast", currency: "JPY", period: { from: "2026-11-14", to: "2026-12-13" } }), personFact("cash", 40000, { from: "card_cycle" })]);
-  assert.equal(out[0].value, 18000);
-  assert.equal(out[0].meaning, termOf("safe_to_spend").meaning);
-  assert.equal(out[0].case, "late");
-  assert.equal(out[1].by, "person");
-  assert.equal("case" in out[1], false);
+check("forModel keeps each term's meaning once, by name, and the person's number marked", () => {
+  const out = forModel([engineFact("safe_to_spend", 18000, { from: "forecast", currency: "JPY", period: { from: "2026-11-14", to: "2026-12-13" } }), engineFact("safe_to_spend", 9000, { from: "forecast", currency: "JPY" }), personFact("cash", 40000, { from: "card_cycle" })]);
+  assert.equal(out.facts[0].value, 18000);
+  assert.equal(out.meanings.safe_to_spend, termOf("safe_to_spend").meaning);
+  assert.equal(out.meanings.cash, termOf("cash").meaning);
+  assert.deepEqual(Object.keys(out.meanings), ["safe_to_spend", "cash"]);
+  assert.ok(out.facts.every(item => !("meaning" in item)));
+  assert.equal(out.facts[0].case, "late");
+  assert.equal(out.facts[2].by, "person");
+  assert.equal("case" in out.facts[2], false);
 });
 
 console.log(`\n${passed} checks passed`);

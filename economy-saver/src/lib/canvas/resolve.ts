@@ -3,6 +3,7 @@
 // and is written with the app's own money and date helpers. The only arithmetic is what a query names (the difference in
 // compare_months). Throws `CanvasError` with words a person can read when the recipe cannot be drawn.
 import { plural } from "@/lib/plural";
+import { engineFact, type Fact } from "@/lib/money/facts";
 import { dayLabel, minorMoney, minorPerUnit, money, ordinal, aboutMoney } from "@/lib/money/format";
 import { goalPaces } from "@/lib/money/goals";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "@/lib/money/gaps";
@@ -42,7 +43,7 @@ export const asksPeriodBills = (recipe: { blocks: readonly Block[] }): boolean =
 // ---------------------------------------------------------------- resolved shapes
 
 export type SentenceData = { text: string; leadParts: (string | { id: string; name: string })[]; before: string; on: string | null; short: boolean; note: string | null };
-export type NumberData = { label: string; value: string; sub: string | null; note: string | null; tone: "short" | "plain" };
+export type NumberData = { label: string; value: string; sub: string | null; note: string | null; tone: "short" | "plain"; facts: Fact[] };
 type FlowMark = { index: number; label: string };
 /** The older chart blocks draw through the chart forms (D77): `view` is what the form draws; the other fields are the figures the block's readers (the agent's summary, the tests) use. */
 export type FlowData = {
@@ -78,7 +79,7 @@ type Common = { index: number; source: string; live: boolean };
 export type ResolvedBlock = Common & (
   | { type: "sentence"; data: SentenceData } | { type: "number"; data: NumberData } | { type: "flow_chart"; data: FlowData }
   | { type: "timeline"; data: TimelineData } | { type: "table"; data: TableData } | { type: "compare"; data: CompareData } | { type: "by_person"; data: ByPersonData }
-  | { type: "progress"; data: ProgressData | GoalsProgressData } | { type: "note"; data: NoteData } | { type: "letter"; data: LetterData }
+  | { type: "progress"; data: (ProgressData & { facts: Fact[] }) | GoalsProgressData } | { type: "note"; data: NoteData } | { type: "letter"; data: LetterData }
   | { type: "sliders"; data: SlidersData } | { type: "action"; data: ActionData } | { type: "view"; data: ViewResult }
 );
 
@@ -160,32 +161,39 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
   };
 
   // ------------------------------------------------ a single measure, for number and progress blocks
-  type Measure = { valueMinor: number; value: string; sub: string | null; note: string | null; tone: "short" | "plain" };
+  type Measure = { valueMinor: number; value: string; sub: string | null; note: string | null; tone: "short" | "plain"; facts: Fact[] };
+  // A measure's numbers come from the engine call that worked it out, each named as a fact (D79).
+  const fromCanvas = "canvas", span = (month: string) => ({ from: monthBounds(month).first, to: monthBounds(month).last });
+  const moneyFact = (name: Parameters<typeof engineFact>[0], minorUnits: number, options: { case?: "as_usual" | "late"; period?: ReturnType<typeof span> } = {}) => engineFact(name, minorUnits, { from: fromCanvas, currency, ...options });
   const measure = (query: Extract<Query, { q: "safe_to_spend" | "cash" | "low_point" | "month_total" | "foreign_costs" }>): Measure => {
     switch (query.q) {
       case "cash": {
         const cash = availableCash(state);
-        return { valueMinor: Math.round(cash * unit), value: format(cash), sub: null, note: null, tone: "plain" };
+        const valueMinor = Math.round(cash * unit);
+        return { valueMinor, value: format(cash), sub: null, note: null, tone: "plain", facts: [moneyFact("cash", valueMinor)] };
       }
       case "safe_to_spend": {
         const st = stateFor(readScenario(query.scenario, query, recipe, override));
         const safe = safeToSpend(st);
-        return { valueMinor: Math.round(safe.amount * unit), value: format(safe.amount), sub: safe.shortBy > 0 ? `Short by ${format(safe.shortBy)} on ${dayLabel(safe.low.date)}` : null, note: null, tone: safe.shortBy > 0 ? "short" : "plain" };
+        const valueMinor = Math.round(safe.amount * unit);
+        return { valueMinor, value: format(safe.amount), sub: safe.shortBy > 0 ? `Short by ${format(safe.shortBy)} on ${dayLabel(safe.low.date)}` : null, note: null, tone: safe.shortBy > 0 ? "short" : "plain",
+          facts: [moneyFact("safe_to_spend", valueMinor), ...(safe.shortBy > 0 ? [moneyFact("short", Math.round(safe.shortBy * unit), { case: "late" }), engineFact("low_point_day", safe.low.date, { from: fromCanvas, case: "late" })] : [])] };
       }
       case "low_point": {
         const scenario = readScenario(query.scenario, query, recipe, override);
         const point = low(series(stateFor(scenario), kindOf(scenario)));
-        return { valueMinor: Math.round(point.amount * unit), value: format(point.amount), sub: `on ${dayLabel(point.date)}`, note: null, tone: point.amount < 0 ? "short" : "plain" };
+        const valueMinor = Math.round(point.amount * unit), pointCase = scenario.case === "usual" ? "as_usual" as const : "late" as const;
+        return { valueMinor, value: format(point.amount), sub: `on ${dayLabel(point.date)}`, note: null, tone: point.amount < 0 ? "short" : "plain", facts: [moneyFact("low_point", valueMinor, { case: pointCase }), engineFact("low_point_day", point.date, { from: fromCanvas, case: pointCase })] };
       }
       case "month_total": {
         const view = viewOf(query.month);
-        return { valueMinor: view.totalMinor, value: totalLabel(view), sub: monthLabel(query.month), note: uncountedNote(view), tone: "plain" };
+        return { valueMinor: view.totalMinor, value: totalLabel(view), sub: monthLabel(query.month), note: uncountedNote(view), tone: "plain", facts: [moneyFact("month_total", view.totalMinor, { period: span(query.month) })] };
       }
       case "foreign_costs": {
         const costs = foreignOf();
         const total = costs.payoutTotals.costMinor + costs.chargeTotals.exactMinor + costs.chargeTotals.estimatedMinor;
         const words = foreignCostWords(costs);
-        return { valueMinor: total, value: costs.chargeTotals.estimatedMinor > 0 ? aboutMoney(total, currency) : minor(total), sub: "in the last 12 months", note: words.unknown, tone: "plain" };
+        return { valueMinor: total, value: costs.chargeTotals.estimatedMinor > 0 ? aboutMoney(total, currency) : minor(total), sub: "in the last 12 months", note: words.unknown, tone: "plain", facts: [moneyFact("foreign_cost", total)] };
       }
     }
   };
@@ -274,9 +282,9 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       aria: `${row.label}: ${now} ${row.bLabel}, ${tick} ${row.aLabel}, ${row.change}.`,
     }));
     const line = `${now} ${plain.bTotal} against ${tick} ${plain.aTotal}: ${plain.difference}.`;
-    const base = { view: "month_by_category" as const, args: { a: query.a, b: query.b }, form: "ranked_bars" as const, title: `${now} against ${tick}`, question: VIEW_META.month_by_category.question, hint: VIEW_META.month_by_category.hint, home: null, currency, strip: null, source: "Worked out from your records", figures: { aTotalMinor: a.totalMinor, bTotalMinor: b.totalMinor, differenceMinor: b.totalMinor - a.totalMinor, count: plain.rows.length } };
+    const base = { view: "month_by_category" as const, args: { a: query.a, b: query.b }, form: "ranked_bars" as const, title: `${now} against ${tick}`, question: VIEW_META.month_by_category.question, hint: VIEW_META.month_by_category.hint, home: null, currency, strip: null, source: "Worked out from your records", facts: [moneyFact("month_total", a.totalMinor, { period: span(query.a) }), moneyFact("month_total", b.totalMinor, { period: span(query.b) }), moneyFact("difference_between_months", b.totalMinor - a.totalMinor, { period: span(query.b) })] };
     const view: ViewResult<"ranked_bars"> = plain.empty
-      ? { ...base, data: null, table: null, line: null, aria: plain.empty, empty: { words: plain.empty, add: null, addLabel: null } }
+      ? { ...base, data: null, table: null, line: null, facts: [], aria: plain.empty, empty: { words: plain.empty, add: null, addLabel: null } }
       : { ...base, data: { segments: [{ key: "now", legend: now, tone: "main" }], tick: { legend: tick }, rows }, table, line, aria: `${now} against ${tick}, category by category. ${line}`, empty: null };
     return { ...plain, view };
   };
@@ -286,13 +294,18 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     const members = state.split.members;
     const none = { rows: [], table: { title: null, caption: null, head: [], rows: [], foot: null, empty: null }, owes: null };
     const baseView = { view: "month_by_category" as const, args: { month: query.month, by: "person" }, form: "ranked_bars" as const, title: `${month} by category and whose it is`, question: VIEW_META.month_by_category.question, hint: VIEW_META.month_by_category.hint, home: null, currency, strip: null, source: "Worked out from your records" };
-    const emptyOf = (words: string): ByPersonData => ({ month, ...none, empty: words, view: { ...baseView, data: null, table: null, line: null, aria: words, figures: {}, empty: { words, add: null, addLabel: null } } });
+    const emptyOf = (words: string): ByPersonData => ({ month, ...none, empty: words, view: { ...baseView, data: null, table: null, line: null, aria: words, facts: [], empty: { words, add: null, addLabel: null } } });
     if (members.length < 2) return emptyOf(`Only ${members[0]?.name ?? "you"} in this household. Add a person in Household → People to split.`);
     if (view.categories.length === 0) return emptyOf(`Nothing confirmed in ${monthName(query.month)}.`);
     const parts = (whose: { sharedMinor: number; byMember: { id: string; minor: number }[] }) =>
       [{ name: "Shared", minor: whose.sharedMinor }, ...members.map(m => ({ name: m.name, minor: whose.byMember.find(x => x.id === m.id)?.minor ?? 0 }))].map(p => ({ ...p, label: p.minor > 0 ? minor(p.minor) : "—" }));
     const rows = view.categories.map(c => ({ label: c.label, parts: parts(c), total: allUncounted(c.items) ? AMOUNT_NOT_KNOWN : minor(c.totalMinor) }));
-    const owes = splitSummary(state.split, splitBalance(state.split, state.today), currency);
+    const balance = splitBalance(state.split, state.today), owes = splitSummary(state.split, balance, currency);
+    const facts: Fact[] = [
+      moneyFact("month_total", view.totalMinor, { period: span(query.month) }),
+      ...view.categories.filter(c => !allUncounted(c.items)).map(c => engineFact("category_total", c.totalMinor, { from: fromCanvas, currency, period: span(query.month), about: { type: "category", id: c.category, name: c.label } })),
+      ...balance.transfers.flatMap(t => { const about = { type: "person" as const, id: t.fromId, name: t.fromName }; return [engineFact("who_owes_whom", t.amountMinor, { from: fromCanvas, currency, about }), engineFact("owes_to", t.toName, { from: fromCanvas, about })]; }),
+    ];
     const table: TableData = {
       title: null, caption: uncountedNote(view), head: ["Category", ...parts(view).map(p => p.name), "Total"], empty: null,
       rows: rows.map(row => ({ cells: [row.label, ...row.parts.map(p => p.label), row.total], tone: "plain" as const })),
@@ -312,7 +325,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     return {
       month, owes, empty: null,
       rows: rows.map(({ label, parts }) => ({ label, parts: parts.filter(p => p.minor > 0) })), table,
-      view: { ...baseView, data: { segments, tick: null, rows: ranked }, table: tableTwin, line, empty: null, aria: `${month} by category and whose it is.${owes ? ` ${owes}` : ""}`, figures: { totalMinor: view.totalMinor, sharedMinor: view.sharedMinor, count: view.categories.length } },
+      view: { ...baseView, data: { segments, tick: null, rows: ranked }, table: tableTwin, line, empty: null, aria: `${month} by category and whose it is.${owes ? ` ${owes}` : ""}`, facts },
     };
   };
 
@@ -394,7 +407,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       }
       case "number": {
         const m = measure(block.query);
-        return { ...common(worked(block.query)), type: "number", data: { label: block.label, value: m.value, sub: m.sub, note: block.note ?? m.note, tone: m.tone } };
+        return { ...common(worked(block.query)), type: "number", data: { label: block.label, value: m.value, sub: m.sub, note: block.note ?? m.note, tone: m.tone, facts: m.facts } };
       }
       case "progress": {
         if (!("targetMinor" in block)) {
@@ -406,7 +419,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
           return { ...common("worked"), type: "progress", data: { rows, empty: rows.length ? null : "No dated goals yet." } };
         }
         const m = measure(block.query);
-        return { ...common(worked(block.query)), type: "progress", data: { label: block.label, valueLabel: m.value, targetLabel: minor(block.targetMinor), valueMinor: m.valueMinor, targetMinor: block.targetMinor } };
+        return { ...common(worked(block.query)), type: "progress", data: { label: block.label, valueLabel: m.value, targetLabel: minor(block.targetMinor), valueMinor: m.valueMinor, targetMinor: block.targetMinor, facts: m.facts } };
       }
       case "flow_chart": {
         const scenario = scenarioOf()!, kind = kindOf(scenario);
@@ -428,7 +441,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
         if (changes) lines.push({ key: "before", label: `${words}, as it is now`, tone: "ghost", points: series(stateFor({ case: scenario.case, changes: [] }, days), kind, days).map(toMinor) });
         const lineFor = (event: (typeof events)[number]) => event.pending ? `${event.label} waits in To check and is not counted yet` : event.uncounted ? `${event.label}: amount not known` : `${event.label} ${event.amount < 0 ? "−" : "+"}${format(Math.abs(event.amount))}`;
         const dayWords = balances.map((_, i) => { const date = addDays(state.today, i); const lines = events.filter(event => event.date === date).map(lineFor); return { date, label: longDay(date), lines: lines.length ? lines : ["Nothing scheduled"] }; });
-        const data = stepLine({ startDate: state.today, currency, lines, band: null, lowLine: "main", sub: [], dayWords, direct: [{ line: "main", text: kind === "worst" ? "If late" : "If on time" }] });
+        const data = stepLine({ startDate: state.today, currency, lines, band: null, lowLine: "main", sub: [], dayWords, direct: [{ line: "main", text: kind === "worst" ? "If late" : "If as usual" }] });
         const eventDays = new Set(events.map(event => event.date));
         const table: TableTwin = {
           caption: `${words}, day by day`, head: ["Day", "What happens", "Balance"], foot: null, align: ["end", "start", "end"],
@@ -439,7 +452,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
         const view: ViewResult<"step_line"> = {
           view: "forecast", args: { days }, form: "step_line", title: `Your next ${days} days`, question: meta.question, hint: meta.hint, home: null, currency, strip: null,
           data, table, empty: null, line, aria, source: "Worked out from your records",
-          figures: { lowMinor: data.low.minor, lowDate: point.date, days },
+          facts: [moneyFact("low_point", data.low.minor, { case: kind === "worst" ? "late" : "as_usual" }), engineFact("low_point_day", point.date, { from: fromCanvas, case: kind === "worst" ? "late" : "as_usual" }), engineFact("days_shown", days, { from: fromCanvas })],
         };
         return { ...common("worked"), type: "flow_chart", data: { view, points: [...balances], lowIndex: point.dayIndex, lowLabel: caption, short: point.amount < 0, caption: words, aria: `${aria}${mark ? ` Marked: ${mark.label}.` : ""}`, mark } };
       }

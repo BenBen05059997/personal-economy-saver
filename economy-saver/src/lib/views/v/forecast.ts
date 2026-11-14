@@ -1,8 +1,9 @@
 // The forecast view (D77): the next days of cash as a step line, worked out on the server from the engine's series and timelines.
 import type { Currency } from "@/lib/catalogue/types";
+import { engineFact, fact, type Fact, type FactAbout } from "@/lib/money/facts";
 import { forecastCosts } from "@/lib/money/forecast-causes";
 import { dayLabel, formatter, minorMoney, minorPerUnit, ordinal } from "@/lib/money/format";
-import { addDays, daysBetween, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { addDays, daysBetween, firstShort, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { hasNothingToForecast } from "@/lib/money/sentence";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type FormData, type Resolver, type TableTwin, type ViewResult } from "../types";
@@ -29,14 +30,14 @@ export function stepLine(input: StepInput): StepLine {
   };
 }
 
-const LATE = "If clients pay late (what safe to spend uses)", USUAL = "If they pay on time";
+const LATE = "If clients pay late (what safe to spend uses)", USUAL = "If as usual";
 
 export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
   const { state } = ctx, days = args.days ?? WINDOW_DAYS, which = args.case ?? "both";
   const currency = state.homeCurrency, per = minorPerUnit(currency), format = formatter(currency), minor = (v: number) => Math.round(v * per);
   const meta = VIEW_META.forecast, title = `Your next ${days} days`;
   const base = { view: "forecast" as const, args: { ...args }, form: "step_line" as const, title, question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "From your bills, card statements and your clients' usual pay days." };
-  if (hasNothingToForecast(state)) return { ...base, data: null, table: null, line: null, aria: "Nothing to forecast yet.", figures: {}, empty: { words: "Nothing to forecast yet. Add a bill or a client and your next days show here.", add: "bill", addLabel: "Add a bill" } };
+  if (hasNothingToForecast(state)) return { ...base, data: null, table: null, line: null, aria: "Nothing to forecast yet.", facts: [], empty: { words: "Nothing to forecast yet. Add a bill or a client and your next days show here.", add: "bill", addLabel: "Add a bill" } };
 
   const late = series(state, "worst", days), usual = series(state, "expected", days);
   const lateEvents = timeline(state, "worst", days), usualEvents = timeline(state, "expected", days);
@@ -53,7 +54,7 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
     const a = on(lateEvents, date(i)), b = on(usualEvents, date(i));
     if (which === "late" || (which === "both" && a.join("|") === b.join("|"))) return { lines: a.length ? a : ["Nothing scheduled"], text: a.join("; ") || "Nothing scheduled" };
     if (which === "usual") return { lines: b.length ? b : ["Nothing scheduled"], text: b.join("; ") || "Nothing scheduled" };
-    const lines = [`If late: ${a.join("; ") || "nothing"}`, `If on time: ${b.join("; ") || "nothing"}`];
+    const lines = [`If late: ${a.join("; ") || "nothing"}`, `If as usual: ${b.join("; ") || "nothing"}`];
     return { lines, text: lines.join(". ") };
   };
   const dayWords = late.map((_, i) => ({ date: date(i), label: longDay(date(i)), lines: words(i).lines }));
@@ -75,21 +76,42 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
   const marks = marked ? [{ index: daysBetween(state.today, marked.date), label: `${marked.label} ${marked.uncounted ? "amount not known" : format(Math.abs(marked.amount))} · ${dayLabel(marked.date)}` }] : [];
   const data = stepLine({
     startDate: state.today, currency, lines, band: which === "both" ? ["quiet", "main"] : null, lowLine, sub, marks, dayWords,
-    direct: lines.map(l => ({ line: l.key, text: l.key === "main" ? "If late" : "If on time" })),
+    direct: lines.map(l => ({ line: l.key, text: l.key === "main" ? "If late" : "If as usual" })),
   });
 
   const eventDays = new Set([...lateEvents, ...usualEvents].map(event => event.date));
-  const head = ["Day", "What happens", ...(which !== "usual" ? ["If clients pay late"] : []), ...(which !== "late" ? ["If they pay on time"] : [])];
+  const head = ["Day", "What happens", ...(which !== "usual" ? ["If clients pay late"] : []), ...(which !== "late" ? ["If as usual"] : [])];
   const table: TableTwin = {
     caption: "Forecast by day", head, foot: null, align: head.map((_, i) => i === 1 ? "start" : "end"),
     rows: late.map((_, i) => i).filter(i => i === 0 || eventDays.has(date(i))).map(i => ({ key: date(i), cells: [longDay(date(i)), words(i).text, ...(which !== "usual" ? [format(late[i])] : []), ...(which !== "late" ? [format(usual[i])] : [])] })),
   };
 
-  const short = data.low.short, lowDay = longDay(lowOf.date), who = which === "usual" ? "if clients pay on time" : "if clients pay late";
-  const aria = `Cash forecast for the next ${days} days. ${short ? `${which === "usual" ? "If clients pay on time" : "If clients pay late"} you are ${format(-lowOf.amount)} short on ${lowDay}` : `The lowest ${who} is ${format(lowOf.amount)} on ${lowDay}`}. Use the left and right arrow keys to look at each day.`;
+  // The facts first (D79): every figure in the line below is read back from them. Both cases are the engine's own series and its safe to spend.
+  const facts: Fact[] = [];
+  const from = "forecast", money = { from, currency }, window = { from: state.today, to: addDays(state.today, days - 1) };
+  const showLate = which !== "usual", showUsual = which !== "late";
+  const sts = safeToSpend(state, { days });
+  if (days === WINDOW_DAYS) facts.push(engineFact("safe_to_spend", minor(sts.amount), money));
+  else facts.push(engineFact("safe_to_spend_for_period", minor(sts.amount), { ...money, period: window }));
+  if (days === WINDOW_DAYS && showUsual) facts.push(engineFact("safe_to_spend_as_usual", minor(safeToSpend(state, { case: "as_usual" }).amount), money));
+  const clientAbout = (name: string): FactAbout => { const found = state.clients.filter(c => c.name.split(" ")[0] === name); return { type: "client", id: found.length === 1 ? found[0].id : name, name }; };
+  if (showLate) for (const name of sts.lateClients) facts.push(engineFact("late_client", name, { from, about: clientAbout(name) }));
+  const costAbout = (event: ReturnType<typeof timeline>[number]): FactAbout => event.kind === "statement" && event.cardId ? { type: "card", id: event.cardId, name: event.label.replace(/ statement$/, "") } : { type: "bill", id: event.id.split("@")[0], name: event.label };
+  const addCase = (c: "late" | "as_usual", point: ReturnType<typeof low>, events: typeof lateEvents, balances: number[]) => {
+    facts.push(engineFact("low_point", minor(point.amount), { ...money, case: c }), engineFact("low_point_day", point.date, { from, case: c }));
+    if (point.amount < 0) facts.push(engineFact("short", minor(-point.amount), { ...money, case: c }));
+    const first = firstShort(balances);
+    if (first !== null) facts.push(engineFact("days_until_short", first, { from, case: c }));
+    for (const event of forecastCosts(events, point.date)) facts.push(engineFact("cost_before_low", minor(-event.amount), { ...money, case: c, period: { on: event.date }, about: costAbout(event) }));
+  };
+  if (showLate) addCase("late", lo, lateEvents, late);
+  if (showUsual) addCase("as_usual", hi, usualEvents, usual);
+
+  const short = data.low.short, caseKey = which === "usual" ? "as_usual" as const : "late" as const;
+  const lowMinor = Number(fact(facts, "low_point", caseKey)!.value), lowDay = longDay(String(fact(facts, "low_point_day", caseKey)!.value)), who = which === "usual" ? "if clients pay as usual" : "if clients pay late";
+  const aria = `Cash forecast for the next ${days} days. ${short ? `${which === "usual" ? "If clients pay as usual" : "If clients pay late"} you are ${format(-lowMinor / per)} short on ${lowDay}` : `The lowest ${who} is ${format(lowMinor / per)} on ${lowDay}`}. Use the left and right arrow keys to look at each day.`;
   return {
-    ...base, data, table, empty: null, aria,
-    line: short ? `${which === "usual" ? "If clients pay on time" : "If clients pay late"} you are ${format(-lowOf.amount)} short on ${lowDay}.` : `The lowest ${who} is ${format(lowOf.amount)} on ${lowDay}.`,
-    figures: { safeToSpendMinor: minor(safeToSpend(state).amount), lowLateMinor: minor(lo.amount), lowLateDate: lo.date, lowUsualMinor: minor(hi.amount), lowUsualDate: hi.date },
+    ...base, data, table, empty: null, aria, facts,
+    line: short ? `${which === "usual" ? "If clients pay as usual" : "If clients pay late"} you are ${format(-lowMinor / per)} short on ${lowDay}.` : `The lowest ${who} is ${format(lowMinor / per)} on ${lowDay}.`,
   };
 };

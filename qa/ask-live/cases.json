@@ -1,5 +1,5 @@
 {
- "note": "Run with: npm run qa:ask-live -- <base-url> --confirm-cost. turns: question or tap (a choice label); expect keys: kind (answer|clarify|out_of_scope), includes (all), includesAny (one), excludes, excludesRegex, canvas (block types), either (a list of alternatives, each a canvas and/or view expectation, one must hold), view (the views `show` drew, by id), language (ja), choices, pending. judge: a person must read the answer. Groups share one conversation per household; a household has at most 30 questions a day.",
+ "note": "Run with: npm run qa:ask-live -- <base-url> --confirm-cost. turns: question or tap (a choice label); expect keys: kind (answer|clarify|out_of_scope), includes (all), includesAny (one), excludes, excludesRegex, canvas (block types), either (a list of alternatives, each a canvas and/or view expectation, one must hold), view (the views `show` drew, by id), facts (a view in the canvas carries the fact [name, case, value, optional about] and its value is in what the person sees), notAs (the fact's value must not sit in a sentence with those words), ifIncludes (when the text holds a string, it must also hold includes or includesAny), links (each string in a reply link's label or address), notLine (the model's text must not copy a view's sentence), wording (model: a reply in code's sentence is REVIEW), language (ja), choices, pending. includes, excludes and the rest grade what the person sees: the reply's text plus each view's sentence (D79). judge: a person must read the answer. Groups share one conversation per household; a household has at most 30 questions a day.",
  "cases": [
   {
    "id": "1",
@@ -10,9 +10,20 @@
      "question": "Am I okay this month?",
      "expect": {
       "kind": "answer",
-      "includes": [
-       "¥18,780",
-       "27"
+      "view": [
+       "forecast"
+      ],
+      "facts": [
+       {
+        "name": "short",
+        "case": "late",
+        "value": 18780
+       },
+       {
+        "name": "low_point_day",
+        "case": "late",
+        "value": "2026-11-27"
+       }
       ]
      }
     }
@@ -203,26 +214,42 @@
      "question": "What if Acme pays 10 days late?",
      "expect": {
       "kind": "answer",
-      "includes": [
-       "¥101,220",
-       "Nov 27"
-      ],
       "either": [
        {
         "canvas": [
          "sentence",
          "number",
          "flow_chart"
+        ],
+        "includes": [
+         "¥101,220",
+         "Nov 27"
         ]
        },
        {
         "view": [
          "what_if"
+        ],
+        "facts": [
+         {
+          "name": "low_point_after_change",
+          "case": "as_usual",
+          "value": 101220
+         },
+         {
+          "name": "low_point_day_after_change",
+          "case": "as_usual",
+          "value": "2026-11-27"
+         }
         ]
        },
        {
         "view": [
          "forecast"
+        ],
+        "includes": [
+         "¥101,220",
+         "Nov 27"
         ]
        }
       ]
@@ -1130,12 +1157,20 @@
      "question": "If I put ¥40,000 on Card A today, when do I pay for it?",
      "expect": {
       "kind": "answer",
-      "includes": [
-       "¥40,000",
-       "Dec 26"
-      ],
       "view": [
        "card_cycle"
+      ],
+      "facts": [
+       {
+        "name": "amount_tested",
+        "case": "none",
+        "value": 40000
+       },
+       {
+        "name": "due",
+        "case": "none",
+        "value": "2026-12-26"
+       }
       ]
      }
     }
@@ -1156,13 +1191,23 @@
      "question": "When is Card B paid, and what covers it?",
      "expect": {
       "kind": "answer",
-      "includes": [
-       "Dec 10",
-       "¥61,000",
-       "Northwind"
-      ],
       "view": [
        "card_cycle"
+      ],
+      "includes": [
+       "Northwind"
+      ],
+      "facts": [
+       {
+        "name": "due",
+        "case": "none",
+        "value": "2026-12-10"
+       },
+       {
+        "name": "statement_open",
+        "case": "none",
+        "value": 61000
+       }
       ]
      }
     }
@@ -1183,12 +1228,20 @@
      "question": "What would confirming the Hikari Denki bill change?",
      "expect": {
       "kind": "answer",
-      "includes": [
-       "¥30,000",
-       "¥18,780"
-      ],
       "view": [
        "what_changed"
+      ],
+      "facts": [
+       {
+        "name": "low_point_before_change",
+        "case": "late",
+        "value": -18780
+       },
+       {
+        "name": "low_point_after_change",
+        "case": "late",
+        "value": -30000
+       }
       ]
      }
     }
@@ -1261,6 +1314,411 @@
     "D77"
    ],
    "review": "October by category with Housing ¥82,000; the month's total is ¥132,060.",
+   "judge": false
+  },
+  {
+   "id": "R1",
+   "group": "R",
+   "household": 3,
+   "turns": [
+    {
+     "question": "Am I okay this month?",
+     "expect": {
+      "kind": "answer",
+      "view": [
+       "forecast"
+      ],
+      "notLine": true,
+      "wording": "model",
+      "facts": [
+       {
+        "name": "short",
+        "case": "late",
+        "value": 18780
+       },
+       {
+        "name": "low_point_day",
+        "case": "late",
+        "value": "2026-11-27"
+       },
+       {
+        "name": "low_point",
+        "case": "as_usual",
+        "value": 121220
+       },
+       {
+        "name": "safe_to_spend",
+        "case": "late",
+        "value": 0
+       }
+      ],
+      "ifIncludes": {
+       "safe to spend": {
+        "includesAny": [
+         "late"
+        ]
+       }
+      }
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D78",
+    "D79",
+    "D80"
+   ],
+   "review": "Fine as usual (lowest ¥121,220 on Nov 20), ¥18,780 short on Nov 27 if late, safe to spend ¥0 and said to be the late case. The model adds to the view's sentence; it does not copy it.",
+   "judge": false
+  },
+  {
+   "id": "R2",
+   "group": "R",
+   "household": 3,
+   "turns": [
+    {
+     "question": "Which client pays me slowest?",
+     "expect": {
+      "kind": "answer",
+      "view": [
+       "client_pace"
+      ],
+      "excludes": [
+       "pays late"
+      ],
+      "facts": [
+       {
+        "name": "usual_days_to_pay",
+        "case": "none",
+        "value": 14,
+        "about": "Acme Corp"
+       },
+       {
+        "name": "slowest_days_to_pay",
+        "case": "none",
+        "value": 25,
+        "about": "Acme Corp"
+       }
+      ],
+      "includes": [
+       "Acme"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D78",
+    "D79",
+    "D80"
+   ],
+   "review": "Acme Corp: 14 days usual, 25 at most. Never calls it paying late.",
+   "judge": false
+  },
+  {
+   "id": "R3",
+   "group": "R",
+   "household": 3,
+   "turns": [
+    {
+     "question": "What if Acme pays 10 days late?",
+     "expect": {
+      "kind": "answer",
+      "view": [
+       "what_if"
+      ],
+      "includesAny": [
+       "later than usual"
+      ],
+      "excludes": [
+       "safe to spend"
+      ],
+      "facts": [
+       {
+        "name": "low_point_after_change",
+        "case": "as_usual",
+        "value": 101220
+       }
+      ],
+      "ifIncludes": {
+       "¥18,780": {
+        "includesAny": [
+         "as slowly as they ever have",
+         "every client"
+        ]
+       }
+      }
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D78",
+    "D79",
+    "D80"
+   ],
+   "review": "Acme 10 days later than usual: lowest ¥101,220 on Nov 27 as usual (not the late case). If ¥18,780 shows, it is named as the late case.",
+   "judge": false
+  },
+  {
+   "id": "R4",
+   "group": "R",
+   "household": 3,
+   "turns": [
+    {
+     "question": "Where did October go?",
+     "expect": {
+      "kind": "answer",
+      "view": [
+       "month_by_category"
+      ],
+      "includes": [
+       "Housing",
+       "¥82,000"
+      ],
+      "facts": [
+       {
+        "name": "month_total",
+        "case": "none",
+        "value": 132060
+       },
+       {
+        "name": "change_from_last_month",
+        "case": "none",
+        "value": -18320
+       },
+       {
+        "name": "change_from_last_month_percent",
+        "case": "none",
+        "value": -12.2
+       }
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D78",
+    "D79",
+    "D80"
+   ],
+   "review": "October ¥132,060, ¥18,320 (12.2%) below September's ¥150,380; Housing ¥82,000.",
+   "judge": false
+  },
+  {
+   "id": "R5",
+   "group": "R",
+   "household": 3,
+   "turns": [
+    {
+     "question": "If I put ¥40,000 on Card A today, when do I pay for it?",
+     "expect": {
+      "kind": "answer",
+      "view": [
+       "card_cycle"
+      ],
+      "facts": [
+       {
+        "name": "due",
+        "case": "none",
+        "value": "2026-12-26"
+       },
+       {
+        "name": "card_room_after",
+        "case": "late",
+        "value": 133770
+       }
+      ],
+      "notAs": [
+       {
+        "name": "card_room",
+        "case": "late",
+        "words": [
+         "left",
+         "after"
+        ]
+       }
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D78",
+    "D79",
+    "D80"
+   ],
+   "review": "Paid Dec 26; room after the purchase ¥133,770 in the late case. The room before (¥173,770) is never given as what is left after.",
+   "judge": false
+  },
+  {
+   "id": "R6",
+   "group": "R",
+   "household": 3,
+   "turns": [
+    {
+     "question": "What's due in the next two weeks?",
+     "expect": {
+      "kind": "answer",
+      "view": [
+       "bills_calendar"
+      ],
+      "includes": [
+       "CloudBox Plus",
+       "Rent",
+       "Card A"
+      ],
+      "includesAny": [
+       "as usual"
+      ],
+      "facts": [
+       {
+        "name": "goes_out",
+        "case": "as_usual",
+        "value": 146780
+       },
+       {
+        "name": "comes_in",
+        "case": "as_usual",
+        "value": 300000
+       },
+       {
+        "name": "first_short_day",
+        "case": "late",
+        "value": "2026-11-27"
+       }
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D78",
+    "D79",
+    "D80"
+   ],
+   "review": "14 days: ¥146,780 out, ¥300,000 in (as usual), short from Nov 27 if late; CloudBox Plus, Rent and the Card A statement named; 'comes in' says as usual.",
+   "judge": false
+  },
+  {
+   "id": "R7",
+   "group": "S",
+   "household": 4,
+   "turns": [
+    {
+     "question": "Add my electricity bill, ¥9,800 due Dec 3",
+     "expect": {
+      "kind": "answer",
+      "pending": true,
+      "includes": [
+       "¥9,800"
+      ],
+      "links": [
+       "To check"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D78",
+    "D79",
+    "D80"
+   ],
+   "review": "A pending ¥9,800 bill due Dec 3 waits in To check, with a link to it.",
+   "judge": false
+  },
+  {
+   "id": "R8",
+   "group": "S",
+   "household": 4,
+   "turns": [
+    {
+     "question": "Remember that I'm saving for a trip to Osaka in March",
+     "expect": {
+      "kind": "answer",
+      "includesAny": [
+       "Osaka"
+      ],
+      "excludesRegex": [
+       "[¥$]\\s?\\d"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D78",
+    "D79",
+    "D80"
+   ],
+   "review": "Says it remembered the Osaka trip; no amount invented.",
+   "judge": false
+  },
+  {
+   "id": "R9",
+   "group": "S",
+   "household": 4,
+   "turns": [
+    {
+     "question": "Draft an invoice to Beacon Studio for $400 for the logo work",
+     "expect": {
+      "kind": "answer",
+      "links": [
+       "/invoices/"
+      ],
+      "excludesRegex": [
+       "https?://"
+      ],
+      "excludes": [
+       "i've sent",
+       "i have sent"
+      ]
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D78",
+    "D79",
+    "D80"
+   ],
+   "review": "A draft with a link to /invoices/<id>; the model's text writes no address; nothing sent.",
+   "judge": false
+  },
+  {
+   "id": "R10",
+   "group": "R",
+   "household": 3,
+   "turns": [
+    {
+     "question": "Pay the Card A statement for me",
+     "expect": {
+      "kind": "answer",
+      "includesAny": [
+       "can't",
+       "cannot"
+      ],
+      "includes": [
+       "¥58,000"
+      ],
+      "ifIncludes": {
+       "¥18,780": {
+        "includesAny": [
+         "late"
+        ]
+       }
+      }
+     }
+    }
+   ],
+   "refs": [
+    "D40",
+    "D78",
+    "D79",
+    "D80"
+   ],
+   "review": "Cannot pay; names the ¥58,000 statement; if ¥18,780 shows, it is the late case.",
    "judge": false
   }
  ]

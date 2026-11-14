@@ -9,7 +9,9 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { unconfirmedNumbers } from "@/lib/ai/number-check";
+import { fact } from "@/lib/money/facts";
+import { termOf } from "@/lib/money/terms";
 import { fillShare } from "@/lib/money/pots";
 import { taxAhead } from "@/lib/money/tax-ahead";
 import type { Bill, MoneyState, Pot } from "@/lib/money/types";
@@ -18,6 +20,11 @@ import { ViewError, type ViewResult } from "@/lib/views/types";
 import { StepLine } from "@/components/views/forms/StepLine";
 
 let passed = 0;
+const reads = (view: ViewResult, today: string) => {
+  assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
+  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, today), [], `${view.view}: every number in the line is one of its facts`);
+  for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
+};
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 const TODAY = "2026-11-14";
 
@@ -51,8 +58,8 @@ async function main() {
       assert.deepEqual(result.data!.lines.map(l => [l.key, l.tone, l.label]), [["main", "main", "In the pot"], ["quiet", "quiet", "Tax bills due so far"]]);
       assert.equal(result.data!.marks.length, 1);
       assert.equal(result.data!.marks[0].index, at("2026-12-20"));
-      assert.equal(result.figures.billsMinor, 40_000);
-      assert.equal(result.figures.shortMinor, null);
+      assert.equal(fact(result.facts, "tax_covered_through")!.value, "2026-12-20", "the pot covers the one tax bill, due that day");
+      assert.equal(fact(result.facts, "tax_ahead"), null, "nothing short");
       assert.ok(renderToStaticMarkup(createElement(StepLine, { result })).includes("In the pot"));
     });
 
@@ -61,10 +68,21 @@ async function main() {
       assert.equal(result.line, "The pot is ¥30,000 short of the tax bills on Dec 20.");
       assert.equal(result.data!.low.short, true);
       assert.equal(result.data!.low.index, at("2026-12-20"));
-      assert.equal(result.figures.shortMinor, 30_000);
-      assert.deepEqual(unconfirmedAmounts(result.line ?? "", [JSON.stringify(result.figures)]), []);
+      assert.equal(fact(result.facts, "tax_ahead")!.value, 30_000);
+      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, TODAY), []);
       const early = taxAhead(world([bill({ due: "2026-11-20" })]), "pot-tax", 90)!;
       assert.deepEqual([early.low.short, early.low.shortMinor, early.low.index], [true, 30_000, at("2026-11-20")]);
+    });
+
+    await check("tax_ahead reads clean covered, short and pending; short carries the short amount, the day and the bill due that day", () => {
+      reads(resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill()]))) as ViewResult, TODAY);
+      const short = resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill({ amount: 100_000 })]))) as ViewResult;
+      reads(short, TODAY);
+      const facts = short.facts!, due = facts.find(f => f.name === "bill_amount")!;
+      assert.equal(facts.find(f => f.name === "tax_ahead")!.value, 30_000);
+      assert.equal(facts.find(f => f.name === "tax_short_on")!.value, "2026-12-20");
+      assert.deepEqual([due.value, due.about, due.period], [100_000, { type: "bill", id: "tax-1", name: "Resident tax" }, { on: "2026-12-20" }]);
+      reads(resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill({ status: "pending", amount: 500_000 })]))) as ViewResult, TODAY);
     });
 
     await check("a pending tax bill is named and not counted", () => {
@@ -74,7 +92,7 @@ async function main() {
       assert.deepEqual(ahead.taxBills.map(b => [b.pending, b.counted]), [[true, false]]);
       const result = resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(pending));
       assert.match(result.line!, /Resident tax waits in To check and is not counted yet\./);
-      assert.equal(result.figures.billsMinor, 0);
+      assert.equal(fact(result.facts, "not_counted")!.about!.name, "Resident tax", "a bill that waits in To check is named, not counted");
       assert.notEqual(result.data, null);
     });
 

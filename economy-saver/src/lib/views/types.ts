@@ -1,6 +1,7 @@
 // The graph toolset's contract (D77): what a view resolves to, shaped by the chart form that draws it. Pure types; every amount is integer minor units.
 import type { AddKind } from "@/components/add/context";
 import type { Currency } from "@/lib/catalogue/types";
+import type { Fact } from "@/lib/money/facts";
 import type { FxCosts } from "@/lib/money/fx-cost";
 import type { SpendingInput } from "@/lib/money/spending";
 import type { IncomeRow, MoneyState, PotFill } from "@/lib/money/types";
@@ -32,7 +33,7 @@ export type FormData = {
   pace_lines: { days: number; todayIndex: number | null; lines: { key: "this" | "last"; label: string; tone: Tone; points: number[] }[] };
   goal_line: { start: { date: string; minor: number }; target: { date: string; minor: number; label: string }; today: { date: string; minor: number; label: string }; expected: { minor: number; label: string }; projection: { date: string; minor: number; label: string } | null };
   tracks: { from: string; to: string; tracks: { key: string; label: string; events: { date: string; label: string; amountLabel: string | null; tone: Tone; kind: "dot" | "tick" | "due" | "span"; until?: string }[] }[]; arrows: { from: string; to: string; label: string }[] };
-  before_after: { rows: { key: string; label: string; before: string; after: string; change: string | null }[] };
+  before_after: { pending: boolean; rows: { key: string; label: string; before: string; after: string; change: string | null }[] };
 };
 
 export type ViewResult<F extends ChartForm = ChartForm> = {
@@ -42,6 +43,6 @@ export type ViewResult<F extends ChartForm = ChartForm> = {
   line: string | null; // one sentence by code, under the chart and in the show result
   strip: { label: string; value: string }[] | null; // small figures above the chart (Business / Personal)
   aria: string; source: string;
-  figures: Record<string, number | string | null>; // money keys end in "Minor" (integers); counts use plain names (months, days, count)
+  facts: Fact[]; // the reading (D79, D80): every figure the picture shows or its line states, with its term and case; `line` is written from these
 };
 export type Resolver<K extends ViewId> = (args: ViewArgs[K], ctx: ViewContext) => ViewResult;

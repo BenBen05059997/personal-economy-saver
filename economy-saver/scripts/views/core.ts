@@ -9,7 +9,8 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { unconfirmedNumbers } from "@/lib/ai/number-check";
+import { termOf } from "@/lib/money/terms";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { resolveRecipe } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
@@ -69,13 +70,16 @@ async function main() {
     });
 
     for (const view of liveViews()) {
-      await check(`${view}: form, default arguments, integer figures, checked words, table or empty, aria and a figure`, () => {
+      await check(`${view}: form, default arguments, integer facts, checked words, table or empty, aria and a figure`, () => {
         const drawn = view === "goal_pace" || view === "tax_ahead" ? withPot(ctx) : ctx, args = defaultArgs(view, drawn);
         const result = resolveView(view, args, drawn);
         assert.equal(result.view, view);
         assert.equal(result.form, VIEW_META[view].form, "VIEW_META and the resolver agree on the form");
-        for (const [key, value] of Object.entries(result.figures)) if (key.endsWith("Minor") && value !== null) assert.ok(Number.isInteger(value), `${key} is an integer`);
-        assert.deepEqual(unconfirmedAmounts(result.line ?? "", [JSON.stringify(result.figures)]), [], "every amount in the line is a figure");
+        for (const item of result.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), `${item.name} is an integer`);
+        // D79: nothing is stated only in words. Every number in the line is one of the view's facts, and every fact name is a term.
+        assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, drawn.state.today), [], "every number in the line is one of the view's facts");
+        for (const item of result.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
+        assert.equal(result.facts.length > 0, result.empty === null, "a view with a picture carries facts");
         assert.ok(result.table !== null || result.empty !== null, "a table or an empty state");
         assert.equal(result.data === null, result.empty !== null, "data is null exactly when empty is set");
         assert.ok(result.aria.length > 0);

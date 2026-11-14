@@ -68,6 +68,29 @@ async function ask(cookie, conversationId, text) {
 const viewsOf = (reply) => (reply?.canvas?.blocks ?? []).filter((b) => b.type === "view").map((b) => b.data?.view);
 const kindOf = (turn) => (turn.reply ? (turn.reply.kind === "declined" ? "out_of_scope" : turn.reply.kind) : "error");
 const JA = /[぀-ヿ一-鿿]/g;
+const blocksOf = (reply) => (reply?.canvas?.blocks ?? []).filter((b) => b.type === "view");
+/** The sentence each view in the canvas shows under its picture (written by code from the view's facts). */
+const linesOf = (reply) => blocksOf(reply).map((b) => b.data?.line).filter((l) => typeof l === "string" && l);
+/** Every fact the canvas's views carry (D79): the reading the person sees. */
+const factsOf = (reply) => blocksOf(reply).flatMap((b) => (b.data?.facts ?? []).map((f) => ({ ...f, view: b.data?.view })));
+const factNamesOf = (reply) => [...new Set(factsOf(reply).map((f) => `${f.name}${f.case && f.case !== "none" ? `:${f.case}` : ""}`))];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** How a fact's value reads to a person: money without its sign (the words carry "short"), a date as "Nov 27", a day count as the bare number. Returns the forms that count as showing it. */
+function shown(fact) {
+  const v = fact.value;
+  switch (fact.unit) {
+    case "money": {
+      const abs = Math.abs(v);
+      return fact.currency === "USD" ? [`$${(abs / 100).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, `$${(abs / 100).toLocaleString("en-US")}`] : [`¥${abs.toLocaleString("en-US")}`];
+    }
+    case "date": { const [, m, d] = String(v).split("-"); return [`${MONTHS[Number(m) - 1]} ${Number(d)}`]; }
+    case "percent": return [`${Math.abs(v)}%`, `${Math.round(Math.abs(v))}%`];
+    default: return [String(v)];
+  }
+}
+/** A day count or a count must stand alone as a number; any other form just has to appear. */
+const appears = (forms, low, unit) => forms.some((f) => (unit === "days" || unit === "count" ? new RegExp(`(^|[^\\d,.])${f.toLowerCase()}($|[^\\d,])`).test(low) : low.includes(f.toLowerCase())));
+const sameValue = (want, got) => (typeof want === "number" ? want === got : String(want) === String(got));
 
 function grade(expect, turn) {
   // `either`: alternatives for what the canvas draws (a block type or the view `show` drew); the case passes when one holds, and the rest of `expect` is graded as usual.
@@ -77,7 +100,10 @@ function grade(expect, turn) {
     return tries.find((fails) => fails.length === 0) ?? tries[0];
   }
   const fails = [];
-  const text = turn.reply?.text ?? turn.error ?? "";
+  fails.review = [];
+  const modelText = turn.reply?.text ?? turn.error ?? "";
+  // What the person sees (D79): the reply's text and each view's sentence. Code writes the sentence, so the model's text need not restate it.
+  const text = [modelText, ...linesOf(turn.reply)].join("\n");
   const low = text.toLowerCase();
   const kind = kindOf(turn);
   if (expect.kind && kind !== expect.kind) fails.push(`kind ${kind}, wanted ${expect.kind}`);
@@ -98,6 +124,33 @@ function grade(expect, turn) {
     const labels = (turn.reply?.choices ?? []).map((c) => (typeof c === "string" ? c : c.text ?? c.label ?? ""));
     for (const c of expect.choices) if (!labels.includes(c)) fails.push(`no choice "${c}"`);
   }
+  const facts = factsOf(turn.reply);
+  for (const want of expect.facts ?? []) {
+    const label = `fact ${want.name}${want.case ? ` (${want.case})` : ""} ${want.value}`;
+    const got = facts.find((f) => f.name === want.name && (want.case === undefined || f.case === want.case) && sameValue(want.value, f.value) && (want.about === undefined || f.about?.name === want.about));
+    if (!got) { fails.push(`no view carries ${label}${want.about ? ` about ${want.about}` : ""}`); continue; }
+    if (!appears(shown(got), low, got.unit)) fails.push(`${label} is in the view but not in what the person sees (${shown(got).join(" or ")})`);
+  }
+  for (const no of expect.notAs ?? []) {
+    const forms = facts.filter((f) => f.name === no.name && (no.case === undefined || f.case === no.case)).flatMap(shown);
+    const sentences = text.split(/[.!?\n]+/).map((x) => x.toLowerCase());
+    for (const form of forms) for (const sentence of sentences) {
+      if (sentence.includes(form.toLowerCase()) && no.words.some((w) => sentence.includes(w.toLowerCase()))) fails.push(`${no.name} ${form} sits next to ${JSON.stringify(no.words)}: "${sentence.trim().slice(0, 100)}"`);
+    }
+  }
+  for (const [when, then] of Object.entries(expect.ifIncludes ?? {})) {
+    if (!low.includes(when.toLowerCase())) continue;
+    for (const s of then.includes ?? []) if (!low.includes(s.toLowerCase())) fails.push(`with "${when}", missing "${s}"`);
+    if (then.includesAny?.length && !then.includesAny.some((s) => low.includes(s.toLowerCase()))) fails.push(`with "${when}", none of ${JSON.stringify(then.includesAny)}`);
+  }
+  // links: each string must be in some link of the reply, in its label or its address.
+  for (const s of expect.links ?? []) if (!(turn.reply?.links ?? []).some((l) => `${l.label} ${l.href}`.toLowerCase().includes(s.toLowerCase()))) fails.push(`no link with "${s}"`);
+  // notLine: the model's own text must not copy the view's sentence (skipped when the reply is in code's sentence).
+  if (expect.notLine && (turn.reply?.wording === undefined || turn.reply.wording === "model")) {
+    for (const line of linesOf(turn.reply)) if (modelText.toLowerCase().includes(line.toLowerCase())) fails.push(`the model's text restates the view's sentence "${line.slice(0, 60)}"`);
+  }
+  // `wording` is absent until the reply carries it (stage 4); then a reply in code's sentence is for a person to read.
+  if (expect.wording === "model" && turn.reply?.wording !== undefined && turn.reply.wording !== "model") fails.review.push("the model's words failed the check");
   if (expect.pending !== undefined && Boolean(turn.reply?.pending) !== expect.pending) fails.push(`pending ${Boolean(turn.reply?.pending)}, wanted ${expect.pending}`);
   return fails;
 }
@@ -111,6 +164,7 @@ for (const c of cases) {
   const conversationId = conversations.get(convKey);
   const turns = [];
   const fails = [];
+  const reviews = [];
   let previous = null;
   for (const turn of c.turns) {
     let text = turn.question;
@@ -123,11 +177,12 @@ for (const c of cases) {
     previous = got;
     const f = grade(turn.expect ?? {}, got);
     fails.push(...f.map((x) => `${turns.length + 1}: ${x}`));
-    turns.push({ question: text, seconds: got.seconds, kind: kindOf(got), text: got.reply?.text ?? null, error: got.error, choices: got.reply?.choices ?? null, canvasBlocks: (got.reply?.canvas?.blocks ?? []).map((b) => b.type), views: viewsOf(got.reply), pending: Boolean(got.reply?.pending) });
+    reviews.push(...(f.review ?? []).map((x) => `${turns.length + 1}: ${x}`));
+    turns.push({ question: text, seconds: got.seconds, kind: kindOf(got), text: got.reply?.text ?? null, error: got.error, choices: got.reply?.choices ?? null, canvasBlocks: (got.reply?.canvas?.blocks ?? []).map((b) => b.type), views: viewsOf(got.reply), lines: linesOf(got.reply), facts: factNamesOf(got.reply), wording: got.reply?.wording ?? null, links: got.reply?.links ?? [], pending: Boolean(got.reply?.pending) });
   }
-  const verdict = fails.length ? "FAIL" : c.judge ? "REVIEW" : "PASS";
-  results.push({ case: c.id, group: c.group, household: c.household, refs: c.refs, verdict, why: fails.join("; "), review: c.review, seconds: turns.map((t) => t.seconds), turns });
-  console.log(`${verdict.padEnd(6)} ${String(c.id).padEnd(4)} ${turns.map((t) => t.seconds.toFixed(1)).join("/")}s ${fails.join("; ")}`);
+  const verdict = fails.length ? "FAIL" : c.judge || reviews.length ? "REVIEW" : "PASS";
+  results.push({ case: c.id, group: c.group, household: c.household, refs: c.refs, verdict, why: [...fails, ...reviews].join("; "), review: c.review, seconds: turns.map((t) => t.seconds), turns });
+  console.log(`${verdict.padEnd(6)} ${String(c.id).padEnd(4)} ${turns.map((t) => t.seconds.toFixed(1)).join("/")}s ${[...fails, ...reviews].join("; ")}`);
 }
 
 const resultsPath = join(qaDir, "results-ask.json");

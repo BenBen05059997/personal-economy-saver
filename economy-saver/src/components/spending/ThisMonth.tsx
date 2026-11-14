@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { MoneyState } from "@/lib/money/types";
+import { fact } from "@/lib/money/facts";
 import { minorMoney } from "@/lib/money/format";
 import type { LookBy } from "@/lib/money/look-by";
 import { monthByCategory } from "@/lib/money/month";
@@ -54,7 +55,7 @@ export function ThisMonth({ state, spending, ask, own, device }: { state: MoneyS
   });
   const waiting = state.bills.filter(bill => bill.status === "pending" && bill.due.slice(0, 7) === month);
   const notes = waiting.map(bill => `${bill.biller} ${minorMoney(bill.amount, state.homeCurrency)} waits in To check and is not counted yet.`);
-  if (questions[0].result.figures.unknown === 1) notes.unshift("Some amounts are not known and are not included in these totals.");
+  if (fact(questions[0].result.facts, "not_counted") !== null) notes.unshift("Some amounts are not known and are not included in these totals.");
   return <>
     {queryRefusal && <p className="spending-line" role="alert">{queryRefusal}</p>}
     {result && <SpendingResults result={result} typed={query} people={people} device={device} />}

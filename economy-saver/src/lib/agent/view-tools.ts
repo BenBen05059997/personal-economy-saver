@@ -1,11 +1,12 @@
 // The `show` tool (D77): the agent draws one of the app's pictures of the person's money. It names a view and, as JSON text, the arguments
 // that view takes, by name; code checks both, turns names into ids, reads the data and resolves the view. The result is the view's own
-// words and figures, never an argument the model passed in (an amount it chose would otherwise count as a tool result in the number check).
+// words and facts, never an argument the model passed in; the amount the person tests comes back as a fact the person gave, which the number check never confirms.
 // This file does not import tools.ts as a value (tools.ts spreads `viewTools`): types only.
 import { z } from "zod";
 import { InputError } from "@/db/input-error";
 import { Currency } from "@/lib/catalogue/types";
 import { CATEGORY_KEYS } from "@/lib/money/categories";
+import { forModel } from "@/lib/money/facts";
 import { group, minorMoney, minorPerUnit } from "@/lib/money/format";
 import { readAmount } from "@/lib/money/amount";
 import { VIEW_ARGS } from "@/lib/views/args";
@@ -102,19 +103,10 @@ async function idArgs(ctx: Parameters<Tool["run"]>[0], view: ViewId, given: Reco
   return out;
 }
 
-/** The text of a result with every form of the amount the model passed in taken out. */
-function withoutAmount(result: unknown, minor: number | null, currency: Currency): unknown {
-  if (minor === null) return result;
-  const forms = [minorMoney(minor, currency), `${currency === "JPY" ? "¥" : "$"}${group(minor / minorPerUnit(currency))}`];
-  const walk = (node: unknown): unknown => {
-    if (typeof node === "string") return forms.reduce((text, form) => text.split(form).join("that amount"), node);
-    if (Array.isArray(node)) return node.map(walk);
-    if (node !== null && typeof node === "object") {
-      return Object.fromEntries(Object.entries(node).filter(([, value]) => value !== minor).map(([key, value]) => [key, walk(value)]));
-    }
-    return node;
-  };
-  return walk(result);
+/** A table cell with every form of the amount the model passed in taken out: the amount the person tests reaches the model only as the person's own fact, which the number check never confirms. */
+function withoutAmount(cell: string, minor: number | null, currency: Currency): string {
+  if (minor === null) return cell;
+  return [minorMoney(minor, currency), `${currency === "JPY" ? "¥" : "$"}${group(minor / minorPerUnit(currency))}`].reduce((text, form) => text.split(form).join("that amount"), cell);
 }
 
 function parseArgs(view: ViewId, text: string | null): Record<string, unknown> {
@@ -146,11 +138,11 @@ export const viewTools: Tool[] = [
       try { result = resolveView(view, parsed.data, await loadViewContext(ctx.db, ctx.householdId, VIEW_META[view].needs, { state: await ctx.state() })); }
       catch (error) { if (error instanceof ViewError) throw new InputError(error.message); throw error; }
       ctx.onView?.({ type: "view", view, args: parsed.data } as ViewBlock);
-      const passed = typeof args.amountMinor === "number" ? args.amountMinor : null;
-      const table = result.table && { head: result.table.head, rows: result.table.rows.slice(0, 12).map(row => row.cells), foot: result.table.foot };
-      return JSON.stringify(withoutAmount({
-        view, title: result.title, line: result.line, currency: result.currency, figures: result.figures, table, empty: result.empty?.words ?? null,
-      }, passed, result.currency));
+      const passed = typeof args.amountMinor === "number" ? args.amountMinor : null, hide = (cell: string) => withoutAmount(cell, passed, result.currency);
+      const table = result.table && { head: result.table.head, rows: result.table.rows.slice(0, 12).map(row => row.cells.map(hide)), foot: result.table.foot && result.table.foot.map(hide) };
+      return JSON.stringify({
+        view, title: result.title, line: result.line, currency: result.currency, ...forModel(result.facts), table, empty: result.empty?.words ?? null,
+      });
     },
   }),
 ];

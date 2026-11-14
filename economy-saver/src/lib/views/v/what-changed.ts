@@ -1,5 +1,7 @@
 // What did this change (D77): the picture without an item and with it. The two sides are worked out by `whatChanged`; this draws them in words.
+import { engineFact, type Fact } from "@/lib/money/facts";
 import { WhatChangedError, whatChanged } from "@/lib/money/what-changed";
+import { WINDOW_DAYS } from "@/lib/money/runway";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type TableTwin, type ViewResult } from "../types";
 
@@ -16,12 +18,21 @@ export const whatChangedView: Resolver<"what_changed"> = (args, ctx): ViewResult
   };
   const sentence = result.sentence;
   const line = sentence.changed ? `${pending ? "If you confirm it, your sentence becomes" : "Because of it, your sentence reads"}: ${sentence.after}` : `Your sentence is unchanged: ${sentence.after}`;
-  const moved = result.rows.filter(row => row.key !== "low" && row.key !== "sentence").length;
+  const side = (before: boolean, late: number, usual: number, safe: number) => [
+    engineFact(before ? "low_point_before_change" : "low_point_after_change", late, { from: "what_changed", currency, case: "late" }),
+    engineFact(before ? "low_point_before_change" : "low_point_after_change", usual, { from: "what_changed", currency, case: "as_usual" }),
+    engineFact(before ? "safe_to_spend_before_change" : "safe_to_spend_after_change", safe, { from: "what_changed", currency }),
+  ];
+  const facts: Fact[] = [
+    ...side(true, result.lowLateMinor.before, result.lowUsualMinor.before, result.safeMinor.before),
+    ...side(false, result.lowLateMinor.after, result.lowUsualMinor.after, result.safeMinor.after),
+    engineFact("days_shown", WINDOW_DAYS, { from: "what_changed" }),
+    ...(sentence.day.after ? [engineFact("sentence_day", sentence.day.after, { from: "what_changed" })] : []),
+  ];
   return {
     view: "what_changed", args: { ...args }, form: "before_after", title: pending ? `If you confirm ${result.name}` : `What ${result.name} changed`, question: meta.question, hint: meta.hint, home: meta.home, currency,
-    data: { rows: result.rows }, table, empty: null, line, strip: null,
+    data: { pending, rows: result.rows }, table, empty: null, line, strip: null, facts,
     aria: `${pending ? `What ${result.name} changes if you confirm it` : `What ${result.name} changed`}: ${result.rows.filter(row => row.key !== "sentence").map(row => `${row.label} ${row.before}, then ${row.after}`).join("; ")}. ${line}`,
     source: pending ? "Your money now, against the same money with it confirmed. Nothing is added until you confirm." : "Your money without it, against your money now.",
-    figures: { status: result.when, kind: result.kind, changedRows: moved, lowLateBeforeMinor: result.lowLateMinor.before, lowLateAfterMinor: result.lowLateMinor.after, lowUsualBeforeMinor: result.lowUsualMinor.before, lowUsualAfterMinor: result.lowUsualMinor.after, safeBeforeMinor: result.safeMinor.before, safeAfterMinor: result.safeMinor.after },
   };
 };

@@ -1,6 +1,7 @@
 // The what-if (D77): the next days of cash with a change, drawn over the days as they are now (the ghost). Code runs the engine on a copy of the
 // money state (`whatIf`); nothing is saved. A spend moves the late case (the one safe to spend uses); a client paying later moves the usual case,
-// because the change is "later than usual". The result never repeats the amount the person asked about as a figure.
+// because the change is "later than usual". The amount the person asked about is a person fact (D79): it confirms nothing.
+import { engineFact, personFact, type Fact } from "@/lib/money/facts";
 import { WhatIfError, whatIf } from "@/lib/money/whatif";
 import { formatter, minorMoney, minorPerUnit } from "@/lib/money/format";
 import { addDays, daysBetween, low, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
@@ -18,7 +19,7 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
   if (late && !client) throw new ViewError("That client is not in your records, so they cannot be late in a what-if.");
   const spendDate = args.date ?? state.today, kind = late ? "expected" as const : "worst" as const;
   const base = { view: "what_if" as const, args: { ...args }, form: "step_line" as const, title: late ? `What if ${client!.name.split(" ")[0]} pays late` : "What if you spend it", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "Your next days, worked out again with the change. Nothing is saved." };
-  if (hasNothingToForecast(state)) return { ...base, data: null, table: null, line: null, aria: "Nothing to forecast yet.", figures: {}, empty: { words: "Nothing to forecast yet. Add a bill or a client and a what-if shows here.", add: "bill", addLabel: "Add a bill" } };
+  if (hasNothingToForecast(state)) return { ...base, data: null, table: null, line: null, aria: "Nothing to forecast yet.", facts: [], empty: { words: "Nothing to forecast yet. Add a bill or a client and a what-if shows here.", add: "bill", addLabel: "Add a bill" } };
 
   let changed;
   try { changed = whatIf(state, late ? [{ kind: "client_late", clientId: late.clientId, days: late.days }] : [{ kind: "add_cost", name: "Your spend", amountMinor: amountMinor!, date: spendDate }]); }
@@ -39,7 +40,18 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
   });
 
   const loWith = low(next, state.today), loNow = low(now, state.today);
-  const phrase = (amount: number, day: string) => amount < 0 ? `${money(-toMinor(amount))} short on ${longDay(day)}` : `lowest ${money(toMinor(amount))} on ${longDay(day)}`;
+  // The facts first (D79), in the case the change moves: a spend moves the late case, a client N days later moves as usual. The line reads them back.
+  const c = kind === "worst" ? "late" as const : "as_usual" as const, from = "what_if", money_ = { from, currency, case: c };
+  const facts: Fact[] = [
+    engineFact("low_point_after_change", toMinor(loWith.amount), money_), engineFact("low_point_day_after_change", loWith.date, { from, case: c }),
+    engineFact("low_point_before_change", toMinor(loNow.amount), money_), engineFact("low_point_day_before_change", loNow.date, { from, case: c }),
+  ];
+  if (loWith.amount < 0) facts.push(engineFact("short", toMinor(-loWith.amount), money_));
+  if (loNow.amount < 0) facts.push(engineFact("short", toMinor(-loNow.amount), money_));
+  if (late) facts.push(personFact("days_later_than_usual", late.days, { from, case: "as_usual", about: { type: "client", id: client!.id, name: client!.name } }));
+  else facts.push(personFact("amount_tested", amountMinor!, { from, currency, period: { on: spendDate } }));
+  const [withMinor, withDay, nowMinor, nowDay] = [Number(facts[0].value), String(facts[1].value), Number(facts[2].value), String(facts[3].value)];
+  const phrase = (minor: number, day: string) => minor < 0 ? `${money(-minor)} short on ${longDay(day)}` : `lowest ${money(minor)} on ${longDay(day)}`;
   const eventDays = new Set(events.map(event => event.date));
   const table: TableTwin = {
     caption: "What if, by day", head: ["Day", "What happens", "With the change", nowLabel], foot: null, align: ["end", "start", "end", "end"],
@@ -47,8 +59,8 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
   };
   return {
     ...base, data, table, empty: null,
-    line: `With it: ${phrase(loWith.amount, loWith.date)}. Now: ${phrase(loNow.amount, loNow.date)}.`,
-    aria: `Cash for the next ${days} days with the change, against as things are now. With it you are ${phrase(loWith.amount, loWith.date)}; now you are ${phrase(loNow.amount, loNow.date)}. Use the left and right arrow keys to look at each day.`,
-    figures: { lowWithMinor: toMinor(loWith.amount), lowWithDate: loWith.date, lowNowMinor: toMinor(loNow.amount), lowNowDate: loNow.date },
+    facts,
+    line: `With it: ${phrase(withMinor, withDay)}. Now: ${phrase(nowMinor, nowDay)}.`,
+    aria: `Cash for the next ${days} days with the change, against as things are now. With it you are ${phrase(withMinor, withDay)}; now you are ${phrase(nowMinor, nowDay)}. Use the left and right arrow keys to look at each day.`,
   };
 };

@@ -1,8 +1,10 @@
 // Spending day by day (D73, D77): monthPace and the month_pace view on Ben's sample, and the pace-lines form.
 import assert from "node:assert/strict";
+import { unconfirmedNumbers } from "@/lib/ai/number-check";
+import { fact } from "@/lib/money/facts";
+import { TERMS } from "@/lib/money/terms";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
 import { lookBy, monthTrend } from "@/lib/money/look-by";
 import { monthPace } from "@/lib/money/month-pace";
 import { benMoney } from "@/lib/sample/ben";
@@ -51,16 +53,16 @@ check("the view: two lines (this month, last month), today marked, a table of da
   assert.deepEqual(result.table!.head, ["Day", "November", "October"]);
   assert.equal(result.table!.rows.length, 31);
   assert.equal(result.table!.rows[20].cells[1], "–");
-  assert.deepEqual(unconfirmedAmounts(result.line ?? "", [JSON.stringify(result.figures)]), []);
-  for (const [key, value] of Object.entries(result.figures)) if (key.endsWith("Minor") && value !== null) assert.ok(Number.isInteger(value), key);
-  assert.equal(result.figures.lastTotalMinor, 132_060);
+  assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, benMoney.today), []);
+  for (const item of result.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
+  assert.equal(fact(result.facts, "month_total")!.value, 132_060);
   assert.match(result.line!, /By the 14th you have spent/);
 });
 
 check("a past month reads as a finished month in the line", () => {
   const view = monthPaceView({ month: "2026-10" }, ctx);
   assert.match(view.line!, /^October came to /);
-  assert.deepEqual(unconfirmedAmounts(view.line ?? "", [JSON.stringify(view.figures)]), []);
+  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, benMoney.today), []);
 });
 
 check("no spending at all reads as empty with an Add a bill button", () => {
@@ -75,5 +77,14 @@ check("the form draws one labelled group, a legend of two, the today mark and th
   assert.equal((html.match(/class="pl-line/g) ?? []).length, 2);
   assert.ok(html.includes("pl-today") && html.includes("November") && html.includes("October"));
 });
+
+check("month_pace: every fact is a term and the line has no number a fact does not confirm", () => {
+  for (const r of [result, monthPaceView({ month: "2026-10" }, ctx)]) {
+    assert.ok(r.facts && r.facts.length > 0);
+    assert.ok(r.facts.every(f => TERMS.some(t => t.name === f.name)));
+    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts as Parameters<typeof unconfirmedNumbers>[1], benMoney.today), []);
+  }
+});
+
 
 console.log(`month-pace: ${passed} passed`);

@@ -8,7 +8,8 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { unconfirmedNumbers } from "@/lib/ai/number-check";
+import { termOf } from "@/lib/money/terms";
 import { ViewFigure } from "@/components/views/ViewFigure";
 import { loadViewContext } from "@/lib/views/load";
 import { resolveView } from "@/lib/views/resolve";
@@ -16,6 +17,11 @@ import type { FormData, ViewContext, ViewResult } from "@/lib/views/types";
 import type { Charge } from "@/lib/money/types";
 
 let passed = 0;
+const reads = (view: ViewResult, today: string) => {
+  assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
+  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, today), [], `${view.view}: every number in the line is one of its facts`);
+  for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
+};
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 type Rows = FormData["before_after"]["rows"];
 const row = (rows: Rows, key: string) => rows.find(r => r.key === key);
@@ -41,11 +47,22 @@ async function main() {
       assert.match(row(rows, "sentence")!.before, /¥18,780 short on the 27th\.$/);
       assert.match(row(rows, "sentence")!.after, /¥30,000 short on the 27th\.$/);
       assert.deepEqual(rows.map(r => r.key), ["category", "low", "sentence"], "only what moves, in the fixed order, the lowest day and the sentence last");
-      assert.equal(result.figures.status, "pending");
+      assert.equal(result.data!.pending, true);
       assert.equal(result.title, "If you confirm Hikari Denki");
       assert.deepEqual(result.table!.head, ["", "Now", "If you confirm", "Change"]);
-      assert.deepEqual(unconfirmedAmounts(result.line ?? "", [JSON.stringify(result.figures)]), []);
+      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, state.today), []);
       assert.match(result.line!, /^If you confirm it, your sentence becomes: .*¥30,000 short on the 27th\.$/);
+    });
+
+    await check("the pending Hikari Denki and an unchanged item read clean; the before and after sides carry both cases and the sentence's day", () => {
+      const result = resolveView("what_changed", { itemId: hikari.id }, ctx) as ViewResult;
+      reads(result, state.today);
+      const pick = (name: string, kase?: string) => result.facts!.find(f => f.name === name && (kase === undefined || f.case === kase))!.value;
+      assert.deepEqual([pick("low_point_before_change", "late"), pick("low_point_after_change", "late")], [-18_780, -30_000]);
+      assert.equal(pick("safe_to_spend_after_change"), 0);
+      assert.match(String(pick("sentence_day")), /^\d{4}-\d{2}-27$/);
+      const pot = state.pots[0];
+      if (pot) reads(resolveView("what_changed", { itemId: pot.id }, ctx) as ViewResult, state.today);
     });
 
     await check("a pending ¥8,400 Card B charge: owed ¥61,000 → ¥69,400, the Dec 10 statement ¥61,000 → ¥69,400, Food ¥10,700 → ¥19,100", () => {
@@ -74,7 +91,7 @@ async function main() {
     await check("a confirmed bill and a confirmed charge: before is the state without it", () => {
       const confirmed: ViewContext = { state: { ...state, bills: state.bills.map(bill => bill.id === hikari.id ? { ...bill, status: "confirmed" as const } : bill) }, spending: { ...ctx.spending!, bills: [...ctx.spending!.bills, { ...hikari, status: "confirmed" as const }] } };
       const result = resolveView("what_changed", { itemId: hikari.id }, confirmed) as ViewResult<"before_after">;
-      assert.equal(result.figures.status, "confirmed");
+      assert.equal(result.data!.pending, false);
       assert.equal(result.title, "What Hikari Denki changed");
       assert.deepEqual(result.table!.head, ["", "Without it", "With it", "Change"]);
       const rows = result.data!.rows;
@@ -82,7 +99,7 @@ async function main() {
       assert.deepEqual([row(rows, "low")!.before, row(rows, "low")!.after], ["−¥18,780", "−¥30,000"]);
       assert.match(result.line!, /^Because of it, your sentence reads: /);
       const b8 = resolveView("what_changed", { itemId: chargeOf(1_400) }, ctx) as ViewResult<"before_after">;
-      assert.equal(b8.figures.status, "confirmed", "a confirmed charge");
+      assert.equal(b8.data!.pending, false, "a confirmed charge");
       assert.deepEqual([row(b8.data!.rows, `owed-${cardB.id}`)!.before, row(b8.data!.rows, `owed-${cardB.id}`)!.after], ["¥59,600", "¥61,000"]);
       assert.deepEqual([row(b8.data!.rows, "category")!.before, row(b8.data!.rows, "category")!.after], ["¥9,300", "¥10,700"]);
     });
@@ -105,7 +122,7 @@ async function main() {
       assert.deepEqual(row(withPot.data!.rows, "pots"), { key: "pots", label: "Saving pots", before: "0", after: "1", change: "+1" });
       // Confirmed, the same rule as a bill or a charge: before is the state without it, after is now.
       const saved = resolveView("what_changed", { itemId: "pot-new" }, { ...ctx, state: { ...state, pots: [pot] } }) as ViewResult<"before_after">;
-      assert.equal(saved.figures.status, "confirmed");
+      assert.equal(saved.data!.pending, false);
       assert.deepEqual(saved.table!.head, ["", "Without it", "With it", "Change"]);
       assert.deepEqual([row(saved.data!.rows, "cash")!.before, row(saved.data!.rows, "cash")!.after], ["¥128,000", "¥108,000"]);
       assert.deepEqual(row(saved.data!.rows, "pots"), { key: "pots", label: "Saving pots", before: "0", after: "1", change: "+1" });

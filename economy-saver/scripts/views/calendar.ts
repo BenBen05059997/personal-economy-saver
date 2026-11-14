@@ -2,7 +2,9 @@
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { unconfirmedNumbers } from "@/lib/ai/number-check";
+import { fact, type Fact } from "@/lib/money/facts";
+import { TERMS } from "@/lib/money/terms";
 import { calendarDays } from "@/lib/money/calendar";
 import { sharedBillsComing } from "@/lib/money/family";
 import { series } from "@/lib/money/runway";
@@ -14,6 +16,8 @@ import type { ViewResult } from "@/lib/views/types";
 let passed = 0;
 function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
 const ctx = { state: benMoney };
+/** The facts as the number check reads them: a one-day period becomes its date. */
+const checkable = (facts: readonly Fact[]) => facts.map(item => ({ ...item, period: item.period && "on" in item.period ? item.period.on : item.period }));
 const rows = calendarDays(benMoney);
 const day = (date: string) => rows.find(row => row.date === date)!;
 const result = calendarView({}, ctx) as ViewResult<"calendar">;
@@ -45,14 +49,14 @@ check("Hikari Denki waits in To check on Nov 27: listed, flagged and not counted
   assert.equal(day("2026-11-27").outMinor, 82_000, "only the rent is counted");
   const cell = data.weeks.flat().find(c => c.date === "2026-11-27")!;
   assert.ok(cell.items.some(text => text === "Hikari Denki ¥11,220 waits in To check and is not counted yet"));
-  assert.equal(result.figures.pendingCount, 1);
+  assert.equal(fact(result.facts, "to_check")!.value, 1);
 });
 
 check("short marks equal the late series below zero", () => {
   const late = series(benMoney, "worst", 30);
   assert.deepEqual(rows.map(row => row.short), late.map(balance => balance < 0));
   assert.deepEqual(rows.filter(row => row.short).map(row => row.date), ["2026-11-27", "2026-11-28"]);
-  assert.equal(result.figures.shortDays, 2);
+  assert.equal(fact(result.facts, "short_days")!.value, 2);
 });
 
 check("the grid is whole Sunday-first weeks, today and the last day in range, the rest padded", () => {
@@ -67,10 +71,10 @@ check("the grid is whole Sunday-first weeks, today and the last day in range, th
 check("the table twin has dated rows with the words, money out and in; the line and figures agree", () => {
   assert.deepEqual(result.table!.head, ["Day", "What", "Goes out", "Comes in"]);
   assert.ok(result.table!.rows.some(row => row.cells[0] === "Fri, Nov 27" && row.tone === "short" && row.cells[3] === "–"));
-  assert.deepEqual(unconfirmedAmounts(result.line ?? "", [JSON.stringify(result.figures)]), []);
-  for (const [key, value] of Object.entries(result.figures)) if (key.endsWith("Minor") && value !== null) assert.ok(Number.isInteger(value), key);
-  assert.equal(result.figures.outMinor, 207_780);
-  assert.equal(result.figures.inMinor, 300_000);
+  assert.deepEqual(unconfirmedNumbers(result.line ?? "", checkable(result.facts), ctx.state.today), []);
+  for (const item of result.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
+  assert.equal(fact(result.facts, "goes_out")!.value, 207_780);
+  assert.equal(fact(result.facts, "comes_in")!.value, 300_000);
   assert.equal(result.title, "When bills fall");
 });
 
@@ -102,6 +106,16 @@ check("the form draws a labelled grid, every day, the today mark, the money-in d
   assert.equal((html.match(/cal-today/g) ?? []).length, 1);
   assert.ok(html.includes("cal-dot-in") && html.includes("cal-dot-short"));
   assert.ok(html.includes("Fri, Nov 27: Hikari Denki ¥11,220 waits in To check and is not counted yet; Rent −¥82,000"));
+});
+
+check("the facts hold the sentence's numbers and dates, and every number in the line is one of them", () => {
+  const facts = result.facts!;
+  assert.deepEqual([fact(facts, "goes_out")!.value, fact(facts, "comes_in")!.value, fact(facts, "days_shown")!.value, fact(facts, "heaviest_day_goes_out")!.value], [207_780, 300_000, 30, 82_000]);
+  assert.deepEqual([fact(facts, "first_short_day")!.value, fact(facts, "last_short_day")!.value, fact(facts, "short_days")!.value, fact(facts, "to_check")!.value], ["2026-11-27", "2026-11-28", 2, 1]);
+  for (const view of [result, calendarView({ whose: "shared" }, ctx), calendarView({ days: 7 }, ctx)]) {
+    assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), benMoney.today), []);
+    assert.ok(view.facts!.every(item => TERMS.some(term => term.name === item.name)));
+  }
 });
 
 console.log(`calendar: ${passed} passed`);

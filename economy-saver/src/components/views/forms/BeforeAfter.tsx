@@ -3,7 +3,7 @@ import "./before-after.css";
 
 /** The before-and-after form (D77): one row per thing that moves, the picture without it beside the picture with it. The sentence is the line under it. */
 export function BeforeAfter({ result }: { result: ViewResult<"before_after"> }) {
-  const data = result.data!, pending = result.figures.status === "pending";
+  const data = result.data!, pending = data.pending;
   const heads = pending ? ["Now", "If you confirm"] : ["Without it", "With it"];
   const figures = data.rows.filter(row => row.key !== "sentence"); // the sentence is the line under the chart, and a row of the table
   return <div className="ba-chart" role="group" aria-label={result.aria}>

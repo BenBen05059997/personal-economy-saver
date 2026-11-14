@@ -426,7 +426,7 @@ async function main() {
       assert.equal(after.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional ramen shop")!.businessBp, 10_000);
 
       const text = await run("month_by_category", {});
-      assert.equal(text, monthText(after));
+      assert.equal(text.split("\n\nFacts: ")[0], monthText(after), "the words are unchanged; the facts follow them");
       assert.match(text, /Health ¥3,000 \(business ¥750 · personal ¥2,250\): Fictional gym Nov 25 ¥3,000 at 25% business\./);
       assert.equal(tool("month_by_category").scope, "read");
     });

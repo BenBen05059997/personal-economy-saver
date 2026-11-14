@@ -1,4 +1,5 @@
 // Who owes whom (D45, D77): each person's payments of shared bills and charges since the last settlement, as a bar, against their fair share as the tick. Pure; integer minor units.
+import { engineFact, type Fact } from "@/lib/money/facts";
 import { minorMoney } from "@/lib/money/format";
 import { splitBalance, splitSummary } from "@/lib/money/split";
 import { VIEW_META } from "../catalogue";
@@ -10,11 +11,11 @@ export const whoOwesWhomView: Resolver<"who_owes_whom"> = (args, ctx): ViewResul
   const base = { view: "who_owes_whom" as const, args: { ...args }, form: "ranked_bars" as const, title: "Who owes whom", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, data: null, table: null,
     source: "The household's shared bills and charges since the last settlement, split by each person's share." };
   if (split.members.length < 2) {
-    return { ...base, line: null, aria: "Only one person is in this household.", figures: { people: split.members.length }, empty: { words: "Add a person in Household → People to split shared costs.", add: "person", addLabel: "Add a person" } };
+    return { ...base, line: null, aria: "Only one person is in this household.", facts: [], empty: { words: "Add a person in Household → People to split shared costs.", add: "person", addLabel: "Add a person" } };
   }
   const balance = splitBalance(split, state.today);
   if (balance.items === 0) {
-    return { ...base, line: null, aria: "Nothing has been shared since the last settlement.", figures: { people: split.members.length, items: 0 },
+    return { ...base, line: null, aria: "Nothing has been shared since the last settlement.", facts: [],
       empty: { words: "Nothing has been shared since the split began or was last settled. Mark a bill or a card charge as shared and it shows here.", add: "bill", addLabel: "Add a bill" } };
   }
   const shareOf = new Map(split.members.map(member => [member.id, member.shareBp]));
@@ -28,11 +29,19 @@ export const whoOwesWhomView: Resolver<"who_owes_whom"> = (args, ctx): ViewResul
   });
   const data: FormData["ranked_bars"] = { segments: [{ key: "paid", legend: "Paid", tone: "main" }], tick: { legend: "Fair share" }, rows };
   const line = splitSummary(split, balance, currency);
-  const figures: ViewResult["figures"] = { people: balance.members.length, items: balance.items, owedMinor: balance.transfers.reduce((sum, t) => sum + t.amountMinor, 0) };
-  balance.members.forEach((member, index) => { figures[`person${index + 1}PaidMinor`] = member.paidMinor; figures[`person${index + 1}ShareMinor`] = member.shareMinor; });
-  balance.transfers.forEach((transfer, index) => { figures[`transfer${index + 1}Minor`] = transfer.amountMinor; });
+  // A transfer is the amount the person who pays owes, with the receiver's name beside it.
+  const facts: Fact[] = [
+    ...balance.transfers.flatMap(t => {
+      const about = { type: "person" as const, id: t.fromId, name: t.fromName };
+      return [engineFact("who_owes_whom", t.amountMinor, { from: "who_owes_whom", currency, about }), engineFact("owes_to", t.toName, { from: "who_owes_whom", about })];
+    }),
+    ...balance.members.flatMap(member => [
+      engineFact("shared_paid", member.paidMinor, { from: "who_owes_whom", currency, about: { type: "person", id: member.id, name: member.name } }),
+      engineFact("fair_share", member.shareMinor, { from: "who_owes_whom", currency, about: { type: "person", id: member.id, name: member.name } }),
+    ]),
+  ];
   return {
-    ...base, empty: null, data, line, figures,
+    ...base, empty: null, data, line, facts,
     aria: `Who owes whom. ${line}`,
     table: {
       caption: "What each person paid of the shared costs, against their fair share", head: ["Person", "Paid", "Fair share", "Balance"],

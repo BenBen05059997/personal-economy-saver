@@ -23,7 +23,10 @@ import { seedBen } from "@/db/seed";
 import { AgentError, askBudgetMs, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
 import { dueAnswer, statusAnswer } from "@/lib/money/ask";
-import { addDays, low, medianLow, safeToSpend, series } from "@/lib/money/runway";
+import type { Fact } from "@/lib/money/facts";
+type CompactFact = Pick<Fact, "name" | "value" | "unit" | "by"> & Partial<Pick<Fact, "currency" | "about">>;
+import { TERMS } from "@/lib/money/terms";
+import { addDays, low, medianLow, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { createHousehold, setupForm } from "@/db/account";
 import { setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
@@ -195,7 +198,7 @@ async function main() {
       assert.deepEqual(second.messages[1].content, [text("Checking."), toolUse("toolu_1", "whats_due", {})]);
       const [result1] = toolResults(second);
       assert.equal(result1.tool_use_id, "toolu_1");
-      assert.equal(result1.content, dueAnswer(aState));
+      assert.ok(result1.content.startsWith(dueAnswer(aState) + "\n\nFacts: "));
       assert.ok(!result1.is_error);
     });
 
@@ -298,7 +301,7 @@ async function main() {
       await db.update(schema.households).set({ bankBalanceMinor: 99_999_999 }).where(eq(schema.households.id, c));
       const { fetch, bodies } = transport([() => reply("tool_use", [toolUse("o", "options_when_short", {})]), () => reply("end_turn", [text("Fine.")])]);
       await ask(c, "Am I short?", fetch);
-      assert.equal(toolResults(bodies[1])[0].content, "not short");
+      assert.ok(toolResults(bodies[1])[0].content.startsWith("not short\n\nFacts: "));
     });
 
     await check("an unknown tool, invalid input and a failing tool return is_error results and the loop continues", async () => {
@@ -1043,7 +1046,7 @@ async function main() {
         const second = bodies[1];
         assert.deepEqual(second.messages.map(m => m.role), ["system", "user", "assistant", "tool"]);
         assert.deepEqual(second.messages[2].tool_calls, [chatCall("call_1", "whats_due", {})]);
-        assert.deepEqual(toolMessages(second), [{ role: "tool", tool_call_id: "call_1", content: dueAnswer(cState) }]);
+        assert.deepEqual(toolMessages(second).map(m => ({ ...m, content: String(m.content).split("\n\nFacts: ")[0] })), [{ role: "tool", tool_call_id: "call_1", content: dueAnswer(cState) }]);
       });
     });
 
@@ -1242,7 +1245,7 @@ async function main() {
       const c = await seedBen(db, { isDemo: true });
       const live = liveViews();
       const showCall = (id: string, view: string, args: unknown = null) => toolUse(id, "show", { view, args: args === null ? null : JSON.stringify(args) });
-      const lineOf = (body: Body, id: string) => JSON.parse(toolResults(body).find(r => r.tool_use_id === id)!.content) as { line: string; figures: Record<string, unknown>; table: { rows: unknown[] } | null; title: string };
+      const lineOf = (body: Body, id: string) => JSON.parse(toolResults(body).find(r => r.tool_use_id === id)!.content) as { line: string; facts: { name: string; value: unknown; by: string }[]; meanings: Record<string, string>; table: { rows: unknown[] } | null; title: string };
       const words = (body: Body, id: string) => { const r = toolResults(body).find(x => x.tool_use_id === id)!; assert.equal(r.is_error, true, id); return r.content; };
 
       const t = transport([
@@ -1255,7 +1258,7 @@ async function main() {
       assert.equal(shown.canvas?.recipe.blocks[0].type === "view" && shown.canvas.recipe.blocks[0].view, "forecast");
       assert.ok(shown.sources.some(source => "href" in source && source.label === "Home" && source.href === "/"), "the view names its page for See it in Home");
       const result = lineOf(t.bodies[1], "s");
-      assert.ok(!("args" in result) && typeof result.line === "string" && result.title, "the result is the view's words and figures, never an argument");
+      assert.ok(!("args" in result) && typeof result.line === "string" && result.title, "the result is the view's words and facts, never an argument");
 
       // forecast marks a bill by name; what_if with a late client gives the engine's low point
       const marked = transport([
@@ -1263,7 +1266,7 @@ async function main() {
         () => reply("end_turn", [text("Shown.")]),
       ]);
       await conversation(c, "Show my cash for 30 days and mark the rent", marked.fetch);
-      assert.ok(JSON.stringify(toolResults(marked.bodies[1]).find(r => r.tool_use_id === "m")).includes("lowLateMinor"), "forecast with a mark draws");
+      assert.ok(JSON.stringify(toolResults(marked.bodies[1]).find(r => r.tool_use_id === "m")).includes("low_point"), "forecast with a mark draws");
       const lateOne = toolResults(marked.bodies[1]).find(r => r.tool_use_id === "w")!;
       assert.notEqual(lateOne.is_error, true, lateOne.content);
       assert.match(lateOne.content, /101,220/);
@@ -1328,7 +1331,9 @@ async function main() {
       if (live.includes("what_if")) {
         const echo = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥314,159 spend changes it.")])]);
         await assert.rejects(conversation(c, "What if I spend something big?", echo.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
-        assert.ok(!toolResults(echo.bodies[1])[0].content.includes("314159") && !toolResults(echo.bodies[1])[0].content.includes("314,159"), "the passed amount is not in the result");
+        const echoed = lineOf(echo.bodies[1], "w");
+        assert.deepEqual(echoed.facts.filter(f => f.value === 314159).map(f => [f.name, f.by]), [["amount_tested", "person"]], "the passed amount comes back only as the person's own fact");
+        assert.ok(!toolResults(echo.bodies[1])[0].content.includes("314,159"), "and in no sentence or table cell");
         const said = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥314,159 spend changes it.")])]);
         assert.equal((await conversation(c, "What if I spend ¥314,159?", said.fetch)).kind, "answer");
       }
@@ -1344,6 +1349,57 @@ async function main() {
       assert.ok(out.includes(`Safe to spend now: ${homeFigure}.`), "the same figure Home shows");
       assert.match(out, /next 30 days/);
       assert.match(out, /card spend not yet billed/);
+    });
+
+    await check("can_i_spend returns the card's room before and after as facts, from the engine", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const state = await stateOf(c);
+      const cardA = state.cards.find(card => card.label === "Card A")!;
+      const ctx = { madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never;
+      const out = await tools.find(t => t.name === "can_i_spend")!.run(ctx, { amount_minor: 40_000, card_id: cardA.id } as never);
+      assert.match(out, /^Hold off on cash with a low point on .*, and Card A covers it in full on /);
+      const facts = (JSON.parse(out.slice(out.indexOf("\n\nFacts: ") + 9)) as { facts: CompactFact[] }).facts;
+      const minor = (amount: number) => Math.round(amount * minorPerUnit(state.homeCurrency));
+      const room = facts.find(f => f.name === "card_room" && f.about?.id === cardA.id)!;
+      const after = facts.find(f => f.name === "card_room_after" && f.about?.id === cardA.id)!;
+      assert.equal(room.value, minor(roomOnCard(state, cardA.id).room));
+      assert.equal(after.value, minor(roomOnCard(state, cardA.id, 40_000).room));
+      assert.deepEqual([room.value, after.value], [173_770, 133_770], "Ben's sample: room before and after a ¥40,000 purchase");
+      assert.equal(facts.find(f => f.name === "safe_to_spend")!.value, minor(safeToSpend(state).amount));
+      const tested = facts.find(f => f.name === "amount_tested")!;
+      assert.deepEqual([tested.value, tested.by], [40_000, "person"]);
+      assert.ok(facts.some(f => f.name === "due" && f.about?.id === cardA.id) && facts.some(f => f.name === "limit_left" && f.about?.id === cardA.id));
+    });
+
+    await check("every read tool's facts have term names, integer money and the tool's name in from", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const state = await stateOf(c);
+      const ctx = { madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never;
+      const pot = state.pots.find(p => p.target !== undefined);
+      const inputs: Record<string, unknown> = {
+        can_i_spend: { amount_minor: 4_000, card_id: null }, timeline: { scenario: "late", on: null }, plan_for: { target_minor: 150_000, target_date: "2027-06-01", monthly_minor: null, pot_id: pot?.id ?? null },
+        month_by_category: { month: null }, search_spending: { query: "", months: null }, bills_for_month: { month: state.today.slice(0, 7), text: "" }, regular_costs: { months: null },
+        what_if: { case: "late", changes: [{ kind: "client_late", clientId: state.clients[0].id, days: 5 }] },
+      };
+      const termNames = new Set<string>(TERMS.map(t => t.name));
+      const names = ["where_am_i", "whats_due", "can_i_spend", "timeline", "options_when_short", "list_invoices", "list_clients_and_cards", "goals", "plan_for", "who_owes_whom", "month_by_category", "search_spending", "regular_costs", "foreign_costs", "bills_for_month", "what_if"];
+      const seenNames = new Set<string>();
+      for (const name of names) {
+        const tool = tools.find(t => t.name === name)!;
+        const out = await tool.run(ctx, tool.input.parse(inputs[name] ?? {}) as never);
+        const body = (out.includes("\n\nFacts: ") ? JSON.parse(out.slice(out.indexOf("\n\nFacts: ") + 9)) : JSON.parse(out)) as { facts?: CompactFact[]; meanings?: Record<string, string> };
+        const facts = body.facts;
+        assert.ok(Array.isArray(facts), `${name} returns facts`);
+        for (const f of facts) {
+          assert.ok(termNames.has(f.name), `${name}: ${f.name} is a term`);
+          assert.ok(body.meanings?.[f.name], `${name}: ${f.name} has its meaning`);
+          if (f.unit === "money") assert.ok(Number.isInteger(f.value) && f.currency, `${name}: ${f.name} is integer money with a currency`);
+          seenNames.add(`${name}:${f.name}`);
+        }
+      }
+      for (const key of ["where_am_i:safe_to_spend", "whats_due:due", "timeline:low_point", "timeline:client_pays", "timeline:bill_counted", "options_when_short:short", "options_when_short:option_cost", "list_invoices:clients_owe", "list_clients_and_cards:usual_days_to_pay", "plan_for:left_over_each_month", "month_by_category:month_total", "search_spending:search_total", "what_if:low_point_before_change"]) {
+        assert.ok(seenNames.has(key), `${key} is among the facts`);
+      }
     });
 
     await check("Ask uses only a fixed screen name in the question context and omits the line without a screen", async () => {

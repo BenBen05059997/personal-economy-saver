@@ -7,7 +7,7 @@ import { termOf, type TermName, type TermUnit } from "./terms";
 
 export type FactCase = "as_usual" | "late" | "none";
 export type FactPeriod = { on: string } | { from: string; to: string } | null;
-export type FactAbout = { type: "card" | "client" | "category" | "bill" | "person" | "pot" | "invoice"; id: string; name: string };
+export type FactAbout = { type: "card" | "client" | "category" | "bill" | "person" | "pot" | "invoice" | "charge" | "cost"; id: string; name: string };
 
 export type Fact = {
   name: TermName;
@@ -78,17 +78,21 @@ export function fact(facts: readonly Fact[], name: TermName, factCase?: FactCase
   return facts.find(item => item.name === name && (factCase === undefined || item.case === factCase)) ?? null;
 }
 
-/** The compact form for a tool result: each fact with its meaning beside the value, nothing the model could misread. */
+/** The compact form for a tool result: the facts, and each term's meaning once in `meanings`, keyed by the fact's name, so no figure is without its meaning and no result repeats one. */
 export function forModel(facts: readonly Fact[]) {
-  return facts.map(item => ({
-    name: item.name,
-    value: item.value,
-    unit: item.unit,
-    ...(item.currency ? { currency: item.currency } : {}),
-    ...(item.case !== "none" ? { case: item.case } : {}),
-    ...(item.period ? { period: item.period } : {}),
-    ...(item.about ? { about: item.about } : {}),
-    meaning: item.meaning,
-    by: item.by,
-  }));
+  const meanings: Record<string, string> = {};
+  for (const item of facts) meanings[item.name] = item.meaning;
+  return {
+    facts: facts.map(item => ({
+      name: item.name,
+      value: item.value,
+      unit: item.unit,
+      ...(item.currency ? { currency: item.currency } : {}),
+      ...(item.case !== "none" ? { case: item.case } : {}),
+      ...(item.period ? { period: item.period } : {}),
+      ...(item.about ? { about: item.about } : {}),
+      by: item.by,
+    })),
+    meanings,
+  };
 }

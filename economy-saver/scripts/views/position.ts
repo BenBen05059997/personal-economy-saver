@@ -8,10 +8,12 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { resolveRecipe } from "@/lib/canvas/resolve";
 import { starterRecipes } from "@/lib/canvas/starters";
 import { ViewFigure } from "@/components/views/ViewFigure";
+import { fact, type Fact } from "@/lib/money/facts";
+import { TERMS, type TermName } from "@/lib/money/terms";
 import { positionSteps } from "@/lib/money/position";
 import { low, series } from "@/lib/money/runway";
 import { loadViewContext } from "@/lib/views/load";
@@ -20,6 +22,8 @@ import type { ViewResult } from "@/lib/views/types";
 import { forecastView } from "@/lib/views/v/forecast";
 
 let passed = 0;
+/** The facts as the number check reads them: a one-day period becomes its date. */
+const checkable = (facts: readonly Fact[]) => facts.map(item => ({ ...item, period: item.period && "on" in item.period ? item.period.on : item.period }));
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 
 async function main() {
@@ -33,15 +37,41 @@ async function main() {
 
     await check("Ben's position: bank 67,000 + PayPal 61,000 = 128,000; cards owed 86,450 and 61,000; clients owe 300,000; net 280,550", () => {
       const result = resolveView("position", {}, ctx) as ViewResult<"waterfall">;
-      assert.deepEqual(result.figures, { bankMinor: 67_000, paypalMinor: 61_000, cashMinor: 128_000, potsMinor: 0, cardsOwedMinor: 147_450, clientsOwedMinor: 300_000, netMinor: 280_550 });
+      assert.deepEqual(["cash_to_spend", "cards_owe", "clients_owe", "what_you_have"].map(name => fact(result.facts, name as TermName)!.value), [128_000, 147_450, 300_000, 280_550]);
+      assert.deepEqual(result.facts.filter(item => item.name === "card_owes").map(item => item.value), [86_450, 61_000]);
+      assert.equal(fact(result.facts, "pot"), null, "Ben has no pots");
       const steps = result.data!.steps;
       assert.deepEqual(steps.map(step => [step.label, step.kind, step.minor]), [
         ["Bank", "start", 67_000], ["PayPal", "plus", 61_000], ["Cash to spend", "subtotal", 128_000],
         ["Card A owed", "minus", -86_450], ["Card B owed", "minus", -61_000], ["Clients owe you", "plus", 300_000], ["What you have", "total", 280_550]]);
       assert.deepEqual(steps.filter(step => step.about).map(step => step.key), ["clients", "net"], "the invoices not yet paid are a guess");
       assert.deepEqual(positionSteps(state), steps);
-      assert.deepEqual(unconfirmedAmounts(result.line ?? "", [JSON.stringify(result.figures)]), []);
+      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, state.today), []);
       assert.ok(result.table!.rows.length === steps.length);
+    });
+
+    await check("position and what_if facts: the lines are built from them, names are terms, the case is named", () => {
+      const position = resolveView("position", {}, ctx) as ViewResult<"waterfall">;
+      assert.equal(fact(position.facts!, "cash_to_spend")!.value, 128_000);
+      assert.equal(fact(position.facts!, "cards_owe")!.value, 147_450);
+      assert.equal(fact(position.facts!, "clients_owe")!.value, 300_000);
+      assert.equal(fact(position.facts!, "what_you_have")!.value, 280_550);
+      const spend = resolveView("what_if", { amountMinor: 40_000 }, ctx) as ViewResult<"step_line">;
+      assert.equal(fact(spend.facts!, "low_point_after_change", "late")!.value, -58_780);
+      assert.equal(fact(spend.facts!, "low_point_before_change", "late")!.value, -18_780);
+      assert.equal(fact(spend.facts!, "amount_tested")!.by, "person");
+      assert.equal(fact(spend.facts!, "amount_tested")!.value, 40_000);
+      const acme = state.clients.find(c => c.name.startsWith("Acme"))!;
+      const later = resolveView("what_if", { late: { clientId: acme.id, days: 10 } }, ctx) as ViewResult<"step_line">;
+      assert.ok(later.facts!.filter(item => item.name === "low_point_before_change" || item.name === "low_point_after_change").every(item => item.case === "as_usual"));
+      const days = fact(later.facts!, "days_later_than_usual")!;
+      assert.deepEqual([days.value, days.by, days.case, days.about?.id], [10, "person", "as_usual", acme.id]);
+      for (const view of [position, spend, later]) {
+        assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), state.today), [], view.view);
+        assert.ok(view.facts!.every(item => TERMS.some(term => term.name === item.name)));
+      }
+      // The person's amount confirms nothing: a reply that says it is unconfirmed by the facts.
+      assert.deepEqual(unconfirmedNumbers("¥40,000", checkable(spend.facts!), state.today), ["¥40,000"]);
     });
 
     await check("a household with nothing says what to add", () => {
@@ -56,9 +86,9 @@ async function main() {
 
     await check("what_if {amountMinor: 40000}: low −58,780 on Nov 27, ghost −18,780, and the ghost is the forecast's late line", () => {
       const result = resolveView("what_if", { amountMinor: 40_000 }, ctx) as ViewResult<"step_line">;
-      assert.equal(result.figures.lowWithMinor, -58_780);
-      assert.equal(result.figures.lowWithDate, "2026-11-27");
-      assert.equal(result.figures.lowNowMinor, -18_780);
+      assert.equal(fact(result.facts, "low_point_after_change")!.value, -58_780);
+      assert.equal(fact(result.facts, "low_point_day_after_change")!.value, "2026-11-27");
+      assert.equal(fact(result.facts, "low_point_before_change")!.value, -18_780);
       const data = result.data!, main = data.lines.find(l => l.key === "main")!, ghost = data.lines.find(l => l.key === "ghost")!;
       assert.deepEqual(data.lines.map(l => l.tone), ["main", "ghost"]);
       assert.deepEqual(ghost.points, forecastView({ case: "late" }, ctx).data && (forecastView({ case: "late" }, ctx) as ViewResult<"step_line">).data!.lines[0].points);
@@ -66,8 +96,8 @@ async function main() {
       assert.equal(main.points[0], ghost.points[0] - 40_000, "today's balance is lower by the spend");
       assert.equal(data.low.label, "Short ¥58,780 on Fri, Nov 27");
       assert.deepEqual(data.marks, [], "a spend today needs no mark");
-      assert.ok(!Object.values(result.figures).includes(40_000), "the amount asked about is not repeated as a figure");
-      assert.deepEqual(unconfirmedAmounts(result.line ?? "", [JSON.stringify(result.figures)]), []);
+      assert.deepEqual(result.facts.filter(item => item.value === 40_000).map(item => item.name), ["amount_tested"], "the amount asked about is the person's fact and no other");
+      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, state.today), []);
     });
 
     await check("what_if with a date later in the month spends on that day; a late client moves the usual case; bad asks are refused in words", () => {
@@ -104,7 +134,7 @@ async function main() {
       const starter = starterRecipes(state).find(item => item.id === "where-you-stand")!;
       assert.deepEqual(starter.recipe.blocks, [{ type: "view", view: "position", args: {} }]);
       const [block] = resolveRecipe(starter.recipe, { state, spending: ctx.spending! });
-      assert.ok(block.type === "view" && block.data.form === "waterfall" && block.data.figures.netMinor === 280_550);
+      assert.ok(block.type === "view" && block.data.form === "waterfall" && fact(block.data.facts, "what_you_have")!.value === 280_550);
     });
   } finally {
     await pg.close();

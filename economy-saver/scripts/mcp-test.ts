@@ -82,7 +82,7 @@ async function main() {
     assert.deepEqual([drawn.blocks.length, drawn.blocks[0].type, drawn.blocks[0].label], [1, "number", "Cash today"]);
     stage = "show over MCP";
     const shownCall = JSON.parse(((await client.callTool({ name: "show", arguments: { view: "forecast", args: null } })).content as { text: string }[])[0].text);
-    assert.deepEqual([shownCall.view, typeof shownCall.line, "figures" in shownCall, "blocks" in shownCall], ["forecast", "string", true, false], "figures and a line, no canvas");
+    assert.deepEqual([shownCall.view, typeof shownCall.line, "facts" in shownCall && !("figures" in shownCall), "blocks" in shownCall], ["forecast", "string", true, false], "facts and a line, no canvas");
     stage = "tool execution";
     const outlook = await client.callTool({ name: "where_am_i", arguments: {} });
     assert.match(JSON.stringify(outlook.content), /18,780 short/);
@@ -91,7 +91,7 @@ async function main() {
     const goalsCall = await client.callTool({ name: "goals", arguments: {} });
     assert.ok(!goalsCall.isError);
     const goals = JSON.parse((goalsCall.content as { text: string }[])[0].text);
-    assert.deepEqual(goals, { currency: "JPY", goals: [], summary: "No dated savings goals yet." });
+    assert.deepEqual(goals, { facts: [], meanings: {}, currency: "JPY", goals: [], summary: "No dated savings goals yet." });
     const owes = JSON.parse(((await client.callTool({ name: "who_owes_whom", arguments: {} })).content as { text: string }[])[0].text);
     assert.deepEqual([owes.summary, owes.transfers, owes.split], ["Only one person is in this household, so there is nothing to split.", [], false]);
     const month = (await client.callTool({ name: "month_by_category", arguments: {} })).content as { text: string }[];
