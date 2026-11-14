@@ -12,11 +12,18 @@ export const BUFFER_GUIDE = "The usual guide is 3–6 months; 9–12 for a varia
 
 export type Buffer = { months: number; cashMinor: number; monthlyMinor: number; basis: { month: string; name: string; minor: number }[] };
 
-/** Null until a past month with spending exists. `months` is cash ÷ the average a month, to one decimal, and 0 when there is no cash. */
-export function bufferMonths(state: MoneyState, trend: TrendMonth[]): Buffer | null {
+/** The average a month over the last full months of spending, in minor units, or null with none. Rounded here, once. */
+export function averageMonthlySpending(trend: TrendMonth[]): { monthlyMinor: number; basis: Buffer["basis"] } | null {
   const basis = trend.filter(month => !month.current && month.total > 0).slice(-BUFFER_MONTHS_AVERAGED).map(month => ({ month: month.month, name: month.name, minor: month.total }));
   if (basis.length === 0) return null;
-  const monthlyMinor = Math.round(basis.reduce((sum, month) => sum + month.minor, 0) / basis.length);
+  return { monthlyMinor: Math.round(basis.reduce((sum, month) => sum + month.minor, 0) / basis.length), basis };
+}
+
+/** Null until a past month with spending exists. `months` is cash ÷ the average a month, to one decimal, and 0 when there is no cash. */
+export function bufferMonths(state: MoneyState, trend: TrendMonth[]): Buffer | null {
+  const average = averageMonthlySpending(trend);
+  if (!average) return null;
+  const { monthlyMinor, basis } = average;
   if (monthlyMinor <= 0) return null;
   const cashMinor = Math.round(availableCash(state) * minorPerUnit(state.homeCurrency));
   return { months: Math.max(0, Math.round((cashMinor / monthlyMinor) * 10) / 10), cashMinor, monthlyMinor, basis };

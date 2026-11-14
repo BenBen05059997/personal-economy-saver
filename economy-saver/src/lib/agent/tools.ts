@@ -391,7 +391,7 @@ export const tools: Tool[] = [
       const plan = planFor(request, state);
       return JSON.stringify({
         summary: planLine(request, plan, state), currency: state.homeCurrency,
-        targetMinor: minor(target), savedMinor: minor(request.saved), neededMinor: minor(plan.needed), monthlyRoomMinor: minor(plan.monthlyRoom),
+        targetMinor: minor(target), savedMinor: minor(request.saved), neededMinor: minor(plan.needed), leftOverEachMonthMinor: minor(plan.leftOverEachMonth),
         ...(plan.months !== undefined && { months: plan.months }),
         ...(plan.monthlyNeeded !== undefined && { monthlyNeededMinor: minor(plan.monthlyNeeded) }),
         ...(plan.fits !== undefined && { fits: plan.fits }),

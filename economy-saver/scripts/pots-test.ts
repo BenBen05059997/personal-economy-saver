@@ -18,7 +18,7 @@ import { seedBen } from "@/db/seed";
 import { loadNavigationData } from "@/db/workspace";
 import { applyVerifiedDelivery } from "@/lib/events";
 import type { CaptureOrder } from "@/lib/paypal/contracts";
-import { addMonths, monthlyRoom, monthsUntil, planFor, planLine, potLine, potSummary, roomLine } from "@/lib/money/plan";
+import { addMonths, leftOverEachMonth, monthsUntil, planFor, planLine, potLine, potSummary, roomLine } from "@/lib/money/plan";
 import { availableCash, low, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { toCheck } from "@/lib/money/to-check";
@@ -49,23 +49,23 @@ async function main() {
       assert.equal(monthsUntil(TODAY, "2026-01-01"), 1, "a date in the past still divides by one");
     });
 
-    await check("monthlyRoom is the expected series at day 30 less its start, on Ben ¥92,220", () => {
+    await check("leftOverEachMonth is the expected series at day 30 less its start, on Ben ¥92,220", () => {
       const expected = series(benMoney, "expected");
-      assert.equal(monthlyRoom(benMoney), expected[expected.length - 1] - expected[0]);
+      assert.equal(leftOverEachMonth(benMoney), expected[expected.length - 1] - expected[0]);
       assert.equal(expected.length, 30);
-      assert.equal(monthlyRoom(benMoney), 92_220);
+      assert.equal(leftOverEachMonth(benMoney), 92_220);
       assert.equal(roomLine(benMoney), "The next 30 days leave about ¥92,220 if clients pay as usual. That's what you could put aside.");
       const bare = { ...benMoney, invoices: [] };
-      assert.ok(monthlyRoom(bare) < 0, "bills and statements with nothing coming in leave nothing over");
+      assert.ok(leftOverEachMonth(bare) < 0, "bills and statements with nothing coming in leave nothing over");
       assert.equal(roomLine(bare), "No client payments are expected in the next 30 days, so there's nothing new to put aside yet.");
       const unpaid = { ...benMoney, invoices: benMoney.invoices.filter(invoice => invoice.status !== "sent") };
-      assert.ok(monthlyRoom(unpaid) < 0, "without a sent invoice the month is a net outflow");
+      assert.ok(leftOverEachMonth(unpaid) < 0, "without a sent invoice the month is a net outflow");
       assert.equal(roomLine(unpaid), "No client payments are expected in the next 30 days, so there's nothing new to put aside yet.");
     });
 
     await check("planFor: needed, whole months, monthly needed rounded up, fits against the room", () => {
       const goal = planFor({ target: 1_200_000, saved: 0, targetDate: "2027-03-31" }, benMoney);
-      assert.deepEqual([goal.needed, goal.months, goal.monthlyNeeded, goal.fits, goal.monthlyRoom], [1_200_000, 4, 300_000, false, 92_220]);
+      assert.deepEqual([goal.needed, goal.months, goal.monthlyNeeded, goal.fits, goal.leftOverEachMonth], [1_200_000, 4, 300_000, false, 92_220]);
       assert.equal(planFor({ target: 1_000_001, saved: 0, targetDate: "2027-03-31" }, benMoney).monthlyNeeded, 250_001, "rounds up to the yen");
       assert.equal(planFor({ target: 1_000_000, saved: 200_000, targetDate: "2027-03-31" }, benMoney).monthlyNeeded, 200_000, "saved counts");
       const fits = planFor({ target: 270_000, saved: 0, targetDate: "2027-02-14" }, benMoney);
@@ -92,7 +92,7 @@ async function main() {
 
     await check("planFor works in cents for a USD household and the lines are built in code", () => {
       const usd: MoneyState = { ...benMoney, homeCurrency: "USD", fxPerUsd: 1, paypal: 1000, bank: 1000, bills: [], cards: [], charges: [], statements: [], invoices: [], pots: [] };
-      assert.equal(monthlyRoom(usd), 0);
+      assert.equal(leftOverEachMonth(usd), 0);
       const plan = planFor({ target: 100, saved: 0, targetDate: "2027-02-14" }, usd);
       assert.deepEqual([plan.months, plan.monthlyNeeded], [3, 33.34], "$33.34, rounded up to the cent");
       assert.equal(planLine({ target: 100, saved: 0, targetDate: "2027-02-14" }, plan, usd), "$33.34 a month to reach $100 by Feb 2027. The next 30 days leave nothing over if clients pay as usual, so it does not fit.");
@@ -116,25 +116,25 @@ async function main() {
       const empty = { ...benMoney, pots: [] };
       assert.deepEqual(Array.from(series(empty, "worst")), Array.from(series(benMoney, "worst")));
       assert.equal(homeSentence(benMoney).emphasis, "¥18,780 short on the 27th.");
-      assert.equal(safeToSpend(benMoney, 0).amount, 0);
+      assert.equal(safeToSpend(benMoney).amount, 0);
       assert.equal(roomOnCard(benMoney, "card-b").room, 173_770);
       assert.equal(roomOnCard(benMoney, "card-a").room, 173_770);
       const rich = { ...benMoney, bank: benMoney.bank + 40_000 }; // low point +¥21,220
       const potted = { ...rich, pots: [pot({ saved: 10_000 })] };
       assert.equal(availableCash(potted), availableCash(rich) - 10_000);
-      assert.equal(safeToSpend(rich, 0).amount, 21_220);
-      assert.equal(safeToSpend(potted, 0).amount, 11_220, "safe to spend is ¥10,000 lower");
+      assert.equal(safeToSpend(rich).amount, 21_220);
+      assert.equal(safeToSpend(potted).amount, 11_220, "safe to spend is ¥10,000 lower");
       assert.equal(low(series(potted, "worst")).amount, low(series(rich, "worst")).amount - 10_000);
       assert.equal(low(series(potted, "expected")).amount, low(series(rich, "expected")).amount - 10_000);
-      assert.equal(safeToSpend(potted, 0).cash, 128_000 + 40_000 - 10_000, "cash is bank + PayPal less pots");
+      assert.equal(safeToSpend(potted).cash, 128_000 + 40_000 - 10_000, "cash is bank + PayPal less pots");
       assert.equal(roomOnCard(potted, "card-b").room, roomOnCard(rich, "card-b").room - 10_000);
       assert.match(homeSentence(rich).lead, /fine for the next 30 days/);
       const flipped = { ...rich, pots: [pot({ saved: 30_000 })] };
       assert.match(homeSentence(flipped).lead, /You're fine if Acme and Northwind pay as usual/);
       assert.equal(homeSentence(flipped).emphasis, "¥8,780 short on the 27th.", "a ¥30,000 pot flips the sentence");
-      assert.equal(monthlyRoom(flipped), monthlyRoom(rich), "the room is what the month adds, not what is set aside");
+      assert.equal(leftOverEachMonth(flipped), leftOverEachMonth(rich), "the room is what the month adds, not what is set aside");
       const pending = { ...rich, pendingPots: [pot({ saved: 30_000 })] };
-      assert.equal(safeToSpend(pending, 0).amount, 21_220, "a pending pot counts for nothing");
+      assert.equal(safeToSpend(pending).amount, 21_220, "a pending pot counts for nothing");
     });
 
     await check("the sentence as parts (box 1): lead + emphasis + the day, the clients and the short flag, with the same words as before", () => {

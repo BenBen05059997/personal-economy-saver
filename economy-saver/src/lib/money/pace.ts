@@ -1,4 +1,4 @@
-import { addDays, daysBetween, medianLow } from "./runway";
+import { daysBetween, medianLow } from "./runway";
 import type { Client, MoneyState } from "./types";
 
 /**
@@ -15,14 +15,6 @@ export function clientPace(client: Client): { usual: number; slowest: number } |
 export function paceLine(client: Client): string | null {
   const pace = clientPace(client);
   return pace === null ? null : `${pace.usual} days usual · ${pace.slowest} slowest`;
-}
-
-/**
- * The day a sent invoice is expected to be paid, without `project()`'s floor at tomorrow: what the client's own history
- * says (the usual days), else the client's terms. The nudge rule needs the raw date to know how late the invoice is.
- */
-export function expectedPayDate(client: Client, sentOn: string): string {
-  return addDays(sentOn, client.daysToPay.length ? medianLow(client.daysToPay) : client.termsDays);
 }
 
 /** One client's pace as dots (D77): the days each paid invoice took, the usual and the slowest, and each open invoice's days since it was sent (late once past the slowest). */

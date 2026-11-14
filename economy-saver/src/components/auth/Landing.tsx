@@ -36,7 +36,7 @@ function Forecast() {
 export async function Landing() {
   if (await verifiedUid()) redirect("/onboarding");
   const sentence = homeSentence(benMoney), format = formatter(benMoney.homeCurrency);
-  const safe = safeToSpend(benMoney, 0);
+  const safe = safeToSpend(benMoney);
   const open = statementItems(benMoney).find((item) => item.open && item.dueOn >= benMoney.today && daysBetween(benMoney.today, item.dueOn) < 30);
   const card = benMoney.cards.find((item) => item.id === open?.cardId);
   const unbilled = benMoney.invoices.find((item) => item.status === "unbilled");

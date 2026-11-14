@@ -25,7 +25,7 @@ function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
 function figures(state: MoneyState, kind: "expected" | "worst") {
   const unit = minorPerUnit(state.homeCurrency);
   const point = low(series(state, kind), state.today);
-  return { lowPoint: { amountMinor: Math.round(point.amount * unit), date: point.date }, safeToSpendMinor: Math.round(safeToSpend(state, 0).amount * unit) };
+  return { lowPoint: { amountMinor: Math.round(point.amount * unit), date: point.date }, safeToSpendMinor: Math.round(safeToSpend(state).amount * unit) };
 }
 
 /** The short form of the recipe schema the model builds from. */

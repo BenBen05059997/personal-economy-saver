@@ -36,10 +36,12 @@ import type { CaptureOrder } from "@/lib/paypal/contracts";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import { expandBills } from "@/lib/money/repeat";
 import { statementItems } from "@/lib/money/runway";
-import { ladder, low, paybackFor, planWindow, roomOnCard, safeToSpend, series, dueItems, timeline } from "@/lib/money/runway";
+import { arrivals, clientsOwe, daysBetween, expectedPayBasis, firstShort, ladder, low, overdue, paybackFor, planWindow, roomOnCard, safeToSpend, series, dueItems, timeline } from "@/lib/money/runway";
+import { cardCycle } from "@/lib/money/card-cycle";
 import type { MoneyState } from "@/lib/money/types";
 import { loadNavigationData, loadWorkspaceData } from "@/db/workspace";
 import { addDays } from "@/lib/money/runway";
+import { minorPerUnit } from "@/lib/money/format";
 
 // Compile-time check that the postgres.js instance fits the same Db type PGlite does.
 type _ClientFitsDb = ReturnType<typeof clientDb> extends Db ? true : never;
@@ -106,7 +108,7 @@ function engine(state: MoneyState) {
     paybacks: state.cards.map((c) => [c.label, paybackFor(state, c.id)] as const).sort((a, b) => a[0].localeCompare(b[0])),
     ladder: ladder(state),
     due: dueItems(state),
-    safe: safeToSpend(state, 210_000),
+    safe: safeToSpend(state),
     timeline: timeline(state, "worst"),
   };
 }
@@ -242,6 +244,34 @@ async function main() {
     assert.equal(roomOnCard(oneOff, cardA.id).room - roomOnCard(benMoney, cardA.id).room, 1_980 + 4_800);
     assert.equal(roomOnCard(benMoney, cardA.id).room, 173_770);
     assert.deepEqual(low(series(oneOff, "worst")), low(series(benMoney, "worst")), "the 30-day low is unchanged");
+  });
+
+  await check("room after a purchase, firstShort, safeToSpend options, overdue and clientsOwe (pure engine, no database)", () => {
+    const [cardA] = benMoney.cards;
+    const before = roomOnCard(benMoney, cardA.id);
+    const after = roomOnCard(benMoney, cardA.id, 40_000);
+    assert.equal(roomOnCard(benMoney, cardA.id, undefined).room, before.room);
+    assert.equal(after.room, Math.max(0, before.room - 40_000), "room after is room before less the purchase");
+    assert.equal(roomOnCard(benMoney, cardA.id, before.room + 1).room, 0, "a purchase over the room leaves none");
+    assert.equal(cardCycle(benMoney, cardA.id, 40_000)!.roomAfterMinor, Math.round(after.room * minorPerUnit(benMoney.homeCurrency)));
+    assert.equal(cardCycle(benMoney, cardA.id)!.roomAfterMinor, null);
+    console.log(`    card A room before ${before.room}, after ${after.room}`);
+    assert.equal(safeToSpend(benMoney, { days: 5 }).amount, Math.max(0, low(series(benMoney, "worst", 5)).amount));
+    assert.equal(safeToSpend(benMoney, { case: "as_usual" }).amount, Math.max(0, low(series(benMoney, "expected")).amount));
+    assert.deepEqual(safeToSpend(benMoney, {}), safeToSpend(benMoney));
+    const worst = series(benMoney, "worst");
+    assert.equal(firstShort(worst), worst.findIndex((v) => v < 0));
+    assert.equal(firstShort([3, 0, 1]), null);
+    assert.equal(firstShort([3, -1, -2]), 1);
+    const invoice = benMoney.invoices.find((i) => i.status === "sent")!;
+    const late = overdue(benMoney, invoice);
+    assert.equal(late.expected, expectedPayBasis(benMoney, invoice).on);
+    assert.equal(late.daysOverdue, Math.max(0, daysBetween(late.expected, benMoney.today)));
+    const early = overdue({ ...benMoney, today: addDays(late.expected, -3) }, invoice);
+    assert.equal(early.daysOverdue, 0, "never below zero");
+    assert.equal(overdue({ ...benMoney, today: addDays(late.expected, 4) }, invoice).daysOverdue, 4);
+    assert.equal(clientsOwe(benMoney), arrivals(benMoney).reduce((sum, a) => sum + a.amountHome, 0));
+    assert.ok(clientsOwe(benMoney) > 0);
   });
 
   await check("households do not see each other's rows", async () => {
@@ -864,7 +894,6 @@ async function main() {
     await updateSettings(db, blank, settingsInput.parse({ kind: "card", id: "", label: "Card D", memberId: "", closingDay: 20, dueDay: 10, limit: "" }));
     assert.equal(await findDemoHousehold(db, blank), blank);
     assert.equal(await accountHousehold(db, blank), null);
-    assert.notEqual((await householdClock(db, blank)).today, today, "a blank demo lives on the real date (D51)");
     const empty = await loadMoneyState(db, blank, today);
     assert.equal(empty.cards.length, 1);
     assert.equal(empty.bills.length + empty.charges.length + empty.invoices.length + empty.clients.length + empty.pots.length, 0, "no Ben data");

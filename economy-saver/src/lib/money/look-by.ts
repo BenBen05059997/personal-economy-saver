@@ -12,6 +12,8 @@ export type DisplayMode = "chart" | "table";
 export type LookRow = {
   key: string; label: string; note: string;
   spent: number; coming: number; total: number; previous: number;
+  /** Change from last month: this month's total less last month's, and that as a percent of last month to one decimal (null when last month had nothing). */
+  change: Change;
   business: number; personal: number;
   unknown: boolean;
   /** D75, Category only: one row per own category with items this month or last month (largest first), then "Everything else in <category>"; they add up to this row in both months. Absent when the category has none. */
@@ -21,10 +23,14 @@ export type LookByView = {
   by: LookBy;
   rows: LookRow[];
   spent: number; coming: number; total: number;
-  name: string; lastName: string; lastTotal: number;
+  name: string; lastName: string; lastTotal: number; change: Change;
   businessMinor: number; personalMinor: number; businessLine: string;
 };
 export type LookMember = { id: string; name: string };
+
+export type Change = { amount: number; percent: number | null };
+/** Engine-rounded change from last month: amount, and percent to one decimal (null with nothing last month). */
+const changeOf = (total: number, previous: number): Change => ({ amount: total - previous, percent: previous > 0 ? Math.round((total - previous) * 1000 / previous) / 10 : null });
 
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
 const noteFor = (count: number, unknown: boolean) => unknown ? "an amount is not known" : plural(count, "item");
@@ -45,7 +51,7 @@ export function lookBy(input: SpendingInput, today: string, by: LookBy, members:
 
   const rowOf = (key: string, label: string, matches: typeof items, previousAmount: number): LookRow => {
     const part = split(matches);
-    return { key, label, note: noteFor(part.count, part.unknown), spent: part.spent, coming: part.coming, total: part.total, previous: previousAmount, business: part.business, personal: part.personal, unknown: part.unknown };
+    return { key, label, note: noteFor(part.count, part.unknown), spent: part.spent, coming: part.coming, total: part.total, previous: previousAmount, change: changeOf(part.total, previousAmount), business: part.business, personal: part.personal, unknown: part.unknown };
   };
   // D75: the own categories of one category, this month and last, then what has none.
   const childrenOf = (category: (typeof current.categories)[number], matches: typeof items, lastCategory: (typeof last.categories)[number] | undefined): LookRow[] | undefined => {
@@ -78,12 +84,12 @@ export function lookBy(input: SpendingInput, today: string, by: LookBy, members:
     ];
     rows = owners.map((owner): LookRow => {
       const part = split(items.filter(item => item.ownerId === owner.ownerId));
-      return { key: owner.key, label: owner.label, note: noteFor(part.count, part.unknown), spent: part.spent, coming: part.coming, total: part.total, previous: owner.previous, business: part.business, personal: part.personal, unknown: part.unknown };
+      return { key: owner.key, label: owner.label, note: noteFor(part.count, part.unknown), spent: part.spent, coming: part.coming, total: part.total, previous: owner.previous, change: changeOf(part.total, owner.previous), business: part.business, personal: part.personal, unknown: part.unknown };
     }).filter(row => row.total !== 0 || row.previous !== 0 || row.unknown);
   }
   const spent = sum(rows.map(row => row.spent)), coming = sum(rows.map(row => row.coming));
   return {
-    by: effective, rows, spent, coming, total: spent + coming, name: current.name, lastName: last.name, lastTotal: last.totalMinor,
+    by: effective, rows, spent, coming, total: spent + coming, name: current.name, lastName: last.name, lastTotal: last.totalMinor, change: changeOf(spent + coming, last.totalMinor),
     businessMinor: current.businessMinor, personalMinor: current.personalMinor, businessLine: businessLine(current, monthWhen(month === today.slice(0, 7) ? undefined : monthLabel(month, today))),
   };
 }

@@ -330,7 +330,7 @@ async function main() {
       assert.equal(sentence.text, homeSentence(state).text);
       assert.equal(sentence.text, "You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th.");
       const numbers = resolved.filter(r => r.type === "number").map(r => (r as Extract<ResolvedBlock, { type: "number" }>).data);
-      assert.equal(numbers[0].value, format(safeToSpend(state, 0).amount));
+      assert.equal(numbers[0].value, format(safeToSpend(state).amount));
       assert.equal(numbers[1].value, format(availableCash(state)));
       assert.equal(numbers[2].value, format(lowOf(state, "worst").amount));
       const forecast = block(resolved, "view").data as ViewResult<"step_line">;

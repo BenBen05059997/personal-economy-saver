@@ -185,6 +185,17 @@ export function expectedPayBasis(state: MoneyState, invoice: Invoice, sentOn: st
   return { on: addDays(sentOn, days + extra), basis: "terms", days };
 }
 
+/** How late a sent invoice is: the day it was expected (see `expectedPayBasis`) and the days from then to today, never below 0. */
+export function overdue(state: MoneyState, invoice: Invoice): { expected: string; daysOverdue: number } {
+  const expected = expectedPayBasis(state, invoice).on;
+  return { expected, daysOverdue: Math.max(0, daysBetween(expected, state.today)) };
+}
+
+/** Everything clients owe: the home amounts of every sent invoice. */
+export function clientsOwe(state: MoneyState): number {
+  return arrivals(state).reduce((sum, a) => sum + a.amountHome, 0);
+}
+
 /** The day the forecast expects a sent invoice to be paid: see `expectedPayBasis`. */
 export function expectedPayOn(state: MoneyState, invoice: Invoice, sentOn: string = invoice.sentOn ?? state.today): string {
   return expectedPayBasis(state, invoice, sentOn).on;
@@ -250,6 +261,12 @@ export function series(state: MoneyState, kind: SeriesKind, days = WINDOW_DAYS):
 }
 
 export type LowPoint = { amount: number; dayIndex: number; date: string };
+
+/** The first day the series goes below zero (its index), or null when it never does. */
+export function firstShort(s: readonly number[]): number | null {
+  const i = s.findIndex((v) => v < 0);
+  return i < 0 ? null : i;
+}
 
 /** The lowest balance in the series (the first day, if it is reached more than once). */
 export function low(s: readonly number[], startDate?: string): LowPoint {
@@ -333,7 +350,12 @@ type CardRoom = {
  * hurt the balance from that date on: room is the lowest worst-case balance from then to the end of the window, never
  * below zero, and never more than what is left of the card's limit.
  */
-export function roomOnCard(state: MoneyState, cardId: string): CardRoom {
+export function roomOnCard(state: MoneyState, cardId: string, purchaseMinor?: number): CardRoom {
+  // With a purchase, the same function runs on a copy of the state holding one confirmed charge dated today on this card.
+  if (purchaseMinor !== undefined) {
+    const charge: Charge = { id: "purchase-test", cardId, merchant: "Purchase", amount: purchaseMinor / minorPerUnit(state.homeCurrency), date: state.today, category: "other", businessBp: 0, source: "manual", status: "confirmed" };
+    state = { ...state, charges: [...state.charges, charge] };
+  }
   const card = state.cards.find((c) => c.id === cardId);
   const cy = cycle(state, cardId);
   const days = planWindow(state);
@@ -527,18 +549,18 @@ export function timeline(state: MoneyState, kind: SeriesKind, days = WINDOW_DAYS
 export type SafeToSpend = {
   amount: number; // the lowest worst-case balance in the window, never below zero
   low: LowPoint; // where that lowest balance is reached
-  verdict: "hold" | "easy" | "go"; // hold off: below zero. go easy: under a month of essentials. go: otherwise
   cash: number; // PayPal + bank today
   shortBy: number; // how far below zero the worst case goes (0 when it does not)
   lateClients: string[]; // first names of the clients whose worst-case payment lands after the low
 };
 
-export function safeToSpend(state: MoneyState, monthlyEssentials: number, days = WINDOW_DAYS): SafeToSpend {
-  const lw = low(series(state, "worst", days));
+/** Safe to spend over `days` (the 30-day window by default): "late" (default) is the worst case, "as_usual" the expected case. */
+export function safeToSpend(state: MoneyState, opts: { days?: number; case?: "late" | "as_usual" } = {}): SafeToSpend {
+  const usual = opts.case === "as_usual";
+  const lw = low(series(state, usual ? "expected" : "worst", opts.days ?? WINDOW_DAYS));
   const amount = Math.max(0, lw.amount);
-  const verdict = lw.amount < 0 ? "hold" : amount < monthlyEssentials ? "easy" : "go";
-  const lateClients = [...new Set(arrivals(state).filter((a) => a.worstOn > lw.date).map((a) => short(a.clientName)))];
-  return { amount, low: lw, verdict, cash: availableCash(state), shortBy: Math.max(0, -lw.amount), lateClients };
+  const lateClients = [...new Set(arrivals(state).filter((a) => (usual ? a.expectedOn : a.worstOn) > lw.date).map((a) => short(a.clientName)))];
+  return { amount, low: lw, cash: availableCash(state), shortBy: Math.max(0, -lw.amount), lateClients };
 }
 
 // ---------------------------------------------------------------- what pays a card back

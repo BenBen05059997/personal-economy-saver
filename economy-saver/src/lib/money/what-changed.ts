@@ -116,7 +116,7 @@ export function whatChanged(input: { state: MoneyState; spending: SpendingInput 
   }
   for (const [key, row] of pairs) if (row.a !== row.b) rows.push({ key: `owes-${key}`, label: row.line, before: format(row.a), after: format(row.b), change: delta(row.a, row.b) });
 
-  const safe = (side: Side) => minor(safeToSpend(side.state, 0).amount);
+  const safe = (side: Side) => minor(safeToSpend(side.state).amount);
   money("safe", "Safe to spend", safe(before), safe(after));
   const lowOf = (side: Side, kind: "worst" | "expected") => minor(low(series(side.state, kind)).amount);
   const lateA = lowOf(before, "worst"), lateB = lowOf(after, "worst");

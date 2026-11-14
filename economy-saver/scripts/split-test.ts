@@ -186,7 +186,7 @@ async function main() {
     const benB = (await members(b))[0].id;
     const baseline = async (hid: string) => {
       const s = await stateOf(hid);
-      return { sentence: homeSentence(s), safe: safeToSpend(s, 0).amount, bank: s.bank, worst: Array.from(series(s, "worst")), low: low(series(s, "worst")), room: roomOnCard(s, s.cards[0].id).room };
+      return { sentence: homeSentence(s), safe: safeToSpend(s).amount, bank: s.bank, worst: Array.from(series(s, "worst")), low: low(series(s, "worst")), room: roomOnCard(s, s.cards[0].id).room };
     };
 
     await check("Ben alone: no split, no transfers, nothing on the screen's inputs, and every demo number is unchanged", async () => {
@@ -195,7 +195,7 @@ async function main() {
       assert.deepEqual(splitBalance(state.split, TODAY).transfers, []);
       assert.equal(splitSummary(state.split, splitBalance(state.split, TODAY), "JPY"), "Only one person is in this household, so there is nothing to split.");
       assert.equal(homeSentence(state).emphasis, "¥18,780 short on the 27th.");
-      assert.equal(safeToSpend(state, 0).amount, 0);
+      assert.equal(safeToSpend(state).amount, 0);
       assert.equal(roomOnCard(state, state.cards.find(c => c.label === "Card B")!.id).room, 173_770);
       assert.equal(state.bank, 67_000);
       assert.equal((await household(a)).splitSince, null);
@@ -631,7 +631,7 @@ async function main() {
       const state = await stateOf(fresh);
       assert.deepEqual(toCheck(state).map(r => r.detail), toCheck(benMoney).map(r => r.detail));
       assert.equal(homeSentence(state).emphasis, "¥18,780 short on the 27th.");
-      assert.equal(safeToSpend(state, 0).amount, 0);
+      assert.equal(safeToSpend(state).amount, 0);
       assert.equal(roomOnCard(state, state.cards.find(c => c.label === "Card B")!.id).room, 173_770);
       assert.equal(state.bank, 67_000);
     });

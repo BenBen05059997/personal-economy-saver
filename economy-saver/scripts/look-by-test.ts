@@ -43,7 +43,7 @@ check("Category rows equal what Home's spendingRows gave: same categories, order
   const view = lookBy(ben, today, "category", members);
   assert.equal(view.by, "category");
   const old = oldRows(ben);
-  assert.deepEqual(view.rows.map(({ business, personal, children, ...row }) => { void business; void personal; void children; return row; }), old);
+  assert.deepEqual(view.rows.map(({ business, personal, children, change, ...row }) => { void business; void personal; void children; void change; return row; }), old);
   assert.equal(view.spent, old.reduce((s, r) => s + r.spent, 0));
   assert.equal(view.coming, old.reduce((s, r) => s + r.coming, 0));
   assert.equal(view.total, view.spent + view.coming);
@@ -137,6 +137,17 @@ check("Over time: six months oldest first, the current one last and still to com
   assert.deepEqual(trend.map(m => m.month), [...trend.map(m => m.month)].sort());
   for (const m of trend) { assert.equal(m.total, m.spent + m.coming); assert.ok(m.current || m.coming === 0); }
   assert.equal(trend[trend.length - 1].total, lookBy(ben, today, "category", members).total);
+});
+
+check("Change from last month: amount and one-decimal percent per row and in total, null percent with nothing last month", () => {
+  const view = lookBy(ben, today, "category", members);
+  for (const row of view.rows) {
+    assert.equal(row.change.amount, row.total - row.previous);
+    assert.equal(row.change.percent, row.previous > 0 ? Math.round((row.total - row.previous) * 1000 / row.previous) / 10 : null);
+  }
+  assert.equal(view.change.amount, view.total - view.lastTotal);
+  assert.equal(view.change.percent, view.lastTotal > 0 ? Math.round((view.total - view.lastTotal) * 1000 / view.lastTotal) / 10 : null);
+  assert.ok(view.rows.some(row => row.previous === 0 && row.change.percent === null) || view.rows.every(row => row.previous > 0), "no last month means no percent");
 });
 
 check("The remembered choices: Spending's three parts round-trip; Person needs two people; Home keeps chart or table", () => {

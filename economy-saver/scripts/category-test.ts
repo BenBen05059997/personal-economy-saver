@@ -25,7 +25,7 @@ import { guessCategory, guessRepeat } from "@/lib/money/categorise";
 import { businessLine, monthByCategory, monthText, monthWhen, splitLine } from "@/lib/money/month";
 import { expandBills } from "@/lib/money/repeat";
 import { addDays, cycle, low, safeToSpend, series, statementItems } from "@/lib/money/runway";
-import { monthlyRoom } from "@/lib/money/plan";
+import { leftOverEachMonth } from "@/lib/money/plan";
 import { homeSentence } from "@/lib/money/sentence";
 import { toCheck } from "@/lib/money/to-check";
 import { sharedBillsComing } from "@/lib/money/family";
@@ -254,10 +254,10 @@ async function main() {
       const state = await stateOf(a);
       assert.deepEqual(summary(state), summary(benMoney));
       assert.equal(homeSentence(state).emphasis, "¥18,780 short on the 27th.");
-      assert.equal(safeToSpend(state, 0).amount, 0);
+      assert.equal(safeToSpend(state).amount, 0);
       const [cardA, cardB] = ["Card A", "Card B"].map(label => cardSummary(state, state.cards.find(c => c.label === label)!.id));
       assert.deepEqual([cardA.owed, cardA.limitLeft, cardB.owed, cardB.limitLeft], [86_450, 413_550, 61_000, 239_000]);
-      assert.equal(monthlyRoom(state), 92_220);
+      assert.equal(leftOverEachMonth(state), 92_220);
       const rows = await db.select().from(schema.bills).where(eq(schema.bills.householdId, a));
       assert.deepEqual(rows.map(r => [r.biller, r.category, r.businessBp]).sort(), [["CloudBox Plus", "subscriptions", 10_000], ["Hikari Denki", "utilities", 3000], ["Hikari Denki", "utilities", 3000], ["Hikari Denki", "utilities", 3000], ["Mobaile Tsushin", "phone_internet", 5000], ["Rent", "housing", 3000]]);
     });
@@ -280,7 +280,7 @@ async function main() {
       const c = await seedBen(db, { isDemo: true });
       const [cardA] = await db.select().from(schema.cards).where(and(eq(schema.cards.householdId, c), eq(schema.cards.label, "Card A")));
       const before = await stateOf(c);
-      const sentence = homeSentence(before).emphasis, safeBefore = safeToSpend(before, 0).amount;
+      const sentence = homeSentence(before).emphasis, safeBefore = safeToSpend(before).amount;
       assert.equal(cardSummary(before, cardA.id).owed, 86_450);
       await db.update(schema.cards).set({ closingDay: 10 }).where(and(eq(schema.cards.householdId, c), eq(schema.cards.id, cardA.id)));
       const state = await stateOf(c);
@@ -294,7 +294,7 @@ async function main() {
       ]);
       assert.equal(cycle(state, cardA.id).openTotal, 6_400);
       assert.equal(homeSentence(state).emphasis, sentence, "the sentence keeps its number");
-      assert.equal(safeToSpend(state, 0).amount, safeBefore);
+      assert.equal(safeToSpend(state).amount, safeBefore);
       assert.equal(state.statements.length, 1, "the closed statement is computed, not stored");
       // The same cycle, closed and stored (a charge confirmed into it, or the daily job), is the same money.
       await db.insert(schema.cardStatements).values({ householdId: c, cardId: cardA.id, closedOn: "2026-11-10", dueOn: "2026-12-26", currency: "JPY", amountMinor: 22_050 });
@@ -507,7 +507,7 @@ async function main() {
       const expected = series(usd, "expected");
       assert.equal(expected[3], 0, "bank $0.30 less $0.10 and $0.20 is exactly zero");
       assert.equal(low(expected).amount, 0);
-      assert.equal(safeToSpend(usd, 0).verdict === "hold", false);
+      assert.equal(safeToSpend(usd).shortBy, 0);
       assert.ok(!homeSentence(usd).short, "not short by float noise");
 
       const charge = (date: string, amount: number): Charge => ({ id: randomUUID(), cardId: "card-a", merchant: "M", amount, date, category: "other", businessBp: 0, source: "manual", status: "confirmed" });

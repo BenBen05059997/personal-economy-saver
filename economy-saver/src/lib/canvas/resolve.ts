@@ -169,7 +169,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       }
       case "safe_to_spend": {
         const st = stateFor(readScenario(query.scenario, query, recipe, override));
-        const safe = safeToSpend(st, 0);
+        const safe = safeToSpend(st);
         return { valueMinor: Math.round(safe.amount * unit), value: format(safe.amount), sub: safe.shortBy > 0 ? `Short by ${format(safe.shortBy)} on ${dayLabel(safe.low.date)}` : null, note: null, tone: safe.shortBy > 0 ? "short" : "plain" };
       }
       case "low_point": {

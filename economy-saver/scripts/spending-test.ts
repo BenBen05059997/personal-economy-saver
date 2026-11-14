@@ -16,7 +16,7 @@ import { convertMinor, fromMinor } from "@/db/money";
 import { seedBen } from "@/db/seed";
 import { loadSpending } from "@/db/spending";
 import { businessLine, monthByCategory } from "@/lib/money/month";
-import { monthlyRoom } from "@/lib/money/plan";
+import { leftOverEachMonth } from "@/lib/money/plan";
 import { datesIn, expandBills, nextAmountOf } from "@/lib/money/repeat";
 import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, nameKey, normalise, searchLine, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import type { Bill, Charge } from "@/lib/money/types";
@@ -270,14 +270,14 @@ async function main() {
       assert.deepEqual([together.sharedMinor, together.byMember.find(m => m.id === owner)!.minor, together.byMember.find(m => m.id === "wife")!.minor], [88_780, 63_450, 0], "Together ¥88,780 · Ben ¥63,450 · Wife ¥0");
       assert.deepEqual(together.categories.filter(c => c.category === "housing" || c.category === "food").map(c => [c.category, c.sharedMinor, c.byMember.find(m => m.id === owner)!.minor]), [["housing", 82_000, 0], ["food", 0, 10_700]]);
       // M2: confirming Hikari Denki
-      const room = monthlyRoom(await loadMoneyState(db, ben, today));
+      const room = leftOverEachMonth(await loadMoneyState(db, ben, today));
       assert.equal(room, 92_220);
       const [hikari] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, ben), eq(schema.bills.status, "pending")));
       assert.equal(await confirmPending(db, ben, "bill", hikari.id), true);
       const confirmed = monthByCategory(await read(ben), today);
       assert.deepEqual(rows(confirmed).find(r => r[0] === "utilities")!.slice(0, 3), ["utilities", 11_220, 3_366]);
       assert.equal(businessLine(confirmed), "Business ¥36,196 of ¥163,450 this month");
-      assert.equal(monthlyRoom(await loadMoneyState(db, ben, today)), 81_000, "Plan's room line falls from ¥92,220 to ¥81,000");
+      assert.equal(leftOverEachMonth(await loadMoneyState(db, ben, today)), 81_000, "Plan's room line falls from ¥92,220 to ¥81,000");
       assert.deepEqual(rows(confirmed).filter(r => r[0] !== "utilities").map(r => r.slice(0, 2)), rows(november).map(r => r.slice(0, 2)), "the other rows do not move");
       // M3: a ¥2,000 Minato Fresh Market charge, 25% work → Food ¥12,700 (business ¥500 · personal ¥12,200)
       const [cardB] = await db.select().from(schema.cards).where(and(eq(schema.cards.householdId, ben), eq(schema.cards.label, "Card B")));

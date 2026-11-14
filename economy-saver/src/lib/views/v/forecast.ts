@@ -90,6 +90,6 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
   return {
     ...base, data, table, empty: null, aria,
     line: short ? `${which === "usual" ? "If clients pay on time" : "If clients pay late"} you are ${format(-lowOf.amount)} short on ${lowDay}.` : `The lowest ${who} is ${format(lowOf.amount)} on ${lowDay}.`,
-    figures: { safeToSpendMinor: minor(safeToSpend(state, 0).amount), lowLateMinor: minor(lo.amount), lowLateDate: lo.date, lowUsualMinor: minor(hi.amount), lowUsualDate: hi.date },
+    figures: { safeToSpendMinor: minor(safeToSpend(state).amount), lowLateMinor: minor(lo.amount), lowLateDate: lo.date, lowUsualMinor: minor(hi.amount), lowUsualDate: hi.date },
   };
 };

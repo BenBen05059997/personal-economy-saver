@@ -23,7 +23,7 @@ import { CONNECTION_BILL } from "@/lib/ai/connection-bill";
 import { isTested, TESTED } from "@/lib/ai/tested";
 import { fakeModel, type FakeMode } from "./ai-fake";
 import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { unconfirmedAmounts, unconfirmedNumbers } from "@/lib/ai/number-check";
 import { PROVIDERS, providerFromKey, tokenParamFor } from "@/lib/ai/providers";
 import { modelFailureWords } from "@/lib/ai/provider-failure";
 import { ModelError, type Connection, type ModelRequest } from "@/lib/ai/types";
@@ -729,6 +729,41 @@ async function main() {
     } finally {
       for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
     }
+  });
+
+  await check("unconfirmedAmounts: a fact-shaped money object confirms, a person-given one does not", () => {
+    const fact = (value: number, by = "engine") => JSON.stringify({ name: "short", value, unit: "money", currency: "JPY", case: "late", period: null, by });
+    assert.deepEqual(unconfirmedAmounts("¥18,780 short.", [fact(18780)]), []);
+    assert.deepEqual(unconfirmedAmounts("¥18,780 short.", [fact(18780, "person")]), ["¥18,780"]);
+    assert.deepEqual(unconfirmedAmounts("You have $1,200.", [JSON.stringify({ unit: "money", value: 120000, currency: "USD", by: "engine" })]), []);
+    assert.deepEqual(unconfirmedAmounts("14 days.", [JSON.stringify({ unit: "days", value: 14 })]), []);
+  });
+
+  await check("unconfirmedNumbers: each unit is confirmed only by a fact of the same unit", () => {
+    const f = (unit: string, value: number | string, extra: object = {}) => ({ unit, value, by: "engine", period: null, ...extra });
+    const facts = [f("money", 18780, { currency: "JPY" }), f("days", 14), f("percent", 12.2), f("date", "2026-11-27")];
+    const today = "2026-11-14";
+    const un = (text: string, fs = facts) => unconfirmedNumbers(text, fs, today);
+    assert.deepEqual(un("You are ¥18,780 short on Fri, Nov 27, in 14 days, up 12.2%."), []);
+    assert.deepEqual(un("¥18,780 / 18,780円 / 約1.878万円"), []);
+    assert.deepEqual(un("14日後、12.2％、11月27日"), []);
+    assert.deepEqual(un("on the 27th, 2026-11-27, and today Nov 14"), []);
+    // A wrong number of any unit is named.
+    assert.deepEqual(un("¥18,000 short"), ["¥18,000"]);
+    assert.deepEqual(un("in 15 days"), ["15 days"]);
+    assert.deepEqual(un("up 12.9%"), ["12.9%"]);
+    assert.deepEqual(un("on Nov 28"), ["Nov 28"]);
+    assert.deepEqual(un("11月28日"), ["11月28日"]);
+    // Only the same unit confirms.
+    const onlyYen14 = [f("money", 14, { currency: "JPY" })];
+    assert.deepEqual(un("14 days", onlyYen14), ["14 days"]);
+    assert.deepEqual(un("¥14", [f("days", 14)]), ["¥14"]);
+    assert.deepEqual(un("14%", [f("days", 14)]), ["14%"]);
+    assert.deepEqual(un("the 20th", [f("days", 20)]), ["the 20th"]);
+    assert.deepEqual(un("¥14", [f("money", 14, { currency: "USD" })]), ["¥14"]);
+    // A number the person gave confirms nothing.
+    assert.deepEqual(un("¥5,000", [f("money", 5000, { currency: "JPY", by: "person" })]), ["¥5,000"]);
+    assert.deepEqual(un("in 9 days", [f("days", 9, { by: "person" })]), ["9 days"]);
   });
 
   await check("the tested list is empty until the evaluation fills it, and isTested matches provider and model", () => {

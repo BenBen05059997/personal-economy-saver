@@ -655,7 +655,7 @@ async function main() {
       }
       const lowOf = (state: typeof stateBase) => low(series(state, "worst"));
       assert.equal(lowOf(stateBase).amount - lowOf(stateRepeating).amount, 5000, "the 30-day low sees only the first occurrence");
-      assert.equal(safeToSpend(stateBase, 0).shortBy + 5000, safeToSpend(stateRepeating, 0).shortBy);
+      assert.equal(safeToSpend(stateBase).shortBy + 5000, safeToSpend(stateRepeating).shortBy);
       assert.equal(series(stateRepeating, "worst").length, 30);
     });
 

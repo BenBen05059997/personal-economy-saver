@@ -37,7 +37,6 @@ import { RecipeSchema } from "@/lib/canvas/schema";
 import { whatIf } from "@/lib/money/whatif";
 import { billsForMonth, type PeriodBill } from "@/lib/money/period";
 import { dayView } from "@/lib/money/window";
-import { latestDate } from "@/lib/money/horizon";
 import { homeSentence } from "@/lib/money/sentence";
 import { minorMoney, minorPerUnit } from "@/lib/money/format";
 import { canvasWords, FIXED } from "@/lib/agent/reply";
@@ -674,7 +673,7 @@ async function main() {
       assert.ok(!out.is_error);
       const result = JSON.parse(out.content);
       assert.equal(result.summary, planLine(request, planFor(request, aState), aState));
-      assert.deepEqual([result.currency, result.neededMinor, result.months, result.monthlyNeededMinor, result.fits, result.monthlyRoomMinor], ["JPY", 1_200_000, 4, 300_000, false, 92_220]);
+      assert.deepEqual([result.currency, result.neededMinor, result.months, result.monthlyNeededMinor, result.fits, result.leftOverEachMonthMinor], ["JPY", 1_200_000, 4, 300_000, false, 92_220]);
       assert.ok(Object.values(result).every(v => typeof v !== "number" || Number.isInteger(v)));
       assert.ok(plan.bodies[0].system.includes("never unprompted"), "the prompt says when to offer a pot");
 
@@ -1340,7 +1339,7 @@ async function main() {
       const state = await stateOf(c);
       const tool = tools.find(t => t.name === "where_am_i")!;
       const out = await tool.run({ madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never, {} as never);
-      const homeFigure = minorMoney(Math.round(safeToSpend(state, 0).amount * minorPerUnit(state.homeCurrency)), state.homeCurrency);
+      const homeFigure = minorMoney(Math.round(safeToSpend(state).amount * minorPerUnit(state.homeCurrency)), state.homeCurrency);
       assert.ok(out.startsWith(statusAnswer(state)), "the sentence is unchanged");
       assert.ok(out.includes(`Safe to spend now: ${homeFigure}.`), "the same figure Home shows");
       assert.match(out, /next 30 days/);
@@ -1908,7 +1907,7 @@ async function main() {
       const point = low(series(expected, "worst"), state.today);
       assert.equal(out.lowPoint.amountMinor, Math.round(point.amount * unit));
       assert.equal(out.lowPoint.date, point.date);
-      assert.equal(out.safeToSpendMinor, Math.round(safeToSpend(expected, 0).amount * unit));
+      assert.equal(out.safeToSpendMinor, Math.round(safeToSpend(expected).amount * unit));
       assert.equal(out.lowPointChangeMinor, out.lowPoint.amountMinor - out.now.lowPoint.amountMinor);
       assert.equal(out.sentence.startsWith(homeSentence(expected).text), true);
       assert.ok(bad.is_error && bad.content.includes("not in your records"));

@@ -86,7 +86,7 @@ export function findSuggestions(state: MoneyState, rules: StandingRules): Findin
 
   const minimum = threshold(rules.safe_below);
   if (minimum !== null && rules.safe_below.currency === homeCurrency) {
-    const safe = safeToSpend(state, 0).amount;
+    const safe = safeToSpend(state).amount;
     if (Math.round(safe * minorPerUnit(homeCurrency)) < minimum) {
       findings.push({ kind: "safe_below", key: "safe:" + today, title: "Safe to spend is below your rule",
         reason: format(safe) + " safe to spend, below " + minorMoney(minimum, homeCurrency) + ".", action: "runway", refId: null, urgency: 0 });

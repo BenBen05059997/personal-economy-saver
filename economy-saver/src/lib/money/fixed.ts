@@ -4,7 +4,7 @@ import { regularCosts } from "./regular";
 import { monthBounds, monthsBack, spendingItems, nameKey, type SpendingInput } from "./spending";
 import { monthTrend } from "./look-by";
 
-export type FixedMonth = { month: string; name: string; current: boolean; regularMinor: number; otherMinor: number; totalMinor: number; biggest: { label: string; amountMinor: number } | null };
+export type FixedMonth = { month: string; name: string; current: boolean; regularMinor: number; regularShare: number; /* whole percent of the month's total that is regular */ otherMinor: number; totalMinor: number; biggest: { label: string; amountMinor: number } | null };
 export type FixedByMonth = { months: FixedMonth[]; regularCount: number };
 
 /**
@@ -25,7 +25,8 @@ export function fixedByMonth(input: SpendingInput, today: string, months = 6): F
       const inMonth = counted.filter(item => item.date.startsWith(trend.month));
       const other = inMonth.filter(item => !keys.has(`${item.category}:${nameKey(item.label)}`)).reduce((sum, item) => sum + item.amountMinor, 0);
       const biggest = regular.items.map(cost => ({ label: cost.label, amountMinor: cost.months.find(m => m.month === trend.month)?.amountMinor ?? 0 })).sort((a, b) => b.amountMinor - a.amountMinor)[0];
-      return { month: trend.month, name: trend.name, current: trend.current, regularMinor: spent, otherMinor: other, totalMinor: spent + other, biggest: biggest && biggest.amountMinor > 0 ? biggest : null };
+      const totalMinor = spent + other;
+      return { month: trend.month, name: trend.name, current: trend.current, regularMinor: spent, regularShare: totalMinor > 0 ? Math.round(spent * 100 / totalMinor) : 0, otherMinor: other, totalMinor, biggest: biggest && biggest.amountMinor > 0 ? biggest : null };
     }),
   };
 }

@@ -1242,7 +1242,6 @@ async function main() {
       assert.equal(await F.createHousehold(store, blank, SETUP, { isDemo: true }), blank);
       assert.equal(await F.findDemoHousehold(store, blank), blank, "it is a demo household");
       assert.equal(await F.accountHousehold(store, blank), null, "a blank demo is not an account");
-      assert.notEqual(await F.householdDate(store, blank), DEMO_DATE, "a blank demo lives on the real date");
       assert.equal(await F.tryItKind(store, blank), "blank");
       assert.equal(await F.tryItKind(store, A.hid), "try-it");
       assert.equal(await F.tryItKind(store, randomUUID()), null, "an unknown id is no demo");

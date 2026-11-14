@@ -22,7 +22,7 @@ export function monthsUntil(from: string, to: string): number {
  * What the next 30 days leave over if clients pay as usual: the expected-case balance at the end of the 30-day window
  * less the cash it starts from (which already excludes money in pots). Negative when the month is a net outflow.
  */
-export function monthlyRoom(state: MoneyState): number {
+export function leftOverEachMonth(state: MoneyState): number {
   const expected = series(state, "expected");
   const end = expected[expected.length - 1];
   return Math.round((end - availableCash(state)) * unit(state)) / unit(state);
@@ -37,10 +37,10 @@ type PlanInput = {
 
 type Plan = {
   needed: number; // still to set aside
-  monthlyRoom: number;
+  leftOverEachMonth: number;
   months?: number; // whole months to the target date (at least 1), when there is a date
   monthlyNeeded?: number; // needed per month to arrive on the target date
-  fits?: boolean; // monthlyNeeded is within monthlyRoom
+  fits?: boolean; // monthlyNeeded is within leftOverEachMonth
   pace?: number; // the monthly amount behind reachedOn: the one given, else the room when positive
   monthsAtPace?: number;
   reachedOn?: string; // the date the target is reached at that pace
@@ -49,8 +49,8 @@ type Plan = {
 export function planFor(input: PlanInput, state: MoneyState): Plan {
   const u = unit(state);
   const needed = Math.max(0, Math.round((input.target - input.saved) * u) / u);
-  const room = monthlyRoom(state);
-  const plan: Plan = { needed, monthlyRoom: room };
+  const room = leftOverEachMonth(state);
+  const plan: Plan = { needed, leftOverEachMonth: room };
   if (input.targetDate) {
     const months = monthsUntil(state.today, input.targetDate);
     const monthlyNeeded = Math.ceil(Math.round(needed * u) / months) / u;
@@ -101,7 +101,7 @@ export function potLine(pot: Pot, state: MoneyState): string | undefined {
 
 /** What the next 30 days leave, as a sentence that planLine can continue ("…, so it fits"). */
 function roomClause(state: MoneyState): string {
-  const room = monthlyRoom(state);
+  const room = leftOverEachMonth(state);
   return room > 0
     ? `The next 30 days leave about ${minorMoney(Math.round(room * unit(state)), state.homeCurrency)} if clients pay as usual.`
     : "The next 30 days leave nothing over if clients pay as usual.";
@@ -110,12 +110,12 @@ function roomClause(state: MoneyState): string {
 /** The sentence at the top of the Saving page: what the next 30 days leave, which is what could be put aside. With no client payment expected, it says there is nothing new to put aside yet. */
 export function roomLine(state: MoneyState): string {
   if (!expectsClientPayment(state)) return "No client payments are expected in the next 30 days, so there's nothing new to put aside yet.";
-  return monthlyRoom(state) > 0 ? `${roomClause(state)} That's what you could put aside.` : roomClause(state);
+  return leftOverEachMonth(state) > 0 ? `${roomClause(state)} That's what you could put aside.` : roomClause(state);
 }
 
 /**
  * Under the room line: what the number counts, so it is not read as safe to spend (Home's lowest balance if clients are late).
- * monthlyRoom is the expected-case balance at the end of 30 days less today's cash: client payments at their usual dates
+ * leftOverEachMonth is the expected-case balance at the end of 30 days less today's cash: client payments at their usual dates
  * less every confirmed bill and card statement in the window. Undefined when roomLine says the plan counts the bank only.
  */
 export function roomNote(state: MoneyState): string | undefined {

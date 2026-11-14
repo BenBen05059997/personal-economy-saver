@@ -45,7 +45,7 @@ async function main() {
       assert.match(homeSentence(state).text, /¥18,780 short on the 27th/);
       const worst = low(series(state, "worst"), state.today);
       assert.deepEqual([worst.amount, worst.date], [-18_780, "2026-11-27"]);
-      assert.equal(safeToSpend(state, 0).amount, 0);
+      assert.equal(safeToSpend(state).amount, 0);
     });
 
     await check("the money state's invoice list is the sample's three: no paid history is in it", () => {

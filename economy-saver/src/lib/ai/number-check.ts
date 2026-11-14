@@ -57,7 +57,15 @@ function addJsonAmounts(value: unknown, moneyKey: boolean, set: Set<number>): vo
     return;
   }
   if (Array.isArray(value)) { for (const item of value) addJsonAmounts(item, moneyKey, set); return; }
-  if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) addJsonAmounts(item, MONEY_KEY.test(key), set);
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    // A fact (D79) with unit "money" and a numeric value is a confirmed amount in integer minor units; one the person gave confirms nothing.
+    if (record.unit === "money" && typeof record.value === "number") {
+      if (record.by !== "person" && Number.isFinite(record.value)) set.add(Math.round(Math.abs(record.value) * 100) / 100);
+      return;
+    }
+    for (const [key, item] of Object.entries(record)) addJsonAmounts(item, MONEY_KEY.test(key), set);
+  }
 }
 
 /** The numbers the sources confirm. A source that is a JSON object or array (a tool result) confirms only its amounts; any other text confirms every number in it. */
@@ -111,4 +119,82 @@ export function numbersSaid(text: string): number[] {
     said.push(Math.round(value * 100) / 100);
   }
   return said;
+}
+
+/** The part of a D79 fact the check reads. `value` is integer minor units for money, a count for days, a percentage for percent (12.2 is 12.2%), an ISO date string for date. */
+export type CheckFact = {
+  value: number | string;
+  unit: string;
+  currency?: string;
+  by?: string;
+  period?: string | { from?: string; to?: string } | null;
+};
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const WEEKDAY = String.raw`(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?,?\s+)?`;
+type DateMention = { month?: number; day: number; year?: number };
+const DATE_FORMS: { re: RegExp; read: (m: RegExpExecArray) => DateMention }[] = [
+  { re: /\b(\d{4})-(\d{2})-(\d{2})\b/g, read: m => ({ year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) }) },
+  { re: new RegExp(String.raw`\b${WEEKDAY}(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b`, "gi"),
+    read: m => ({ month: MONTHS.indexOf(m[1].toLowerCase()) + 1, day: Number(m[2]), year: m[3] ? Number(m[3]) : undefined }) },
+  { re: /(?:(\d{4})年\s*)?(\d{1,2})月\s*(\d{1,2})日/g, read: m => ({ year: m[1] ? Number(m[1]) : undefined, month: Number(m[2]), day: Number(m[3]) }) },
+  { re: new RegExp(String.raw`\b${WEEKDAY}(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)\b`, "gi"), read: m => ({ day: Number(m[1]) }) },
+];
+
+function isoParts(text: string): DateMention[] {
+  return [...text.matchAll(/(\d{4})-(\d{2})-(\d{2})/g)].map(m => ({ year: Number(m[1]), month: Number(m[2]), day: Number(m[3]) }));
+}
+
+/**
+ * The numbers in `text` that no engine fact of the same unit confirms: money, days, percent and dates alike (D79).
+ * A fact the person gave (by "person") confirms nothing (D79). `today` (ISO) counts as a known date.
+ */
+export function unconfirmedNumbers(text: string, facts: readonly CheckFact[], today?: string): string[] {
+  const engine = facts.filter(f => f.by !== "person");
+  const of = (unit: string) => engine.filter(f => f.unit === unit);
+  let rest = fold(text);
+  const blank = (m: RegExpMatchArray | RegExpExecArray) => { rest = rest.slice(0, m.index) + " ".repeat(m[0].length) + rest.slice(m.index! + m[0].length); };
+  const out: string[] = [];
+  const add = (mention: string) => { if (!out.includes(mention)) out.push(mention); };
+
+  // Dates first: "11月27日" and "27th" must not be read as days or money.
+  const knownDates: DateMention[] = [...(today ? isoParts(today) : [])];
+  for (const f of of("date")) {
+    knownDates.push(...isoParts(String(f.value)));
+    const p = f.period;
+    if (typeof p === "string") knownDates.push(...isoParts(p)); else if (p) knownDates.push(...isoParts(`${p.from ?? ""} ${p.to ?? ""}`));
+  }
+  for (const form of DATE_FORMS) {
+    for (const m of [...rest.matchAll(form.re)] as RegExpExecArray[]) {
+      const d = form.read(m);
+      blank(m);
+      const ok = knownDates.some(k => k.day === d.day && (d.month === undefined || k.month === d.month) && (d.year === undefined || k.year === d.year));
+      if (!ok) add(m[0].trim());
+    }
+  }
+
+  // Money.
+  const moneyFacts = of("money");
+  const mentions: { text: string; value: number; currency: "JPY" | "USD"; match: RegExpMatchArray }[] = [];
+  for (const m of rest.matchAll(BEFORE)) mentions.push({ text: m[0].trim(), value: scaled(m[2], m[3], m[4]), currency: currencyOf(m[1]), match: m });
+  for (const m of rest.matchAll(AFTER)) mentions.push({ text: m[0].trim(), value: scaled(m[1], m[2], m[3]), currency: currencyOf(m[4]), match: m });
+  for (const a of mentions) {
+    blank(a.match);
+    if (a.value === 0) continue;
+    const minor = Math.round(a.value * (a.currency === "USD" ? 100 : 1));
+    if (!moneyFacts.some(f => typeof f.value === "number" && Math.abs(f.value) === minor && (!f.currency || f.currency === a.currency))) add(a.text);
+  }
+
+  // Percent, then days.
+  const percents = of("percent");
+  for (const m of [...rest.matchAll(/(\d+(?:\.\d+)?)\s*%/g)]) {
+    blank(m);
+    if (!percents.some(f => typeof f.value === "number" && Math.abs(Math.abs(f.value) - Number(m[1])) < 0.05)) add(m[0].trim());
+  }
+  const days = of("days");
+  for (const m of [...rest.matchAll(/(\d+)\s*(?:days?\b|日(?!本))/gi)]) {
+    blank(m);
+    if (!days.some(f => typeof f.value === "number" && Math.abs(f.value) === Number(m[1]))) add(m[0].trim());
+  }
+  return out;
 }
