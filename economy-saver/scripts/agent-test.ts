@@ -19,14 +19,21 @@ import { addMemory, deleteMemory, listMemory } from "@/db/memory";
 import { removeBill } from "@/db/bills";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
+import { canonicalJson, stableId } from "@/lib/stable-id";
+import { loadSpending } from "@/db/spending";
+import { monthByCategory, monthText, monthWhen } from "@/lib/money/month";
+import { monthBounds, monthsBack, searchSpending, spendingItems } from "@/lib/money/spending";
 import { createSpace, generalSpace, saveBrief } from "@/db/spaces";
 import { BriefSchema } from "@/lib/agent/brief";
 import { seedBen } from "@/db/seed";
 import { AgentError, askBudgetMs, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
-import { dueAnswer, statusAnswer } from "@/lib/money/ask";
+import { dueAnswer, dueFacts, outlookFacts, statusAnswer } from "@/lib/money/ask";
+import { foreignCosts } from "@/db/fx-cost";
+import { REGULAR_MONTHS, regularCosts } from "@/lib/money/regular";
+import { splitBalance } from "@/lib/money/split";
 import type { Fact } from "@/lib/money/facts";
-type CompactFact = Pick<Fact, "name" | "value" | "unit" | "by"> & Partial<Pick<Fact, "currency" | "about">>;
+type CompactFact = Pick<Fact, "name" | "value" | "unit" | "by"> & Partial<Pick<Fact, "currency" | "about" | "period">>;
 import { TERMS } from "@/lib/money/terms";
 import { addDays, low, medianLow, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { createHousehold, setupForm } from "@/db/account";
@@ -162,7 +169,7 @@ async function main() {
       let clock = 0;
       const model = transport(() => {
         clock = 1_250;
-        return reply("tool_use", [toolUse("due", "whats_due", {})]);
+        return reply("tool_use", [toolUse("due", "timeline", { scenario: "late", on: null })]);
       });
       await assert.rejects(ask(a, "What’s due?", model.fetch, { now: () => clock }),
         (error: unknown) => error instanceof AgentError && error.outcome === "budget");
@@ -179,7 +186,7 @@ async function main() {
 
     await check("a question runs a tool, feeds the engine's own answer back, one model call per turn", async () => {
       const { fetch, bodies } = transport([
-        () => reply("tool_use", [text("Checking."), toolUse("toolu_1", "whats_due", {})]),
+        () => reply("tool_use", [text("Checking."), toolUse("toolu_1", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text("Rent is due soon and covered.")]),
       ]);
       const result = await ask(a, "What's due?", fetch);
@@ -197,10 +204,10 @@ async function main() {
       assert.deepEqual(first.messages, [{ role: "user", content: "What's due?" }]);
       assert.equal(second.messages.length, 3);
       assert.equal(second.messages[1].role, "assistant");
-      assert.deepEqual(second.messages[1].content, [text("Checking."), toolUse("toolu_1", "whats_due", {})]);
+      assert.deepEqual(second.messages[1].content, [text("Checking."), toolUse("toolu_1", "timeline", { scenario: "late", on: null })]);
       const [result1] = toolResults(second);
       assert.equal(result1.tool_use_id, "toolu_1");
-      assert.ok(result1.content.startsWith(dueAnswer(aState) + "\n\nFacts: "));
+      assert.ok(Array.isArray(JSON.parse(result1.content).facts), "the engine's own facts come back as the tool result");
       assert.ok(!result1.is_error);
     });
 
@@ -208,8 +215,8 @@ async function main() {
       const { fetch, bodies } = transport([
         () => reply("tool_use", [
           toolUse("toolu_snap", "household_snapshot", {}),
-          toolUse("toolu_spend", "month_by_category", { month: null }),
-          toolUse("toolu_fx", "foreign_costs", {}),
+          toolUse("toolu_spend", "show", { view: "month_by_category", args: null }),
+          toolUse("toolu_fx", "show", { view: "fx_cost", args: null }),
         ]),
         () => reply("end_turn", [text("You have three clients.")]),
       ]);
@@ -245,7 +252,7 @@ async function main() {
 
     await check("a draft tool given another household's id returns a short error with no SQL", async () => {
       const { fetch, bodies } = transport([
-        () => reply("tool_use", [toolUse("x", "draft_invoice", { id: crypto.randomUUID(), clientId: bState.clients[0].id, item: "Poster", amount: "10.00", note: "" })]),
+        () => reply("tool_use", [toolUse("x", "draft_invoice", { clientId: bState.clients[0].id, item: "Poster", amount: "10.00", note: "" })]),
         () => reply("end_turn", [text("Done.")]),
       ]);
       await ask(a, "Invoice that client.", fetch);
@@ -308,7 +315,7 @@ async function main() {
 
     await check("an unknown tool, invalid input and a failing tool return is_error results and the loop continues", async () => {
       const { fetch, bodies } = transport([
-        () => reply("tool_use", [toolUse("u1", "send_invoice", { id: "x" }), toolUse("u2", "can_i_spend", { amount_minor: -5, card_id: null }), toolUse("u3", "where_am_i", {})]),
+        () => reply("tool_use", [toolUse("u1", "send_invoice", { id: "x" }), toolUse("u2", "can_i_spend", { amount_minor: -5, card_id: null }), toolUse("u3", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text("I could only check your status.")]),
       ]);
       const result = await ask(a, "Send the invoice now.", fetch);
@@ -319,7 +326,7 @@ async function main() {
     });
 
     await check("a fifth tool turn stops with an AgentError", async () => {
-      const { fetch, bodies } = transport(() => reply("tool_use", [toolUse("again", "where_am_i", {})]));
+      const { fetch, bodies } = transport(() => reply("tool_use", [toolUse("again", "timeline", { scenario: "late", on: null })]));
       await assert.rejects(ask(a, "Loop forever.", fetch), AgentError);
       assert.equal(bodies.length, 5);
     });
@@ -329,7 +336,7 @@ async function main() {
       await assert.rejects(ask(a, "x", transport(() => reply("max_tokens", [text("part")])).fetch), /cut off/);
       await assert.rejects(ask(a, "x", transport(() => reply("end_turn", [])).fetch), /no answer/);
       let clock = 0;
-      const slow = transport(() => { clock = 30_000; return reply("tool_use", [toolUse("s", "where_am_i", {})]); });
+      const slow = transport(() => { clock = 30_000; return reply("tool_use", [toolUse("s", "timeline", { scenario: "late", on: null })]); });
       await assert.rejects(ask(a, "x", slow.fetch, { now: () => clock }), /too long/);
       assert.equal(slow.bodies.length, 1);
       // each request's timeout is the time left of the 20 s budget
@@ -355,13 +362,14 @@ async function main() {
     });
 
     await check("draft_invoice saves a draft in the asking household only and the answer carries the review link", async () => {
-      const draftId = crypto.randomUUID();
-      const input = { id: draftId, clientId: aState.clients[0].id, item: "Poster layout", amount: "18.52", note: "" };
+      const askId = crypto.randomUUID();
+      const input = { clientId: aState.clients[0].id, item: "Poster layout", amount: "18.52", note: "" };
+      const draftId = await stableId(a, askId, "draft_invoice", canonicalJson(input), 0);
       const { fetch, bodies } = transport([
         () => reply("tool_use", [toolUse("d", "draft_invoice", input)]),
         () => reply("end_turn", [text("I drafted it; review it before sending.")]),
       ]);
-      const result = await ask(a, "Draft an invoice for Poster layout, $18.52.", fetch);
+      const result = await ask(a, "Draft an invoice for Poster layout, $18.52.", fetch, { askId });
       assert.deepEqual(result.links, [{ label: "Review invoice draft", href: `http://127.0.0.1:3123/invoices/${draftId}` }]);
       assert.ok(toolResults(bodies[1])[0].content.includes(draftId));
       assert.match(toolResults(bodies[1])[0].content, /review the draft and tap Approve/, "the result tells the model what to relay (D12)");
@@ -372,15 +380,17 @@ async function main() {
       assert.equal((await db.select().from(schema.invoices).where(and(eq(schema.invoices.householdId, b), eq(schema.invoices.id, draftId)))).length, 0);
     });
 
-    await check("log_charge and add_bill leave pending rows in To check for the asking household only, and a retry adds nothing", async () => {
-      const chargeId = crypto.randomUUID(), billId = crypto.randomUUID();
-      const charge = { id: chargeId, cardId: aState.cards[0].id, merchant: "Noodle place", amount: "3800", date: aState.today };
-      const bill = { id: billId, biller: "Hikari Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, repeat: "month" };
+    await check("log_charge and add_bill leave pending rows in To check for the asking household only, and a retry of the same Ask adds nothing", async () => {
+      const askId = crypto.randomUUID();
+      const charge = { cardId: aState.cards[0].id, merchant: "Noodle place", amount: "3800", date: aState.today };
+      const bill = { biller: "Hikari Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, repeat: "month" };
+      const chargeTool = tools.find(t => t.name === "log_charge")!, billTool = tools.find(t => t.name === "add_bill")!;
+      const chargeId = await stableId(a, askId, "log_charge", canonicalJson(chargeTool.input.parse(charge)), 0), billId = await stableId(a, askId, "add_bill", canonicalJson(billTool.input.parse(bill)), 0);
       const script = () => transport([
         () => reply("tool_use", [toolUse("c", "log_charge", charge), toolUse("b", "add_bill", bill)]),
         () => reply("end_turn", [text("Both are waiting in To check.")]),
       ]);
-      const result = await ask(a, "I paid ¥3,800 at the noodle place and the water bill is ¥4,200.", script().fetch, { source: "voice" });
+      const result = await ask(a, "I paid ¥3,800 at the noodle place and the water bill is ¥4,200.", script().fetch, { source: "voice", askId });
       assert.equal(result.pending, true);
       assert.deepEqual(result.links, [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }]);
       const [row] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, a), eq(schema.charges.id, chargeId)));
@@ -390,55 +400,46 @@ async function main() {
       const [pendingBill] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.id, billId)));
       assert.equal(pendingBill.status, "pending");
       assert.equal(pendingBill.repeatDay, Number(aState.today.slice(8, 10)), "repeat month stores the due date's day");
-      await ask(a, "Same again.", script().fetch);
+      await ask(a, "Same again.", script().fetch, { askId });
       assert.equal((await db.select().from(schema.charges).where(eq(schema.charges.id, chargeId))).length, 1);
       assert.equal((await db.select().from(schema.events).where(and(eq(schema.events.householdId, a), eq(schema.events.refId, chargeId)))).length, 1);
     });
 
-    await check("foreign_costs (D62) is a read tool: Ben's payout costs with the catalogue guidance; a household with nothing foreign gets nothing: true and no guidance", async () => {
-      const tool = tools.find(t => t.name === "foreign_costs")!;
-      assert.equal(tool.scope, "read");
+    await check("show fx_cost (D62) is the foreign-cost read: Ben's payout costs as facts with the catalogue guidance; a household with nothing foreign gets the empty words and no guidance", async () => {
       const ben = await seedBen(db, { isDemo: true });
-      const t = transport([() => reply("tool_use", [toolUse("fc", "foreign_costs", {})]), () => reply("end_turn", [text("ok")])]);
-      const result = await ask(ben, "What do my foreign payments cost me?", t.fetch);
-      const out = JSON.parse(toolResults(t.bodies[1])[0].content);
-      assert.equal(out.nothing, false);
-      assert.equal(out.months, 12);
-      assert.ok(out.payouts.count > 0 && out.payouts.costMinor > 0 && out.payouts.perClient.length === 3);
-      assert.deepEqual([out.payouts.count, out.payouts.grossMinor, out.payouts.receiveFeeMinor, out.payouts.markupMinor, out.payouts.costMinor, out.payouts.landedMinor], [16, 1_590_000, 65_913, 45_724, 111_637, 1_478_363], "Ben's sixteen paid USD invoices at ¥150");
-      assert.deepEqual(out.payouts.perClient.map((c: { clientName: string; count: number; costMinor: number }) => [c.clientName, c.count, c.costMinor]), [["Acme Corp", 5, 52_545], ["Northwind", 5, 36_850], ["Beacon Studio", 6, 22_242]]);
-      assert.equal(out.payouts.grossMinor - out.payouts.costMinor, out.payouts.landedMinor);
-      assert.match(out.words.payouts, /through PayPal/);
+      const t = transport([() => reply("tool_use", [toolUse("fc", "show", { view: "fx_cost", args: JSON.stringify({ months: 12 }) })]), () => reply("end_turn", [text("ok")])]);
+      await ask(ben, "What do my foreign payments cost me?", t.fetch);
+      const out = JSON.parse(toolResults(t.bodies[1])[0].content) as { facts: CompactFact[]; guidance: { source: { url: string }; mustNotSay: string; steps: string[]; traps: string[]; maySay: string }; empty: string | null };
+      assert.equal(out.empty, null);
+      const named = (name: string, about?: string) => out.facts.filter(f => f.name === name && (about === undefined || f.about?.name === about));
+      assert.equal(named("foreign_cost_receiving")[0].value, 111_637, "Ben's sixteen paid USD invoices at ¥150");
+      assert.deepEqual(named("foreign_cost").filter(f => f.about?.type === "client").map(f => [f.about!.name, f.value]), [["Acme Corp", 52_545], ["Northwind", 36_850], ["Beacon Studio", 22_242]]);
       assert.equal(out.guidance.source.url, "https://www.paypal.com/jp/webapps/mpp/merchant-fees");
       assert.match(out.guidance.mustNotSay, /leave PayPal/);
       assert.ok(out.guidance.steps.length > 0 && out.guidance.traps.length > 0 && out.guidance.maySay);
-      assert.deepEqual(result.sources?.map(x => "href" in x ? x.href : x.label), ["/clients"]);
 
       const bare = await seedBen(db, { isDemo: true });
       await db.update(schema.invoices).set({ paidOn: null, sentOn: null, status: "draft" }).where(eq(schema.invoices.householdId, bare));
-      const none = transport([() => reply("tool_use", [toolUse("fc", "foreign_costs", {})]), () => reply("end_turn", [text("ok")])]);
+      const none = transport([() => reply("tool_use", [toolUse("fc", "show", { view: "fx_cost", args: null })]), () => reply("end_turn", [text("ok")])]);
       await ask(bare, "What do my foreign payments cost me?", none.fetch);
       const empty = JSON.parse(toolResults(none.bodies[1])[0].content);
-      assert.equal(empty.nothing, true);
-      assert.ok(!("guidance" in empty));
-      assert.deepEqual([empty.payouts.count, empty.charges.count, empty.charges.items.length], [0, 0, 0]);
+      assert.ok(typeof empty.empty === "string" && !("guidance" in empty));
     });
 
     await check("log_charge with original_amount and original_currency (D62) stores the original and the issuer's rate, not estimated; only one of the two is a tool error; the same currency as the card is refused", async () => {
       const c = await seedBen(db, { isDemo: true });
       const cState = await stateOf(c);
       const base = { cardId: cState.cards[0].id, merchant: "Fictional airline", amount: "3090", date: cState.today };
-      const id = crypto.randomUUID();
       const t = transport([
-        () => reply("tool_use", [toolUse("f", "log_charge", { ...base, id, original_amount: "20", original_currency: "USD" })]),
+        () => reply("tool_use", [toolUse("f", "log_charge", { ...base, original_amount: "20", original_currency: "USD" })]),
         () => reply("end_turn", [text("Waiting in To check.")]),
       ]);
       await ask(c, "I paid $20 at the airline, ¥3,090 on my card", t.fetch);
-      const [row] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.id, id)));
+      const [row] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.merchant, "Fictional airline")));
       assert.deepEqual([row.status, row.amountMinor, row.originalAmountMinor, row.originalCurrency, row.fxRateMicro, row.fxEstimated], ["pending", 3090, 2000, "USD", 154_500_000, false]);
       for (const bad of [{ original_currency: "USD" }, { original_amount: "20" }, { original_amount: "20", original_currency: "JPY" }]) {
         const failing = transport([
-          () => reply("tool_use", [toolUse("f", "log_charge", { ...base, id: crypto.randomUUID(), ...bad })]),
+          () => reply("tool_use", [toolUse("f", "log_charge", { ...base, ...bad })]),
           () => reply("end_turn", [text("Which card?")]),
         ]);
         await ask(c, "I paid in dollars", failing.fetch);
@@ -446,13 +447,13 @@ async function main() {
       }
       assert.equal((await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.merchant, "Fictional airline")))).length, 1);
       const bulk = transport([
-        () => reply("tool_use", [toolUse("f", "log_charges", { items: [{ ...base, id: crypto.randomUUID(), merchant: "Fictional hotel", original_amount: "10", original_currency: "USD" }] })]),
+        () => reply("tool_use", [toolUse("f", "log_charges", { items: [{ ...base, merchant: "Fictional hotel", original_amount: "10", original_currency: "USD" }] })]),
         () => reply("end_turn", [text("ok")]),
       ]);
       await ask(c, "A hotel in dollars", bulk.fetch);
       const [hotel] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.merchant, "Fictional hotel")));
       assert.deepEqual([hotel.originalAmountMinor, hotel.originalCurrency, hotel.fxRateMicro], [1000, "USD", 309_000_000]);
-      assert.match(MODEL_RULES, /foreign_costs/);
+      assert.match(MODEL_RULES, /show fx_cost/);
     });
 
     await check("own categories (D75): own_category files a draft by name; a name the household lacks is an error the model reads with the list, and nothing is saved; with no name the last like item decides; own_categories reads Ben's three; no tool writes one", async () => {
@@ -461,46 +462,40 @@ async function main() {
       const own = await db.select().from(schema.ownCategories).where(eq(schema.ownCategories.householdId, c));
       const coffee = own.find(o => o.name === "Coffee")!, gear = own.find(o => o.name === "Gear")!;
       const base = { cardId: cState.cards[0].id, amount: "480", date: cState.today, category: "food", business_bp: null, original_amount: null, original_currency: null };
-      const rowOf = async (id: string) => (await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.id, id))))[0];
+      const rowOf = async (merchant: string) => (await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.merchant, merchant), eq(schema.charges.status, "pending"))))[0];
 
       // A name given: filed under it, and the result says so.
-      const namedId = crypto.randomUUID();
-      const named = transport([() => reply("tool_use", [toolUse("n", "log_charge", { ...base, id: namedId, merchant: "Fictional bean shop", own_category: "coffee" })]), () => reply("end_turn", [text("Waiting in To check.")])]);
+      const named = transport([() => reply("tool_use", [toolUse("n", "log_charge", { ...base, merchant: "Fictional bean shop", own_category: "coffee" })]), () => reply("end_turn", [text("Waiting in To check.")])]);
       await ask(c, "480 yen at the bean shop, under Coffee", named.fetch);
-      assert.equal((await rowOf(namedId)).ownCategoryId, coffee.id);
+      assert.equal((await rowOf("Fictional bean shop")).ownCategoryId, coffee.id);
       assert.match(toolResults(named.bodies[1])[0].content, /Filed under Food › Coffee\./);
 
       // A name the household lacks: the readable refusal, nothing saved. Under Food there is Coffee; under Health nothing.
-      const lunchId = crypto.randomUUID();
-      const lunch = transport([() => reply("tool_use", [toolUse("l", "log_charge", { ...base, id: lunchId, merchant: "Fictional deli", own_category: "Lunch" })]), () => reply("end_turn", [text("Only you can make that one.")])]);
+      const lunch = transport([() => reply("tool_use", [toolUse("l", "log_charge", { ...base, merchant: "Fictional deli", own_category: "Lunch" })]), () => reply("end_turn", [text("Only you can make that one.")])]);
       await ask(c, "480 yen at the deli, under Lunch", lunch.fetch);
       assert.equal(toolResults(lunch.bodies[1])[0].is_error, true);
       assert.equal(toolResults(lunch.bodies[1])[0].content, `"Lunch" is not one of this household's own categories under Food. Under Food there are: Coffee. Only the person can make a new one, in Spending → Your categories.`);
-      assert.equal(await rowOf(lunchId), undefined, "nothing was saved");
-      const healthId = crypto.randomUUID();
-      const health = transport([() => reply("tool_use", [toolUse("h", "add_bill", { id: healthId, biller: "Fictional clinic", amount: "3000", due: "2026-11-20", category: "health", memberId: null, own_category: "Dental" })]), () => reply("end_turn", [text("ok")])]);
+      assert.equal(await rowOf("Fictional deli"), undefined, "nothing was saved");
+      const health = transport([() => reply("tool_use", [toolUse("h", "add_bill", { biller: "Fictional clinic", amount: "3000", due: "2026-11-20", category: "health", memberId: null, own_category: "Dental" })]), () => reply("end_turn", [text("ok")])]);
       await ask(c, "Clinic 3000 under Dental", health.fetch);
       assert.match(toolResults(health.bodies[1])[0].content, /Under Health there are none yet\. Only the person can make a new one/);
-      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.id, healthId)))).length, 0);
+      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.biller, "Fictional clinic")))).length, 0);
 
       // One bad item among several: the error names it, and nothing from the call is saved.
-      const okId = crypto.randomUUID(), badId = crypto.randomUUID();
-      const bulk = transport([() => reply("tool_use", [toolUse("b", "log_charges", { items: [{ ...base, id: okId, merchant: "Fictional bean stall", own_category: "Coffee" }, { ...base, id: badId, merchant: "Fictional deli", own_category: "Lunch" }] })]), () => reply("end_turn", [text("ok")])]);
+      const bulk = transport([() => reply("tool_use", [toolUse("b", "log_charges", { items: [{ ...base, merchant: "Fictional bean stall", own_category: "Coffee" }, { ...base, merchant: "Fictional deli", own_category: "Lunch" }] })]), () => reply("end_turn", [text("ok")])]);
       await ask(c, "Two charges", bulk.fetch);
       assert.match(toolResults(bulk.bodies[1])[0].content, /^items\[1\]: "Lunch" is not one of this household's own categories under Food/);
-      assert.deepEqual([await rowOf(okId), await rowOf(badId)], [undefined, undefined]);
+      assert.deepEqual([await rowOf("Fictional bean stall"), await rowOf("Fictional deli")], [undefined, undefined]);
 
       // No name: the latest confirmed item with the same name decides, and the note says so. Another name stays unfiled.
-      const guessId = crypto.randomUUID(), plainId = crypto.randomUUID();
-      const guessed = transport([() => reply("tool_use", [toolUse("g", "log_charges", { items: [{ ...base, id: guessId, merchant: "Kissa Midori café", own_category: null }, { ...base, id: plainId, merchant: "Fictional ramen", own_category: null }] })]), () => reply("end_turn", [text("ok")])]);
+      const guessed = transport([() => reply("tool_use", [toolUse("g", "log_charges", { items: [{ ...base, merchant: "Kissa Midori café", own_category: null }, { ...base, merchant: "Fictional ramen", own_category: null }] })]), () => reply("end_turn", [text("ok")])]);
       await ask(c, "Coffee at Kissa Midori and ramen", guessed.fetch);
-      assert.equal((await rowOf(guessId)).ownCategoryId, coffee.id);
-      assert.equal((await rowOf(plainId)).ownCategoryId, null);
+      assert.equal((await rowOf("Kissa Midori café")).ownCategoryId, coffee.id);
+      assert.equal((await rowOf("Fictional ramen")).ownCategoryId, null);
       assert.match(toolResults(guessed.bodies[1])[0].content, /Kissa Midori café \(.*Filed under Food › Coffee, like last time\./);
-      const guessedBill = crypto.randomUUID();
-      const bill = transport([() => reply("tool_use", [toolUse("gb", "add_bill", { id: guessedBill, biller: "Tsuki Electronics", amount: "5000", due: "2026-11-20", category: "other", memberId: null })]), () => reply("end_turn", [text("ok")])]);
+      const bill = transport([() => reply("tool_use", [toolUse("gb", "add_bill", { biller: "Tsuki Electronics", amount: "5000", due: "2026-11-20", category: "other", memberId: null })]), () => reply("end_turn", [text("ok")])]);
       await ask(c, "Tsuki Electronics 5000", bill.fetch);
-      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.id, guessedBill))))[0].ownCategoryId, gear.id);
+      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.biller, "Tsuki Electronics"), eq(schema.bills.status, "pending"))))[0].ownCategoryId, gear.id);
 
       // own_categories: Ben's three, grouped, with counts; a household with none gets a sentence.
       const listed = transport([() => reply("tool_use", [toolUse("o", "own_categories", {})]), () => reply("end_turn", [text("ok")])]);
@@ -527,14 +522,13 @@ async function main() {
     });
 
     await check("add_bill takes repeat, next_amount, next_amount_from and cancel_by (D48): a yearly bill waits in To check with them, and a bad schedule is an error the model can read", async () => {
-      const billId = crypto.randomUUID();
-      const yearly = { id: billId, biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", memberId: null, repeat: "year", next_amount: "13000", next_amount_from: "2027-12-01", cancel_by: "2026-11-20" };
+      const yearly = { biller: "Fictional Cloud", amount: "12000", due: "2026-12-01", category: "subscriptions", memberId: null, repeat: "year", next_amount: "13000", next_amount_from: "2027-12-01", cancel_by: "2026-11-20" };
       const run = transport([() => reply("tool_use", [toolUse("y", "add_bill", yearly)]), () => reply("end_turn", [text("Waiting in To check.")])]);
       const result = await ask(a, "Fictional Cloud renews yearly on Dec 1 at 12000, rising to 13000 in 2027; cancel by Nov 20.", run.fetch);
       assert.equal(result.pending, true);
-      const [row] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.id, billId)));
+      const [row] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.biller, "Fictional Cloud")));
       assert.deepEqual([row.status, row.repeatUnit, row.repeatDay, row.amountMinor, row.nextAmountMinor, row.nextAmountFrom, row.cancelBy], ["pending", "year", null, 12_000, 13_000, "2027-12-01", "2026-11-20"]);
-      const bad = transport([() => reply("tool_use", [toolUse("z", "add_bill", { ...yearly, id: crypto.randomUUID(), repeat: null })]), () => reply("end_turn", [text("Done.")])]);
+      const bad = transport([() => reply("tool_use", [toolUse("z", "add_bill", { ...yearly, repeat: null })]), () => reply("end_turn", [text("Done.")])]);
       const refused = await ask(a, "Add it as a one-off.", bad.fetch);
       assert.equal(refused.pending, false);
       const error = toolResults(bad.bodies[1])[0];
@@ -543,15 +537,15 @@ async function main() {
     });
 
     await check("add_bill takes repeat_until (D41): a gym that ends waits in To check with it, a one-off with a last payment is an error the model can read, and after Confirm it counts to the last payment only", async () => {
-      const billId = crypto.randomUUID();
-      const gym = { id: billId, biller: "Fictional Kawa Gym", amount: "6000", due: "2026-11-27", category: "health", memberId: null, repeat: "month", repeat_until: "2026-12-27" };
+      const gym = { biller: "Fictional Kawa Gym", amount: "6000", due: "2026-11-27", category: "health", memberId: null, repeat: "month", repeat_until: "2026-12-27" };
       const run = transport([() => reply("tool_use", [toolUse("g", "add_bill", gym)]), () => reply("end_turn", [text("Waiting in To check.")])]);
       const result = await ask(a, "Kawa Gym is 6000 a month and ends after December.", run.fetch);
       assert.equal(result.pending, true);
-      const [row] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.id, billId)));
+      const [row] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.biller, "Fictional Kawa Gym")));
+      const billId = row.id;
       assert.deepEqual([row.status, row.repeatUnit, row.repeatUntil], ["pending", "month", "2026-12-27"]);
       assert.ok((await loadMoneyState(db, a, "2026-11-14")).bills.filter(b => b.id.startsWith(billId)).every(b => b.status === "pending"), "it counts for nothing until confirmed");
-      const bad = transport([() => reply("tool_use", [toolUse("h", "add_bill", { ...gym, id: crypto.randomUUID(), repeat: null })]), () => reply("end_turn", [text("Done.")])]);
+      const bad = transport([() => reply("tool_use", [toolUse("h", "add_bill", { ...gym, repeat: null })]), () => reply("end_turn", [text("Done.")])]);
       await ask(a, "Add it as a one-off with a last payment.", bad.fetch);
       assert.match(JSON.stringify(toolResults(bad.bodies[1])[0].content), /A last payment needs a bill that repeats/);
       await confirmPending(db, a, "bill", billId);
@@ -559,23 +553,27 @@ async function main() {
       await removeBill(db, a, billId);
     });
 
-    await check("add_bill takes period_start and period_end (27F): the bill waits with them, and after Confirm the month view and search_spending name the month it covers while counting on the paid date", async () => {
+    await check("add_bill takes period_start and period_end (27F): the bill waits with them, and after Confirm the month view and the search name the month it covers while counting on the paid date", async () => {
       const c = await seedBen(db, { isDemo: true });
-      const billId = crypto.randomUUID();
-      const power = { id: billId, biller: "Fictional Electric", amount: "7300", due: "2026-11-10", category: "utilities", memberId: null, period_start: "2026-10-01", period_end: "2026-10-31" };
+      const power = { biller: "Fictional Electric", amount: "7300", due: "2026-11-10", category: "utilities", memberId: null, period_start: "2026-10-01", period_end: "2026-10-31" };
       const run = transport([() => reply("tool_use", [toolUse("p", "add_bill", power)]), () => reply("end_turn", [text("Waiting in To check.")])]);
       assert.equal((await ask(c, "October's electricity was 7300, paid Nov 10.", run.fetch)).pending, true);
-      const [row] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.id, billId)));
+      const [row] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.biller, "Fictional Electric")));
       assert.deepEqual([row.status, row.due, row.periodStart, row.periodEnd], ["pending", "2026-11-10", "2026-10-01", "2026-10-31"]);
-      const bad = transport([() => reply("tool_use", [toolUse("q", "add_bill", { ...power, id: crypto.randomUUID(), period_start: "2026-11-01", period_end: "2026-10-01" })]), () => reply("end_turn", [text("Done.")])]);
+      const bad = transport([() => reply("tool_use", [toolUse("q", "add_bill", { ...power, period_start: "2026-11-01", period_end: "2026-10-01" })]), () => reply("end_turn", [text("Done.")])]);
       await ask(c, "Add it backwards.", bad.fetch);
       assert.match(JSON.stringify(toolResults(bad.bodies[1])[0].content), /must start on or before/);
-      await confirmPending(db, c, "bill", billId);
-      const search = tools.find(t => t.name === "search_spending")!, month = tools.find(t => t.name === "month_by_category")!;
-      const ctx = { madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never;
-      const found = JSON.parse(await search.run(ctx, search.input.parse({ query: "electric", months: 1 }) as never));
-      assert.deepEqual(found.months[0].items.map((i: { label: string; date: string; periodStart?: string; periodEnd?: string }) => [i.label, i.date, i.periodStart, i.periodEnd]), [["Fictional Electric", "2026-11-10", "2026-10-01", "2026-10-31"]], "counted on the paid date, with the period beside it");
-      assert.match(await month.run(ctx, month.input.parse({ month: "2026-11" }) as never), /Fictional Electric \(for 10月分\) Nov 10 ¥7,300/);
+      await confirmPending(db, c, "bill", row.id);
+      const state = await stateOf(c);
+      const first = `${monthsBack(state.today.slice(0, 7), 1)}-01`, last = monthBounds(state.today.slice(0, 7)).last;
+      const found = searchSpending(spendingItems(await loadSpending(db, c, { from: first, to: last }), first, last), "electric", state.homeCurrency, { from: first, to: state.today, uncountedTo: last });
+      assert.deepEqual(found.months[0].items.map(i => [i.label, i.date, i.periodStart, i.periodEnd]), [["Fictional Electric", "2026-11-10", "2026-10-01", "2026-10-31"]], "counted on the paid date, with the period beside it");
+      const nov = monthByCategory(await loadSpending(db, c, { from: "2026-11-01", to: "2026-11-30" }), state.today, "2026-11");
+      assert.match(monthText(nov, monthWhen(undefined)), /Fictional Electric \(for 10月分\) Nov 10 ¥7,300/);
+      const shown = transport([() => reply("tool_use", [toolUse("s", "show", { view: "search_months", args: JSON.stringify({ text: "electric", months: 2 }) })]), () => reply("end_turn", [text("ok")])]);
+      await ask(c, "What did electricity cost?", shown.fetch);
+      const facts = (JSON.parse(toolResults(shown.bodies[1])[0].content) as { facts: CompactFact[] }).facts;
+      assert.equal(facts.find(f => f.name === "search_total")!.value, 7_300, "the picture's own total");
     });
 
     await check("bills_for_month (D63): the pure rule finds a November bill due in December, a period across two months in both, and never a bill without a period", async () => {
@@ -641,17 +639,18 @@ async function main() {
       const tool = tools.find(t => t.name === "update_bank_balance")!;
       assert.equal(tool.scope, "draft");
       const schemaOf = toolInputSchema(tool) as unknown as { required: string[]; additionalProperties: boolean };
-      assert.deepEqual([...schemaOf.required].sort(), ["amount", "id"]);
+      assert.deepEqual([...schemaOf.required].sort(), ["amount"], "the id is made by code, not asked of the model");
       assert.equal(schemaOf.additionalProperties, false);
-      const updateId = crypto.randomUUID();
+      const askId = crypto.randomUUID();
+      const updateId = await stableId(a, askId, "update_bank_balance", canonicalJson(tool.input.parse({ amount: "182000" })), 0);
       const script = () => transport([
-        () => reply("tool_use", [toolUse("u", "update_bank_balance", { id: updateId, amount: "182000" })]),
+        () => reply("tool_use", [toolUse("u", "update_bank_balance", { amount: "182000" })]),
         () => reply("end_turn", [text("It is waiting in To check.")]),
       ]);
       const bankOf = async (hid: string) => (await db.select().from(schema.households).where(eq(schema.households.id, hid)))[0].bankBalanceMinor;
       const [bankA, bankB] = [await bankOf(a), await bankOf(b)];
       const first = script();
-      const result = await ask(a, "My bank balance is ¥182,000 now.", first.fetch);
+      const result = await ask(a, "My bank balance is ¥182,000 now.", first.fetch, { askId });
       assert.equal(result.pending, true);
       assert.deepEqual(result.links, [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }]);
       const rows = await db.select().from(schema.balanceUpdates).where(eq(schema.balanceUpdates.id, updateId));
@@ -659,7 +658,7 @@ async function main() {
       assert.equal(await bankOf(a), bankA, "the agent never changes the balance itself");
       assert.equal(await bankOf(b), bankB);
       assert.ok(!toolResults(first.bodies[1])[0].is_error);
-      await ask(a, "Same again.", script().fetch);
+      await ask(a, "Same again.", script().fetch, { askId });
       assert.equal((await db.select().from(schema.balanceUpdates).where(eq(schema.balanceUpdates.id, updateId))).length, 1);
     });
 
@@ -668,7 +667,7 @@ async function main() {
       assert.equal(planTool.scope, "read");
       assert.equal(addTool.scope, "draft");
       assert.deepEqual([...(toolInputSchema(planTool) as unknown as { required: string[] }).required].sort(), ["monthly_minor", "pot_id", "target_date", "target_minor"]);
-      assert.deepEqual([...(toolInputSchema(addTool) as unknown as { required: string[] }).required].sort(), ["fillPct", "id", "name", "target", "targetDate"]);
+      assert.deepEqual([...(toolInputSchema(addTool) as unknown as { required: string[] }).required].sort(), ["fillPct", "name", "target", "targetDate"]);
       const request = { target: 1_200_000, saved: 0, targetDate: "2027-03-31" };
       const plan = transport([
         () => reply("tool_use", [toolUse("p", "plan_for", { target_minor: 1_200_000, target_date: "2027-03-31", monthly_minor: null, pot_id: null })]),
@@ -700,19 +699,20 @@ async function main() {
       await ask(a, "Plan.", noTarget.fetch);
       assert.equal(toolResults(noTarget.bodies[1])[0].is_error, true);
 
-      const trip = crypto.randomUUID();
+      const askId = crypto.randomUUID();
+      const trip = await stableId(a, askId, "add_pot", canonicalJson(addTool.input.parse({ name: "Trip", target: "300000", targetDate: "2027-05-31", fillPct: null })), 0);
       const script = () => transport([
-        () => reply("tool_use", [toolUse("t", "add_pot", { id: trip, name: "Trip", target: "300000", targetDate: "2027-05-31", fillPct: null })]),
+        () => reply("tool_use", [toolUse("t", "add_pot", { name: "Trip", target: "300000", targetDate: "2027-05-31", fillPct: null })]),
         () => reply("end_turn", [text("It is waiting in To check.")]),
       ]);
       const first = script();
-      const added = await ask(a, "I want to save ¥300,000 for a trip by May.", first.fetch);
+      const added = await ask(a, "I want to save ¥300,000 for a trip by May.", first.fetch, { askId });
       assert.equal(added.pending, true);
       assert.deepEqual(added.links, [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }]);
       const rows = await db.select().from(schema.pots).where(eq(schema.pots.id, trip));
       assert.deepEqual(rows.map(r => [r.householdId, r.status, r.name, r.targetMinor, r.targetDate, r.savedMinor, r.fillBp]), [[a, "pending", "Trip", 300_000, "2027-05-31", 0, null]]);
       assert.deepEqual((await stateOf(a)).pots.map(p => p.name), ["Car"], "a pending pot does not count");
-      await ask(a, "Same again.", script().fetch);
+      await ask(a, "Same again.", script().fetch, { askId });
       assert.equal((await db.select().from(schema.pots).where(eq(schema.pots.id, trip))).length, 1);
     });
 
@@ -728,22 +728,21 @@ async function main() {
       assert.match(JSON.stringify(out.content), /needs a second person/);
     });
 
-    await check("who_owes_whom is a read tool that answers from the split; add_bill takes a payer by name and an unknown name comes back as a clear tool error", async () => {
+    await check("show who_owes_whom answers from the split; add_bill takes a payer by name and an unknown name comes back as a clear tool error", async () => {
       const c = await seedBen(db, { isDemo: true });
       await addMember(db, c, { name: "Aki" });
-      const split = tools.find(t => t.name === "who_owes_whom")!, addBill = tools.find(t => t.name === "add_bill")!;
-      assert.equal(split.scope, "read");
+      const addBill = tools.find(t => t.name === "add_bill")!;
       const required = (toolInputSchema(addBill) as unknown as { required: string[] }).required;
       assert.ok(required.includes("shared") && required.includes("paidBy"), "strict schema: nullable, so required");
       const owes = transport([
-        () => reply("tool_use", [toolUse("w", "who_owes_whom", {})]),
+        () => reply("tool_use", [toolUse("w", "show", { view: "who_owes_whom", args: null })]),
         () => reply("end_turn", [text("Nobody owes anyone.")]),
       ]);
       assert.equal((await ask(c, "Who owes whom?", owes.fetch)).answer, "Nobody owes anyone.");
       const [out] = toolResults(owes.bodies[1]);
       assert.ok(!out.is_error);
-      assert.equal(JSON.parse(out.content).summary, "Nobody owes anyone anything.");
-      const bill = (paidBy: string) => toolUse("a", "add_bill", { id: crypto.randomUUID(), biller: "Fictional rent", amount: "80000", due: "2026-11-27", category: "housing", memberId: null, repeat: "month", shared: true, paidBy });
+      assert.match(JSON.parse(out.content).empty, /Nothing has been shared/);
+      const bill = (paidBy: string) => toolUse("a", "add_bill", { biller: "Fictional rent", amount: "80000", due: "2026-11-27", category: "housing", memberId: null, repeat: "month", shared: true, paidBy });
       const unknown = transport([() => reply("tool_use", [bill("Nobody")]), () => reply("end_turn", [text("I could not find that person.")])]);
       const refused = await ask(c, "Add rent paid by Nobody.", unknown.fetch);
       assert.equal(refused.pending, false);
@@ -799,8 +798,8 @@ async function main() {
 
     await check("add_bills and log_charges: 1-10 items, all pending in one transaction, made by ask with the question's id on every row and event; an invalid item saves none", async () => {
       const askId = crypto.randomUUID();
-      const bills = [0, 1, 2].map(i => ({ id: crypto.randomUUID(), biller: `Bulk bill ${i}`, amount: String(1000 + i), due: aState.today, category: null, memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, business_bp: null, shared: null, paidBy: null }));
-      const charges = [0, 1].map(i => ({ id: crypto.randomUUID(), cardId: aState.cards[0].id, merchant: `Bulk shop ${i}`, amount: String(500 + i), date: aState.today, category: null, business_bp: null, shared: false }));
+      const bills = [0, 1, 2].map(i => ({ biller: `Bulk bill ${i}`, amount: String(1000 + i), due: aState.today, category: null, memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, business_bp: null, shared: null, paidBy: null }));
+      const charges = [0, 1].map(i => ({ cardId: aState.cards[0].id, merchant: `Bulk shop ${i}`, amount: String(500 + i), date: aState.today, category: null, business_bp: null, shared: false }));
       const run = transport([
         () => reply("tool_use", [toolUse("ab", "add_bills", { items: bills }), toolUse("lc", "log_charges", { items: charges })]),
         () => reply("end_turn", [text("Five items are in To check.")]),
@@ -826,7 +825,7 @@ async function main() {
 
       // field paths: names the failing fields, never the values sent
       const secret = "ZZ-secret-value-9931";
-      const badShape = [...bills.slice(0, 2).map(b => ({ ...b, id: crypto.randomUUID() })), { ...bills[2], id: crypto.randomUUID(), due: secret, amount: 5 }];
+      const badShape = [...bills.slice(0, 2), { ...bills[2], due: secret, amount: 5 }];
       const invalid = transport([() => reply("tool_use", [toolUse("bad", "add_bills", { items: badShape }), toolUse("empty", "log_charges", { items: [] })]), () => reply("end_turn", [text("ok")])]);
       await ask(a, "Bad.", invalid.fetch);
       const [bad, empty] = toolResults(invalid.bodies[1]);
@@ -838,22 +837,21 @@ async function main() {
       assert.equal(toolResults(tooMany.bodies[1])[0].content, "Invalid input for this tool: items");
 
       // an item that fails inside the transaction names its index and saves none of the others
-      const ids = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
-      const items = ids.map((id, i) => ({ ...bills[0], id, biller: `Rolled back ${i}`, due: i === 2 ? "2099-01-01" : aState.today }));
+      const items = [0, 1, 2].map(i => ({ ...bills[0], biller: `Rolled back ${i}`, due: i === 2 ? "2099-01-01" : aState.today }));
       const rolled = transport([() => reply("tool_use", [toolUse("rb", "add_bills", { items })]), () => reply("end_turn", [text("ok")])]);
       const rolledResult = await ask(a, "One is too far out.", rolled.fetch);
       const [rb] = toolResults(rolled.bodies[1]);
       assert.equal(rb.is_error, true);
       assert.match(rb.content, /^items\[2\]: /);
       assert.equal(rolledResult.pending, false);
-      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), inArray(schema.bills.id, ids)))).length, 0, "all or nothing");
-      assert.equal((await db.select().from(schema.events).where(inArray(schema.events.refId, ids))).length, 0);
+      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), inArray(schema.bills.biller, items.map(i => i.biller))))).length, 0, "all or nothing");
+      assert.equal((await db.select().from(schema.events).where(eq(schema.events.householdId, a))).filter(e => e.title.includes("Rolled back")).length, 0);
       // the same for charges: a card of another household fails the whole call
-      const mixed = [charges[0], { ...charges[1], id: crypto.randomUUID(), cardId: bState.cards[0].id }].map((c, i) => ({ ...c, id: crypto.randomUUID(), merchant: `Rolled charge ${i}` }));
+      const mixed = [charges[0], { ...charges[1], cardId: bState.cards[0].id }].map((c, i) => ({ ...c, merchant: `Rolled charge ${i}` }));
       const mixedRun = transport([() => reply("tool_use", [toolUse("mx", "log_charges", { items: mixed })]), () => reply("end_turn", [text("ok")])]);
       await ask(a, "Mixed.", mixedRun.fetch);
       assert.match(toolResults(mixedRun.bodies[1])[0].content, /^items\[1\]: /);
-      assert.equal((await db.select().from(schema.charges).where(inArray(schema.charges.id, mixed.map(c => c.id)))).length, 0);
+      assert.equal((await db.select().from(schema.charges).where(inArray(schema.charges.merchant, mixed.map(c => c.merchant)))).length, 0);
       // the new tools are draft tools with strict schemas, and the singles stay
       for (const name of ["add_bills", "log_charges"]) assert.equal(tools.find(t => t.name === name)!.scope, "draft");
       assert.ok(tools.some(t => t.name === "add_bill") && tools.some(t => t.name === "log_charge"));
@@ -861,14 +859,22 @@ async function main() {
 
     await check("every row and event an ask writes carries made_by 'ask' and the question's id", async () => {
       const askId = crypto.randomUUID();
-      const ids = { draft: crypto.randomUUID(), bill: crypto.randomUUID(), charge: crypto.randomUUID(), pot: crypto.randomUUID(), bank: crypto.randomUUID() };
+      const calls = {
+        draft_invoice: { clientId: aState.clients[0].id, item: "Traced", amount: "5.00", note: "" },
+        add_bill: { biller: "Traced bill", amount: "100", due: aState.today, category: null, memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, business_bp: null, shared: null, paidBy: null },
+        log_charge: { cardId: aState.cards[0].id, merchant: "Traced shop", amount: "100", date: aState.today, category: null, business_bp: null, shared: false },
+        add_pot: { name: "Traced", target: null, targetDate: null, fillPct: null },
+        update_bank_balance: { amount: "1234" },
+      };
+      const idOf = (name: keyof typeof calls) => stableId(a, askId, name, canonicalJson(tools.find(t => t.name === name)!.input.parse(calls[name])), 0);
+      const ids = { draft: await idOf("draft_invoice"), bill: await idOf("add_bill"), charge: await idOf("log_charge"), pot: await idOf("add_pot"), bank: await idOf("update_bank_balance") };
       const run = transport([
         () => reply("tool_use", [
-          toolUse("d", "draft_invoice", { id: ids.draft, clientId: aState.clients[0].id, item: "Traced", amount: "5.00", note: "" }),
-          toolUse("b", "add_bill", { id: ids.bill, biller: "Traced bill", amount: "100", due: aState.today, category: null, memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, business_bp: null, shared: null, paidBy: null }),
-          toolUse("c", "log_charge", { id: ids.charge, cardId: aState.cards[0].id, merchant: "Traced shop", amount: "100", date: aState.today, category: null, business_bp: null, shared: false }),
-          toolUse("p", "add_pot", { id: ids.pot, name: "Traced", target: null, targetDate: null, fillPct: null }),
-          toolUse("u", "update_bank_balance", { id: ids.bank, amount: "1234" }),
+          toolUse("d", "draft_invoice", calls.draft_invoice),
+          toolUse("b", "add_bill", calls.add_bill),
+          toolUse("c", "log_charge", calls.log_charge),
+          toolUse("p", "add_pot", calls.add_pot),
+          toolUse("u", "update_bank_balance", calls.update_bank_balance),
         ]),
         () => reply("end_turn", [text("Done.")]),
       ]);
@@ -886,7 +892,7 @@ async function main() {
     });
 
     await check("Ask asks Anthropic to cache the tools, the stable system block and the turns so far; two households send the same prefix", async () => {
-      const script = () => [() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Fine.")])];
+      const script = () => [() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("Fine.")])];
       const ra = transport(script()), rb = transport(script());
       await ask(a, "Where am I?", ra.fetch);
       await ask(b, "Where am I?", rb.fetch);
@@ -912,7 +918,7 @@ async function main() {
       logged.length = 0;
       const askId = crypto.randomUUID();
       const run = transport([
-        () => reply("tool_use", [toolUse("w", "where_am_i", {}), toolUse("bad", "can_i_spend", { amount_minor: -1, card_id: null })]),
+        () => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null }), toolUse("bad", "can_i_spend", { amount_minor: -1, card_id: null })]),
         () => reply("end_turn", [text(answer)]),
       ]);
       await ask(a, question, run.fetch, { askId, source: "manual" });
@@ -922,7 +928,7 @@ async function main() {
       assert.deepEqual([line.kind, line.canvas], ["answer", false]);
       assert.deepEqual([line.at, line.householdId, line.askId, line.source, line.stop, line.turns, line.outcome, line.inputTokens, line.outputTokens, line.protocol, line.own, line.cacheReadTokens, line.cacheWriteTokens], ["ask", a, askId, "manual", "end", 2, "answer", 2, 2, "anthropic", false, 6, 8]);
       const lineTools = line.tools as { name: string; ok: boolean; ms: number }[];
-      assert.deepEqual(lineTools.map(t => [t.name, t.ok]), [["where_am_i", true], ["can_i_spend", false]]);
+      assert.deepEqual(lineTools.map(t => [t.name, t.ok]), [["timeline", true], ["can_i_spend", false]]);
       assert.ok(lineTools.every(t => Number.isInteger(t.ms)) && Number.isInteger(line.ms));
       const raw = JSON.stringify(line);
       const result = dueAnswer(aState);
@@ -933,7 +939,7 @@ async function main() {
       logged.length = 0;
       await assert.rejects(ask(a, question, transport(() => reply("refusal", [])).fetch));
       await assert.rejects(ask(a, question, transport(() => reply("end_turn", [])).fetch));
-      await assert.rejects(ask(a, question, transport(() => reply("tool_use", [toolUse("again", "where_am_i", {})])).fetch), AgentError);
+      await assert.rejects(ask(a, question, transport(() => reply("tool_use", [toolUse("again", "timeline", { scenario: "late", on: null })])).fetch), AgentError);
       await assert.rejects(ask(a, question, transport(() => Response.json({ type: "error", error: { type: "authentication_error", message: KEY + " provider words" } }, { status: 401 })).fetch));
       assert.deepEqual(logged.map(l => [l.outcome, l.stop]), [["refusal", "refusal"], ["empty", "end"], ["turns", "tools"], ["api_error", "api_error"]]);
       assert.equal((logged[2].tools as unknown[]).length, 4);
@@ -943,56 +949,43 @@ async function main() {
       }
     });
 
-    await check("search_spending (D53) is a read tool that answers on the sample household; month_by_category takes a month of the last twelve", async () => {
+    await check("show search_months (D53) and month_by_category answer on the sample household; a month outside the last twelve is a tool error", async () => {
       const c = await seedBen(db, { isDemo: true });
-      const search = tools.find(t => t.name === "search_spending")!, month = tools.find(t => t.name === "month_by_category")!;
-      assert.deepEqual([search.scope, month.scope], ["read", "read"]);
-      const schemaOf = toolInputSchema(search) as unknown as { required: string[]; properties: Record<string, unknown> };
-      assert.deepEqual(schemaOf.required.sort(), ["months", "query"], "strict schema: both listed");
-      assert.throws(() => search.input.parse({ query: "x".repeat(81), months: 3 }));
-      for (const months of [0, 13, 1.5]) assert.throws(() => search.input.parse({ query: "", months }), String(months));
-      assert.throws(() => month.input.parse({ month: "2026-13" }));
       const run = transport([
-        () => reply("tool_use", [toolUse("s", "search_spending", { query: "food", months: 1 }), toolUse("r", "search_spending", { query: "rent", months: null })]),
+        () => reply("tool_use", [toolUse("s", "show", { view: "search_months", args: JSON.stringify({ text: "food", months: 2 }) }), toolUse("r", "show", { view: "search_months", args: JSON.stringify({ text: "rent", months: 3 }) })]),
         () => reply("end_turn", [text("Food: ¥10,700 in November.")]),
       ]);
       assert.equal((await ask(c, "How much did I spend on food this month?", run.fetch)).answer, "Food: ¥10,700 in November.");
-      const [food, rent] = toolResults(run.bodies[1]).map(r => { assert.ok(!r.is_error, r.content); return JSON.parse(r.content); });
-      assert.equal(food.summary, "Food: ¥10,700 in November (3 items). ¥10,700 in all.");
-      assert.deepEqual([food.from, food.to, food.currency, food.category, food.totalMinor], ["2026-11-01", "2026-11-14", "JPY", "food", 10_700]);
-      assert.deepEqual(food.months[0].items.map((i: { label: string; date: string; amountMinor: number }) => [i.label, i.date, i.amountMinor]),
-        [["Minato Fresh Market", "2026-11-13", 1_400], ["Kissa Midori café", "2026-11-12", 1_880], ["Minato Fresh Market", "2026-11-08", 7_420]]);
-      assert.equal(rent.summary, `"rent": ¥82,000 in October (1 item), ¥82,000 in September (1 item); nothing in the other 1 month. ¥164,000 in all.`, "Ben's rent series starts Aug 27; Nov 27 is after the demo's today");
-      assert.equal(rent.from, "2026-09-01");
-      const october = await month.run({ madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never, month.input.parse({ month: "2026-10" }) as never);
-      assert.match(october, /^October: ¥132,060 in total\. Business ¥31,986 of ¥132,060 in October\.\nHousing ¥82,000 /);
-      assert.match(october, /\nFood ¥11,440: /);
-      const refused = transport([() => reply("tool_use", [toolUse("m", "month_by_category", { month: "2025-10" })]), () => reply("end_turn", [text("Only the last 12 months.")])]);
+      const [food, rent] = toolResults(run.bodies[1]).map(r => { assert.ok(!r.is_error, r.content); return JSON.parse(r.content) as { line: string; facts: CompactFact[] }; });
+      assert.match(food.line, /^Food: ¥10,700 in November \(3 items\)/);
+      assert.equal(food.facts.find(f => f.name === "search_month_total" && (f.period as { from?: string } | null)?.from === "2026-11-01")!.value, 10_700);
+      assert.equal(rent.line, `"rent": ¥82,000 in October (1 item), ¥82,000 in September (1 item); nothing in the other 1 month. ¥164,000 in all.`, "Ben's rent series starts Aug 27; Nov 27 is after the demo's today");
+      const october = transport([() => reply("tool_use", [toolUse("o", "show", { view: "month_by_category", args: JSON.stringify({ month: "2026-10" }) })]), () => reply("end_turn", [text("ok")])]);
+      await ask(c, "Where did October go?", october.fetch);
+      const facts = (JSON.parse(toolResults(october.bodies[1])[0].content) as { facts: CompactFact[] }).facts;
+      assert.equal(facts.find(f => f.name === "month_total" && !f.about)!.value, 132_060);
+      assert.equal(facts.find(f => f.name === "business_share")!.value, 31_986);
+      assert.deepEqual(["housing", "food"].map(key => facts.find(f => f.name === "category_total" && f.about?.id === key)!.value), [82_000, 11_440]);
+      const refused = transport([() => reply("tool_use", [toolUse("m", "show", { view: "month_by_category", args: JSON.stringify({ month: "2025-10" }) })]), () => reply("end_turn", [text("Only the last 12 months.")])]);
       await ask(c, "What about October last year?", refused.fetch);
-      assert.deepEqual(toolResults(refused.bodies[1]).map(r => [r.is_error, r.content]), [[true, "month must be one of the last 12 months, 2025-12 to 2026-11"]]);
+      const [error] = toolResults(refused.bodies[1]);
+      assert.equal(error.is_error, true);
+      assert.match(error.content, /last 12 months/);
     });
 
-    await check("regular_costs (D54) is a read tool: Ben's regular costs this month against last, months 2 to 6", async () => {
+    await check("show fixed_costs (D54): Ben's regular costs this month against last, each as a fact", async () => {
       const c = await seedBen(db, { isDemo: true });
-      const regular = tools.find(t => t.name === "regular_costs")!;
-      assert.equal(regular.scope, "read");
-      assert.deepEqual((toolInputSchema(regular) as unknown as { required: string[] }).required, ["months"], "strict schema: months listed");
-      for (const months of [1, 7, 2.5]) assert.throws(() => regular.input.parse({ months }), String(months));
       const run = transport([
-        () => reply("tool_use", [toolUse("g", "regular_costs", { months: null }), toolUse("g6", "regular_costs", { months: 6 })]),
+        () => reply("tool_use", [toolUse("g", "show", { view: "fixed_costs", args: null })]),
         () => reply("end_turn", [text("Kissa Midori café down ¥920 so far.")]),
       ]);
       assert.equal((await ask(c, "What changed in my regular costs?", run.fetch)).answer, "Kissa Midori café down ¥920 so far.");
-      const [three, six] = toolResults(run.bodies[1]).map(r => { assert.ok(!r.is_error, r.content); return JSON.parse(r.content); });
-      assert.equal(three.summary, "Kissa Midori café down ¥920 so far · Minato Fresh Market up ¥180 so far");
-      assert.deepEqual([three.from, three.to, three.currency, three.month, three.months], ["2026-09-01", "2026-11-30", "JPY", "2026-11", ["2026-09", "2026-10", "2026-11"]]);
-      assert.deepEqual(three.items.map((i: { label: string; status: string; thisMinor: number; lastMinor: number }) => [i.label, i.status, i.thisMinor, i.lastMinor]), [
-        ["Kissa Midori café", "down", 1_880, 2_800], ["Minato Fresh Market", "up", 8_820, 8_640], ["Rent", "same", 82_000, 82_000],
-        ["Mobaile Tsushin", "same", 4_800, 4_800], ["CloudBox Plus", "same", 1_980, 1_980], ["Hikari Denki", "not_yet", 0, 10_020],
-      ], "Rent's Nov 27 counts: a known bill still due this month; Hikari Denki's November bill is still in To check");
-      assert.equal(three.items.find((i: { label: string }) => i.label === "Hikari Denki").usualDay, 25);
-      assert.equal(six.from, "2026-06-01");
-      assert.deepEqual(six.items.find((i: { label: string }) => i.label === "Rent").months.map((m: { amountMinor: number }) => m.amountMinor), [0, 0, 82_000, 82_000, 82_000, 82_000], "Ben's rent starts Aug 27");
+      const { facts } = JSON.parse(toolResults(run.bodies[1])[0].content) as { facts: CompactFact[] };
+      const of = (name: string, about: string) => facts.find(f => f.name === name && f.about?.name === about)?.value;
+      assert.deepEqual([of("regular_costs", "Kissa Midori café"), of("change_from_last_month", "Kissa Midori café")], [1_880, -920]);
+      assert.deepEqual([of("regular_costs", "Minato Fresh Market"), of("change_from_last_month", "Minato Fresh Market")], [8_820, 180]);
+      assert.deepEqual([of("regular_costs", "Rent"), of("change_from_last_month", "Rent")], [82_000, 0], "Rent's Nov 27 counts: a known bill still due this month");
+      assert.deepEqual([of("regular_costs", "Mobaile Tsushin"), of("regular_costs", "CloudBox Plus")], [4_800, 1_980]);
     });
 
     await check("no agent source can reach the send-capable PayPal runner", async () => {
@@ -1042,33 +1035,34 @@ async function main() {
         assert.deepEqual(first.tools!.map(t => t.function.name).sort(), tools.filter(t => t.name !== "update_brief").map(t => t.name).sort());
         assert.ok(first.tools!.every(t => t.type === "function" && t.function.parameters.additionalProperties === false));
 
-        const c = await seedBen(db, { isDemo: true }), cState = await stateOf(c);
+        const c = await seedBen(db, { isDemo: true });
         const { fetch, bodies } = chatTransport([
-          () => chat("tool_calls", "Checking.", [chatCall("call_1", "whats_due", {})]),
+          () => chat("tool_calls", "Checking.", [chatCall("call_1", "timeline", { scenario: "late", on: null })]),
           () => chat("stop", "Rent is due soon and covered."),
         ]);
         assert.deepEqual(await ask(c, "What's due?", fetch), { kind: "answer", answer: "Rent is due soon and covered.", wording: "model", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false, offers: [] });
         assert.equal(bodies.length, 2);
         const second = bodies[1];
         assert.deepEqual(second.messages.map(m => m.role), ["system", "user", "assistant", "tool"]);
-        assert.deepEqual(second.messages[2].tool_calls, [chatCall("call_1", "whats_due", {})]);
-        assert.deepEqual(toolMessages(second).map(m => ({ ...m, content: String(m.content).split("\n\nFacts: ")[0] })), [{ role: "tool", tool_call_id: "call_1", content: dueAnswer(cState) }]);
+        assert.deepEqual(second.messages[2].tool_calls, [chatCall("call_1", "timeline", { scenario: "late", on: null })]);
+        assert.deepEqual(toolMessages(second).map(m => [m.tool_call_id, Array.isArray(JSON.parse(String(m.content)).facts)]), [["call_1", true]]);
       });
     });
 
     await check("openai protocol: a draft tool, an unknown tool and invalid arguments", async () => {
       await onOpenai(async () => {
-        const draftId = crypto.randomUUID();
-        const input = { id: draftId, clientId: aState.clients[0].id, item: "Poster layout", amount: "18.52", note: "" };
+        const askId = crypto.randomUUID();
+        const input = { clientId: aState.clients[0].id, item: "Poster layout", amount: "18.52", note: "" };
+        const draftId = await stableId(a, askId, "draft_invoice", canonicalJson(input), 0);
         const draft = chatTransport([() => chat("tool_calls", null, [chatCall("d", "draft_invoice", input)]), () => chat("stop", "I drafted it; review it before sending.")]);
-        const result = await ask(a, "Draft an invoice for Poster layout.", draft.fetch);
+        const result = await ask(a, "Draft an invoice for Poster layout.", draft.fetch, { askId });
         assert.deepEqual(result.links, [{ label: "Review invoice draft", href: `http://127.0.0.1:3123/invoices/${draftId}` }]);
         const [row] = await db.select().from(schema.invoices).where(and(eq(schema.invoices.householdId, a), eq(schema.invoices.id, draftId)));
         assert.equal(row.status, "draft");
 
         const { fetch, bodies } = chatTransport([
           () => chat("tool_calls", null, [chatCall("u1", "send_invoice", { id: "x" }), chatCall("u2", "can_i_spend", { amount_minor: -5, card_id: null }),
-            chatCall("u3", "where_am_i", {}), chatCall("u4", "can_i_spend", "{not json")]),
+            chatCall("u3", "timeline", { scenario: "late", on: null }), chatCall("u4", "can_i_spend", "{not json")]),
           () => chat("stop", "I could only check your status."),
         ]);
         assert.equal((await ask(a, "Send the invoice now.", fetch)).answer, "I could only check your status.");
@@ -1082,7 +1076,7 @@ async function main() {
 
     await check("openai protocol: the turn limit, a length stop, a refusal and a timeout", async () => {
       await onOpenai(async () => {
-        const loop = chatTransport(() => chat("tool_calls", null, [chatCall("again", "where_am_i", {})]));
+        const loop = chatTransport(() => chat("tool_calls", null, [chatCall("again", "timeline", { scenario: "late", on: null })]));
         await assert.rejects(ask(a, "Loop forever.", loop.fetch), AgentError);
         assert.equal(loop.bodies.length, 5);
         await assert.rejects(ask(a, "x", chatTransport(() => chat("length", "part")).fetch), /cut off/);
@@ -1107,23 +1101,24 @@ async function main() {
       const question = "Can I spend ¥4,000 today?";
       const invented = "You have ¥123,457 left, so ¥4,000 is fine.";
       // anthropic
-      const okA = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Yes, ¥4,000 is fine.")])]);
+      const okA = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("Yes, ¥4,000 is fine.")])]);
       assert.equal((await ask(a, question, okA.fetch)).answer, "Yes, ¥4,000 is fine.");
-      const badA = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text(invented)])]);
+      const badA = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text(invented)])]);
       logged.length = 0;
       await assert.rejects(ask(a, question, badA.fetch), (error: Error) => error instanceof AgentError && error.message === refusal && error.outcome === "unconfirmed_amount");
       assert.deepEqual([logged[0].outcome, logged[0].protocol, logged[0].own], ["unconfirmed_amount", "anthropic", false]);
       // an amount that is in a tool result of this Ask passes
-      const figures = await (async () => { const t = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("ok")])]); await ask(a, "x", t.fetch); return toolResults(t.bodies[1])[0].content; })();
-      const known = /¥([\d,]+)/.exec(figures)?.[0];
-      assert.ok(known, "where_am_i names a yen amount");
-      const okTool = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text(`You have ${known}.`)])]);
+      const figures = await (async () => { const t = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("ok")])]); await ask(a, "x", t.fetch); return toolResults(t.bodies[1])[0].content; })();
+      const firstMoney = (JSON.parse(figures) as { facts: CompactFact[] }).facts.find(f => f.unit === "money" && Number(f.value) > 1_000);
+      const known = firstMoney && minorMoney(Number(firstMoney.value), "JPY");
+      assert.ok(known, "timeline names a yen amount");
+      const okTool = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text(`You have ${known}.`)])]);
       assert.equal((await ask(a, "Where am I?", okTool.fetch)).answer, `You have ${known}.`);
       // openai
       await onOpenai(async () => {
-        const ok = chatTransport([() => chat("tool_calls", null, [chatCall("w", "where_am_i", {})]), () => chat("stop", "Yes, ¥4,000 is fine.")]);
+        const ok = chatTransport([() => chat("tool_calls", null, [chatCall("w", "timeline", { scenario: "late", on: null })]), () => chat("stop", "Yes, ¥4,000 is fine.")]);
         assert.equal((await ask(a, question, ok.fetch)).answer, "Yes, ¥4,000 is fine.");
-        const bad = chatTransport([() => chat("tool_calls", null, [chatCall("w", "where_am_i", {})]), () => chat("stop", invented)]);
+        const bad = chatTransport([() => chat("tool_calls", null, [chatCall("w", "timeline", { scenario: "late", on: null })]), () => chat("stop", invented)]);
         logged.length = 0;
         await assert.rejects(ask(a, question, bad.fetch), (error: Error) => error instanceof AgentError && error.message === refusal && error.outcome === "unconfirmed_amount");
         assert.deepEqual([logged[0].outcome, logged[0].protocol, logged[0].own, logged[0].stop], ["unconfirmed_amount", "openai", false, "end"]);
@@ -1155,7 +1150,7 @@ async function main() {
       const c = await seedBen(db, { isDemo: true });
       logged.length = 0;
       const withCanvas = transport([
-        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas([{ type: "note", text: "A quiet month.", by: "you" }]) }), toolUse("w", "where_am_i", {})]),
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas([{ type: "note", text: "A quiet month.", by: "you" }]) }), toolUse("w", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text("Here is your cash.")]),
       ]);
       const shown = await conversation(c, "Show my cash", withCanvas.fetch);
@@ -1163,7 +1158,7 @@ async function main() {
       assert.equal(shown.text, "Here is your cash.");
       assert.equal(shown.canvas?.recipe.title, "Cash");
       assert.equal(shown.canvas?.blocks.length, 2, "the engine drew the blocks");
-      assert.deepEqual(shown.sources, [{ label: "Your next 30 days", href: "/#next-30-days" }], "make_canvas adds no source; where_am_i adds its own");
+      assert.deepEqual(shown.sources, [{ label: "Coming up", href: "/#coming-up" }], "make_canvas adds no source; timeline adds its own");
       const note = shown.canvas!.recipe.blocks[1];
       assert.deepEqual(note.type === "note" ? note.by : null, "assistant", "a note the model wrote is always the assistant's");
       const summary = toolResults(withCanvas.bodies[1]).find(r => r.tool_use_id === "m")!.content;
@@ -1222,7 +1217,7 @@ async function main() {
     await check("clarify stops the other calls in its turn", async () => {
       const c = await seedBen(db, { isDemo: true });
       logged.length = 0;
-      const t = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {}), toolUse("c", "clarify", clarifyInput), toolUse("d", "whats_due", {})])]);
+      const t = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null }), toolUse("c", "clarify", clarifyInput), toolUse("d", "timeline", { scenario: "late", on: null })])]);
       const result = await conversation(c, "What about Acme?", t.fetch);
       assert.equal(result.kind, "clarify");
       assert.equal(t.bodies.length, 1);
@@ -1234,14 +1229,14 @@ async function main() {
       const c = await seedBen(db, { isDemo: true });
       const letter = (words: string) => cashCanvas([{ type: "letter", text: words }]);
       const bad = transport([
-        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: letter("Please send $12,345 by Friday.") }), toolUse("w", "where_am_i", {})]),
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: letter("Please send $12,345 by Friday.") }), toolUse("w", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text("The letter is on the canvas.")]),
       ]);
       await assert.rejects(conversation(c, "Write a letter to Acme", bad.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
       const known = /¥([\d,]+)/.exec(statusAnswer(await stateOf(c)))?.[0];
       assert.ok(known);
       const good = transport([
-        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: letter(`I have ${known} on hand.`) }), toolUse("w", "where_am_i", {})]),
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: letter(`I have ${known} on hand.`) }), toolUse("w", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text("The letter is on the canvas.")]),
       ]);
       assert.equal((await conversation(c, "Write a letter to Acme", good.fetch)).kind, "answer");
@@ -1376,16 +1371,14 @@ async function main() {
       assert.equal(paced.links[0]?.label, "Copy link again", "the open nudge about this client leads");
     });
 
-    await check("where_am_i carries Home's safe-to-spend figure and says what it covers", async () => {
+    await check("show forecast carries Home's safe-to-spend figure and says what it covers", async () => {
       const c = await seedBen(db, { isDemo: true });
       const state = await stateOf(c);
-      const tool = tools.find(t => t.name === "where_am_i")!;
-      const out = await tool.run({ madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never, {} as never);
-      const homeFigure = minorMoney(Math.round(safeToSpend(state).amount * minorPerUnit(state.homeCurrency)), state.homeCurrency);
-      assert.ok(out.startsWith(statusAnswer(state)), "the sentence is unchanged");
-      assert.ok(out.includes(`Safe to spend now: ${homeFigure}.`), "the same figure Home shows");
-      assert.match(out, /next 30 days/);
-      assert.match(out, /card spend not yet billed/);
+      const out = JSON.parse(await tools.find(t => t.name === "show")!.run({ madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never, { view: "forecast", args: null } as never)) as { line: string; facts: CompactFact[]; meanings: Record<string, string> };
+      const homeFigure = Math.round(safeToSpend(state).amount * minorPerUnit(state.homeCurrency));
+      assert.equal(out.facts.find(f => f.name === "safe_to_spend")!.value, homeFigure, "the same figure Home shows");
+      assert.match(out.meanings.safe_to_spend, /next 30 days/);
+      assert.ok(out.line.length > 0, "the picture comes with its own sentence");
     });
 
     await check("can_i_spend returns the card's room before and after as facts, from the engine", async () => {
@@ -1415,11 +1408,11 @@ async function main() {
       const pot = state.pots.find(p => p.target !== undefined);
       const inputs: Record<string, unknown> = {
         can_i_spend: { amount_minor: 4_000, card_id: null }, timeline: { scenario: "late", on: null }, plan_for: { target_minor: 150_000, target_date: "2027-06-01", monthly_minor: null, pot_id: pot?.id ?? null },
-        month_by_category: { month: null }, search_spending: { query: "", months: null }, bills_for_month: { month: state.today.slice(0, 7), text: "" }, regular_costs: { months: null },
+        bills_for_month: { month: state.today.slice(0, 7), text: "" },
         what_if: { case: "late", changes: [{ kind: "client_late", clientId: state.clients[0].id, days: 5 }] },
       };
       const termNames = new Set<string>(TERMS.map(t => t.name));
-      const names = ["where_am_i", "whats_due", "can_i_spend", "timeline", "options_when_short", "list_invoices", "list_clients_and_cards", "goals", "plan_for", "who_owes_whom", "month_by_category", "search_spending", "regular_costs", "foreign_costs", "bills_for_month", "what_if"];
+      const names = ["can_i_spend", "timeline", "options_when_short", "list_invoices", "list_clients_and_cards", "goals", "plan_for", "bills_for_month", "what_if"];
       const seenNames = new Set<string>();
       for (const name of names) {
         const tool = tools.find(t => t.name === name)!;
@@ -1434,7 +1427,7 @@ async function main() {
           seenNames.add(`${name}:${f.name}`);
         }
       }
-      for (const key of ["where_am_i:safe_to_spend", "whats_due:due", "timeline:low_point", "timeline:client_pays", "timeline:bill_counted", "options_when_short:short", "options_when_short:option_cost", "list_invoices:clients_owe", "list_clients_and_cards:usual_days_to_pay", "plan_for:left_over_each_month", "month_by_category:month_total", "search_spending:search_total", "what_if:low_point_before_change"]) {
+      for (const key of ["can_i_spend:safe_to_spend", "timeline:low_point", "timeline:client_pays", "timeline:bill_counted", "options_when_short:short", "options_when_short:option_cost", "list_invoices:clients_owe", "list_clients_and_cards:usual_days_to_pay", "plan_for:left_over_each_month", "what_if:low_point_before_change"]) {
         assert.ok(seenNames.has(key), `${key} is among the facts`);
       }
     });
@@ -1471,7 +1464,7 @@ async function main() {
       const t0 = new Date("2026-11-06T09:00:00Z");
       const minutes = (n: number) => new Date(t0.getTime() + n * 60_000);
       const round = async (question: string, at: Date, canvas: unknown = null) => {
-        const t = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Fine.")])]);
+        const t = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("Fine.")])]);
         await conversation(c, question, t.fetch, { conversationId, at, canvas });
         return JSON.stringify(t.bodies[0].messages[0]);
       };
@@ -1490,7 +1483,7 @@ async function main() {
       // an amount only an earlier reply held is not confirmed
       const d = await seedBen(db, { isDemo: true });
       const thread = crypto.randomUUID();
-      const first = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("If clients pay late you are ¥18,780 short.")])]);
+      const first = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("If clients pay late you are ¥18,780 short.")])]);
       await conversation(d, "Am I OK?", first.fetch, { conversationId: thread, at: t0 });
       const second = transport([() => reply("tool_use", [toolUse("l", "list_clients_and_cards", {})]), () => reply("end_turn", [text("Yes, the ¥18,780 shortfall is covered.")])]);
       await assert.rejects(conversation(d, "Is that covered?", second.fetch, { conversationId: thread, at: minutes(1) }), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
@@ -1500,7 +1493,7 @@ async function main() {
       const lunch = crypto.randomUUID();
       const ask1 = transport([() => reply("tool_use", [toolUse("c", "clarify", { question: "Which card did you use?", choices: ["Card A", "Card B"] })])]);
       await conversation(e, "I paid ¥1,200 for lunch", ask1.fetch, { conversationId: lunch, at: t0 });
-      const ask2 = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("I put the ¥1,200 lunch on Card A in To check.")])]);
+      const ask2 = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("I put the ¥1,200 lunch on Card A in To check.")])]);
       assert.equal((await conversation(e, "Card A", ask2.fetch, { conversationId: lunch, at: minutes(1) })).kind, "answer");
     });
 
@@ -1510,7 +1503,7 @@ async function main() {
       const bill = "Kumo Water";
       const askWeek = async (question: string, includesBill: boolean) => {
         const model = transport([
-          () => reply("tool_use", [toolUse("t", "timeline", { scenario: "as_usual" })]),
+          () => reply("tool_use", [toolUse("t", "timeline", { scenario: "usual" })]),
           () => reply("end_turn", [text(includesBill ? "Kumo Water is also due this week." : "I checked what is due this week.")]),
         ]);
         const answer = await conversation(hid, question, model.fetch, { conversationId });
@@ -1538,11 +1531,11 @@ async function main() {
         id: crypto.randomUUID(), conversationId: general.id, spaceId: general.id, text, source: "manual", canvas: null,
       }), { fetch });
       const propose = (value: unknown) => transport([
-        () => reply("tool_use", [toolUse("w", "where_am_i", {}), toolUse("b", "update_brief", value)]),
+        () => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null }), toolUse("b", "update_brief", value)]),
         () => reply("end_turn", [text("I checked the forecast.")]),
       ]);
 
-      const unconfirmed = propose({ about: "Invented ¥7,777", state: [{ text: "Pending", source: "where_am_i" }] });
+      const unconfirmed = propose({ about: "Invented ¥7,777", state: [{ text: "Pending", source: "timeline" }] });
       const refused = await askInSpace(unconfirmed.fetch, "Check the forecast for ¥7,777.");
       assert.equal(refused.brief, undefined, "an amount in the question alone does not confirm a brief");
       assert.equal(logged.at(-1)?.briefDropped, "unconfirmed_amount");
@@ -1551,7 +1544,7 @@ async function main() {
       assert.equal(BriefSchema.safeParse({ about: "1234 5678 9012" }).success, false);
       assert.equal(BriefSchema.safeParse({ about: "x".repeat(2000) }).success, false);
 
-      const checked = propose({ about: "Checked cash", state: [{ text: "Late payments leave a ¥18,780 shortfall.", source: "where_am_i" }] });
+      const checked = propose({ about: "Checked cash", state: [{ text: "Late payments leave a ¥18,780 shortfall.", source: "timeline" }] });
       const kept = await askInSpace(checked.fetch, "Check today's cash.");
       assert.equal(kept.brief?.updatedBy, "ask");
       assert.equal((await generalSpace(db, hid)).brief.about, "Checked cash");
@@ -1559,7 +1552,7 @@ async function main() {
       assert.equal(audit.length, 2);
       assert.ok(audit.every(event => event.body === null && !event.title.includes("Checked cash")));
 
-      const followup = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Here is the latest.")])]);
+      const followup = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("Here is the latest.")])]);
       await askInSpace(followup.fetch, "What about today?");
       assert.match(JSON.stringify(followup.bodies[0].system), /Space brief.*Checked cash/);
     });
@@ -1579,7 +1572,7 @@ async function main() {
           id: crypto.randomUUID(), conversationId: here.id, spaceId: here.id, text: "Check the blue folder note and update the brief.", source: "manual", canvas: null,
         }), { fetch: model.fetch });
       };
-      assert.equal((await askWith("where_am_i", {})).brief, undefined);
+      assert.equal((await askWith("timeline", { scenario: "late", on: null })).brief, undefined);
       assert.equal(logged.at(-1)?.briefDropped, "invalid_source");
       const dropped = JSON.stringify(logged.at(-1));
       assert.ok(!dropped.includes(note.id) && !dropped.includes(note.text));
@@ -1597,7 +1590,7 @@ async function main() {
       const note = await addMemory(db, hid, { kind: "fact", text: "Keep the tax receipt in the March folder and group the other receipts by client.", spaceId: here.id }, { madeBy: "form" });
       const other = await addMemory(db, hid, { kind: "fact", text: "An unrelated repair note.", spaceId: elsewhere.id }, { madeBy: "form" });
       const model = transport([
-        () => reply("tool_use", [toolUse("w", "where_am_i", {})]),
+        () => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text(`Keep the receipt in March. [[memory:${note.id}]] [[memory:${other.id}]]`)]),
       ]);
       const input = askInput.parse({ id: crypto.randomUUID(), conversationId: here.id, spaceId: here.id, text: "Where does the tax receipt go?", source: "manual", canvas: null });
@@ -1624,7 +1617,7 @@ async function main() {
       const stamp = new Date().toISOString();
       const note = { id: crypto.randomUUID(), kind: "fact", text: "Local fictional receipt note.", madeBy: "form", askId: null, createdAt: stamp, updatedAt: stamp } as const;
       const model = transport([
-        () => reply("tool_use", [toolUse("w", "where_am_i", {})]),
+        () => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text(`I found the note. [[memory:${note.id}]]`)]),
       ]);
       const input = askInput.parse({ id: crypto.randomUUID(), conversationId: space.id, spaceId: space.id, text: "Find the note.", source: "manual", canvas: null, memory: [note] });
@@ -1683,7 +1676,7 @@ async function main() {
     await check("an amount found in history still needs a current tool result", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const space = await generalSpace(db, hid);
-      const earlier = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("If clients pay late the fixture leaves you ¥18,780 short.")])]);
+      const earlier = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("If clients pay late the fixture leaves you ¥18,780 short.")])]);
       const askHere = (text: string, fetch: typeof globalThis.fetch) => answerQuestion(db, hid, askInput.parse({
         id: crypto.randomUUID(), conversationId: space.id, spaceId: space.id, text, source: "manual", canvas: null,
       }), { fetch });
@@ -1715,7 +1708,7 @@ async function main() {
         assert.ok(toolResults(t.bodies[1])[0].is_error, `${name}: the error went back to the model`);
         assert.equal(first.kind, "declined", `${name}: no data tool was called, so the plain text is declined`);
         const withTool = transport([
-          () => reply("tool_use", [toolUse("w", "whats_due", {}), toolUse("e", name, input)]),
+          () => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null }), toolUse("e", name, input)]),
           () => reply("end_turn", [text("Rent is due soon.")]),
         ]);
         const answered = await conversation(c, "What is due?", withTool.fetch);
@@ -1844,12 +1837,12 @@ async function main() {
       assert.ok(kept.text.startsWith(FIXED.savedThenStopped) && kept.text.includes("could not confirm") && !kept.text.includes("123,456"));
       const d = await seedBen(db, { isDemo: true });
       const noted = transport([
-        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas([{ type: "number", label: "Rent", query: { q: "cash" }, note: "About ¥55,555 a month" }]) }), toolUse("w", "where_am_i", {})]),
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas([{ type: "number", label: "Rent", query: { q: "cash" }, note: "About ¥55,555 a month" }]) }), toolUse("w", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text("Here it is.")]),
       ]);
       await assert.rejects(conversation(d, "Show my cash", noted.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
       const titled = transport([
-        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: JSON.stringify({ version: 1, title: "Save ¥88,888", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] }) }), toolUse("w", "where_am_i", {})]),
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: JSON.stringify({ version: 1, title: "Save ¥88,888", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] }) }), toolUse("w", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text("Here it is.")]),
       ]);
       await assert.rejects(conversation(d, "Show my cash", titled.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
@@ -1904,12 +1897,12 @@ async function main() {
       const weird = transport([() => reply("weird_stop", [text("hm")])]);
       await assert.rejects(ask(c, "What is due?", weird.fetch), (error: Error) => error instanceof AgentError && error.message === "The assistant stopped unexpectedly. Try again.");
 
-      const target = tools.find(t => t.name === "whats_due")!;
+      const target = tools.find(t => t.name === "timeline")!;
       const original = target.run;
       target.run = async () => { throw new Error("database exploded: password=hunter2"); };
       try {
         const t = transport([
-          () => reply("tool_use", [toolUse("w", "whats_due", {})]),
+          () => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]),
           () => reply("end_turn", [text("I could not read that.")]),
         ]);
         const result = await ask(c, "What is due?", t.fetch);
@@ -1937,20 +1930,19 @@ async function main() {
 
     await check("a read tool still running when the budget ends stops the question and names the step; a write before it is kept, and a retry with the same id runs nothing again", async () => {
       const h = await seedBen(db, { isDemo: true });
-      const tool = tools.find(t => t.name === "where_am_i")!;
+      const tool = tools.find(t => t.name === "timeline")!;
       const realRun = tool.run;
       let clock = 0;
       tool.run = () => new Promise<string>(() => {}); // never finishes
       try {
-        const billId = crypto.randomUUID();
-        const bill = { id: billId, biller: "Hikari Gas", amount: "3100", due: aState.today, category: "utilities", memberId: null, repeat: "month" };
+        const bill = { biller: "Hikari Gas", amount: "3100", due: aState.today, category: "utilities", memberId: null, repeat: "month" };
         const slow = transport([
           () => reply("tool_use", [toolUse("b", "add_bill", bill)]),
-          () => { clock = 19_950; return reply("tool_use", [toolUse("w", "where_am_i", {})]); },
+          () => { clock = 19_950; return reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]); },
         ]);
         // no write: a plain AgentError that names the step, outcome budget
-        await assert.rejects(ask(h, "Where am I?", transport(() => { clock = 19_950; return reply("tool_use", [toolUse("w", "where_am_i", {})]); }).fetch, { now: () => clock }),
-          (e: unknown) => e instanceof AgentError && e.message === "That took too long while looking at where you stand. Try a simpler question." && e.outcome === "budget");
+        await assert.rejects(ask(h, "Where am I?", transport(() => { clock = 19_950; return reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]); }).fetch, { now: () => clock }),
+          (e: unknown) => e instanceof AgentError && e.message === "That took too long while lining up the dates. Try a simpler question." && e.outcome === "budget");
         clock = 0;
         const input = askInput.parse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "The gas bill is ¥3,100.", source: "manual", canvas: null });
         // answerQuestion has no clock seam: runAgent reads Date.now, so the same stub is moved by the fetch
@@ -1958,9 +1950,9 @@ async function main() {
         Date.now = () => clock;
         let answer;
         try { answer = await answerQuestion(db, h, input, { fetch: slow.fetch }); } finally { Date.now = realNow; }
-        assert.equal(answer.text, FIXED.savedThenStopped + "That took too long while looking at where you stand. Try a simpler question.");
+        assert.equal(answer.text, FIXED.savedThenStopped + "That took too long while lining up the dates. Try a simpler question.");
         assert.equal(answer.pending, true);
-        assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, h), eq(schema.bills.id, billId)))).length, 1);
+        assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, h), eq(schema.bills.biller, "Hikari Gas")))).length, 1);
         const retry = transport(() => { throw new Error("no model call expected"); });
         const again = await answerQuestion(db, h, input, { fetch: retry.fetch });
         assert.equal(retry.bodies.length, 0);
@@ -1973,7 +1965,7 @@ async function main() {
       const c = await seedBen(db, { isDemo: true });
       logged.length = 0;
       const t = transport([
-        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas([{ type: "note", text: "Distinctive note words", by: "assistant" }]) }), toolUse("w", "where_am_i", {})]),
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas([{ type: "note", text: "Distinctive note words", by: "assistant" }]) }), toolUse("w", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text("Distinctive reply words.")]),
       ]);
       await conversation(c, "Distinctive question words", t.fetch);
@@ -2049,7 +2041,7 @@ async function main() {
       for (const needle of ["Rent goes up in April", "Answer in a single short line", "Earlier question"]) assert.ok(!raw.includes(needle), `the log line leaks ${needle}`);
 
       // a text that counts as a source: an amount in the carried memory passes the amount check
-      const amount = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("Your trip fund is ¥300,000.")])]);
+      const amount = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("Your trip fund is ¥300,000.")])]);
       const withAmount = await ask(d, "How is my trip fund?", { memory: [item("goal", "¥300,000 for a trip in March")], recent: [] }, amount.fetch);
       assert.equal(withAmount.text, "Your trip fund is ¥300,000.");
 
@@ -2066,7 +2058,7 @@ async function main() {
       assert.ok(!askInput.safeParse({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "x", source: "manual", canvas: null, memory: [{ ...held[0], extra: 1 }] }).success);
 
       // the cloud household is unchanged: its Ask still stores its turn and carries no changes
-      const plain = transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("You are fine.")])]);
+      const plain = transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("You are fine.")])]);
       const stored = await ask(cloud, "Where am I?", {}, plain.fetch);
       assert.deepEqual(stored.memoryChanges, []);
       assert.equal((await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.householdId, cloud))).length, 1);
@@ -2075,10 +2067,9 @@ async function main() {
     // ---------------------------------------------------------------- a failure after a write, a retried id, more than 20 memory changes
     await check("a failure after a write tool becomes a reply that keeps the rows and links (cloud), and the turn is saved; a failure with no write still throws", async () => {
       const h = await seedBen(db, { isDemo: true });
-      const billId = crypto.randomUUID();
-      const bill = { id: billId, biller: "Hikari Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, repeat: "month" };
+      const bill = { biller: "Hikari Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, repeat: "month" };
       let n = 0;
-      const looping = transport(() => (n++ === 0 ? reply("tool_use", [toolUse("b", "add_bill", bill)]) : reply("tool_use", [toolUse("w" + n, "where_am_i", {})])));
+      const looping = transport(() => (n++ === 0 ? reply("tool_use", [toolUse("b", "add_bill", bill)]) : reply("tool_use", [toolUse("w" + n, "timeline", { scenario: "late", on: null })])));
       const conversationId = crypto.randomUUID();
       const input = askInput.parse({ id: crypto.randomUUID(), conversationId, text: "The water bill is ¥4,200.", source: "manual", canvas: null });
       logged.length = 0;
@@ -2090,7 +2081,7 @@ async function main() {
       assert.deepEqual(answer.links, [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }]);
       assert.equal(answer.canvas, null);
       assert.deepEqual(answer.sources, []);
-      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, h), eq(schema.bills.id, billId)))).length, 1);
+      assert.equal((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, h), eq(schema.bills.biller, "Hikari Water")))).length, 1);
       assert.equal(logged.at(-1)!.outcome, "turns", "the log line keeps the real outcome");
       const [turn] = await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.id, input.id));
       assert.equal(turn.reply, answer.text);
@@ -2100,7 +2091,7 @@ async function main() {
       await assert.rejects(answerQuestion(db, h, refused, { fetch: transport(() => reply("refusal", [])).fetch }), AgentError);
       assert.equal((await db.select().from(schema.conversationTurns).where(eq(schema.conversationTurns.id, refused.id))).length, 0);
       // a write that itself failed does not count as a write
-      const badBill = transport([() => reply("tool_use", [toolUse("b", "add_bill", { ...bill, id: "not-a-uuid" })]), () => reply("refusal", [])]);
+      const badBill = transport([() => reply("tool_use", [toolUse("b", "add_bill", { ...bill, due: "not-a-date" })]), () => reply("refusal", [])]);
       await assert.rejects(answerQuestion(db, h, askInput.parse({ id: crypto.randomUUID(), conversationId, text: "Again", source: "manual", canvas: null }), { fetch: badBill.fetch }), AgentError);
     });
 
@@ -2123,8 +2114,8 @@ async function main() {
       const d = await seedBen(db, { isDemo: true });
       await db.update(schema.households).set({ journalPlace: "device" }).where(eq(schema.households.id, d));
       const ds = await stateOf(d);
-      const billId = crypto.randomUUID(), id = crypto.randomUUID(), conversationId = crypto.randomUUID();
-      const bill = { id: billId, biller: "Receipt Water", amount: "4200", due: ds.today, category: "utilities", memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, repeat_until: null };
+      const id = crypto.randomUUID(), conversationId = crypto.randomUUID();
+      const bill = { biller: "Receipt Water", amount: "4200", due: ds.today, category: "utilities", memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, repeat_until: null };
       const input = askInput.parse({ id, conversationId, text: "The water bill is 4200", source: "manual", canvas: null, recent: [] });
       const first = transport([() => reply("tool_use", [toolUse("b", "add_bill", bill)]), () => reply("end_turn", [text("It is waiting in To check.")])]);
       const firstReply = await answerQuestion(db, d, input, { fetch: first.fetch });
@@ -2143,7 +2134,7 @@ async function main() {
       // a question with no write leaves no receipt and runs again
       const readId = crypto.randomUUID();
       const readInput = askInput.parse({ id: readId, conversationId, text: "Where am I?", source: "manual", canvas: null, recent: [] });
-      const read = () => transport([() => reply("tool_use", [toolUse("w", "where_am_i", {})]), () => reply("end_turn", [text("You are fine.")])]);
+      const read = () => transport([() => reply("tool_use", [toolUse("w", "timeline", { scenario: "late", on: null })]), () => reply("end_turn", [text("You are fine.")])]);
       const r1 = read(), r2 = read();
       await answerQuestion(db, d, readInput, { fetch: r1.fetch });
       await answerQuestion(db, d, readInput, { fetch: r2.fetch });
@@ -2154,12 +2145,13 @@ async function main() {
       const h = await seedBen(db, { isDemo: true });
       await db.update(schema.households).set({ memoryPlace: "device", journalPlace: "device" }).where(eq(schema.households.id, h));
       const owner = (await pg.query<{ role: string }>("select current_user as role")).rows[0].role;
-      const id = crypto.randomUUID(), billId = crypto.randomUUID();
+      const id = crypto.randomUUID();
       const input = askInput.parse({
         id, conversationId: crypto.randomUUID(), text: "Remember that water is shared and add the new water bill.",
         source: "manual", canvas: null, memory: [], recent: [],
       });
-      const bill = { id: billId, biller: "Scoped Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, repeat: null };
+      const bill = { biller: "Scoped Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, repeat: null };
+      const billId = await stableId(h, id, "add_bill", canonicalJson(tools.find(t => t.name === "add_bill")!.input.parse(bill)), 0);
       const provider = transport([
         () => reply("tool_use", [toolUse("r", "remember", { kind: "fact", text: "Water is shared" }), toolUse("b", "add_bill", bill)]),
         () => reply("end_turn", [text("It is waiting in To check.")]),
@@ -2184,7 +2176,7 @@ async function main() {
       const h = await seedBen(db, { isDemo: true });
       const hs = await stateOf(h);
       const id = crypto.randomUUID(), conversationId = crypto.randomUUID();
-      const bill = { id: crypto.randomUUID(), biller: "Replay Gas", amount: "3800", due: hs.today, category: "utilities", memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, repeat_until: null };
+      const bill = { biller: "Replay Gas", amount: "3800", due: hs.today, category: "utilities", memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, repeat_until: null };
       const input = askInput.parse({ id, conversationId, text: "The gas bill is 3800", source: "manual", canvas: null });
       const first = transport([() => reply("tool_use", [toolUse("b", "add_bill", bill)]), () => reply("end_turn", [text("It is waiting in To check.")])]);
       const one = await answerQuestion(db, h, input, { fetch: first.fetch });
@@ -2202,7 +2194,7 @@ async function main() {
       const id = crypto.randomUUID(), conversationId = crypto.randomUUID();
       const input = askInput.parse({ id, conversationId, text: "Show my cash", source: "manual", canvas: null });
       const first = transport([
-        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas() }), toolUse("w", "where_am_i", {})]),
+        () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: cashCanvas() }), toolUse("w", "timeline", { scenario: "late", on: null })]),
         () => reply("end_turn", [text("Here is your cash.")]),
       ]);
       const one = await answerQuestion(db, h, input, { fetch: first.fetch });
@@ -2259,11 +2251,11 @@ async function main() {
         };
         return () => { (tool as { run: unknown }).run = real; };
       };
-      const restore = [wrap("where_am_i", 40), wrap("whats_due", 10), wrap("draft_invoice", 10)];
+      const restore = [wrap("timeline", 40), wrap("list_clients_and_cards", 10), wrap("draft_invoice", 10)];
       try {
-        const draft = { id: crypto.randomUUID(), clientId: aState.clients[0].id, item: "Poster", amount: "10.00", note: "" };
+        const draft = { clientId: aState.clients[0].id, item: "Poster", amount: "10.00", note: "" };
         const { fetch, bodies } = transport([
-          () => reply("tool_use", [toolUse("r1", "where_am_i", {}), toolUse("r2", "whats_due", {}), toolUse("w1", "draft_invoice", draft), toolUse("r3", "whats_due", {}), toolUse("bad", "no_such_tool", {})]),
+          () => reply("tool_use", [toolUse("r1", "timeline", { scenario: "late", on: null }), toolUse("r2", "list_clients_and_cards", {}), toolUse("w1", "draft_invoice", draft), toolUse("r3", "list_clients_and_cards", {}), toolUse("bad", "no_such_tool", {})]),
           () => reply("end_turn", [text("Done.")]),
         ]);
         const steps: string[] = [];
@@ -2271,18 +2263,18 @@ async function main() {
         const result = await ask(a, "Look and draft", fetch, { onStep: step => steps.push(step) });
         assert.equal(result.answer, "Done.");
         // both first reads started before either ended; the write started after both ended; the last read after the write ended
-        assert.deepEqual(events.slice(0, 2), ["where_am_i:start", "whats_due:start"]);
-        assert.ok(events.indexOf("draft_invoice:start") > events.indexOf("where_am_i:end") && events.indexOf("draft_invoice:start") > events.indexOf("whats_due:end"));
-        assert.ok(events.lastIndexOf("whats_due:start") > events.indexOf("draft_invoice:end"));
+        assert.deepEqual(events.slice(0, 2), ["timeline:start", "list_clients_and_cards:start"]);
+        assert.ok(events.indexOf("draft_invoice:start") > events.indexOf("timeline:end") && events.indexOf("draft_invoice:start") > events.indexOf("list_clients_and_cards:end"));
+        assert.ok(events.lastIndexOf("list_clients_and_cards:start") > events.indexOf("draft_invoice:end"));
         assert.equal(events.filter(e => e === "draft_invoice:start").length, 1);
         const results = toolResults(bodies[1]);
         assert.deepEqual(results.map(r => r.tool_use_id), ["r1", "r2", "w1", "r3", "bad"]);
         assert.equal(results[4].content, "Unknown tool.");
         assert.ok(results[4].is_error);
         const line = logged.at(-1) as { tools: { name: string; ok: boolean; ms: number }[] };
-        assert.deepEqual(line.tools.map(t => t.name), ["where_am_i", "whats_due", "draft_invoice", "whats_due", "unknown"], "the log keeps the order asked");
+        assert.deepEqual(line.tools.map(t => t.name), ["timeline", "list_clients_and_cards", "draft_invoice", "list_clients_and_cards", "unknown"], "the log keeps the order asked");
         assert.ok(line.tools.every(t => typeof t.ms === "number"));
-        assert.deepEqual(steps, [THINKING_WORDS, TOOL_WORDS.where_am_i, TOOL_WORDS.whats_due, TOOL_WORDS.draft_invoice, toolWords("no_such_tool"), THINKING_WORDS]);
+        assert.deepEqual(steps, [THINKING_WORDS, TOOL_WORDS.timeline, TOOL_WORDS.list_clients_and_cards, TOOL_WORDS.draft_invoice, toolWords("no_such_tool"), THINKING_WORDS]);
         assert.ok(steps.every(step => !/\d/.test(step)), "steps carry words only");
       } finally { restore.forEach(undo => undo()); }
     });
@@ -2291,6 +2283,89 @@ async function main() {
       for (const tool of tools) assert.ok(TOOL_WORDS[tool.name], `${tool.name} has no words in src/lib/agent/words.ts`);
       assert.deepEqual(Object.keys(TOOL_WORDS).filter(name => !tools.some(t => t.name === name)), [], "words for a tool that is not in the catalogue");
       for (const words of [THINKING_WORDS, ...Object.values(TOOL_WORDS)]) assert.ok(/^[A-Za-z' -]+$/.test(words), words);
+    });
+
+    await check("no model-facing draft schema offers an id: code makes it (D40), and the db inputs still need one", async () => {
+      const hasId = (node: unknown): boolean => Array.isArray(node) ? node.some(hasId)
+        : node !== null && typeof node === "object" && (Object.hasOwn(node, "id") && Object.keys((node as { properties?: object }).properties ?? {}).includes("id") || Object.values(node).some(hasId));
+      for (const name of ["draft_invoice", "add_bill", "add_bills", "log_charge", "log_charges", "add_pot", "update_bank_balance"]) {
+        const tool = tools.find(t => t.name === name)!;
+        assert.equal(tool.scope, "draft");
+        const wire = toolInputSchema(tool) as { properties: Record<string, unknown> };
+        assert.ok(!("id" in wire.properties) && !JSON.stringify(wire).includes('"id":{'), `${name} offers an id`);
+        assert.ok(!hasId(wire), `${name} offers an id`);
+        assert.equal(tool.input.shape.id, undefined, `${name} takes no id`);
+      }
+      assert.ok(!("id" in (tools.find(t => t.name === "add_bills")!.input.shape.items as unknown as { element: { shape: object } }).element.shape));
+    });
+
+    await check("the same draft call twice in one Ask is one draft; a different input or a different Ask is another", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const askId = crypto.randomUUID();
+      const bill = { biller: "Twice Water", amount: "4200", due: aState.today, category: "utilities", memberId: null, repeat: null };
+      const charge = { cardId: (await stateOf(c)).cards[0].id, merchant: "Twice shop", amount: "700", date: aState.today };
+      const twice = transport([
+        () => reply("tool_use", [toolUse("a", "add_bill", bill), toolUse("b", "add_bill", bill), toolUse("c", "log_charges", { items: [charge, charge] }), toolUse("d", "log_charges", { items: [charge, charge] })]),
+        () => reply("end_turn", [text("In To check.")]),
+      ]);
+      await ask(c, "Add the water bill and the shop.", twice.fetch, { askId });
+      assert.ok(toolResults(twice.bodies[1]).every(r => !r.is_error), JSON.stringify(toolResults(twice.bodies[1]).map(r => r.content)));
+      const count = async (biller: string) => (await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, c), eq(schema.bills.biller, biller)))).length;
+      assert.equal(await count("Twice Water"), 1, "the same call twice is one bill");
+      assert.equal(await ask(c, "Again.", transport([() => reply("tool_use", [toolUse("a", "add_bill", { ...bill, amount: "4300" })]), () => reply("end_turn", [text("ok")])]).fetch, { askId }).then(() => count("Twice Water")), 2, "another input in the same Ask is another bill");
+      await ask(c, "Once more.", transport([() => reply("tool_use", [toolUse("a", "add_bill", bill)]), () => reply("end_turn", [text("ok")])]).fetch);
+      assert.equal(await count("Twice Water"), 3, "the same input in another Ask is another bill");
+      // two equal items inside one bulk call sit at different places, so they are two drafts; the same bulk call again adds none
+      const charges = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.merchant, "Twice shop")));
+      assert.equal(charges.length, 2);
+    });
+
+    await check("D80: each retired read tool's facts are in its picture's show result on Ben's sample, and the retired tools are gone", async () => {
+      const retired = ["where_am_i", "whats_due", "month_by_category", "who_owes_whom", "regular_costs", "search_spending", "foreign_costs"];
+      assert.deepEqual(retired.filter(name => tools.some(t => t.name === name)), [], "retired tools are not offered");
+      assert.throws(() => tools.find(t => t.name === "timeline")!.input.parse({ scenario: "as_usual", on: null }), "timeline says usual, like show and what_if");
+      const c = await seedBen(db, { isDemo: true });
+      const state = await stateOf(c), today = state.today, current = today.slice(0, 7), currency = state.homeCurrency;
+      const ctx = { madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never;
+      const show = tools.find(t => t.name === "show")!;
+      const factsOf = async (view: string, args: object | null) => (JSON.parse(await show.run(ctx, show.input.parse({ view, args: args && JSON.stringify(args) }) as never)) as { facts: CompactFact[] }).facts;
+      const has = (view: string, facts: CompactFact[], want: { name: string; value: number | string; about?: string; case?: string }[]) => {
+        assert.ok(want.length > 0, `${view}: the tool had facts to look for`);
+        for (const w of want) assert.ok(facts.some(f => f.name === w.name && f.value === w.value && (w.about === undefined || f.about?.name === w.about) && (w.case === undefined || (f as { case?: string }).case === w.case)), `${view} lacks ${JSON.stringify(w)}`);
+      };
+      // where_am_i -> forecast
+      const outlook = outlookFacts(state, "x");
+      has("forecast", await factsOf("forecast", null), outlook.map(f => ({ name: f.name, value: f.value, case: f.case })));
+      // whats_due -> bills_calendar
+      has("bills_calendar", await factsOf("bills_calendar", { days: 30 }), dueFacts(state, "x").map(f => ({ name: f.name, value: f.value, about: f.about?.name })));
+      // month_by_category
+      const monthSpending = await loadSpending(db, c, { from: monthBounds(current).first, to: monthBounds(current).last });
+      const month = monthByCategory(monthSpending, today, current);
+      has("month_by_category", await factsOf("month_by_category", null), [
+        { name: "month_total", value: month.totalMinor }, ...(month.businessMinor > 0 ? [{ name: "business_share", value: month.businessMinor }] : []),
+        ...month.categories.map(cat => ({ name: "category_total", value: cat.totalMinor, about: cat.label })),
+      ]);
+      // regular_costs -> fixed_costs
+      const from = `${monthsBack(current, REGULAR_MONTHS)}-01`, to = monthBounds(current).last;
+      const regular = regularCosts(spendingItems(await loadSpending(db, c, { from, to }), from, to), currency, today, REGULAR_MONTHS);
+      has("fixed_costs", await factsOf("fixed_costs", { months: REGULAR_MONTHS }), regular.items.flatMap(cost => [
+        { name: "regular_costs", value: cost.thisMinor, about: cost.label },
+        ...(cost.status === "started" ? [{ name: "regular_cost_started", value: cost.thisMinor, about: cost.label }] : cost.status === "stopped" ? [{ name: "regular_cost_stopped", value: cost.lastMinor, about: cost.label }]
+          : cost.changeMinor !== null ? [{ name: "change_from_last_month", value: cost.changeMinor, about: cost.label }] : []),
+      ]));
+      // search_spending -> search_months
+      const searchFrom = `${monthsBack(current, 3)}-01`, last = monthBounds(current).last;
+      const data = await loadSpending(db, c, { from: searchFrom, to: last });
+      const found = searchSpending(spendingItems(data, searchFrom, last), "food", data.homeCurrency, { from: searchFrom, to: today, uncountedTo: last });
+      has("search_months", await factsOf("search_months", { text: "food", months: 3 }), [{ name: "search_total", value: found.totalMinor }, ...found.uncounted.map(name => ({ name: "not_counted", value: 1, about: name }))]);
+      // foreign_costs -> fx_cost
+      const costs = await foreignCosts(db, c);
+      has("fx_cost", await factsOf("fx_cost", { months: 12 }), [
+        { name: "foreign_cost_receiving", value: costs.payoutTotals.costMinor }, { name: "foreign_cost_card", value: costs.chargeTotals.exactMinor + costs.chargeTotals.estimatedMinor },
+        ...costs.perClient.map(client => ({ name: "foreign_cost", value: client.costMinor, about: client.clientName })),
+      ]);
+      // who_owes_whom: Ben's sample is one person; split-test holds the pair with transfers
+      assert.deepEqual(splitBalance(state.split, today).transfers, []);
     });
 
     console.log(`Agent checks passed (${passed}).`);

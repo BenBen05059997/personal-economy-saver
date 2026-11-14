@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { jobError } from "@/lib/job-error";
+import { stableId } from "@/lib/stable-id";
 import { addDays } from "@/lib/money/runway";
 import { findSuggestions } from "@/lib/money/suggest";
 import { FINDING_RULE, type Finding } from "@/lib/money/suggestion-types";
@@ -12,15 +13,6 @@ import { events, households, spaces, standingRules, suggestions } from "./schema
 
 const active = () => inArray(suggestions.status, ["open", "not_now"]);
 const RETENTION_MS = 90 * 86_400_000;
-
-// The Activity entry remembers this finding after its closed row is pruned.
-async function findingId(hid: string, key: string) {
-  const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(hid + "/" + key))).slice(0, 16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x80;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
-  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join("-");
-}
 
 export async function runPass(db: Db, id: string, now = new Date()) {
   const hid = requireHousehold(id);
@@ -42,7 +34,8 @@ export async function runPass(db: Db, id: string, now = new Date()) {
 
     await tx.update(suggestions).set({ status: "open", snoozedOn: null }).where(and(eq(suggestions.householdId, hid),
       eq(suggestions.status, "not_now"), lt(suggestions.snoozedOn, today), inArray(suggestions.key, current)));
-    const rows = await Promise.all(findings.map(async finding => ({ ...finding, id: await findingId(hid, finding.key) })));
+    // The Activity entry remembers this finding after its closed row is pruned, so its id comes from its key alone.
+    const rows = await Promise.all(findings.map(async finding => ({ ...finding, id: await stableId(hid, finding.key) })));
     const seen = await tx.select({ id: events.refId }).from(events).where(and(eq(events.householdId, hid),
       eq(events.kind, "suggestion_made"), eq(events.refType, "suggestion"), inArray(events.refId, rows.map(row => row.id))));
     const done = new Set(seen.map(row => row.id));

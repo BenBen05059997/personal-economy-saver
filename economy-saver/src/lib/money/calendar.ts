@@ -5,7 +5,9 @@ import { addDays, series, timeline, WINDOW_DAYS } from "./runway";
 import type { MoneyState } from "./types";
 
 /** One thing on a day. A pending bill waits in To check and is flagged, never counted; an unknown amount is flagged and counts for nothing. */
-export type CalendarItem = { label: string; kind: "bill" | "statement" | "arrival"; amountMinor: number; pending?: true; uncounted?: true; estimated?: true };
+export type CalendarItem = { label: string; kind: "bill" | "statement" | "arrival"; amountMinor: number; pending?: true; uncounted?: true; estimated?: true;
+  /** What the item is about, for the facts: the bill, the card or the client, by id; `open` marks a statement still collecting charges. */
+  id: string; cardId?: string; clientId?: string; open?: true };
 export type CalendarDay = {
   date: string;
   outMinor: number; // what goes out that day (counted items only)
@@ -26,7 +28,7 @@ export function calendarDays(state: MoneyState, days: number = WINDOW_DAYS, whos
     for (const bill of sharedBillsComing(state)) {
       const row = at.get(bill.date);
       if (!row) continue;
-      row.items.push({ label: bill.biller, kind: "bill", amountMinor: bill.amountMinor, ...(bill.estimated && { estimated: true as const }), ...(bill.uncounted && { uncounted: true as const }) });
+      row.items.push({ label: bill.biller, kind: "bill", id: bill.key, amountMinor: bill.amountMinor, ...(bill.estimated && { estimated: true as const }), ...(bill.uncounted && { uncounted: true as const }) });
       if (!bill.uncounted) row.outMinor += bill.amountMinor;
     }
     return rows;
@@ -37,14 +39,15 @@ export function calendarDays(state: MoneyState, days: number = WINDOW_DAYS, whos
     const row = at.get(event.date);
     if (!row) continue;
     const amountMinor = Math.abs(minor(event.amount));
+    const about = { id: event.id, ...(event.cardId && { cardId: event.cardId }), ...(event.clientId && { clientId: event.clientId }), ...(event.open && { open: true as const }) };
     const flags = { ...(event.pending && { pending: true as const }), ...(event.uncounted && { uncounted: true as const }), ...(event.estimated && { estimated: true as const }) };
     if (event.pending) {
       // A pending bill is shown at the amount it would be, and counted nowhere.
       const bill = state.bills.find(b => b.id === event.id);
-      row.items.push({ label: event.label, kind: event.kind, amountMinor: bill ? minor(bill.amount) : amountMinor, ...flags });
+      row.items.push({ label: event.label, kind: event.kind, amountMinor: bill ? minor(bill.amount) : amountMinor, ...about, ...flags });
       continue;
     }
-    row.items.push({ label: event.label, kind: event.kind, amountMinor, ...flags });
+    row.items.push({ label: event.label, kind: event.kind, amountMinor, ...about, ...flags });
     if (event.uncounted) continue;
     if (event.amount > 0) row.inMinor += amountMinor; else row.outMinor += amountMinor;
   }

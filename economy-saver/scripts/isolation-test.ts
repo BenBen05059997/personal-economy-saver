@@ -1094,15 +1094,14 @@ async function main() {
       });
       await check(`${X.name} -> ${Y.name}: the agent's draft tools refuse the other household's ids`, async () => {
         const probe = { biller: "Isolation probe", amount: "100", due: "2026-11-20" };
-        await mustThrow("draft_invoice for the other's client", () => runTool(X, "draft_invoice", { id: randomUUID(), clientId: y.client, item: "probe", amount: "1", note: "" }), /Client not found/);
-        await mustThrow("add_bill for the other's member", () => runTool(X, "add_bill", { id: randomUUID(), ...probe, memberId: y.aki }), /member of this household/);
-        await mustThrow("add_bill paid by the other's member by name", () => runTool(X, "add_bill", { id: randomUUID(), ...probe, shared: true, paidBy: Y.akiName }), /Nobody called/);
+        await mustThrow("draft_invoice for the other's client", () => runTool(X, "draft_invoice", { clientId: y.client, item: "probe", amount: "1", note: "" }), /Client not found/);
+        await mustThrow("add_bill for the other's member", () => runTool(X, "add_bill", { ...probe, memberId: y.aki }), /member of this household/);
+        await mustThrow("add_bill paid by the other's member by name", () => runTool(X, "add_bill", { ...probe, shared: true, paidBy: Y.akiName }), /Nobody called/);
         await refuse("setReadingWhose on the other's reading", () => F.setReadingWhose(store, X.hid, { reading: `${Y.name} reading`, shared: false, person: X.akiName }));
         await mustThrow("set_whose on the other's waiting reading, by name", () => runTool(X, "set_whose", { reading: `${Y.name} reading`, shared: false, person: X.akiName }), /Nothing called .* is waiting/);
         await mustThrow("set_whose on the other's waiting reading, to the other's member", () => runTool(X, "set_whose", { reading: `${X.name} reading`, shared: true, person: Y.akiName }), /Nobody called|Nothing called/);
-        await mustThrow("log_charge on the other's card", () => runTool(X, "log_charge", { id: randomUUID(), cardId: y.card, merchant: "Isolation probe", amount: "100", date: "2026-11-13" }), /card of this household/);
-        await mustThrow("add_pot with the other's pot id", () => runTool(X, "add_pot", { id: y.pot, name: "Isolation probe" }));
-        await mustThrow("update_bank_balance with the other's update id", () => runTool(X, "update_bank_balance", { id: y.balancePending, amount: "1" }));
+        await mustThrow("log_charge on the other's card", () => runTool(X, "log_charge", { cardId: y.card, merchant: "Isolation probe", amount: "100", date: "2026-11-13" }), /card of this household/);
+        // add_pot and update_bank_balance offer the model no id (code makes it), so only the db-layer attacks above can name the other's row.
       });
       await check(`${X.name} -> ${Y.name}: the PayPal refresh of a household that is not connected makes no call and touches nothing of ${Y.name}`, async () => {
         const refreshed = await F.refreshPayPal(store, X.hid, async () => nothingCalled(), new Date("2026-11-03T04:00:00Z"));

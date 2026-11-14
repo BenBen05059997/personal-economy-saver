@@ -285,7 +285,7 @@ async function main() {
         await addMemory(db, h, { kind: "goal", text: "¥300,000 for a trip in March" }, form);
         const systems: string[] = [];
         const answers = [
-          Response.json({ id: "m1", type: "message", role: "assistant", model: "fixture-text", stop_reason: "tool_use", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: "tool_use", id: "t1", name: "where_am_i", input: {} }] }),
+          Response.json({ id: "m1", type: "message", role: "assistant", model: "fixture-text", stop_reason: "tool_use", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: "tool_use", id: "t1", name: "list_invoices", input: {} }] }),
           Response.json({ id: "m2", type: "message", role: "assistant", model: "fixture-text", stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: "text", text: "Your trip goal is ¥300,000 for March." }] }),
         ];
         const fetch = (async (input: string | URL | Request, init?: RequestInit) => {

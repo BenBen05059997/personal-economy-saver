@@ -5,6 +5,7 @@ import { addMonths } from "./dates";
 import { MONTHS, minorMoney, minorPerUnit } from "./format";
 import { availableCash, moneyInPots, series } from "./runway";
 import { expectsClientPayment } from "./sentence";
+import { termOf } from "./terms";
 import type { MoneyState, Pot } from "./types";
 
 export { addMonths };
@@ -78,7 +79,7 @@ export function planLine(input: PlanInput, plan: Plan, state: MoneyState): strin
     parts.push(`${room}, so it ${plan.fits ? "fits" : "does not fit"}.`);
   }
   if (plan.reachedOn !== undefined && plan.pace !== undefined && (input.monthly !== undefined || !input.targetDate)) {
-    const source = input.monthly !== undefined ? "" : " (what the next 30 days leave)";
+    const source = input.monthly !== undefined ? "" : ` (${termOf("left_over_each_month").label})`;
     parts.push(`At ${money(plan.pace)} a month${source} you would reach ${money(input.target)} around ${monthYear(plan.reachedOn)}.`);
   }
   if (!parts.length) parts.push(`${room}, so there is no date to give for ${money(input.target)}.`);
@@ -93,18 +94,20 @@ export function potLine(pot: Pot, state: MoneyState): string | undefined {
   const plan = planFor(request, state);
   if (plan.needed === 0) return "Target reached";
   if (plan.monthlyNeeded !== undefined && pot.targetDate) {
-    return `${money(plan.monthlyNeeded)} a month to reach ${money(pot.target)} by ${monthYear(pot.targetDate)}. ${plan.fits ? "Fits within" : "More than"} what the next 30 days leave.`;
+    return `${money(plan.monthlyNeeded)} a month to reach ${money(pot.target)} by ${monthYear(pot.targetDate)}. ${plan.fits ? "Fits within" : "More than"} the ${termOf("left_over_each_month").label}.`;
   }
   if (plan.reachedOn !== undefined && plan.pace !== undefined) return `At ${money(plan.pace)} a month you would reach ${money(pot.target)} around ${monthYear(plan.reachedOn)}.`;
-  return "The next 30 days leave nothing over yet, so there is no date to give.";
+  return `Nothing is left over each month yet, so there is no date to give.`;
 }
+
+const sentenceCase = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** What the next 30 days leave, as a sentence that planLine can continue ("…, so it fits"). */
 function roomClause(state: MoneyState): string {
-  const room = leftOverEachMonth(state);
+  const room = leftOverEachMonth(state), leftOverLabel = sentenceCase(termOf("left_over_each_month").label);
   return room > 0
-    ? `The next 30 days leave about ${minorMoney(Math.round(room * unit(state)), state.homeCurrency)} if clients pay as usual.`
-    : "The next 30 days leave nothing over if clients pay as usual.";
+    ? `${leftOverLabel}: about ${minorMoney(Math.round(room * unit(state)), state.homeCurrency)} if clients pay as usual.`
+    : `${leftOverLabel}: nothing if clients pay as usual.`;
 }
 
 /** The sentence at the top of the Saving page: what the next 30 days leave, which is what could be put aside. With no client payment expected, it says there is nothing new to put aside yet. */

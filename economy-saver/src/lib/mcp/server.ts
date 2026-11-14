@@ -47,9 +47,10 @@ export async function mcpRequest(request: Request, connection: () => Db) {
     // Ask-only tools (clarify, out_of_scope) end an Ask turn and mean nothing to another client: never offered, whatever the token holds.
     if (tool.scope === "ask" || !scopes.includes(tool.scope)) continue;
     server.registerTool(tool.name, { description: tool.description, inputSchema: tool.input.shape },
-      params => answer(hid, tool.name, () => withHousehold(db, hid, tx => {
+      (params, extra) => answer(hid, tool.name, () => withHousehold(db, hid, tx => {
         const state = async () => loadMoneyState(tx, hid, await householdDate(tx, hid));
-        return tool.run({ madeBy: "mcp", db: tx, householdId: hid, state, appUrl: endpoint }, params as never);
+        // The request's own id makes a draft's id (D40), so a client that resends a request makes one draft.
+        return tool.run({ madeBy: "mcp", db: tx, householdId: hid, state, appUrl: endpoint, requestId: extra.requestId }, params as never);
       })));
   }
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });

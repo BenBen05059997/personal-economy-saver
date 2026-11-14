@@ -331,7 +331,7 @@ async function main() {
     await check("a wrong key or a share outside 0 to 10000 is refused by the input schema, the data layer and the database", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const card = (await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)))[0];
-      assert.equal(billInput.safeParse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets" }).success, false);
+      assert.equal(billInput.safeParse({ biller: "X", amount: "1", due: "2026-11-20", category: "pets" }).success, false);
       assert.equal(billInput.safeParse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "other", businessBp: 10_001 }).success, false);
       assert.equal(billInput.safeParse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20" }).success, false, "a bill needs a category");
       assert.equal(billInput.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "other" }).businessBp, 0, "the share defaults to personal");
@@ -395,40 +395,40 @@ async function main() {
         assert.equal(tool(name).scope, "draft");
       }
       assert.throws(() => tool("add_bill").input.parse({ id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", memberId: null, repeat: null, shared: null, paidBy: null }));
-      assert.throws(() => tool("log_charge").input.parse({ id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "other", business_bp: 10_001 }));
+      assert.throws(() => tool("log_charge").input.parse({ cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "other", business_bp: 10_001 }));
 
-      const given = randomUUID(), guessed = randomUUID(), unsure = randomUUID();
-      const bill = (id: string, biller: string, extra: object) => ({ id, biller, amount: "3000", due: "2026-11-25", memberId: null, repeat: null, shared: null, paidBy: null, category: null, business_bp: null, ...extra });
-      assert.equal(await run("add_bill", bill(given, "Fictional gym", { category: "health", business_bp: 2500 })), "Fictional gym is waiting in To check for the user to confirm. Category: Health.");
-      assert.equal(await run("add_bill", bill(guessed, "Fictional electric co", {})), "Fictional electric co is waiting in To check for the user to confirm. No category was given, so it was guessed from the name: Utilities. The user can change it in To check.");
-      assert.match(await run("add_bill", bill(unsure, "Zebra Supplies", {})), /No category was given and the name matched none, so it is Other\. The user can choose one in To check\.$/);
-      const rows = Object.fromEntries((await db.select().from(schema.bills).where(eq(schema.bills.householdId, hid))).map(r => [r.id, r]));
+      const given = "Fictional gym", guessed = "Fictional electric co", unsure = "Zebra Supplies";
+      const bill = (biller: string, extra: object) => ({ biller, amount: "3000", due: "2026-11-25", memberId: null, repeat: null, shared: null, paidBy: null, category: null, business_bp: null, ...extra });
+      assert.equal(await run("add_bill", bill(given, { category: "health", business_bp: 2500 })), "Fictional gym is waiting in To check for the user to confirm. Category: Health.");
+      assert.equal(await run("add_bill", bill(guessed, {})), "Fictional electric co is waiting in To check for the user to confirm. No category was given, so it was guessed from the name: Utilities. The user can change it in To check.");
+      assert.match(await run("add_bill", bill(unsure, {})), /No category was given and the name matched none, so it is Other\. The user can choose one in To check\.$/);
+      const rows = Object.fromEntries((await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, hid), eq(schema.bills.status, "pending")))).map(r => [r.biller, r]));
+      const givenId = rows[given].id;
       assert.deepEqual([given, guessed, unsure].map(id => [rows[id].status, rows[id].category, rows[id].businessBp]), [["pending", "health", 2500], ["pending", "utilities", 0], ["pending", "other", 0]]);
 
-      const chargeId = randomUUID(), guessedCharge = randomUUID();
-      const log = (id: string, merchant: string, extra: object) => ({ id, cardId: card.id, merchant, amount: "1200", date: "2026-11-14", category: null, business_bp: null, ...extra });
-      assert.match(await run("log_charge", log(chargeId, "Fictional ramen shop", { business_bp: 10_000 })), /^Fictional ramen shop is waiting in To check for the user to confirm\. No category was given, so it was guessed from the name: Food\./);
-      assert.match(await run("log_charge", log(guessedCharge, "Zebra Supplies", { category: "business_tools" })), /Category: Business tools\.$/);
-      const charges = Object.fromEntries((await db.select().from(schema.charges).where(eq(schema.charges.householdId, hid))).map(r => [r.id, r]));
+      const chargeId = "Fictional ramen shop", guessedCharge = "Zebra Supplies";
+      const log = (merchant: string, extra: object) => ({ cardId: card.id, merchant, amount: "1200", date: "2026-11-14", category: null, business_bp: null, ...extra });
+      assert.match(await run("log_charge", log(chargeId, { business_bp: 10_000 })), /^Fictional ramen shop is waiting in To check for the user to confirm\. No category was given, so it was guessed from the name: Food\./);
+      assert.match(await run("log_charge", log(guessedCharge, { category: "business_tools" })), /Category: Business tools\.$/);
+      const charges = Object.fromEntries((await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, hid), eq(schema.charges.status, "pending")))).map(r => [r.merchant, r]));
       assert.deepEqual([charges[chargeId], charges[guessedCharge]].map(r => [r.status, r.category, r.businessBp]), [["pending", "food", 10_000], ["pending", "business_tools", 0]]);
 
+      const chargeIdOf = charges[chargeId].id;
       let state = await stateOf(hid);
       const pendingRows = toCheck(state);
-      assert.equal(pendingRows.find(r => r.id === given)!.detail, "Health · 25% business · due Nov 25");
-      assert.equal(pendingRows.find(r => r.id === chargeId)!.detail, `${card.label} · Nov 14 · Food · Business · Manual entry`);
+      assert.equal(pendingRows.find(r => r.id === givenId)!.detail, "Health · 25% business · due Nov 25");
+      assert.equal(pendingRows.find(r => r.id === chargeIdOf)!.detail, `${card.label} · Nov 14 · Food · Business · Manual entry`);
       const before = monthByCategory(state, state.today);
       assert.ok(!before.categories.some(c => c.category === "health"), "pending rows are not in the month");
-      assert.equal(await confirmPending(db, hid, "bill", given), true);
-      assert.equal(await confirmPending(db, hid, "charge", chargeId), true);
+      assert.equal(await confirmPending(db, hid, "bill", givenId), true);
+      assert.equal(await confirmPending(db, hid, "charge", chargeIdOf), true);
       state = await stateOf(hid);
       const after = monthByCategory(state, state.today);
       assert.deepEqual(after.categories.find(c => c.category === "health")!.items, [{ label: "Fictional gym", date: "2026-11-25", amountMinor: 3000, businessBp: 2500, own: null, ownerId: null }]);
       assert.equal(after.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional ramen shop")!.businessBp, 10_000);
 
-      const text = await run("month_by_category", {});
-      assert.equal(text.split("\n\nFacts: ")[0], monthText(after), "the words are unchanged; the facts follow them");
+      const text = monthText(monthByCategory(state, state.today));
       assert.match(text, /Health ¥3,000 \(business ¥750 · personal ¥2,250\): Fictional gym Nov 25 ¥3,000 at 25% business\./);
-      assert.equal(tool("month_by_category").scope, "read");
     });
 
     // ------------------------------------------------------------ the snapshot and household scope

@@ -34,11 +34,12 @@ export function fixedCostsFor(args: { months?: number }, spending: SpendingInput
   const items = spendingItems(spending, monthBounds(monthsBack(current, months)).first, monthBounds(current).last);
   for (const cost of regularCosts(items, currency, today, months).items) {
     const about = { type: "cost" as const, id: cost.key, name: cost.label };
-    const add = (name: "change_from_last_month" | "regular_cost_started" | "regular_cost_stopped", value: number) => facts.push(engineFact(name, value, { from: "fixed_costs", currency, period, about }));
+    const add = (name: "regular_costs" | "change_from_last_month" | "regular_cost_started" | "regular_cost_stopped", value: number) => facts.push(engineFact(name, value, { from: "fixed_costs", currency, period, about }));
+    add("regular_costs", cost.thisMinor);
     if (cost.status === "up" || cost.status === "down") add("change_from_last_month", cost.changeMinor!);
     else if (cost.status === "started") add("regular_cost_started", cost.thisMinor);
     else if (cost.status === "stopped") add("regular_cost_stopped", cost.lastMinor);
-    else continue;
+    else if (cost.changeMinor !== null) add("change_from_last_month", cost.changeMinor);
     if (cost.estimated) facts.push(engineFact("about_estimate", 1, { from: "fixed_costs", period, about }));
   }
   const said = (item: Fact) => format(item.value as number);

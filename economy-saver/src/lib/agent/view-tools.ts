@@ -6,6 +6,7 @@ import { z } from "zod";
 import { InputError } from "@/db/input-error";
 import { Currency } from "@/lib/catalogue/types";
 import { CATEGORY_KEYS } from "@/lib/money/categories";
+import { catalogueMove } from "@/lib/catalogue/engine";
 import { forModel, type Fact } from "@/lib/money/facts";
 import { readAmount } from "@/lib/money/amount";
 import { VIEW_ARGS } from "@/lib/views/args";
@@ -49,7 +50,21 @@ const TAKES: Record<ViewId, Field[]> = {
 const NAME_ARGS = Object.fromEntries(Object.entries(TAKES).map(([view, keys]) =>
   [view, z.object(Object.fromEntries(keys.map(key => [key, FIELDS[key].optional()]))).strict()])) as unknown as Record<ViewId, z.ZodObject<z.ZodRawShape>>;
 
-const DESCRIPTION = `Chart their money. args: JSON text or null. forecast(case usual|late,days,mark=bill); what_if(amount,date,client+days); position; month_by_category(month,by category|business|person,open); month_trend(months); month_pace(month); fixed_costs(months); search_months(text,months); money_flow(month); savings_rate(months); buffer_months; income_months(months); client_pace(client); fx_cost(months); goal_pace(pot); bills_calendar(days,whose); card_cycle(card,amount); who_owes_whom; what_changed(item); tax_ahead(pot,days).`;
+// What each picture takes, in the model's own words; the question each one answers is the catalogue's, so the map from question to picture has one source.
+const SIGNATURE: Record<ViewId, string> = {
+  forecast: "case usual|late,days,mark=bill", what_if: "amount,date,client+days", position: "", month_by_category: "month,by category|business|person,open", month_trend: "months",
+  month_pace: "month", fixed_costs: "months", search_months: "text,months", money_flow: "month", savings_rate: "months", buffer_months: "", income_months: "months",
+  client_pace: "client", fx_cost: "months", goal_pace: "pot", bills_calendar: "days,whose", card_cycle: "card,amount", who_owes_whom: "", what_changed: "item", tax_ahead: "pot,days",
+};
+const DESCRIPTION = `Chart their money, and read its facts. args: JSON text or null. Which picture answers which question: ${(Object.keys(SIGNATURE) as ViewId[]).map(view => `${view}${SIGNATURE[view] ? `(${SIGNATURE[view]})` : ""} ${VIEW_META[view].question}`).join(" ")}`;
+
+/** The catalogue's guidance on what a foreign-money answer may and may not say, handed over with the picture of what foreign money cost. */
+function foreignGuidance() {
+  const move = catalogueMove("JP", "jp-payout-cost");
+  if (!move) throw new Error("The catalogue has no jp-payout-cost move");
+  const source = move.sources[0];
+  return { maySay: move.maySay, mustNotSay: move.mustNotSay, steps: move.steps, traps: move.traps, source: { title: source.title, url: source.url } };
+}
 
 const normal = (text: string) => text.normalize("NFKC").trim().toLowerCase();
 
@@ -137,6 +152,7 @@ export const viewTools: Tool[] = [
       const table = result.table && { head: result.table.head, rows: result.table.rows.slice(0, 12).map(row => row.cells), foot: result.table.foot };
       return JSON.stringify({
         view, title: result.title, line: result.line, currency: result.currency, ...forModel(result.facts), table, empty: result.empty?.words ?? null,
+        ...(view === "fx_cost" && result.empty === null && { guidance: foreignGuidance() }),
       });
     },
   }),

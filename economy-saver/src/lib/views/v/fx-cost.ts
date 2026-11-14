@@ -27,13 +27,20 @@ export const fxCostView: Resolver<"fx_cost"> = (args, ctx): ViewResult => {
   const high = [...months].sort((a, b) => costOf(b) - costOf(a))[0];
   const first = months[0].month, last = months[months.length - 1].month;
   const line = `Over ${monthLabel(first, state.today)} to ${monthLabel(last, state.today)}, foreign money cost you ${shown(totalMinor, estimated)}: ${format(payoutMinor)} to receive and convert payments${chargeMinor > 0 ? ` and ${shown(chargeMinor, estimated)} on card purchases in another currency` : ""}. ${label(high)} cost the most (${guess(high) ? about(costOf(high)) : format(costOf(high))}).${unknown > 0 ? ` ${plural(unknown, "purchase")} in another currency ${unknown === 1 ? "has" : "have"} no cost yet.` : ""}`;
+  const year = { from: monthBounds(fxByMonth(costs, state.today, 12)[0].month).first, to: monthBounds(state.today.slice(0, 7)).last };
   const span = { from: monthBounds(first).first, to: monthBounds(last).last }, highBounds = monthBounds(high.month);
   const facts: Fact[] = [
     engineFact("foreign_cost", totalMinor, { from: "fx_cost", currency, period: span }),
     engineFact("foreign_cost_receiving", payoutMinor, { from: "fx_cost", currency, period: span }),
-    ...(chargeMinor > 0 ? [engineFact("foreign_cost_card", chargeMinor, { from: "fx_cost", currency, period: span })] : []),
+    ...(chargeMinor > 0 || unknown === 0 ? [engineFact("foreign_cost_card", chargeMinor, { from: "fx_cost", currency, period: span })] : []),
     engineFact("foreign_cost_highest_month", costOf(high), { from: "fx_cost", currency, period: { from: highBounds.first, to: highBounds.last } }),
     ...(estimated ? [engineFact("about_foreign_estimate", 1, { from: "fx_cost" })] : []),
+    // Who and what the cost came from: the last twelve months, whatever span the columns show, so each carries its own period.
+    ...costs.perClient.map(c => engineFact("foreign_cost", c.costMinor, { from: "fx_cost", currency, period: year, about: { type: "client", id: c.clientId, name: c.clientName } })),
+    ...costs.perCard.flatMap(c => {
+      const about = { type: "card" as const, id: c.cardId, name: c.label };
+      return [engineFact("foreign_cost", c.exactMinor + c.estimatedMinor, { from: "fx_cost", currency, period: year, about }), ...(c.estimatedMinor > 0 ? [engineFact("about_foreign_estimate", 1, { from: "fx_cost", about })] : [])];
+    }),
     ...(unknown > 0 ? [engineFact("foreign_cost_unknown_count", unknown, { from: "fx_cost" })] : []),
   ];
   return {

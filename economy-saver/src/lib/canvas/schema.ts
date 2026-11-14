@@ -13,7 +13,7 @@ export const RECIPE_VERSION = 1;
 const MAX_BLOCKS = 12;
 export const MAX_CHANGES = 10;
 const MAX_SLIDER_DAYS = 60;
-/** The engine's scenario for each way the tools spell a case (`usual` in what_if and the canvas, `as_usual` in timeline). */
+/** The engine's scenario for each way the tools spell a case (`usual` in every tool; `as_usual` only in recipes stored before the tools agreed). */
 export const CASE_KIND = { usual: "expected", as_usual: "expected", late: "worst" } as const;
 
 const day = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "A date is YYYY-MM-DD")

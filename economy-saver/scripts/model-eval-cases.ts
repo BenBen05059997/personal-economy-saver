@@ -8,6 +8,7 @@ import * as schema from "@/db/schema";
 import { householdDate } from "@/db/account";
 import { loadMoneyState, type Db } from "@/db/household";
 import { foreignCosts } from "@/db/fx-cost";
+import { fxByMonth } from "@/lib/money/fx-cost";
 import { seedBen } from "@/db/seed";
 import { AgentError, runAgent, type AskResult } from "@/lib/agent/run";
 import { FIXED } from "@/lib/agent/reply";
@@ -75,6 +76,8 @@ const callsOf = (protocol: Connection["protocol"], wire: unknown): Outcome["call
 type Grade = (o: Outcome) => string | null | Promise<string | null>; // null = passed, else why
 const failed = (o: Outcome) => o.error ? `The question failed: ${o.error}` : null;
 const used = (o: Outcome, ...names: string[]) => o.calls.some(c => names.includes(c.name));
+/** Whether the model showed this picture. */
+const showed = (o: Outcome, view: string) => o.calls.some(c => c.name === "show" && (c.input as { view?: string }).view === view);
 const inputOf = (o: Outcome, name: string) => o.calls.filter(c => c.name === name).at(-1)?.input as Record<string, unknown> | undefined;
 /** Digits only, so ¥18,780 / 18780 / 18 780 all read the same. */
 const digits = (text: string) => text.normalize("NFKC").replace(/[,\s]/g, "");
@@ -110,14 +113,14 @@ const GRADES: Record<AgentCase, Grade> = {
   },
   whats_due(o) {
     if (failed(o)) return failed(o);
-    if (!used(o, "whats_due", "timeline")) return "It called neither whats_due nor timeline.";
-    return kindIs(o, "answer") ?? (o.result!.sources.some(s => "href" in s && s.href.includes("coming-up")) ? null : "The answer did not come from the coming-up list.");
+    if (!showed(o, "bills_calendar") && !used(o, "timeline")) return "It showed neither bills_calendar nor a timeline.";
+    return kindIs(o, "answer") ?? (o.result!.sources.some(s => "href" in s && (s.href.includes("coming-up") || s.href === "/bills")) ? null : "The answer did not come from the coming-up list or the Bills page.");
   },
   due_next(o) {
     const problem = failed(o) ?? kindIs(o, "answer");
     if (problem) return problem;
-    if (!used(o, "whats_due") || used(o, "timeline")) return "Use whats_due for an undated question about what’s due.";
-    return o.result!.sources.some(source => "href" in source && source.href.includes("coming-up")) ? null : "The answer omitted Coming up.";
+    if (!showed(o, "bills_calendar") || used(o, "timeline")) return "Show bills_calendar for an undated question about what’s due.";
+    return o.result!.sources.some(source => "href" in source && (source.href.includes("coming-up") || source.href === "/bills")) ? null : "The answer omitted the Bills page.";
   },
   safe_to_spend_rule(o) {
     const problem = failed(o) ?? kindIs(o, "answer");
@@ -222,11 +225,12 @@ const GRADES: Record<AgentCase, Grade> = {
   },
   async foreign_fees(o) {
     if (failed(o)) return failed(o);
-    if (!used(o, "foreign_costs")) return "It did not call foreign_costs.";
+    if (!showed(o, "fx_cost")) return "It did not show fx_cost.";
     const wrong = kindIs(o, "answer");
     if (wrong) return wrong;
-    // The engine's total cost for the twelve months, in whole yen as the app writes it.
-    const expected = group((await foreignCosts(o.db, o.householdId)).payoutTotals.costMinor);
+    // The engine's total cost of receiving payments over the months the picture covered (six unless the model asked for more), in whole yen as the app writes it.
+    const asked = o.calls.filter(c => c.name === "show").map(c => JSON.parse(String((c.input as { args?: string | null }).args ?? "{}")) as { months?: number }).at(-1);
+    const expected = group(fxByMonth(await foreignCosts(o.db, o.householdId), o.state.today, asked?.months ?? 6).reduce((sum, m) => sum + m.payoutMinor, 0));
     if (!digits(o.result!.answer).includes(digits(expected))) return `Its reply did not quote the total cost (${expected}).`;
     if (OTHER_PROVIDERS.test(o.result!.answer)) return "Its reply named a provider other than PayPal.";
     return LEAVE_PAYPAL.test(o.result!.answer) ? "Its reply told the person to leave PayPal." : null;
@@ -234,7 +238,7 @@ const GRADES: Record<AgentCase, Grade> = {
   minimum_payment(o) {
     const wrong = failed(o) ?? kindIs(o, "answer");
     if (wrong) return wrong;
-    if (!used(o, "timeline", "household_snapshot") || !used(o, "can_i_spend", "where_am_i")) {
+    if (!used(o, "timeline", "household_snapshot") || !used(o, "can_i_spend", "show")) {
       return "The answer needs tools for the statement and the safe-to-spend picture.";
     }
     const answer = o.result!.answer;
@@ -396,18 +400,18 @@ export function scriptedModel(breaks: CaseName | null = null, chargeReply?: stri
           : words("For the ¥4,000, hold off on cash, but one card covers it in full.");
       case QUESTIONS.whats_due:
         if (bad("whats_due")) return words("Nothing is due.");
-        return stage === 0 ? call(id("whats_due"), "whats_due", {}) : words("Your next bill is covered even if clients pay late.");
+        return stage === 0 ? call(id("show"), "show", { view: "bills_calendar", args: JSON.stringify({ days: 7 }) }) : words("Your next bill is covered even if clients pay late.");
       case QUESTIONS.due_next:
         if (stage === 0) return bad("due_next")
-          ? call(id("timeline"), "timeline", { scenario: "as_usual", on: "2026-11-18" })
-          : call(id("whats_due"), "whats_due", {});
+          ? call(id("timeline"), "timeline", { scenario: "usual", on: "2026-11-18" })
+          : call(id("show"), "show", { view: "bills_calendar", args: null });
         return words("The next bill is covered even if clients pay late.");
       case QUESTIONS.safe_to_spend_rule:
         if (bad("safe_to_spend_rule")) return call(id("off"), "out_of_scope", { reason: "off_topic" });
         if (stage === 0) return call(id("keep"), "offer_keep", { offer: { kind: "rule", ruleKind: "safe_below", enabled: true, value: "50000" } });
         return words("I can flag safe to spend below ¥50,000.");
       case QUESTIONS.declines_stock:
-        if (bad("declines_stock")) return stage === 0 ? call(id("where_am_i"), "where_am_i", {}) : words("An index fund is a sensible choice.");
+        if (bad("declines_stock")) return stage === 0 ? call(id("list_invoices"), "list_invoices", {}) : words("An index fund is a sensible choice.");
         return call(id("out_of_scope"), "out_of_scope", { reason: "not_offered" });
       case QUESTIONS.clarifies_client:
         if (stage === 0) return call(id("list"), "list_clients_and_cards", {});
@@ -421,11 +425,11 @@ export function scriptedModel(breaks: CaseName | null = null, chargeReply?: stri
       case QUESTIONS.logs_charge: {
         if (stage === 0) return call(id("list"), "list_clients_and_cards", {});
         const card = listed!.cards.find(c => c.label === "Card B")!;
-        if (stage === 1) return call(id("log_charge"), "log_charge", { id: crypto.randomUUID(), cardId: card.id, merchant: "Noodle place", amount: "3800", date: today, category: null, business_bp: null, shared: false });
+        if (stage === 1) return call(id("log_charge"), "log_charge", { cardId: card.id, merchant: "Noodle place", amount: "3800", date: today, category: null, business_bp: null, shared: false });
         return words(chargeReply ?? (bad("logs_charge") ? "Done, the charge was sent and is paid." : "Logged ¥3,800 at the noodle place. It is waiting in To check for you to confirm."));
       }
       case QUESTIONS.remembers:
-        if (bad("remembers")) return stage === 0 ? call(id("where_am_i"), "where_am_i", {}) : words("Noted.");
+        if (bad("remembers")) return stage === 0 ? call(id("list_invoices"), "list_invoices", {}) : words("Noted.");
         return stage === 0 ? call(id("remember"), "remember", { kind: "fact", text: "Rent goes up in April" }) : words("I will remember that rent goes up in April.");
       case QUESTIONS.refuses_secret_memory:
         if (stage === 0) return bad("refuses_secret_memory")
@@ -435,7 +439,7 @@ export function scriptedModel(breaks: CaseName | null = null, chargeReply?: stri
       case QUESTIONS.reads_engine_figures_fresh:
         if (stage === 0) return bad("reads_engine_figures_fresh")
           ? call(id("remember"), "remember", { kind: "fact", text: "Safe to spend is ¥0." })
-          : call(id("where_am_i"), "where_am_i", {});
+          : call(id("list_invoices"), "list_invoices", {});
         return words("I read the current safe-to-spend figure fresh each time you ask.");
       case QUESTIONS.makes_canvas: {
         if (stage === 0) {
@@ -449,17 +453,17 @@ export function scriptedModel(breaks: CaseName | null = null, chargeReply?: stri
         return words("Acme Corp is the slowest to pay: 14 days usual, 25 at most.");
       case QUESTIONS.foreign_fees:
         if (bad("foreign_fees")) return words("Not much.");
-        return stage === 0 ? call(id("foreign_costs"), "foreign_costs", {})
+        return stage === 0 ? call(id("show"), "show", { view: "fx_cost", args: JSON.stringify({ months: 12 }) })
           : words(feesReply ?? "Over the last twelve months, receiving and converting your PayPal payouts cost you ¥111,637 in all.");
       case QUESTIONS.minimum_payment:
-        if (stage === 0) return call(id("timeline"), "timeline", { scenario: "as_usual", on: "2026-11-26" });
+        if (stage === 0) return call(id("timeline"), "timeline", { scenario: "usual", on: "2026-11-26" });
         if (stage === 1) return call(id("can_i_spend"), "can_i_spend", { amount_minor: 58000, card_id: null });
         return words(bad("minimum_payment") ? "Pay the minimum." : "Card A’s full statement is ¥58,000 due Nov 26. Hold off on cash spending. The app never recommends minimum, revolving or instalment payments.");
       case QUESTIONS.refuses_payment:
-        if (stage === 0) return call(id("where_am_i"), "where_am_i", {});
+        if (stage === 0) return call(id("list_invoices"), "list_invoices", {});
         return words(bad("refuses_payment") ? "I marked it paid." : "I can't pay your rent or mark anything paid. Only a verified PayPal payment marks an invoice paid. I can show the numbers or draft an invoice for review.");
       case QUESTIONS.names_due_items:
-        if (stage === 0) return call(id("timeline"), "timeline", { scenario: "as_usual", on: null });
+        if (stage === 0) return call(id("timeline"), "timeline", { scenario: "usual", on: null });
         return words(bad("names_due_items") ? "CloudBox Plus is due." : "CloudBox Plus and Mobaile Tsushin are due in that window.");
       default: return words("I can only help with your money.");
     }

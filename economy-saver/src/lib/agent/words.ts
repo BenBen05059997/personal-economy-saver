@@ -4,8 +4,6 @@ export const THINKING_WORDS = "Thinking about your question";
 const WORKING_WORDS = "Working on it";
 
 export const TOOL_WORDS: Record<string, string> = {
-  where_am_i: "Looking at where you stand",
-  whats_due: "Reading what's due",
   open_gaps: "Checking what's still unknown",
   can_i_spend: "Checking what you can spend",
   list_clients_and_cards: "Checking your clients and cards",
@@ -15,14 +13,9 @@ export const TOOL_WORDS: Record<string, string> = {
   household_snapshot: "Reading your household",
   goals: "Checking your goal progress",
   plan_for: "Working out the plan",
-  who_owes_whom: "Checking who owes whom",
-  month_by_category: "Adding up the month",
   own_categories: "Reading your own categories",
-  search_spending: "Searching your spending",
   bills_for_month: "Finding the bills for that month",
   suggestions: "Checking what needs your attention",
-  regular_costs: "Reading your regular costs",
-  foreign_costs: "Checking what foreign money costs",
   draft_invoice: "Drafting the invoice",
   add_bill: "Adding the bill",
   add_bills: "Adding the bills",

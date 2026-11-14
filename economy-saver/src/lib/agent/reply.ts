@@ -32,23 +32,16 @@ export const firstUse = (host: string, ownOnly = serverHasNoModel()) => `A model
 
 /** The page each tool's answer came from. `make_canvas`, `what_if`, `show` (its views name their own page) and `household_snapshot` add none. */
 const TOOL_SOURCES: Record<string, LinkSource> = {
-  where_am_i: { label: "Your next 30 days", href: "/#next-30-days" },
   suggestions: { label: "From your assistant", href: "/#assistant-suggestions" },
-  whats_due: { label: "Coming up", href: "/#coming-up" },
   timeline: { label: "Coming up", href: "/#coming-up" },
   can_i_spend: { label: "Safe to spend", href: "/" },
   options_when_short: { label: "Options", href: "/options" },
   list_invoices: { label: "Clients", href: "/clients" },
-  foreign_costs: { label: "Clients", href: "/clients" },
   list_clients_and_cards: { label: "Clients", href: "/clients" },
   goals: { label: "Saving", href: "/saving" },
   plan_for: { label: "Saving", href: "/saving" },
-  month_by_category: { label: "Spending", href: "/spending" },
-  search_spending: { label: "Spending", href: "/spending" },
   own_categories: { label: "Your categories", href: "/spending/categories" },
   bills_for_month: { label: "Spending", href: "/spending" },
-  regular_costs: { label: "Spending", href: "/spending/over-time" },
-  who_owes_whom: { label: "Shared costs", href: "/#shared-costs" },
   open_gaps: { label: "To check", href: "/to-check" },
   to_check: { label: "To check", href: "/to-check" },
   remember: { label: "Memory", href: "/memory" },

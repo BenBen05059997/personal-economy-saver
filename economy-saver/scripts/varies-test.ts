@@ -293,7 +293,7 @@ async function main() {
     assert.deepEqual(spendingItems(spending, "2026-12-01", "2026-12-31").filter(i => i.label === "Sakura Gas").map(i => [i.id, i.amountMinor, i.estimated]), [[s2, 5_000, true]]);
   });
 
-  await check("the estimate flag travels: the family list, Where the month goes, Regular costs and the timeline, month_by_category and regular_costs tools all say about", async () => {
+  await check("the estimate flag travels: the family list, Where the month goes, Regular costs and the timeline, and the regular-costs picture all say about", async () => {
     const own = await seedBen(db, { isDemo: true });
     await insertBill(store, own, billInput.parse({ id: randomUUID(), biller: "Fictional Water", amount: "6000", due: "2026-11-20", category: "utilities", repeat: "month", amountVaries: true }), "confirmed", form);
     const state = await loadMoneyState(store, own, TODAY);
@@ -308,12 +308,11 @@ async function main() {
     assert.deepEqual([regular.months.at(-1)!.estimated, regular.estimated], [true, true]);
     const ctx: ToolContext = { madeBy: "ask", db: store, householdId: own, state: () => loadMoneyState(store, own, TODAY), appUrl: new URL("http://127.0.0.1:3123") };
     const run = async (name: string, input: unknown) => { const tool = tools.find(t => t.name === name)!; return tool.run(ctx, tool.input.parse(input) as never); };
-    assert.match(await run("month_by_category", {}), /Fictional Water Nov 20 about ¥6,000/);
-    const timeline = JSON.parse(await run("timeline", { scenario: "as_usual" })) as { events: { label: string; estimated?: true }[] };
+    const timeline = JSON.parse(await run("timeline", { scenario: "usual" })) as { events: { label: string; estimated?: true }[] };
     assert.deepEqual(timeline.events.filter(e => e.label === "Fictional Water").map(e => e.estimated), [true]);
     assert.ok(timeline.events.filter(e => e.label !== "Fictional Water").every(e => e.estimated === undefined));
-    const regulars = JSON.parse(await run("regular_costs", { months: 3 })) as { items: { label: string; estimated?: true; months: { estimated?: true }[] }[] };
-    assert.deepEqual(regulars.items.filter(c => c.label === "Fictional Water").map(c => c.months.at(-1)!.estimated), [true]);
+    const shown = JSON.parse(await run("show", { view: "fixed_costs", args: JSON.stringify({ months: 3 }) })) as { facts: { name: string; about?: { name: string } }[] };
+    assert.ok(shown.facts.some(f => f.name === "about_estimate" && f.about?.name === "Fictional Water"), "the regular-costs picture says about for the estimated bill");
     const first = state.bills.find(b => b.biller === "Fictional Water" && b.estimated)!;
     assert.equal(first.amount, 6_000);
   });

@@ -20,6 +20,8 @@ import { PanelHint } from "@/components/ui/PanelHint";
 import { BankBalance } from "./BankBalance";
 import { HomeViews } from "./HomeViews";
 import { resolveView } from "@/lib/views/resolve";
+import { STATEMENT_COVERED } from "@/lib/money/covered-words";
+import { CASES } from "@/lib/money/terms";
 import { homeSentence } from "@/lib/money/sentence";
 import { Suspense, type ReactNode } from "react";
 import { Sentence } from "./Sentence";
@@ -38,7 +40,6 @@ type MemberRequests = Awaited<ReturnType<typeof memberRequestsView>>;
 // What the ✓ marks mean in the engine: a bill's tick is "the worst-case balance on its due day is at least zero";
 // a card's is "the statement is paid from the bank, or once client payments land by its due date, with every other bill still paid".
 const DAY_COVERED = "Covered: your balance stays above zero on this day, even if clients pay late.";
-const STATEMENT_COVERED = "Covered: this statement can be paid on its due date from your bank or from client payments due by then.";
 
 function Actions({ state, forwarding }: Props & { forwarding: boolean }) {
   const options = fundingOptions(state);
@@ -211,7 +212,7 @@ function ComingUp({ state, added, addedId }: Props & { added: string | null; add
         <div>{payment ? <><Link prefetch={false} href={hrefFor({ type: "client", id: payment.clientId })}>{event.label}</Link> pays</>
           : event.kind === "statement" && event.cardId ? <Link prefetch={false} className="home-link-target" href={hrefFor({ type: "statement", id: event.cardId })}>{event.label}</Link>
           : event.kind === "bill" ? <Link prefetch={false} className="home-link-target" href={event.pending ? "/to-check" : hrefFor({ type: "bill", id: event.id.split("@")[0] })}>{event.label}</Link> : event.label}
-          {payment ? <small>Usual date · if late, {dayLabel(payment.worstOn)}</small>
+          {payment ? <small>Usual date · if clients pay {CASES.late.label}, {dayLabel(payment.worstOn)}</small>
             : event.pending ? <small>Awaiting confirmation</small>
             : carries[index] && <small className="home-short">Short by {format(-(lateBalance.get(event.id) ?? 0))} if clients pay late</small>}
           {repeats.has(event.id) && <small>{repeats.get(event.id)}</small>}

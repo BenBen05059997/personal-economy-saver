@@ -151,3 +151,9 @@ export function termOf(name: TermName): Term {
   if (!found) throw new Error(`Unknown money term: ${name}`);
   return found;
 }
+
+/** A term's label with a capital first letter, for the start of a line. */
+export function labelOf(name: TermName): string {
+  const label = termOf(name).label;
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}

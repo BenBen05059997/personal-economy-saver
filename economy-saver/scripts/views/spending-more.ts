@@ -116,7 +116,7 @@ check("fixed_costs: the regular share and what changed per cost are facts about 
   const share = fixed.facts!.find(f => f.name === "regular_share")!;
   assert.equal(share.value, fixedByMonth(benMoney, benMoney.today).months.find(m => m.current)!.regularShare);
   const costs = fixed.facts!.filter(f => f.about?.type === "cost" && f.name !== "biggest_regular_cost");
-  assert.ok(costs.every(f => ["change_from_last_month", "regular_cost_started", "regular_cost_stopped", "about_estimate"].includes(f.name)));
+  assert.ok(costs.every(f => ["regular_costs", "change_from_last_month", "regular_cost_started", "regular_cost_stopped", "about_estimate"].includes(f.name)));
 });
 
 console.log(`spending-more: ${passed} passed`);

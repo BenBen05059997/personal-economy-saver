@@ -533,13 +533,13 @@ async function main() {
     const privateCalls = scripted((index, body) => {
       if (index === 0) {
         const names = body.tools.map(tool => tool.name);
-        assert.ok(names.includes("where_am_i") && names.includes("search_history"));
+        assert.ok(names.includes("open_gaps") && names.includes("search_history"));
         for (const forbidden of ["update_brief", "remember", "forget", "log_charge", "draft_invoice", "open_space", "offer_keep"]) assert.ok(!names.includes(forbidden));
         const system = JSON.stringify(body.system);
         assert.ok(system.includes("Fictional existing brief") && system.includes("Fictional existing profile"));
         assert.ok(JSON.stringify(body.messages).includes("Older fictional question"));
         return modelReply("tool_use", [
-          call("where_am_i", {}), call("remember", { kind: "fact", text: "Incognito note" }),
+          call("open_gaps", {}), call("remember", { kind: "fact", text: "Incognito note" }),
           call("update_brief", { about: "Incognito brief" }), call("open_space", { name: "Incognito space" }), call("log_charge", {}),
         ]);
       }
@@ -581,7 +581,7 @@ async function main() {
       const input = { ...privateQuestion, id: crypto.randomUUID() };
       scripted(index => {
         if (fail === "model") return new Response(null, { status: 500 });
-        if (index === 0) return modelReply("tool_use", [call("where_am_i", {})]);
+        if (index === 0) return modelReply("tool_use", [call("open_gaps", {})]);
         return modelReply("end_turn", [{ type: "text", text: "You have ¥888,888." }]);
       });
       const failure = (await streamed(await ask(json("/api/ask", input)))).last;
@@ -591,7 +591,7 @@ async function main() {
         .where(and(eq(schema.askReceipts.householdId, privateHid), eq(schema.askReceipts.askId, input.id)));
       assert.deepEqual(await receipts(), [], `${fail}: a failed run releases its claim`);
       const calls = scripted(index => index === 0
-        ? modelReply("tool_use", [call("where_am_i", {})])
+        ? modelReply("tool_use", [call("open_gaps", {})])
         : modelReply("end_turn", [{ type: "text", text: "I checked again." }]));
       const retry = (await streamed(await ask(json("/api/ask", input)))).last.reply!;
       assert.equal(retry.text, "I checked again.");
@@ -609,7 +609,7 @@ async function main() {
     scripted((index, body) => {
       if (index === 0) {
         assert.ok(JSON.stringify(body.system).includes("Fictional local brief"));
-        return modelReply("tool_use", [call("where_am_i", {})]);
+        return modelReply("tool_use", [call("open_gaps", {})]);
       }
       return modelReply("end_turn", [{ type: "text", text: "Your forecast is here." }]);
     });

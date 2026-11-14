@@ -62,7 +62,8 @@ export const monthByCategoryView: Resolver<"month_by_category"> = (args: ViewArg
   const lastFact = view.lastTotal > 0 ? money("month_total", view.lastTotal, span(monthsBack(month, 2))) : null;
   const facts: Fact[] = [spentFact, comingFact, totalFact, ...(lastFact ? [lastFact] : []), money("change_from_last_month", view.change.amount)];
   if (view.change.percent !== null) facts.push(engineFact("change_from_last_month_percent", view.change.percent, { from: "month_by_category", period: span(month) }));
-  if (business) facts.push(money("business_share", view.businessMinor));
+  // The business share of a month in any question, and each category's part (a person's rows are not categories).
+  if (business || view.businessMinor > 0) facts.push(money("business_share", view.businessMinor));
   const aboutType = view.by === "person" ? "person" as const : "category" as const;
   for (const row of [...view.rows].sort((a, b) => Math.abs(b.change.amount) - Math.abs(a.change.amount) || a.label.localeCompare(b.label))) {
     const about = { type: aboutType, id: row.key, name: row.label };
@@ -70,6 +71,7 @@ export const monthByCategoryView: Resolver<"month_by_category"> = (args: ViewArg
     if (row.change.percent !== null) facts.push(engineFact("change_from_last_month_percent", row.change.percent, { from: "month_by_category", period: span(month), about }));
     if (row.unknown) facts.push(engineFact("not_counted", 1, { from: "month_by_category", period: span(month), about }));
   }
+  if (view.by !== "person") for (const row of view.rows) facts.push(engineFact("category_total", row.total, { from: "month_by_category", currency, period: span(month), about: { type: "category", id: row.key, name: row.label } }));
   const said = (item: Fact) => format(item.value as number);
   const against = lastFact ? said(lastFact) : "nothing recorded";
   const line = business ? (view.businessMinor === 0 ? view.businessLine : `Business ${said(facts.find(f => f.name === "business_share")!)} of ${said(totalFact)} ${when}`)

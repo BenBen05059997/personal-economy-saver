@@ -51,7 +51,7 @@ export function blockWords(block: Block): string {
     case "view": return `Picture: ${VIEW_META[block.view].question}`;
     case "note": return `Note (${block.by === "you" ? "yours" : "written by the assistant"})`;
     case "letter": return "Letter written by the assistant";
-    case "sliders": return `Sliders: ${block.controls.length} ${plural(block.controls.length, "client")} that can pay late`;
+    case "sliders": return `Sliders: ${block.controls.length} ${plural(block.controls.length, "client")} that can pay later than usual`;
     case "action": return `Link: "${block.label}", to a page in the app`;
   }
 }

@@ -689,11 +689,11 @@ async function main() {
       const total = group((await foreignCosts(db, householdId)).payoutTotals.costMinor);
       assert.equal(total, "111,637", "Ben's seeded payouts cost ¥111,637");
       const answer = (text: string): Outcome["result"] => ({ kind: "answer", answer: text, choices: null, recipe: null, sources: [], links: [], pending: false, offers: [] });
-      const outcome = (extra: Partial<Outcome>): Outcome => ({ db, householdId, state, result: null, error: null, calls: [{ name: "foreign_costs", input: {} }], ...extra });
+      const outcome = (extra: Partial<Outcome>): Outcome => ({ db, householdId, state, result: null, error: null, calls: [{ name: "show", input: { view: "fx_cost", args: JSON.stringify({ months: 12 }) } }], ...extra });
       assert.equal(await gradeOutcome("foreign_fees", outcome({ result: answer(`Your payouts cost ¥${total} over twelve months.`) })), null);
       assert.equal(await gradeOutcome("foreign_fees", outcome({ result: answer("They cost 111637 yen in all.") })), null);
       assert.match((await gradeOutcome("foreign_fees", outcome({ result: answer("Your payouts cost ¥99,999 over twelve months.") })))!, /total cost/);
-      assert.match((await gradeOutcome("foreign_fees", outcome({ calls: [], result: answer(`Your payouts cost ¥${total}.`) })))!, /did not call foreign_costs/);
+      assert.match((await gradeOutcome("foreign_fees", outcome({ calls: [], result: answer(`Your payouts cost ¥${total}.`) })))!, /did not show fx_cost/);
       for (const text of ["Wise would cost less.", "Try revolut instead.", "Payoneer is cheaper."])
         assert.match((await gradeOutcome("foreign_fees", outcome({ result: answer(`Your payouts cost ¥${total}. ${text}`) })))!, /other than PayPal/, text);
       assert.match((await gradeOutcome("foreign_fees", outcome({ result: answer(`Your payouts cost ¥${total}. You could leave PayPal.`) })))!, /leave PayPal/);

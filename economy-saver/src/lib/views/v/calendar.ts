@@ -61,6 +61,18 @@ export const calendarView: Resolver<"bills_calendar"> = (args, ctx): ViewResult 
   facts.push(engineFact("short_days", shortDays.length, { from }));
   if (lastShort) facts.push(engineFact("first_short_day", shortDays[0].date, { from }), engineFact("last_short_day", lastShort, { from }));
   if (pendingCount > 0) facts.push(engineFact("to_check", pendingCount, { from }));
+  // Each counted item on its day, so a figure the person asks about by name is a fact: a bill or statement with its due day and amount, a client with the amount they bring in as usual.
+  for (const row of rows) for (const item of row.items) {
+    if (item.pending) continue;
+    const about = item.kind === "arrival" ? { type: "client" as const, id: item.clientId ?? item.id, name: item.label }
+      : item.kind === "statement" ? { type: "card" as const, id: item.cardId ?? item.id, name: item.label } : { type: "bill" as const, id: item.id, name: item.label };
+    const period = { on: row.date };
+    if (item.kind !== "arrival") facts.push(engineFact("due", row.date, { from, about }));
+    if (item.uncounted) { facts.push(engineFact("not_counted", 1, { from, about, period })); continue; }
+    const name = item.kind === "bill" ? "bill_amount" : item.kind === "arrival" ? "client_pays" : item.open ? "statement_open" : "statement_closed";
+    facts.push(engineFact(name, item.amountMinor, { from, currency, about, period, ...(name === "client_pays" ? { case: "as_usual" as const } : {}) }));
+    if (item.estimated) facts.push(engineFact("about_estimate", 1, { from, about, period }));
+  }
   const said = (name: Fact["name"]) => facts.find(item => item.name === name)!.value;
   const line = `${format(Number(said("goes_out")))} goes out in the next ${said("days_shown")} days${shared ? "" : ` and ${format(Number(said("comes_in")))} comes in as clients pay as usual`}. The heaviest day is ${longDay(String(said("heaviest_day")))} (${format(Number(said("heaviest_day_goes_out")))}).`
     + (lastShort ? ` If clients pay late you are short from ${dayLabel(String(said("first_short_day")))} to ${dayLabel(String(said("last_short_day")))}.` : "");

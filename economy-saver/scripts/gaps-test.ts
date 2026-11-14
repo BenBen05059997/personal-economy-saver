@@ -571,17 +571,17 @@ async function main() {
     assert.deepEqual([gas.question, gas.amountWords, gas.dateWords, gas.urgent, gas.why], ["Minato Phone, due Dec 12: how much?", "amount not known", undefined, true, "could_change_sentence"]);
     const cloud = out.gaps.find(g => g.name === "Minato Cloud")!;
     assert.deepEqual([cloud.question, cloud.dateWords], ["Minato Cloud: how much, and when is it due?", "date not known, counted as due now"]);
-    const id = randomUUID();
-    const input = tool("add_bill").input.parse({ id, biller: "Minato Drafted", amount: null, due: null, memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, category: "utilities", business_bp: null, shared: null, paidBy: null });
+    const input = tool("add_bill").input.parse({ biller: "Minato Drafted", amount: null, due: null, memberId: null, repeat: null, next_amount: null, next_amount_from: null, cancel_by: null, category: "utilities", business_bp: null, shared: null, paidBy: null });
     assert.match(await tool("add_bill").run(ctx, input as never), /waiting in To check/);
-    const [drafted] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, hid), eq(schema.bills.id, id)));
+    const [drafted] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, hid), eq(schema.bills.biller, "Minato Drafted")));
+    const id = drafted.id;
     assert.deepEqual([drafted.amountMinor, drafted.due, drafted.status], [null, null, "pending"]);
     const state = await loadMoneyState(store, hid, TODAY);
     assert.equal(state.bills.find(b => b.id === id)!.uncounted, true);
     assert.ok(openGaps(state).some(g => g.id === id && g.status === "pending"));
     const properties = toolInputSchema(tool("add_bill")).properties as Record<string, { description: string }>;
     for (const field of ["amount", "due"]) assert.match(properties[field].description, /null if unknown/i);
-    const timelineJson = JSON.parse(await tool("timeline").run(ctx, tool("timeline").input.parse({ scenario: "as_usual" }) as never)) as { events: { label: string; uncounted?: true }[] };
+    const timelineJson = JSON.parse(await tool("timeline").run(ctx, tool("timeline").input.parse({ scenario: "usual" }) as never)) as { events: { label: string; uncounted?: true }[] };
     assert.ok(timelineJson.events.filter(e => e.label === "Minato Cloud").every(e => e.uncounted === true));
   });
 

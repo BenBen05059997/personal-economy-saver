@@ -308,49 +308,46 @@ async function main() {
       await db.delete(schema.cards).where(eq(schema.cards.id, homeless));
     });
 
-    await check("the agent tools: who_owes_whom builds its summary in code; add_bill and log_charge take shared and paid by (by name)", async () => {
+    await check("the agent tools: show who_owes_whom carries the retired tool's transfers as facts; add_bill and log_charge take shared and paid by (by name)", async () => {
       const ctx = (hid: string): ToolContext => ({ madeBy: "ask", db, householdId: hid, state: () => stateOf(hid), appUrl: new URL("http://127.0.0.1:3123") });
       const tool = (name: string) => tools.find(t => t.name === name)!;
       const run = (hid: string, name: string, input: unknown) => tool(name).run(ctx(hid), tool(name).input.parse(input) as never);
-      assert.equal(tool("who_owes_whom").scope, "read");
-      assert.deepEqual(Object.keys(tool("who_owes_whom").input.shape), []);
       assert.deepEqual([...(toolInputSchema(tool("add_bill")) as unknown as { required: string[] }).required].sort(),
-        ["amount", "biller", "business_bp", "cancel_by", "category", "due", "id", "memberId", "next_amount", "next_amount_from", "own_category", "paidBy", "period_end", "period_start", "repeat", "repeat_until", "shared"]);
+        ["amount", "biller", "business_bp", "cancel_by", "category", "due", "memberId", "next_amount", "next_amount_from", "own_category", "paidBy", "period_end", "period_start", "repeat", "repeat_until", "shared"]);
       assert.ok((toolInputSchema(tool("log_charge")) as unknown as { required: string[] }).required.includes("shared"));
-      assert.equal(tools.filter(t => t.scope === "read").length, 26);
+      assert.equal(tools.filter(t => t.scope === "read").length, 19);
 
-      const mine = JSON.parse(await run(a, "who_owes_whom", {}));
-      assert.deepEqual([mine.summary, mine.currency, mine.split, mine.transfers.length], ["Aki owes Ben ¥9,000.", "JPY", true, 1]);
-      const live = JSON.parse(await run(a, "who_owes_whom", {}));
-      assert.deepEqual(live.transfers, [{ from: "Aki", to: "Ben", amountMinor: 9_000 }]);
-      assert.deepEqual(live.members, [
-        { name: "Ben", shareBp: 6000, paidMinor: 30_000, shareMinor: 21_000, netMinor: 9_000 },
-        { name: "Aki", shareBp: 4000, paidMinor: 5_000, shareMinor: 14_000, netMinor: -9_000 }]);
-      const alone = JSON.parse(await run(b, "who_owes_whom", {}));
-      assert.deepEqual([alone.summary, alone.split, alone.transfers], ["Only one person is in this household, so there is nothing to split.", false, []]);
+      const owes = (hid: string) => run(hid, "show", { view: "who_owes_whom", args: null }).then(text => JSON.parse(text) as { facts: { name: string; value: number | string; about?: { name: string } }[]; line: string | null; empty: string | null });
+      const mine = await owes(a);
+      const transfers = splitBalance((await stateOf(a)).split, TODAY).transfers;
+      assert.deepEqual(transfers.map(t => [t.fromName, t.toName, t.amountMinor]), [["Aki", "Ben", 9_000]]);
+      assert.equal(mine.line, "Aki owes Ben ¥9,000.");
+      for (const t of transfers) {
+        assert.ok(mine.facts.some(f => f.name === "who_owes_whom" && f.value === t.amountMinor && f.about?.name === t.fromName), "the transfer's amount");
+        assert.ok(mine.facts.some(f => f.name === "owes_to" && f.value === t.toName && f.about?.name === t.fromName), "who it is owed to");
+      }
+      assert.deepEqual(mine.facts.filter(f => f.name === "shared_paid").map(f => [f.about?.name, f.value]), [["Ben", 30_000], ["Aki", 5_000]]);
+      const alone = await owes(b);
+      assert.deepEqual([alone.line, alone.facts, /Add a person/.test(alone.empty ?? "")], [null, [], true]);
 
-      const id = randomUUID();
-      const pending = await run(a, "add_bill", { id, biller: "Fictional gas", amount: "6000", due: "2026-11-25", category: "utilities", memberId: null, repeat: "month", shared: true, paidBy: " aki " });
+      const pending = await run(a, "add_bill", { biller: "Fictional gas", amount: "6000", due: "2026-11-25", category: "utilities", memberId: null, repeat: "month", shared: true, paidBy: " aki " });
       assert.match(pending, /waiting in To check/);
-      const row = await first(db.select().from(schema.bills).where(eq(schema.bills.id, id)));
+      const row = await first(db.select().from(schema.bills).where(eq(schema.bills.biller, "Fictional gas")));
       assert.deepEqual([row.status, row.memberId, row.paidByMemberId, row.repeatDay], ["pending", null, aki, 25]);
-      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: "Nobody" }), /Nobody called Nobody is in this household/);
-      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: null }), /Say who pays/);
-      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: false, paidBy: "Aki" }), /set shared to true/);
-      await assert.rejects(run(a, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: ben, repeat: null, shared: true, paidBy: "Aki" }), /leave memberId empty/);
-      await assert.rejects(run(b, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: "Ben" }), /second person/);
-      await assert.rejects(run(b, "add_bill", { id: randomUUID(), biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: "Aki" }), /second person/);
-      const plain = randomUUID();
-      await run(b, "add_bill", { id: plain, biller: "Fictional plain", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: null, paidBy: null });
-      assert.equal((await first(db.select().from(schema.bills).where(eq(schema.bills.id, plain)))).paidByMemberId, null, "shared and paidBy are optional");
+      await assert.rejects(run(a, "add_bill", { biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: "Nobody" }), /Nobody called Nobody is in this household/);
+      await assert.rejects(run(a, "add_bill", { biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: null }), /Say who pays/);
+      await assert.rejects(run(a, "add_bill", { biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: false, paidBy: "Aki" }), /set shared to true/);
+      await assert.rejects(run(a, "add_bill", { biller: "X", amount: "1", due: TODAY, category: "other", memberId: ben, repeat: null, shared: true, paidBy: "Aki" }), /leave memberId empty/);
+      await assert.rejects(run(b, "add_bill", { biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: "Ben" }), /second person/);
+      await assert.rejects(run(b, "add_bill", { biller: "X", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: true, paidBy: "Aki" }), /second person/);
+      await run(b, "add_bill", { biller: "Fictional plain", amount: "1", due: TODAY, category: "other", memberId: null, repeat: null, shared: null, paidBy: null });
+      assert.equal((await first(db.select().from(schema.bills).where(eq(schema.bills.biller, "Fictional plain")))).paidByMemberId, null, "shared and paidBy are optional");
 
-      const charge = randomUUID();
-      await run(a, "log_charge", { id: charge, cardId: akiCard, merchant: "Fictional bakery", amount: "800", date: TODAY, category: "other", shared: true });
-      assert.deepEqual((await first(db.select().from(schema.charges).where(eq(schema.charges.id, charge)))).shared, true);
-      const unshared = randomUUID();
-      await run(a, "log_charge", { id: unshared, cardId: akiCard, merchant: "Fictional kiosk", amount: "300", date: TODAY, shared: false });
-      assert.equal((await first(db.select().from(schema.charges).where(eq(schema.charges.id, unshared)))).shared, false);
-      await assert.rejects(run(b, "log_charge", { id: randomUUID(), cardId: (await first(db.select().from(schema.cards).where(eq(schema.cards.householdId, b)))).id, merchant: "X", amount: "1", date: TODAY, category: "other", shared: true }), /second person/);
+      await run(a, "log_charge", { cardId: akiCard, merchant: "Fictional bakery", amount: "800", date: TODAY, category: "other", shared: true });
+      assert.deepEqual((await first(db.select().from(schema.charges).where(eq(schema.charges.merchant, "Fictional bakery")))).shared, true);
+      await run(a, "log_charge", { cardId: akiCard, merchant: "Fictional kiosk", amount: "300", date: TODAY, shared: false });
+      assert.equal((await first(db.select().from(schema.charges).where(eq(schema.charges.merchant, "Fictional kiosk")))).shared, false);
+      await assert.rejects(run(b, "log_charge", { cardId: (await first(db.select().from(schema.cards).where(eq(schema.cards.householdId, b)))).id, merchant: "X", amount: "1", date: TODAY, category: "other", shared: true }), /second person/);
       const pendingCount = (await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, a), eq(schema.charges.status, "pending")))).length;
       assert.ok(pendingCount >= 2, "agent charges wait in To check");
       assert.equal(splitBalance((await stateOf(a)).split, TODAY).items, 2, "pending agent items do not count");

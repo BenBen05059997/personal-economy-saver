@@ -10,33 +10,29 @@ import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
 import { readerInbox } from "@/db/reader-inbox";
 import { chargeInput, insertCharge } from "@/db/charges";
-import { foreignCosts } from "@/db/fx-cost";
 import { findOwnCategory, guessOwnCategory, listOwnCategoriesGrouped } from "@/db/own-categories";
 import { openSuggestions } from "@/db/suggestions";
+import { canonicalJson, stableId } from "@/lib/stable-id";
 import { Currency } from "@/lib/catalogue/types";
-import { catalogueMove } from "@/lib/catalogue/engine";
-import { PAYPAL_RATES, foreignCostWords } from "@/lib/money/fx-cost";
 import { InputError } from "@/db/input-error";
 import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
 import { memberByName, memberCount } from "@/db/people";
 import { potInput, savePot } from "@/db/pots";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
-import { loadPeriodBills, loadSpending } from "@/db/spending";
+import { loadPeriodBills } from "@/db/spending";
 import { toMinor } from "@/db/money";
 import { clients, invoices } from "@/db/schema";
 import { minorPerUnit } from "@/lib/money/format";
 import { dayView } from "@/lib/money/window";
 import { gapAmountWords, gapDateWords, gapQuestion, openGaps } from "@/lib/money/gaps";
-import { dueAnswer, dueFacts, outlookFacts, safeToSpendLine, spendReading, statusAnswer, withFacts } from "@/lib/money/ask";
+import { outlookFacts, spendReading, withFacts } from "@/lib/money/ask";
 import { engineFact, forModel, type Fact } from "@/lib/money/facts";
 import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { ownLabel } from "@/lib/money/own-category";
 import { guessCategory } from "@/lib/money/categorise";
-import { monthByCategory, monthText, monthWhen } from "@/lib/money/month";
-import { HISTORY_MONTHS, monthBounds, monthsBack, SEARCH_QUERY_MAX, searchLine, searchSpending, spendingItems } from "@/lib/money/spending";
+import { monthBounds, SEARCH_QUERY_MAX } from "@/lib/money/spending";
 import { latestDate } from "@/lib/money/horizon";
 import { billsForMonth } from "@/lib/money/period";
-import { REGULAR_MONTHS, regularCosts } from "@/lib/money/regular";
 import { fundingOptions } from "@/lib/money/options";
 import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { clientPace } from "@/lib/money/pace";
@@ -56,7 +52,6 @@ import type { Brief } from "./brief";
 import { offerTools } from "./offer-tools";
 import type { KeepOffer } from "./keep-offer";
 import { checkTools } from "./check-tools";
-import { splitBalance, splitSummary } from "@/lib/money/split";
 import { CASE_KIND, type Recipe } from "@/lib/canvas/schema";
 import type { DeviceMemory } from "@/lib/store/memory-ops";
 import type { MoneyState } from "@/lib/money/types";
@@ -69,6 +64,8 @@ export type ToolContext = {
   /** D50: who is calling; every row a tool writes carries it (and `askId` for Ask). */
   madeBy: "ask" | "mcp";
   askId?: string;
+  /** MCP only: the request this call came in on; a draft's id is made from it, as from `askId` in Ask. */
+  requestId?: string | number;
   /** How the question arrived; a charge logged from it keeps this as its source. */
   source?: "voice" | "manual";
   /** The agent shows these as buttons under the answer. */
@@ -123,7 +120,7 @@ const ownCategoryField = z.string().trim().min(1).max(80).nullable().default(nul
 const businessField = BusinessBp.nullable().default(null)
   .describe("Basis points; null: personal.");
 // D54's "amount varies" is set by the user on the form or in Settings, not by the agent; an agent's one-off still links on confirm.
-const addBillInput = billInput.omit({ ownCategoryId: true, ownCategoryNew: true, paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, repeatUntil: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true, periodStart: true, periodEnd: true }).extend({
+const addBillInput = billInput.omit({ id: true, ownCategoryId: true, ownCategoryNew: true, paidByMemberId: true, category: true, businessBp: true, repeat: true, nextAmount: true, nextAmountFrom: true, cancelBy: true, repeatUntil: true, amountVaries: true, amountUnknown: true, dueUnknown: true, amount: true, due: true, periodStart: true, periodEnd: true }).extend({
   amount: z.string().trim().nullable().describe("Text number; null if unknown."),
   due: z.string().date().nullable().describe("Null if unknown. Repeats need one."),
   repeat: RepeatUnitSchema.nullable().default(null).describe("Null for a one-off."),
@@ -139,7 +136,7 @@ const addBillInput = billInput.omit({ ownCategoryId: true, ownCategoryNew: true,
   shared: z.boolean().nullable().default(null),
   paidBy: z.string().trim().min(1).max(80).nullable().default(null),
 });
-const logChargeInput = chargeInput.omit({ ownCategoryId: true, ownCategoryNew: true, category: true, businessBp: true, originalAmount: true, originalCurrency: true }).extend({
+const logChargeInput = chargeInput.omit({ id: true, ownCategoryId: true, ownCategoryNew: true, category: true, businessBp: true, originalAmount: true, originalCurrency: true }).extend({
   category: categoryField, own_category: ownCategoryField, business_bp: businessField,
   original_amount: z.string().trim().nullable().default(null).describe("Paid in original_currency."),
   original_currency: Currency.nullable().default(null).describe("Not the card currency."),
@@ -180,7 +177,7 @@ async function ownFor(ctx: ToolContext, category: CategoryKey, itemName: string,
 }
 
 /** Checks one add_bill item and turns it into what insertBill takes. Throws an InputError the model can read. */
-async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>) {
+async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>, id: string) {
   const { shared, paidBy, category: given, own_category, business_bp, next_amount, next_amount_from, cancel_by, repeat_until, period_start, period_end, ...bill } = input;
   let paidByMemberId: string | null = null;
   if (paidBy !== null && !shared) throw new InputError("paidBy names who pays a shared bill; set shared to true");
@@ -194,16 +191,16 @@ async function prepareBill(ctx: ToolContext, input: z.infer<typeof addBillInput>
   const own = await ownFor(ctx, category, bill.biller, own_category, business_bp !== null);
   return {
     biller: bill.biller, note: categoryNote + own.note, status: "pending" as const,
-    bill: { ...bill, amount: bill.amount ?? "", amountUnknown: bill.amount === null, dueUnknown: bill.due === null, category, ...(own.ownCategoryId !== null && { ownCategoryId: own.ownCategoryId }), businessBp: business_bp ?? own.businessBp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by, repeatUntil: repeat_until, periodStart: period_start, periodEnd: period_end },
+    bill: { id, ...bill, amount: bill.amount ?? "", amountUnknown: bill.amount === null, dueUnknown: bill.due === null, category, ...(own.ownCategoryId !== null && { ownCategoryId: own.ownCategoryId }), businessBp: business_bp ?? own.businessBp ?? 0, paidByMemberId, nextAmount: next_amount, nextAmountFrom: next_amount_from, cancelBy: cancel_by, repeatUntil: repeat_until, periodStart: period_start, periodEnd: period_end },
   };
 }
 
-async function prepareCharge(ctx: ToolContext, input: z.infer<typeof logChargeInput>) {
+async function prepareCharge(ctx: ToolContext, input: z.infer<typeof logChargeInput>, id: string) {
   const { category: given, own_category, business_bp, original_amount, original_currency, ...charge } = input;
   const { category, note: categoryNote } = categoryFor(charge.merchant, given);
   const own = await ownFor(ctx, category, charge.merchant, own_category, business_bp !== null);
   return { merchant: charge.merchant, note: categoryNote + own.note, charge: {
-    ...charge, category, ...(own.ownCategoryId !== null && { ownCategoryId: own.ownCategoryId }), businessBp: business_bp ?? own.businessBp ?? 0,
+    id, ...charge, category, ...(own.ownCategoryId !== null && { ownCategoryId: own.ownCategoryId }), businessBp: business_bp ?? own.businessBp ?? 0,
     ...(original_amount !== null && { originalAmount: original_amount }), ...(original_currency !== null && { originalCurrency: original_currency }),
   } };
 }
@@ -216,18 +213,27 @@ async function atItem<T>(index: number, run: () => Promise<T> | T): Promise<T> {
     throw failure;
   }
 }
-/** One draft: prepare it, insert it, and tell the screen something is pending. */
-async function draftOne<I, P>(ctx: ToolContext, input: I, prepare: (ctx: ToolContext, item: I) => Promise<P>, insert: (db: Db, prepared: P) => Promise<unknown>): Promise<P> {
-  const prepared = await prepare(ctx, input);
+/**
+ * The id of a draft, made by code (D40): the same household, Ask or MCP request, tool, input and item place give the same id, so a call made twice is one draft.
+ * A call with neither an Ask nor an MCP request behind it (a test calling a tool directly) gets a fresh one.
+ */
+async function draftId(ctx: ToolContext, tool: string, input: unknown, index = 0): Promise<string> {
+  const call = ctx.askId ?? ctx.requestId;
+  return call === undefined ? crypto.randomUUID() : stableId(ctx.householdId, String(call), tool, canonicalJson(input), index);
+}
+
+/** One draft: make its id, prepare it, insert it, and tell the screen something is pending. */
+async function draftOne<I, P>(ctx: ToolContext, tool: string, input: I, prepare: (ctx: ToolContext, item: I, id: string) => Promise<P>, insert: (db: Db, prepared: P) => Promise<unknown>): Promise<P> {
+  const prepared = await prepare(ctx, input, await draftId(ctx, tool, input));
   await insert(ctx.db, prepared);
   ctx.onPending?.();
   return prepared;
 }
 
 /** Several drafts atomically: every item is prepared first, then all are inserted in one transaction; an error names the zero-based item. */
-async function draftMany<I, P>(ctx: ToolContext, items: I[], prepare: (ctx: ToolContext, item: I) => Promise<P>, insert: (db: Db, prepared: P) => Promise<unknown>): Promise<P[]> {
+async function draftMany<I, P>(ctx: ToolContext, tool: string, items: I[], prepare: (ctx: ToolContext, item: I, id: string) => Promise<P>, insert: (db: Db, prepared: P) => Promise<unknown>): Promise<P[]> {
   const prepared: P[] = [];
-  for (const [i, item] of items.entries()) prepared.push(await atItem(i, () => prepare(ctx, item)));
+  for (const [i, item] of items.entries()) prepared.push(await atItem(i, async () => prepare(ctx, item, await draftId(ctx, tool, item, i))));
   await ctx.db.transaction(async tx => {
     for (const [i, p] of prepared.entries()) await atItem(i, () => insert(tx as unknown as Db, p));
   });
@@ -269,16 +275,6 @@ function lowFacts(state: MoneyState, lowest: { date: string; amount: number }, s
 
 export const tools: Tool[] = [
   defineTool({
-    name: "where_am_i", scope: "read", input: none,
-    description: "The 30-day outlook in one sentence (fine if clients pay as usual, how short if late), plus Home’s safe-to-spend and what it covers.",
-    run: async ctx => { const state = await ctx.state(); return withFacts(`${statusAnswer(state)} ${safeToSpendLine(state)}`, outlookFacts(state, "where_am_i")); },
-  }),
-  defineTool({
-    name: "whats_due", scope: "read", input: none,
-    description: "The one next confirmed bill or statement, amount, date, coverage. Others, any card’s statement: timeline.",
-    run: async ctx => { const state = await ctx.state(); return withFacts(dueAnswer(state), dueFacts(state, "whats_due")); },
-  }),
-  defineTool({
     name: "open_gaps", scope: "read", input: none,
     description: "Bills and readings missing a date or amount, urgent first. Quote the gap words and question. Unknown dates count today.",
     run: async ctx => {
@@ -317,11 +313,13 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "timeline", scope: "read",
-    input: z.object({ scenario: z.enum(["as_usual", "late"]), on: z.string().date().nullish().describe("One day (end-of-day balance) or null for all 30.") }),
-    description: "Cash flow for a day or next 30: balances and lowest point. as_usual = usual days, late = slowest. None past 30 days.",
+    input: z.object({ scenario: z.enum(["usual", "late"]), on: z.string().date().nullish().describe("One day (end-of-day balance) or null for all 30.") }),
+    description: "Cash flow for a day or next 30: balances and lowest point. usual = usual days, late = slowest. None past 30 days.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const kind = CASE_KIND[input.scenario];
+      // The tool says `usual`, like show and what_if; a fact says `as_usual`, the term for that case.
+      const factCase = input.scenario === "usual" ? "as_usual" as const : "late" as const;
       const minor = (amount: number) => toMinor(amount, state.homeCurrency);
       const eventOut = (event: ReturnType<typeof engineTimeline>[number]) => ({
         date: event.date, label: event.label, kind: event.kind, amountMinor: minor(event.amount),
@@ -331,12 +329,12 @@ export const tools: Tool[] = [
       if (input.on != null && !beyond) {
         let view;
         try { view = dayView(state, kind, input.on); } catch (error) { throw new InputError(error instanceof Error ? error.message : "That day cannot be read"); }
-        return JSON.stringify({ ...forModel(eventFacts(state, view.events, input.scenario)), scenario: input.scenario, today: state.today, currency: state.homeCurrency, on: view.date, balanceAfterMinor: minor(view.balance), events: view.events.map(eventOut) });
+        return JSON.stringify({ ...forModel(eventFacts(state, view.events, factCase)), scenario: input.scenario, today: state.today, currency: state.homeCurrency, on: view.date, balanceAfterMinor: minor(view.balance), events: view.events.map(eventOut) });
       }
       const lowest = low(series(state, kind));
       const events = engineTimeline(state, kind);
       return JSON.stringify({
-        ...forModel([...lowFacts(state, lowest, input.scenario, "timeline"), ...eventFacts(state, events, input.scenario)]),
+        ...forModel([...lowFacts(state, lowest, factCase, "timeline"), ...eventFacts(state, events, factCase)]),
         scenario: input.scenario, today: state.today, currency: state.homeCurrency,
         ...(beyond && { note: `fipa looks ${WINDOW_DAYS} days ahead, so it has no balance for ${input.on}. These are the figures for the next ${WINDOW_DAYS} days; tell the person that fipa looks ${WINDOW_DAYS} days ahead and give no balance for the later day.` }),
         low: { date: lowest.date, amountMinor: minor(lowest.amount) },
@@ -461,49 +459,6 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "who_owes_whom", scope: "read", input: none,
-    description: "Shared costs since last settled: each person’s paid and owed, fewest payments to settle. Quote summary.",
-    run: async ctx => {
-      const state = await ctx.state();
-      const balance = splitBalance(state.split, state.today);
-      const from = "who_owes_whom", currency = state.homeCurrency;
-      const facts = balance.transfers.flatMap(t => {
-        const about = { type: "person" as const, id: t.fromId, name: t.fromName };
-        return [engineFact("who_owes_whom", t.amountMinor, { from, currency, about }), engineFact("owes_to", t.toName, { from, about })];
-      });
-      return JSON.stringify({
-        ...forModel(facts), summary: splitSummary(state.split, balance, state.homeCurrency), currency: state.homeCurrency,
-        split: state.split.members.length > 1, since: state.split.since, settledThrough: state.split.settledThrough, items: balance.items,
-        transfers: balance.transfers.map(t => ({ from: t.fromName, to: t.toName, amountMinor: t.amountMinor })),
-        members: balance.members.map((m, i) => ({
-          name: m.name, shareBp: state.split.members[i].shareBp, paidMinor: m.paidMinor, shareMinor: m.shareMinor, netMinor: m.netMinor,
-        })),
-      });
-    },
-  }),
-  defineTool({
-    name: "month_by_category", scope: "read",
-    input: z.object({
-      month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").nullable().default(null)
-        .describe(`YYYY-MM within the last ${HISTORY_MONTHS} months; null = this month.`),
-    }),
-    description: "Confirmed bills and charges by category and business share for a month. Quote its words.",
-    run: async (ctx, input) => {
-      const today = await householdDate(ctx.db, ctx.householdId);
-      const month = input.month ?? today.slice(0, 7);
-      if (month > today.slice(0, 7) || month < monthsBack(today.slice(0, 7), HISTORY_MONTHS)) throw new InputError(`month must be one of the last ${HISTORY_MONTHS} months, ${monthsBack(today.slice(0, 7), HISTORY_MONTHS)} to ${today.slice(0, 7)}`);
-      const { first, last } = monthBounds(month);
-      const view = monthByCategory(await loadSpending(ctx.db, ctx.householdId, { from: first, to: last }), today, month);
-      const from = "month_by_category", currency = view.currency, period = { from: first, to: last };
-      const facts = [
-        engineFact("month_total", view.totalMinor, { from, currency, period }),
-        ...(view.businessMinor > 0 ? [engineFact("business_share", view.businessMinor, { from, currency, period })] : []),
-        ...view.categories.map(c => engineFact("category_total", c.totalMinor, { from, currency, period, about: { type: "category", id: c.category, name: c.label } })),
-      ];
-      return withFacts(monthText(view, monthWhen(month === today.slice(0, 7) ? undefined : view.name)), facts);
-    },
-  }),
-  defineTool({
     name: "own_categories", scope: "read", input: none,
     description: "Own categories with business share and use; the only own_category names.",
     run: async ctx => {
@@ -511,27 +466,6 @@ export const tools: Tool[] = [
       if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Spending → Your categories.";
       const part = (o: (typeof groups)[number]["categories"][number]) => `${o.name} (${o.businessBp === null ? "no default business share" : `default business share ${o.businessBp / 100}%`}, ${o.items} ${o.items === 1 ? "item" : "items"})`;
       return groups.map(g => `Under ${g.label}: ${g.categories.map(part).join("; ")}.`).join("\n");
-    },
-  }),
-  defineTool({
-    name: "search_spending", scope: "read",
-    input: z.object({
-      query: z.string().max(SEARCH_QUERY_MAX).default("").describe("All words must match; empty: all."),
-      months: z.number().int().min(1).max(HISTORY_MONTHS).nullable().default(null).describe(`Months back, 1 to ${HISTORY_MONTHS}, this one included; null = 3.`),
-    }),
-    description: "Search bills and charges by name or category, newest first. Unknown amounts not summed. Quote summary.",
-    run: async (ctx, input) => {
-      const today = await householdDate(ctx.db, ctx.householdId);
-      const from = `${monthsBack(today.slice(0, 7), input.months ?? 3)}-01`;
-      const monthEnd = monthBounds(today.slice(0, 7)).last;
-      const data = await loadSpending(ctx.db, ctx.householdId, { from, to: monthEnd });
-      const result = searchSpending(spendingItems(data, from, monthEnd), input.query, data.homeCurrency, { from, to: today, uncountedTo: monthEnd });
-      const factFrom = "search_spending", period = { from, to: today };
-      const facts = [
-        engineFact("search_total", result.totalMinor, { from: factFrom, currency: result.currency, period }),
-        ...result.uncounted.map(name => engineFact("not_counted", 1, { from: factFrom, about: { type: "cost", id: name, name } })),
-      ];
-      return JSON.stringify({ ...forModel(facts), summary: searchLine(result), from, to: today, ...result });
     },
   }),
   defineTool({
@@ -564,69 +498,10 @@ export const tools: Tool[] = [
     run: async ctx => JSON.stringify(await openSuggestions(ctx.db, ctx.householdId)),
   }),
   defineTool({
-    name: "regular_costs", scope: "read",
-    input: z.object({
-      months: z.number().int().min(2).max(6).nullable().default(null).describe(`Months, 2 to 6, this one included; null = ${REGULAR_MONTHS}.`),
-    }),
-    description: "Recurring bills, charges by month, changes, usual dates. Quote summary.",
+    name: "draft_invoice", scope: "draft", input: draftInput.omit({ id: true }),
+    description: "Draft a USD invoice for review. amount in dollars. client_id from list_clients_and_cards.",
     run: async (ctx, input) => {
-      const today = await householdDate(ctx.db, ctx.householdId);
-      const months = input.months ?? REGULAR_MONTHS;
-      const from = `${monthsBack(today.slice(0, 7), months)}-01`, to = monthBounds(today.slice(0, 7)).last;
-      const data = await loadSpending(ctx.db, ctx.householdId, { from, to });
-      const result = regularCosts(spendingItems(data, from, to), data.homeCurrency, today, months);
-      const factFrom = "regular_costs", currency = result.currency, period = { from: `${result.month}-01`, to: monthBounds(result.month).last };
-      const facts = result.items.flatMap(cost => {
-        const about = { type: "cost" as const, id: cost.key, name: cost.label };
-        return [
-          engineFact("regular_costs", cost.thisMinor, { from: factFrom, currency, about, period }),
-          ...(cost.changeMinor !== null ? [engineFact("change_from_last_month", cost.changeMinor, { from: factFrom, currency, about, period })] : []),
-        ];
-      });
-      return JSON.stringify({ ...forModel(facts), summary: result.changedLine, from, to, ...result });
-    },
-  }),
-  defineTool({
-    name: "foreign_costs", scope: "read", input: none,
-    description: "12 months’ PayPal fees and markup by client, foreign card costs by card. Quote the words.",
-    run: async ctx => {
-      const costs = await foreignCosts(ctx.db, ctx.householdId);
-      const nothing = costs.chargeTotals.count === 0 && costs.payoutTotals.count === 0;
-      const move = catalogueMove("JP", "jp-payout-cost");
-      if (!move) throw new Error("The catalogue has no jp-payout-cost move");
-      const source = move.sources[0];
-      const from = "foreign_costs", currency = costs.homeCurrency as Currency;
-      const cardCost = (t: { exactMinor: number; estimatedMinor: number }) => t.exactMinor + t.estimatedMinor;
-      const facts: Fact[] = nothing ? [] : [
-        engineFact("foreign_cost_receiving", costs.payoutTotals.costMinor, { from, currency }),
-        engineFact("foreign_cost_card", cardCost(costs.chargeTotals), { from, currency }),
-        ...costs.perClient.map(c => engineFact("foreign_cost", c.costMinor, { from, currency, about: { type: "client", id: c.clientId, name: c.clientName } })),
-        ...costs.perCard.flatMap(c => {
-          const about = { type: "card" as const, id: c.cardId, name: c.label };
-          return [engineFact("foreign_cost", cardCost(c), { from, currency, about }), ...(c.estimatedMinor > 0 ? [engineFact("about_foreign_estimate", 1, { from, about })] : [])];
-        }),
-      ];
-      return JSON.stringify({
-        ...forModel(facts), months: 12, homeCurrency: costs.homeCurrency,
-        charges: {
-          ...costs.chargeTotals,
-          perCard: costs.perCard,
-          items: costs.charges.filter(c => c.inWindow).slice(0, 20).map(c => ({
-            merchant: c.merchant, date: c.date, original: { minor: c.originalMinor, currency: c.originalCurrency }, billedMinor: c.billedMinor, costMinor: c.costMinor, kind: c.costKind,
-          })),
-        },
-        payouts: { ...costs.payoutTotals, perClient: costs.perClient },
-        nothing, words: foreignCostWords(costs),
-        rates: { receivePct: (PAYPAL_RATES.receiveBp + PAYPAL_RATES.crossBorderBp) / 100, fixedUsdMinor: PAYPAL_RATES.fixedUsdMinor, conversionPct: PAYPAL_RATES.conversionBp / 100 },
-        ...(!nothing && { guidance: { maySay: move.maySay, mustNotSay: move.mustNotSay, steps: move.steps, traps: move.traps, source: { title: source.title, url: source.url } } }),
-      });
-    },
-  }),
-  defineTool({
-    name: "draft_invoice", scope: "draft", input: draftInput,
-    description: "Draft a USD invoice for review. amount in dollars. client_id from list_clients_and_cards. New UUID, reused on retry.",
-    run: async (ctx, input) => {
-      const id = await saveInvoiceDraft(ctx.db, ctx.householdId, input, by(ctx));
+      const id = await saveInvoiceDraft(ctx.db, ctx.householdId, { ...input, id: await draftId(ctx, "draft_invoice", input) }, by(ctx));
       const href = new URL("/invoices/" + id, ctx.appUrl).href;
       ctx.addLink?.({ label: "Review invoice draft", href });
       return `Review the draft at ${href}. Tell the person to review the draft and tap Approve on the invoice to make the PayPal payment link; nothing is sent until they do.`;
@@ -634,9 +509,9 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "add_bill", scope: "draft", input: addBillInput,
-    description: "Draft a bill for To check. New UUID, reused on retry. Shared: memberId null, paidBy a display name.",
+    description: "Draft a bill for To check. Shared: memberId null, paidBy a display name.",
     run: async (ctx, input) => {
-      const { biller, note } = await draftOne(ctx, input, prepareBill, insertPreparedBill(ctx));
+      const { biller, note } = await draftOne(ctx, "add_bill", input, prepareBill, insertPreparedBill(ctx));
       return `${biller} is waiting in To check for the user to confirm. ${note}`;
     },
   }),
@@ -644,15 +519,15 @@ export const tools: Tool[] = [
     name: "add_bills", scope: "draft", input: z.object({ items: z.array(addBillInput).min(1).max(10) }),
     description: "1–10 bills atomically, as add_bill. An error names the item.",
     run: async (ctx, input) => {
-      const prepared = await draftMany(ctx, input.items, prepareBill, insertPreparedBill(ctx));
+      const prepared = await draftMany(ctx, "add_bills", input.items, prepareBill, insertPreparedBill(ctx));
       return `${prepared.length} bills are waiting in To check for the user to confirm: ${prepared.map(p => `${p.biller} (${p.note})`).join(" ")}`;
     },
   }),
   defineTool({
     name: "log_charge", scope: "draft", input: logChargeInput,
-    description: "Draft a card purchase for To check. amount is billed, home currency. cardId from list_clients_and_cards. Shared needs a member’s card. New UUID, reused on retry.",
+    description: "Draft a card purchase for To check. amount is billed, home currency. cardId from list_clients_and_cards. Shared needs a member’s card.",
     run: async (ctx, input) => {
-      const { merchant, note } = await draftOne(ctx, input, prepareCharge, insertPreparedCharge(ctx));
+      const { merchant, note } = await draftOne(ctx, "log_charge", input, prepareCharge, insertPreparedCharge(ctx));
       return `${merchant} is waiting in To check for the user to confirm. ${note}`;
     },
   }),
@@ -660,24 +535,24 @@ export const tools: Tool[] = [
     name: "log_charges", scope: "draft", input: z.object({ items: z.array(logChargeInput).min(1).max(10) }),
     description: "1–10 card purchases atomically, as log_charge. An error names the item.",
     run: async (ctx, input) => {
-      const prepared = await draftMany(ctx, input.items, prepareCharge, insertPreparedCharge(ctx));
+      const prepared = await draftMany(ctx, "log_charges", input.items, prepareCharge, insertPreparedCharge(ctx));
       return `${prepared.length} charges are waiting in To check for the user to confirm: ${prepared.map(p => `${p.merchant} (${p.note})`).join(" ")}`;
     },
   }),
   defineTool({
-    name: "add_pot", scope: "draft", input: potInput.pick({ id: true, name: true, target: true, targetDate: true, fillPct: true }),
-    description: "Draft a savings pot for To check. target in home currency; fillPct: % of each client payment. New UUID, reused on retry.",
+    name: "add_pot", scope: "draft", input: potInput.pick({ name: true, target: true, targetDate: true, fillPct: true }),
+    description: "Draft a savings pot for To check. target in home currency; fillPct: % of each client payment.",
     run: async (ctx, input) => {
-      await savePot(ctx.db, ctx.householdId, { ...input, saved: "0", memberId: null }, "pending", by(ctx));
+      await savePot(ctx.db, ctx.householdId, { ...input, id: await draftId(ctx, "add_pot", input), saved: "0", memberId: null }, "pending", by(ctx));
       ctx.onPending?.();
       return `The ${input.name} pot is waiting in To check for the user to confirm.`;
     },
   }),
   defineTool({
-    name: "update_bank_balance", scope: "draft", input: bankBalanceInput,
-    description: "Draft a bank balance for To check. amount in home currency, may be negative. New UUID, reused on retry.",
+    name: "update_bank_balance", scope: "draft", input: bankBalanceInput.omit({ id: true }),
+    description: "Draft a bank balance for To check. amount in home currency, may be negative.",
     run: async (ctx, input) => {
-      await setBankBalance(ctx.db, ctx.householdId, input, "pending", by(ctx));
+      await setBankBalance(ctx.db, ctx.householdId, { ...input, id: await draftId(ctx, "update_bank_balance", input) }, "pending", by(ctx));
       ctx.onPending?.();
       return "The new bank balance is waiting in To check for the user to confirm.";
     },

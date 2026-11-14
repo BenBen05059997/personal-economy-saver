@@ -1,3 +1,4 @@
+import { labelOf, termOf } from "@/lib/money/terms";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { dayLabel, formatter } from "@/lib/money/format";
 import { cycle, paybackFor, roomOnCard } from "@/lib/money/runway";
@@ -26,13 +27,13 @@ export function CardPanel({ state, card, data }: { state: MoneyState; card: Card
   const note = `${charges === 1 ? "Its 1 charge" : `Its ${charges} charges`} and all of its statements go with it, and the forecast stops counting them.`;
   return <Detail title={card.label} close="/cards">
     <ViewCard result={cycleView} figure={<ViewFigure result={cycleView} />} />
-    <p className="directory-big">{format(current.openTotal)}</p><p className="ui-hint">Unbilled this cycle</p>
+    <p className="directory-big">{format(current.openTotal)}</p><p className="ui-hint">{labelOf("card_charges_not_on_statement")}</p>
     <dl>
       <div className="ui-row"><dt>Closes</dt><dd>{dayLabel(current.closesOn)}</dd></div>
       <div className="ui-row"><dt>Next statement</dt><dd>{next ? `${format(next.amount)} · due ${dayLabel(next.dueOn)}` : "None due"}</dd></div>
-      {next && <div className="ui-row"><dt>Coverage</dt><dd>{next.source === "short" ? `Short ${format(-next.worstBalance)}` : next.source === "bank" ? "Covered by cash on hand" : `Covered by payments from ${next.arrivals.map(a => a.clientName).join(", ")}`}</dd></div>}
-      {room.limitLeft !== undefined && <div className="ui-row"><dt>Limit left</dt><dd>{format(Math.max(0, room.limitLeft))}</dd></div>}
-      <div className="ui-row"><dt>Can still go on this card and leave every bill through {dayLabel(room.through)} covered</dt><dd>{format(room.room)}</dd></div>
+      {next && <div className="ui-row"><dt>Coverage</dt><dd>{next.source === "short" ? `Short ${format(-next.worstBalance)}` : next.source === "bank" ? `Covered by ${termOf("cash").label} on hand` : `Covered by payments from ${next.arrivals.map(a => a.clientName).join(", ")}`}</dd></div>}
+      {room.limitLeft !== undefined && <div className="ui-row"><dt title={termOf("limit_left").meaning}>{labelOf("limit_left")}</dt><dd>{format(Math.max(0, room.limitLeft))}</dd></div>}
+      <div className="ui-row"><dt title={termOf("card_room").meaning}>{labelOf("card_room")} if clients pay late, every bill through {dayLabel(room.through)} covered</dt><dd>{format(room.room)}</dd></div>
       {[...trips].map(([place, total]) => <div className="ui-row" key={place}><dt>{place} this cycle</dt><dd>{format(total)}</dd></div>)}
     </dl>
     <h3>Recent charges</h3>

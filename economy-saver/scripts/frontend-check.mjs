@@ -519,7 +519,7 @@ await step("page", "home-and-saving-say-what-their-numbers-count", async () => {
   const home = plain(pageContent(await page("/", /18,780|30,000/)));
   expect(home.includes("The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late."), "safe-to-spend-line");
   const saving = plain(pageContent(await page("/saving", /leave about/)));
-  expect(saving.includes("The next 30 days leave about ¥92,220 if clients pay as usual."), "saving-room-line");
+  expect(saving.includes("Left over each month: about ¥92,220 if clients pay as usual."), "saving-room-line");
   expect(saving.includes("What client payments bring in over the next 30 days, after every bill and card statement, if clients pay as usual."), "saving-room-note");
 });
 // The add forms say what More › will save: the guess from the name, with Change ›.

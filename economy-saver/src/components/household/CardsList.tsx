@@ -3,6 +3,7 @@ import { Currency } from "@/lib/catalogue/types";
 import { dayLabel, formatter } from "@/lib/money/format";
 import { closingBefore } from "@/lib/money/runway";
 import { cardSummary } from "@/lib/money/card-summary";
+import { STATEMENT_COVERED } from "@/lib/money/covered-words";
 import type { MoneyState } from "@/lib/money/types";
 import { hrefFor } from "@/lib/links";
 import { PanelHint } from "@/components/ui/PanelHint";
@@ -11,7 +12,6 @@ import type { CardsData } from "./Directory";
 import "@/components/settings/settings.css";
 import "./household.css";
 
-const STATEMENT_COVERED = "Covered: this statement can be paid on its due date from your bank or from client payments due by then.";
 
 /** The Cards page's rows, the empty hint and the statement import. */
 export function CardsList({ state, selected, cardsData }: { state: MoneyState; selected?: string; cardsData: CardsData }) {
