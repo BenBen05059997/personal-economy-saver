@@ -71,7 +71,7 @@ check("the grid is whole Sunday-first weeks, today and the last day in range, th
 check("the table twin has dated rows with the words, money out and in; the line and figures agree", () => {
   assert.deepEqual(result.table!.head, ["Day", "What", "Goes out", "Comes in"]);
   assert.ok(result.table!.rows.some(row => row.cells[0] === "Fri, Nov 27" && row.tone === "short" && row.cells[3] === "–"));
-  assert.deepEqual(unconfirmedNumbers(result.line ?? "", checkable(result.facts), ctx.state.today), []);
+  assert.deepEqual(unconfirmedNumbers(result.line ?? "", checkable(result.facts), { today: ctx.state.today }), []);
   for (const item of result.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
   assert.equal(fact(result.facts, "goes_out")!.value, 207_780);
   assert.equal(fact(result.facts, "comes_in")!.value, 300_000);
@@ -113,7 +113,7 @@ check("the facts hold the sentence's numbers and dates, and every number in the 
   assert.deepEqual([fact(facts, "goes_out")!.value, fact(facts, "comes_in")!.value, fact(facts, "days_shown")!.value, fact(facts, "heaviest_day_goes_out")!.value], [207_780, 300_000, 30, 82_000]);
   assert.deepEqual([fact(facts, "first_short_day")!.value, fact(facts, "last_short_day")!.value, fact(facts, "short_days")!.value, fact(facts, "to_check")!.value], ["2026-11-27", "2026-11-28", 2, 1]);
   for (const view of [result, calendarView({ whose: "shared" }, ctx), calendarView({ days: 7 }, ctx)]) {
-    assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), benMoney.today), []);
+    assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), { today: benMoney.today }), []);
     assert.ok(view.facts!.every(item => TERMS.some(term => term.name === item.name)));
   }
 });

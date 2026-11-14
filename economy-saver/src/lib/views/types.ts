@@ -28,7 +28,7 @@ export type FormData = {
   waterfall: { steps: { key: string; label: string; minor: number; kind: "start" | "plus" | "minus" | "subtotal" | "total"; amountLabel: string; about: boolean }[] };
   sankey: { nodes: { id: string; label: string; column: 0 | 1 | 2; minor: number; amountLabel: string; tone: Tone }[]; links: { from: string; to: string; minor: number }[] };
   calendar: { weeks: { date: string; inRange: boolean; today: boolean; outMinor: number; inMinor: number; short: boolean; items: string[] }[][]; maxOutMinor: number }; // weeks start on Sunday
-  strip: { maxDays: number; rows: { key: string; label: string; dots: number[]; usual: number; slowest: number; open: { days: number; label: string; late: boolean }[]; aria: string }[] };
+  strip: { maxDays: number; rows: { key: string; label: string; dots: number[]; usual: number; slowest: number; open: { days: number; label: string; overdue: boolean }[]; aria: string }[] };
   runway_bar: { months: number; cashLabel: string; monthlyLabel: string; marks: { months: number; label: string }[]; guide: string | null }; // months to one decimal; marks at 3 and 6 months; guide: the source line under the bar
   pace_lines: { days: number; todayIndex: number | null; lines: { key: "this" | "last"; label: string; tone: Tone; points: number[] }[] };
   goal_line: { start: { date: string; minor: number }; target: { date: string; minor: number; label: string }; today: { date: string; minor: number; label: string }; expected: { minor: number; label: string }; projection: { date: string; minor: number; label: string } | null };

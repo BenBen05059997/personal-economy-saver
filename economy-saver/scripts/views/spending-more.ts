@@ -41,7 +41,7 @@ check("Table, line and figures: head, a row per column, integers, every amount o
   assert.equal(fixed.table!.rows.length, fixed.data!.columns.length);
   assert.match(fixed.line!, /is regular costs \(\d+%\); the biggest is Rent \(¥82,000\)\.$/);
   for (const item of fixed.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
-  assert.deepEqual(unconfirmedNumbers(fixed.line ?? "", fixed.facts, benMoney.today), []);
+  assert.deepEqual(unconfirmedNumbers(fixed.line ?? "", fixed.facts, { today: benMoney.today }), []);
   assert.equal(resolveView("fixed_costs", { months: 2 }, ctx).data !== null, true);
 });
 
@@ -76,7 +76,7 @@ check("The line is the search sentence; every amount in it is in the figures; a 
   const direct = searchSpending(items, "food", "JPY", { from: `${monthsBack("2026-11", 12)}-01`, to: benMoney.today, uncountedTo: monthBounds("2026-11").last });
   const r = search("food");
   assert.equal(r.line, searchLine(direct));
-  assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts, benMoney.today), []);
+  assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts, { today: benMoney.today }), []);
   assert.equal(r.title, "“food” by month");
   assert.equal(search("food", 2).data!.columns.length, 2);
 });
@@ -108,7 +108,7 @@ check("fixed_costs and search_months: every fact is a term and the line has no n
   for (const r of [fixed, search("food")]) {
     assert.ok(r.facts && r.facts.length > 0);
     assert.ok(r.facts.every(f => TERMS.some(t => t.name === f.name)));
-    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts as Parameters<typeof unconfirmedNumbers>[1], benMoney.today), []);
+    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts, { today: benMoney.today }), []);
   }
 });
 

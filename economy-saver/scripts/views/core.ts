@@ -77,7 +77,7 @@ async function main() {
         assert.equal(result.form, VIEW_META[view].form, "VIEW_META and the resolver agree on the form");
         for (const item of result.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), `${item.name} is an integer`);
         // D79: nothing is stated only in words. Every number in the line is one of the view's facts, and every fact name is a term.
-        assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, drawn.state.today), [], "every number in the line is one of the view's facts");
+        assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: drawn.state.today }), [], "every number in the line is one of the view's facts");
         for (const item of result.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
         assert.equal(result.facts.length > 0, result.empty === null, "a view with a picture carries facts");
         assert.ok(result.table !== null || result.empty !== null, "a table or an empty state");

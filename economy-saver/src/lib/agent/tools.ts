@@ -45,7 +45,7 @@ import { planFor, planLine } from "@/lib/money/plan";
 import { clientsOwe, daysBetween, low, overdue, series, timeline as engineTimeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
-import { viewTools, type ViewBlock } from "./view-tools";
+import { viewTools, type Reading } from "./view-tools";
 import { memoryTools } from "./memory-tools";
 import type { OutOfScopeReason } from "./reply";
 import type { ContextTurn } from "./context";
@@ -78,7 +78,7 @@ export type ToolContext = {
   /** Ask only (D60): `make_canvas` hands over its last valid recipe; `clarify` and `out_of_scope` end the question. */
   onCanvas?: (recipe: Recipe) => void;
   /** Ask only (D77): `show` hands over the view it drew; the run adds it to the answer's canvas. */
-  onView?: (block: ViewBlock) => void;
+  onView?: (reading: Reading) => void;
   onClarify?: (clarify: { question: string; choices: string[] }) => void;
   onOutOfScope?: (reason: OutOfScopeReason) => void;
   /** Ask only (D59): when the household keeps its memory on one device, the list the question carried and the changes `remember` and `forget` made to it (sent back in the reply, never stored). */
@@ -546,7 +546,15 @@ export const tools: Tool[] = [
       if (input.month > latestDate(today).slice(0, 7)) throw new InputError(`month must be no later than ${latestDate(today).slice(0, 7)}, two years from today`);
       const result = billsForMonth(await loadPeriodBills(ctx.db, ctx.householdId, input.month), input.month, input.text);
       const { first, last } = monthBounds(input.month);
-      const facts = result.totals.map(t => engineFact("bills_for_month_total", t.totalMinor, { from: "bills_for_month", currency: t.currency as Currency, period: { from: first, to: last } }));
+      const from = "bills_for_month";
+      const facts = result.totals.map(t => engineFact("bills_for_month_total", t.totalMinor, { from, currency: t.currency as Currency, period: { from: first, to: last } }));
+      // Each confirmed bill's own amount, so an answer naming one bill is confirmed too; a bill waiting for a yes counts for nothing (D79).
+      for (const item of result.items) {
+        if (item.status !== "confirmed") continue;
+        const about = { type: "bill" as const, id: item.id, name: item.biller };
+        facts.push(item.amountMinor === null ? engineFact("not_counted", 1, { from, about })
+          : engineFact("bill_amount", item.amountMinor, { from, currency: item.currency, about, period: item.due ? { on: item.due } : { from: item.periodStart, to: item.periodEnd } }));
+      }
       return JSON.stringify({ ...forModel(facts), ...result });
     },
   }),

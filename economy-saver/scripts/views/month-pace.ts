@@ -53,7 +53,7 @@ check("the view: two lines (this month, last month), today marked, a table of da
   assert.deepEqual(result.table!.head, ["Day", "November", "October"]);
   assert.equal(result.table!.rows.length, 31);
   assert.equal(result.table!.rows[20].cells[1], "–");
-  assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, benMoney.today), []);
+  assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: benMoney.today }), []);
   for (const item of result.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
   assert.equal(fact(result.facts, "month_total")!.value, 132_060);
   assert.match(result.line!, /By the 14th you have spent/);
@@ -62,7 +62,7 @@ check("the view: two lines (this month, last month), today marked, a table of da
 check("a past month reads as a finished month in the line", () => {
   const view = monthPaceView({ month: "2026-10" }, ctx);
   assert.match(view.line!, /^October came to /);
-  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, benMoney.today), []);
+  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, { today: benMoney.today }), []);
 });
 
 check("no spending at all reads as empty with an Add a bill button", () => {
@@ -82,7 +82,7 @@ check("month_pace: every fact is a term and the line has no number a fact does n
   for (const r of [result, monthPaceView({ month: "2026-10" }, ctx)]) {
     assert.ok(r.facts && r.facts.length > 0);
     assert.ok(r.facts.every(f => TERMS.some(t => t.name === f.name)));
-    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts as Parameters<typeof unconfirmedNumbers>[1], benMoney.today), []);
+    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts, { today: benMoney.today }), []);
   }
 });
 

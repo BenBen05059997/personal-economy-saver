@@ -1,4 +1,4 @@
-/* The step line (D77). Colours from the tokens: --chart is #F7A30A, the grey is the on-time line, red the short dot. */
+/* The step line (D77). Colours from the tokens: --chart is #F7A30A, the grey is the as-usual line, red the short dot. */
 .sl-chart{--sl-main:var(--chart);--sl-soft:var(--accent);--sl-quiet:light-dark(#8a857c,#a39d92);--sl-ghost:light-dark(#8a857c,#a39d92);--sl-short:var(--red);--sl-in:light-dark(#1d7a4c,#5fc58c);--sl-band:light-dark(#fdecc8,#34312b);--sl-grid:var(--rule);--sl-ring:var(--screen);--sl-focus:light-dark(#1e1c19,#f2f0eb);display:flex;flex-direction:column;gap:10px;min-width:0}
 .sl-legend{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--muted)}
 .sl-legend span{display:flex;align-items:center;gap:8px}

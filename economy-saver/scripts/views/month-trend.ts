@@ -50,7 +50,7 @@ check("months narrows the columns; figures are integers and say every amount the
   const two = monthTrendView({ months: 2 }, ctx).data as typeof data;
   assert.ok(two.columns.length <= 2);
   for (const item of result.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
-  assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, benMoney.today), []);
+  assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: benMoney.today }), []);
 });
 
 check("No spending at all reads as empty with an Add a bill button", () => {
@@ -79,7 +79,7 @@ check("month_trend: every fact is a term and the line has no number a fact does 
   for (const r of [result]) {
     assert.ok(r.facts && r.facts.length > 0);
     assert.ok(r.facts.every(f => TERMS.some(t => t.name === f.name)));
-    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts as Parameters<typeof unconfirmedNumbers>[1], benMoney.today), []);
+    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts, { today: benMoney.today }), []);
   }
 });
 

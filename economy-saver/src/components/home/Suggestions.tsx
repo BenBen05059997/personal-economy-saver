@@ -1,26 +1,12 @@
 import Link from "next/link";
 import type { openSuggestions } from "@/db/suggestions";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
-import { hrefFor } from "@/lib/links";
-import { findingsBySpace } from "@/lib/money/suggestion-types";
+import { findingAction, findingsBySpace } from "@/lib/money/suggestion-types";
 
 type Suggestion = Awaited<ReturnType<typeof openSuggestions>>[number];
 
-function actionFor(row: Suggestion) {
-  if (row.action === "regular") return { label: "Review regular costs", href: "/spending/over-time#regular-costs" };
-  if (row.action === "runway") return { label: "Review safe to spend", href: "/#next-30-days" };
-  if (!row.refId) throw new Error("Suggestion action needs a reference");
-  switch (row.action) {
-    case "remind": return { label: "Copy link again", href: hrefFor({ type: "invoice", id: row.refId }) };
-    case "statement": return { label: "Review statement", href: hrefFor({ type: "statement", id: row.refId }) };
-    case "check_bill": return { label: "Review in To check", href: "/to-check#check-" + row.refId };
-    case "bill": return { label: "Review bill", href: hrefFor({ type: "bill", id: row.refId }) };
-    case "pot": return { label: "Review pot", href: hrefFor({ type: "pot", id: row.refId }) };
-  }
-}
-
 function SuggestionCard({ row, grouped }: { row: Suggestion; grouped: boolean }) {
-  const action = actionFor(row), Heading = grouped ? "h4" : "h3";
+  const action = findingAction(row), Heading = grouped ? "h4" : "h3";
   return <article className="home-suggestion">
     <Heading>{row.title}</Heading>
     <p className="home-note">{row.reason}{row.spaceName && ` Space: ${row.spaceName}.`}</p>

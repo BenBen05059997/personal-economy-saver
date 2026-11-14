@@ -7,7 +7,9 @@ import { householdDate } from "@/db/account";
 import { loadMoneyState, requireHousehold, withHousehold, type Db } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { listMemory } from "@/db/memory";
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { unconfirmedNumbers, type CheckFact } from "@/lib/ai/number-check";
+import { openSuggestions } from "@/db/suggestions";
+import { fundingOptions } from "@/lib/money/options";
 import { rulesFor } from "@/db/rules";
 import { minorMoney } from "@/lib/money/format";
 import { normalise } from "@/lib/money/name-key";
@@ -17,8 +19,9 @@ import type { MoneyState } from "@/lib/money/types";
 import { logCall, type BriefDropReason, type ToolLog } from "./log";
 import type { Recipe } from "@/lib/canvas/schema";
 import { VIEW_META } from "@/lib/views/catalogue";
-import { MAX_SHOWN, type ViewBlock } from "./view-tools";
-import { canvasWords, chooseReply, type OutOfScopeReason, type ReplyKind, type Source } from "./reply";
+import { MAX_SHOWN, type Reading, type ViewBlock } from "./view-tools";
+import { nextSteps } from "./see-it";
+import { canvasWords, chooseReply, type OutOfScopeReason, type ReplyKind, type Source, type Wording } from "./reply";
 import { briefWords, type Brief } from "./brief";
 import { memorySourceLabel, type MemorySource } from "@/lib/schema/turn";
 import type { ContextTurn } from "./context";
@@ -108,7 +111,7 @@ type AskOptions = {
   onWrote?: () => Promise<void>;
 };
 export type AskResult = {
-  kind: ReplyKind; answer: string; choices: string[] | null; recipe: Recipe | null; sources: Source[];
+  kind: ReplyKind; answer: string; wording?: Wording; choices: string[] | null; recipe: Recipe | null; sources: Source[];
   links: { label: string; href: string }[]; pending: boolean; offers: KeepOffer[]; brief?: Brief; memoryChanged?: boolean; openSpace?: { name: string };
 };
 
@@ -149,7 +152,11 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   let pending = false;
   let brief: Brief | undefined;
   let openSpace: { name: string } | undefined;
-  const toolAmounts: string[] = [];
+  // The engine facts of this Ask's tool results (D79): the only thing that confirms a number (D56).
+  // A fact tagged by:"person" (the amount a picture tests) is not kept: the model chose that argument, so it could be invented. What the person really said is in `person` below.
+  const toolFacts: CheckFact[] = [];
+  const keep = (facts: readonly CheckFact[]) => { toolFacts.push(...facts.filter(known => known.by !== "person")); };
+  const readings: Reading[] = [];
   const citedIds = new Set<string>();
   const readIds = new Set<string>();
   // The person’s question, rather than the model’s reformulation, determines the scope.
@@ -183,9 +190,10 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     madeBy: "ask", db: opts.db, householdId: hid, state, appUrl: opts.appUrl, askId: opts.askId, source: opts.source,
     addLink: link => { if (!links.some(known => known.href === link.href)) links.push(link); },
     onCanvas: next => { recipe = next; drawn.push(next); },
-    onView: block => {
+    onView: reading => {
       if (shown.length >= MAX_SHOWN) throw new InputError("Show at most four views in one answer.");
-      shown.push(block);
+      shown.push(reading.block);
+      readings.push(reading);
     },
     onClarify: next => { clarify = next; },
     onOutOfScope: next => { outOfScope = next; },
@@ -213,10 +221,10 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   const system = systemPrompt(today, homeCurrency, [incognitoRule, opts.assembled?.systemData ?? memory].filter(Boolean).join("\n\n"));
   const availableTools = definitions.filter((_, index) => toolAvailable(ctx, tools[index]));
   const turns: Turn[] = [{ role: "user", parts: [{ type: "text", text: opts.context ? `${opts.question}\n\n${opts.context}` : opts.question }] }];
-  // Every amount in the answer must come from the question or a tool result (D56).
-  const sources = [opts.question];
-  sources.push(...(opts.assembled?.earlierQuestions ?? []));
-  sources.push(...(opts.assembled?.memoryForAmounts ?? (memory ? [memory] : [])));
+  // Every number in the answer must be an engine fact of this Ask, or one the person said and is quoted back (D56, D79). The household
+  // snapshot, the model's own drafts and any earlier reply confirm nothing. No document is given in an Ask: a document is its own turn.
+  const person = [opts.question, ...(opts.assembled?.earlierQuestions ?? []), ...(opts.assembled?.memoryForAmounts ?? (memory ? [memory] : []))];
+  const checked = (text: string, facts: readonly CheckFact[] = toolFacts) => unconfirmedNumbers(text, facts, { today, person }).length === 0;
 
   try {
     for (let toolTurns = 0; ;) {
@@ -246,7 +254,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
           return "";
         }).trim();
         if (!answer) throw failure("empty");
-        return await finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe: answerRecipe(), sources }));
+        return await finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe: answerRecipe(), facts: toolFacts, person, today, readings }));
       }
       if (reply.stop === "refusal") throw failure("refusal");
       if (reply.stop === "length") throw failure("cutOff");
@@ -266,7 +274,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       if (ending) {
         const { result, log } = await callTool(ctx, ending, now);
         trace.tools.push(log);
-        if (clarify !== null || outOfScope !== null) return await finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe: answerRecipe(), sources }));
+        if (clarify !== null || outOfScope !== null) return await finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe: answerRecipe(), facts: toolFacts, person, today, readings }));
         results.push(result);
         await recordResult(result);
       }
@@ -284,16 +292,17 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
 
   async function recordResult(result: ToolResult) {
     // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
-    if (!result.isError && !NOT_SOURCES.has(result.name)) sources.push(result.content);
+    // `show`'s facts came with its reading; every other tool's are in its result.
+    if (!result.isError && !NOT_SOURCES.has(result.name) && result.name !== "show") keep(factsIn(result.content));
     if (!result.isError && result.name === "make_canvas") {
       const engineFilled = withoutModelWords(result.content, drawn);
-      if (engineFilled !== null) sources.push(engineFilled);
+      if (engineFilled !== null) keep(factsIn(engineFilled));
     }
+    if (!result.isError && result.name === "show") keep(readings.flatMap(reading => reading.facts).filter(known => !toolFacts.includes(known)));
     const tool = tools.find(candidate => candidate.name === result.name);
     if (tool && toolAvailable(ctx, tool) && result.name !== "update_brief" && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
     if (result.isError) return;
     used.push(result.name);
-    if (tool?.scope === "read" && result.name !== "recall" && !NOT_SOURCES.has(result.name)) toolAmounts.push(result.content);
     if (tool?.scope !== "draft") return;
     const memoryTool = result.name === "remember" || result.name === "forget";
     const onDevice = opts.deviceMemory !== undefined && memoryTool;
@@ -318,16 +327,16 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     const available = candidates.filter(({ offer, value }) => {
       if (offer.kind === "memory") {
         return !memoryNow.some(item => (item.spaceId ?? undefined) === memorySpaceId && item.kind === offer.memoryKind && normalise(item.text) === normalise(offer.text))
-          && unconfirmedAmounts(offer.text, sources).length === 0;
+          && checked(offer.text);
       }
       if (offer.kind === "goal") {
         return value !== null && !initialState.pots.some(pot => normalise(pot.name) === normalise(offer.name))
-          && unconfirmedAmounts(`${offer.name} ${minorMoney(value, homeCurrency)}`, sources).length === 0;
+          && checked(`${offer.name} ${minorMoney(value, homeCurrency)}`);
       }
       const current = standingRules?.[offer.ruleKind];
       if (current?.enabled === offer.enabled && (current.threshold === value || !offer.enabled && value === null)
         && (!opts.spaceId || current.spaceId === opts.spaceId)) return false;
-      return offer.ruleKind !== "safe_below" || value === null || unconfirmedAmounts(minorMoney(value, homeCurrency), sources).length === 0;
+      return offer.ruleKind !== "safe_below" || value === null || checked(minorMoney(value, homeCurrency));
     }).map(({ offer }) => {
       const spaceId = offer.kind === "memory" ? memorySpaceId : offer.kind === "rule" ? opts.spaceId : undefined;
       return spaceId ? { ...offer, spaceId } : offer;
@@ -340,7 +349,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
         ...readIds,
       ]);
       if (!brief.state.every(line => validSources.has(line.source))) trace.briefDropped = "invalid_source";
-      else if (unconfirmedAmounts(briefWords(brief).join("\n"), toolAmounts).length) trace.briefDropped = "unconfirmed_amount";
+      else if (unconfirmedNumbers(briefWords(brief).join("\n"), toolFacts, { today }).length) trace.briefDropped = "unconfirmed_amount";
       else {
         delete trace.briefDropped;
         checkedBrief = brief;
@@ -355,9 +364,18 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
         memorySources.push({ kind: "memory", id, label: memorySourceLabel(item.text) });
       }
     }
+    if (chosen.kind === "answer" && readings.length) {
+      // What next (D80): read once, here, so a reload shows the same buttons (they are saved links).
+      const findings = await openSuggestions(opts.db, hid);
+      const clientOf = new Map(initialState.invoices.map(invoice => [invoice.id, invoice.clientId]));
+      for (const step of nextSteps({ facts: readings.flatMap(reading => reading.facts), suggestions: findings, options: fundingOptions(initialState), clientOfInvoice: id => clientOf.get(id) })) {
+        if (!links.some(known => known.href === step.href)) links.push(step);
+      }
+    }
     return { ...(checkedBrief && { brief: checkedBrief }), ...(wroteMemory && { memoryChanged: true }), kind: chosen.kind, answer: chosen.text,
+      ...(chosen.kind === "answer" && { wording: chosen.wording ?? "model" }),
       choices: chosen.choices, recipe: chosen.recipe, sources: [...chosen.sources, ...memorySources], links, pending, offers: available,
-      ...(chosen.kind === "answer" && openSpace && unconfirmedAmounts(openSpace.name, sources).length === 0 && { openSpace }) };
+      ...(chosen.kind === "answer" && openSpace && checked(openSpace.name) && { openSpace }) };
   }
 }
 
@@ -466,4 +484,25 @@ async function executeTool(ctx: ScopedToolContext, call: Call): Promise<ToolResu
     // An InputError is written for the user (an unknown member name, a missing second person): the model may relay it.
     return error(failure instanceof InputError ? failure.message : "This tool could not complete the request.");
   }
+}
+
+/** The facts a tool result carries: every `facts` list in it, at any depth (a canvas summary has one per block), when the result is JSON; else the JSON after "Facts:" that a text result ends with. */
+function factsIn(content: string): CheckFact[] {
+  let json: unknown;
+  try { json = JSON.parse(content); } catch {
+    const at = content.lastIndexOf("\n\nFacts: ");
+    if (at < 0) return [];
+    try { json = JSON.parse(content.slice(at + "\n\nFacts: ".length)); } catch { return []; }
+  }
+  const found: CheckFact[] = [];
+  const walk = (value: unknown) => {
+    if (Array.isArray(value)) { for (const item of value) walk(item); return; }
+    if (value === null || typeof value !== "object") return;
+    for (const [key, item] of Object.entries(value)) {
+      if (key === "facts" && Array.isArray(item)) found.push(...item.filter((fact): fact is CheckFact => fact !== null && typeof fact === "object" && "unit" in fact && "value" in fact));
+      else walk(item);
+    }
+  };
+  walk(json);
+  return found;
 }

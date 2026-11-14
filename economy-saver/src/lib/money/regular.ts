@@ -36,6 +36,11 @@ export type RegularCosts = { currency: Currency; month: string; months: string[]
 export const REGULAR_MONTHS = 3;
 
 const DATE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+/** How a cost's change reads on a face: "up" and "down" are tinted, every other status is plain. */
+export function changeTone(status: RegularStatus): "up" | "down" | "plain" {
+  return status === "up" ? "up" : status === "down" ? "down" : "plain";
+}
+
 const CHANGED: RegularStatus[] = ["up", "down", "started", "stopped"];
 
 /**

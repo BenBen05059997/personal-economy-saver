@@ -1,16 +1,19 @@
+import { minorMoney } from "@/lib/money/format";
+import type { Fact } from "@/lib/money/facts";
+
 export type ReminderDigest = { title: string; body: string; url: string };
 
 const TITLE = "Personal Economy Saver";
 const LINES = {
   statement_due: "A card statement is due soon",
   bill_due: "A bill is due soon",
-  invoice_nudge: "A client is late with a payment",
+  invoice_nudge: "A client's payment is overdue",
   goal_behind: "A goal is behind its pace",
   safe_below: "Safe to spend is below your rule",
   cancel_by: "A cancellation deadline is coming up",
+  tax_short: "A tax pot falls short of its bills",
 } as const;
 const MAX_LINES = 6;
-const AMOUNT = /[−-]?[¥$]\d+(?:,\d{3})*(?:\.\d{2})?/gu;
 
 function home(appUrl: string): string {
   const url = new URL("/", appUrl);
@@ -30,13 +33,14 @@ function spaceWords(name: string | null | undefined): string {
     .replace(/(?<=[\p{L}\p{N}])[.。．｡](?=[\p{L}\p{N}])/gu, " dot ");
 }
 
-export function reminderDigest(findings: readonly { kind: string; reason: string; spaceName?: string | null }[], appUrl: string): ReminderDigest | null {
+export function reminderDigest(findings: readonly { kind: string; facts?: readonly Fact[]; spaceName?: string | null }[], appUrl: string): ReminderDigest | null {
   const eligible = findings.filter(row => Object.hasOwn(LINES, row.kind));
   if (!eligible.length) return null;
   const names = eligible.map(row => spaceWords(row.spaceName));
   const lines = eligible.slice(0, MAX_LINES).map((row, index) => {
     const label = LINES[row.kind as keyof typeof LINES];
-    const amounts = (row.reason.slice(0, 500).match(AMOUNT) ?? []).filter(value => value.length <= 20).slice(0, 2);
+    const amounts = (row.facts ?? []).filter(item => item.unit === "money" && item.currency && typeof item.value === "number")
+      .slice(0, 2).map(item => minorMoney(item.value as number, item.currency!));
     const words = amounts.length ? label + " (" + amounts.join(", ") + ")." : label + ".";
     return names[index] ? words + " Space: " + names[index] + "." : words;
   });

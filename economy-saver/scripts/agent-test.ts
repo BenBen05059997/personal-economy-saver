@@ -2,6 +2,8 @@
 // The send-capable PayPal runner is kept out of the agent by lint (no-restricted-imports in eslint.config.mjs)
 // and by the source scan at the end of this script.
 import assert from "node:assert/strict";
+import { openSuggestions, runPass } from "@/db/suggestions";
+import { setStandingRule } from "@/db/rules";
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
@@ -181,7 +183,7 @@ async function main() {
         () => reply("end_turn", [text("Rent is due soon and covered.")]),
       ]);
       const result = await ask(a, "What's due?", fetch);
-      assert.deepEqual(result, { kind: "answer", answer: "Rent is due soon and covered.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false, offers: [] });
+      assert.deepEqual(result, { kind: "answer", answer: "Rent is due soon and covered.", wording: "model", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false, offers: [] });
       assert.equal(bodies.length, 2);
       const [first, second] = bodies;
       assert.equal(first.model, "fixture-text");
@@ -617,6 +619,8 @@ async function main() {
       assert.deepEqual(nov.items.map((i: { biller: string; amountMinor: number; currency: string; due: string; periodStart: string; periodEnd: string; periodLabel: string; status: string; category: string }) => [i.biller, i.amountMinor, i.currency, i.due, i.periodStart, i.periodEnd, i.periodLabel, i.status, i.category]),
         [["Harbor Energy", 9_800, "JPY", "2026-12-27", "2026-11-01", "2026-11-30", "11月分", "confirmed", "utilities"], ["Harbor Energy Gas", 3_100, "JPY", "2026-12-27", "2026-11-01", "2026-11-30", "11月分", "pending", "utilities"]]);
       assert.deepEqual(nov.totals, [{ currency: "JPY", totalMinor: 12_900, count: 2 }]);
+      const billFacts = (nov.facts as { name: string; value: number; about?: { name: string } }[]).filter(f => f.name === "bill_amount").map(f => [f.about?.name, f.value]);
+      assert.deepEqual(billFacts, [["Harbor Energy", 9_800]], "each confirmed bill is its own fact; the one waiting for a yes is not");
       assert.match(nov.summary, /Harbor Energy \(11月分\): ¥9,800, due Dec 27/);
       const dec = JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-12", text: "" }) as never));
       assert.deepEqual(dec.items, [], "counted by the due date elsewhere; not listed for December here");
@@ -626,7 +630,7 @@ async function main() {
       assert.match(noPeriod.note, /month_by_category/);
       await assert.rejects(() => tool.run(ctx, tool.input.parse({ month: "2029-01", text: "" }) as never), (error: unknown) => error instanceof InputError);
       // The model path: the tool is called by name and its words are shown.
-      const run = transport([() => reply("tool_use", [toolUse("b", "bills_for_month", { month: "2026-11", text: "electricity" })]), () => reply("end_turn", [text("It was ¥9,800.")])]);
+      const run = transport([() => reply("tool_use", [toolUse("b", "bills_for_month", { month: "2026-11", text: "electricity" })]), () => reply("end_turn", [text("The two electricity bills came to ¥12,900.")])]);
       await ask(c, "What was November's electricity?", run.fetch);
       assert.match(JSON.stringify(toolResults(run.bodies[1])[0].content), /Harbor Energy \(11月分\): ¥9,800, due Dec 27/);
       await removeBill(db, c, billId); await removeBill(db, c, pendingId);
@@ -671,7 +675,7 @@ async function main() {
         () => reply("end_turn", [text("It takes about ¥300,000 a month.")]),
       ]);
       const asked = await ask(a, "Can I save ¥1,200,000 for a car by March 2027?", plan.fetch);
-      assert.deepEqual(asked, { kind: "answer", answer: "It takes about ¥300,000 a month.", choices: null, recipe: null, sources: [{ label: "Saving", href: "/saving" }], links: [], pending: false, offers: [] });
+      assert.deepEqual(asked, { kind: "answer", answer: "It takes about ¥300,000 a month.", wording: "model", choices: null, recipe: null, sources: [{ label: "Saving", href: "/saving" }], links: [], pending: false, offers: [] });
       const [out] = toolResults(plan.bodies[1]);
       assert.ok(!out.is_error);
       const result = JSON.parse(out.content);
@@ -778,14 +782,16 @@ async function main() {
       assert.ok(JSON.parse(toolResults(bare.bodies[1])[0].content).clients.every((c: { usualDaysToPay: null; slowestDaysToPay: null }) => c.usualDaysToPay === null && c.slowestDaysToPay === null));
     });
 
-    await check("the system prompt carries the rules (ask on ambiguous names, snapshot is context, mention pace, bulk tools) and the same text is what MCP gets", async () => {
+    await check("the system prompt carries the rules (ask on ambiguous names, snapshot is context, say why not again, bulk tools) and the same text is what MCP gets", async () => {
       const { fetch, bodies } = transport(() => reply("end_turn", [text("ok")]));
       await ask(a, "Hi", fetch);
       const system = bodies[0].system;
       assert.ok(system.includes(aState.today) && system.includes("JPY"));
       assert.match(system, /about to be saved and one detail is missing or matches several[^.]*ask which one/);
       assert.match(system, /household_snapshot is background context/);
-      assert.match(system, /usualDaysToPay, slowestDaysToPay/);
+      assert.doesNotMatch(system, /usualDaysToPay, slowestDaysToPay/, "the facts carry usual and slowest days with their meanings");
+      assert.match(system, /The picture shows its own sentence\. Do not repeat it\. Say why/);
+      assert.ok(!MODEL_RULES.includes("Do not repeat it"), "the do-not-restate rule is Ask-only: MCP never gets it");
       assert.match(system, /add_bills or log_charges/);
       assert.ok(system.includes(MODEL_RULES.split("\n").slice(1).join("\n")));
       assert.ok(!/\btoday\b|\d{4}-\d{2}-\d{2}|JPY|home currency/i.test(MODEL_RULES), "the shared rules name neither the date nor the household's currency");
@@ -1041,7 +1047,7 @@ async function main() {
           () => chat("tool_calls", "Checking.", [chatCall("call_1", "whats_due", {})]),
           () => chat("stop", "Rent is due soon and covered."),
         ]);
-        assert.deepEqual(await ask(c, "What's due?", fetch), { kind: "answer", answer: "Rent is due soon and covered.", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false, offers: [] });
+        assert.deepEqual(await ask(c, "What's due?", fetch), { kind: "answer", answer: "Rent is due soon and covered.", wording: "model", choices: null, recipe: null, sources: [{ label: "Coming up", href: "/#coming-up" }], links: [], pending: false, offers: [] });
         assert.equal(bodies.length, 2);
         const second = bodies[1];
         assert.deepEqual(second.messages.map(m => m.role), ["system", "user", "assistant", "tool"]);
@@ -1330,13 +1336,44 @@ async function main() {
       // the number check: an amount only the model passed in is never returned, so the reply cannot confirm it
       if (live.includes("what_if")) {
         const echo = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥314,159 spend changes it.")])]);
-        await assert.rejects(conversation(c, "What if I spend something big?", echo.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+        const coded = await conversation(c, "What if I spend something big?", echo.fetch);
         const echoed = lineOf(echo.bodies[1], "w");
+        // The picture is there, so code's own sentence stands in: no second model call, and the model's amount is never shown.
+        assert.deepEqual([coded.kind, coded.text, coded.wording, echo.bodies.length], ["answer", echoed.line, "code", 2]);
+        assert.ok(!coded.text.includes("314,159"));
         assert.deepEqual(echoed.facts.filter(f => f.value === 314159).map(f => [f.name, f.by]), [["amount_tested", "person"]], "the passed amount comes back only as the person's own fact");
-        assert.ok(!toolResults(echo.bodies[1])[0].content.includes("314,159"), "and in no sentence or table cell");
+        assert.ok(!echoed.line.includes("314,159"), "and in no sentence");
         const said = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥314,159 spend changes it.")])]);
-        assert.equal((await conversation(c, "What if I spend ¥314,159?", said.fetch)).kind, "answer");
+        const quoted = await conversation(c, "What if I spend ¥314,159?", said.fetch);
+        assert.deepEqual([quoted.kind, quoted.wording, quoted.text], ["answer", "model", "A ¥314,159 spend changes it."], "the person's own amount may be quoted back");
       }
+
+      // The check reads facts (D79): an invented amount shows code's sentence and says so, a correct paraphrase passes; one model call after the tool turn.
+      const probe = transport([() => reply("tool_use", [showCall("f", "forecast")]), () => reply("end_turn", [text("ok")])]);
+      await conversation(c, "Am I fine?", probe.fetch);
+      const forecast = lineOf(probe.bodies[1], "f");
+      const wrongWords = transport([() => reply("tool_use", [showCall("f", "forecast")]), () => reply("end_turn", [text("You will be ¥123,457 short, see below.")])]);
+      const codeWords = await conversation(c, "Am I fine for 30 days?", wrongWords.fetch);
+      assert.deepEqual([codeWords.kind, codeWords.text, codeWords.wording, wrongWords.bodies.length], ["answer", forecast.line, "code", 2], "code's sentence, no second model call");
+      const money = forecast.facts.find(f => (f as { unit?: string }).unit === "money" && f.by === "engine" && Number(f.value) > 0) as unknown as { value: number; currency: "JPY" | "USD" };
+      assert.ok(money, "the forecast carries a money fact");
+      const rightWords = transport([() => reply("tool_use", [showCall("f", "forecast")]), () => reply("end_turn", [text(`Roughly the figure to watch is ${minorMoney(money.value, money.currency)}.`)])]);
+      const modelWords = await conversation(c, "Am I fine for 30 days?", rightWords.fetch);
+      assert.deepEqual([modelWords.wording, modelWords.text.startsWith("Roughly")], ["model", true], "a fact's own amount, in the model's words, passes");
+      // What next (D80): the buttons are code's, in order (a funding row for the short, then the options), and no model word becomes one.
+      assert.deepEqual(modelWords.links.map(link => link.label), ["Review invoice", "Copy link again", "See your options ›"]);
+      const pushy = transport([() => reply("tool_use", [showCall("f", "forecast")]), () => reply("end_turn", [text("Tap Pay now to settle it. Here it is.")])]);
+      assert.ok((await conversation(c, "Am I fine for 30 days?", pushy.fetch)).links.every(link => !/pay now/i.test(link.label)), "no model-made action text");
+      // An open nudge about the client the picture is about comes first.
+      const nudged = await seedBen(db, { isDemo: true });
+      await db.update(schema.invoices).set({ sentOn: "2026-10-26", payToken: "tok-" + crypto.randomUUID() }).where(and(eq(schema.invoices.householdId, nudged), eq(schema.invoices.number, "1042")));
+      await setStandingRule(db, nudged, "nudge_after", { enabled: true, threshold: 4, currency: null });
+      await runPass(db, nudged, new Date("2026-11-14T00:00:00Z"));
+      const open = await openSuggestions(db, nudged);
+      assert.equal(open[0]?.kind, "invoice_nudge");
+      const pace = transport([() => reply("tool_use", [showCall("p", "client_pace", { client: "Acme Corp" })]), () => reply("end_turn", [text("Acme is the slower one.")])]);
+      const paced = await conversation(nudged, "How fast does Acme pay?", pace.fetch);
+      assert.equal(paced.links[0]?.label, "Copy link again", "the open nudge about this client leads");
     });
 
     await check("where_am_i carries Home's safe-to-spend figure and says what it covers", async () => {

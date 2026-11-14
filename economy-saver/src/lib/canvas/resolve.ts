@@ -11,7 +11,7 @@ import { CATEGORIES, categoryLabel } from "@/lib/money/categories";
 import { splitBalance, splitSummary } from "@/lib/money/split";
 import { monthByCategory, type MonthView } from "@/lib/money/month";
 import { paceLine } from "@/lib/money/pace";
-import { regularCosts, REGULAR_MONTHS, type RegularCost } from "@/lib/money/regular";
+import { changeTone, regularCosts, REGULAR_MONTHS, type RegularCost } from "@/lib/money/regular";
 import { addDays, availableCash, daysBetween, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { billsForMonth, type PeriodBill } from "@/lib/money/period";
@@ -206,12 +206,12 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     const amount = (minorUnits: number, estimated?: true) => (estimated ? aboutMoney(minorUnits, currency) : minor(minorUnits));
     const change = (cost: RegularCost): { words: string; tone: TableRow["tone"] } => {
       switch (cost.status) {
-        case "up": return { words: `up ${amount(cost.changeMinor!, cost.estimated)}`, tone: "up" };
-        case "down": return { words: `down ${amount(-cost.changeMinor!, cost.estimated)}`, tone: "down" };
-        case "same": return { words: "same", tone: "plain" };
-        case "started": return { words: "started this month", tone: "plain" };
-        case "stopped": return { words: "stopped", tone: "plain" };
-        case "not_yet": return { words: `usually on the ${ordinal(cost.usualDay!)}`, tone: "plain" };
+        case "up": return { words: `up ${amount(cost.changeMinor!, cost.estimated)}`, tone: changeTone(cost.status) };
+        case "down": return { words: `down ${amount(-cost.changeMinor!, cost.estimated)}`, tone: changeTone(cost.status) };
+        case "same": return { words: "same", tone: changeTone(cost.status) };
+        case "started": return { words: "started this month", tone: changeTone(cost.status) };
+        case "stopped": return { words: "stopped", tone: changeTone(cost.status) };
+        case "not_yet": return { words: `usually on the ${ordinal(cost.usualDay!)}`, tone: changeTone(cost.status) };
       }
     };
     const last = monthName(monthsBack(current, 2)), now = monthName(current);

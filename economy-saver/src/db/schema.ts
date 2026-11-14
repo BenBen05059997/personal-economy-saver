@@ -31,6 +31,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import type { Fact } from "../lib/money/facts";
 import { RULE_KINDS, SUGGESTION_KINDS, SUGGESTION_ACTIONS } from "../lib/money/suggestion-types";
 import { CATEGORY_KEYS } from "../lib/money/categories";
 
@@ -585,6 +586,7 @@ export const suggestions = pgTable("suggestions", {
   action: text("action", { enum: SUGGESTION_ACTIONS }).notNull(),
   refId: text("ref_id"),
   urgency: integer("urgency").notNull(),
+  facts: jsonb("facts").$type<Fact[]>().notNull().default(sql`'[]'::jsonb`), // the finding's fact record (D79)
   status: text("status", { enum: ["open", "approved", "dismissed", "not_now", "resolved"] }).notNull().default("open"),
   createdOn: date("created_on", { mode: "string" }).notNull(),
   createdAt: createdAt(),

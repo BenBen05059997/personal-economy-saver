@@ -2,8 +2,7 @@
 import { engineFact, type Fact } from "@/lib/money/facts";
 import { minorMoney, plural } from "@/lib/money/format";
 import { incomeByMonth } from "@/lib/money/income";
-import { paceDots } from "@/lib/money/pace";
-import { overdue } from "@/lib/money/runway";
+import { invoiceAbout, paceDots } from "@/lib/money/pace";
 import { monthBounds } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Empty, type FormData, type Resolver, type Tone, type ViewResult } from "../types";
@@ -65,10 +64,10 @@ export const clientPaceView: Resolver<"client_pace"> = (args, ctx): ViewResult =
   const days = (n: number) => plural(n, "day"), list = (xs: number[]) => xs.length === 1 ? String(xs[0]) : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
   const rows = found.map(row => ({
     key: row.clientId, label: row.name, dots: row.dots, usual: row.usual, slowest: row.slowest,
-    open: row.open.map(o => ({ days: o.days, label: `${o.number ? `Invoice ${o.number}` : "An invoice"}: ${days(o.days)} so far`, late: o.late })),
-    aria: `${row.name}: paid in ${list(row.dots)} days. Usual ${days(row.usual)}, slowest ${row.slowest}.${row.open.map(o => ` ${o.number ? `Invoice ${o.number}` : "An invoice"} has been open ${days(o.days)}${o.late ? ", longer than the slowest" : ""}.`).join("")}`,
+    open: row.open.map(o => ({ days: o.days, label: `${o.number ? `Invoice ${o.number}` : "An invoice"}: ${days(o.days)} so far`, overdue: o.overdue })),
+    aria: `${row.name}: paid in ${list(row.dots)} days. Usual ${days(row.usual)}, slowest ${row.slowest}.${row.open.map(o => ` ${o.number ? `Invoice ${o.number}` : "An invoice"} has been open ${days(o.days)}${o.overdue ? `, ${days(o.daysOverdue)} overdue` : ""}.`).join("")}`,
   }));
-  const slow = [...found].sort((a, b) => b.usual - a.usual || b.slowest - a.slowest)[0], lateOpen = found.flatMap(row => row.open.filter(o => o.late).map(o => ({ name: row.name, ...o })));
+  const slow = [...found].sort((a, b) => b.usual - a.usual || b.slowest - a.slowest)[0], lateOpen = found.flatMap(row => row.open.filter(o => o.overdue).map(o => ({ name: row.name, ...o })));
   const open = (o: { number: string | null }) => o.number ? `Invoice ${o.number}` : "An invoice";
   const facts: Fact[] = found.flatMap(row => {
     const client = { type: "client" as const, id: row.clientId, name: row.name };
@@ -76,18 +75,18 @@ export const clientPaceView: Resolver<"client_pace"> = (args, ctx): ViewResult =
       engineFact("usual_days_to_pay", row.usual, { from: "client_pace", about: client }),
       engineFact("slowest_days_to_pay", row.slowest, { from: "client_pace", about: client }),
       ...row.open.flatMap(o => {
-        const invoice = state.invoices.find(item => item.id === o.invoiceId)!, about = { type: "invoice" as const, id: o.invoiceId, name: `${open(o)} from ${row.name}` };
-        return [engineFact("days_open", o.days, { from: "client_pace", about }), engineFact("days_overdue", overdue(state, invoice).daysOverdue, { from: "client_pace", about })];
+        const about = invoiceAbout({ id: o.invoiceId, number: o.number ?? undefined }, row.name);
+        return [engineFact("days_open", o.days, { from: "client_pace", about }), engineFact("days_overdue", o.daysOverdue, { from: "client_pace", about })];
       }),
     ];
   });
   const line = (found.length === 1 ? `${slow.name} usually pays in ${days(slow.usual)}, ${slow.slowest} at most.` : `${slow.name} is the slowest to pay: ${days(slow.usual)} usual, ${slow.slowest} at most.`)
-    + lateOpen.map(o => ` ${open(o)} from ${o.name} has been open ${days(o.days)}, longer than any they paid in.`).join("");
+    + lateOpen.map(o => ` ${open(o)} from ${o.name} has been open ${days(o.days)} and is ${days(o.daysOverdue)} overdue.`).join("");
   return {
     ...base, empty: null, line, facts,
     data: { maxDays: niceMax(Math.max(...found.flatMap(row => [...row.dots, row.slowest, ...row.open.map(o => o.days)]))), rows },
     table: { caption: "How fast clients pay", head: ["Client", "Usual", "Slowest", "Paid invoices", "Open now"], align: ["end", "end", "end", "end", "start"], foot: null,
-      rows: found.map(row => ({ key: row.clientId, cells: [row.name, days(row.usual), days(row.slowest), String(row.dots.length), row.open.length ? row.open.map(o => `${o.number ? `Invoice ${o.number}` : "Invoice"}: ${days(o.days)}${o.late ? " (longer than the slowest)" : ""}`).join(", ") : "None"], tone: row.open.some(o => o.late) ? "short" as const : undefined })) },
+      rows: found.map(row => ({ key: row.clientId, cells: [row.name, days(row.usual), days(row.slowest), String(row.dots.length), row.open.length ? row.open.map(o => `${o.number ? `Invoice ${o.number}` : "Invoice"}: ${days(o.days)}${o.overdue ? ` (${o.daysOverdue} overdue)` : ""}`).join(", ") : "None"], tone: row.open.some(o => o.overdue) ? "short" as const : undefined })) },
     aria: "How fast each client pays, invoice by invoice.",
   };
 };

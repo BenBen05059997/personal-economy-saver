@@ -12,7 +12,7 @@ import { householdDate } from "@/db/account";
 import { confirmPending } from "@/db/confirm";
 import { seedBen } from "@/db/seed";
 import { loadSpending } from "@/db/spending";
-import { regularCosts, type RegularCost } from "@/lib/money/regular";
+import { changeTone, regularCosts, type RegularCost } from "@/lib/money/regular";
 import { nameKeys } from "@/lib/money/name-key";
 import { monthBounds, nameKey, normalise, sameName, spendingItems, type SpendingInput, type SpendItem } from "@/lib/money/spending";
 import type { Bill, Charge } from "@/lib/money/types";
@@ -175,6 +175,10 @@ async function main() {
     assert.equal(still.changedLine, "No change in your regular costs this month.");
     assert.deepEqual(regularCosts([], "USD", TODAY).items, []);
     assert.equal(regularCosts([], "USD", TODAY).changedLine, "No change in your regular costs this month.");
+  });
+
+  await check("only up and down are tinted; every other status is plain", () => {
+    assert.deepEqual((["up", "down", "same", "started", "stopped", "not_yet"] as const).map(changeTone), ["up", "down", "plain", "plain", "plain", "plain"]);
   });
 
   await check("the same name in another category is another cost; the newest item gives the label and the kind", () => {

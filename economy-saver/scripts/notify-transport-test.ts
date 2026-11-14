@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { engineFact } from "@/lib/money/facts";
 import { reminderDigest, testReminder } from "@/lib/notify/digest";
 import { sendReminderEmail } from "@/lib/notify/email";
 import { encryptPush, isPushEndpoint, isPushSubscription, sendReminderPush } from "@/lib/notify/push";
@@ -35,18 +36,18 @@ export async function runNotifyTransportChecks(check: Check) {
 
   await check("the digest uses fixed words and engine amounts, and links only to app Home", () => {
     const digest = reminderDigest([
-      { kind: "invoice_nudge", reason: "Open https://pay.example/path or mail someone@example.com." },
-      { kind: "bill_due", reason: "¥4,250, covered even if clients pay late." },
-      { kind: "safe_below", reason: "$21.50 safe to spend, below $30.50." },
-      { kind: "cost_up", reason: "$99 excluded from the outbound digest." },
+      { kind: "invoice_nudge", facts: [] },
+      { kind: "bill_due", facts: [engineFact("bill_amount", 4250, { from: "test", currency: "JPY" })] },
+      { kind: "safe_below", facts: [engineFact("safe_to_spend", 2150, { from: "test", currency: "USD", case: "late" }), engineFact("safe_to_spend", 3050, { from: "test", currency: "USD", case: "late" })] },
+      { kind: "cost_up", facts: [engineFact("bill_amount", 9900, { from: "test", currency: "USD" })] },
     ], "https://economy.example/ignored?q=other");
     assert.deepEqual(digest, {
       title: "Personal Economy Saver",
-      body: "A client is late with a payment.\nA bill is due soon (¥4,250).\nSafe to spend is below your rule ($21.50, $30.50).",
+      body: "A client's payment is overdue.\nA bill is due soon (¥4,250).\nSafe to spend is below your rule ($21.50, $30.50).",
       url: app,
     });
-    assert.equal(reminderDigest([{ kind: "cost_up", reason: "¥3,500 more than last month." }], app), null);
-    assert.equal(reminderDigest([{ kind: "toString", reason: "inherited object key" }], app), null);
+    assert.equal(reminderDigest([{ kind: "cost_up" }], app), null);
+    assert.equal(reminderDigest([{ kind: "toString" }], app), null);
     assert.equal(testReminder(app).url, app);
     assert.throws(() => testReminder("https://wrong:password@economy.example/"), /APP_URL/);
   });

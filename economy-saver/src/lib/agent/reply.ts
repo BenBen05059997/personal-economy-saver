@@ -1,6 +1,6 @@
 // The reply of one Ask, chosen by code after the model loop (D60): a clarifying question, a decline or an answer. The model never picks
 // the kind; the tools it called do. The fixed sentences and the "Based on" sources live here, each in one place.
-import { unconfirmedAmounts } from "@/lib/ai/number-check";
+import { unconfirmedNumbers, type CheckFact } from "@/lib/ai/number-check";
 import { serverHasNoModel } from "./availability";
 import type { LinkSource, TurnSource } from "@/lib/schema/turn";
 import type { Recipe } from "@/lib/canvas/schema";
@@ -97,19 +97,32 @@ type Finished = {
   /** Whether the model called any catalogue tool, successful or not; a reply with none at all is declined. */
   called: boolean;
   recipe: Recipe | null;
-  /** The question, this question's tool results and the memory block: never an earlier reply. */
-  sources: string[];
+  /** The engine facts of this question's tool results (D79): the only thing that confirms a number. */
+  facts: readonly CheckFact[];
+  /** What the person said (the question, earlier questions, memory): a number may be quoted back from it and confirms nothing else. */
+  person: readonly string[];
+  today: string;
+  /** The sentence of each picture `show` drew, written by code from its facts. */
+  readings: readonly { sentence: string | null }[];
 };
-type Chosen = { kind: ReplyKind; text: string; choices: string[] | null; recipe: Recipe | null; sources: Source[] };
+/** Who worded the answer: the model, or code when the model's words failed the check and the pictures' own sentences stand instead (D80). */
+export type Wording = "model" | "code";
+type Chosen = { kind: ReplyKind; text: string; choices: string[] | null; recipe: Recipe | null; sources: Source[]; wording?: Wording };
 
-/** `null` text means an answer whose amounts the app could not confirm: the caller keeps its fixed error. */
+/** `null` means an answer whose numbers the app could not confirm and no picture to stand in for it: the caller keeps its fixed error. */
 export function chooseReply(done: Finished): Chosen | null {
   if (done.clarify) {
-    if (unconfirmedAmounts([done.clarify.question, ...done.clarify.choices].join("\n"), done.sources).length) return null;
+    if (unconfirmedNumbers([done.clarify.question, ...done.clarify.choices].join("\n"), done.facts, { today: done.today, person: done.person }).length) return null;
     return { kind: "clarify", text: done.clarify.question, choices: done.clarify.choices, recipe: null, sources: [] };
   }
   if (done.outOfScope) return { kind: "declined", text: FIXED[done.outOfScope], choices: null, recipe: null, sources: [] };
   if (!done.called) return { kind: "declined", text: FIXED.off_topic, choices: null, recipe: null, sources: [] };
-  if (unconfirmedAmounts([done.text, ...canvasWords(done.recipe)].join("\n"), done.sources).length) return null;
-  return { kind: "answer", text: done.text, choices: null, recipe: done.recipe, sources: sourcesFor(done.tools, done.recipe) };
+  const sources = sourcesFor(done.tools, done.recipe);
+  if (unconfirmedNumbers([done.text, ...canvasWords(done.recipe)].join("\n"), done.facts, { today: done.today, person: done.person }).length) {
+    // No second model call: the pictures already say it, in code's words (D80).
+    const sentences = done.readings.flatMap(reading => reading.sentence ? [reading.sentence] : []);
+    if (sentences.length === 0) return null;
+    return { kind: "answer", text: sentences.join("\n"), choices: null, recipe: done.recipe, sources, wording: "code" };
+  }
+  return { kind: "answer", text: done.text, choices: null, recipe: done.recipe, sources, wording: "model" };
 }

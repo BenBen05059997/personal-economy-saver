@@ -30,7 +30,7 @@ import { foreignCosts } from "@/lib/money/fx-cost";
 import { money, minorMoney, minorPerUnit } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
 import { splitBalance, splitSummary } from "@/lib/money/split";
-import { regularCosts } from "@/lib/money/regular";
+import { changeTone, regularCosts } from "@/lib/money/regular";
 import { addDays, low, planWindow, series, timeline, safeToSpend, availableCash } from "@/lib/money/runway";
 import { stateThrough } from "@/lib/money/window";
 import { homeSentence } from "@/lib/money/sentence";
@@ -483,6 +483,7 @@ async function main() {
       const table = block(resolved, "table").data;
       assert.equal(table.rows.length, regular.items.length);
       assert.equal(table.caption, regular.changedLine);
+      table.rows.forEach((row: { tone?: string }, i: number) => assert.equal(row.tone, changeTone(regular.items[i].status), "a regular cost row is toned by changeTone"));
       assert.equal(block(resolved, "table").source, "From your records");
       assert.equal(block(resolved, "action").data.href, "/spending");
       const more: Recipe = { version: 1, title: "More", blocks: [

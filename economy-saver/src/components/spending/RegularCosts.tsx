@@ -1,5 +1,5 @@
 import { aboutMoney, minorMoney, ordinal } from "@/lib/money/format";
-import { REGULAR_MONTHS, regularCosts, type RegularCost, type RegularCosts as Regulars } from "@/lib/money/regular";
+import { changeTone, REGULAR_MONTHS, regularCosts, type RegularCost, type RegularCosts as Regulars } from "@/lib/money/regular";
 import { monthBounds, monthName, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
 import { ViewPanel } from "@/components/views/ViewPanel";
@@ -11,13 +11,14 @@ import "./spending.css";
 /** The change against last month in words, and the tone it is drawn in. The words carry it; the colour only repeats them. */
 function change(cost: RegularCost, currency: Regulars["currency"]): { words: string; tone: "up" | "down" | "same" | "plain" } {
   const money = (minor: number) => cost.estimated ? aboutMoney(minor, currency) : minorMoney(minor, currency);
+  const tone = cost.status === "same" || cost.status === "not_yet" ? "same" : changeTone(cost.status); // the muted tint is only for a cost that did not move
   switch (cost.status) {
-    case "up": return { words: `up ${money(cost.changeMinor!)}`, tone: "up" };
-    case "down": return { words: `down ${money(-cost.changeMinor!)}`, tone: "down" };
-    case "same": return { words: "same", tone: "same" };
-    case "started": return { words: "started this month", tone: "plain" };
-    case "stopped": return { words: "stopped", tone: "plain" };
-    case "not_yet": return { words: `usually on the ${ordinal(cost.usualDay!)}`, tone: "same" };
+    case "up": return { words: `up ${money(cost.changeMinor!)}`, tone };
+    case "down": return { words: `down ${money(-cost.changeMinor!)}`, tone };
+    case "same": return { words: "same", tone };
+    case "started": return { words: "started this month", tone };
+    case "stopped": return { words: "stopped", tone };
+    case "not_yet": return { words: `usually on the ${ordinal(cost.usualDay!)}`, tone };
   }
 }
 

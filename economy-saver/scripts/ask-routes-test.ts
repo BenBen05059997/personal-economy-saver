@@ -412,6 +412,8 @@ async function main() {
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
     const fine = await ask(json("/api/ask", question()));
     assert.deepEqual([(await streamed(fine)).text], ["fine"]);
+    asking = async () => ({ id: "y", kind: "answer", text: "You're ¥18,780 short.", wording: "code", choices: null, canvas: null, sources: [], links: [], pending: false, firstUse: null, memoryChanges: [], offers: [] });
+    assert.equal((await streamed(await ask(json("/api/ask", question())))).last.reply?.wording, "code", "the reply carries who worded it");
     asking = null;
     ok("/api/ask: 30 questions a minute, the 31st is 429 'Ask again in a minute.' with Retry-After 60; per household; a success is JSON, no-store");
 

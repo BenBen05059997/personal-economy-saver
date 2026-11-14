@@ -9,7 +9,7 @@ import type { CancelNotice, MoneyState } from "@/lib/money/types";
 import type { ViewResult } from "@/lib/views/types";
 import { aboutMoney, dayLabel, formatter, minorPerUnit, repeatWords, usd } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN, confirmedGaps, gapAmountWords, gapDateWords, gapMeanwhileWords, gapQuestion, openGaps } from "@/lib/money/gaps";
-import { addDays, arrivals, daysBetween, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { addDays, arrivals, daysBetween, dueItems, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { fundingOptions } from "@/lib/money/options";
 import { potSummary } from "@/lib/money/plan";
 import { toCheck } from "@/lib/money/to-check";
@@ -183,11 +183,13 @@ const rowId = (billId: string, repeating: ReadonlySet<string>) => `${repeating.h
 function ComingUp({ state, added, addedId }: Props & { added: string | null; addedId: string | null }) {
   const format = formatter(state.homeCurrency);
   const usual = timeline(state, "expected");
-  const late = series(state, "worst");
+  // The worst-case balance on a bill or statement's due day, from the engine's due items (clients paying late).
+  const lateBalance = new Map(dueItems(state).map((item) => [item.id, item.worstBalance]));
+  const shortOn = (event: (typeof usual)[number]) => (lateBalance.get(event.id) ?? 0) < 0;
   const incoming = new Map(arrivals(state).map((item) => [`${item.invoiceId}-expected`, item]));
   const repeats = new Map(state.bills.filter((bill) => bill.repeatUnit !== undefined).map((bill) => [bill.id, [bill.repeatUnit === "year" ? "Yearly" : repeatWords("month"), lastOneWords({ ...bill, due: bill.startsOn ?? bill.due }, state.today)].filter(Boolean).join(" · ")])); // an event's id is its bill's id
   // A short day says "Short by …" once, on its last row that can carry it (not a client's payment, not a pending bill).
-  const canCarry = (event: (typeof usual)[number]) => !incoming.has(event.id) && !event.pending && late[daysBetween(state.today, event.date)] < 0;
+  const canCarry = (event: (typeof usual)[number]) => !incoming.has(event.id) && !event.pending && shortOn(event);
   const carries = usual.map((event, index) => canCarry(event) && !usual.slice(index + 1).some((later) => later.date === event.date && canCarry(later)));
   // A bill's first row in Coming up carries its id (bill-<id>, or series-<id> when it repeats), so a link to /#bill-<id> lands on it and lights it up.
   const repeating = new Set(state.bills.filter((bill) => bill.repeatUnit !== undefined).map((bill) => bill.id.split("@")[0]));
@@ -203,8 +205,7 @@ function ComingUp({ state, added, addedId }: Props & { added: string | null; add
       const payment = incoming.get(event.id);
       const gap = event.kind === "bill" ? gaps.get(event.id.split("@")[0]) : undefined;
       const gapRow = gap !== undefined && event.date === gap.countedOn ? gap : null; // the row the gap's own words belong to
-      const i = daysBetween(state.today, event.date);
-      const short = late[i] < 0;
+      const short = shortOn(event);
       return <div key={event.id} id={firstOfBill.has(index) ? rowId(event.id.split("@")[0], repeating) : undefined} className="home-row home-dated">
         <time dateTime={event.date}>{dayLabel(event.date)}</time>
         <div>{payment ? <><Link prefetch={false} href={hrefFor({ type: "client", id: payment.clientId })}>{event.label}</Link> pays</>
@@ -212,7 +213,7 @@ function ComingUp({ state, added, addedId }: Props & { added: string | null; add
           : event.kind === "bill" ? <Link prefetch={false} className="home-link-target" href={event.pending ? "/to-check" : hrefFor({ type: "bill", id: event.id.split("@")[0] })}>{event.label}</Link> : event.label}
           {payment ? <small>Usual date · if late, {dayLabel(payment.worstOn)}</small>
             : event.pending ? <small>Awaiting confirmation</small>
-            : carries[index] && <small className="home-short">Short by {format(-late[i])} if clients pay late</small>}
+            : carries[index] && <small className="home-short">Short by {format(-(lateBalance.get(event.id) ?? 0))} if clients pay late</small>}
           {repeats.has(event.id) && <small>{repeats.get(event.id)}</small>}
           {gapRow?.missing.includes("amount") && <small>{gapAmountWords(gapRow)}</small>}
           {gapRow?.missing.includes("date") && <small>{gapDateWords(gapRow)}</small>}

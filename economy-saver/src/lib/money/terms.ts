@@ -138,6 +138,7 @@ export const TERMS = [
   term("bills_for_month_total", "bills for the month total", "money", "none", "The known amounts of the bills whose service period overlaps the month, in one currency."),
   term("owes_to", "owes to", "text", "none", "The person that the person in `about` pays so everyone has paid their fair share."),
   term("difference_between_months", "difference between the months", "money", "none", "The second month's total less the first's, for the two months compared."),
+  term("cancel_by", "cancel by", "date", "none", "The last day to cancel a regular cost before it renews."),
 ] as const satisfies readonly Term[];
 
 export type TermName = (typeof TERMS)[number]["name"];

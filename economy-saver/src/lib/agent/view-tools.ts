@@ -6,8 +6,7 @@ import { z } from "zod";
 import { InputError } from "@/db/input-error";
 import { Currency } from "@/lib/catalogue/types";
 import { CATEGORY_KEYS } from "@/lib/money/categories";
-import { forModel } from "@/lib/money/facts";
-import { group, minorMoney, minorPerUnit } from "@/lib/money/format";
+import { forModel, type Fact } from "@/lib/money/facts";
 import { readAmount } from "@/lib/money/amount";
 import { VIEW_ARGS } from "@/lib/views/args";
 import { VIEW_META } from "@/lib/views/catalogue";
@@ -20,6 +19,8 @@ import type { Tool } from "./tools";
 /** The block `show` hands the run: a view and its ids, the shape a canvas recipe stores. */
 export type ViewBlock = { [K in ViewId]: { type: "view"; view: K; args: ViewArgs[K] } }[ViewId];
 export const MAX_SHOWN = 4;
+/** What one `show` leaves with the run: the block to draw, the picture's own sentence and the facts that sentence was written from. */
+export type Reading = { block: ViewBlock; sentence: string | null; facts: Fact[] };
 
 function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
   name: string; description: string; input: S; scope: Tool["scope"];
@@ -103,12 +104,6 @@ async function idArgs(ctx: Parameters<Tool["run"]>[0], view: ViewId, given: Reco
   return out;
 }
 
-/** A table cell with every form of the amount the model passed in taken out: the amount the person tests reaches the model only as the person's own fact, which the number check never confirms. */
-function withoutAmount(cell: string, minor: number | null, currency: Currency): string {
-  if (minor === null) return cell;
-  return [minorMoney(minor, currency), `${currency === "JPY" ? "¥" : "$"}${group(minor / minorPerUnit(currency))}`].reduce((text, form) => text.split(form).join("that amount"), cell);
-}
-
 function parseArgs(view: ViewId, text: string | null): Record<string, unknown> {
   if (text === null || text.trim() === "") return {};
   let json: unknown;
@@ -137,9 +132,9 @@ export const viewTools: Tool[] = [
       let result: ViewResult;
       try { result = resolveView(view, parsed.data, await loadViewContext(ctx.db, ctx.householdId, VIEW_META[view].needs, { state: await ctx.state() })); }
       catch (error) { if (error instanceof ViewError) throw new InputError(error.message); throw error; }
-      ctx.onView?.({ type: "view", view, args: parsed.data } as ViewBlock);
-      const passed = typeof args.amountMinor === "number" ? args.amountMinor : null, hide = (cell: string) => withoutAmount(cell, passed, result.currency);
-      const table = result.table && { head: result.table.head, rows: result.table.rows.slice(0, 12).map(row => row.cells.map(hide)), foot: result.table.foot && result.table.foot.map(hide) };
+      // The reading (D80): the picture's own sentence and its facts. The number check reads the facts only, so the table's text is not a source.
+      ctx.onView?.({ block: { type: "view", view, args: parsed.data } as ViewBlock, sentence: result.line, facts: result.facts });
+      const table = result.table && { head: result.table.head, rows: result.table.rows.slice(0, 12).map(row => row.cells), foot: result.table.foot };
       return JSON.stringify({
         view, title: result.title, line: result.line, currency: result.currency, ...forModel(result.facts), table, empty: result.empty?.words ?? null,
       });

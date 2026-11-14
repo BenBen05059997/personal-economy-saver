@@ -8,6 +8,8 @@ import { countKind, deleteKind } from "@/db/data-kinds";
 import { dueHouseholds } from "@/db/daily";
 import { changeStandingRule } from "@/db/rules";
 import { createSpace } from "@/db/spaces";
+import type { Fact } from "@/lib/money/facts";
+import { engineFact } from "@/lib/money/facts";
 import { reminderDigest } from "@/lib/notify/digest";
 import { reminderView, runReminders, saveReminderSettings, sendTestReminder, subscribeReminder } from "@/db/reminders";
 import * as s from "@/db/schema";
@@ -53,9 +55,9 @@ async function main() {
     await db.insert(s.users).values([{ householdId: hid, memberId: owner.id, authUserId: identity.uid },
       { householdId: hid, memberId: guest.id, authUserId: guestIdentity.uid }]);
     const history = () => db.select().from(s.reminders).where(eq(s.reminders.householdId, hid));
-    const finding = async (day: string, kind: typeof s.suggestions.$inferInsert.kind) => {
+    const finding = async (day: string, kind: typeof s.suggestions.$inferInsert.kind, facts: Fact[] = [engineFact("bill_amount", 2500, { from: "test", currency: "JPY" })]) => {
       const [row] = await db.insert(s.suggestions).values({ householdId: hid, kind, key: kind + ":" + day, title: "Untrusted https://evil.example/",
-        reason: "¥2,500, covered even if clients pay late.", action: "runway", urgency: 1, createdOn: day }).returning();
+        reason: "¥2,500, covered even if clients pay late.", action: "runway", urgency: 1, createdOn: day, facts }).returning();
       return row;
     };
 
@@ -163,8 +165,15 @@ async function main() {
       assert.deepEqual(digest.text.match(/https?:\/\/\S+/g), ["https://example.test/"]);
     });
 
+    await check("a tax pot short is in the digest, with its amounts from facts, and a row with no money fact still prints", () => {
+      const tax = [engineFact("tax_ahead", 12_000, { from: "test", currency: "JPY" }), engineFact("tax_short_on", "2026-11-27", { from: "test" }),
+        engineFact("bill_amount", 30_000, { from: "test", currency: "JPY" })];
+      const digest = reminderDigest([{ kind: "tax_short", facts: tax }, { kind: "bill_due", facts: [] }, { kind: "goal_behind" }], "https://example.test/")!;
+      assert.equal(digest.body, "A tax pot falls short of its bills (¥12,000, ¥30,000).\nA bill is due soon.\nA goal is behind its pace.");
+    });
+
     await check("reminder labels neutralize links and controls and name scopes beyond the six-line cap", () => {
-      const shown = { kind: "bill_due", reason: "¥200, covered.", spaceName: "Fictional utilities review" };
+      const shown = { kind: "bill_due", spaceName: "Fictional utilities review" };
       const digest = reminderDigest([
         ...Array.from({ length: 6 }, () => shown),
         { ...shown, spaceName: "Fictional cards review" },

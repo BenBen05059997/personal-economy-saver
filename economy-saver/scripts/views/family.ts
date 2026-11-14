@@ -18,7 +18,7 @@ import type { ViewResult } from "@/lib/views/types";
 let passed = 0;
 const reads = (view: ViewResult, today: string) => {
   assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
-  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, today), [], `${view.view}: every number in the line is one of its facts`);
+  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, { today: today }), [], `${view.view}: every number in the line is one of its facts`);
   for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
 };
 function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }

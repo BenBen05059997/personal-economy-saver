@@ -87,7 +87,7 @@ check("every number in the line is a fact and every fact name is a term, on both
   assert.equal(result.line, "If clients pay late you are ¥18,780 short on Fri, Nov 27.");
   for (const args of [{}, { case: "late" as const }, { case: "usual" as const }, { days: 7 }]) {
     const view = forecastView(args, { state: benMoney });
-    assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), benMoney.today), [], JSON.stringify(args));
+    assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), { today: benMoney.today }), [], JSON.stringify(args));
     assert.ok(view.facts!.every(item => TERMS.some(term => term.name === item.name)));
   }
 });

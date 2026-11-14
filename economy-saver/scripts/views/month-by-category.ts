@@ -97,7 +97,7 @@ check("Figures are integers and confirm every amount the line says; the card car
   for (const by of ["category", "business"] as const) {
     const result = resolve({ by });
     for (const item of result.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
-    assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, benMoney.today), []);
+    assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: benMoney.today }), []);
     assert.ok(result.aria.length > 0);
   }
   const html = renderToStaticMarkup(createElement(RankedBars, { result: resolve({ open: "food" }) }));
@@ -114,7 +114,7 @@ check("month_by_category: every fact is a term and the line has no number a fact
   for (const r of [category, resolve({ month: "2026-10" }), resolve({ by: "business" })]) {
     assert.ok(r.facts && r.facts.length > 0);
     assert.ok(r.facts.every(f => TERMS.some(t => t.name === f.name)));
-    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts as Parameters<typeof unconfirmedNumbers>[1], benMoney.today), []);
+    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts, { today: benMoney.today }), []);
   }
 });
 

@@ -2,13 +2,13 @@
 import { addDays } from "@/lib/money/dates";
 import { engineFact, type Fact } from "@/lib/money/facts";
 import { dayLabel, minorMoney } from "@/lib/money/format";
-import { taxAhead } from "@/lib/money/tax-ahead";
+import { TAX_AHEAD_DAYS, taxAhead } from "@/lib/money/tax-ahead";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type ViewResult } from "../types";
 import { longDay, stepLine } from "./forecast";
 
 export const taxAheadView: Resolver<"tax_ahead"> = (args, ctx): ViewResult => {
-  const { state } = ctx, pot = state.pots.find(row => row.id === args.potId), days = args.days ?? 90;
+  const { state } = ctx, pot = state.pots.find(row => row.id === args.potId), days = args.days ?? TAX_AHEAD_DAYS;
   if (!pot) throw new ViewError("I couldn't find that pot.");
   const meta = VIEW_META.tax_ahead, currency = state.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
   const base = { view: "tax_ahead" as const, args: args as Record<string, unknown>, form: meta.form as "step_line", title: `${pot.name}: tax ahead`, question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "The pot, your open invoices on their usual pay days and your Government & tax bills" };

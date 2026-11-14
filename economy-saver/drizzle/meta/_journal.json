@@ -246,6 +246,13 @@
       "when": 1794490285788,
       "tag": "0034_heavy_tyrannus",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794650457039,
+      "tag": "0035_warm_pet_avengers",
+      "breakpoints": true
     }
   ]
 }

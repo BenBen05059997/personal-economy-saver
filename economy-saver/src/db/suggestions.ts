@@ -79,7 +79,7 @@ const ruleKindFor = sql`case ${suggestions.kind} ${sql.join(
 export async function openSuggestions(db: Db, id: string, digest?: { day: string; kinds: readonly Finding["kind"][] }) {
   const hid = requireHousehold(id);
   return withHousehold(db, hid, tx => tx.select({ id: suggestions.id, kind: suggestions.kind, title: suggestions.title,
-    reason: suggestions.reason, action: suggestions.action, refId: suggestions.refId, spaceId: spaces.id, spaceName: spaces.name })
+    reason: suggestions.reason, facts: suggestions.facts, action: suggestions.action, refId: suggestions.refId, spaceId: spaces.id, spaceName: spaces.name })
     .from(suggestions)
     .leftJoin(standingRules, and(eq(standingRules.householdId, suggestions.householdId), eq(standingRules.kind, ruleKindFor)))
     .leftJoin(spaces, and(eq(spaces.householdId, suggestions.householdId), eq(spaces.id, standingRules.spaceId)))

@@ -743,7 +743,7 @@ async function main() {
     const f = (unit: string, value: number | string, extra: object = {}) => ({ unit, value, by: "engine", period: null, ...extra });
     const facts = [f("money", 18780, { currency: "JPY" }), f("days", 14), f("percent", 12.2), f("date", "2026-11-27")];
     const today = "2026-11-14";
-    const un = (text: string, fs = facts) => unconfirmedNumbers(text, fs, today);
+    const un = (text: string, fs = facts, person: string[] = []) => unconfirmedNumbers(text, fs, { today, person });
     assert.deepEqual(un("You are ¥18,780 short on Fri, Nov 27, in 14 days, up 12.2%."), []);
     assert.deepEqual(un("¥18,780 / 18,780円 / 約1.878万円"), []);
     assert.deepEqual(un("14日後、12.2％、11月27日"), []);
@@ -761,9 +761,73 @@ async function main() {
     assert.deepEqual(un("14%", [f("days", 14)]), ["14%"]);
     assert.deepEqual(un("the 20th", [f("days", 20)]), ["the 20th"]);
     assert.deepEqual(un("¥14", [f("money", 14, { currency: "USD" })]), ["¥14"]);
-    // A number the person gave confirms nothing.
-    assert.deepEqual(un("¥5,000", [f("money", 5000, { currency: "JPY", by: "person" })]), ["¥5,000"]);
-    assert.deepEqual(un("in 9 days", [f("days", 9, { by: "person" })]), ["9 days"]);
+    // A by:"person" fact allows exactly its own value to be quoted back, and nothing more.
+    assert.deepEqual(un("¥5,000", [f("money", 5000, { currency: "JPY", by: "person" })]), []);
+    assert.deepEqual(un("¥5,001", [f("money", 5000, { currency: "JPY", by: "person" })]), ["¥5,001"]);
+    assert.deepEqual(un("in 9 days", [f("days", 9, { by: "person" })]), []);
+    assert.deepEqual(un("in 10 days", [f("days", 9, { by: "person" })]), ["10 days"]);
+    assert.deepEqual(un("$5,000", [f("money", 5000, { currency: "JPY", by: "person" })]), ["$5,000"], "another currency is another number");
+  });
+
+  await check("unconfirmedNumbers: units, date forms and percentages", () => {
+    const f = (unit: string, value: number | string, extra: object = {}) => ({ unit, value, by: "engine", period: null, ...extra });
+    const today = "2026-11-14";
+    const un = (text: string, fs: ReturnType<typeof f>[]) => unconfirmedNumbers(text, fs, { today });
+    assert.deepEqual(un("14 days", [f("money", 14, { currency: "JPY" })]), ["14 days"], "a ¥14 fact does not confirm 14 days");
+    assert.deepEqual(un("¥14", [f("days", 14)]), ["¥14"]);
+    const dated = [f("date", "2026-11-27")];
+    for (const form of ["2026-11-27", "11月27日", "2026年11月27日", "Fri, Nov 27", "Friday, November 27", "Fri Nov 27", "Nov. 27", "November 27, 2026", "27 Nov", "27th of November", "the 27th", "Nov 27th"]) {
+      assert.deepEqual(un(`due ${form}`, dated), [], `${form} is confirmed by a date fact`);
+    }
+    for (const form of ["11月28日", "Nov 28", "28 Nov", "Friday, November 28", "the 28th", "2026-11-28"]) {
+      assert.deepEqual(un(`due ${form}`, dated), [form.replace(/^due /, "")], `${form} is not`);
+    }
+    // A period confirms its dates: the day (on), or the range (from, to).
+    assert.deepEqual(un("on Nov 20 and the 27th, Nov. 21", [f("money", 100, { currency: "JPY", period: { on: "2026-11-20" } }), f("money", 5, { currency: "JPY", period: { from: "2026-11-21", to: "2026-11-27" } })]), []);
+    assert.deepEqual(un("Nov 22", [f("money", 5, { currency: "JPY", period: { from: "2026-11-21", to: "2026-11-27" } })]), ["Nov 22"], "only the ends of a range");
+    // Percentages to one decimal.
+    assert.deepEqual(un("up 12.2% and 7%", [f("percent", 12.2), f("percent", 7)]), []);
+    assert.deepEqual(un("up 12.3%", [f("percent", 12.2)]), ["12.3%"]);
+  });
+
+  await check("unconfirmedNumbers: what the person said may be quoted back and confirms nothing else", () => {
+    const f = (unit: string, value: number | string, extra: object = {}) => ({ unit, value, by: "engine", period: null, ...extra });
+    const today = "2026-11-14";
+    const engine = [f("money", 133770, { currency: "JPY" })];
+    const person = ["Can I put ¥40,000 on Card A?", "remember I get paid 25% on the 5th, 20日後 maybe"];
+    const un = (text: string, fs = engine) => unconfirmedNumbers(text, fs, { today, person });
+    assert.deepEqual(un("¥40,000 on Card A leaves ¥133,770."), [], "the person's amount is quoted back");
+    assert.deepEqual(un("About 4万円 on Card A."), [], "in another written form, same value");
+    assert.deepEqual(un("¥41,000 on Card A leaves ¥133,770."), ["¥41,000"], "a different number is not confirmed because the person said something");
+    assert.deepEqual(un("¥40,000 on Card A leaves ¥99,999."), ["¥99,999"], "an engine claim needs an engine fact");
+    assert.deepEqual(un("$40,000"), ["$40,000"], "the unit must match: the person said yen");
+    assert.deepEqual(un("on the 5th, 25%, in 20 days"), []);
+    assert.deepEqual(un("on the 6th, 26%, in 21 days"), ["the 6th", "26%", "21 days"]);
+    assert.deepEqual(unconfirmedNumbers("¥40,000 on Card A", engine, { today }), ["¥40,000"], "no person texts, no quoting");
+    // Limit, by value only: the person's ¥40,000 also passes as "¥40,000 left", a claim no engine fact backs.
+    // Numbers cannot tell a quote from a claim; the reading line and the picture carry the engine's own figure.
+    assert.deepEqual(un("You have ¥40,000 left."), [], "documented limit: a quoted value can be said as a claim");
+  });
+
+  await check("unconfirmedNumbers: a household snapshot's text confirms nothing; unconfirmedAmounts still reads plain text", () => {
+    const snapshot = "Safe to spend ¥123,456. Short ¥18,780 on Nov 27 in 13 days, up 4.5%.";
+    assert.deepEqual(unconfirmedAmounts("¥123,456 safe.", [snapshot]), [], "the old check trusts any plain text source");
+    assert.deepEqual(unconfirmedNumbers("¥123,456 safe, 13 days, 4.5%, Nov 27", [], { today: "2026-11-14", person: [] }), ["Nov 27", "¥123,456", "4.5%", "13 days"], "the new check reads facts only");
+  });
+
+  await check("unconfirmedNumbers: model-style paraphrases of the engine's lines", () => {
+    const f = (unit: string, value: number | string, extra: object = {}) => ({ unit, value, by: "engine", period: null, ...extra });
+    const facts = [f("money", 18780, { currency: "JPY", period: { on: "2026-11-27" } }), f("days", 13), f("percent", 12.2)];
+    const un = (text: string) => unconfirmedNumbers(text, facts, { today: "2026-11-14" });
+    assert.deepEqual(un("You're about ¥18,780 short on Friday, November 27."), []);
+    assert.deepEqual(un("That is in 13 days, on 27 Nov."), []);
+    assert.deepEqual(un("18,780円 short on 11月27日。"), []);
+    assert.deepEqual(un("You're short ¥18,780 on Fri, Nov. 27, 13 days away, 12.2% under."), []);
+    assert.deepEqual(un("in 12 days"), ["12 days"]);
+    // Rounded forms are flagged: only the engine's exact figure is a fact, so ¥18.8k (18,800) is a different number from 18,780.
+    assert.deepEqual(un("about ¥18.8k short"), ["¥18.8k"]);
+    assert.deepEqual(un("¥18.78k short"), [], "the same value written with a scale is the same number");
+    assert.deepEqual(un("a market 5 days off"), ["5 days"], "a word starting with a month's letters is not a date");
   });
 
   await check("the tested list is empty until the evaluation fills it, and isTested matches provider and model", () => {

@@ -90,6 +90,10 @@ check("the daily finding uses pace and the standing rule, with no changes to the
     { ...rules, goal_behind: { ...rules.goal_behind, enabled } },
   ).filter(row => row.kind === "goal_behind");
   assert.deepEqual(find(40_000).map(row => [row.refId, row.action]), [[goal.id, "pot"]]);
+  const [behind] = find(40_000);
+  const paceNow = goalPace({ ...goal, saved: 40_000 }, withGoal)!;
+  assert.deepEqual(behind.facts.map(item => [item.name, item.value]), [
+    ["goal_pace", paceNow.deltaMinor], ["goal_target_date", paceNow.targetDate], ["goal_monthly_needed", paceNow.monthlyNeededMinor], ["goal_still_to_set_aside", paceNow.neededMinor]]);
   assert.deepEqual(find(60_000), []);
   assert.deepEqual(find(75_000), []);
   assert.deepEqual(find(40_000, false), []);

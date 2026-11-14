@@ -13,7 +13,7 @@ import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { fact } from "@/lib/money/facts";
 import { termOf } from "@/lib/money/terms";
 import { fillShare } from "@/lib/money/pots";
-import { taxAhead } from "@/lib/money/tax-ahead";
+import { TAX_AHEAD_DAYS, taxAhead } from "@/lib/money/tax-ahead";
 import type { Bill, MoneyState, Pot } from "@/lib/money/types";
 import { resolveView } from "@/lib/views/resolve";
 import { ViewError, type ViewResult } from "@/lib/views/types";
@@ -22,7 +22,7 @@ import { StepLine } from "@/components/views/forms/StepLine";
 let passed = 0;
 const reads = (view: ViewResult, today: string) => {
   assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
-  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, today), [], `${view.view}: every number in the line is one of its facts`);
+  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, { today: today }), [], `${view.view}: every number in the line is one of its facts`);
   for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
 };
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
@@ -69,7 +69,7 @@ async function main() {
       assert.equal(result.data!.low.short, true);
       assert.equal(result.data!.low.index, at("2026-12-20"));
       assert.equal(fact(result.facts, "tax_ahead")!.value, 30_000);
-      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, TODAY), []);
+      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: TODAY }), []);
       const early = taxAhead(world([bill({ due: "2026-11-20" })]), "pot-tax", 90)!;
       assert.deepEqual([early.low.short, early.low.shortMinor, early.low.index], [true, 30_000, at("2026-11-20")]);
     });
@@ -109,6 +109,7 @@ async function main() {
       assert.equal(noBill.empty!.words, "Add your tax bills (Government & tax) to see whether this pot covers them.");
       assert.equal(noBill.empty!.add, "bill");
       assert.throws(() => resolveView("tax_ahead", { potId: "nope" }, ctxOf(world([bill()]))), (e: unknown) => e instanceof ViewError && /couldn't find that pot/.test(e.message));
+      assert.equal((resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill()]))) as ViewResult<"step_line">).data!.days, TAX_AHEAD_DAYS, "the default window is the engine's");
       assert.throws(() => resolveView("tax_ahead", { potId: "pot-tax", days: 10 }, ctxOf(world([bill()]))), ViewError);
     });
   } finally {

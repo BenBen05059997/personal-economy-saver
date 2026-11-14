@@ -23,7 +23,7 @@ import type { ViewContext, ViewResult } from "@/lib/views/types";
 let passed = 0;
 const reads = (view: ViewResult, today: string) => {
   assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
-  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, today), [], `${view.view}: every number in the line is one of its facts`);
+  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, { today: today }), [], `${view.view}: every number in the line is one of its facts`);
   for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
 };
 function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
@@ -92,7 +92,7 @@ check("spending higher than money in draws From earlier money; flows still balan
 });
 
 check("the table and the line say every amount (checked words)", () => {
-  assert.deepEqual(unconfirmedNumbers(flowView.line ?? "", flowView.facts, benMoney.today), []);
+  assert.deepEqual(unconfirmedNumbers(flowView.line ?? "", flowView.facts, { today: benMoney.today }), []);
   assert.deepEqual(flowView.table!.head, ["From", "To", "Amount"]);
   assert.equal(flowView.table!.rows.length, flow.links.length);
 });
@@ -121,7 +121,7 @@ check("a month spent beyond what came in has a part below zero; the line and tab
   assert.ok(nov.parts[1] < 0, "November's 20,000 is less than its spending so far");
   const html = renderToStaticMarkup(createElement(StackedColumns, { result: kept }));
   assert.ok(html.includes("sc-seg-short"));
-  assert.deepEqual(unconfirmedNumbers(kept.line ?? "", kept.facts, benMoney.today), []);
+  assert.deepEqual(unconfirmedNumbers(kept.line ?? "", kept.facts, { today: benMoney.today }), []);
   assert.deepEqual(kept.table!.head, ["Month", "Money in", "Spent", "Kept"]);
 });
 
@@ -148,7 +148,7 @@ check("the bar has marks at 3 and 6 months and the guide line, drawn as informat
   const html = renderToStaticMarkup(createElement(RunwayBar, { result: lasts }));
   assert.ok(html.includes("3 months") && html.includes("6 months") && html.includes("The usual guide is 3–6 months; 9–12 for a variable income."));
   assert.doesNotMatch(html, /target|goal|behind|on track/i);
-  assert.deepEqual(unconfirmedNumbers(lasts.line ?? "", lasts.facts, benMoney.today), []);
+  assert.deepEqual(unconfirmedNumbers(lasts.line ?? "", lasts.facts, { today: benMoney.today }), []);
 });
 
 check("the sankey draws a node and a flow per row, with labels", () => {

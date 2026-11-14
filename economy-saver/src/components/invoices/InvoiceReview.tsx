@@ -6,7 +6,7 @@ import { convertMinor, fromRateMicro } from "@/db/money";
 import { Currency } from "@/lib/catalogue/types";
 import { dayLabel, minorMoney } from "@/lib/money/format";
 import { clientPace } from "@/lib/money/pace";
-import { expectedPayOn } from "@/lib/money/runway";
+import { overdue } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
 import type { ReadPaymentCandidate } from "@/db/invoice-match";
 import type { ConnectionView } from "@/lib/paypal/contracts";
@@ -22,9 +22,9 @@ export function InvoiceReview({ review, state, canApprove, connection, candidate
   const sent = invoice.status === "sent";
   // PayPal has taken the payment (a capture is stored) but its verified event has not yet marked the invoice paid.
   const taking = sent && invoice.paypalCaptureId !== null;
-  // Late has one meaning everywhere: the day the forecast expects this invoice to be paid is already behind us.
+  // Overdue has one meaning everywhere (D78): the day the forecast expects this invoice to be paid is already behind us.
   const forecast = sent ? state.invoices.find(i => i.id === invoice.id) : undefined;
-  const late = forecast !== undefined && expectedPayOn(state, forecast) < state.today;
+  const isOverdue = forecast !== undefined && overdue(state, forecast).daysOverdue > 0;
   const canTakePayments = connection.state === "demo" || connection.state === "connected";
   const currency = Currency.parse(invoice.currency);
   // A member's request (D45) is for what they owed, in the household's currency; the dollar amount is only what PayPal is asked for.
@@ -73,7 +73,7 @@ export function InvoiceReview({ review, state, canApprove, connection, candidate
       : <ConnectLine connection={connection} isOwner={canApprove} />)}
     {sent && payLink && <section className="invoice-link-section">
       <p className="invoice-status">{`Link made${invoice.sentOn ? ` ${dayLabel(invoice.sentOn)}` : ""}. Awaiting payment.`}</p>
-      {taking ? <ConfirmingRefresh /> : late && <p className="ui-hint">{`${first} is late. To send the link again, copy it again and send it the way you did before.`}</p>}
+      {taking ? <ConfirmingRefresh /> : isOverdue && <p className="ui-hint">{`${first}'s payment is overdue. To send the link again, copy it again and send it the way you did before.`}</p>}
       <CopyLink url={payLink} invoiceId={invoice.id} client={first} plain={tryIt && !taking} />
       {tryIt && !taking && <ApiForm action="/api/try/pay-as-client" className="invoice-play-client">
         <input type="hidden" name="id" value={invoice.id} />

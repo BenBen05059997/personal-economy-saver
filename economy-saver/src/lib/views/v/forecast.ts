@@ -49,7 +49,7 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
     return `${event.label} ${event.amount < 0 ? "−" : "+"}${format(Math.abs(event.amount))}`;
   };
   const on = (events: typeof lateEvents, day: string) => events.filter(event => event.date === day).map(lineFor);
-  // The lines for a day: one list when late and on time agree, two when they differ.
+  // The lines for a day: one list when late and as usual agree, two when they differ.
   const words = (i: number): { lines: string[]; text: string } => {
     const a = on(lateEvents, date(i)), b = on(usualEvents, date(i));
     if (which === "late" || (which === "both" && a.join("|") === b.join("|"))) return { lines: a.length ? a : ["Nothing scheduled"], text: a.join("; ") || "Nothing scheduled" };

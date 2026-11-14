@@ -11,7 +11,7 @@ import { dueHouseholds, runDaily } from "@/db/daily";
 import { loadMoneyState } from "@/db/household";
 import { CRON_BATCH_SIZE, dispatchCron } from "@/lib/cron";
 import { seedBen } from "@/db/seed";
-import { openSuggestions } from "@/db/suggestions";
+import { openSuggestions, runPass } from "@/db/suggestions";
 
 async function main() {
   const pg = new PGlite({ extensions: { pg_trgm } });
@@ -78,6 +78,12 @@ async function main() {
       const oldEvents = (await db.select().from(schema.events).where(eq(schema.events.householdId, tokyo)))
         .filter(row => row.kind === "daily_reminder" || row.kind === "nudge_suggested");
       assert.deepEqual(oldEvents, []);
+      const stored = open.find(row => row.title === "Card A statement due Nov 26")!;
+      assert.ok(stored.facts.length > 0 && stored.facts.every(item => item.from && item.meaning), "a stored finding carries its facts");
+      await db.update(schema.suggestions).set({ facts: [] }).where(eq(schema.suggestions.id, stored.id));
+      await runPass(db, tokyo, now);
+      const refreshed = (await openSuggestions(db, tokyo)).find(row => row.id === stored.id)!;
+      assert.deepEqual(refreshed.facts, stored.facts, "a pass refresh rewrites the facts of an open row");
       assert.ok(calls.every(url => url.includes("ecb.europa.eu")), "the job calls only the reference-rate source");
     });
 

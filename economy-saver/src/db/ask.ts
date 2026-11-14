@@ -52,6 +52,8 @@ const ANSWER: ReplyKind = "answer";
 /** What the page and the route show for one question: the reply, the canvas the engine drew from the recipe, the pages it used. */
 export type AskReply = {
   id: string; kind: ReplyKind; text: string; choices: string[] | null;
+  /** Who worded an answer: the model, or code when the model's numbers failed the check and the pictures' own sentences stand (D80). Absent on a clarifying question, a decline and a replay. */
+  wording?: "model" | "code";
   canvas: { recipe: Recipe; blocks: ResolvedBlock[] } | null;
   sources: Source[]; links: { label: string; href: string }[]; pending: boolean; firstUse: string | null;
   /** D59: what `remember` and `forget` did to the memory the question carried; the browser applies it to its own copy. Empty when memory is in the cloud. */
@@ -253,7 +255,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
     firstUse: recent === undefined ? await firstUseLine(tx, householdId) : null,
   }), { isolationLevel: "repeatable read", accessMode: "read only" });
   return {
-    id, kind: result.kind, text: result.answer, choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending,
+    id, kind: result.kind, text: result.answer, ...(result.wording && { wording: result.wording }), choices: result.choices, canvas: drawn, sources: result.sources, links: result.links, pending: result.pending,
     firstUse, memoryChanges: deviceMemory?.changes ?? [], offers: result.offers, ...(brief && { brief }), ...(result.memoryChanged && { memoryChanged: true }),
     ...(incognito && { incognito: true }), ...(result.openSpace && { openSpace: result.openSpace }),
   };

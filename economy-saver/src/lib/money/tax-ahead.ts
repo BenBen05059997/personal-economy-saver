@@ -6,6 +6,9 @@ import { fillShare } from "./pots";
 import { arrivals, daysBetween } from "./runway";
 import type { MoneyState } from "./types";
 
+/** The days the tax pot is held against the tax bills, for the picture and for the finding. */
+export const TAX_AHEAD_DAYS = 90;
+
 export type TaxStep = { index: number; date: string; client: string; number?: string; invoiceMinor: number; addMinor: number };
 export type TaxBill = { id: string; index: number; date: string; biller: string; amountMinor: number; pending: boolean; counted: boolean };
 export type TaxAhead = {

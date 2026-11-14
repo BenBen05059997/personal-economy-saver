@@ -25,7 +25,7 @@ import { clientPaceView, incomeMonthsView } from "@/lib/views/v/income";
 let passed = 0;
 const reads = (view: ViewResult, today: string) => {
   assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
-  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, today), [], `${view.view}: every number in the line is one of its facts`);
+  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, { today: today }), [], `${view.view}: every number in the line is one of its facts`);
   for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
 };
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
@@ -78,7 +78,7 @@ async function main() {
       assert.deepEqual(result.data!.columns.map(c => c.parts), [[150_000, 0], [80_000, 30_000], [30_000, 0]]);
       assert.deepEqual(result.table!.head, ["Month", "Alpha Studio", "Bravo Co", "Total"]);
       assert.match(result.line!, /Bravo Co paid at a rate that is not known, so that payment is not counted\./);
-      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, TODAY), []);
+      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: TODAY }), []);
     });
 
     // Ben's sample.
@@ -102,7 +102,7 @@ async function main() {
       assert.equal(lowest, 202_500, "the sample's months differ: the lowest sits well under the average");
       assert.deepEqual(data.refs, [{ label: "Average", minor: average }, { label: "Lowest month", minor: lowest }]);
       assert.equal(fact(result.facts, "income_a_month")!.value, average);
-      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, TODAY), []);
+      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: TODAY }), []);
     });
 
     await check("Ben's pace: Acme usual 14, slowest 25, open 6 days; Northwind 12 / 16, open 1 day; Beacon 2 / 3", () => {
@@ -110,13 +110,13 @@ async function main() {
       assert.deepEqual([by("Acme").usual, by("Acme").slowest, by("Acme").open.map(o => o.days)], [14, 25, [6]]);
       assert.deepEqual([by("Northwind").usual, by("Northwind").slowest, by("Northwind").open.map(o => o.days)], [12, 16, [1]]);
       assert.deepEqual([by("Beacon").usual, by("Beacon").slowest, by("Beacon").open.length], [2, 3, 0]);
-      assert.ok(dots.every(d => d.open.every(o => !o.late)));
+      assert.ok(dots.every(d => d.open.every(o => !o.overdue && o.daysOverdue === 0)));
       const pace = resolveView("client_pace", {}, ctx) as ViewResult<"strip">;
       assert.equal(pace.data!.rows.length, 3);
       assert.equal(pace.data!.rows.find(r => r.label === "Acme Corp")!.dots.length, 5);
       assert.deepEqual(pace.table!.head, ["Client", "Usual", "Slowest", "Paid invoices", "Open now"]);
       assert.equal(pace.table!.rows.find(r => r.cells[0] === "Acme Corp")!.cells[4], "Invoice 1042: 6 days");
-      assert.deepEqual(unconfirmedNumbers(pace.line ?? "", pace.facts, TODAY), []);
+      assert.deepEqual(unconfirmedNumbers(pace.line ?? "", pace.facts, { today: TODAY }), []);
       assert.match(pace.line!, /^Acme Corp is the slowest to pay: 14 days usual, 25 at most\.$/);
       const one = resolveView("client_pace", { clientId: state.clients.find(c => c.name === "Northwind")!.id }, ctx) as ViewResult<"strip">;
       assert.deepEqual(one.data!.rows.map(r => r.label), ["Northwind"]);
@@ -136,13 +136,21 @@ async function main() {
       const later = { ...state, today: "2026-12-10" }, past = clientPaceView({}, { state: later });
       reads(past, "2026-12-10");
       assert.equal(past.facts!.find(f => f.name === "days_open")!.value, 32);
-      assert.ok(past.table!.rows[0].cells[4].includes("longer than the slowest"));
+      const owed = overdue(later, later.invoices.find(i => i.id === invoice.id)!).daysOverdue;
+      assert.ok(owed > 0);
+      assert.equal(past.facts!.find(f => f.name === "days_overdue")!.value, owed);
+      assert.ok(past.table!.rows[0].cells[4].includes(`(${owed} overdue)`));
+      assert.ok(!/longer than/.test(JSON.stringify(past.table)) && !/longer than/.test(past.line!));
+      const stripPast = past as ViewResult<"strip">;
+      assert.equal(stripPast.data!.rows[0].open[0].overdue, true);
     });
 
-    await check("an open invoice past the slowest is late; an unknown client is refused in words; extra keys are refused", () => {
+    await check("an open invoice past its expected day is overdue; an unknown client is refused in words; extra keys are refused", () => {
       const late = { ...state, today: "2026-12-10" }, acme = paceDots(late).find(d => d.name.startsWith("Acme"))!;
-      assert.deepEqual(acme.open.map(o => [o.days, o.late]), [[32, true]]);
-      assert.match((clientPaceView({}, { state: late }) as ViewResult).line!, /Invoice 1042 from Acme Corp has been open 32 days, longer than any they paid in\./);
+      assert.deepEqual(acme.open.map(o => [o.days, o.overdue]), [[32, true]]);
+      const owed = acme.open[0].daysOverdue;
+      assert.equal(owed, overdue(late, late.invoices.find(i => i.id === acme.open[0].invoiceId)!).daysOverdue);
+      assert.match((clientPaceView({}, { state: late }) as ViewResult).line!, /Invoice 1042 from Acme Corp has been open 32 days and is \d+ days overdue\./);
       assert.throws(() => resolveView("client_pace", { clientId: "nope" }, ctx), (e: unknown) => e instanceof ViewError && /couldn't find that client/.test(e.message));
       assert.throws(() => resolveView("client_pace", { months: 3 }, ctx), /does not take "months"/);
       assert.throws(() => resolveView("income_months", { months: 1 }, ctx), ViewError);

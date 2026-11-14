@@ -53,14 +53,15 @@ check("the amount tested is a person fact, and the room after it is the engine's
   assert.equal(after, 133_770);
   assert.ok(after === before - 40000 || after === Math.round(card("card-a").facts!.find(item => item.name === "limit_left")!.value as number) - 40000, "room less the purchase, or the limit-capped value");
   assert.ok(fact(card("card-a").facts!, "card_room_after") === null, "no amount, no room after");
-  assert.equal(unconfirmedNumbers("¥40,000", checkable(facts), benMoney.today).length, 1, "the person's amount confirms nothing");
+  assert.equal(unconfirmedNumbers("¥40,000", checkable(facts), { today: benMoney.today }).length, 0, "the person's amount may be quoted back as theirs");
+  assert.equal(unconfirmedNumbers("¥41,000", checkable(facts), { today: benMoney.today }).length, 1, "a number near it confirms nothing");
   assert.deepEqual(a.facts.filter(item => item.value === 40000).map(item => item.name), ["amount_tested"], "the amount is repeated as no other fact");
 });
 
 check("every card's line is built from its facts, on both cards, with and without an amount, and every fact name is a term", () => {
   for (const id of ["card-a", "card-b"]) for (const amount of [undefined, 40000, 900000]) {
     const view = card(id, amount);
-    assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), benMoney.today), [], `${id} ${amount}`);
+    assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), { today: benMoney.today }), [], `${id} ${amount}`);
     assert.ok(view.facts!.every(item => TERMS.some(term => term.name === item.name) && item.from === "card_cycle"));
   }
   const a = card("card-a").facts!;

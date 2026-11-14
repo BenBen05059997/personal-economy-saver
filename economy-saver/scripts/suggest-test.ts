@@ -20,7 +20,11 @@ import { readRule, ruleWords } from "@/lib/money/rules";
 import { fundingOptions } from "@/lib/money/options";
 import { arrivals, daysBetween, expectedPayBasis, expectedPayOn } from "@/lib/money/runway";
 import { findSuggestions } from "@/lib/money/suggest";
-import { findingsBySpace } from "@/lib/money/suggestion-types";
+import { resolveBills } from "@/lib/money/repeat";
+import type { Fact } from "@/lib/money/facts";
+import { resolveView } from "@/lib/views/resolve";
+import type { ViewResult } from "@/lib/views/types";
+import { FINDING_RULE, findingAction, findingsBySpace, type Finding } from "@/lib/money/suggestion-types";
 import { benMoney } from "@/lib/sample/ben";
 import type { Bill, MoneyState } from "@/lib/money/types";
 
@@ -130,7 +134,7 @@ async function main() {
       assert.deepEqual(kinds(at("2026-11-14")), [], "usual pay day Nov 11, exactly 3 days past: not yet");
       const [nudge] = find(at("2026-11-15"));
       assert.deepEqual([nudge.kind, nudge.title, nudge.reason], ["invoice_nudge", "Send " + client.name + " the link again",
-        client.name + " usually pays in 9 days; it has been 13 days since the link was made."]);
+        client.name + " usually pays in 9 days; it is 4 days overdue, and it has been 13 days since the link was made."]);
     });
 
     await check("the reason quotes the value the trigger used: the due date with no history, the terms with neither", () => {
@@ -138,10 +142,10 @@ async function main() {
       const base = { ...benMoney.invoices[0], clientId: client.id, sentOn: "2026-10-20" };
       const at = (invoice: typeof base) => ({ ...quiet, today: "2026-11-14", clients: [client], invoices: [invoice] });
       const due = { ...base, dueOn: "2026-11-05" };
-      assert.equal(find(at(due))[0].reason, client.name + "'s invoice was due Nov 5; it has been 25 days since the link was made.");
+      assert.equal(find(at(due))[0].reason, client.name + "'s invoice was due Nov 5; it is 9 days overdue, and it has been 25 days since the link was made.");
       assert.equal(expectedPayBasis(at(due), due).on, "2026-11-05");
       const bare = { ...due, dueOn: undefined };
-      assert.equal(find(at(bare))[0].reason, client.name + "'s terms are 14 days; it has been 25 days since the link was made.");
+      assert.equal(find(at(bare))[0].reason, client.name + "'s terms are 14 days; it is 11 days overdue, and it has been 25 days since the link was made.");
       assert.deepEqual(expectedPayBasis(at(bare), bare), { on: "2026-11-03", basis: "terms", days: 14 });
       assert.equal(expectedPayOn(at(bare), bare), "2026-11-03");
     });
@@ -219,6 +223,104 @@ async function main() {
       assert.deepEqual(kinds(quiet, rules), []);
       rules.safe_below = { enabled: true, threshold: 129_000, currency: "USD" };
       assert.deepEqual(kinds(quiet, rules), []);
+    });
+
+    // A finding's facts are its picture's facts for the same subject: each named fact equals the picture's, apart from which face made it.
+    const strip = (item: Fact) => ({ ...item, from: "" });
+    const sameFacts = (finding: Finding, picture: ViewResult, names: string[]) => {
+      const mine = finding.facts.filter(item => names.includes(item.name));
+      assert.deepEqual(mine.map(item => item.name).sort(), [...names].sort(), finding.kind + " carries " + names.join(", "));
+      for (const item of mine) assert.deepEqual(picture.facts!.filter(other => other.name === item.name && other.about?.id === item.about?.id).map(strip), [strip(item)], finding.kind + ": " + item.name + " matches the picture");
+    };
+
+    await check("invoice_nudge carries the days overdue and the amount, and its days overdue equal client_pace's for that invoice", () => {
+      const client = { ...benMoney.clients[0], daysToPay: [9, 9, 9], termsDays: 0 };
+      const invoice = { ...benMoney.invoices[0], clientId: client.id, sentOn: "2026-11-02", dueOn: "2026-11-03" };
+      const state = { ...quiet, today: "2026-11-15", clients: [client], invoices: [invoice] };
+      const [nudge] = find(state);
+      sameFacts(nudge, resolveView("client_pace", {}, { state }), ["days_overdue"]);
+      const pays = nudge.facts.find(item => item.name === "client_pays")!;
+      assert.deepEqual([pays.case, pays.about!.id, pays.period], ["as_usual", invoice.id, { on: arrivals(state)[0].expectedOn }]);
+      assert.equal(pays.value, Math.round(arrivals(state)[0].amountHome));
+    });
+
+    await check("statement_due and bill_due carry the due date and the amount; an unknown amount is not_counted, never 0", () => {
+      const rules = defaultRules();
+      rules.bill_ahead.threshold = 10;
+      const bill = { ...sampleBill, status: "confirmed" as const };
+      const [found] = find({ ...quiet, bills: [bill], storedBills: [] }, rules);
+      assert.deepEqual(found.facts.map(item => [item.name, item.value, item.about!.id]), [["due", "2026-11-17", bill.id], ["bill_amount", 2_500, bill.id]]);
+      const unknown = find({ ...quiet, bills: [{ ...bill, uncounted: true }], storedBills: [] }, rules)[0];
+      assert.deepEqual(unknown.facts.map(item => item.name), ["due", "not_counted"]);
+      const card = benMoney.statements.length ? benMoney : null;
+      assert.ok(card, "Ben has a card statement");
+      rules.statement_ahead = { enabled: true, threshold: 30, currency: null };
+      const statements = find({ ...benMoney, invoices: [] }, rules).filter(row => row.kind === "statement_due");
+      assert.ok(statements.length > 0, "a statement falls due in 30 days");
+      for (const row of statements) {
+        const picture = resolveView("card_cycle", { cardId: row.refId! }, { state: { ...benMoney, invoices: [] } });
+        const closed = row.facts.some(item => item.name === "statement_closed");
+        const mine = (name: string) => row.facts.find(item => item.name === name)!;
+        const theirs = (name: string) => picture.facts!.find(item => item.name === name)!;
+        assert.deepEqual([mine("due").value, mine(closed ? "statement_closed" : "statement_open").value], [theirs(closed ? "closed_statement_due" : "due").value, theirs(closed ? "statement_closed" : "statement_open").value], "the due day and the amount are the card cycle's");
+      }
+    });
+
+    await check("cost_up carries the change in amount and equals fixed_costs' change for that cost", () => {
+      const october = { ...sampleBill, status: "confirmed" as const, id: "oct", due: "2026-10-18", amount: 2_000 };
+      const november = { ...sampleBill, status: "confirmed" as const, id: "nov", due: "2026-11-18", amount: 2_500 };
+      const state = { ...quiet, storedBills: [october, november] };
+      const rules = defaultRules();
+      rules.cost_up = { enabled: true, threshold: 24, currency: null };
+      const [up] = find(state, rules);
+      assert.equal(up.kind, "cost_up");
+      const spending = { ...state, bills: resolveBills(state.storedBills, today, "JPY") };
+      sameFacts(up, resolveView("fixed_costs", {}, { state, spending }), ["change_from_last_month"]);
+      assert.equal(up.facts[0].value, 500);
+    });
+
+    await check("cancel_by carries the renewal day and its amount", () => {
+      const renewal = { ...sampleBill, status: "confirmed" as const, due: "2026-11-20", cancelBy: "2026-11-17", repeatUnit: "month" as const, repeatDay: 20 };
+      const [notice] = find({ ...quiet, storedBills: [renewal] });
+      assert.deepEqual(notice.facts.map(item => [item.name, item.value]), [["due", "2026-11-20"], ["bill_amount", 2_500], ["cancel_by", "2026-11-17"]]);
+    });
+
+    await check("goal_behind carries the pace, the day and what is still to set aside, equal to goal_pace's", () => {
+      const pot = { id: "camera", name: "Camera", saved: 100, target: 2_100, startedOn: "2026-10-15", targetDate: "2026-12-14" };
+      const state = { ...quiet, pots: [pot] };
+      const [goal] = find(state);
+      assert.equal(goal.kind, "goal_behind");
+      sameFacts(goal, resolveView("goal_pace", { potId: "camera" }, { state }), ["goal_pace", "goal_target_date", "goal_monthly_needed", "goal_still_to_set_aside"]);
+    });
+
+    await check("tax_short is a goal_behind finding: it carries the short amount, the day and the bill due, equal to tax_ahead's, and the switch silences it", () => {
+      const tax = { id: "pot-tax", name: "Tax", saved: 10_000, fillPct: 20 };
+      const taxBill = { id: "tax-1", biller: "Resident tax", amount: 100_000, due: "2026-12-20", category: "government_tax", businessBp: 0, status: "confirmed" } satisfies Bill;
+      const state: MoneyState = { ...benMoney, bills: [taxBill], storedBills: [], statements: [], charges: [], pots: [tax] };
+      const found = find(state).filter(row => row.kind === "tax_short");
+      assert.equal(found.length, 1);
+      assert.equal(FINDING_RULE.tax_short, "goal_behind");
+      sameFacts(found[0], resolveView("tax_ahead", { potId: "pot-tax" }, { state }), ["tax_ahead", "tax_short_on", "bill_amount", "due"]);
+      assert.deepEqual(found[0].facts.slice(0, 2).map(item => item.value), [30_000, "2026-12-20"]);
+      assert.deepEqual([found[0].title, found[0].reason, found[0].action, found[0].refId], ["Tax falls short of the tax bills", "¥30,000 short on Dec 20, when Resident tax ¥100,000 is due.", "pot", "pot-tax"]);
+      const rules = defaultRules();
+      rules.goal_behind.enabled = false;
+      assert.deepEqual(find(state, rules).filter(row => row.kind === "tax_short"), []);
+      assert.deepEqual(find({ ...state, bills: [{ ...taxBill, amount: 40_000 }] }).filter(row => row.kind === "tax_short"), [], "a covered pot says nothing");
+    });
+
+    await check("safe_below carries safe to spend, equal to the forecast's", () => {
+      const rules = defaultRules();
+      rules.safe_below = { enabled: true, threshold: 99_999_999, currency: "JPY" };
+      const below = find(benMoney, rules).find(row => row.kind === "safe_below")!;
+      assert.ok(below, "Ben is under a huge minimum");
+      sameFacts(below, resolveView("forecast", {}, { state: benMoney }), ["safe_to_spend"]);
+    });
+
+    await check("findingAction names the one button each action offers", () => {
+      assert.deepEqual(findingAction({ action: "regular", refId: null }), { label: "Review regular costs", href: "/spending/over-time#regular-costs" });
+      assert.equal(findingAction({ action: "pot", refId: "p" }).label, "Review pot");
+      assert.throws(() => findingAction({ action: "pot", refId: null }), /reference/);
     });
 
     const demo = await seedBen(db, { isDemo: true });

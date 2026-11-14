@@ -23,7 +23,7 @@ export function Strip({ result }: { result: ViewResult<"strip"> }) {
       <span><i className="st-key st-key-dot" />Paid invoice</span>
       <span><i className="st-key st-key-usual" />Usual days</span>
       <span><i className="st-key st-key-open" />Open invoice, days so far</span>
-      {rows.some(row => row.open.some(o => o.late)) && <span><i className="st-key st-key-late" />Open longer than the slowest</span>}
+      {rows.some(row => row.open.some(o => o.overdue)) && <span><i className="st-key st-key-late" />Overdue</span>}
     </div>
     <div className="st-rows hv-plot" role="group" aria-label={result.aria}>
       {rows.map(row => <div key={row.key} className={active === row.key ? "st-row st-row-on" : "st-row"} tabIndex={0} role="img" aria-label={row.aria}
@@ -38,7 +38,7 @@ export function Strip({ result }: { result: ViewResult<"strip"> }) {
             return <circle key={i} className="st-dot" cx={x(d)} cy={MID + (before % 2 ? 1 : -1) * Math.ceil(before / 2) * 7} r={5} />;
           })}
           {row.open.map((o, i) => <g key={`o${i}`}>
-            <circle className={o.late ? "st-open st-open-late" : "st-open"} cx={x(o.days)} cy={MID} r={6.5} />
+            <circle className={o.overdue ? "st-open st-open-late" : "st-open"} cx={x(o.days)} cy={MID} r={6.5} />
             <text className="st-open-label" x={x(o.days)} y={MID - 15 - i * 12} textAnchor={x(o.days) > plotW - 60 ? "end" : "middle"}>{days(o.days)}</text>
           </g>)}
         </svg>
@@ -49,7 +49,7 @@ export function Strip({ result }: { result: ViewResult<"strip"> }) {
       {hovered && <div className="hv-tip" style={{ left: LABEL + 24, top: rows.indexOf(hovered) * (ROW + 6) + ROW }} role="status"><strong>{hovered.label}</strong>
         <p>Paid in <b>{hovered.dots.join(", ")}</b> days</p>
         <p>Usual <b>{days(hovered.usual)}</b> · slowest <b>{days(hovered.slowest)}</b></p>
-        {hovered.open.map((o, i) => <p key={i}><span>{o.label}{o.late ? ", longer than the slowest" : ""}</span></p>)}</div>}
+        {hovered.open.map((o, i) => <p key={i}><span>{o.label}{o.overdue ? ", overdue" : ""}</span></p>)}</div>}
     </div>
   </div>;
 }
