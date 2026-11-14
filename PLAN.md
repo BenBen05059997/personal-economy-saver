@@ -24,6 +24,7 @@ Only Ben can do these. Agents carry on with anything that doesn't wait on them.
 
 ## Open work
 
+- The Ask answer redesign: decide the remaining design decisions in order (the fact record, insight types, the reading for each picture, the action catalogue, the tool set, the answer shape, the checks, where readings show, the test loop), then build on D78.
 - Zod 4. The 7 high audit findings that remain need the upgrade; expect type errors at every schema boundary.
 - Owner gate (D12, D76), not on the judges' path, done after the Try it payment test: connect a sandbox seller account by signing in on PayPal's page ("Already have an account? Sign in") with an existing sandbox business account that is not fipa's own, never creating one there because accounts created on that page are not saved, and pay a $1 test link as the sandbox client, to confirm PayPal delivers the client-paid webhook for a connected account's orders; with Ben's sandbox accounts, also what PayPal's events carry for a seller's order, what a declined payment looks like, and how long an approved order can still be taken.
 - The live PayPal round trip from the Worker (V1): a payment link made, paid as the sandbox client, the verified webhook received and the sentence flipped.
