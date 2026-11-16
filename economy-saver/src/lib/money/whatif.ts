@@ -10,13 +10,12 @@
 import type { Change } from "@/lib/canvas/schema";
 import { latestDate } from "./horizon";
 import { minorPerUnit } from "./format";
-import { addDays } from "./runway";
 import type { Bill, MoneyState } from "./types";
+import { storedId } from "./repeat";
+import { addDays } from "./dates";
 
 /** A what-if the engine cannot run: the message is written for the person. */
 export class WhatIfError extends Error {}
-
-const storedId = (id: string) => (id.includes("@") ? id.slice(0, id.indexOf("@")) : id);
 
 /** The bills a bill id names: a stored id names every occurrence; `<id>@<date>` names one. */
 function billsNamed(bills: Bill[], billId: string): Bill[] {

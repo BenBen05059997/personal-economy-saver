@@ -6,12 +6,14 @@ import { dayLabel, minorMoney } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN, DATE_NOT_KNOWN } from "@/lib/money/gaps";
 import { categoryLabel } from "@/lib/money/categories";
 import { monthByCategory } from "@/lib/money/month";
-import { addDays, daysBetween, WINDOW_DAYS } from "@/lib/money/runway";
+import { WINDOW_DAYS } from "@/lib/money/runway";
 import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, spendingItems } from "@/lib/money/spending";
 import type { LinkPreview } from "@/lib/money/varies";
 import type { Extracted, Whose } from "@/lib/reader/extract";
 import { CanvasError, resolveRecipe, type CanvasContext, type ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
+import { storedId } from "@/lib/money/repeat";
+import { addDays, daysBetween } from "@/lib/money/dates";
 
 /** The fixed words of a file attached in Ask (D61). Code writes all of them; no model words the card. */
 export const DOCUMENT_WORDS = {
@@ -171,7 +173,7 @@ export function buildCard(
       const recipe = documentCanvas(context.state.today, { name: item.value.name ?? (item.value.kind === "bill" ? "Bill" : "Card charge"), billId: item.target?.kind === "bill" ? item.target.id : null, chargeId: item.target?.kind === "charge" ? item.target.id : null, due: item.value.date });
       // What it changed needs the item in the money state; an item the state no longer holds (a charge long past) leaves the month as it was drawn before.
       const target = item.target, held = target !== null && (target.kind === "bill"
-        ? context.state.bills.some(bill => bill.id === target.id || bill.id.split("@")[0] === target.id) || context.state.storedBills.some(bill => bill.id === target.id)
+        ? context.state.bills.some(bill => bill.id === target.id || storedId(bill.id) === target.id) || context.state.storedBills.some(bill => bill.id === target.id)
         : context.state.charges.some(charge => charge.id === target.id));
       const drawn = held ? recipe : { ...recipe, blocks: recipe.blocks.filter(block => block.type !== "view") };
       try { canvas = { recipe: drawn, blocks: resolveRecipe(drawn, context) }; } catch (error) { if (!(error instanceof CanvasError)) throw error; }

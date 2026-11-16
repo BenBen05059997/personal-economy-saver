@@ -1,8 +1,9 @@
-// The month a bill covers (27F). Pure. A bill's due date is its time identity and the only date the money counts by; its period
+// The month a bill covers. Pure. A bill's due date is its time identity and the only date the money counts by; its period
 // ("11月分", "Service period Oct 1 – Oct 31") is information: it says what the bill is for, so "November's electricity" can be found.
 import type { Currency } from "@/lib/catalogue/types";
 import type { CategoryKey } from "./categories";
 import { guessCategory } from "./categorise";
+import { addMonths } from "./dates";
 import { dayLabel, minorMoney, ordinal, plural } from "./format";
 import { AMOUNT_NOT_KNOWN } from "./gaps";
 import { normalise } from "./name-key";
@@ -26,12 +27,6 @@ export function periodLabel(period: Period): string {
   return `${dayLabel(period.start)}${year(period.start)} – ${dayLabel(period.end)}${year(period.end)}`;
 }
 
-/** The first day of the month after `iso`. */
-const nextMonth = (iso: string) => {
-  const year = Number(iso.slice(0, 4)), month = Number(iso.slice(5, 7));
-  return month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`;
-};
-
 /**
  * The due date to propose for a bill that shows the period it covers and no due date: the household's usual due day for that
  * biller in the month after the period ends, else the last day of that month. It is an estimate: the caller marks it as one and
@@ -39,7 +34,7 @@ const nextMonth = (iso: string) => {
  * the month's last day.
  */
 export function estimatedDue(period: Period, usualDay: number | null): { date: string; basis: string } {
-  const month = nextMonth(period.end);
+  const month = addMonths(period.end, 1).slice(0, 7);
   const { last } = monthBounds(month);
   const lastDay = Number(last.slice(8, 10));
   const label = periodLabel(period);
@@ -55,8 +50,8 @@ export type PeriodBill = {
   id: string; biller: string; amountMinor: number | null; currency: Currency; due: string | null;
   periodStart: string; periodEnd: string; status: "confirmed" | "pending"; category: CategoryKey;
 };
-export type PeriodItem = PeriodBill & { periodLabel: string };
-export type BillsForMonth = {
+type PeriodItem = PeriodBill & { periodLabel: string };
+type BillsForMonth = {
   month: string; // YYYY-MM
   text: string; // as searched: NFKC, lower case, trimmed; "" = every bill
   items: PeriodItem[]; // by due date (not known last), then name
@@ -65,11 +60,11 @@ export type BillsForMonth = {
   note: string;
 };
 
-/** Where counting stays (D63): a bill with no period is counted by its due date, which is what month_by_category reads. */
-export const NO_PERIOD_NOTE = "Only bills that name the month they are for are listed here. A bill with no period is counted by its due or paid date: use month_by_category for the month money was paid.";
+/** Where counting stays (D63): a bill with no period is counted by its due date, which is what the month_by_category view reads. */
+const NO_PERIOD_NOTE = "Only bills that name the month they are for are listed here. A bill with no period is counted by its due or paid date: show the month_by_category view for the month money was paid.";
 
 /** True when the bill's period shares at least one day with the month (YYYY-MM). */
-export const periodOverlaps = (period: Period, month: string): boolean => {
+const periodOverlaps = (period: Period, month: string): boolean => {
   const { first, last } = monthBounds(month);
   return period.start <= last && period.end >= first;
 };

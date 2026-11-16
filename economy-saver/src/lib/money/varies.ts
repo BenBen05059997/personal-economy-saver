@@ -3,8 +3,9 @@
 import type { CategoryKey } from "./categories";
 import { gapEstimate } from "./gaps";
 import { occurrenceDates, variesEstimate } from "./repeat";
-import { monthBounds, sameName } from "./spending";
+import { monthBounds } from "./spending";
 import type { RealBill } from "./types";
+import { sameName } from "./name-key";
 
 /** A confirmed amount-varies monthly bill, as stored: where its series starts and its own amount (minor units). */
 export type VariesSeries = { id: string; biller: string; category: CategoryKey; due: string; repeatDay: number; until?: string | null }; // until: D41, the series' last payment day

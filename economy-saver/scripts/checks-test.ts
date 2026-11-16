@@ -17,11 +17,12 @@ import { extractSchema } from "@/lib/reader/extract";
 import { dayLabel } from "@/lib/money/format";
 import { CHECK_ORDER, DUPLICATE_DAYS, FAR_PERCENT, checksFor, pendingProposals, readingProposal, type Check, type Proposal } from "@/lib/money/checks";
 import { expandBills } from "@/lib/money/repeat";
-import { addDays, daysBetween, planWindow, series } from "@/lib/money/runway";
+import { planWindow, series } from "@/lib/money/runway";
 import { dayView, stateThrough } from "@/lib/money/window";
 import { latestDate } from "@/lib/money/horizon";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import type { MoneyState, StoredBill } from "@/lib/money/types";
+import { addDays, daysBetween } from "@/lib/money/dates";
 
 const TODAY = "2026-11-14";
 const END = addDays(TODAY, planWindow(benMoney) - 1);

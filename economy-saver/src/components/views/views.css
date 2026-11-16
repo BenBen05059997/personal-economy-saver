@@ -14,6 +14,8 @@
 .view-table tfoot :is(th,td){font-weight:600}
 .view-pin{display:flex;gap:12px;align-items:center}
 /* The panel's switch row: the label stays on one line, the options wrap below it as a group, Chart | Table follows tidily. */
+.hv-look{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hv-look>span{font-size:12.5px;color:var(--muted)}
 .view-panel .hv-controls{justify-content:flex-start;gap:8px 16px}
 .view-panel .hv-look{flex-wrap:wrap;gap:6px 8px}
 .view-panel .hv-look>span{white-space:nowrap}

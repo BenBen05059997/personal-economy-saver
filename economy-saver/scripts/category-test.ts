@@ -22,9 +22,9 @@ import { toolInputSchema, tools, type ToolContext } from "@/lib/agent/tools";
 import { cardSummary } from "@/lib/money/card-summary";
 import { BusinessBp, CATEGORIES, CATEGORY_KEYS, businessBpFromForm, businessPart, categoryLabel, CategoryKeySchema, shareLabel } from "@/lib/money/categories";
 import { guessCategory, guessRepeat } from "@/lib/money/categorise";
-import { businessLine, monthByCategory, monthText, monthWhen, splitLine } from "@/lib/money/month";
+import { businessLine, monthByCategory, monthWhen, splitLine } from "@/lib/money/month";
 import { expandBills } from "@/lib/money/repeat";
-import { addDays, cycle, low, safeToSpend, series, statementItems } from "@/lib/money/runway";
+import { cycle, low, safeToSpend, series, statementItems } from "@/lib/money/runway";
 import { leftOverEachMonth } from "@/lib/money/plan";
 import { homeSentence } from "@/lib/money/sentence";
 import { toCheck } from "@/lib/money/to-check";
@@ -34,6 +34,7 @@ import { fundingOptions } from "@/lib/money/options";
 import type { Bill, Charge, MoneyState } from "@/lib/money/types";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import { HouseholdSnapshot } from "@/lib/schema/household";
+import { addDays } from "@/lib/money/dates";
 
 const summary = (state: MoneyState) => monthByCategory(state, state.today).categories.map(c =>
   [c.category, c.totalMinor, c.businessMinor, c.personalMinor] as const);
@@ -144,7 +145,7 @@ async function main() {
       assert.equal(splitLine(view, view.categories.find(c => c.category === "food")!), null);
       assert.equal(splitLine(view, view.categories.find(c => c.category === "subscriptions")!), null);
       assert.ok(!view.categories.some(c => c.category === "utilities" || c.category === "transport"), "no Utilities while Hikari is pending, no Transport (October)");
-      assert.match(monthText(view), /^November: ¥152,230 in total\. Business ¥32,830 of ¥152,230 this month\.\nHousing ¥82,000 \(business ¥24,600 · personal ¥57,400\): Rent Nov 27 ¥82,000 at 30% business\.\n/);
+      assert.deepEqual(view.categories[0].items.map(i => [i.label, i.date, i.amountMinor, i.businessBp]), [["Rent", "2026-11-27", 82_000, 3_000]]);
     });
 
     await check("whose (D52): one person's household has everything on them or Shared and the parts add up; the business numbers are unchanged", () => {
@@ -171,7 +172,6 @@ async function main() {
       }
       assert.equal(view.businessMinor + view.personalMinor, view.totalMinor);
       assert.deepEqual(monthByCategory({ ...state, charges: [] }, state.today).categories, []);
-      assert.match(monthText(monthByCategory({ ...state, charges: [] }, state.today)), /nothing confirmed yet/);
     });
 
     await check("month maths: a monthly bill counts once, at its occurrence, even when that day has passed; pending bills and charges, other months and statements stay out", () => {
@@ -427,8 +427,8 @@ async function main() {
       assert.deepEqual(after.categories.find(c => c.category === "health")!.items, [{ label: "Fictional gym", date: "2026-11-25", amountMinor: 3000, businessBp: 2500, own: null, ownerId: null }]);
       assert.equal(after.categories.find(c => c.category === "food")!.items.find(i => i.label === "Fictional ramen shop")!.businessBp, 10_000);
 
-      const text = monthText(monthByCategory(state, state.today));
-      assert.match(text, /Health ¥3,000 \(business ¥750 · personal ¥2,250\): Fictional gym Nov 25 ¥3,000 at 25% business\./);
+      const health = after.categories.find(c => c.category === "health")!;
+      assert.deepEqual([health.totalMinor, health.businessMinor, health.personalMinor], [3_000, 750, 2_250]);
     });
 
     // ------------------------------------------------------------ the snapshot and household scope

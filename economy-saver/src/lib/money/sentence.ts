@@ -1,8 +1,9 @@
 import type { Currency } from "@/lib/catalogue/types";
 import { aboutMoney, minorMoney, minorPerUnit, money, ordinal } from "./format";
 import { highEndsTurningShort, uncountedInWindow } from "./gaps";
-import { arrivals, daysBetween, low, safeToSpend, series, WINDOW_DAYS, type LowPoint, type SafeToSpend } from "./runway";
+import { arrivals, low, safeToSpend, series, WINDOW_DAYS, type LowPoint, type SafeToSpend } from "./runway";
 import type { MoneyState } from "./types";
+import { daysBetween } from "./dates";
 
 /** Whether any client payment is expected to land in the next 30 days. Without one, "even if clients pay late" says nothing true. */
 export function expectsClientPayment(state: MoneyState, days = WINDOW_DAYS) {
@@ -42,7 +43,7 @@ function composeSentence(safe: SafeToSpend, usualLow: LowPoint, currency: Curren
   const amount = (value: number) => money(Math.abs(value), currency);
   const on = (point: LowPoint) => "on the " + ordinal(Number(point.date.slice(-2)));
   if (safe.low.amount >= 0) {
-    const lead = clientsExpected ? "You're fine for the next 30 days, even if clients pay late. Lowest point" : "You're fine for the next 30 days. Lowest point";
+    const lead = clientsExpected ? `You're fine for the next ${WINDOW_DAYS} days, even if clients pay late. Lowest point` : `You're fine for the next ${WINDOW_DAYS} days. Lowest point`;
     return parts([lead], amount(safe.low.amount), on(safe.low), safe.low.date, false);
   }
   if (usualLow.amount < 0) {
@@ -79,7 +80,7 @@ export function hasNothingToForecast(state: MoneyState) {
 
 export function homeSentence(state: MoneyState): SentenceParts {
   if (hasNothingToForecast(state)) {
-    return parts(["Add your bills and the clients who pay you to see your next 30 days."], `Bank balance ${money(state.bank, state.homeCurrency)}.`, null, null, false);
+    return parts([`Add your bills and the clients who pay you to see your next ${WINDOW_DAYS} days.`], `Bank balance ${money(state.bank, state.homeCurrency)}.`, null, null, false);
   }
   return { ...composeSentence(safeToSpend(state), low(series(state, "expected")), state.homeCurrency, expectsClientPayment(state), state.clients), note: gapNote(state) };
 }

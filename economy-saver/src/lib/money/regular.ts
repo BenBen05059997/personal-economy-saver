@@ -2,10 +2,11 @@
 // window, and what changed this month. Built on D53's items (`spendingItems`) and D54's one name key (`nameKey`), so the
 // Over time panel, the search and the assistant agree. Moves no money; nothing in the runway reads it. Integer minor units.
 import type { Currency } from "@/lib/catalogue/types";
-import { aboutMoney, minorMoney } from "./format";
+import { aboutMoney, minorMoney, ordinal } from "./format";
 import { categoryLabel, type CategoryKey } from "./categories";
 import { ownLabel } from "./own-category";
-import { monthBounds, monthsBack, nameKey, type SpendItem } from "./spending";
+import { monthBounds, monthsBack, type SpendItem } from "./spending";
+import { nameKey } from "./name-key";
 
 type RegularStatus = "same" | "up" | "down" | "started" | "stopped" | "not_yet";
 type RegularMonth = { month: string; amountMinor: number; count: number; estimated?: true }; // YYYY-MM; estimated: some of the amount is an amount-varies bill's estimate (D54)
@@ -39,6 +40,19 @@ const DATE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 /** How a cost's change reads on a face: "up" and "down" are tinted, every other status is plain. */
 export function changeTone(status: RegularStatus): "up" | "down" | "plain" {
   return status === "up" ? "up" : status === "down" ? "down" : "plain";
+}
+
+/** How a cost's change against last month reads on a face: "up ¥1,200", "down ¥300", "same", "started this month", "stopped", or the day it usually lands. */
+export function changeWords(cost: RegularCost, currency: Currency): string {
+  const amount = (minor: number) => cost.estimated ? aboutMoney(minor, currency) : minorMoney(minor, currency);
+  switch (cost.status) {
+    case "up": return `up ${amount(cost.changeMinor!)}`;
+    case "down": return `down ${amount(-cost.changeMinor!)}`;
+    case "same": return "same";
+    case "started": return "started this month";
+    case "stopped": return "stopped";
+    case "not_yet": return `usually on the ${ordinal(cost.usualDay!)}`;
+  }
 }
 
 const CHANGED: RegularStatus[] = ["up", "down", "started", "stopped"];
@@ -136,9 +150,7 @@ export function regularCosts(items: SpendItem[], currency: Currency, today: stri
 function changedLine(costs: RegularCost[], currency: Currency): string {
   const parts = costs.flatMap(c => {
     const soFar = c.soFar ? " so far" : "";
-    const amount = (minor: number) => c.estimated ? aboutMoney(minor, currency) : minorMoney(minor, currency);
-    if (c.status === "up") return [`${c.label} up ${amount(c.changeMinor!)}${soFar}`];
-    if (c.status === "down") return [`${c.label} down ${amount(-c.changeMinor!)}${soFar}`];
+    if (c.status === "up" || c.status === "down") return [`${c.label} ${changeWords(c, currency)}${soFar}`];
     if (c.status === "started") return [`${c.label} started`];
     if (c.status === "stopped") return [`${c.label} stopped`];
     return [];

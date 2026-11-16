@@ -2,15 +2,12 @@
 // its business and personal parts. Reads bills and charges only; it moves no money and nothing in the runway reads it.
 // Amounts are integer minor units of the home currency (whole yen, cents for USD).
 import type { Currency } from "@/lib/catalogue/types";
-import { aboutMoney, dayLabel, minorMoney, percentText } from "./format";
-import { AMOUNT_NOT_KNOWN } from "./gaps";
-import { periodLabel } from "./period";
+import { minorMoney } from "./format";
 import { businessPart, CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
-import { ownLabel } from "./own-category";
-import { allUncounted, monthBounds, monthName, spendingItems, type SpendingInput } from "./spending";
+import { monthBounds, monthName, spendingItems, type SpendingInput } from "./spending";
 
 /** D52: whose an item is: a member's id, or null for Shared (a bill with no owner, a charge marked shared or on a card nobody owns). */
-export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; own: { id: string; name: string } | null /* D75 */; ownerId: string | null; periodStart?: string; periodEnd?: string /* 27F: the period a one-off bill covers */; estimated?: true; uncounted?: true /* D55: amount not known: amountMinor is 0 and means nothing */ };
+export type MonthItem = { label: string; date: string; amountMinor: number; businessBp: number; own: { id: string; name: string } | null /* D75 */; ownerId: string | null; periodStart?: string; periodEnd?: string /* the period a one-off bill covers */; estimated?: true; uncounted?: true /* D55: amount not known: amountMinor is 0 and means nothing */ };
 /** D52: a total split by whose it is. `byMember` has one entry per household member, in member order. */
 export type WhoseTotals = { sharedMinor: number; byMember: { id: string; minor: number }[] };
 /** D75: the items of one category filed under one own category (or, with `id` and `name` null, under none), summed like a category. */
@@ -22,7 +19,7 @@ export type MonthOwn = {
   personalMinor: number;
   items: MonthItem[];
 } & WhoseTotals;
-export type MonthCategory = {
+type MonthCategory = {
   category: CategoryKey;
   label: string;
   totalMinor: number;
@@ -106,20 +103,4 @@ export function businessLine(view: MonthView, when = monthWhen()): string {
 export function splitLine(view: MonthView, part: { totalMinor: number; businessMinor: number; personalMinor: number }): string | null {
   if (part.businessMinor === 0 || part.personalMinor === 0) return null;
   return `business ${money(view, part.businessMinor)} · personal ${money(view, part.personalMinor)}`;
-}
-
-/** The month as text the agent can quote; built here so the screen and the agent say the same numbers. */
-export function monthText(view: MonthView, when = monthWhen()): string {
-  if (!view.categories.length) return `${view.name}: nothing confirmed ${when === monthWhen() ? "yet " : ""}${when}.`;
-  const lines = [`${view.name}: ${money(view, view.totalMinor)} in total. ${businessLine(view, when)}.`];
-  for (const c of view.categories) {
-    const split = splitLine(view, c);
-    lines.push(`${c.label} ${allUncounted(c.items) ? AMOUNT_NOT_KNOWN : money(view, c.totalMinor)}${split ? ` (${split})` : c.businessMinor ? " (all business)" : ""}: ${c.items.map(i =>
-      `${i.label}${i.periodStart !== undefined && i.periodEnd !== undefined ? ` (for ${periodLabel({ start: i.periodStart, end: i.periodEnd })})` : ""} ${dayLabel(i.date)} ${i.uncounted ? AMOUNT_NOT_KNOWN : i.estimated ? aboutMoney(i.amountMinor, view.currency) : money(view, i.amountMinor)}${i.businessBp > 0 && i.businessBp < 10_000 ? ` at ${percentText(i.businessBp)}% business` : ""}`).join("; ")}.`);
-    if (c.ownCategories.length > 0) {
-      const part = (o: MonthOwn, name: string) => `${name} ${allUncounted(o.items) ? AMOUNT_NOT_KNOWN : money(view, o.totalMinor)}`;
-      lines.push(`In ${c.label}: ${[...c.ownCategories.map(o => part(o, ownLabel(c.category, { name: o.name! }))), ...(c.withoutOwn ? [part(c.withoutOwn, `${c.label} without a category of your own`)] : [])].join("; ")}.`);
-    }
-  }
-  return lines.join("\n");
 }

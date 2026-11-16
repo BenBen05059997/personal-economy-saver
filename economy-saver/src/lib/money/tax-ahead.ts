@@ -1,17 +1,18 @@
 // Will the pot cover the tax bills? (D77) Pure; integer minor units. The pot starts at what it holds today and steps up by its fill share of each
 // open client invoice on its usual pay date (only invoices already sent: future work is never guessed). Its Government & tax bills due in the
 // window add up beside it. A pending bill is named and not counted. Never a judgement of the tax itself (D7).
-import { minorPerUnit } from "./format";
+import { toMinor } from "./format";
 import { fillShare } from "./pots";
-import { arrivals, daysBetween } from "./runway";
+import { arrivals } from "./runway";
 import type { MoneyState } from "./types";
+import { daysBetween } from "./dates";
 
 /** The days the tax pot is held against the tax bills, for the picture and for the finding. */
 export const TAX_AHEAD_DAYS = 90;
 
-export type TaxStep = { index: number; date: string; client: string; number?: string; invoiceMinor: number; addMinor: number };
-export type TaxBill = { id: string; index: number; date: string; biller: string; amountMinor: number; pending: boolean; counted: boolean };
-export type TaxAhead = {
+type TaxStep = { index: number; date: string; client: string; number?: string; invoiceMinor: number; addMinor: number };
+type TaxBill = { id: string; index: number; date: string; biller: string; amountMinor: number; pending: boolean; counted: boolean };
+type TaxAhead = {
   potId: string; potName: string; days: number; startDate: string; fillBp: number;
   pot: number[]; bills: number[]; // one value per day from today: the pot, and the tax bills due so far (cumulative)
   steps: TaxStep[]; taxBills: TaxBill[];
@@ -22,7 +23,7 @@ export type TaxAhead = {
 export function taxAhead(state: MoneyState, potId: string, days: number): TaxAhead | null {
   const pot = state.pots.find(row => row.id === potId);
   if (!pot || pot.fillPct === undefined) return null;
-  const per = minorPerUnit(state.homeCurrency), fillBp = Math.round(pot.fillPct * 100), minor = (amount: number) => Math.round(amount * per);
+  const fillBp = Math.round(pot.fillPct * 100), minor = (amount: number) => toMinor(amount, state.homeCurrency);
   const delta = new Array<number>(days).fill(0), owed = new Array<number>(days).fill(0);
   const steps: TaxStep[] = [];
   for (const arrival of arrivals(state)) {

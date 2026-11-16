@@ -1,5 +1,5 @@
 /* The calendar form (D77): the yellow ramp for what goes out (--chart over the screen), green dots for money in, red for short. Text stays in the ink colours. */
-.cal-chart{--cal-in:light-dark(#1d7a4c,#5fc58c);--cal-short:var(--red);display:flex;flex-direction:column;gap:10px;min-width:0}
+.cal-chart{--cal-in:var(--green);--cal-short:var(--red);display:flex;flex-direction:column;gap:10px;min-width:0}
 .cal-legend{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:13px;color:var(--muted)}
 .cal-legend span{display:flex;align-items:center;gap:8px}
 .cal-sw{display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid var(--rule)}

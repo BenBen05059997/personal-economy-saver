@@ -11,6 +11,7 @@ import { resolveView } from "@/lib/views/resolve";
 import { ViewError } from "@/lib/views/types";
 import { dayLabel, formatter } from "@/lib/money/format";
 import type { MoneyState } from "@/lib/money/types";
+import { storedId } from "@/lib/money/repeat";
 
 type Search = { from?: string | string[]; saved?: string | string[] };
 
@@ -21,7 +22,7 @@ async function savedLine(hid: string, state: MoneyState, saved: string | string[
   const [, kind, id] = match, format = formatter(state.homeCurrency);
   let what: string;
   if (kind === "bill") {
-    const bill = state.bills.find(item => item.id.split("@")[0] === id);
+    const bill = state.bills.find(item => storedId(item.id) === id);
     if (!bill || bill.status !== "confirmed") return undefined;
     what = `${bill.biller} ${format(bill.amount)}${bill.dueUnknown ? "" : `, due ${dayLabel(bill.due)}`}`;
   } else {

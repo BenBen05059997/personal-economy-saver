@@ -7,9 +7,6 @@ import { nameKey, normalise } from "./name-key";
 export const OWN_CATEGORY_CAP = 40; // own categories a household may keep
 export const OWN_NAME_MAX = 40; // characters in a name
 
-/** An own category as an item carries it. */
-export type OwnRef = { id: string; name: string };
-
 export const OWN_CAP_WORDS = `You can keep up to ${OWN_CATEGORY_CAP} of your own categories. Remove one first.`;
 export const OWN_NAME_LENGTH_WORDS = `Give your category a name of 1 to ${OWN_NAME_MAX} characters.`;
 

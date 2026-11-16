@@ -31,12 +31,13 @@ import { money, minorMoney, minorPerUnit } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
 import { splitBalance, splitSummary } from "@/lib/money/split";
 import { changeTone, regularCosts } from "@/lib/money/regular";
-import { addDays, low, planWindow, series, timeline, safeToSpend, availableCash } from "@/lib/money/runway";
+import { low, planWindow, series, timeline, safeToSpend, availableCash } from "@/lib/money/runway";
 import { stateThrough } from "@/lib/money/window";
 import { homeSentence } from "@/lib/money/sentence";
 import { monthBounds, monthsBack, spendingItems } from "@/lib/money/spending";
 import type { MoneyState } from "@/lib/money/types";
 import { WhatIfError, whatIf } from "@/lib/money/whatif";
+import { addDays } from "@/lib/money/dates";
 
 const TODAY = "2026-11-14";
 
@@ -595,7 +596,7 @@ async function main() {
         assert.deepEqual(block.data.head, ["Bill", "Amount", "Due"]);
         assert.deepEqual(block.data.rows.map(r => r.cells), [["Harbor Energy (11月分)", "¥9,800", "Dec 27"], ["Harbor Gas (11月分)", "amount not known", "date not known"]]);
         assert.deepEqual(block.data.foot, ["Total", "¥9,800", ""]);
-        assert.match(block.data.caption ?? "", /month_by_category/);
+        assert.match(block.data.caption ?? "", /show the month_by_category view/);
       }
       const [dec] = resolveRecipe(table("2026-12"), ctx);
       assert.ok(dec.type === "table" && dec.data.rows.length === 0 && /No bill names December 2026/.test(dec.data.empty ?? ""));

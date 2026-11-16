@@ -13,8 +13,8 @@ import { confirmPending } from "@/db/confirm";
 import { seedBen } from "@/db/seed";
 import { loadSpending } from "@/db/spending";
 import { changeTone, regularCosts, type RegularCost } from "@/lib/money/regular";
-import { nameKeys } from "@/lib/money/name-key";
-import { monthBounds, nameKey, normalise, sameName, spendingItems, type SpendingInput, type SpendItem } from "@/lib/money/spending";
+import { nameKeys, nameKey, normalise, sameName } from "@/lib/money/name-key";
+import { monthBounds, spendingItems, type SpendingInput, type SpendItem } from "@/lib/money/spending";
 import type { Bill, Charge } from "@/lib/money/types";
 
 const TODAY = "2026-11-14";

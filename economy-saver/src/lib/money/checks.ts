@@ -9,11 +9,12 @@ import type { CategoryKey } from "./categories";
 import { dayLabel, minorMoney, minorPerUnit } from "./format";
 import { gapEstimate, gapQuestion } from "./gaps";
 import { sameName } from "./name-key";
-import { amountOn, datesIn, nextAmountOf } from "./repeat";
+import { amountOn, datesIn, nextAmountOf, storedId } from "./repeat";
 import { regularCosts } from "./regular";
-import { addDays, daysBetween, pendingCharges } from "./runway";
+import { pendingCharges } from "./runway";
 import { monthBounds, monthsBack, spendingItems } from "./spending";
 import type { MoneyState, RepeatUnit } from "./types";
+import { addDays, daysBetween } from "./dates";
 
 /** A date within this many days of another is the same bill or charge arriving twice. */
 export const DUPLICATE_DAYS = 3;
@@ -48,9 +49,6 @@ export function readingProposal(reading: ReadingLike): Proposal {
     date: value.date, repeat: value.repeat, category: value.category, cardId: value.cardId,
   };
 }
-
-/** The stored id of a bill (an occurrence of a repeating bill is `<id>@<date>`). */
-const storedId = (id: string) => id.split("@")[0];
 
 /**
  * A confirmed repeating bill as a series: where it starts, how often, its last payment, the amount before any change and the change.

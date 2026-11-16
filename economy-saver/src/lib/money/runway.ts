@@ -13,14 +13,10 @@
 //   will become: dueDay of the month after the one it closes in.
 // - Dates are YYYY-MM-DD strings and are handled in UTC, so the maths does not depend on the time zone.
 
-import type { Context, Currency, Moment, Profile } from "@/lib/catalogue/types";
+import type { Context, Moment, Profile } from "@/lib/catalogue/types";
 import { addDays, dateIn, daysBetween } from "./dates";
-import { formatter, minorPerUnit, money, plural, usd } from "./format";
+import { formatter, minorPerUnit, plural, usd } from "./format";
 import type { Bill, Card, Charge, Client, Invoice, MoneyState } from "./types";
-
-// ---------------------------------------------------------------- dates
-
-export { addDays, daysBetween };
 
 // ---------------------------------------------------------------- cards
 
@@ -165,7 +161,7 @@ export function medianLow(xs: number[]): number {
 }
 
 /** Which value the expected pay day came from: the client's usual days, else the invoice's due date, else the client's terms. */
-export type ExpectedPayBasis =
+type ExpectedPayBasis =
   | { on: string; basis: "history"; days: number }
   | { on: string; basis: "due"; dueOn: string }
   | { on: string; basis: "terms"; days: number };
@@ -196,11 +192,6 @@ export function clientsOwe(state: MoneyState): number {
   return arrivals(state).reduce((sum, a) => sum + a.amountHome, 0);
 }
 
-/** The day the forecast expects a sent invoice to be paid: see `expectedPayBasis`. */
-export function expectedPayOn(state: MoneyState, invoice: Invoice, sentOn: string = invoice.sentOn ?? state.today): string {
-  return expectedPayBasis(state, invoice, sentOn).on;
-}
-
 /**
  * Where an invoice sent on `sentOn` is expected to land. Used for sent invoices and,
  * with sentOn = today, for what an unbilled invoice would do if it were sent now.
@@ -210,10 +201,10 @@ export function project(state: MoneyState, invoice: Invoice, sentOn: string = in
   const history = client?.daysToPay ?? [];
   const tomorrow = addDays(state.today, 1);
   const later = (iso: string) => (iso < tomorrow ? tomorrow : iso);
-  const extra = client?.lateDays ?? 0; // D57: a what-if's "this client pays N days late"; 0 (a no-op) in every real state
-  const fallback = addDays(invoice.dueOn ?? addDays(sentOn, client?.termsDays ?? 0), extra);
-  const expectedOn = later(expectedPayOn(state, invoice, sentOn));
-  const worstOn = later(history.length ? addDays(sentOn, Math.max(...history) + extra) : fallback);
+  const extra = client?.lateDays ?? 0; // D57: a what-if's "this client pays N days later than usual"; 0 (a no-op) in every real state
+  const expected = expectedPayBasis(state, invoice, sentOn).on;
+  const expectedOn = later(expected);
+  const worstOn = later(history.length ? addDays(sentOn, Math.max(...history) + extra) : expected);
   return {
     invoiceId: invoice.id,
     clientId: invoice.clientId,
@@ -376,38 +367,16 @@ export function roomOnCard(state: MoneyState, cardId: string, purchaseMinor?: nu
 // ---------------------------------------------------------------- ladder
 
 type Rung = {
-  id: "invoice" | "remind" | "advance" | "discount";
+  id: "invoice" | "remind" | "discount";
   title: string;
   detail?: string; // the "remind" rung is worded once, in options.ts
   cost: number; // home currency
-  costLabel: string;
-  verdict: string;
 };
 
 export const EARLY_DISCOUNT = 0.02;
 
-/** What a card cash advance costs, per home currency. The fee is flatFee + feePct of the amount, never below minFee. */
-type AdvanceTerms = { apr: number; flatFee: number; feePct: number; minFee: number };
-const ADVANCE_TERMS: Record<Currency, AdvanceTerms> = {
-  JPY: { apr: 0.18, flatFee: 220, feePct: 0, minFee: 0 }, // 18% a year plus a ¥220 ATM fee
-  USD: { apr: 0.28, flatFee: 0, feePct: 0.05, minFee: 10 }, // 28% a year plus 5% of the advance, $10 minimum
-};
-
 const short = (name: string) => name.split(" ")[0];
 const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s);
-
-/** Cost of a card cash advance for `gap` home-currency units over `days` days. */
-function advanceCost(gap: number, days: number, currency: Currency = "JPY"): number {
-  const t = ADVANCE_TERMS[currency];
-  return Math.round((gap * t.apr * days) / 365) + Math.round(Math.max(t.minFee, t.flatFee + gap * t.feePct));
-}
-
-function advanceFeeText(c: Currency): string {
-  const t = ADVANCE_TERMS[c];
-  return t.feePct > 0
-    ? `a ${Math.round(t.feePct * 100)}% cash-advance fee (${money(t.minFee, c)} minimum)`
-    : `a ${money(t.flatFee, c)} ATM fee`;
-}
 
 /**
  * The ways to cover the worst-case gap, cheapest first. Empty when there is no gap. It returns only its rows: which one
@@ -417,10 +386,8 @@ function advanceFeeText(c: Currency): string {
 export function ladder(state: MoneyState): Rung[] {
   const cur = state.homeCurrency;
   const home = formatter(cur);
-  const worst = series(state, "worst");
-  const lw = low(worst);
-  const gap = Math.max(0, -lw.amount);
-  if (gap <= 0) return [];
+  const lw = low(series(state, "worst"));
+  if (lw.amount >= 0) return [];
   const sent = arrivals(state);
   const rows: Rung[] = [];
 
@@ -430,56 +397,33 @@ export function ladder(state: MoneyState): Rung[] {
     const p = project(state, unbilled, state.today);
     const hist = state.clients.find((c) => c.id === unbilled.clientId)?.daysToPay ?? [];
     const med = hist.length ? medianLow(hist) : 0;
-    const covers = p.amountHome >= gap && p.worstOn < lw.date; // wording only; fundingOptions decides the pick
     rows.push({
       id: "invoice",
       title: `Invoice ${p.clientName} for ${lowerFirst(unbilled.item)}`,
       detail: `${usd(p.amountUsd)}${cur === "USD" ? "" : ` (about ${home(p.amountHome)})`}. ${short(p.clientName)} usually pays in ${plural(med, "day")}.`,
       cost: 0,
-      costLabel: `${home(0)} extra`,
-      verdict: covers ? "Cheapest. Covers it." : p.worstOn >= lw.date ? "May land after the day you need it" : `Covers ${home(p.amountHome)} of it`,
     });
   }
 
   // 2. Send the clients with sent invoices their payment link again.
   if (sent.length) {
-    const late = sent.some((a) => a.worstOn > lw.date);
     const names = sent.map((a) => short(a.clientName));
     rows.push({
       id: "remind",
       title: `Send ${names.join(" and ")} the link again`,
       cost: 0,
-      costLabel: home(0),
-      verdict: late ? "May land after the day you need it" : "Should land in time",
     });
   }
 
-  // 3. Card cash advance until the first worst-case arrival after the gap date.
-  const next = sent.map((a) => a.worstOn).filter((d) => d > lw.date).sort()[0];
-  const days = Math.max(1, next ? daysBetween(lw.date, next) : worst.length - lw.dayIndex);
-  const adv = advanceCost(gap, days, cur);
-  rows.push({
-    id: "advance",
-    title: `Card cash advance for ${plural(days, "day")}`,
-    detail: `${Math.round(ADVANCE_TERMS[cur].apr * 100)}% a year on ${home(gap)}, plus ${advanceFeeText(cur)}.`,
-    cost: adv,
-    costLabel: "≈" + home(adv),
-    verdict: "Works",
-  });
-
-  // 4. Offer the largest sent invoice an early-payment discount.
+  // 3. Offer the largest sent invoice an early-payment discount.
   const biggest = [...sent].sort((a, b) => b.amountHome - a.amountHome)[0];
   if (biggest) {
     const cost = Math.round(biggest.amountHome * EARLY_DISCOUNT);
-    const ratio = Math.round(cost / adv);
-    const dearer = ratio >= 2 ? `About ${ratio}× the cash advance` : "Costs more than the cash advance";
     rows.push({
       id: "discount",
       title: `Offer ${short(biggest.clientName)} ${Math.round(EARLY_DISCOUNT * 100)}% off to pay now`,
       detail: `${Math.round(EARLY_DISCOUNT * 100)}% of invoice${biggest.number ? " #" + biggest.number : ""} (${usd(biggest.amountUsd)}).`,
       cost,
-      costLabel: home(cost),
-      verdict: dearer,
     });
   }
 

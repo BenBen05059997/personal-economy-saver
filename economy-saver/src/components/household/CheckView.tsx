@@ -15,6 +15,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { GapFill } from "./GapFill";
 import { SavedLine } from "./SavedLine";
 import type { ViewResult } from "@/lib/views/types";
+import { storedId } from "@/lib/money/repeat";
 
 export function CheckView({ state, inbox, own, from, saved }: {
   from?: "home"; saved?: { what: string; result: ViewResult | null };
@@ -44,7 +45,7 @@ export function CheckView({ state, inbox, own, from, saved }: {
         {checkWords(row.id).map(words => <p key={words} className="ui-hint check-line">{words}</p>)}
         {row.kind === "bill" && row.gap && <GapFill id={row.id} missing={[...(row.gap.amount ? ["amount" as const] : []), ...(row.gap.date ? ["date" as const] : [])]} today={state.today} currency={state.homeCurrency} />}</div>
       <div className={row.amount !== null ? "num check-amount" : "num"}>{row.amount !== null ? format(row.amount) : row.kind === "bill" && row.gap && [row.gap.amount, row.gap.date].filter(Boolean).join(" · ")}</div>
-      <ConfirmButton kind={row.kind} id={row.id} title={row.title} onCheckPage returnTo={from === "home" ? "/" : row.kind === "bill" || row.kind === "charge" ? `/to-check?saved=${row.kind}:${row.id.split("@")[0]}` : "/to-check"} />
+      <ConfirmButton kind={row.kind} id={row.id} title={row.title} onCheckPage returnTo={from === "home" ? "/" : row.kind === "bill" || row.kind === "charge" ? `/to-check?saved=${row.kind}:${storedId(row.id)}` : "/to-check"} />
     </div>)}
     {inbox.jobs.some(job => job.status !== "failed") && <p className="ui-hint">Reading the document… usually under 30 seconds</p>}
     <ReaderReview state={state} inbox={inbox} own={own} />

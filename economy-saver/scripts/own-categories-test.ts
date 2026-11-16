@@ -21,7 +21,7 @@ import {
 import { seedBen } from "@/db/seed";
 import { loadSettings } from "@/db/settings";
 import { loadSpending } from "@/db/spending";
-import { monthByCategory, monthText } from "@/lib/money/month";
+import { monthByCategory } from "@/lib/money/month";
 import { nameKey } from "@/lib/money/name-key";
 import { ownLabel } from "@/lib/money/own-category";
 import { searchLine, searchSpending, spendingItems } from "@/lib/money/spending";
@@ -290,9 +290,6 @@ async function main() {
       assert.equal(view.categories.find(x => x.category === "housing")!.ownCategories.length, 0);
       assert.equal(view.categories.find(x => x.category === "housing")!.withoutOwn, null);
       assert.ok(food.items.some(i => i.own?.name === "Coffee") && food.items.some(i => i.own === null));
-      const text = monthText(view);
-      assert.match(text, /In Food: Food › Coffee ¥1,880; Food without a category of your own ¥8,820\./);
-      assert.match(text, /In Other: Other › Gear ¥24,600; Other without a category of your own ¥24,300\./);
       const october = monthByCategory(spending, DEMO_DATE, "2026-10");
       assert.deepEqual(october.categories.find(x => x.category === "other")!.ownCategories.map(o => [o.name, o.totalMinor]), [["Books & films", 7_480]]);
     });

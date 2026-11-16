@@ -24,8 +24,8 @@ export const PAYPAL_RATES = {
 /** The last twelve months: a date within this many days of today (inclusive), on or before today. */
 export const FX_WINDOW_DAYS = 365;
 
-export type FxRate = { date: string; perUsd: number };
-export type FxCard = { id: string; label: string; currency: string; foreignFeeBp: number | null };
+type FxRate = { date: string; perUsd: number };
+type FxCard = { id: string; label: string; currency: string; foreignFeeBp: number | null };
 export type FxCharge = {
   id: string; cardId: string; merchant: string; date: string;
   amountMinor: number; // as billed, in the card's (home) currency
@@ -36,19 +36,19 @@ export type FxInvoice = { id: string; clientId: string; clientName: string; amou
 
 export type FxInput = { today: string; homeCurrency: string; rates: FxRate[]; cards: FxCard[]; charges: FxCharge[]; invoices: FxInvoice[] };
 
-export type CostKind = "exact" | "estimated" | "unknown";
-export type ChargeCost = {
+type CostKind = "exact" | "estimated" | "unknown";
+type ChargeCost = {
   id: string; cardId: string; merchant: string; date: string; inWindow: boolean;
   originalMinor: number; originalCurrency: string; billedMinor: number;
   referenceMinor: number | null; // the original at the reference rate on or before its date; null when no rate exists yet
   costMinor: number | null; costKind: CostKind;
 };
-export type ChargeTotals = { count: number; exactMinor: number; estimatedMinor: number; unknownCount: number };
-export type PayoutCost = {
+type ChargeTotals = { count: number; exactMinor: number; estimatedMinor: number; unknownCount: number };
+type PayoutCost = {
   id: string; clientId: string; clientName: string; paidOn: string; amountUsdMinor: number; perUsd: number;
   grossMinor: number; receiveFeeMinor: number; markupMinor: number; landedMinor: number; // landed = gross - receiveFee - markup
 };
-export type PayoutTotals = { count: number; grossMinor: number; receiveFeeMinor: number; markupMinor: number; costMinor: number; landedMinor: number };
+type PayoutTotals = { count: number; grossMinor: number; receiveFeeMinor: number; markupMinor: number; costMinor: number; landedMinor: number };
 
 export type FxCosts = {
   homeCurrency: string;
@@ -150,7 +150,7 @@ export function foreignCosts(input: FxInput): FxCosts {
   return { homeCurrency, charges, chargeTotals, perCard, payouts, payoutTotals, perClient };
 }
 
-export const FX_WORDS = {
+const FX_WORDS = {
   unknown: "The cost shows once the statement amount is typed in or the card's fee is set.",
 } as const;
 
@@ -172,7 +172,7 @@ export function foreignCostWords(costs: FxCosts): { charges: string | null; payo
   return { charges, payouts, unknown };
 }
 
-export type FxMonth = {
+type FxMonth = {
   month: string; // YYYY-MM
   current: boolean;
   payoutMinor: number; // what receiving and converting the month's paid invoices cost

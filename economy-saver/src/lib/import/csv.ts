@@ -7,7 +7,7 @@ import { isCalendarDay } from "@/lib/calendar-day";
 import { readAmount } from "@/lib/money/amount";
 import { guessCategory } from "@/lib/money/categorise";
 import type { CategoryKey } from "@/lib/money/categories";
-import { normalise } from "@/lib/money/spending";
+import { normalise } from "@/lib/money/name-key";
 
 /** The largest file read: 1 MB. */
 export const IMPORT_MAX_BYTES = 1_000_000;

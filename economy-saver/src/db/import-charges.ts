@@ -9,9 +9,9 @@ import { AMOUNT_LIMIT, limitMessage } from "@/lib/money/amount";
 import { CategoryKeySchema } from "@/lib/money/categories";
 import { ownChoiceFields, resolveOwnCategory } from "./own-categories";
 import { minorPerUnit } from "@/lib/money/format";
-import { normalise } from "@/lib/money/spending";
 import { IMPORT_BATCH, MERCHANT_MAX } from "@/lib/import/csv";
 import { cards, charges, households } from "./schema";
+import { normalise } from "@/lib/money/name-key";
 
 const importRow = z.object({
   date: z.string().date(),

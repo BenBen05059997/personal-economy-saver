@@ -9,23 +9,22 @@ import type { CancelNotice, MoneyState } from "@/lib/money/types";
 import type { ViewResult } from "@/lib/views/types";
 import { aboutMoney, dayLabel, formatter, minorPerUnit, repeatWords, usd } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN, confirmedGaps, gapAmountWords, gapDateWords, gapMeanwhileWords, gapQuestion, openGaps } from "@/lib/money/gaps";
-import { addDays, arrivals, daysBetween, dueItems, timeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { arrivals, dueItems, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { fundingOptions } from "@/lib/money/options";
 import { potSummary } from "@/lib/money/plan";
 import { toCheck } from "@/lib/money/to-check";
 import { splitBalance, transferLine } from "@/lib/money/split";
-import { datesIn, lastOneWords } from "@/lib/money/repeat";
+import { datesIn, lastOneWords, storedId } from "@/lib/money/repeat";
 import { HOUSEHOLD_PEOPLE, hrefFor } from "@/lib/links";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { BankBalance } from "./BankBalance";
 import { HomeViews } from "./HomeViews";
 import { resolveView } from "@/lib/views/resolve";
-import { STATEMENT_COVERED } from "@/lib/money/covered-words";
 import { CASES } from "@/lib/money/terms";
 import { homeSentence } from "@/lib/money/sentence";
 import { Suspense, type ReactNode } from "react";
 import { Sentence } from "./Sentence";
-import { cardSummary } from "@/lib/money/card-summary";
+import { cardSummary, DAY_COVERED, STATEMENT_COVERED } from "@/lib/money/card-summary";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
 import { Suggestions } from "./Suggestions";
 import type { openSuggestions } from "@/db/suggestions";
@@ -33,13 +32,10 @@ import type { memberRequestsView } from "@/db/member-request";
 import { GetStarted, type GetStartedProgress } from "./GetStarted";
 import { Hints } from "./Hints";
 import "./home.css";
+import { addDays, daysBetween } from "@/lib/money/dates";
 
 type Props = { state: MoneyState };
 type MemberRequests = Awaited<ReturnType<typeof memberRequestsView>>;
-
-// What the ✓ marks mean in the engine: a bill's tick is "the worst-case balance on its due day is at least zero";
-// a card's is "the statement is paid from the bank, or once client payments land by its due date, with every other bill still paid".
-const DAY_COVERED = "Covered: your balance stays above zero on this day, even if clients pay late.";
 
 function Actions({ state, forwarding }: Props & { forwarding: boolean }) {
   const options = fundingOptions(state);
@@ -193,25 +189,25 @@ function ComingUp({ state, added, addedId }: Props & { added: string | null; add
   const canCarry = (event: (typeof usual)[number]) => !incoming.has(event.id) && !event.pending && shortOn(event);
   const carries = usual.map((event, index) => canCarry(event) && !usual.slice(index + 1).some((later) => later.date === event.date && canCarry(later)));
   // A bill's first row in Coming up carries its id (bill-<id>, or series-<id> when it repeats), so a link to /#bill-<id> lands on it and lights it up.
-  const repeating = new Set(state.bills.filter((bill) => bill.repeatUnit !== undefined).map((bill) => bill.id.split("@")[0]));
+  const repeating = new Set(state.bills.filter((bill) => bill.repeatUnit !== undefined).map((bill) => storedId(bill.id)));
   const firstOfBill = new Set<number>();
   const seenBills = new Set<string>();
   usual.forEach((event, index) => {
-    const billId = event.id.split("@")[0];
+    const billId = storedId(event.id);
     if (event.kind === "bill" && !seenBills.has(billId)) { seenBills.add(billId); firstOfBill.add(index); }
   });
   // D55: the gap of each stored bill, so an estimated or uncounted row says where its number came from; a series' later months say only "about".
   const gaps = new Map(openGaps(state).filter(gap => gap.source === "bill").map(gap => [gap.id, gap]));
   const rows = usual.map((event, index) => {
       const payment = incoming.get(event.id);
-      const gap = event.kind === "bill" ? gaps.get(event.id.split("@")[0]) : undefined;
+      const gap = event.kind === "bill" ? gaps.get(storedId(event.id)) : undefined;
       const gapRow = gap !== undefined && event.date === gap.countedOn ? gap : null; // the row the gap's own words belong to
       const short = shortOn(event);
-      return <div key={event.id} id={firstOfBill.has(index) ? rowId(event.id.split("@")[0], repeating) : undefined} className="home-row home-dated">
+      return <div key={event.id} id={firstOfBill.has(index) ? rowId(storedId(event.id), repeating) : undefined} className="home-row home-dated">
         <time dateTime={event.date}>{dayLabel(event.date)}</time>
         <div>{payment ? <><Link prefetch={false} href={hrefFor({ type: "client", id: payment.clientId })}>{event.label}</Link> pays</>
           : event.kind === "statement" && event.cardId ? <Link prefetch={false} className="home-link-target" href={hrefFor({ type: "statement", id: event.cardId })}>{event.label}</Link>
-          : event.kind === "bill" ? <Link prefetch={false} className="home-link-target" href={event.pending ? "/to-check" : hrefFor({ type: "bill", id: event.id.split("@")[0] })}>{event.label}</Link> : event.label}
+          : event.kind === "bill" ? <Link prefetch={false} className="home-link-target" href={event.pending ? "/to-check" : hrefFor({ type: "bill", id: storedId(event.id) })}>{event.label}</Link> : event.label}
           {payment ? <small>Usual date · if clients pay {CASES.late.label}, {dayLabel(payment.worstOn)}</small>
             : event.pending ? <small>Awaiting confirmation</small>
             : carries[index] && <small className="home-short">Short by {format(-(lateBalance.get(event.id) ?? 0))} if clients pay late</small>}
@@ -240,7 +236,7 @@ function ComingUp({ state, added, addedId }: Props & { added: string | null; add
   const keepRow = keep >= usual.length - 1 ? dated.length : dated.findIndex((row) => row.rank === 0 && row.index === keep) + 1;
   const focusRow = focus === undefined ? 0 : dated.reduce((last, row, index) => (row.date <= focus ? index + 1 : last), 0);
   // A bill the add form just saved (?added=) keeps its first row above the fold too, so the "Added …" line has its row under it.
-  const addedRow = addedId === null ? 0 : dated.findIndex((row) => row.rank === 0 && usual[row.index].id.split("@")[0] === addedId) + 1;
+  const addedRow = addedId === null ? 0 : dated.findIndex((row) => row.rank === 0 && storedId(usual[row.index].id) === addedId) + 1;
   const shown = Math.max(keepRow, focusRow, addedRow);
   return <section id="coming-up" className="home-panel home-upcoming">
     <h2>Coming up</h2>

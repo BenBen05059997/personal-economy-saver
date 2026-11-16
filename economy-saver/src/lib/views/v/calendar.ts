@@ -1,12 +1,12 @@
 // The bills calendar (D77): what goes out and what comes in, day by day, with each day shaded by how much goes out. Pure; every amount integer minor units.
 import { engineFact, type Fact } from "@/lib/money/facts";
 import { dayLabel, minorMoney } from "@/lib/money/format";
-import { addDays } from "@/lib/money/runway";
 import { calendarDays, type CalendarItem } from "@/lib/money/calendar";
 import { sharedBillsComing } from "@/lib/money/family";
 import { VIEW_META } from "../catalogue";
 import type { FormData, Resolver, TableTwin, ViewResult } from "../types";
 import { longDay } from "./forecast";
+import { addDays } from "@/lib/money/dates";
 
 const dayOfWeek = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay();
 

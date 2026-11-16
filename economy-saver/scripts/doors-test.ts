@@ -42,8 +42,9 @@ import { settingsInput, updateSettings } from "@/db/settings";
 import { homeSentence } from "@/lib/money/sentence";
 /** The two strings a sentence is made of (its other parts are tested in pots-test). */
 const lines = (sentence: ReturnType<typeof homeSentence>) => ({ lead: sentence.lead, emphasis: sentence.emphasis });
-import { addDays, low, medianLow, planWindow, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
+import { low, medianLow, planWindow, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { cardSummary } from "@/lib/money/card-summary";
+import { addDays } from "@/lib/money/dates";
 
 const TODAY = "2026-11-14";
 

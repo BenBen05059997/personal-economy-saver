@@ -18,9 +18,10 @@ import { loadSpending } from "@/db/spending";
 import { businessLine, monthByCategory } from "@/lib/money/month";
 import { leftOverEachMonth } from "@/lib/money/plan";
 import { datesIn, expandBills, nextAmountOf } from "@/lib/money/repeat";
-import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, nameKey, normalise, searchLine, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
+import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, searchLine, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import type { Bill, Charge } from "@/lib/money/types";
 import { benMoney } from "@/lib/sample/ben";
+import { nameKey, normalise } from "@/lib/money/name-key";
 
 const TODAY = "2026-11-14";
 const bill = (over: Partial<Bill> & Pick<Bill, "id" | "biller" | "amount" | "due" | "category">): Bill => ({ businessBp: 0, status: "confirmed", ...over });

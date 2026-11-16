@@ -1,5 +1,5 @@
 /* Tracks (D73, D77): colours only through the existing tokens (--chart #F7A30A, --accent #FCCB78, grey, red, green). */
-.tk-chart{--tk-main:var(--chart);--tk-soft:var(--accent);--tk-quiet:light-dark(#8a857c,#a39d92);--tk-short:var(--red);--tk-in:light-dark(#1d7a4c,#5fc58c);min-width:0}
+.tk-chart{--tk-main:var(--chart);--tk-soft:var(--accent);--tk-quiet:light-dark(#8a857c,#a39d92);--tk-short:var(--red);--tk-in:var(--green);min-width:0}
 .tk-chart svg{display:block;overflow:visible;max-width:100%}
 .tk-today{stroke:var(--faint);stroke-width:1;stroke-dasharray:2 3}
 .tk-today-label{font-size:11.5px;fill:var(--muted)}

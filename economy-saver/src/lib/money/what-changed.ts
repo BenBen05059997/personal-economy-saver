@@ -2,7 +2,7 @@
 // balance gives "if you confirm" (now against with it confirmed); a confirmed bill, charge or pot gives "what it changed" (the state without it against
 // now). Nothing is stored for either side: both are worked out here from the money state and the spending, by the engine's own functions.
 import { categoryLabel } from "./categories";
-import { dayLabel, minorMoney, minorPerUnit } from "./format";
+import { dayLabel, minorMoney, toMinor } from "./format";
 import { monthByCategory } from "./month";
 import { availableCash, low, paybackFor, safeToSpend, series } from "./runway";
 import { homeSentence } from "./sentence";
@@ -10,12 +10,14 @@ import { monthName, type SpendingInput } from "./spending";
 import { splitBalance } from "./split";
 import type { Bill, Charge, MoneyState, Pot, SplitState } from "./types";
 import { cardSummary } from "./card-summary";
+import { labelOf } from "./terms";
+import { storedId } from "./repeat";
 
 /** A problem in the item asked about, written for the person. */
 export class WhatChangedError extends Error {}
 
-export type ChangedRow = { key: string; label: string; before: string; after: string; change: string | null };
-export type WhatChanged = {
+type ChangedRow = { key: string; label: string; before: string; after: string; change: string | null };
+type WhatChanged = {
   name: string;
   kind: "bill" | "charge" | "pot" | "balance";
   when: "pending" | "confirmed"; // pending: before = now, after = if confirmed; confirmed: before = without it, after = now
@@ -27,11 +29,10 @@ export type WhatChanged = {
 };
 
 type Side = { state: MoneyState; spending: SpendingInput };
-const storedId = (id: string) => (id.includes("@") ? id.slice(0, id.indexOf("@")) : id);
 
 /** The item as the two sides it makes. Throws `WhatChangedError` when the household has no such item or it cannot be compared. */
 function sides(state: MoneyState, spending: SpendingInput, itemId: string): { name: string; kind: WhatChanged["kind"]; when: WhatChanged["when"]; without: Side; with: Side; category: { key: Bill["category"]; month: string } | null } {
-  const per = minorPerUnit(state.homeCurrency), minor = (value: number) => Math.round(value * per);
+  const minor = (value: number) => toMinor(value, state.homeCurrency);
   const now: Side = { state, spending };
   const billsNamed = state.bills.filter(bill => bill.id === itemId || storedId(bill.id) === itemId);
   const stored = state.storedBills.find(bill => bill.id === itemId || storedId(itemId) === bill.id);
@@ -84,7 +85,7 @@ function sides(state: MoneyState, spending: SpendingInput, itemId: string): { na
 }
 
 export function whatChanged(input: { state: MoneyState; spending: SpendingInput }, { itemId }: { itemId: string }): WhatChanged {
-  const { state } = input, currency = state.homeCurrency, per = minorPerUnit(currency), minor = (value: number) => Math.round(value * per), format = (value: number) => minorMoney(value, currency);
+  const { state } = input, currency = state.homeCurrency, minor = (value: number) => toMinor(value, currency), format = (value: number) => minorMoney(value, currency);
   const item = sides(state, input.spending, itemId);
   const before = item.without, after = item.with; // pending: now and if confirmed; confirmed: without it and now
   const delta = (a: number, b: number) => `${b - a < 0 ? "−" : "+"}${format(Math.abs(b - a))}`;
@@ -93,7 +94,7 @@ export function whatChanged(input: { state: MoneyState; spending: SpendingInput 
 
   if (item.kind === "pot") { const [a, b] = [before.state.pots.length, after.state.pots.length]; if (a !== b) rows.push({ key: "pots", label: "Saving pots", before: String(a), after: String(b), change: `${b - a < 0 ? "−" : "+"}${Math.abs(b - a)}` }); }
   money("bank", "Bank balance", minor(before.state.bank), minor(after.state.bank));
-  money("cash", "Cash to spend", minor(availableCash(before.state)), minor(availableCash(after.state)));
+  money("cash", labelOf("cash_to_spend"), minor(availableCash(before.state)), minor(availableCash(after.state)));
   for (const card of state.cards) {
     money(`owed-${card.id}`, `${card.label} owed now`, minor(cardSummary(before.state, card.id).owed), minor(cardSummary(after.state, card.id).owed));
     const a = paybackFor(before.state, card.id), b = paybackFor(after.state, card.id);
@@ -117,7 +118,7 @@ export function whatChanged(input: { state: MoneyState; spending: SpendingInput 
   for (const [key, row] of pairs) if (row.a !== row.b) rows.push({ key: `owes-${key}`, label: row.line, before: format(row.a), after: format(row.b), change: delta(row.a, row.b) });
 
   const safe = (side: Side) => minor(safeToSpend(side.state).amount);
-  money("safe", "Safe to spend", safe(before), safe(after));
+  money("safe", labelOf("safe_to_spend"), safe(before), safe(after));
   const lowOf = (side: Side, kind: "worst" | "expected") => minor(low(series(side.state, kind)).amount);
   const lateA = lowOf(before, "worst"), lateB = lowOf(after, "worst");
   rows.push({ key: "low", label: "Lowest if clients pay late", before: format(lateA), after: format(lateB), change: lateA === lateB ? null : delta(lateA, lateB) });

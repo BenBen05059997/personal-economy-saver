@@ -1,7 +1,7 @@
 // Spending's This month looked at three ways (D74) and Over time (D73): the category, business and person rows, the remembered choice.
 // Pure, no database. Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/look-by-test.ts
 import assert from "node:assert/strict";
-import { formatSpendingView, lookBy, monthTrend, parseHomeMode, parseSpendingView } from "@/lib/money/look-by";
+import { lookBy, monthTrend, parseHomeMode } from "@/lib/money/look-by";
 import { monthByCategory } from "@/lib/money/month";
 import { monthBounds, monthsBack, spendingItems } from "@/lib/money/spending";
 import type { MoneyState } from "@/lib/money/types";
@@ -150,13 +150,7 @@ check("Change from last month: amount and one-decimal percent per row and in tot
   assert.ok(view.rows.some(row => row.previous === 0 && row.change.percent === null) || view.rows.every(row => row.previous > 0), "no last month means no percent");
 });
 
-check("The remembered choices: Spending's three parts round-trip; Person needs two people; Home keeps chart or table", () => {
-  assert.deepEqual(parseSpendingView("table|business|table", 1), { mode: "table", by: "business", trendMode: "table" });
-  assert.deepEqual(parseSpendingView("chart|person|chart", 1), { mode: "chart", by: "category", trendMode: "chart" });
-  assert.deepEqual(parseSpendingView("chart|person|chart", 2), { mode: "chart", by: "person", trendMode: "chart" });
-  assert.deepEqual(parseSpendingView("junk", 1), { mode: "chart", by: "category", trendMode: "chart" });
-  const { mode, by, trendMode } = parseSpendingView("table|person|table", 3);
-  assert.equal(formatSpendingView(mode, by, trendMode), "table|person|table");
+check("The remembered choice: Home keeps chart or table", () => {
   assert.equal(parseHomeMode("table"), "table");
   assert.equal(parseHomeMode("chart"), "chart");
   assert.equal(parseHomeMode("forecast|table|business"), "table");

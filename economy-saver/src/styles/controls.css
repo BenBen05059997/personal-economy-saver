@@ -39,3 +39,4 @@ input:is([type="checkbox"], [type="radio"]) { accent-color: var(--ink); } /* ink
 .ui-remove-buttons { display: flex; gap: var(--space-3); }
 /* A problem sentence on a red wash (Ask, canvas blocks, pins). */
 .ui-problem { margin: 0; padding: var(--space-3); border-radius: var(--radius-control); background: var(--red-wash); color: var(--red); font: 400 14px/1.4 var(--sans); overflow-wrap: anywhere; }
+.account-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--chart); text-decoration-thickness: 2px; text-underline-offset: 4px; }

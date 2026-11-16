@@ -6,7 +6,7 @@ import { Currency } from "@/lib/catalogue/types";
 import { CategoryKeySchema as CategoryKey } from "@/lib/money/categories";
 import { cancelNotices, expandBills, RepeatUnitSchema } from "@/lib/money/repeat";
 import { countingFrom } from "@/lib/money/split";
-import { addDays, planWindow } from "@/lib/money/runway";
+import { planWindow } from "@/lib/money/runway";
 import type { Card, Charge, Client, ClosedStatement, Invoice, MoneyState, Pot, SplitState, StoredBill } from "@/lib/money/types";
 import { convertMinor, fromMinor, fromRateMicro, toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
@@ -14,6 +14,7 @@ import { InputError } from "./input-error";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
 import { clockForHousehold, householdMoment, type ClockHousehold } from "./clock";
+import { addDays } from "@/lib/money/dates";
 
 // Both the postgres.js client and PGlite (tests) fit this.
 export type Db = PgDatabase<PgQueryResultHKT, typeof s>;

@@ -1,12 +1,12 @@
 import type { Currency } from "@/lib/catalogue/types";
 import { dayLabel, minorMoney, minorPerUnit } from "./format";
 import { monthsUntil } from "./plan";
-import { addDays, daysBetween } from "./runway";
 import type { MoneyState, Pot } from "./types";
+import { addDays, daysBetween } from "./dates";
 
 type GoalClock = Pick<MoneyState, "today" | "homeCurrency">;
 
-export type GoalPace = {
+type GoalPace = {
   id: string;
   name: string;
   currency: Currency;

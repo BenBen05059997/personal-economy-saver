@@ -191,7 +191,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   ]));
   const { today, homeCurrency } = initialState;
   // What Home always shows (D79): its outlook and the window. They only confirm a number; the model is never sent them.
-  toolFacts.push(...outlookFacts(initialState, "home"), engineFact("next_30_days", WINDOW_DAYS, { from: "home" }));
+  toolFacts.push(...outlookFacts(initialState, "home"), engineFact("days_shown", WINDOW_DAYS, { from: "home" }));
   const ctx: ScopedToolContext = {
     madeBy: "ask", db: opts.db, householdId: hid, state, appUrl: opts.appUrl, askId: opts.askId, source: opts.source,
     addLink: link => { if (!links.some(known => known.href === link.href)) links.push(link); },

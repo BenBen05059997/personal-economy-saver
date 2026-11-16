@@ -1,5 +1,6 @@
 // The buttons that end an Ask answer (D60): where the person can see what the answer used or did. The words are ours, never the model's.
 import { findingAction } from "@/lib/money/suggestion-types";
+import { storedId } from "@/lib/money/repeat";
 export type SeeIt = { href: string; label: string };
 export const SEE_IT_MAX = 3;
 
@@ -56,7 +57,7 @@ export function nextSteps(input: {
 }): SeeIt[] {
   const { facts, suggestions, options, clientOfInvoice = () => undefined } = input;
   const subject = (about: StepAbout) => {
-    const id = about.id.split("@")[0];
+    const id = storedId(about.id);
     if (about.type === "invoice") { const client = clientOfInvoice(id); if (client) return `client:${client}`; }
     return `${about.type}:${id}`;
   };

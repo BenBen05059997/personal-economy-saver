@@ -6,7 +6,7 @@ import { businessLine, monthByCategory, monthWhen } from "./month";
 import { monthBounds, monthLabel, monthsBack, spendingItems, type SpendingInput } from "./spending";
 
 export type LookBy = "category" | "business" | "person";
-export type DisplayMode = "chart" | "table";
+type DisplayMode = "chart" | "table";
 
 /** One bar. `business` and `personal` add up to `total`; `spent` is dated on or before today, `coming` is a later bill. */
 export type LookRow = {
@@ -28,7 +28,7 @@ export type LookByView = {
   name: string; lastName: string; lastTotal: number; change: Change;
   businessMinor: number; personalMinor: number; businessLine: string;
 };
-export type LookMember = { id: string; name: string };
+type LookMember = { id: string; name: string };
 
 export type Change = { amount: number; percent: number | null };
 /** Engine-rounded change from last month: amount, and percent to one decimal (null with nothing last month). */
@@ -111,14 +111,6 @@ export function monthTrend(input: SpendingInput, today: string, months = 6): Tre
     return { month: date, name: monthByCategory(input, today, date).name, spent, coming, total: spent + coming, current: date === month, hasItems: entries.length > 0, unknown: entries.some(item => item.uncounted), biggest: biggest ? { label: biggest.label, amount: biggest.amountMinor } : null };
   }).filter(entry => entry.hasItems || entry.current).map(({ hasItems, ...entry }) => { void hasItems; return entry; });
 }
-
-/** The remembered choices on this device, "<This month: chart|table>|<look at it by>|<Over time: chart|table>". Person without two people reads as Category; anything missing reads as chart and Category. */
-export function parseSpendingView(stored: string, memberCount: number): { mode: DisplayMode; by: LookBy; trendMode: DisplayMode } {
-  const [rawMode, rawBy, rawTrend] = stored.split("|");
-  const by: LookBy = rawBy === "business" ? "business" : rawBy === "person" && memberCount >= 2 ? "person" : "category";
-  return { mode: rawMode === "table" ? "table" : "chart", by, trendMode: rawTrend === "table" ? "table" : "chart" };
-}
-export const formatSpendingView = (mode: DisplayMode, by: LookBy, trendMode: DisplayMode) => `${mode}|${by}|${trendMode}`;
 
 /** Home's remembered Chart or Table. An earlier value, "<view>|<mode>|<by>", still reads as its mode. */
 export function parseHomeMode(stored: string): DisplayMode {

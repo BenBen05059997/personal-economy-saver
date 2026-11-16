@@ -3,15 +3,13 @@
 // only; it moves no money and nothing in the runway reads it. Amounts are integer minor units of the home currency.
 import type { Currency } from "@/lib/catalogue/types";
 import { addMonths, dateIn } from "./dates";
-import { minorMoney, minorPerUnit, plural } from "./format";
+import { minorMoney, minorPerUnit, plural, toMinor } from "./format";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "./gaps";
 import { CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
 import { ownLabel } from "./own-category";
-import { nameKey, normalise, sameName } from "./name-key";
-import { amountOn, datesIn, nextAmountOf, realBillsBySeries, unpricedBySeries, variesOccurrences } from "./repeat";
+import { normalise } from "./name-key";
+import { amountOn, datesIn, nextAmountOf, realBillsBySeries, storedId, unpricedBySeries, variesOccurrences } from "./repeat";
 import type { Bill, Card, Charge, RepeatUnit, SplitMember } from "./types";
-
-export { nameKey, normalise, sameName };
 
 /** D55: true when there are items and none of them has a known amount: a total of them is not ¥0, it is not known. */
 export const allUncounted = (items: readonly { uncounted?: true }[]): boolean => items.length > 0 && items.every(item => item.uncounted);
@@ -30,7 +28,7 @@ export type SpendItem = {
   ownerId: string | null; // D52: a member's id, or null for Shared
   documentId: string | null;
   cardId: string | null;
-  periodStart?: string; // 27F: a one-off bill's period ("11月分" = Nov 1 to Nov 30); items still count by `date`, the day it is paid
+  periodStart?: string; // a one-off bill's period ("11月分" = Nov 1 to Nov 30); items still count by `date`, the day it is paid
   periodEnd?: string;
   estimated?: true; // D54, D55: an amount-varies bill in a month without its real bill, or a bill whose amount is not known and was estimated: the amount is the estimate
   uncounted?: true; // D55: a bill whose amount is not known and has nothing to estimate it from: `amountMinor` is 0 and means nothing; say "amount not known", never ¥0
@@ -100,7 +98,7 @@ const byDateThenLabel = (a: SpendItem, b: SpendItem) =>
  */
 export function spendingItems(input: SpendingInput, from: string, to: string): SpendItem[] {
   const unit = minorPerUnit(input.homeCurrency);
-  const minor = (amount: number) => Math.round(amount * unit);
+  const minor = (amount: number) => toMinor(amount, input.homeCurrency);
   const memberIds = input.split.members.map(m => m.id);
   const whose = (id: string | undefined) => (id !== undefined && memberIds.includes(id) ? id : null);
   const owners = new Map(input.cards.map(card => [card.id, card.ownerId]));
@@ -113,7 +111,7 @@ export function spendingItems(input: SpendingInput, from: string, to: string): S
     if (bill.status !== "confirmed") continue;
     const next = nextAmountOf(bill);
     const occurrence = bill.startsOn !== undefined && bill.id.includes("@");
-    const id = occurrence ? bill.id.slice(0, bill.id.indexOf("@")) : bill.id;
+    const id = occurrence ? storedId(bill.id) : bill.id;
     const startAmount = bill.startAmount ?? bill.amount;
     const base = (date: string): SpendItem => ({
       kind: "bill", id, label: bill.biller, repeat: bill.repeatUnit ?? null, date, amountMinor: minor(amountOn(startAmount, next, date)), category: bill.category,

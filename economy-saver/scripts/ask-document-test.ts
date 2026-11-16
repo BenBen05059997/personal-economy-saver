@@ -32,13 +32,14 @@ import { dayLabel, money } from "@/lib/money/format";
 import { categoryLabel } from "@/lib/money/categories";
 import { monthByCategory } from "@/lib/money/month";
 import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
-import { daysBetween, low, series } from "@/lib/money/runway";
+import { low, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { readUpload } from "@/lib/reader/accept";
 import { buildCard, cardContext, whoseChoice, DOCUMENT_WORDS, documentCanvas, needsForm, readLine, savedCard, whoseWords, type CardReading } from "@/lib/reader/document-card";
 import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { TURN_VERSION, type ConversationTurn } from "@/lib/schema/turn";
+import { daysBetween } from "@/lib/money/dates";
 
 const bill = (over: Partial<Extracted> = {}): Extracted => extractSchema.parse({
   kind: "bill", name: "Kawa Gym", date: "2026-11-27", amountMinor: 6000, currency: "JPY", category: "other", cardId: null, ...over,

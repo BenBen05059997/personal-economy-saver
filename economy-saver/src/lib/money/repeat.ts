@@ -108,7 +108,7 @@ type SeriesBill = Pick<StoredBill, "id" | "status" | "repeatUnit" | "seriesBillI
 const priced = (bill: SeriesBill) => bill.amount !== null && !bill.amountUnknown && bill.due !== null && !bill.dueUnknown;
 
 function linkedReal(bills: SeriesBill[]) {
-  const series = new Set(bills.filter(bill => bill.amountVaries && bill.status === "confirmed").map(bill => bill.id.split("@")[0]));
+  const series = new Set(bills.filter(bill => bill.amountVaries && bill.status === "confirmed").map(bill => storedId(bill.id)));
   return bills.filter(bill => bill.status === "confirmed" && bill.repeatUnit === undefined && bill.seriesBillId !== undefined && series.has(bill.seriesBillId));
 }
 
@@ -180,6 +180,9 @@ function unlinkedHistory(bills: StoredBill[], bill: StoredBill, unit: number) {
  * series without an amount of its own each occurrence is estimated from earlier linked bills or matching one-offs, if available.
  * `currency` (the home currency) is needed exactly when there is such a bill: the estimate is rounded to its minor unit.
  */
+/** The stored bill an occurrence belongs to: the occurrences of a repeating bill have the id "<stored id>@<date>"; a one-off has no "@". */
+export const storedId = (id: string): string => id.split("@")[0];
+
 export function expandBills(bills: StoredBill[], today: string, through: string, currency?: Currency): Bill[] {
   const unit = estimateUnit(bills, currency);
   const real = realBillsBySeries(bills, unit);

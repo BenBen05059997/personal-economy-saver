@@ -1,7 +1,7 @@
 // Spending added up day by day, this month against the month before (D73, D77). Pure: the bills and charges the month view reads, counted by the day they fall.
 import { monthBounds, monthsBack, spendingItems, type SpendingInput } from "./spending";
 
-export type MonthPace = {
+type MonthPace = {
   month: string; previous: string; // YYYY-MM
   days: number; // the longer of the two months, in days
   thisPoints: number[]; // running total at the end of each day, through today (the whole month when it is over); integer minor units

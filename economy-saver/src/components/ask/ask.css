@@ -84,7 +84,7 @@
 
 .ask-scroll { display: grid; gap: var(--space-3); min-width: 0; align-content: start; }
 
-/* The docked panel and the overlay drawer: header, scrolling middle, composer at the bottom (D73). */
+/* The docked panel and the overlay drawer: header, scrolling middle, composer at the bottom (D60). */
 .ask-page:is(.is-panel, .is-full) { display: flex; flex-direction: column; gap: 0; align-items: stretch; }
 .ask-page.is-panel { height: 100%; }
 .ask-page:is(.is-panel, .is-full) .ask-conversation { display: flex; flex-direction: column; gap: 0; flex: 1 1 auto; min-height: 0; }

@@ -16,6 +16,7 @@ import { loadViewContext } from "@/lib/views/load";
 import { ViewError, type ViewId, type ViewResult } from "@/lib/views/types";
 import type { ViewArgs } from "@/lib/views/args";
 import type { Tool } from "./tools";
+import { storedId } from "@/lib/money/repeat";
 
 /** The block `show` hands the run: a view and its ids, the shape a canvas recipe stores. */
 export type ViewBlock = { [K in ViewId]: { type: "view"; view: K; args: ViewArgs[K] } }[ViewId];
@@ -94,7 +95,7 @@ async function idArgs(ctx: Parameters<Tool["run"]>[0], view: ViewId, given: Reco
         break;
       }
       case "mark": {
-        const bills = new Map((await state()).bills.map(bill => [bill.id.split("@")[0], { id: bill.id.split("@")[0], name: bill.biller }]));
+        const bills = new Map((await state()).bills.map(bill => [storedId(bill.id), { id: storedId(bill.id), name: bill.biller }]));
         out.mark = byName("bill", String(value), [...bills.values()]);
         break;
       }

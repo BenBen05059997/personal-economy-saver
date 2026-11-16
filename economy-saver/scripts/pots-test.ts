@@ -18,12 +18,13 @@ import { seedBen } from "@/db/seed";
 import { loadNavigationData } from "@/db/workspace";
 import { applyVerifiedDelivery } from "@/lib/events";
 import type { CaptureOrder } from "@/lib/paypal/contracts";
-import { addMonths, leftOverEachMonth, monthsUntil, planFor, planLine, potLine, potSummary, roomLine } from "@/lib/money/plan";
+import { leftOverEachMonth, monthsUntil, planFor, planLine, potLine, potSummary, roomLine } from "@/lib/money/plan";
 import { availableCash, low, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { toCheck } from "@/lib/money/to-check";
 import { benMoney } from "@/lib/sample/ben";
 import type { MoneyState, Pot } from "@/lib/money/types";
+import { addMonths } from "@/lib/money/dates";
 
 const TODAY = "2026-11-14";
 const pot = (over: Partial<Pot> = {}): Pot => ({ id: "pot-1", name: "Tax", saved: 10_000, ...over });

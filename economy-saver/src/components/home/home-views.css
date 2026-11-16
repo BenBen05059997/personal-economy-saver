@@ -12,6 +12,8 @@
 .hv-controls button{border:0;background:transparent;border-radius:7px;padding:0 16px}
 .hv-controls button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);font-weight:600}
 
+.hv-empty{margin:0;font-size:14px;color:var(--muted);padding:18px 0}
+.hv-empty a{color:var(--ink);font-weight:600}
 .hv-chart{display:flex;flex-direction:column;gap:10px;min-width:0}
 .hv-legend{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--muted)}
 .hv-legend span{display:flex;align-items:center;gap:8px}

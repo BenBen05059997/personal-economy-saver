@@ -1,14 +1,15 @@
 // What goes out and what comes in, day by day (D77): the Bills calendar's numbers. Pure; every amount integer minor units of the home currency.
-import { minorPerUnit } from "./format";
+import { toMinor } from "./format";
 import { sharedBillsComing } from "./family";
-import { addDays, series, timeline, WINDOW_DAYS } from "./runway";
+import { series, timeline, WINDOW_DAYS } from "./runway";
 import type { MoneyState } from "./types";
+import { addDays } from "./dates";
 
 /** One thing on a day. A pending bill waits in To check and is flagged, never counted; an unknown amount is flagged and counts for nothing. */
 export type CalendarItem = { label: string; kind: "bill" | "statement" | "arrival"; amountMinor: number; pending?: true; uncounted?: true; estimated?: true;
   /** What the item is about, for the facts: the bill, the card or the client, by id; `open` marks a statement still collecting charges. */
   id: string; cardId?: string; clientId?: string; open?: true };
-export type CalendarDay = {
+type CalendarDay = {
   date: string;
   outMinor: number; // what goes out that day (counted items only)
   inMinor: number; // what clients are expected to pay that day, on their usual days
@@ -21,7 +22,7 @@ export type CalendarDay = {
  * lists only the shared bills (`sharedBillsComing`): no money in, and no short marks, because the household's cash is not theirs alone to read.
  */
 export function calendarDays(state: MoneyState, days: number = WINDOW_DAYS, whose?: "shared"): CalendarDay[] {
-  const unit = minorPerUnit(state.homeCurrency), minor = (amount: number) => Math.round(amount * unit);
+  const minor = (amount: number) => toMinor(amount, state.homeCurrency);
   const rows: CalendarDay[] = Array.from({ length: days }, (_, i) => ({ date: addDays(state.today, i), outMinor: 0, inMinor: 0, short: false, items: [] }));
   const at = new Map(rows.map(row => [row.date, row]));
   if (whose === "shared") {

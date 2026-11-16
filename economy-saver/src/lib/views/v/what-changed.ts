@@ -5,6 +5,7 @@ import { minorPerUnit } from "@/lib/money/format";
 import { WINDOW_DAYS } from "@/lib/money/runway";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type TableTwin, type ViewResult } from "../types";
+import { storedId } from "@/lib/money/repeat";
 
 export const whatChangedView: Resolver<"what_changed"> = (args, ctx): ViewResult => {
   const { state, spending } = ctx;
@@ -34,8 +35,8 @@ export const whatChangedView: Resolver<"what_changed"> = (args, ctx): ViewResult
   ];
   // The item itself waits for the person's yes, so its own amount is a fact that counts for nothing.
   if (pending) {
-    const per = minorPerUnit(currency), minor = (value: number) => Math.round(value * per), id = args.itemId.split("@")[0], from = "what_changed";
-    const bill = state.bills.find(item => item.id.split("@")[0] === id && item.status === "pending" && item.amount !== null);
+    const per = minorPerUnit(currency), minor = (value: number) => Math.round(value * per), id = storedId(args.itemId), from = "what_changed";
+    const bill = state.bills.find(item => storedId(item.id) === id && item.status === "pending" && item.amount !== null);
     const charge = state.charges.find(item => item.id === id && item.status === "pending");
     const pot = state.pendingPots.find(item => item.id === id), update = state.balanceUpdates.find(item => item.id === id);
     const waiting: { about: FactAbout; amount: number; on: string | null } | null = bill ? { about: { type: "bill", id, name: bill.biller }, amount: bill.amount, on: bill.due }

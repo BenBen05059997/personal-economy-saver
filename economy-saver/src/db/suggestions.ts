@@ -1,7 +1,6 @@
 import { and, asc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import { jobError } from "@/lib/job-error";
 import { stableId } from "@/lib/stable-id";
-import { addDays } from "@/lib/money/runway";
 import { findSuggestions } from "@/lib/money/suggest";
 import { FINDING_RULE, type Finding } from "@/lib/money/suggestion-types";
 import { monthsBack } from "@/lib/money/spending";
@@ -10,6 +9,7 @@ import { clockForHousehold } from "./clock";
 import { CHARGE_LOOKBACK_DAYS, householdClockRow, loadMoneyState, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { rulesFor } from "./rules";
 import { events, households, spaces, standingRules, suggestions } from "./schema";
+import { addDays } from "@/lib/money/dates";
 
 const active = () => inArray(suggestions.status, ["open", "not_now"]);
 const RETENTION_MS = 90 * 86_400_000;

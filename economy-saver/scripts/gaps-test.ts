@@ -22,19 +22,19 @@ import { toolInputSchema, tools, type ToolContext } from "@/lib/agent/tools";
 import { readingForm, readingUnknown } from "@/lib/reader/form";
 import { sharedBillsComing } from "@/lib/money/family";
 import { GAP_HISTORY, URGENT_DAYS, confirmedGaps, gapAmountWords, gapCountedWords, gapDateWords, gapEstimate, gapMeanwhileWords, gapQuestion, gapUncountedWords, gapUrgencyWords, openGaps, type Gap } from "@/lib/money/gaps";
-import { monthByCategory, monthText } from "@/lib/money/month";
+import { monthByCategory } from "@/lib/money/month";
 import { nameKey, normalise } from "@/lib/money/name-key";
 import { regularCosts } from "@/lib/money/regular";
 import { cancelNotices, expandBills, variesEstimate } from "@/lib/money/repeat";
-import { addDays, dueItems, low, planWindow, series, timeline } from "@/lib/money/runway";
+import { dueItems, low, planWindow, series, timeline } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { splitBalance } from "@/lib/money/split";
 import { searchLine, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
-import { statusAnswer } from "@/lib/money/ask";
 import { toCheck } from "@/lib/money/to-check";
 import { serverHasNoModel } from "@/lib/agent/availability";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import type { MoneyState, RealBill, SplitState, StoredBill } from "@/lib/money/types";
+import { addDays } from "@/lib/money/dates";
 
 const TODAY = "2026-11-14"; // Ben's day, and the demo clock of a seeded household
 const END = addDays(TODAY, planWindow(benMoney) - 1);
@@ -261,9 +261,8 @@ async function main() {
     assert.equal(gapUncountedWords([]), null);
     assert.equal(gapUncountedWords(["Minato Gas"]), "1 bill not counted: Minato Gas (amount not known)");
     assert.equal(gapUncountedWords(["Minato Gas", "Minato Water"]), "2 bills not counted: Minato Gas (amount not known), Minato Water (amount not known)");
-    assert.equal(statusAnswer(benMoney), homeSentence(benMoney).text, "no note: the text alone");
     const noted = stateWith([gasGap()]);
-    assert.equal(statusAnswer(noted), `${homeSentence(noted).text} Not counted: Minato Gas (amount not known).`, "the sentence tool returns the note beside the text");
+    assert.equal(homeSentence(noted).note, "Not counted: Minato Gas (amount not known).", "the sentence carries the note beside its text");
     assert.deepEqual(confirmedGaps(stateWith([gasGap({ status: "pending" })])), []);
     assert.deepEqual(confirmedGaps(stateWith([gasGap()])).map(g => g.name), ["Minato Gas"]);
   });
@@ -288,9 +287,8 @@ async function main() {
     assert.equal(view.totalMinor - without.totalMinor, 108_333, "the uncounted bill adds nothing");
     const listed = view.categories.flatMap(c => c.items);
     assert.equal(listed.find(i => i.label === "Minato Water")!.uncounted, true);
-    assert.match(monthText(view), /Minato Gas Nov 20 about ¥108,333/);
-    assert.match(monthText(view), /Minato Water Nov 22 amount not known/);
-    assert.ok(!/Minato Water Nov 22 ¥0/.test(monthText(view)));
+    assert.deepEqual([listed.find(i => i.label === "Minato Gas")!.date, listed.find(i => i.label === "Minato Gas")!.amountMinor, listed.find(i => i.label === "Minato Gas")!.estimated], ["2026-11-20", 108_333, true]);
+    assert.deepEqual([listed.find(i => i.label === "Minato Water")!.date, listed.find(i => i.label === "Minato Water")!.amountMinor], ["2026-11-22", 0]);
     const regular = regularCosts(spendingItems(input, "2026-09-01", "2026-11-30"), "JPY", TODAY, 3);
     assert.ok(!regular.items.some(c => c.label === "Minato Water"), "an amount not known is no history for a regular cost");
     const shared = sharedBillsComing({ ...state, bills: state.bills.map(b => (b.id === "nope" ? { ...b, paidBy: undefined } : b)) });
@@ -315,10 +313,10 @@ async function main() {
     const view = monthByCategory(bareInput, TODAY);
     const other = view.categories.find(c => c.category === "other")!;
     assert.deepEqual([other.totalMinor, other.items.every(i => i.uncounted)], [0, true]);
-    assert.match(monthText(view), /^Other amount not known: Minato Lone Nov 20 amount not known\.$/m, "the header never says ¥0 for a category of uncounted bills");
-    const withCounted = monthText(monthByCategory(input, TODAY));
-    assert.match(withCounted, /Utilities ¥\d[\d,]*: .*Minato Gas/, "a category with counted items keeps its counted sum");
-    assert.match(withCounted, /Other amount not known: Minato Steam Nov 21 amount not known\./);
+    const withCounted = monthByCategory(input, TODAY).categories;
+    const utilities = withCounted.find(c => c.category === "utilities")!;
+    assert.ok(utilities.totalMinor > 0 && utilities.items.some(i => i.label === "Minato Gas"), "a category with counted items keeps its counted sum");
+    assert.deepEqual(withCounted.find(c => c.category === "other")!.items.map(i => [i.label, i.date, i.uncounted]), [["Minato Steam", "2026-11-21", true]]);
   });
 
   await check("the split: a bill whose amount is not known creates no debt; D54's estimated occurrences still split", () => {

@@ -6,7 +6,7 @@ import type { Currency } from "@/lib/catalogue/types";
 import { termOf, type TermName, type TermUnit } from "./terms";
 
 export type FactCase = "as_usual" | "late" | "none";
-export type FactPeriod = { on: string } | { from: string; to: string } | null;
+type FactPeriod = { on: string } | { from: string; to: string } | null;
 export type FactAbout = { type: "card" | "client" | "category" | "bill" | "person" | "pot" | "invoice" | "charge" | "cost"; id: string; name: string };
 
 export type Fact = {
@@ -23,7 +23,7 @@ export type Fact = {
   by: "engine" | "person";
 };
 
-export type FactOptions = {
+type FactOptions = {
   from: string;
   /** Required for a term whose case is "named"; a fixed-case term takes its own. */
   case?: "as_usual" | "late";

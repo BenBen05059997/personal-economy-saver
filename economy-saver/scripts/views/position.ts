@@ -15,11 +15,12 @@ import { ViewFigure } from "@/components/views/ViewFigure";
 import { fact, type Fact } from "@/lib/money/facts";
 import { TERMS, type TermName } from "@/lib/money/terms";
 import { positionSteps } from "@/lib/money/position";
-import { daysBetween, low, series } from "@/lib/money/runway";
+import { low, series } from "@/lib/money/runway";
 import { loadViewContext } from "@/lib/views/load";
 import { resolveView } from "@/lib/views/resolve";
 import type { ViewResult } from "@/lib/views/types";
 import { forecastView } from "@/lib/views/v/forecast";
+import { daysBetween } from "@/lib/money/dates";
 
 let passed = 0;
 /** The facts as the number check reads them: a one-day period becomes its date. */

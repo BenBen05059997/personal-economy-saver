@@ -3,9 +3,9 @@
 import type { LookByView } from "./look-by";
 import type { IncomeRow, PotFill } from "./types";
 
-export type FlowKind = "client" | "earlier" | "month" | "pot" | "category" | "other" | "left";
-export type FlowNode = { id: string; label: string; column: 0 | 1 | 2; minor: number; kind: FlowKind };
-export type MoneyFlow = {
+type FlowKind = "client" | "earlier" | "month" | "pot" | "category" | "other" | "left";
+type FlowNode = { id: string; label: string; column: 0 | 1 | 2; minor: number; kind: FlowKind };
+type MoneyFlow = {
   month: string; name: string;
   nodes: FlowNode[]; links: { from: string; to: string; minor: number }[];
   inMinor: number; setAsideMinor: number; spentMinor: number; leftOverMinor: number; fromEarlierMinor: number;

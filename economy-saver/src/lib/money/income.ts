@@ -1,9 +1,10 @@
 // Money in by month (D77): the paid client invoices of the last months, per client, in the home currency's integer minor units. Pure.
+import { addMonths } from "./dates";
 import { monthName, monthsBack } from "./spending";
 import type { IncomeRow } from "./types";
 
-export type IncomeMonth = { month: string; name: string; current: boolean; total: number; byClient: Record<string, number> };
-export type IncomeByMonth = {
+type IncomeMonth = { month: string; name: string; current: boolean; total: number; byClient: Record<string, number> };
+type IncomeByMonth = {
   months: IncomeMonth[]; // oldest first, the current month last
   clients: { id: string; name: string; total: number }[]; // biggest total first (ties by name); only clients with money counted in the range
   /** Money in per completed month, from the first month with a payment to the last completed month; null until one completed month has a payment before it ends. */
@@ -18,7 +19,7 @@ export function incomeByMonth(rows: readonly IncomeRow[], today: string, months:
   const list: IncomeMonth[] = [];
   for (let i = 0, month = first; i < months; i++) {
     list.push({ month, name: monthName(month), current: month === current, total: 0, byClient: {} });
-    month = nextMonth(month);
+    month = addMonths(`${month}-01`, 1).slice(0, 7);
   }
   const byMonth = new Map(list.map(item => [item.month, item]));
   const names = new Map<string, string>(), totals = new Map<string, number>(), unrated = new Set<string>();
@@ -41,9 +42,4 @@ export function incomeByMonth(rows: readonly IncomeRow[], today: string, months:
     lowest: lowest && { month: lowest.month, name: lowest.name, minor: lowest.total },
     unrated: [...unrated].sort(),
   };
-}
-
-function nextMonth(month: string): string {
-  const year = Number(month.slice(0, 4)), m = Number(month.slice(5, 7));
-  return m === 12 ? `${year + 1}-01` : `${year}-${String(m + 1).padStart(2, "0")}`;
 }

@@ -36,12 +36,12 @@ import type { CaptureOrder } from "@/lib/paypal/contracts";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import { expandBills } from "@/lib/money/repeat";
 import { statementItems } from "@/lib/money/runway";
-import { arrivals, clientsOwe, daysBetween, expectedPayBasis, firstShort, ladder, low, overdue, paybackFor, planWindow, roomOnCard, safeToSpend, series, dueItems, timeline } from "@/lib/money/runway";
+import { arrivals, clientsOwe, expectedPayBasis, firstShort, ladder, low, overdue, paybackFor, planWindow, roomOnCard, safeToSpend, series, dueItems, timeline } from "@/lib/money/runway";
 import { cardCycle } from "@/lib/money/card-cycle";
 import type { MoneyState } from "@/lib/money/types";
 import { loadNavigationData, loadWorkspaceData } from "@/db/workspace";
-import { addDays } from "@/lib/money/runway";
 import { minorPerUnit } from "@/lib/money/format";
+import { daysBetween, addDays } from "@/lib/money/dates";
 
 // Compile-time check that the postgres.js instance fits the same Db type PGlite does.
 type _ClientFitsDb = ReturnType<typeof clientDb> extends Db ? true : never;

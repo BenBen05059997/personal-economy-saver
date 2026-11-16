@@ -1,6 +1,7 @@
 import { minorPerUnit } from "./format";
 import type { MoneyState } from "./types";
-import { addDays, arrivals, daysBetween, EARLY_DISCOUNT, ladder, low, project, series } from "./runway";
+import { arrivals, EARLY_DISCOUNT, ladder, low, project, series } from "./runway";
+import { addDays, daysBetween } from "./dates";
 
 export const BORROWING_CHECKED = "2026-11-02";
 export const BORROWING_SOURCES = {
@@ -29,7 +30,7 @@ export function fundingOptions(state: MoneyState) {
   // The late invoice is the sent one with a link expected earliest: its page holds the link to copy.
   const earliest = [...arrivals(state)].filter(arrival => state.invoices.find(invoice => invoice.id === arrival.invoiceId)?.hasLink).sort((a, b) => a.expectedOn < b.expectedOn ? -1 : a.expectedOn > b.expectedOn ? 1 : 0)[0];
   const unbilled = state.invoices.find(invoice => invoice.status === "unbilled");
-  const rows: FundingOption[] = base.filter(row => row.id !== "advance").map(row => {
+  const rows: FundingOption[] = base.map(row => {
     const projection = row.id === "invoice" && unbilled ? project(state, unbilled, state.today) : null;
     const covers = projection && projection.amountHome >= gap && projection.worstOn <= fundingDate &&
       low(series({ ...state, invoices: state.invoices.map(invoice => invoice.id === unbilled?.id ? { ...invoice, status: "sent", sentOn: state.today } : invoice) }, "worst")).amount >= 0;

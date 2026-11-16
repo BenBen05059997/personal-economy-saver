@@ -4,7 +4,7 @@ import { minorPerUnit } from "./format";
 import type { TrendMonth } from "./look-by";
 import type { MoneyState } from "./types";
 
-export const BUFFER_MONTHS_AVERAGED = 3;
+const BUFFER_MONTHS_AVERAGED = 3;
 /** The marks drawn on the bar: the usual guide's two ends. Information, not a target. */
 export const BUFFER_MARKS = [3, 6] as const;
 /** The guide under the bar; it names where the marks come from. */
@@ -13,7 +13,7 @@ export const BUFFER_GUIDE = "The usual guide is 3–6 months; 9–12 for a varia
 export type Buffer = { months: number; cashMinor: number; monthlyMinor: number; basis: { month: string; name: string; minor: number }[] };
 
 /** The average a month over the last full months of spending, in minor units, or null with none. Rounded here, once. */
-export function averageMonthlySpending(trend: TrendMonth[]): { monthlyMinor: number; basis: Buffer["basis"] } | null {
+function averageMonthlySpending(trend: TrendMonth[]): { monthlyMinor: number; basis: Buffer["basis"] } | null {
   const basis = trend.filter(month => !month.current && month.total > 0).slice(-BUFFER_MONTHS_AVERAGED).map(month => ({ month: month.month, name: month.name, minor: month.total }));
   if (basis.length === 0) return null;
   return { monthlyMinor: Math.round(basis.reduce((sum, month) => sum + month.minor, 0) / basis.length), basis };

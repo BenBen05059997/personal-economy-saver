@@ -1,10 +1,10 @@
 // One card's cycle (D77): where today sits in it, when it closes and is paid, the last statement that closed, what covers the soonest statement,
 // and, for an amount, which statement a purchase today lands on and whether it fits. Pure; every amount is integer minor units of the home currency.
-import { minorPerUnit } from "./format";
+import { toMinor } from "./format";
 import { cycle, paybackFor, roomOnCard, statementItems } from "./runway";
 import type { MoneyState } from "./types";
 
-export type CardCycle = {
+type CardCycle = {
   cardId: string;
   label: string;
   today: string;
@@ -23,7 +23,7 @@ export type CardCycle = {
 export function cardCycle(state: MoneyState, cardId: string, amountMinor?: number): CardCycle | null {
   const card = state.cards.find(c => c.id === cardId);
   if (!card) return null;
-  const per = minorPerUnit(state.homeCurrency), minor = (v: number) => Math.round(v * per);
+  const minor = (v: number) => toMinor(v, state.homeCurrency);
   const open = cycle(state, cardId), room = roomOnCard(state, cardId), payback = paybackFor(state, cardId);
   const closed = statementItems(state).filter(item => item.cardId === cardId && !item.open)[0];
   const roomMinor = minor(room.room);

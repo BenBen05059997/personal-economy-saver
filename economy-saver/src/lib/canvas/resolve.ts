@@ -4,15 +4,15 @@
 // compare_months). Throws `CanvasError` with words a person can read when the recipe cannot be drawn.
 import { plural } from "@/lib/plural";
 import { engineFact, type Fact } from "@/lib/money/facts";
-import { dayLabel, minorMoney, minorPerUnit, money, ordinal, aboutMoney } from "@/lib/money/format";
+import { dayLabel, minorMoney, minorPerUnit, money, aboutMoney } from "@/lib/money/format";
 import { goalPaces } from "@/lib/money/goals";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "@/lib/money/gaps";
 import { CATEGORIES, categoryLabel } from "@/lib/money/categories";
 import { splitBalance, splitSummary } from "@/lib/money/split";
 import { monthByCategory, type MonthView } from "@/lib/money/month";
 import { paceLine } from "@/lib/money/pace";
-import { changeTone, regularCosts, REGULAR_MONTHS, type RegularCost } from "@/lib/money/regular";
-import { addDays, availableCash, daysBetween, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { changeTone, changeWords, regularCosts, REGULAR_MONTHS } from "@/lib/money/regular";
+import { availableCash, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { billsForMonth, type PeriodBill } from "@/lib/money/period";
 import { latestDate } from "@/lib/money/horizon";
@@ -27,6 +27,8 @@ import { longDay, stepLine } from "@/lib/views/v/forecast";
 import { ViewError, type FormData, type RankedRow, type TableTwin, type Tone, type ViewResult } from "@/lib/views/types";
 import type { IncomeRow, PotFill } from "@/lib/money/types";
 import { problemWords, RecipeSchema, ScenarioSchema, type Block, type Query, type Recipe, type Scenario, type ScenarioRef } from "./schema";
+import { storedId } from "@/lib/money/repeat";
+import { addDays, daysBetween } from "@/lib/money/dates";
 
 /** A recipe that cannot be drawn: the message is written for the person (or for the agent to fix its recipe). */
 export class CanvasError extends Error {}
@@ -104,7 +106,6 @@ function ownScenario(query: Query): ScenarioRef { return "scenario" in query ? q
 // ---------------------------------------------------------------- the resolver
 
 /** A stored bill's id; an occurrence of a repeating bill is `<id>@<date>`. */
-const storedId = (id: string) => id.split("@")[0];
 const isMarked = (event: { id: string; kind: string }, mark: string) => event.kind === "bill" && storedId(event.id) === storedId(mark);
 
 export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasScenario?: Scenario): ResolvedBlock[] {
@@ -170,7 +171,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       case "cash": {
         const cash = availableCash(state);
         const valueMinor = Math.round(cash * unit);
-        return { valueMinor, value: format(cash), sub: null, note: null, tone: "plain", facts: [moneyFact("cash", valueMinor)] };
+        return { valueMinor, value: format(cash), sub: null, note: null, tone: "plain", facts: [moneyFact("cash_to_spend", valueMinor)] };
       }
       case "safe_to_spend": {
         const st = stateFor(readScenario(query.scenario, query, recipe, override));
@@ -204,22 +205,12 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     const from = monthBounds(monthsBack(current, months)).first;
     const result = regularCosts(spendingItems(spending, from, monthBounds(current).last), currency, state.today, months);
     const amount = (minorUnits: number, estimated?: true) => (estimated ? aboutMoney(minorUnits, currency) : minor(minorUnits));
-    const change = (cost: RegularCost): { words: string; tone: TableRow["tone"] } => {
-      switch (cost.status) {
-        case "up": return { words: `up ${amount(cost.changeMinor!, cost.estimated)}`, tone: changeTone(cost.status) };
-        case "down": return { words: `down ${amount(-cost.changeMinor!, cost.estimated)}`, tone: changeTone(cost.status) };
-        case "same": return { words: "same", tone: changeTone(cost.status) };
-        case "started": return { words: "started this month", tone: changeTone(cost.status) };
-        case "stopped": return { words: "stopped", tone: changeTone(cost.status) };
-        case "not_yet": return { words: `usually on the ${ordinal(cost.usualDay!)}`, tone: changeTone(cost.status) };
-      }
-    };
     const last = monthName(monthsBack(current, 2)), now = monthName(current);
     return {
       title: null, caption: result.changedLine, head: ["Cost", last, now, "Change"], foot: null,
       empty: result.items.length === 0 ? "Regular costs show up once a bill repeats or a name comes back two months running." : null,
       rows: result.items.map(cost => {
-        const { words, tone } = change(cost);
+        const words = changeWords(cost, currency), tone = changeTone(cost.status);
         const thisCell = cost.status === "not_yet" ? "not in yet" : `${amount(cost.thisMinor, cost.months[cost.months.length - 1].estimated)}${cost.soFar ? " so far" : ""}`;
         return { cells: [`${cost.label} (${cost.categoryLabel})`, cost.status === "started" ? "—" : amount(cost.lastMinor, cost.months[cost.months.length - 2].estimated), thisCell, words], tone };
       }),

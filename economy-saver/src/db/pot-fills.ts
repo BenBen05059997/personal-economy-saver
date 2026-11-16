@@ -1,9 +1,9 @@
 // What was set aside (D77): the fills of a household's pots, from their `pot_filled` events, as integer minor units. Read only.
 import { and, asc, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
-import { addDays } from "@/lib/money/runway";
 import type { PotFill } from "@/lib/money/types";
 import { requireHousehold, withHousehold, type Db } from "./household";
 import * as s from "./schema";
+import { addDays } from "@/lib/money/dates";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 

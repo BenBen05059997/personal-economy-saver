@@ -6,12 +6,12 @@ import { refreshSuggestions } from "./suggestions";
 
 import { benMoney, benOwnCategories, benStoredBills } from "@/lib/sample/ben";
 import { nameKey } from "@/lib/money/name-key";
-import { addDays } from "@/lib/money/runway";
 import type { Db } from "./household";
 import { DEMO_DATE } from "./clock";
 import { newPayToken } from "@/lib/paypal/pay-link";
 import { toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
+import { addDays } from "@/lib/money/dates";
 
 type SeedOptions = {
   isDemo?: boolean; // true for demo households, including every Try-it copy

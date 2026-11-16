@@ -1,5 +1,5 @@
 .money-home { min-width: 0; overflow-wrap: anywhere; }
-.money-home .home-date, .money-home .home-label, .money-home .home-note {
+.money-home .home-date, .money-home .home-note {
   margin: 0;
   font: 400 13px/1.45 var(--sans);
   color: var(--muted);
@@ -131,7 +131,6 @@
   /* The demo line's Start link and the panels' small "›" links (Change closing day, Share costs) get the same 44px hit area. */
   .home-demo a, .home-note a { position: relative; }
   .home-demo a::after, .home-note a::after { content: ""; position: absolute; inset: -14px -8px; }
-  /* A blank household (D51): First steps is the first panel on a phone, above the runway. */
 }
 .money-home h1 a {
   color: inherit;

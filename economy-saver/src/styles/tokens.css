@@ -1,6 +1,5 @@
 :root {
   color-scheme: light dark;
-  --page: light-dark(#efeeea, #121110);
   --screen: light-dark(#fbfaf8, #1b1a17);
   --wash: light-dark(#f2f0eb, #24221f);
   --ink: light-dark(#1e1c19, #efece5);
@@ -17,7 +16,6 @@
   --red-wash: light-dark(#f7e3e0, #3a2220);
   --green: light-dark(#1d7a4c, #6fd09b);
   --green-wash: light-dark(#e2f1e8, #1d3327);
-  --sel: #FCCB78;
   --serif: "Newsreader", Georgia, "Yu Mincho", serif;
   --sans: "Hanken Grotesk", "Helvetica Neue", "Hiragino Sans", Arial, sans-serif;
   --space-1: 4px;
@@ -36,19 +34,7 @@
   --topbar-height: 56px;
   --ask-bar-clearance: calc(96px + env(safe-area-inset-bottom)); /* room left under content for the fixed Ask bar at phone width */
   --mono: ui-monospace, Menlo, monospace;
-  --bg: var(--screen);
-  --surface: var(--screen);
-  --surface-2: var(--wash);
-  --fg: var(--ink);
   --line: var(--rule);
-  --display: var(--serif);
-  --body: var(--sans);
-  --accent-ink: var(--on-accent);
-  --accent-soft: var(--accent-wash);
-  --crit: var(--red);
-  --crit-soft: var(--red-wash);
-  --good: var(--green);
-  --good-soft: var(--green-wash);
 }
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; }

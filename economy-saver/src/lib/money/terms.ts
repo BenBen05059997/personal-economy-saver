@@ -2,10 +2,10 @@
 // A term has a stable `name` (what a fact carries), a `label` (the words a person reads), a `meaning` and the case it belongs to.
 // Case: "late" and "as_usual" are fixed to that case, "named" carries whichever case it was tested on, "none" has no case.
 
-export type TermCase = "late" | "as_usual" | "named" | "none";
+type TermCase = "late" | "as_usual" | "named" | "none";
 export type TermUnit = "money" | "days" | "count" | "date" | "percent" | "text" | "flag" | "period";
 
-export type Term = {
+type Term = {
   name: string;
   label: string;
   meaning: string;
@@ -41,7 +41,6 @@ export const TERMS = [
   term("statement_open", "open statement", "money", "none", "The current cycle, still collecting charges."),
   term("due", "due", "date", "none", "The day a bill or card statement has to be paid."),
   term("paid_from", "paid from", "text", "none", "The account a card statement is taken from."),
-  term("next_30_days", "next 30 days", "days", "none", "Today and the 29 days after it. The window every forecast figure covers."),
   term("cash", "cash", "money", "none", "The money in your bank and PayPal."),
   term("cash_to_spend", "cash to spend", "money", "none", "Cash less what is set aside in pots."),
   term("what_you_have", "what you have", "money", "none", "The total of the waterfall: cash to spend, less what cards owe, plus about what clients owe you."),
@@ -65,7 +64,6 @@ export const TERMS = [
   term("safe_to_spend_for_period", "safe to spend for a period", "money", "late", "Safe to spend, tested over the number of days you ask about instead of 30."),
   term("safe_to_spend_as_usual", "safe to spend as usual", "money", "as_usual", "The lowest balance in the next 30 days if clients pay as usual, never below 0. It always carries its case; it is not \"safe to spend\"."),
   term("business_share", "business share", "money", "none", "The part of the month's spending marked as business."),
-  term("business_share_percent", "business share (percent)", "percent", "none", "The part of the month's spending marked as business, as a percent.", 1),
   term("pot", "pot", "money", "none", "Money set aside for one purpose, taken out of cash to spend."),
   term("regular_costs", "regular costs", "money", "none", "Costs that come back month after month, with how each changed."),
   term("foreign_cost", "foreign cost", "money", "none", "What receiving payments and card purchases in another currency cost you in fees and rate."),

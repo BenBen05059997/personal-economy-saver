@@ -4,8 +4,9 @@
 
 import { HORIZON_MESSAGE, latestDate } from "./horizon";
 import { expandBills } from "./repeat";
-import { daysBetween, planWindow, series, timeline } from "./runway";
+import { planWindow, series, timeline } from "./runway";
 import type { MoneyState } from "./types";
+import { daysBetween } from "./dates";
 
 type SeriesKind = Parameters<typeof series>[1];
 
@@ -17,7 +18,7 @@ export function stateThrough(state: MoneyState, through: string): MoneyState {
   return { ...state, bills: expandBills(state.storedBills, state.today, through, state.homeCurrency) };
 }
 
-export type DayView = {
+type DayView = {
   date: string;
   balance: number; // the series balance at the end of that day, home units
   events: ReturnType<typeof timeline>; // that day's dated events, money in first

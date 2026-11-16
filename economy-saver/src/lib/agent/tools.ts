@@ -38,7 +38,7 @@ import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { clientPace } from "@/lib/money/pace";
 import { goalPaces } from "@/lib/money/goals";
 import { planFor, planLine } from "@/lib/money/plan";
-import { clientsOwe, daysBetween, low, overdue, series, timeline as engineTimeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { clientsOwe, low, overdue, series, timeline as engineTimeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
 import { viewTools, type Reading } from "./view-tools";
@@ -55,6 +55,7 @@ import { checkTools } from "./check-tools";
 import { CASE_KIND, type Recipe } from "@/lib/canvas/schema";
 import type { DeviceMemory } from "@/lib/store/memory-ops";
 import type { MoneyState } from "@/lib/money/types";
+import { daysBetween } from "@/lib/money/dates";
 
 export type ToolContext = {
   db: Db;

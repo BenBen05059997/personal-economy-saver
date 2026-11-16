@@ -2,13 +2,11 @@
 // Amounts are in the state's home currency units, as everywhere in the engine (whole yen; dollars with cents for USD).
 
 import { addMonths } from "./dates";
-import { MONTHS, minorMoney, minorPerUnit } from "./format";
-import { availableCash, moneyInPots, series } from "./runway";
+import { MONTHS, minorMoney, minorPerUnit, toMinor } from "./format";
+import { availableCash, moneyInPots, series, WINDOW_DAYS } from "./runway";
 import { expectsClientPayment } from "./sentence";
-import { termOf } from "./terms";
+import { labelOf, termOf } from "./terms";
 import type { MoneyState, Pot } from "./types";
-
-export { addMonths };
 
 const unit = (state: MoneyState) => minorPerUnit(state.homeCurrency);
 
@@ -70,7 +68,7 @@ export const monthYear = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]
 
 /** The one-line answer, built here so the screen and the agent say the same words and numbers. */
 export function planLine(input: PlanInput, plan: Plan, state: MoneyState): string {
-  const money = (n: number) => minorMoney(Math.round(n * unit(state)), state.homeCurrency);
+  const money = (n: number) => minorMoney(toMinor(n, state.homeCurrency), state.homeCurrency);
   const room = roomClause(state).slice(0, -1);
   if (plan.needed === 0) return `Nothing more to set aside: ${money(input.target)} is already there.`;
   const parts: string[] = [];
@@ -89,7 +87,7 @@ export function planLine(input: PlanInput, plan: Plan, state: MoneyState): strin
 /** The short line under a goal pot on the Saving page: what it takes by its date, or where the current pace gets it. Undefined for a pot with no target. */
 export function potLine(pot: Pot, state: MoneyState): string | undefined {
   if (pot.target === undefined) return undefined;
-  const money = (n: number) => minorMoney(Math.round(n * unit(state)), state.homeCurrency);
+  const money = (n: number) => minorMoney(toMinor(n, state.homeCurrency), state.homeCurrency);
   const request: PlanInput = { target: pot.target, saved: pot.saved, ...(pot.targetDate && { targetDate: pot.targetDate }) };
   const plan = planFor(request, state);
   if (plan.needed === 0) return "Target reached";
@@ -100,19 +98,17 @@ export function potLine(pot: Pot, state: MoneyState): string | undefined {
   return `Nothing is left over each month yet, so there is no date to give.`;
 }
 
-const sentenceCase = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
-
 /** What the next 30 days leave, as a sentence that planLine can continue ("…, so it fits"). */
 function roomClause(state: MoneyState): string {
-  const room = leftOverEachMonth(state), leftOverLabel = sentenceCase(termOf("left_over_each_month").label);
+  const room = leftOverEachMonth(state), leftOverLabel = labelOf("left_over_each_month");
   return room > 0
-    ? `${leftOverLabel}: about ${minorMoney(Math.round(room * unit(state)), state.homeCurrency)} if clients pay as usual.`
+    ? `${leftOverLabel}: about ${minorMoney(toMinor(room, state.homeCurrency), state.homeCurrency)} if clients pay as usual.`
     : `${leftOverLabel}: nothing if clients pay as usual.`;
 }
 
 /** The sentence at the top of the Saving page: what the next 30 days leave, which is what could be put aside. With no client payment expected, it says there is nothing new to put aside yet. */
 export function roomLine(state: MoneyState): string {
-  if (!expectsClientPayment(state)) return "No client payments are expected in the next 30 days, so there's nothing new to put aside yet.";
+  if (!expectsClientPayment(state)) return `No client payments are expected in the next ${WINDOW_DAYS} days, so there's nothing new to put aside yet.`;
   return leftOverEachMonth(state) > 0 ? `${roomClause(state)} That's what you could put aside.` : roomClause(state);
 }
 
@@ -123,19 +119,19 @@ export function roomLine(state: MoneyState): string {
  */
 export function roomNote(state: MoneyState): string | undefined {
   return expectsClientPayment(state)
-    ? "What client payments bring in over the next 30 days, after every bill and card statement, if clients pay as usual. It leaves out today’s balance and comes before anything goes into pots."
+    ? `What client payments bring in over the next ${WINDOW_DAYS} days, after every bill and card statement, if clients pay as usual. It leaves out today’s balance and comes before anything goes into pots.`
     : undefined;
 }
 
 /** Under the room line: how much is set aside and so left out of safe to spend. Undefined with no money in pots. */
 export function moneyInPotsLine(state: MoneyState): string | undefined {
   const total = moneyInPots(state);
-  return total > 0 ? `${minorMoney(Math.round(total * unit(state)), state.homeCurrency)} is set aside in pots and is not counted as safe to spend.` : undefined;
+  return total > 0 ? `${minorMoney(toMinor(total, state.homeCurrency), state.homeCurrency)} is set aside in pots and is not counted as safe to spend.` : undefined;
 }
 
 /** One quiet line for Home: "Tax ¥15,000 set aside" or "Car ¥200,000 of ¥1,200,000 · by Mar 2027". */
 export function potSummary(pot: Pot, state: MoneyState): string {
-  const money = (n: number) => minorMoney(Math.round(n * unit(state)), state.homeCurrency);
+  const money = (n: number) => minorMoney(toMinor(n, state.homeCurrency), state.homeCurrency);
   return pot.target === undefined
     ? `${pot.name} ${money(pot.saved)} set aside`
     : `${pot.name} ${money(pot.saved)} of ${money(pot.target)}${pot.targetDate ? ` · by ${monthYear(pot.targetDate)}` : ""}`;

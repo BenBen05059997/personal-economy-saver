@@ -1,6 +1,7 @@
 import { expandBills } from "@/lib/money/repeat";
-import { addDays, planWindow } from "@/lib/money/runway";
+import { planWindow } from "@/lib/money/runway";
 import type { Bill, Charge, MoneyState } from "@/lib/money/types";
+import { addDays } from "@/lib/money/dates";
 
 // Sample persona for the demo. Fictional people and companies only.
 // Numbers match the concept artifact (cards included: Card A's closed statement and Card B's open cycle

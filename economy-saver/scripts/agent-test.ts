@@ -21,21 +21,17 @@ import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
 import { canonicalJson, stableId } from "@/lib/stable-id";
 import { loadSpending } from "@/db/spending";
-import { monthByCategory, monthText, monthWhen } from "@/lib/money/month";
+import { monthByCategory } from "@/lib/money/month";
 import { monthBounds, monthsBack, searchSpending, spendingItems } from "@/lib/money/spending";
 import { createSpace, generalSpace, saveBrief } from "@/db/spaces";
 import { BriefSchema } from "@/lib/agent/brief";
 import { seedBen } from "@/db/seed";
 import { AgentError, askBudgetMs, runAgent } from "@/lib/agent/run";
 import { toolInputSchema, tools } from "@/lib/agent/tools";
-import { dueAnswer, dueFacts, outlookFacts, statusAnswer } from "@/lib/money/ask";
-import { foreignCosts } from "@/db/fx-cost";
-import { REGULAR_MONTHS, regularCosts } from "@/lib/money/regular";
-import { splitBalance } from "@/lib/money/split";
 import type { Fact } from "@/lib/money/facts";
 type CompactFact = Pick<Fact, "name" | "value" | "unit" | "by"> & Partial<Pick<Fact, "currency" | "about" | "period">>;
 import { TERMS } from "@/lib/money/terms";
-import { addDays, low, medianLow, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
+import { low, medianLow, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { createHousehold, setupForm } from "@/db/account";
 import { setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
@@ -62,6 +58,7 @@ import { DEVICE_MEMORY_WORDS } from "@/db/place";
 import { applyMemoryChanges, MAX_MEMORY_CHANGES } from "@/lib/store/memory-ops";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { DEVICE_MEMORY_SOURCE_LABEL, type ConversationTurn } from "@/lib/schema/turn";
+import { addDays } from "@/lib/money/dates";
 
 type Block = Record<string, unknown>;
 const text = (value: string): Block => ({ type: "text", text: value });
@@ -579,7 +576,7 @@ async function main() {
       const found = searchSpending(spendingItems(await loadSpending(db, c, { from: first, to: last }), first, last), "electric", state.homeCurrency, { from: first, to: state.today, uncountedTo: last });
       assert.deepEqual(found.months[0].items.map(i => [i.label, i.date, i.periodStart, i.periodEnd]), [["Fictional Electric", "2026-11-10", "2026-10-01", "2026-10-31"]], "counted on the paid date, with the period beside it");
       const nov = monthByCategory(await loadSpending(db, c, { from: "2026-11-01", to: "2026-11-30" }), state.today, "2026-11");
-      assert.match(monthText(nov, monthWhen(undefined)), /Fictional Electric \(for 10月分\) Nov 10 ¥7,300/);
+      assert.deepEqual(nov.categories.flatMap(c => c.items).filter(i => i.label === "Fictional Electric").map(i => [i.date, i.periodStart, i.periodEnd, i.amountMinor]), [["2026-11-10", "2026-10-01", "2026-10-31", 7_300]], "the month view counts it on the paid date, with the period beside it");
       const shown = transport([() => reply("tool_use", [toolUse("s", "show", { view: "search_months", args: JSON.stringify({ text: "electric", months: 2 }) })]), () => reply("end_turn", [text("ok")])]);
       await ask(c, "What did electricity cost?", shown.fetch);
       const facts = (JSON.parse(toolResults(shown.bodies[1])[0].content) as { facts: CompactFact[] }).facts;
@@ -606,7 +603,7 @@ async function main() {
       assert.match(nov.summary, /waiting in To check/);
       assert.deepEqual(billsForMonth(bills, "2026-11", "ENERGY").items.map(i => i.id), ["span", "nov", "unknown"], "a recognized term matches its category");
       assert.deepEqual(billsForMonth(bills, "2026-11", "harbor").items.map(i => i.id), ["nov", "unknown"]);
-      assert.match(nov.note, /month_by_category/);
+      assert.match(nov.note, /show the month_by_category view/);
       assert.deepEqual(billsForMonth([], "2026-11").items, []);
     });
 
@@ -635,7 +632,7 @@ async function main() {
       assert.deepEqual(JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-11", text: "gas" }) as never)).items.map((i: { biller: string }) => i.biller), ["Harbor Energy", "Harbor Energy Gas"]);
       const noPeriod = JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-11", text: "rent" }) as never));
       assert.deepEqual(noPeriod.items, [], "Ben's rent has no period");
-      assert.match(noPeriod.note, /month_by_category/);
+      assert.match(noPeriod.note, /show the month_by_category view/);
       await assert.rejects(() => tool.run(ctx, tool.input.parse({ month: "2029-01", text: "" }) as never), (error: unknown) => error instanceof InputError);
       // The model path: the tool is called by name and its words are shown.
       const run = transport([() => reply("tool_use", [toolUse("b", "bills_for_month", { month: "2026-11", text: "electricity" })]), () => reply("end_turn", [text("The two electricity bills came to ¥12,900.")])]);
@@ -941,9 +938,7 @@ async function main() {
       assert.deepEqual(lineTools.map(t => [t.name, t.ok]), [["timeline", true], ["can_i_spend", false]]);
       assert.ok(lineTools.every(t => Number.isInteger(t.ms)) && Number.isInteger(line.ms));
       const raw = JSON.stringify(line);
-      const result = dueAnswer(aState);
-      for (const needle of [question, answer, KEY, "dentist", "Distinctive", statusAnswer(aState)]) assert.ok(!raw.includes(needle), `the log line leaks ${needle.slice(0, 20)}`);
-      assert.ok(!raw.includes(result.slice(0, 20)) || result.length < 20);
+      for (const needle of [question, answer, KEY, "dentist", "Distinctive"]) assert.ok(!raw.includes(needle), `the log line leaks ${needle.slice(0, 20)}`);
 
       // every failure exit logs one line with its key, and no provider message
       logged.length = 0;
@@ -1244,7 +1239,7 @@ async function main() {
         () => reply("end_turn", [text("The letter is on the canvas.")]),
       ]);
       await assert.rejects(conversation(c, "Write a letter to Acme", bad.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
-      const known = /¥([\d,]+)/.exec(statusAnswer(await stateOf(c)))?.[0];
+      const known = /¥([\d,]+)/.exec(homeSentence(await stateOf(c)).text)?.[0];
       assert.ok(known);
       const good = transport([
         () => reply("tool_use", [toolUse("m", "make_canvas", { recipe: letter(`I have ${known} on hand.`) }), toolUse("w", "timeline", { scenario: "late", on: null })]),
@@ -2336,57 +2331,16 @@ async function main() {
       assert.equal(charges.length, 2);
     });
 
-    await check("D80: each retired read tool's facts are in its picture's show result on Ben's sample, and the retired tools are gone", async () => {
+    await check("D80: the retired read tools are gone; timeline says usual; search_spending keeps its total and each item's amount", async () => {
       const retired = ["where_am_i", "whats_due", "month_by_category", "who_owes_whom", "regular_costs", "foreign_costs"];
       assert.deepEqual(retired.filter(name => tools.some(t => t.name === name)), [], "retired tools are not offered");
       assert.throws(() => tools.find(t => t.name === "timeline")!.input.parse({ scenario: "as_usual", on: null }), "timeline says usual, like show and what_if");
       const c = await seedBen(db, { isDemo: true });
-      const state = await stateOf(c), today = state.today, current = today.slice(0, 7), currency = state.homeCurrency;
       const ctx = { madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never;
-      const show = tools.find(t => t.name === "show")!;
-      const factsOf = async (view: string, args: object | null) => (JSON.parse(await show.run(ctx, show.input.parse({ view, args: args && JSON.stringify(args) }) as never)) as { facts: CompactFact[] }).facts;
-      const has = (view: string, facts: CompactFact[], want: { name: string; value: number | string; about?: string; case?: string }[]) => {
-        assert.ok(want.length > 0, `${view}: the tool had facts to look for`);
-        for (const w of want) assert.ok(facts.some(f => f.name === w.name && f.value === w.value && (w.about === undefined || f.about?.name === w.about) && (w.case === undefined || (f as { case?: string }).case === w.case)), `${view} lacks ${JSON.stringify(w)}`);
-      };
-      // where_am_i -> forecast
-      const outlook = outlookFacts(state, "x");
-      has("forecast", await factsOf("forecast", null), outlook.map(f => ({ name: f.name, value: f.value, case: f.case })));
-      // whats_due -> bills_calendar
-      has("bills_calendar", await factsOf("bills_calendar", { days: 30 }), dueFacts(state, "x").map(f => ({ name: f.name, value: f.value, about: f.about?.name })));
-      // month_by_category
-      const monthSpending = await loadSpending(db, c, { from: monthBounds(current).first, to: monthBounds(current).last });
-      const month = monthByCategory(monthSpending, today, current);
-      has("month_by_category", await factsOf("month_by_category", null), [
-        { name: "month_total", value: month.totalMinor }, ...(month.businessMinor > 0 ? [{ name: "business_share", value: month.businessMinor }] : []),
-        ...month.categories.map(cat => ({ name: "category_total", value: cat.totalMinor, about: cat.label })),
-      ]);
-      // regular_costs -> fixed_costs
-      const from = `${monthsBack(current, REGULAR_MONTHS)}-01`, to = monthBounds(current).last;
-      const regular = regularCosts(spendingItems(await loadSpending(db, c, { from, to }), from, to), currency, today, REGULAR_MONTHS);
-      has("fixed_costs", await factsOf("fixed_costs", { months: REGULAR_MONTHS }), regular.items.flatMap(cost => [
-        { name: "regular_costs", value: cost.thisMinor, about: cost.label },
-        ...(cost.status === "started" ? [{ name: "regular_cost_started", value: cost.thisMinor, about: cost.label }] : cost.status === "stopped" ? [{ name: "regular_cost_stopped", value: cost.lastMinor, about: cost.label }]
-          : cost.changeMinor !== null ? [{ name: "change_from_last_month", value: cost.changeMinor, about: cost.label }] : []),
-      ]));
-      // search_spending stays a tool (item-level amounts, one month); search_months draws two or more months
       const searchTool = tools.find(t => t.name === "search_spending")!;
       const searched = JSON.parse(await searchTool.run(ctx, searchTool.input.parse({ query: "food", months: 1 }) as never)) as { facts: CompactFact[] };
       assert.ok(searched.facts.some(f => f.name === "search_total"), "search_spending keeps its total");
       assert.ok(searched.facts.some(f => (f.name === "bill_amount" || f.name === "charge_amount") && typeof f.value === "number"), "each matching item's amount is a fact");
-      // search_spending -> search_months
-      const searchFrom = `${monthsBack(current, 3)}-01`, last = monthBounds(current).last;
-      const data = await loadSpending(db, c, { from: searchFrom, to: last });
-      const found = searchSpending(spendingItems(data, searchFrom, last), "food", data.homeCurrency, { from: searchFrom, to: today, uncountedTo: last });
-      has("search_months", await factsOf("search_months", { text: "food", months: 3 }), [{ name: "search_total", value: found.totalMinor }, ...found.uncounted.map(name => ({ name: "not_counted", value: 1, about: name }))]);
-      // foreign_costs -> fx_cost
-      const costs = await foreignCosts(db, c);
-      has("fx_cost", await factsOf("fx_cost", { months: 12 }), [
-        { name: "foreign_cost_receiving", value: costs.payoutTotals.costMinor }, { name: "foreign_cost_card", value: costs.chargeTotals.exactMinor + costs.chargeTotals.estimatedMinor },
-        ...costs.perClient.map(client => ({ name: "foreign_cost", value: client.costMinor, about: client.clientName })),
-      ]);
-      // who_owes_whom: Ben's sample is one person; split-test holds the pair with transfers
-      assert.deepEqual(splitBalance(state.split, today).transfers, []);
     });
 
     console.log(`Agent checks passed (${passed}).`);

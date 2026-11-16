@@ -2,7 +2,7 @@
 // user types, the agent tools when they get no category. `sure` is false when no keyword matched; the form then pre-selects
 // nothing and the user chooses. International names are welcome; keep the lists short and readable.
 import type { CategoryKey } from "./categories";
-import { normalise } from "./spending";
+import { normalise } from "./name-key";
 
 // Whole words, case-insensitive, with an optional plural s. A word with a non-ASCII character (café, 家賃) matches inside the name;
 // one with punctuation (booking.com) matches as the same words in a row.

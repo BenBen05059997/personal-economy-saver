@@ -18,7 +18,7 @@ import { closeByRef, dismiss, notNow, openSuggestions, runPass } from "@/db/sugg
 import { applyVerifiedDelivery } from "@/lib/events";
 import { readRule, ruleWords } from "@/lib/money/rules";
 import { fundingOptions } from "@/lib/money/options";
-import { arrivals, daysBetween, expectedPayBasis, expectedPayOn } from "@/lib/money/runway";
+import { arrivals, expectedPayBasis } from "@/lib/money/runway";
 import { findSuggestions } from "@/lib/money/suggest";
 import { resolveBills } from "@/lib/money/repeat";
 import type { Fact } from "@/lib/money/facts";
@@ -27,6 +27,7 @@ import type { ViewResult } from "@/lib/views/types";
 import { FINDING_RULE, findingAction, findingsBySpace, type Finding } from "@/lib/money/suggestion-types";
 import { benMoney } from "@/lib/sample/ben";
 import type { Bill, MoneyState } from "@/lib/money/types";
+import { daysBetween } from "@/lib/money/dates";
 
 const day = (date: string) => new Date(date + "T00:00:00Z");
 const today = "2026-11-14";
@@ -147,7 +148,6 @@ async function main() {
       const bare = { ...due, dueOn: undefined };
       assert.equal(find(at(bare))[0].reason, client.name + "'s terms are 14 days; it is 11 days overdue, and it has been 25 days since the link was made.");
       assert.deepEqual(expectedPayBasis(at(bare), bare), { on: "2026-11-03", basis: "terms", days: 14 });
-      assert.equal(expectedPayOn(at(bare), bare), "2026-11-03");
     });
 
     await check("Copy link again picks the earliest-expected sent invoice that has a link, and none when none has one", () => {

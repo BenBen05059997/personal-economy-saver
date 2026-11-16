@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { daysBetween, statementItems } from "@/lib/money/runway";
+import { statementItems } from "@/lib/money/runway";
 import { formatter, minorMoney } from "@/lib/money/format";
 import { parseHomeMode } from "@/lib/money/look-by";
 import { hasNothingToForecast } from "@/lib/money/sentence";
@@ -15,6 +15,7 @@ import { CASES, labelOf, termOf, type TermName } from "@/lib/money/terms";
 import type { ViewResult } from "@/lib/views/types";
 import { DISPLAY_OPTIONS, PanelHeader, Segmented, useDevicePreference } from "./hv-parts";
 import "./home-views.css";
+import { daysBetween } from "@/lib/money/dates";
 
 type Mode = "chart" | "table";
 

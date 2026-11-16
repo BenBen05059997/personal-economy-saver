@@ -61,10 +61,3 @@
 .spending-file-form { display: block; flex: 0 0 100%; max-width: 24rem; margin-top: var(--space-2); font-size: 14px; color: var(--ink); }
 .spending-file-every { display: flex; align-items: center; gap: var(--space-2); margin-block: var(--space-2); font: 400 14px var(--sans); }
 .spending-file-buttons { display: flex; gap: var(--space-2); }
-/* Spending's charts and controls; the panel, tables, legend and tip they sit in are home-views.css. */
-.hv-controls>.hv-look{border:0;background:transparent;padding:0;border-radius:0}
-.hv-look>div{display:flex;gap:2px;border:1px solid var(--rule);background:var(--wash);border-radius:10px;padding:3px}
-.hv-empty{margin:0;font-size:14px;color:var(--muted);padding:18px 0}
-.hv-empty a{color:var(--ink);font-weight:600}
-.hv-look{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.hv-look>span{font-size:12.5px;color:var(--muted)}

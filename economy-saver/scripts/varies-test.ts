@@ -21,15 +21,16 @@ import { seedBen } from "@/db/seed";
 import { loadSpending } from "@/db/spending";
 import { tools, type ToolContext } from "@/lib/agent/tools";
 import { sharedBillsComing } from "@/lib/money/family";
-import { monthByCategory, monthText } from "@/lib/money/month";
+import { monthByCategory } from "@/lib/money/month";
 import { regularCosts } from "@/lib/money/regular";
 import { cancelNotices, expandBills, variesEstimate } from "@/lib/money/repeat";
-import { addDays, low, planWindow, series } from "@/lib/money/runway";
+import { low, planWindow, series } from "@/lib/money/runway";
 import { splitBalance } from "@/lib/money/split";
 import { spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { linkPreview, seriesToJoin } from "@/lib/money/varies";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import type { Bill, MoneyState, RealBill, SplitState } from "@/lib/money/types";
+import { addDays } from "@/lib/money/dates";
 
 const TODAY = "2026-11-14";
 const bill = (over: Partial<Bill> & Pick<Bill, "id" | "biller" | "amount" | "due">): Bill => ({ category: "utilities", businessBp: 0, status: "confirmed", ...over });
@@ -303,7 +304,7 @@ async function main() {
     const view = monthByCategory(spending, TODAY);
     assert.deepEqual(view.categories.flatMap(c => c.items).filter(i => i.label === "Fictional Water").map(i => i.estimated), [true]);
     assert.ok(view.categories.flatMap(c => c.items).filter(i => i.label !== "Fictional Water").every(i => i.estimated === undefined));
-    assert.match(monthText(view), /Fictional Water Nov 20 about ¥6,000/);
+    assert.deepEqual(view.categories.flatMap(c => c.items).filter(i => i.label === "Fictional Water").map(i => [i.date, i.amountMinor]), [["2026-11-20", 6_000]]);
     const regular = regularCosts(spendingItems(spending, "2026-09-01", "2026-11-30"), "JPY", TODAY, 3).items.find(c => c.label === "Fictional Water")!;
     assert.deepEqual([regular.months.at(-1)!.estimated, regular.estimated], [true, true]);
     const ctx: ToolContext = { madeBy: "ask", db: store, householdId: own, state: () => loadMoneyState(store, own, TODAY), appUrl: new URL("http://127.0.0.1:3123") };

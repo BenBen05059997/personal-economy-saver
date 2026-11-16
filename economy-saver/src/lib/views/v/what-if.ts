@@ -4,11 +4,12 @@
 import { engineFact, fact, personFact, type Fact } from "@/lib/money/facts";
 import { WhatIfError, whatIf } from "@/lib/money/whatif";
 import { formatter, minorMoney, minorPerUnit } from "@/lib/money/format";
-import { addDays, arrivals, daysBetween, low, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { arrivals, low, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { hasNothingToForecast } from "@/lib/money/sentence";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type TableTwin, type ViewResult } from "../types";
 import { longDay, stepLine } from "./forecast";
+import { addDays, daysBetween } from "@/lib/money/dates";
 
 export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
   const { state } = ctx, currency = state.homeCurrency, per = minorPerUnit(currency), format = formatter(currency), money = (minor: number) => minorMoney(minor, currency), toMinor = (v: number) => Math.round(v * per);

@@ -1,8 +1,9 @@
 // What the read-only family page lists (D52). Pure.
 
 import { minorPerUnit } from "./format";
-import { addDays, WINDOW_DAYS } from "./runway";
+import { WINDOW_DAYS } from "./runway";
 import type { MoneyState } from "./types";
+import { addDays } from "./dates";
 
 /**
  * The shared bills that fall due from today to 30 days on, by date (information only). Shared means what the month view

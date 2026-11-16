@@ -1,7 +1,7 @@
 import { shareLabel } from "./categories";
 import { ownLabel } from "./own-category";
 import { DATE_NOT_KNOWN, gapAmountWords, gapDateWords, gapQuestion, openGaps } from "./gaps";
-import { dayLabel, minorMoney, minorPerUnit, repeatWords } from "./format";
+import { dayLabel, minorMoney, repeatWords, toMinor } from "./format";
 import { monthYear } from "./plan";
 import { lastOneWords } from "./repeat";
 import { pendingCharges } from "./runway";
@@ -13,7 +13,7 @@ export function draftedLabel(madeBy: MadeBy | undefined): string | null {
 }
 
 export function toCheck(state: MoneyState) {
-  const minor = (amount: number) => Math.round(amount * minorPerUnit(state.homeCurrency));
+  const minor = (amount: number) => toMinor(amount, state.homeCurrency);
   const gaps = new Map(openGaps(state).filter(gap => gap.source === "bill").map(gap => [gap.id, gap]));
   const payer = (id: string) => state.split.members.find(member => member.id === id)?.name; // D45: kept through To check
   return [

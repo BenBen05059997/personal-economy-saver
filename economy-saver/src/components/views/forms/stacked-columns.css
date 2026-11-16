@@ -10,7 +10,7 @@
 .sc-seg-quiet{fill:var(--hv-usual)}
 .sc-seg-ghost{fill:none;stroke:var(--hv-usual);stroke-dasharray:3 2}
 .sc-seg-short{fill:var(--hv-short)}
-.sc-seg-in{fill:light-dark(#1d7a4c,#5fbf8a)}
+.sc-seg-in{fill:var(--green)}
 .sc-ref{stroke:var(--hv-usual);stroke-width:1;stroke-dasharray:4 3;shape-rendering:crispEdges}
 .sc-ref-label{font-size:11.5px;fill:var(--muted)}
 .hv-legend .sc-key{display:inline-block;width:12px;height:12px;border:0;border-radius:2px}
@@ -19,4 +19,4 @@
 .hv-legend .sc-key.sc-seg-quiet{background:var(--hv-usual)}
 .hv-legend .sc-key.sc-seg-ghost{background:none;border:1px dashed var(--hv-usual)}
 .hv-legend .sc-key.sc-seg-short{background:var(--hv-short)}
-.hv-legend .sc-key.sc-seg-in{background:light-dark(#1d7a4c,#5fbf8a)}
+.hv-legend .sc-key.sc-seg-in{background:var(--green)}

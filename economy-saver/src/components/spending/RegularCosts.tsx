@@ -1,5 +1,5 @@
-import { aboutMoney, minorMoney, ordinal } from "@/lib/money/format";
-import { changeTone, REGULAR_MONTHS, regularCosts, type RegularCost, type RegularCosts as Regulars } from "@/lib/money/regular";
+import { aboutMoney, minorMoney } from "@/lib/money/format";
+import { changeTone, changeWords, REGULAR_MONTHS, regularCosts } from "@/lib/money/regular";
 import { monthBounds, monthName, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
 import { ViewPanel } from "@/components/views/ViewPanel";
@@ -7,20 +7,6 @@ import { fixedCostsFor } from "@/lib/views/v/fixed-costs";
 import type { ViewResult } from "@/lib/views/types";
 import "./spending.css";
 
-
-/** The change against last month in words, and the tone it is drawn in. The words carry it; the colour only repeats them. */
-function change(cost: RegularCost, currency: Regulars["currency"]): { words: string; tone: "up" | "down" | "same" | "plain" } {
-  const money = (minor: number) => cost.estimated ? aboutMoney(minor, currency) : minorMoney(minor, currency);
-  const tone = cost.status === "same" || cost.status === "not_yet" ? "same" : changeTone(cost.status); // the muted tint is only for a cost that did not move
-  switch (cost.status) {
-    case "up": return { words: `up ${money(cost.changeMinor!)}`, tone };
-    case "down": return { words: `down ${money(-cost.changeMinor!)}`, tone };
-    case "same": return { words: "same", tone };
-    case "started": return { words: "started this month", tone };
-    case "stopped": return { words: "stopped", tone };
-    case "not_yet": return { words: `usually on the ${ordinal(cost.usualDay!)}`, tone };
-  }
-}
 
 /**
  * Spending's Regular costs panel (D54): the what-changed line, then each regular cost with this month (marked "so far" while card
@@ -41,7 +27,8 @@ export function RegularCosts({ spending, today, device }: { spending: SpendingIn
       <p className="spending-line">{result.changedLine}</p>
       <ul>
         {result.items.map(cost => {
-          const { words, tone } = change(cost, result.currency);
+          const words = changeWords(cost, result.currency);
+          const tone = cost.status === "same" || cost.status === "not_yet" ? "same" : changeTone(cost.status); // the muted tint is only for a cost that did not move
           const months = cost.months.map(m => `${monthName(m.month).slice(0, 3)} ${m.month === current && cost.status === "not_yet" ? "not in yet" : money(m.amountMinor, m.estimated)}`);
           return <li key={cost.key} className="spending-regular-row">
             <span className="spending-regular-name">{cost.label}<small>{cost.where}</small></span>

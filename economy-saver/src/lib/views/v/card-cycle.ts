@@ -4,9 +4,9 @@
 import { engineFact, personFact, type Fact } from "@/lib/money/facts";
 import { cardCycle } from "@/lib/money/card-cycle";
 import { dayLabel, minorMoney } from "@/lib/money/format";
-import { daysBetween } from "@/lib/money/runway";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type FormData, type Resolver, type TableTwin, type ViewResult } from "../types";
+import { daysBetween } from "@/lib/money/dates";
 
 type Event = FormData["tracks"]["tracks"][number]["events"][number];
 

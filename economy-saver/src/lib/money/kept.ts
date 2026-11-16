@@ -2,7 +2,7 @@
 import type { TrendMonth } from "./look-by";
 import type { IncomeRow } from "./types";
 
-export type KeptMonth = { month: string; name: string; current: boolean; incomeMinor: number; spentMinor: number; keptMinor: number; unrated: number };
+type KeptMonth = { month: string; name: string; current: boolean; incomeMinor: number; spentMinor: number; keptMinor: number; unrated: number };
 
 /**
  * One entry per month of `trend` from the first one that has both a payment received and spending, oldest first. The current month counts what was spent so far.

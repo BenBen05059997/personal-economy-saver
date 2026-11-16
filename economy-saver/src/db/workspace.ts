@@ -10,10 +10,10 @@ import { paypalConnectionView } from "./paypal-connection";
 import { ownChoices } from "./own-categories";
 import { CHARGE_LOOKBACK_DAYS, householdClockRow, householdOwnerName, loadMoneyState, requireHousehold, type Db } from "./household";
 
-import { addDays } from "@/lib/money/runway";
 import { confirmedGaps } from "@/lib/money/gaps";
 import { serverHasNoModel } from "@/lib/agent/availability";
 import { toCheck } from "@/lib/money/to-check";
+import { addDays } from "@/lib/money/dates";
 
 export type Viewer = { uid: string } | null;
 

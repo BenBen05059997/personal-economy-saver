@@ -8,8 +8,10 @@ import type { Currency } from "@/lib/catalogue/types";
 import type { CategoryKey } from "./categories";
 import { dayLabel, minorMoney, minorPerUnit, plural } from "./format";
 import { sameName } from "./name-key";
-import { daysBetween, low, series, WINDOW_DAYS } from "./runway";
+import { low, series, WINDOW_DAYS } from "./runway";
 import type { Bill, GapBasis, MoneyState, RealBill, RepeatUnit } from "./types";
+import { storedId } from "./repeat";
+import { daysBetween } from "./dates";
 
 /** The two phrases every face uses for a missing value. */
 export const NOT_KNOWN = "not known";
@@ -89,7 +91,6 @@ export type Gap = {
 /** A reading waiting in To check, as far as gaps look at it: its proposed fields. */
 type GapReading = { id: string; value: { kind: "bill" | "charge"; name: string | null; date: string | null; amountMinor: number | null; currency: Currency | null; category: CategoryKey | null } };
 
-const storedId = (id: string) => id.split("@")[0];
 const inWindow = (state: MoneyState, date: string) => { const i = daysBetween(state.today, date); return i >= 0 && i < WINDOW_DAYS; };
 
 /** The confirmed bills in the window the sentence has to say something about, one per stored bill, soonest first. */

@@ -4,13 +4,14 @@ import { verifiedUid } from "@/lib/auth-request";
 import { PROVIDERS } from "@/lib/ai/providers";
 import { benMoney } from "@/lib/sample/ben";
 import { dayLabel, formatter, usd } from "@/lib/money/format";
-import { addDays, daysBetween, low, safeToSpend, series, statementItems } from "@/lib/money/runway";
+import { low, safeToSpend, series, statementItems } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { whatIf } from "@/lib/money/whatif";
 import { LogoMark } from "@/components/shell/Logo";
 import { TryItForm } from "./TryItForm";
 import { LandingSignIn } from "./LandingSignIn";
 import styles from "@/app/page.module.css";
+import { addDays, daysBetween } from "@/lib/money/dates";
 
 function Forecast() {
   const late = series(benMoney, "worst"), usual = series(benMoney, "expected");

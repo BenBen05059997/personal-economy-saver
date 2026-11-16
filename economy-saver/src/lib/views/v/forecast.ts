@@ -3,10 +3,12 @@ import type { Currency } from "@/lib/catalogue/types";
 import { engineFact, fact, type Fact, type FactAbout } from "@/lib/money/facts";
 import { forecastCosts } from "@/lib/money/forecast-causes";
 import { dayLabel, formatter, minorMoney, minorPerUnit, ordinal } from "@/lib/money/format";
-import { addDays, daysBetween, firstShort, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
+import { firstShort, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { hasNothingToForecast } from "@/lib/money/sentence";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type FormData, type Resolver, type TableTwin, type ViewResult } from "../types";
+import { storedId } from "@/lib/money/repeat";
+import { addDays, daysBetween } from "@/lib/money/dates";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 /** "2026-11-27" -> "Fri, Nov 27" (server side; the browser copy lives in chart-utils, which imports hooks). */
@@ -71,7 +73,7 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
   if (which !== "late") lines.push({ key: "quiet", label: USUAL, tone: "quiet", points: usual.map(minor) });
   // A bill named by `mark` is drawn on the day it falls due; a bill not due in these days is refused in words.
   const markLine = which === "usual" ? usualEvents : lateEvents;
-  const marked = args.mark === undefined ? undefined : markLine.find(event => event.kind === "bill" && event.id.split("@")[0] === args.mark);
+  const marked = args.mark === undefined ? undefined : markLine.find(event => event.kind === "bill" && storedId(event.id) === args.mark);
   if (args.mark !== undefined && !marked) throw new ViewError(`That bill is not due in the next ${days} days, so there is no day to mark.`);
   const marks = marked ? [{ index: daysBetween(state.today, marked.date), label: `${marked.label} ${marked.uncounted ? "amount not known" : format(Math.abs(marked.amount))} · ${dayLabel(marked.date)}` }] : [];
   const data = stepLine({
@@ -97,7 +99,7 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
   if (days === WINDOW_DAYS && showUsual) facts.push(engineFact("safe_to_spend_as_usual", minor(safeToSpend(state, { case: "as_usual" }).amount), money));
   const clientAbout = (name: string): FactAbout => { const found = state.clients.filter(c => c.name.split(" ")[0] === name); return { type: "client", id: found.length === 1 ? found[0].id : name, name }; };
   if (showLate) for (const name of sts.lateClients) facts.push(engineFact("late_client", name, { from, about: clientAbout(name) }));
-  const costAbout = (event: ReturnType<typeof timeline>[number]): FactAbout => event.kind === "statement" && event.cardId ? { type: "card", id: event.cardId, name: event.label.replace(/ statement$/, "") } : { type: "bill", id: event.id.split("@")[0], name: event.label };
+  const costAbout = (event: ReturnType<typeof timeline>[number]): FactAbout => event.kind === "statement" && event.cardId ? { type: "card", id: event.cardId, name: event.label.replace(/ statement$/, "") } : { type: "bill", id: storedId(event.id), name: event.label };
   const addCase = (c: "late" | "as_usual", point: ReturnType<typeof low>, events: typeof lateEvents, balances: number[]) => {
     facts.push(engineFact("low_point", minor(point.amount), { ...money, case: c }), engineFact("low_point_day", point.date, { from, case: c }));
     if (point.amount < 0) facts.push(engineFact("short", minor(-point.amount), { ...money, case: c }));

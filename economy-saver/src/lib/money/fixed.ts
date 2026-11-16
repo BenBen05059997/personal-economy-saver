@@ -1,11 +1,12 @@
 // Regular costs by month (D54, D77). Pure: each month's spending split into the regular costs (the names `regularCosts` finds) and everything else,
 // so the two add up to the month's total in Over time. Moves no money. Integer minor units.
 import { regularCosts } from "./regular";
-import { monthBounds, monthsBack, spendingItems, nameKey, type SpendingInput } from "./spending";
+import { monthBounds, monthsBack, spendingItems, type SpendingInput } from "./spending";
 import { monthTrend } from "./look-by";
+import { nameKey } from "./name-key";
 
-export type FixedMonth = { month: string; name: string; current: boolean; regularMinor: number; regularShare: number; /* whole percent of the month's total that is regular */ otherMinor: number; totalMinor: number; biggest: { label: string; amountMinor: number } | null };
-export type FixedByMonth = { months: FixedMonth[]; regularCount: number };
+type FixedMonth = { month: string; name: string; current: boolean; regularMinor: number; regularShare: number; /* whole percent of the month's total that is regular */ otherMinor: number; totalMinor: number; biggest: { label: string; amountMinor: number } | null };
+type FixedByMonth = { months: FixedMonth[]; regularCount: number };
 
 /**
  * The last `months` months (six unless asked; 2 to 12), oldest first, the same months Over time draws (an empty past month is left out).
