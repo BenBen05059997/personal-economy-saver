@@ -10,7 +10,7 @@ import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { memberCount } from "./people";
 import { ownChoiceFields, resolveOwnCategory } from "./own-categories";
 import { BusinessBp, CategoryKeySchema } from "@/lib/money/categories";
-import { cards, charges, households, members } from "./schema";
+import { cards, charges, members } from "./schema";
 import { syncClosedStatementCharge, unsyncClosedStatementCharge } from "./statement-charge";
 import { Currency } from "@/lib/catalogue/types";
 import { minorMoney, minorPerUnit } from "@/lib/money/format";
@@ -48,9 +48,7 @@ export async function insertCharge(
   const hid = requireHousehold(householdId);
   const data = chargeInput.parse(input);
   const refresh = await withHousehold(db, hid, async tx => {
-    const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-      .from(households).where(eq(households.id, hid)).for("update");
-    if (!household) throw new InputError("Household not found");
+    const household = await lockHousehold(tx, hid);
     const [card] = await tx.select({ currency: cards.currency, memberId: cards.memberId, label: cards.label }).from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, data.cardId)));
     if (!card) throw new InputError("Choose a card of this household");
     if (card.currency !== household.currency) throw new InputError("Card billing currency does not match this amount");

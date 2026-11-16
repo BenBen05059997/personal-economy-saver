@@ -1,6 +1,6 @@
 // The household-scoped data layer validates the id and filters by it. The tenant role also enforces the scope in Postgres.
 
-import { and, count, desc, eq, getTableColumns, gt, gte, inArray, isNull, isNotNull, lte, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, gt, gte, inArray, isNull, isNotNull, lte, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT, PgTransactionConfig } from "drizzle-orm/pg-core";
 import { Currency } from "@/lib/catalogue/types";
 import { CategoryKeySchema as CategoryKey } from "@/lib/money/categories";
@@ -14,7 +14,7 @@ import { InputError } from "./input-error";
 import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
 import { clockForHousehold, householdMoment, type ClockHousehold } from "./clock";
-import { addDays } from "@/lib/money/dates";
+import { addDays, daysBetween } from "@/lib/money/dates";
 
 // Both the postgres.js client and PGlite (tests) fit this.
 export type Db = PgDatabase<PgQueryResultHKT, typeof s>;
@@ -24,6 +24,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function requireHousehold(householdId: string | null | undefined): string {
   if (!householdId || !UUID.test(householdId)) throw new Error("A household id is required");
   return householdId;
+}
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A loader's date range: two YYYY-MM-DD dates, `from` on or before `to`. `label` begins the refusal ("A spending", "An income"). */
+export function requireDateRange(range: { from: string; to: string }, label: string): { from: string; to: string } {
+  if (!DATE.test(range.from) || !DATE.test(range.to) || range.from > range.to) throw new Error(`${label} range is two YYYY-MM-DD dates, from on or before to`);
+  return range;
 }
 
 const householdTransactions = new WeakMap<Db, string>();
@@ -55,17 +63,30 @@ export async function householdClockRow(db: Db, householdId: string): Promise<Cl
   return household;
 }
 
-/** Locks the household row for the rest of the transaction (so two writers of one household take turns) and returns its id and the last runway reading. Throws InputError when the household is gone. */
+/** Locks the household row for the rest of the transaction (so two writers of one household take turns) and returns what its writers read: the last runway reading, the home currency and bank balance, the split's start day, the clock and the places of memory, canvases and journal. Throws InputError when the household is gone. */
 export async function lockHousehold(tx: Db, householdId: string) {
-  const [household] = await tx.select({ id: s.households.id, previous: s.households.runwayShort }).from(s.households)
+  const [household] = await tx.select({
+    id: s.households.id, previous: s.households.runwayShort, currency: s.households.homeCurrency, bank: s.households.bankBalanceMinor, splitSince: s.households.splitSince,
+    isDemo: s.households.isDemo, fixedToday: s.households.fixedToday, timeZone: s.households.timeZone,
+    memoryPlace: s.households.memoryPlace, canvasPlace: s.households.canvasPlace, journalPlace: s.households.journalPlace,
+  }).from(s.households)
     .where(eq(s.households.id, requireHousehold(householdId))).for("update");
   if (!household) throw new InputError("Household not found");
   return household;
 }
 
-export async function householdOwnerName(db: Db, householdId: string): Promise<string> {
-  const [owner] = await db.select({ name: s.members.displayName }).from(s.members)
+/** The order every list of a household's people uses: the owner first, then by when they joined. */
+export const ownerFirst = [sql`(${s.members.role} = 'owner') desc`, s.members.createdAt, s.members.id] as const;
+
+/** The household's owner member, or undefined when it has none. The caller words what to do about that. */
+export async function householdOwner(db: Db, householdId: string): Promise<{ id: string; name: string } | undefined> {
+  const [owner] = await db.select({ id: s.members.id, name: s.members.displayName }).from(s.members)
     .where(and(eq(s.members.householdId, requireHousehold(householdId)), eq(s.members.role, "owner")));
+  return owner;
+}
+
+export async function householdOwnerName(db: Db, householdId: string): Promise<string> {
+  const owner = await householdOwner(db, householdId);
   if (!owner) throw new Error("Household owner not found");
   return owner.name;
 }
@@ -76,23 +97,52 @@ export const CHARGE_LOOKBACK_DAYS = 100;
 // Invoices paid this recently stay in the state (for the Activity view); older paid ones only feed days to pay.
 const PAID_KEEP_DAYS = 7;
 
+/** The household's latest USD rate into `quote` on or before `date`, scaled by 1e6, and the day it is from; undefined when it has none. The caller words what to do about that. */
+export async function latestUsdRate(db: Db, householdId: string, quote: string, date: string): Promise<{ rateMicro: number; date: string } | undefined> {
+  const [rate] = await db.select({ rateMicro: s.fxRates.rateMicro, date: s.fxRates.date }).from(s.fxRates)
+    .where(and(eq(s.fxRates.householdId, requireHousehold(householdId)), eq(s.fxRates.base, "USD"), eq(s.fxRates.quote, quote), lte(s.fxRates.date, date)))
+    .orderBy(desc(s.fxRates.date)).limit(1);
+  return rate;
+}
+
 /** The household's latest USD rate on or before `today`, scaled by 1e6, and the day it is from (exactly 1e6 and no day when the home currency is USD). */
 export async function usdRate(db: Db, householdId: string, home: string, today: string): Promise<{ rateMicro: number; date: string | null }> {
   const hid = requireHousehold(householdId);
   if (home === "USD") return { rateMicro: toRateMicro(1), date: null };
-  const [rate] = await db
-    .select()
-    .from(s.fxRates)
-    .where(and(eq(s.fxRates.householdId, hid), eq(s.fxRates.base, "USD"), eq(s.fxRates.quote, home), lte(s.fxRates.date, today)))
-    .orderBy(desc(s.fxRates.date))
-    .limit(1);
+  const rate = await latestUsdRate(db, hid, home, today);
   if (!rate) throw new Error(`No USD/${home} rate on or before ${today}`);
-  return { rateMicro: rate.rateMicro, date: rate.date };
+  return rate;
 }
 
 /** The household's latest USD rate on or before `today`, scaled by 1e6 (exactly 1e6 when the home currency is USD). */
 export async function usdRateMicro(db: Db, householdId: string, home: string, today: string): Promise<number> {
   return (await usdRate(db, householdId, home, today)).rateMicro;
+}
+
+/** One stored bill row as the engine reads it: amounts converted to the home currency by `inHome`; the own category's name comes from the join the loader made, when it made one. */
+export function storedBillOf(b: typeof s.bills.$inferSelect & { ownName?: string | null }, inHome: (minor: number, currency: string) => number): StoredBill {
+  return {
+    id: b.id,
+    biller: b.biller,
+    amount: b.amountMinor === null ? null : inHome(b.amountMinor, b.currency),
+    due: b.due,
+    category: CategoryKey.parse(b.category),
+    businessBp: b.businessBp,
+    ...(b.ownCategoryId !== null && b.ownName != null && { own: { id: b.ownCategoryId, name: b.ownName } }),
+    status: b.status,
+    ...(b.previousAmountMinor !== null && { previousAmount: inHome(b.previousAmountMinor, b.currency) }),
+    ...(b.repeatUnit !== null && { repeatUnit: RepeatUnitSchema.parse(b.repeatUnit) }),
+    ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
+    ...(b.nextAmountMinor !== null && b.nextAmountFrom !== null && { nextAmount: inHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }),
+    ...(b.cancelBy !== null && { cancelBy: b.cancelBy }),
+    ...(b.repeatUntil !== null && { repeatUntil: b.repeatUntil }),
+    ...(b.amountVaries && { amountVaries: true as const }),
+    ...(b.seriesBillId !== null && { seriesBillId: b.seriesBillId }),
+    ...(b.periodStart !== null && b.periodEnd !== null && { periodStart: b.periodStart, periodEnd: b.periodEnd }),
+    ...(b.memberId !== null && { ownerId: b.memberId }),
+    ...(b.paidByMemberId !== null && { paidBy: b.paidByMemberId }),
+    ...(b.madeBy !== "form" && { madeBy: b.madeBy }),
+  };
 }
 
 /** The household's PayPal connection balances added up in the home currency (the engine's `paypal`, in minor units). */
@@ -112,7 +162,7 @@ export async function loadSplitState(
   const hid = requireHousehold(householdId);
   const [memberRows, [latest]] = await Promise.all([
     db.select({ id: s.members.id, name: s.members.displayName, shareBp: s.members.shareBp }).from(s.members)
-      .where(eq(s.members.householdId, hid)).orderBy(sql`(${s.members.role} = 'owner') desc`, s.members.createdAt, s.members.id),
+      .where(eq(s.members.householdId, hid)).orderBy(...ownerFirst),
     db.select({ through: s.settlements.through, settledAt: s.settlements.settledAt }).from(s.settlements).where(eq(s.settlements.householdId, hid))
       .orderBy(desc(s.settlements.through), desc(s.settlements.settledAt)).limit(1),
   ]);
@@ -143,6 +193,15 @@ export async function loadSplitState(
     return { id: c.id, merchant: c.merchant, amountMinor: toHome(c.amountMinor, c.currency), date: c.date, paidBy: payer, createdAt: c.createdAt.toISOString() };
   });
   return split;
+}
+
+/** The split's inputs as of the household's own today, in its home currency; `household` is what `lockHousehold` returned, so the caller holds the lock. */
+export async function splitNow(tx: Db, hid: string, household: Awaited<ReturnType<typeof lockHousehold>>): Promise<{ home: Currency; today: string; fxPerUsd: number; split: SplitState }> {
+  const { today } = clockForHousehold(household);
+  const home = Currency.parse(household.currency);
+  const fxPerUsd = fromRateMicro(await usdRateMicro(tx, hid, home, today));
+  const split = await loadSplitState(tx, hid, household.splitSince, today, (minor, currency) => convertMinor(minor, currency, home, fxPerUsd));
+  return { home, today, fxPerUsd, split };
 }
 
 /** Reads the household's rows and returns the MoneyState the engine consumes. `today` is the household's own date. */
@@ -187,28 +246,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
 
   const paypalMinor = paypalTotalMinor(connections, home, fxPerUsd);
 
-  const storedBills: StoredBill[] = billRows.map((b) => ({
-    id: b.id,
-    biller: b.biller,
-    amount: b.amountMinor === null ? null : inHome(b.amountMinor, b.currency),
-    due: b.due,
-    category: CategoryKey.parse(b.category),
-    businessBp: b.businessBp,
-    ...(b.ownCategoryId !== null && b.ownName !== null && { own: { id: b.ownCategoryId, name: b.ownName } }),
-    status: b.status,
-    ...(b.previousAmountMinor !== null && { previousAmount: inHome(b.previousAmountMinor, b.currency) }),
-    ...(b.repeatUnit !== null && { repeatUnit: RepeatUnitSchema.parse(b.repeatUnit) }),
-    ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
-    ...(b.nextAmountMinor !== null && b.nextAmountFrom !== null && { nextAmount: inHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }),
-    ...(b.cancelBy !== null && { cancelBy: b.cancelBy }),
-    ...(b.repeatUntil !== null && { repeatUntil: b.repeatUntil }),
-    ...(b.amountVaries && { amountVaries: true as const }),
-    ...(b.seriesBillId !== null && { seriesBillId: b.seriesBillId }),
-    ...(b.periodStart !== null && b.periodEnd !== null && { periodStart: b.periodStart, periodEnd: b.periodEnd }),
-    ...(b.memberId !== null && { ownerId: b.memberId }),
-    ...(b.paidByMemberId !== null && { paidBy: b.paidByMemberId }),
-    ...(b.madeBy !== "form" && { madeBy: b.madeBy }),
-  }));
+  const storedBills = billRows.map(b => storedBillOf(b, inHome));
 
   const cards: Card[] = cardRows.map((c) => ({
     id: c.id,
@@ -252,7 +290,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
   const daysToPay = new Map<string, number[]>();
   for (const i of invoiceRows) {
     if (i.status !== "paid" || !i.sentOn || !i.paidOn) continue;
-    const days = Math.max(0, Math.round((Date.parse(i.paidOn) - Date.parse(i.sentOn)) / 86_400_000));
+    const days = Math.max(0, daysBetween(i.sentOn, i.paidOn));
     daysToPay.set(i.clientId!, [...(daysToPay.get(i.clientId!) ?? []), days]);
   }
   const clients: Client[] = clientRows.map((c) => ({
@@ -347,8 +385,7 @@ export async function recordEvent(db: Db, householdId: string, e: NewEvent): Pro
   }
   // D34: a demo household's events carry its clock, so Activity dates and sorts with the scenario. An explicit
   // occurredAt (a provider's timestamp, D37) is kept as given; a real household keeps the database's now().
-  const [household] = await db.select({ isDemo: s.households.isDemo, fixedToday: s.households.fixedToday, timeZone: s.households.timeZone })
-    .from(s.households).where(eq(s.households.id, hid));
+  const household = await householdClockRow(db, hid);
   if (!household) throw new Error("Household no longer exists");
   const occurredAt = e.occurredAt ?? (household.fixedToday ? householdMoment(household) : undefined);
   const [row] = await db
@@ -382,15 +419,6 @@ export async function listEvents(db: Db, householdId: string, since?: Date, limi
       before ? sql`(${s.events.occurredAt} < ${anchor} or (${s.events.occurredAt} = ${anchor} and ${s.events.id} < ${before}))` : undefined))
     .orderBy(desc(s.events.occurredAt), desc(s.events.id))
     .limit(limit);
-}
-
-export async function unreadCount(db: Db, householdId: string): Promise<number> {
-  const hid = requireHousehold(householdId);
-  const [row] = await db
-    .select({ n: count() })
-    .from(s.events)
-    .where(and(eq(s.events.householdId, hid), eq(s.events.notify, true), isNull(s.events.readAt)));
-  return row.n;
 }
 
 /** Marks the given events read, or every unread notification when no ids are given. Returns how many changed. */
@@ -434,14 +462,22 @@ export async function recordWebhookDelivery(
 
 // ---------------------------------------------------------------- delete my household
 
-/** Everything cascades from the households row. */
-export async function deleteHousehold(db: Db, householdId: string): Promise<void> {
+/**
+ * The one deletion of a household: lock the row (with is_demo re-checked when `isDemo` is given), delete its AI key and Storage documents, then the row;
+ * the schema's cascades remove everything else. Call it inside a transaction. Returns false when there is no such household.
+ */
+export async function removeHousehold(tx: Db, householdId: string, isDemo?: boolean): Promise<boolean> {
   const hid = requireHousehold(householdId);
-  await db.transaction(async tx => {
-    const [household] = await tx.select({ id: s.households.id }).from(s.households).where(eq(s.households.id, hid)).for("update");
-    if (!household) return;
-    await deleteHouseholdKey(tx, hid);
-    await removeHouseholdDocuments(tx, hid);
-    await tx.delete(s.households).where(eq(s.households.id, hid));
-  });
+  const where = isDemo === undefined ? eq(s.households.id, hid) : and(eq(s.households.id, hid), eq(s.households.isDemo, isDemo));
+  const [existing] = await tx.select({ id: s.households.id }).from(s.households).where(where).for("update");
+  if (!existing) return false;
+  await deleteHouseholdKey(tx, hid);
+  await removeHouseholdDocuments(tx, hid);
+  const deleted = await tx.delete(s.households).where(where).returning({ id: s.households.id });
+  return deleted.length === 1;
+}
+
+/** Deletes a household of any kind with everything of it. */
+export async function deleteHousehold(db: Db, householdId: string): Promise<void> {
+  await db.transaction(tx => removeHousehold(tx, householdId));
 }

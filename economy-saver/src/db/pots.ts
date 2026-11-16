@@ -5,13 +5,13 @@ import { closeByRef, refreshSuggestions } from "./suggestions";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
+import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import { fromMinor, parseAmountMinor, parseMinor } from "./money";
 import { householdMoment } from "./clock";
 import { observeRunway } from "./runway-events";
 import { households, members, pots } from "./schema";
 import { Currency } from "@/lib/catalogue/types";
-import { minorMoney } from "@/lib/money/format";
+import { minorMoney, percentText, percentToBp } from "@/lib/money/format";
 import { fillShare } from "@/lib/money/pots";
 
 export const potInput = z.object({
@@ -29,13 +29,10 @@ type Fields = { name: string; targetMinor: number | null; targetDate: string | n
 
 /** "25" or "12.5" as basis points (2500, 1250); 0.01 to 100 percent. */
 export function parseFillBp(text: string): number {
-  const match = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(text.trim());
-  const bp = match ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) : 0;
+  const bp = percentToBp(text) ?? 0;
   if (bp < 1 || bp > 10_000) throw new InputError("Enter a share between 0.01 and 100 percent, such as 25");
   return bp;
 }
-
-export const percent = (bp: number) => String(bp / 100);
 
 const blank = (value: string | null) => value === null || value === "" ? null : value;
 
@@ -57,19 +54,11 @@ function fieldsOf(data: PotInput, currency: string): Fields {
 const same = (a: Fields, b: Fields) => a.name === b.name && a.targetMinor === b.targetMinor && a.targetDate === b.targetDate
   && a.savedMinor === b.savedMinor && a.fillBp === b.fillBp && a.memberId === b.memberId;
 
-async function lockHousehold(tx: Db, hid: string) {
-  const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort,
-    isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-    .from(households).where(eq(households.id, hid)).for("update");
-  if (!household) throw new InputError("Household not found");
-  return household;
-}
-
 function describe(f: Fields, currency: Currency) {
   const money = (minor: number | null) => minor === null ? "none" : minorMoney(minor, currency);
   return {
     saved: money(f.savedMinor), target: money(f.targetMinor), by: f.targetDate ?? "none",
-    fill: f.fillBp === null ? "none" : percent(f.fillBp) + "%", name: f.name,
+    fill: f.fillBp === null ? "none" : percentText(f.fillBp) + "%", name: f.name,
   };
 }
 
@@ -196,7 +185,7 @@ export async function fillPots(tx: Db, householdId: string, creditedMinor: numbe
     await tx.update(pots).set({ savedMinor: sql`${pots.savedMinor} + ${share}` }).where(and(eq(pots.householdId, hid), eq(pots.id, pot.id)));
     await recordEvent(tx, hid, { madeBy: "form",
       kind: "pot_filled",
-      title: `Set aside ${minorMoney(share, Currency.parse(pot.currency))} for ${pot.name} (${percent(pot.fillBp!)}% of ${sourceLabel})`,
+      title: `Set aside ${minorMoney(share, Currency.parse(pot.currency))} for ${pot.name} (${percentText(pot.fillBp!)}% of ${sourceLabel})`,
       amount: { value: fromMinor(share, pot.currency), currency: pot.currency },
       ref: { type: "pot", id: pot.id },
     });

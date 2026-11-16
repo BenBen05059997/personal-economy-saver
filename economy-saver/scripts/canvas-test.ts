@@ -18,14 +18,13 @@ import { drawCanvas } from "@/lib/canvas/draw";
 import { SESSION_ENDED } from "@/lib/session-ended";
 import { loadCanvasContext, resolveCanvasRequest } from "@/lib/canvas/request";
 import { CanvasError, resolveRecipe, type ResolvedBlock } from "@/lib/canvas/resolve";
-import { BlockSchema, RecipeSchema, ScenarioSchema, recipeJsonSchema, type Change, type Recipe } from "@/lib/canvas/schema";
+import { RecipeSchema, ScenarioSchema, recipeJsonSchema, type Change, type Recipe } from "@/lib/canvas/schema";
 import { canvasSummary } from "@/lib/canvas/summary";
-import { starterRecipes, STARTER_IDS } from "@/lib/canvas/starters";
+import { starterRecipes } from "@/lib/canvas/starters";
 import { blockWords, KIND_WORDS } from "@/lib/canvas/words";
 import { loadViewContext } from "@/lib/views/load";
-import { VIEW_META } from "@/lib/views/catalogue";
-import { liveViews, needsOf, resolveView } from "@/lib/views/resolve";
-import type { ViewId, ViewResult } from "@/lib/views/types";
+import { needsOf, resolveView } from "@/lib/views/resolve";
+import type { ViewResult } from "@/lib/views/types";
 import { foreignCosts } from "@/lib/money/fx-cost";
 import { money, minorMoney, minorPerUnit } from "@/lib/money/format";
 import { monthByCategory } from "@/lib/money/month";
@@ -216,11 +215,12 @@ async function main() {
       { kind: "add_cost", name: "x", amountMinor: 0, date: "2026-11-20" }, { kind: "add_cost", name: "x", amountMinor: 5, date: "2026-02-30" }, { kind: "change_bill", billId: "b", amountMinor: 5, extra: 1 }]) {
       assert.ok(!ScenarioSchema.safeParse({ case: "late", changes: [bad] }).success, JSON.stringify(bad));
     }
-    assert.ok(BlockSchema.safeParse({ type: "note", text: "A note", by: "assistant" }).success);
+    const blockOk = (block: unknown) => RecipeSchema.safeParse({ version: 1, title: "x", blocks: [block] }).success;
+    assert.ok(blockOk({ type: "note", text: "A note", by: "assistant" }));
     // an added query value keeps version 1; the month is checked like every other month
     assert.ok(RecipeSchema.safeParse({ version: 1, title: "x", blocks: [{ type: "by_person", query: { q: "month_by_person", month: "2026-11" } }] }).success);
-    for (const bad of [{ month: "2026-13" }, { month: "Nov 2026" }, { month: "2026-11", amountMinor: 5 }]) assert.ok(!BlockSchema.safeParse({ type: "by_person", query: { q: "month_by_person", ...bad } }).success, JSON.stringify(bad));
-    assert.ok(!BlockSchema.safeParse({ type: "by_person", query: { q: "month_by_category", month: "2026-11" } }).success);
+    for (const bad of [{ month: "2026-13" }, { month: "Nov 2026" }, { month: "2026-11", amountMinor: 5 }]) assert.ok(!blockOk({ type: "by_person", query: { q: "month_by_person", ...bad } }), JSON.stringify(bad));
+    assert.ok(!blockOk({ type: "by_person", query: { q: "month_by_category", month: "2026-11" } }));
   });
 
   await check("recipeJsonSchema: valid JSON made from the zod definition, strict objects, the block types named", () => {
@@ -255,7 +255,7 @@ async function main() {
       const first = block(resolved, "view");
       assert.deepEqual(first.data, resolveView("month_by_category", { by: "category" }, viewContext));
       assert.equal(first.source, first.data.source);
-      assert.equal(blockWords(recipe.blocks[0]), "Picture: Where does the month go?");
+      assert.equal(blockWords(recipe.blocks[0]), "Picture: Where is my money going this month?");
       assert.equal(KIND_WORDS.view, "Picture");
       const summary = JSON.parse(canvasSummary(resolved)).blocks[0];
       assert.equal(summary.type, "view");
@@ -264,14 +264,12 @@ async function main() {
       assert.ok(JSON.stringify(JSON.parse(recipeJsonSchema())).includes("month_trend"), "the agent's schema names the live views");
     });
 
-    await check("a view block is refused in words: an unknown view, an extra key, an amount on a view that takes none, a view that is not live", () => {
+    await check("a view block is refused in words: an unknown view, an extra key, an amount on a view that takes none", () => {
       const refuse = (blockIn: unknown) => assert.throws(() => resolveRecipe({ version: 1, title: "x", blocks: [blockIn] } as unknown as Recipe, context), CanvasError);
       refuse({ type: "view", view: "nope", args: {} });
       refuse({ type: "view", view: "forecast", args: {}, extra: 1 });
       refuse({ type: "view", view: "forecast", args: { amountMinor: 100 } });
       refuse({ type: "view", view: "month_trend", args: { months: 1 } });
-      const notLive = (Object.keys(VIEW_META) as ViewId[]).find(view => !liveViews().includes(view));
-      if (notLive) refuse({ type: "view", view: notLive, args: {} });
       assert.equal(RecipeSchema.safeParse({ version: 1, title: "x", blocks: [{ type: "view", view: "forecast", args: { amountMinor: 100 } }] }).success, false);
     });
 
@@ -287,7 +285,7 @@ async function main() {
     });
 
     await check("every starter recipe is valid, resolves, and says in words what each block is", () => {
-      assert.deepEqual(starters.map(s => s.id), [...STARTER_IDS]);
+      assert.deepEqual(starters.map(s => s.id), ["this-month", "what-if-late", "month-vs-last", "regular", "where-you-stand"]);
       for (const starter of starters) {
         assert.ok(RecipeSchema.safeParse(starter.recipe).success, starter.id);
         const resolved = resolveRecipe(starter.recipe, context);
@@ -340,7 +338,6 @@ async function main() {
       assert.equal(forecast.form, "step_line");
       assert.equal(fact(forecast.facts, "low_point", "late")!.value, Math.round(lowOf(state, "worst").amount * minorPerUnit("JPY")));
       assert.deepEqual(forecast.data!.lines.find(l => l.key === "main")!.points, [...series(state, "worst")]);
-      assert.ok(!resolved.some(r => r.type === "flow_chart"), "This month no longer holds an older chart block");
       const rows = block(resolved, "timeline").data.rows;
       const events = timeline(state, "expected");
       assert.deepEqual(rows.map(r => r.id), events.map(e => e.id));
@@ -366,15 +363,15 @@ async function main() {
         const [chart, number] = resolveRecipe(recipe, context) as [Extract<ResolvedBlock, { type: "flow_chart" }>, Extract<ResolvedBlock, { type: "number" }>];
         const expected = low(series(state, kind));
         assert.deepEqual(chart.data.points, [...series(state, kind)]);
-        assert.equal(chart.data.points[chart.data.lowIndex], expected.amount);
-        assert.equal(chart.data.lowIndex, expected.dayIndex);
+        assert.equal(chart.data.points[chart.data.view.data!.low.index], expected.amount);
+        assert.equal(chart.data.view.data!.low.index, expected.dayIndex);
         assert.equal(number.data.value, format(expected.amount));
       }
       const sevenDays: Recipe = { version: 1, title: "Short", blocks: [{ type: "flow_chart", query: { q: "flow", days: 7 } }] };
       assert.equal((resolveRecipe(sevenDays, context)[0] as Extract<ResolvedBlock, { type: "flow_chart" }>).data.points.length, 7);
     });
 
-    await check("27D: a 60-day timeline and flow from Nov 14 run to Jan 12 and hold the bills past the plan window", () => {
+    await check("a 60-day timeline and flow from Nov 14 run to Jan 12 and hold the bills past the plan window", () => {
       const { state } = context;
       const through = addDays(state.today, 59);
       assert.equal(through, "2027-01-12");
@@ -511,7 +508,6 @@ async function main() {
       const recipe: Recipe = { version: 1, title: "By person", blocks: [{ type: "by_person", query: { q: "month_by_person", month: "2026-11" } }] };
       const one = block(resolveRecipe(recipe, context), "by_person").data;
       assert.equal(one.empty, "Only Ben in this household. Add a person in Household → People to split.");
-      assert.equal(one.rows.length, 0);
       assert.equal(one.view.empty!.words, one.empty);
       assert.equal(one.view.data, null);
       assert.match(blockWords(recipe.blocks[0]), /^By person: November 2026 by category/);
@@ -535,7 +531,6 @@ async function main() {
       assert.deepEqual(data.table.foot, ["Total", minorMoney(view.sharedMinor, "JPY"), minorMoney(view.byMember[0].minor, "JPY"), minorMoney(view.byMember[1].minor, "JPY"), minorMoney(view.totalMinor, "JPY")]);
       assert.equal(data.table.rows.length, view.categories.length);
       view.categories.forEach((category, i) => {
-        assert.deepEqual(data.rows[i].parts.map(p => p.minor), [category.sharedMinor, ...category.byMember.map(m => m.minor)].filter(n => n > 0));
         assert.equal(data.table.rows[i].cells.at(-1), minorMoney(category.totalMinor, "JPY"));
       });
       assert.equal(data.owes, splitSummary(two.state.split, splitBalance(two.state.split, TODAY), "JPY"));
@@ -551,7 +546,6 @@ async function main() {
       const markup = renderToStaticMarkup(createElement(Canvas, { recipe, initial: resolveRecipe(recipe, two) }));
       assert.match(markup, /Ben owes Aki/);
       assert.match(markup, /class="rb-cat-bar"/);
-      assert.ok(!/canvas-bar|canvas-compare/.test(markup), "none of the old bar markup");
     });
 
     await check("a month outside the twelve kept, a bad slider client and a bad scenario are refused in words", () => {

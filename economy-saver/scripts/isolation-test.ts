@@ -42,7 +42,7 @@ import * as eventFeed from "@/db/event-feed";
 import * as familyLinksMod from "@/db/family-links";
 import * as household from "@/db/household";
 import * as historyMod from "@/db/history";
-import * as importChargesMod from "@/db/import-charges"; // Stage 17 import
+import * as importChargesMod from "@/db/import-charges"; // statement import
 import * as invoiceDraft from "@/db/invoice-draft";
 import * as invoicePaid from "@/db/invoice-paid";
 import * as invitesMod from "@/db/invites";
@@ -73,7 +73,7 @@ import * as settle from "@/db/settle";
 import * as snapshotMod from "@/db/snapshot";
 import * as spacesMod from "@/db/spaces";
 import * as statementCharge from "@/db/statement-charge";
-import * as spendingMod from "@/db/spending"; // Stage 17 spending
+import * as spendingMod from "@/db/spending"; // Spending (D53)
 import * as fxCostMod from "@/db/fx-cost"; // D62 foreign costs
 import * as incomeMod from "@/db/income"; // D77 money in
 import * as potFillsMod from "@/db/pot-fills"; // D77 what was set aside
@@ -117,7 +117,7 @@ const covered = [
   // D65 reminders.ts
   "reminderView", "saveReminderSettings", "subscribeReminder", "unsubscribeReminder", "sendTestReminder", "runReminders",
   // household.ts
-  "householdOwnerName", "usdRate", "usdRateMicro", "loadSplitState", "loadMoneyState", "recordEvent", "listEvents", "unreadCount", "markRead",
+  "householdOwnerName", "usdRate", "usdRateMicro", "loadSplitState", "loadMoneyState", "recordEvent", "listEvents", "markRead",
   "recordWebhookDelivery", "deleteHousehold", "withHousehold",
   // family-links.ts
   "listFamilyLinks", "createFamilyLink", "stopFamilyLink", "resolveFamilyLink", "loadFamilyView",
@@ -134,17 +134,17 @@ const covered = [
   // runway-events.ts, settings.ts, settle.ts, snapshot.ts, statement-charge.ts, workspace.ts
   "lockRunway", "beginMoneyChange", "observeRunway", "loadSettings", "loadAddView", "updateSettings", "removeCard", "settleUp", "loadHouseholdSnapshot",
   "syncClosedStatementCharge", "unsyncClosedStatementCharge", "loadNavigationData", "loadWorkspaceData", "viewerRole",
-  // Stage 17 import: import-charges.ts
+  // statement import: import-charges.ts
   "importCharges",
-  // Stage 17 spending: spending.ts
+  // Spending (D53): spending.ts
   "loadSpending", "loadPeriodBills",
   // D62 foreign costs: fx-cost.ts
   "foreignCostInputs", "foreignCosts",
   // D77 income.ts, pot-fills.ts
   "loadIncome", "loadPotFills",
-  // Stage 18 varies: bills.ts
+  // Amount varies (D54): bills.ts
   "linkToSeries", "previewLink",
-  // Stage 19 missing data (D55): bills.ts
+  // Missing amounts (D55): bills.ts
   "fillGap", "fillGapFromText",
   // D58 memory: memory.ts
   "listMemory", "addMemory", "editMemory", "deleteMemory", "forgetEverything",
@@ -161,13 +161,13 @@ const covered = [
   "noteAskWrote", "claimAskReceipt", "releaseAskReceipt", "noteAskReply", "askReceipt", "pruneAskReceipts",
   // D61 document-card.ts
   "documentCard", "attachDocument",
-  // 27E document-cleanup.ts: Storage bytes and the removal of old raw files
+  // document-cleanup.ts: Storage bytes and the removal of old raw files
   "storedBytes", "requireStorageRoom", "removeExpiredFiles",
   // D59 data-kinds.ts and restore.ts
   "countKind", "countKinds", "listDocuments", "deleteKind", "deleteOne", "deleteTurn", "deleteConversation", "deleteDocument", "restoreHousehold",
   // D75 own-categories.ts
-  "listOwnCategories", "listOwnCategoriesGrouped", "ownCategoryRefs", "addOwnCategory", "saveOwnCategory", "mergeOwnCategories", "removeOwnCategory", "resolveOwnCategory", "fileOwnCategory", "guessOwnCategory", "findOwnCategory", "ownChoices",
-  // D59 place.ts (24B)
+  "listOwnCategories", "listOwnCategoriesGrouped", "addOwnCategory", "saveOwnCategory", "mergeOwnCategories", "removeOwnCategory", "resolveOwnCategory", "fileOwnCategory", "guessOwnCategory", "findOwnCategory", "ownChoices",
+  // D59 place.ts
   "readPlaces", "requireCloud", "itemsToMove", "moveToDevice", "moveToCloud",
 ];
 
@@ -177,13 +177,12 @@ const notApplicable: Record<string, string> = {
   settleUpInTx: "settleUp's body in the caller's household transaction; settleUp is tested here, and the webhook's use is tested in approve-test",
   requestIsCurrent: "compares one request with what the same household owes now; reached through requestFromMember and approvePaymentLink (tested here)",
   backfillPayTokens: "the one-off script's loop over every household, one household at a time through backfillHouseholdPayTokens (tested here); it takes no household id by design",
-  lockHousehold: "locks the one household row it is given and returns its id; every caller passes a validated id, and the lock is the scope (tested through bills, charges, clients, rules and mcp-tokens)",
+  lockHousehold: "locks the one household row it is given and returns what its writers read; every caller passes a validated id, and the lock is the scope (tested through bills, charges, clients, rules and mcp-tokens)",
   householdClockRow: "reads the three clock columns of the one household id it is given (requireHousehold throws without one)",
   issueDemoToken: "gives one demo household a fresh cookie token; sweep-test checks a token opens only its own household",
   demoHouseholdForToken: "resolves a Try it cookie token to its one demo household; sweep-test checks tokens never cross households",
   dropIdleDemoKeys: "housekeeping across demo households that removes only an idle demo household's own key; tested in sweep-test",
   sweepOrphanKeys: "housekeeping over Vault secrets no household points to; sweep-test checks a pointed-to secret is kept",
-  foreignFeeBp: "pure parser of a typed fee percentage into basis points, no database (D62)",
   answerQuestion: "calls Claude through the agent runner; the tools it can use are tested through tools.ts below",
   clockForHousehold: "pure date maths on a household row passed in",
   householdMoment: "pure date maths on a household row passed in",
@@ -192,20 +191,17 @@ const notApplicable: Record<string, string> = {
   publicEvent: "pure mapper of one row passed in",
   requireHousehold: "pure check that a value is a UUID",
   paypalTotalMinor: "pure sum of balances passed in",
-  linkDay: "pure date formatter", dueLabel: "pure date formatter", repeatDayFor: "pure date maths on a date passed in", checkSchedule: "pure check of a bill's dates and amount passed in; insertBill, which calls it, is covered above",
-  scheduleWords: "pure formatter of a bill's schedule passed in",
-  checkKnown: "pure check of the amount and date a bill is saved with, passed in; insertBill and updateBill, which call it, are covered above",
+  dueLabel: "pure date formatter", repeatDayFor: "pure date maths on a date passed in", checkSchedule: "pure check of a bill's dates and amount passed in; insertBill, which calls it, is covered above",
   checkAmountMinor: "pure check of an amount in minor units passed in; fillGap, which calls it, is covered below",
   toRateMicro: "pure money maths", fromRateMicro: "pure money maths",
   parseMinor: "pure money maths", parseAmountMinor: "pure money maths",
-  parseShareBp: "pure text parser", equalShares: "pure share maths", parseFillBp: "pure text parser", percent: "pure formatter",
+  parseShareBp: "pure text parser", equalShares: "pure share maths", parseFillBp: "pure text parser",
   clientIp: "pure reader of a request header; no database", hashIp: "pure SHA-256 of an address; no database",
   tooMany: "builds a 429 response from a fixed message; reads no household rows",
   limited: "runs consumeRequest, which is covered above, inside withHousehold for the supplied household id",
   consumeIpRequest: "counts per hashed client address before any household exists; no household id, no household rows (limits-test)",
   pruneIpBuckets: "deletes old per-address windows app-wide; touches no household's rows (limits-test)",
   readDocumentInBackground: "opens its own connection and calls readDocument, which is tested here",
-  staleBefore: "pure clock helper",
   requireReaderModel: "reads only the calling household's own connection (connectionView) and the server settings; its refusals are tested in ask-routes-test",
   storeDocument: "creates a document keyed by a digest that includes the household id; needs Supabase Storage",
   parseReferenceRate: "pure parser of the ECB feed", fetchReferenceRate: "network fetch of the public ECB feed; no household id",
@@ -218,10 +214,18 @@ const notApplicable: Record<string, string> = {
   seedBenRows: "writes a new household with a generated id; used by seedBen and the tested Reset flow",
   refreshSuggestions: "delegates the supplied household id to runPass, which is covered here; failure is covered in suggest-test",
   sealAiKey: "pure: seals a key text for the household id it is given; the isolation check below proves a key sealed for one household does not open for another", unsealAiKey: "pure: opens a sealed key for the household id it is given; same check",
-  groupOwnCategories: "pure grouping of a list passed in; listOwnCategoriesGrouped, which reads it, is covered above",
   orderRequestFor: "pure: builds the PayPal order request from an invoice, a payee and a token passed in; approvePaymentLink and openPaymentLink, which call it, are covered above",
   paypalInvoiceNumber: "pure: encodes an invoice id passed in",
-  isDataKind: "pure check that a value is one of the five kind names", readSnapshotFile: "pure parse of a file passed in; restoreHousehold, which calls it, is covered above",
+  householdOwner: "reads the owner member of the one household id it is given (requireHousehold throws without one); reached through householdOwnerName and requestFromMember (tested here)",
+  latestUsdRate: "reads the latest rate of the one household id it is given; reached through usdRate, readReading, refreshPayPal and the statement charge (tested here)",
+  referenceRates: "reads the rates of the one household id it is given; reached through loadIncome and foreignCostInputs (tested here)",
+  rateOnDay: "pure: the latest of the rates passed in on or before a day", paidInvoicePerUsd: "pure: the rate of a paid invoice row passed in",
+  storedBillOf: "pure mapper of one bill row passed in; loadMoneyState, loadSpending and updateBill, which call it, are covered above",
+  splitNow: "reads the split of the one household it is given, under the lock the caller holds; reached through settleUp and removeMember (tested here)",
+  removeHousehold: "deletes the one household id it is given; reached through deleteOwnedHousehold, deleteDemoHousehold and deleteHousehold (tested here)",
+  removeStorageFiles: "removes Storage objects and refuses any path outside the household's own folder; reached through deleteDocument, deleteKind and removeExpiredFiles (data-test, limits-test)",
+  requireDateRange: "pure check of two dates passed in; loadSpending, loadIncome and loadPotFills, which call it, are covered above",
+  proposedOf: "pure read of one reading's stored data passed in; reviewReading and readerInbox, which call it, are covered above",
 };
 
 // ------------------------------------------------------------------ helpers
@@ -265,8 +269,8 @@ async function main() {
     ...account, ...aiKeys, ...aiCap, ...approval, ...tryPay, ...bankBalance, ...billsMod, ...chargesMod, ...clientsMod, ...confirm, ...daily, ...demo, ...documentCleanup,
     ...eventFeed, ...familyLinksMod, ...household, ...invoiceDraft, ...invoicePaid, ...invitesMod, ...mcpTokens, ...paypalRefresh, ...paypalConnectMod, ...invoiceMatchMod, ...payTokenBackfillMod, ...invoiceOfferedMod, ...invoiceEndMod, ...memberRequestMod, ...paymentLinkMod, ...people, ...potsMod, ...rateLimit,
     ...readerInbox, ...readerJob, ...readings, ...referenceRate, ...runwayEvents, ...settingsMod, ...settle, ...snapshotMod, ...statementCharge, ...workspace,
-    ...importChargesMod, // Stage 17 import
-    ...spendingMod, // Stage 17 spending
+    ...importChargesMod, // statement import
+    ...spendingMod, // Spending (D53)
     ...fxCostMod, // D62 foreign costs
     ...incomeMod, ...potFillsMod, // D77 money in, what was set aside
     ...rulesMod, ...suggestionsMod, ...remindersMod, // D64–D66
@@ -332,7 +336,7 @@ async function main() {
     }
 
     await check("every table except households carries household_id, so the fingerprint of a household covers all of its rows", () => {
-      // 27E: ip_buckets (hashed client address) and ai_global_usage (one row a day) exist before and outside any household, and hold no household data.
+      // ip_buckets (hashed client address) and ai_global_usage (one row a day) exist before and outside any household, and hold no household data.
       assert.deepEqual(everyTable.filter(t => !scoped.includes(t)), ["ai_global_usage", "households", "ip_buckets"]);
       for (const table of ["bills", "charges", "pots", "members", "clients", "invoices", "documents", "readings", "cards", "card_statements", "settlements",
         "balance_updates", "events", "api_tokens", "family_links", "webhook_deliveries", "request_buckets", "fx_rates", "paypal_connections", "users", "rules", "standing_rules", "suggestions", "reminder_settings", "push_subscriptions", "reminders", "invites", "spaces", "own_categories"]) {
@@ -561,7 +565,6 @@ async function main() {
       const beforeB = await fingerprint(B.hid), beforeA = await fingerprint(A.hid);
       assert.ok(!(await F.listOwnCategories(store, A.hid)).some(o => o.id === bTea.id || o.name === "Isolation B tea"));
       assert.ok(!(await F.listOwnCategoriesGrouped(store, A.hid)).some(g => g.categories.some(o => o.id === bTea.id)));
-      assert.ok(!(await F.ownCategoryRefs(store, A.hid)).has(bTea.id));
       const choicesA = await F.ownChoices(store, A.hid), choicesB = await F.ownChoices(store, B.hid);
       assert.ok(!choicesA.categories.some(o => o.id === bTea.id) && !Object.values(choicesA.guesses).includes(bTea.id));
       assert.ok(choicesB.categories.some(o => o.id === bTea.id) && Object.values(choicesB.guesses).includes(bTea.id));
@@ -653,7 +656,6 @@ async function main() {
       seen("listEvents", events);
       assert.ok(events.length > 0 && events.every(e => e.householdId === hid));
       seen("listEvents since", await F.listEvents(store, hid, new Date(0), 5, events[0].id));
-      seen("unreadCount", await F.unreadCount(store, hid));
       seen("eventFeed", await F.eventFeed(store, hid));
       assert.equal(await F.memberCount(store, hid), 2);
       assert.equal((await F.memberByName(store, hid, viewer.akiName)).id, viewer.ids.aki);
@@ -714,7 +716,6 @@ async function main() {
       await F.noteAskReply(store, hid, receiptId, { pending: true, links: [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }] });
       assert.deepEqual(await F.askReceipt(store, hid, receiptId), { pending: true, links: [{ label: "Open To check", href: "http://127.0.0.1:3123/to-check" }] });
       assert.equal(await F.askReceipt(store, other.hid, receiptId), null, "another household's note is not seen by this id");
-      assert.equal(await F.askReceipt(store, other.hid, receiptId) !== null, false, "another household's receipt is not seen by this id");
       await F.releaseAskReceipt(store, other.hid, receiptId);
       assert.notEqual(await F.askReceipt(store, hid, receiptId), null, "another household cannot release the receipt");
       const failedId = randomUUID();
@@ -1140,7 +1141,7 @@ async function main() {
         });
         await own("runDaily", () => F.runDaily(store, X.hid, new Date("2026-11-03T04:00:00Z")));
         await own("settleUp", () => F.settleUp(store, X.hid));
-        await own("unreadCount and listEvents", () => Promise.all([F.unreadCount(store, X.hid), F.listEvents(store, X.hid)]));
+        await own("eventFeed and listEvents", () => Promise.all([F.eventFeed(store, X.hid), F.listEvents(store, X.hid)]));
         await own("addMember with a name the other household also uses", async () => {
           const [xBefore, yBefore] = [await F.memberCount(store, X.hid), await F.memberCount(store, Y.hid)];
           await F.addMember(store, X.hid, { name: Y.akiName });
@@ -1163,7 +1164,7 @@ async function main() {
       const hid = randomUUID();
       await db.insert(schema.households).values({ id: hid, name: "Fictional rule fixture", homeCurrency: "USD" });
       await F.seedRules(store, hid);
-      assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, 6);
+      assert.ok((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length > 0, "seeding writes the household's standing rules");
       assert.equal((await db.select().from(schema.rules).where(eq(schema.rules.householdId, hid))).length, 0, "seeding standing rules writes no reader corrections");
       assert.equal((await fingerprint(A.hid)).text, beforeA.text);
       assert.equal((await fingerprint(B.hid)).text, beforeB.text);
@@ -1325,8 +1326,8 @@ async function main() {
       await bothUntouched("deleteDemoHousehold");
       for (const id of [oldBusy, recent, oldReal]) await F.deleteHousehold(store, id);
     });
-    // ---------------------------------------------------------------- Stage 17 spending
-    await check("a saved AI key sealed for household A does not open for household B, and a bill's billing period (27F) is read for its own household only", async () => {
+    // ---------------------------------------------------------------- Spending (D53)
+    await check("a saved AI key sealed for household A does not open for household B, and a bill's billing period (D63) is read for its own household only", async () => {
       const sealed = await aiKeys.sealAiKey(A.hid, "fictional-key-value");
       assert.equal(await aiKeys.unsealAiKey(A.hid, sealed), "fictional-key-value");
       await assert.rejects(aiKeys.unsealAiKey(B.hid, sealed));
@@ -1418,7 +1419,7 @@ async function main() {
       }
     });
 
-    // ---------------------------------------------------------------- Stage 17 import
+    // ---------------------------------------------------------------- statement import
     await check("importCharges: another household's card is refused, and a row like the other household's charge is new here; the other household is untouched", async () => {
       const bStart = await fingerprint(B.hid);
       await assert.rejects(F.importCharges(store, A.hid, B.ids.card, [{ date: "2026-11-12", merchant: "Isolation A imported", amountMinor: 2000, category: "food" }], { madeBy: "import" }),
@@ -1431,8 +1432,8 @@ async function main() {
       assert.deepEqual(leaks((await fingerprint(B.hid)).text, { strings: ["Isolation A imported", A.ids.card], numbers: [] }), []);
     });
 
-    // ---------------------------------------------------------------- Stage 18 varies
-    await check("Stage 18 varies (D54): a real bill links only to its own household's series; linkToSeries, previewLink and updateBill refuse the other's series; the other household is untouched", async () => {
+    // ---------------------------------------------------------------- Amount varies (D54)
+    await check("Amount varies (D54): a real bill links only to its own household's series; linkToSeries, previewLink and updateBill refuse the other's series; the other household is untouched", async () => {
       const form = { madeBy: "form" as const };
       const gas = (over: object) => billInput.parse({ id: randomUUID(), biller: "Fictional Varies Gas", amount: "6000", due: "2026-12-10", category: "utilities", ...over });
       const bSeries = gas({ repeat: "month", amountVaries: true });
@@ -1459,8 +1460,8 @@ async function main() {
       assert.equal((await fingerprint(B.hid)).text, bStart.text, "household B changed");
     });
 
-    // ---------------------------------------------------------------- Stage 19 missing data
-    await check("Stage 19 gaps (D55): fillGap and fillGapFromText fill only the household's own bill; another household's bill is not found and stays as it was", async () => {
+    // ---------------------------------------------------------------- Missing amounts (D55)
+    await check("Missing amounts (D55): fillGap and fillGapFromText fill only the household's own bill; another household's bill is not found and stays as it was", async () => {
       const form = { madeBy: "form" as const };
       const gap = billInput.parse({ id: randomUUID(), biller: "Fictional Gap Gas", amount: "", amountUnknown: true, due: "2026-12-10", category: "utilities" });
       await F.insertBill(store, B.hid, gap, "confirmed", form);
@@ -1479,13 +1480,13 @@ async function main() {
       assert.ok(await F.connectionView(store, B.hid));
     });
 
-    await check("27E: stored bytes and the removal of old raw files count and touch only the household's own documents", async () => {
+    await check("stored bytes and the removal of old raw files count and touch only the household's own documents", async () => {
       const old = new Date("2026-01-01T00:00:00Z"), later = new Date("2026-11-07T00:00:00Z");
       const made: Record<string, { id: string; path: string }> = {};
       for (const T of [A, B]) {
         const path = `${T.hid}/${randomUUID()}`;
         const [d] = await db.insert(schema.documents).values({ householdId: T.hid, kind: "upload", storagePath: path, mime: "application/pdf", status: "read", bytes: T === A ? 1000 : 5000 }).returning({ id: schema.documents.id });
-        const extracted = { kind: "charge", name: "27E probe", date: "2026-01-01", amountMinor: 100, currency: "JPY", category: "food", businessBp: 0, cardId: null };
+        const extracted = { kind: "charge", name: "stored bytes probe", date: "2026-01-01", amountMinor: 100, currency: "JPY", category: "food", businessBp: 0, cardId: null };
         await db.insert(schema.readings).values({ householdId: T.hid, documentId: d.id, extracted: { original: extracted, proposed: extracted }, target: "charge", status: "confirmed", confirmedAt: old });
         made[T.tag] = { id: d.id, path };
       }

@@ -11,7 +11,7 @@ import { isPayPalApproveUrl } from "@/lib/paypal/send";
 /** PayPal lets an order lapse three hours after it is made; a link opened after this long makes a fresh order. */
 export const ORDER_REUSE_MS = (2 * 60 + 50) * 60 * 1000;
 
-export type PaymentLinkView =
+type PaymentLinkView =
   | { state: "open"; item: string; amountMinor: number; currency: string }
   | { state: "processing" }
   | { state: "paid" }
@@ -70,7 +70,7 @@ export async function paymentLinkView(db: Db, token: string): Promise<PaymentLin
   return { state, item: row.item, amountMinor: row.amountMinor, currency: row.currency };
 }
 
-export type OpenedLink =
+type OpenedLink =
   | { kind: "redirect"; url: string }
   | { kind: "paid" }
   | { kind: "processing" }

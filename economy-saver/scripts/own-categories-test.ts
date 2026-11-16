@@ -15,15 +15,15 @@ import { loadMoneyState, withHousehold } from "@/db/household";
 import { importCharges } from "@/db/import-charges";
 import { InputError } from "@/db/input-error";
 import {
-  OWN_CAP_WORDS, addOwnCategory, findOwnCategory, fileOwnCategory, groupOwnCategories, guessOwnCategory, listOwnCategories, listOwnCategoriesGrouped,
-  mergeOwnCategories, ownCategoryRefs, ownChoices, removeOwnCategory, resolveOwnCategory, saveOwnCategory,
+  addOwnCategory, findOwnCategory, fileOwnCategory, guessOwnCategory, listOwnCategories, listOwnCategoriesGrouped,
+  mergeOwnCategories, ownChoices, removeOwnCategory, resolveOwnCategory, saveOwnCategory,
 } from "@/db/own-categories";
 import { seedBen } from "@/db/seed";
 import { loadSettings } from "@/db/settings";
 import { loadSpending } from "@/db/spending";
 import { monthByCategory } from "@/lib/money/month";
 import { nameKey } from "@/lib/money/name-key";
-import { ownLabel } from "@/lib/money/own-category";
+import { OWN_CAP_WORDS, ownLabel } from "@/lib/money/own-category";
 import { searchLine, searchSpending, spendingItems } from "@/lib/money/spending";
 import { toCheck } from "@/lib/money/to-check";
 
@@ -48,8 +48,6 @@ async function main() {
       assert.deepEqual(await names(a), ["food/Coffee/3", "other/Books & films/2", "other/Gear/2"]);
       const grouped = await listOwnCategoriesGrouped(db, a);
       assert.deepEqual(grouped.map(g => [g.kind, g.label, g.categories.map(c => c.name)]), [["food", "Food", ["Coffee"]], ["other", "Other", ["Books & films", "Gear"]]]);
-      assert.deepEqual(groupOwnCategories([]), []);
-      assert.equal((await ownCategoryRefs(db, a)).size, 3);
     });
 
     await check("add: trims, keeps an optional default share, refuses the name rules in the spec's words", async () => {

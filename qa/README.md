@@ -14,7 +14,7 @@ One scenario is one user action with one expected outcome, so a failure points t
 - Run the app on http://127.0.0.1:3123 (always 127.0.0.1, not localhost): `npm run dev -- -p 3123` in `economy-saver/`. Restart it after any change in `src/db/`, the schema or `next.config.ts`, and keep one browser tab open. For scenarios that need a model, run the dev model bridge on http://127.0.0.1:3130 (`npm run codex:bridge`); it reads images but refuses PDFs.
 - Start from a fresh Try it household: Reset in the top banner beside Sample household → Reset (or a private window, then Try it). Try it and Start with my numbers have no hourly limit.
 - Run in file order; a scenario whose preconditions name an earlier one assumes it ran.
-- Do every screen at 1440px (judges use a computer). Steps and lines written for 375px are phone checks, run only when the owner asks. In a phone run every button, link, input and select is at least 44px tall; nothing overlaps and a long unbroken word wraps.
+- Do every screen at 1440px (judges use a computer). Steps and lines written for 375px are phone checks, run only when the owner asks. In a phone run every button, link, input and select is at least 44px tall; nothing overlaps and a long unbroken word wraps. A scenario whose action starts "Phone run:" is only a phone check: record it `skipped` on a desktop run.
 - A scenario fails if a number differs, the screen errors, a button does nothing, or anything scrolls sideways or overlaps.
 - A scenario whose `needs` are missing here is `skipped`, never `pass`.
 - `npm run cf:preview` (port 8787) runs the Worker locally. It cannot reach the dev model bridge (the Worker refuses private addresses), so model scenarios are `skipped` there.
@@ -22,7 +22,7 @@ One scenario is one user action with one expected outcome, so a failure points t
 
 ## Live Ask check
 
-`qa/ask-live/cases.json` holds 40 questions for Ask, grouped into conversations over three Try it households. `economy-saver/scripts/ask-live-check.mjs` runs them against a running app on its real model and grades what a script can: the kind of reply (answer, clarifying question, decline), required and forbidden words and amounts, key-like text, canvas block types, Japanese, and whether a write waits in To check. A case is PASS, FAIL, or REVIEW when its machine checks hold but a person must judge the wording; the `review` line says what to judge. The latest run is `results-ask.json` (git-ignored, not read by `qa-report.mjs`). Browser-only behaviour (panel, canvas drawing, pinning, thumbs, links) stays in the scenarios above.
+`qa/ask-live/cases.json` holds the questions for Ask, grouped into conversations over several Try it households. `economy-saver/scripts/ask-live-check.mjs` runs them against a running app on its real model and grades what a script can: the kind of reply (answer, clarifying question, decline), required and forbidden words and amounts, key-like text, canvas block types, Japanese, and whether a write waits in To check. A case is PASS, FAIL, or REVIEW when its machine checks hold but a person must judge the wording; the `review` line says what to judge. The latest run is `results-ask.json` (git-ignored, not read by `qa-report.mjs`). Browser-only behaviour (panel, canvas drawing, pinning, thumbs, links) stays in the scenarios above.
 
 It calls the real model, so a run costs the owner about $1-2 and runs only with the owner's OK, never inside `db:test` or `qa:check`. Run it before the submission and after any change to Ask's rules, tools or model, on a fresh app (each run starts new Try it households, and a household has a daily question allowance).
 
@@ -42,7 +42,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 |---|---|
 | Home sentence | "You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th." |
 | Fix button | Invoice Beacon $400 |
-| Safe to spend | ¥0, "Includes ¥61,000 on Card B not yet billed" |
+| Safe to spend | ¥0, "Includes card charges not yet on a statement: ¥61,000 on Card B." |
 | Bank balance | ¥67,000 |
 | Card A | ¥86,450 owed now · ¥413,550 limit left · Statement ¥58,000 due Nov 26 · Covered ✓ |
 | Card B | ¥61,000 owed now · ¥239,000 limit left · So far ¥61,000 due Dec 10 · Covered ✓ |
@@ -58,7 +58,7 @@ The demo date is Sat Nov 14, 2026; Ben alone; $1 = ¥150.
 
 ## Reference figures
 
-Scenarios cite these blocks by name. The old check letters stay in the headings so a reader can match them.
+Scenarios cite these blocks by the letter in their heading.
 
 ### M1. Where this month goes, November (and M2, after Hikari Denki is confirmed)
 
@@ -102,7 +102,7 @@ Spending → Over time → Regular costs (under the months), before confirming H
 
 ### AA1. Your data, fresh counts
 
-"Your data" says "What the app keeps about you, where it is kept, and how to delete it. A question you ask goes to the household’s AI model." Its seven rows show "In our cloud, Tokyo." and these fresh Try it counts: "Your numbers · 46 items", "What the assistant remembers · 0 things", "Canvases pinned to Home · 0 canvases", "Ask conversations · 0 items", "Reminder history · 0 deliveries", "Push subscriptions · 0 devices", and "Uploaded documents · 0 documents". Your numbers says "Deleted only with everything else." and has no Delete. Export my data, Import and Delete everything follow the rows. A row with nothing in it has no Delete.
+"Your data" says "What the app keeps about you, where it is kept, and how to delete it. A question you ask goes to the household’s AI model." Its seven rows show "In our cloud, Tokyo." and these fresh Try it counts: "Your numbers · <its item count>", "What the assistant remembers · 0 things", "Canvases pinned to Home · 0 canvases", "Ask conversations · 0 items", "Reminder history · 0 deliveries", "Push subscriptions · 0 devices", and "Uploaded documents · 0 documents". Your numbers says "Deleted only with everything else." and has no Delete. Export my data, Import and Delete everything follow the rows. A row with nothing in it has no Delete.
 
 ### AE. What foreign money costs
 
@@ -224,7 +224,7 @@ Ben starts on Nov 14, 2026. Advancing to `2026-11-15` brings the Nov 18 CloudBox
 }
 ```
 
-`status` is `pass`, `fail` (it ran and an `expected` line is wrong: `actual` says which), `skipped` (not run here: a need this machine lacks, such as the owner's keys or accounts, a sign-in, the deploy, email, a microphone or a PDF on the dev model bridge, or a rule forbids it, such as `/api/cron`; `actual` says which) or `blocked` (it should have run here but something in the app stopped it first, such as an earlier step failing; `actual` says what). `width` is `375`, `1024`, `1280`, `1440`, `both` or `n/a` (`1024` checks the Ask panel as an overlay, `1280` the docked panel).
+`status` is `pass`, `fail` (it ran and an `expected` line is wrong: `actual` says which), `skipped` (not run here: a need this machine lacks, such as the owner's keys or accounts, a sign-in, the deploy, email, a microphone or a PDF on the dev model bridge, or a rule forbids it, such as `/api/cron`; `actual` says which) or `blocked` (it should have run here but something in the app stopped it first, such as an earlier step failing; `actual` says what). `width` is `375`, `1024`, `1100`, `1280`, `1440`, `both` or `n/a` (`1024` and `1100` check the Ask panel as an overlay, `1280` the docked panel).
 
 ## Running the suite and HTTP scenarios (prompt for the testing agent)
 
@@ -232,7 +232,7 @@ Ben starts on Nov 14, 2026. Advancing to `2026-11-15` brings the Nov 18 CloudBox
 
 ## Running the browser scenarios (prompt for the testing agent)
 
-> Read `AGENTS.md`, then `qa/README.md` ("How to run", "Expected numbers"). You are the testing agent. Drive any browser you can control, with its window 1440px wide. Run every scenario whose `how` is `browser`, in this order of files: `qa/scenarios/home-money.json`, `start-account.json`, `documents-safety.json`, `ask-agent.json` (about 400). Only the areas I name, if I name some.
+> Read `AGENTS.md`, then `qa/README.md` ("How to run", "Expected numbers"). You are the testing agent. Drive any browser you can control, with its window 1440px wide. Run every scenario whose `how` is `browser`, file by file in the order of the file names in `qa/scenarios/`. Only the areas I name, if I name some.
 >
 > **Setup.** The app runs at http://127.0.0.1:3123 (always 127.0.0.1, not localhost) and its AI model is the dev model bridge on 127.0.0.1:3130; don't start, stop or restart either. Use one browser window with one tab for the app. Start from Ben's Try it household: open http://127.0.0.1:3123 and click Try it (opening /api/try directly is refused). When a scenario needs a fresh household again, use Reset in the top banner beside Sample household → Reset, or a new Try it. Follow each scenario's preconditions; when one names an earlier scenario, run them in order.
 >

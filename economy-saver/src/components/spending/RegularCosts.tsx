@@ -1,5 +1,5 @@
 import { aboutMoney, minorMoney } from "@/lib/money/format";
-import { changeTone, changeWords, REGULAR_MONTHS, regularCosts } from "@/lib/money/regular";
+import { changeTone, changeWords, NO_REGULAR_COSTS, REGULAR_MONTHS, regularCosts } from "@/lib/money/regular";
 import { monthBounds, monthName, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
 import { ViewPanel } from "@/components/views/ViewPanel";
@@ -23,7 +23,7 @@ export function RegularCosts({ spending, today, device }: { spending: SpendingIn
     {!columns.empty && <div style={{ marginTop: "var(--space-5)" }}><ViewPanel id="fixed" questions={[{ key: "months", label: "Month by month", result: columns, figure: <StackedColumns result={columns} /> }]} device={device} /></div>}
   <section className="spending-regular" aria-labelledby="regular-costs">
     <h2 id="regular-costs">Regular costs</h2>
-    {result.items.length === 0 ? <p className="ui-hint">Regular costs show up once a bill repeats or a name comes back two months running.</p> : <>
+    {result.items.length === 0 ? <p className="ui-hint">{NO_REGULAR_COSTS}</p> : <>
       <p className="spending-line">{result.changedLine}</p>
       <ul>
         {result.items.map(cost => {

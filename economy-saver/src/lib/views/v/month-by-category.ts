@@ -1,17 +1,12 @@
 // Where the month goes (D73, D74, D75) as a view: lookBy's rows for one month and one question, drawn as ranked bars. Pure; every amount is integer minor units.
 import { engineFact, type Fact } from "@/lib/money/facts";
 import { minorMoney } from "@/lib/money/format";
-import { lookBy, type LookBy, type LookByView, type LookRow } from "@/lib/money/look-by";
-import { HISTORY_MONTHS, monthBounds, monthLabel, monthsBack } from "@/lib/money/spending";
+import { lookBy, type LookByView, type LookRow } from "@/lib/money/look-by";
+import { HISTORY_MONTHS, monthLabel, monthPeriod, monthsBack } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
 import type { ViewArgs } from "../args";
 import { ViewError, type FormData, type RankedRow, type Resolver, type TableTwin, type ViewResult } from "../types";
 
-const TEXT: Record<LookBy, readonly [string, string]> = {
-  category: ["Spending by category, compared with the month before", "Where is my money going this month?"],
-  business: ["Each category split by the business share you set", "How much of this month is business?"],
-  person: ["Spending by person, compared with the month before", "Who spent what this month?"],
-};
 const SPENT = [{ key: "spent", legend: "Spent so far", tone: "main" as const }, { key: "coming", legend: "Still to come (bills and statements you know of)", tone: "soft" as const }];
 const BUSINESS = [{ key: "business", legend: "Business", tone: "main" as const }, { key: "personal", legend: "Personal", tone: "quiet" as const }];
 
@@ -31,7 +26,7 @@ export const monthByCategoryView: Resolver<"month_by_category"> = (args: ViewArg
   const business = view.by === "business";
   const when = past ? `in ${view.name}` : "this month", before = past ? "the month before" : "last month";
   const title = past === undefined ? "Where this month goes" : `Where ${past} went`;
-  const [hint, question] = TEXT[view.by];
+  const { question, hint } = view.by === "category" ? VIEW_META.month_by_category : VIEW_META.month_by_category.looks![view.by];
   const parts = (row: LookRow) => business ? [row.business, row.personal] : [row.spent, row.coming];
   const segments = business ? BUSINESS : SPENT;
   const businessNote = (row: LookRow) => row.business === 0 ? "all personal" : row.personal === 0 ? "all business" : `business ${format(row.business)}`;
@@ -48,31 +43,30 @@ export const monthByCategoryView: Resolver<"month_by_category"> = (args: ViewArg
   };
   const unknown = view.rows.some(row => row.unknown);
   const base = {
-    view: "month_by_category" as const, args: { ...args }, form: "ranked_bars" as const, title, question, hint, home: VIEW_META.month_by_category.home, currency,
+    view: "month_by_category" as const, args: { ...args }, form: "ranked_bars" as const, title, question, hint, currency,
     source: `Confirmed bills and card charges in ${view.name}, in ${currency}.`,
   };
   if (view.rows.length === 0) {
     return { ...base, data: null, table: null, strip: null, line: null, facts: [], aria: `Nothing spent in ${view.name}.`, empty: past === undefined ? { words: `Nothing spent in ${view.name} yet. Add a bill or a card charge and it shows here.`, add: "bill", addLabel: "Add a bill" } : { words: `Nothing spent in ${past}.`, add: null, addLabel: null } };
   }
   // The facts first (D79): the totals, the change from last month, then each row's change, biggest first. The line is written from them.
-  const span = (m: string) => ({ from: monthBounds(m).first, to: monthBounds(m).last });
-  const money = (name: "month_spent_so_far" | "month_still_to_come" | "month_total" | "business_share" | "change_from_last_month", value: number, period: ReturnType<typeof span> | null = span(month)) =>
-    engineFact(name, value, { from: "month_by_category", currency, ...(period ? { period } : {}) });
+  const money = (name: "month_spent_so_far" | "month_still_to_come" | "month_total" | "business_share" | "change_from_last_month", value: number, period = monthPeriod(month)) =>
+    engineFact(name, value, { from: "month_by_category", currency, period });
   const spentFact = money("month_spent_so_far", view.spent), comingFact = money("month_still_to_come", view.coming), totalFact = money("month_total", view.total);
-  const lastFact = view.lastTotal > 0 ? money("month_total", view.lastTotal, span(monthsBack(month, 2))) : null;
+  const lastFact = view.lastTotal > 0 ? money("month_total", view.lastTotal, monthPeriod(monthsBack(month, 2))) : null;
   const facts: Fact[] = [spentFact, comingFact, totalFact, ...(lastFact ? [lastFact] : []), money("change_from_last_month", view.change.amount)];
-  if (view.change.percent !== null) facts.push(engineFact("change_from_last_month_percent", view.change.percent, { from: "month_by_category", period: span(month) }));
+  if (view.change.percent !== null) facts.push(engineFact("change_from_last_month_percent", view.change.percent, { from: "month_by_category", period: monthPeriod(month) }));
   // The business share of a month in any question, and each category's part (a person's rows are not categories).
   if (business || view.businessMinor > 0) facts.push(money("business_share", view.businessMinor));
   const aboutType = view.by === "person" ? "person" as const : "category" as const;
   for (const row of [...view.rows].sort((a, b) => Math.abs(b.change.amount) - Math.abs(a.change.amount) || a.label.localeCompare(b.label))) {
     const about = { type: aboutType, id: row.key, name: row.label };
-    facts.push(engineFact("change_from_last_month", row.change.amount, { from: "month_by_category", currency, period: span(month), about }));
-    if (row.change.percent !== null) facts.push(engineFact("change_from_last_month_percent", row.change.percent, { from: "month_by_category", period: span(month), about }));
-    if (row.share !== null && row.share !== undefined) facts.push(engineFact("share_of_total", row.share, { from: "month_by_category", period: span(month), about }));
-    if (row.unknown) facts.push(engineFact("not_counted", 1, { from: "month_by_category", period: span(month), about }));
+    facts.push(engineFact("change_from_last_month", row.change.amount, { from: "month_by_category", currency, period: monthPeriod(month), about }));
+    if (row.change.percent !== null) facts.push(engineFact("change_from_last_month_percent", row.change.percent, { from: "month_by_category", period: monthPeriod(month), about }));
+    if (row.share !== null && row.share !== undefined) facts.push(engineFact("share_of_total", row.share, { from: "month_by_category", period: monthPeriod(month), about }));
+    if (row.unknown) facts.push(engineFact("not_counted", 1, { from: "month_by_category", period: monthPeriod(month), about }));
   }
-  if (view.by !== "person") for (const row of view.rows) facts.push(engineFact("category_total", row.total, { from: "month_by_category", currency, period: span(month), about: { type: "category", id: row.key, name: row.label } }));
+  if (view.by !== "person") for (const row of view.rows) facts.push(engineFact("category_total", row.total, { from: "month_by_category", currency, period: monthPeriod(month), about: { type: "category", id: row.key, name: row.label } }));
   const said = (item: Fact) => format(item.value as number);
   // The change and the biggest category, read back from facts (a person's rows are not categories).
   const factOf = (name: Fact["name"], key: string) => facts.find(f => f.name === name && f.about?.id === key);

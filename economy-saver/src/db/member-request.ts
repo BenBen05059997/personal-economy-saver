@@ -4,10 +4,10 @@
 // test-card payment are the client invoice's own. It is in USD, as every payment link is; owed_minor keeps what was owed in the
 // household's currency. The forecast never sees it (the engine reads client invoices only).
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
-import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
+import { householdOwner, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { InputError } from "./input-error";
 import { convertMinor } from "./money";
-import { invoices, members } from "./schema";
+import { invoices } from "./schema";
 import { owedNow } from "./settle";
 import { canHavePayLink } from "@/lib/paypal/pay-link";
 import { dayLabel, minorMoney } from "@/lib/money/format";
@@ -43,7 +43,7 @@ export async function requestIsCurrent(tx: Db, hid: string, invoice: OwnedReques
 }
 
 async function ownerId(tx: Db, hid: string): Promise<string> {
-  const [owner] = await tx.select({ id: members.id }).from(members).where(and(eq(members.householdId, hid), eq(members.role, "owner")));
+  const owner = await householdOwner(tx, hid);
   if (!owner) throw new Error("Household has no owner member");
   return owner.id;
 }

@@ -10,9 +10,7 @@ import * as schema from "@/db/schema";
 import { loadMoneyState } from "@/db/household";
 import { loadIncome } from "@/db/income";
 import { seedBen } from "@/db/seed";
-import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { fact } from "@/lib/money/facts";
-import { termOf } from "@/lib/money/terms";
 import { incomeByMonth } from "@/lib/money/income";
 import { paceDots } from "@/lib/money/pace";
 import { overdue } from "@/lib/money/runway";
@@ -21,13 +19,9 @@ import { ViewError, type ViewResult } from "@/lib/views/types";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
 import { Strip } from "@/components/views/forms/Strip";
 import { clientPaceView, incomeMonthsView } from "@/lib/views/v/income";
+import { reads } from "../fixtures/view-reads";
 
 let passed = 0;
-const reads = (view: ViewResult, today: string) => {
-  assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
-  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, { today: today }), [], `${view.view}: every number in the line is one of its facts`);
-  for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
-};
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 const TODAY = "2026-11-14", RANGE = { from: "2026-06-01", to: "2026-11-30" };
 
@@ -78,7 +72,7 @@ async function main() {
       assert.deepEqual(result.data!.columns.map(c => c.parts), [[150_000, 0], [80_000, 30_000], [30_000, 0]]);
       assert.deepEqual(result.table!.head, ["Month", "Alpha Studio", "Bravo Co", "Total"]);
       assert.match(result.line!, /Bravo Co paid at a rate that is not known, so that payment is not counted\./);
-      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: TODAY }), []);
+      reads(result, TODAY);
     });
 
     // Ben's sample.
@@ -102,7 +96,6 @@ async function main() {
       assert.equal(lowest, 202_500, "the sample's months differ: the lowest sits well under the average");
       assert.deepEqual(data.refs, [{ label: "Average", minor: average }, { label: "Lowest month", minor: lowest }]);
       assert.equal(fact(result.facts, "income_a_month")!.value, average);
-      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: TODAY }), []);
     });
 
     await check("Ben's pace: Acme usual 14, slowest 25, open 6 days; Northwind 12 / 16, open 1 day; Beacon 2 / 3", () => {
@@ -116,18 +109,15 @@ async function main() {
       assert.equal(pace.data!.rows.find(r => r.label === "Acme Corp")!.dots.length, 5);
       assert.deepEqual(pace.table!.head, ["Client", "Usual", "Slowest", "Paid invoices", "Open now"]);
       assert.equal(pace.table!.rows.find(r => r.cells[0] === "Acme Corp")!.cells[4], "Invoice 1042: 6 days");
-      assert.deepEqual(unconfirmedNumbers(pace.line ?? "", pace.facts, { today: TODAY }), []);
       assert.match(pace.line!, /^Acme Corp is the slowest to pay: 14 days usual, 25 at most\.$/);
       const one = resolveView("client_pace", { clientId: state.clients.find(c => c.name === "Northwind")!.id }, ctx) as ViewResult<"strip">;
       assert.deepEqual(one.data!.rows.map(r => r.label), ["Northwind"]);
     });
 
-    await check("Ben: income_months and client_pace read clean; client_pace carries usual, slowest, days open and days overdue per client and invoice, and says no 'late'", () => {
-      reads(result, TODAY);
+    await check("Ben: client_pace carries usual, slowest, days open and days overdue per client and invoice, and says no 'late'", () => {
       const pace = resolveView("client_pace", {}, ctx) as ViewResult<"strip">;
-      reads(pace, TODAY);
       const acme = state.clients.find(c => c.name.startsWith("Acme"))!, invoice = state.invoices.find(i => i.clientId === acme.id && i.status === "sent")!;
-      const factFor = (name: string, id: string) => pace.facts!.find(f => f.name === name && f.about?.id === id);
+      const factFor = (name: string, id: string, view: ViewResult = pace) => view.facts.find(f => f.name === name && f.about?.id === id);
       assert.deepEqual([factFor("usual_days_to_pay", acme.id)!.value, factFor("slowest_days_to_pay", acme.id)!.value], [14, 25]);
       assert.equal(factFor("days_open", invoice.id)!.value, 6);
       assert.equal(factFor("days_overdue", invoice.id)!.value, overdue(state, invoice).daysOverdue);
@@ -135,14 +125,14 @@ async function main() {
       assert.ok(!/late/i.test(JSON.stringify(pace.table)), "the table says overdue or longer than the slowest, never late");
       const later = { ...state, today: "2026-12-10" }, past = clientPaceView({}, { state: later });
       reads(past, "2026-12-10");
-      assert.equal(past.facts!.find(f => f.name === "days_open")!.value, 32);
+      assert.equal(factFor("days_open", invoice.id, past)!.value, 32);
       const owed = overdue(later, later.invoices.find(i => i.id === invoice.id)!).daysOverdue;
       assert.ok(owed > 0);
-      assert.equal(past.facts!.find(f => f.name === "days_overdue")!.value, owed);
-      assert.ok(past.table!.rows[0].cells[4].includes(`(${owed} overdue)`));
+      assert.equal(factFor("days_overdue", invoice.id, past)!.value, owed);
+      assert.ok(past.table!.rows.find(row => row.cells[0] === "Acme Corp")!.cells[4].includes(`(${owed} overdue)`));
       assert.ok(!/longer than/.test(JSON.stringify(past.table)) && !/longer than/.test(past.line!));
       const stripPast = past as ViewResult<"strip">;
-      assert.equal(stripPast.data!.rows[0].open[0].overdue, true);
+      assert.equal(stripPast.data!.rows.find(row => row.label === "Acme Corp")!.open[0].overdue, true);
     });
 
     await check("an open invoice past its expected day is overdue; an unknown client is refused in words; extra keys are refused", () => {

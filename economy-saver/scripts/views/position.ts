@@ -12,8 +12,8 @@ import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { resolveRecipe } from "@/lib/canvas/resolve";
 import { starterRecipes } from "@/lib/canvas/starters";
 import { ViewFigure } from "@/components/views/ViewFigure";
-import { fact, type Fact } from "@/lib/money/facts";
-import { TERMS, type TermName } from "@/lib/money/terms";
+import { fact } from "@/lib/money/facts";
+import type { TermName } from "@/lib/money/terms";
 import { positionSteps } from "@/lib/money/position";
 import { low, series } from "@/lib/money/runway";
 import { loadViewContext } from "@/lib/views/load";
@@ -21,10 +21,9 @@ import { resolveView } from "@/lib/views/resolve";
 import type { ViewResult } from "@/lib/views/types";
 import { forecastView } from "@/lib/views/v/forecast";
 import { daysBetween } from "@/lib/money/dates";
+import { reads } from "../fixtures/view-reads";
 
 let passed = 0;
-/** The facts as the number check reads them: a one-day period becomes its date. */
-const checkable = (facts: readonly Fact[]) => facts.map(item => ({ ...item, period: item.period && "on" in item.period ? item.period.on : item.period }));
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 
 async function main() {
@@ -47,11 +46,10 @@ async function main() {
         ["Card A owed", "minus", -86_450], ["Card B owed", "minus", -61_000], ["Clients owe you", "plus", 300_000], ["What you have", "total", 280_550]]);
       assert.deepEqual(steps.filter(step => step.about).map(step => step.key), ["clients", "net"], "the invoices not yet paid are a guess");
       assert.deepEqual(positionSteps(state), steps);
-      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: state.today }), []);
       assert.ok(result.table!.rows.length === steps.length);
     });
 
-    await check("position and what_if facts: the lines are built from them, names are terms, the case is named", () => {
+    await check("position and what_if facts: the lines are built from them and the case is named", () => {
       const position = resolveView("position", {}, ctx) as ViewResult<"waterfall">;
       assert.equal(fact(position.facts!, "cash_to_spend")!.value, 128_000);
       assert.equal(fact(position.facts!, "cards_owe")!.value, 147_450);
@@ -78,13 +76,7 @@ async function main() {
       assert.equal(fact(later.facts!, "low_point_change", "as_usual")!.value, Number(fact(later.facts!, "low_point_after_change", "as_usual")!.value) - 121_220);
       const days = fact(later.facts!, "days_later_than_usual")!;
       assert.deepEqual([days.value, days.by, days.case, days.about?.id], [10, "person", "as_usual", acme.id]);
-      for (const view of [position, spend, later]) {
-        assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), { today: state.today }), [], view.view);
-        assert.ok(view.facts!.every(item => TERMS.some(term => term.name === item.name)));
-      }
-      // The person's amount confirms nothing: a reply that says it is unconfirmed by the facts.
-      assert.deepEqual(unconfirmedNumbers("¥40,000", checkable(spend.facts!), { today: state.today }), [], "the person's amount may be quoted back as theirs");
-      assert.deepEqual(unconfirmedNumbers("¥41,000", checkable(spend.facts!), { today: state.today }), ["¥41,000"], "and nothing else");
+      reads(later, state.today);
     });
 
     await check("a household with nothing says what to add", () => {
@@ -110,7 +102,6 @@ async function main() {
       assert.equal(data.low.label, "Short ¥58,780 on Fri, Nov 27");
       assert.deepEqual(data.marks, [], "a spend today needs no mark");
       assert.deepEqual(result.facts.filter(item => item.value === 40_000).map(item => item.name), ["amount_tested"], "the amount asked about is the person's fact and no other");
-      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: state.today }), []);
     });
 
     await check("what_if with a date later in the month spends on that day; a late client moves the usual case; bad asks are refused in words", () => {

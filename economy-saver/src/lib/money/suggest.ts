@@ -8,7 +8,7 @@ import { invoiceAbout } from "./pace";
 import { cancelNotices, resolveBills } from "./repeat";
 import { REGULAR_MONTHS, regularCosts } from "./regular";
 import { arrivals, dueItems, expectedPayBasis, overdue, safeToSpend } from "./runway";
-import { monthBounds, monthsBack, spendingItems } from "./spending";
+import { monthBounds, monthPeriod, monthsBack, spendingItems } from "./spending";
 import type { Finding, StandingRule, StandingRules } from "./suggestion-types";
 import { TAX_AHEAD_DAYS, taxAhead } from "./tax-ahead";
 import type { MoneyState } from "./types";
@@ -92,7 +92,7 @@ function costUpFindings(state: MoneyState, rules: StandingRules): Finding[] {
   const from = monthsBack(month, REGULAR_MONTHS) + "-01", to = monthBounds(month).last;
   const bills = resolveBills(state.storedBills, today, currency);
   const items = spendingItems({ ...state, bills }, from, to);
-  const period = { from: monthBounds(month).first, to };
+  const period = monthPeriod(month);
   const findings: Finding[] = [];
   for (const cost of regularCosts(items, currency, today).items) {
     if (cost.status !== "up" || cost.lastMinor <= 0 || cost.changeMinor === null || cost.changeMinor * 100 <= cost.lastMinor * percent) continue;

@@ -2,20 +2,17 @@
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { unconfirmedNumbers } from "@/lib/ai/number-check";
-import { fact, type Fact } from "@/lib/money/facts";
-import { TERMS } from "@/lib/money/terms";
+import { fact } from "@/lib/money/facts";
 import { roomOnCard } from "@/lib/money/runway";
 import { benMoney } from "@/lib/sample/ben";
 import { ViewFigure } from "@/components/views/ViewFigure";
 import { resolveView } from "@/lib/views/resolve";
 import { ViewError, type ViewResult } from "@/lib/views/types";
+import { reads } from "../fixtures/view-reads";
 
 let passed = 0;
 function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
 const ctx = { state: benMoney };
-/** The facts as the number check reads them: a one-day period becomes its date. */
-const checkable = (facts: readonly Fact[]) => facts.map(item => ({ ...item, period: item.period && "on" in item.period ? item.period.on : item.period }));
 const card = (cardId: string, amountMinor?: number) => resolveView("card_cycle", { cardId, ...(amountMinor === undefined ? {} : { amountMinor }) }, ctx) as ViewResult<"tracks">;
 const track = (result: ViewResult<"tracks">, key: string) => result.data!.tracks.find(t => t.key === key)!;
 
@@ -54,16 +51,14 @@ check("the amount tested is a person fact, and the room after it is the engine's
   assert.equal(after, 133_770);
   assert.ok(after === before - 40000 || after === Math.round(card("card-a").facts!.find(item => item.name === "limit_left")!.value as number) - 40000, "room less the purchase, or the limit-capped value");
   assert.ok(fact(card("card-a").facts!, "card_room_after") === null, "no amount, no room after");
-  assert.equal(unconfirmedNumbers("¥40,000", checkable(facts), { today: benMoney.today }).length, 0, "the person's amount may be quoted back as theirs");
-  assert.equal(unconfirmedNumbers("¥41,000", checkable(facts), { today: benMoney.today }).length, 1, "a number near it confirms nothing");
   assert.deepEqual(a.facts.filter(item => item.value === 40000).map(item => item.name), ["amount_tested"], "the amount is repeated as no other fact");
 });
 
 check("every card's line is built from its facts, on both cards, with and without an amount, and every fact name is a term", () => {
   for (const id of ["card-a", "card-b"]) for (const amount of [undefined, 40000, 900000]) {
     const view = card(id, amount);
-    assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), { today: benMoney.today }), [], `${id} ${amount}`);
-    assert.ok(view.facts!.every(item => TERMS.some(term => term.name === item.name) && item.from === "card_cycle"));
+    reads(view, benMoney.today);
+    assert.ok(view.facts.every(item => item.from === "card_cycle"), `${id} ${amount}`);
   }
   const a = card("card-a").facts!;
   assert.deepEqual([fact(a, "closes_on")!.value, fact(a, "due")!.value, fact(a, "statement_closed")!.value, fact(a, "closed_statement_due")!.value], ["2026-11-30", "2026-12-26", 58000, "2026-11-26"]);

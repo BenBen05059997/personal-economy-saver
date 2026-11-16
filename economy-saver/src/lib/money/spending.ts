@@ -72,6 +72,12 @@ export function monthBounds(month: string): { first: string; last: string } {
   return { first: `${month}-01`, last: dateIn(Number(match[1]), Number(match[2]), 31) };
 }
 
+/** The first to the last day of a month, as the period a fact carries. */
+export function monthPeriod(month: string): { from: string; to: string } {
+  const { first, last } = monthBounds(month);
+  return { from: first, to: last };
+}
+
 /** The month `count - 1` months before `month` (YYYY-MM), so `monthsBack(m, 1)` is `m` itself. */
 export function monthsBack(month: string, count: number): string {
   if (!MONTH.test(month)) throw new Error(`A month is YYYY-MM, not "${month}"`);

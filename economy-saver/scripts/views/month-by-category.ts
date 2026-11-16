@@ -1,8 +1,6 @@
 // Where the month goes (D73, D74, D75): the month_by_category view on Ben's sample and the ranked-bars form.
 import assert from "node:assert/strict";
-import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { fact } from "@/lib/money/facts";
-import { TERMS } from "@/lib/money/terms";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MoneyState } from "@/lib/money/types";
@@ -10,6 +8,7 @@ import { benMoney } from "@/lib/sample/ben";
 import { RankedBars } from "@/components/views/forms/RankedBars";
 import { monthByCategoryView } from "@/lib/views/v/month-by-category";
 import { ViewError, type ViewResult } from "@/lib/views/types";
+import { reads } from "../fixtures/view-reads";
 
 let passed = 0;
 function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
@@ -93,11 +92,10 @@ check("A month outside the last twelve is a ViewError; nothing spent is an empty
   assert.equal(resolve({ month: "2026-10" }, { state: none, spending: none }).empty!.add, null);
 });
 
-check("Figures are integers and confirm every amount the line says; the card carries aria and the form draws it", () => {
+check("Figures are integers; the card carries aria and the form draws it", () => {
   for (const by of ["category", "business"] as const) {
     const result = resolve({ by });
     for (const item of result.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
-    assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: benMoney.today }), []);
     assert.ok(result.aria.length > 0);
   }
   const html = renderToStaticMarkup(createElement(RankedBars, { result: resolve({ open: "food" }) }));
@@ -110,12 +108,8 @@ check("Figures are integers and confirm every amount the line says; the card car
   assert.doesNotMatch(renderToStaticMarkup(createElement(RankedBars, { result: category })), /Coffee/);
 });
 
-check("month_by_category: every fact is a term and the line has no number a fact does not confirm", () => {
-  for (const r of [category, resolve({ month: "2026-10" }), resolve({ by: "business" })]) {
-    assert.ok(r.facts && r.facts.length > 0);
-    assert.ok(r.facts.every(f => TERMS.some(t => t.name === f.name)));
-    assert.deepEqual(unconfirmedNumbers(r.line ?? "", r.facts, { today: benMoney.today }), []);
-  }
+check("month_by_category: a past month and the business look read clean", () => {
+  for (const r of [resolve({ month: "2026-10" }), resolve({ by: "business" })]) reads(r, benMoney.today);
 });
 
 check("month_by_category: the facts carry each category's change from last month, biggest first, and the total's change", () => {

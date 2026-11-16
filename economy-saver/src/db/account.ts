@@ -2,12 +2,11 @@ import { seedGeneralSpace } from "./spaces";
 import { seedRules } from "./rules";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { Currency } from "@/lib/catalogue/types";
 import { fetchReferenceRate, storeReferenceRate } from "./reference-rate";
 import { clockForHousehold } from "./clock";
-import { type Db, requireHousehold } from "./household";
+import { removeHousehold, type Db, requireHousehold } from "./household";
 import { households, members, paypalConnections, users } from "./schema";
-import { deleteHouseholdKey } from "./ai-key";
-import { removeHouseholdDocuments } from "./document-cleanup";
 
 export async function householdClock(db: Db, id: string, now = new Date()) {
   const [household] = await db.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone, currency: households.homeCurrency })
@@ -32,13 +31,12 @@ export async function accountHousehold(db: Db, verifiedUid: string) {
   return (await accountMembership(db, verifiedUid))?.householdId ?? null;
 }
 
-const currency = z.enum(["JPY", "USD"]);
 export const setupForm = z.object({
   name: z.string().trim().min(1).max(80),
   timeZone: z.string().min(1).max(80).refine(zone => {
     try { new Intl.DateTimeFormat("en", { timeZone: zone }); return true; } catch { return false; }
   }),
-  currency,
+  currency: Currency,
 });
 
 type Setup = z.output<typeof setupForm>;
@@ -55,7 +53,6 @@ export async function createHousehold(db: Db, id: string, data: Setup, opts: { i
   return db.transaction(async tx => {
     const [created] = await tx.insert(households).values({
       id, name: data.name, timeZone: data.timeZone, homeCurrency: data.currency, bankBalanceMinor: 0, isDemo: opts.isDemo,
-
     }).onConflictDoNothing({ target: households.id }).returning({ id: households.id });
     if (!created) {
       if (opts.authUserId) {
@@ -73,13 +70,7 @@ export async function createHousehold(db: Db, id: string, data: Setup, opts: { i
     if (opts.authUserId) await tx.insert(users).values({ householdId: id, memberId: owner.id, authUserId: opts.authUserId });
     await tx.insert(paypalConnections).values({ householdId: id, memberId: owner.id, balanceCurrency: data.currency });
     if (opts.replaceDemo) {
-      const [old] = await tx.select({ id: households.id }).from(households)
-        .where(and(eq(households.id, requireHousehold(opts.replaceDemo)), eq(households.isDemo, true))).for("update");
-      if (old) {
-        await deleteHouseholdKey(tx, old.id);
-        await removeHouseholdDocuments(tx, old.id);
-        await tx.delete(households).where(and(eq(households.id, old.id), eq(households.isDemo, true)));
-      }
+      await removeHousehold(tx, opts.replaceDemo, true);
     }
     return id;
   });
@@ -97,12 +88,6 @@ export async function deleteOwnedHousehold(db: Db, verifiedUid: string) {
     const owner = await accountMembership(tx, verifiedUid);
     if (owner?.role !== "owner") return false;
     const id = owner.householdId;
-    const [household] = await tx.select({ id: households.id }).from(households)
-      .where(and(eq(households.id, id), eq(households.isDemo, false))).for("update");
-    if (!household) return false;
-    await deleteHouseholdKey(tx, id);
-    await removeHouseholdDocuments(tx, id);
-    const rows = await tx.delete(households).where(and(eq(households.id, id), eq(households.isDemo, false))).returning({ id: households.id });
-    return rows.length === 1;
+    return removeHousehold(tx, id, false);
   });
 }

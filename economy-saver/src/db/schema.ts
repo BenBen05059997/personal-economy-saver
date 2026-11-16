@@ -273,8 +273,8 @@ export const documents = pgTable(
     status: documentStatus("status").notNull().default("queued"),
     error: text("error"),
     processingAt: timestamp("processing_at", { withTimezone: true }),
-    bytes: integer("bytes").notNull().default(0), // 27E: the stored file's size, counted against the household's Storage cap
-    fileRemovedAt: timestamp("file_removed_at", { withTimezone: true }), // 27E: set when the daily job removed the raw file; the row and its readings stay
+    bytes: integer("bytes").notNull().default(0), // the stored file's size, counted against the household's Storage cap
+    fileRemovedAt: timestamp("file_removed_at", { withTimezone: true }), // set when the daily job removed the raw file; the row and its readings stay
     createdAt: createdAt(),
   },
   (t) => [index("documents_household_idx").on(t.householdId), unique("documents_household_id_uq").on(t.householdId, t.id)],
@@ -747,7 +747,7 @@ export const askReceipts = pgTable("ask_receipts", {
   createdAt: createdAt(),
 }, t => [primaryKey({ columns: [t.householdId, t.askId] })]).enableRLS();
 
-// 27E: Try it and the sign-in link run before a household exists, so their per-client limits are counted here. Only a SHA-256 of the
+// Try it and the sign-in link run before a household exists, so their per-client limits are counted here. Only a SHA-256 of the
 // address is kept, never the address; the daily job prunes old windows.
 export const ipBuckets = pgTable("ip_buckets", {
   ipHash: text("ip_hash").notNull(),
@@ -756,7 +756,7 @@ export const ipBuckets = pgTable("ip_buckets", {
   count: integer("count").notNull(),
 }, t => [primaryKey({ columns: [t.ipHash, t.purpose] })]).enableRLS();
 
-// 27E: one row a day counts every model call made with the server's own key (a household's own key is not counted).
+// No code reads or writes this table any more; it waits for the migration that drops it.
 export const aiGlobalUsage = pgTable("ai_global_usage", {
   day: date("day", { mode: "string" }).primaryKey(),
   count: integer("count").notNull(),

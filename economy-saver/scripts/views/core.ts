@@ -1,4 +1,4 @@
-// The views over the canvas (D77): the view registry, the loaders and every live view, generic over `liveViews()`, on a seeded Ben household.
+// The views over the canvas (D77): the view registry, the loaders and every view, generic over the registry, on a seeded Ben household.
 // Fictional data only; PGlite, no credentials. Exports `done`, the promise of its checks, for the runner.
 import assert from "node:assert/strict";
 import { createElement } from "react";
@@ -17,7 +17,7 @@ import type { Recipe } from "@/lib/canvas/schema";
 import { ViewFigure } from "@/components/views/ViewFigure";
 import { VIEW_META } from "@/lib/views/catalogue";
 import { loadViewContext } from "@/lib/views/load";
-import { liveViews, resolveView } from "@/lib/views/resolve";
+import { resolveView } from "@/lib/views/resolve";
 import type { ViewContext, ViewId } from "@/lib/views/types";
 
 let passed = 0;
@@ -63,13 +63,7 @@ async function main() {
       assert.ok(some.income && !some.spending);
     });
 
-    await check("liveViews names the views that resolve, and every one draws", () => {
-      const live = liveViews();
-      assert.ok(live.includes("forecast") && live.includes("month_by_category") && live.includes("month_trend"));
-      assert.equal(new Set(live).size, live.length);
-    });
-
-    for (const view of liveViews()) {
+    for (const view of all) {
       await check(`${view}: form, default arguments, integer facts, checked words, table or empty, aria and a figure`, () => {
         const drawn = view === "goal_pace" || view === "tax_ahead" ? withPot(ctx) : ctx, args = defaultArgs(view, drawn);
         const result = resolveView(view, args, drawn);
@@ -90,10 +84,8 @@ async function main() {
       });
     }
 
-    await check("an unknown view, a view that is not live, an extra key and a missing id are refused in words", () => {
+    await check("an unknown view and an extra key are refused in words", () => {
       assert.throws(() => resolveView("nope", {}, ctx), /no picture called "nope"/);
-      const notLive = all.find(view => !liveViews().includes(view));
-      if (notLive) assert.throws(() => resolveView(notLive, {}, ctx), /isn't available yet/);
       assert.throws(() => resolveView("forecast", { amountMinor: 100 }, ctx), /forecast does not take "amountMinor"/);
     });
 

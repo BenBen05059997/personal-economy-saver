@@ -4,7 +4,8 @@
 import { z } from "zod";
 import { loadCanvasContext } from "@/lib/canvas/request";
 import { CanvasError, resolveRecipe } from "@/lib/canvas/resolve";
-import { CASE_KIND, ChangeSchema, MAX_CHANGES, problemWords, RecipeSchema, type Recipe } from "@/lib/canvas/schema";
+import { CASE_KIND } from "@/lib/money/terms";
+import { ChangeSchema, MAX_CHANGES, problemWords, RecipeSchema, type Recipe } from "@/lib/canvas/schema";
 import { canvasSummary } from "@/lib/canvas/summary";
 import { InputError } from "@/db/input-error";
 import { engineFact, forModel } from "@/lib/money/facts";

@@ -14,6 +14,12 @@ import { confirmedGaps } from "@/lib/money/gaps";
 import { serverHasNoModel } from "@/lib/agent/availability";
 import { toCheck } from "@/lib/money/to-check";
 import { addDays } from "@/lib/money/dates";
+import { benMoney } from "@/lib/sample/ben";
+import { HIKARI_RISE_TITLE } from "./seed";
+
+// Try it's first steps: Beacon's unbilled milestone gets paid, and the electricity bill is confirmed (both from the sample Ben).
+const beaconInvoice = benMoney.invoices.find(i => i.id === "i-beacon-m2")!;
+const beaconClient = benMoney.clients.find(c => c.id === beaconInvoice.clientId)!;
 
 export type Viewer = { uid: string } | null;
 
@@ -62,9 +68,9 @@ export async function loadWorkspaceData(tx: Db, hid: string, home = false,
   const getStarted = home && household.fixedToday !== null ? await (async () => {
     const [paid, confirmed, answer] = await Promise.all([
       tx.select({ id: invoices.id }).from(invoices).innerJoin(clients, and(eq(clients.id, invoices.clientId), eq(clients.householdId, hid)))
-        .where(and(eq(invoices.householdId, hid), eq(clients.name, "Beacon Studio"), eq(invoices.item, "Brand refresh, milestone 2"), eq(invoices.status, "paid"))).limit(1),
+        .where(and(eq(invoices.householdId, hid), eq(clients.name, beaconClient.name), eq(invoices.item, beaconInvoice.item), eq(invoices.status, "paid"))).limit(1),
       tx.select({ id: bills.id }).from(events).innerJoin(bills, and(eq(bills.id, events.refId), eq(bills.householdId, hid)))
-        .where(and(eq(events.householdId, hid), eq(events.kind, "to_check"), eq(events.refType, "bill"), eq(events.title, "Hikari Denki bill is higher than last month"), eq(bills.status, "confirmed"))).limit(1),
+        .where(and(eq(events.householdId, hid), eq(events.kind, "to_check"), eq(events.refType, "bill"), eq(events.title, HIKARI_RISE_TITLE), eq(bills.status, "confirmed"))).limit(1),
       household.journalPlace === "cloud" ? tx.select({ id: conversationTurns.id }).from(conversationTurns)
         .where(and(eq(conversationTurns.householdId, hid), eq(conversationTurns.kind, "answer"))).limit(1) : Promise.resolve([]),
     ]);

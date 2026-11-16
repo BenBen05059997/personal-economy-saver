@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
+      "Separate test app",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -41,7 +41,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
+      "Separate test app",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -70,7 +70,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
+      "Separate test app",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -98,7 +98,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
+      "Separate test app",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -125,7 +125,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
+      "Separate test app",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -153,7 +153,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
+      "Separate test app",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "The model is configured"
@@ -173,7 +173,7 @@
   {
     "id": "RULE-008",
     "area": "Rules",
-    "action": "Turn off an older late-client link threshold",
+    "action": "Turn off an older Overdue-client link threshold",
     "user_goal": "I want to keep control over my migrated setting",
     "type": "edge",
     "priority": "P2",
@@ -182,9 +182,9 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
+      "Separate test app",
       "375px and 1440px widths",
-      "The household had a 45-day late-client link setting and a saved reader correction before migration 0028"
+      "The household has an older 45-day Overdue-client link setting and a saved reader correction"
     ],
     "steps": [
       "Check Rules for the 45-day threshold and reread a bill from the same biller",
@@ -212,7 +212,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
+      "Separate test app",
       "A household created by the older app after the migration, with zero standing rule rows",
       "375px and 1440px widths"
     ],

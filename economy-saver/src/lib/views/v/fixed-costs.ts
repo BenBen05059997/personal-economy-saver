@@ -2,8 +2,8 @@
 import { fixedByMonth } from "@/lib/money/fixed";
 import { engineFact, type Fact } from "@/lib/money/facts";
 import { minorMoney } from "@/lib/money/format";
-import { regularCosts } from "@/lib/money/regular";
-import { monthBounds, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
+import { NO_REGULAR_COSTS, regularCosts } from "@/lib/money/regular";
+import { monthBounds, monthPeriod, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type ViewResult } from "../types";
 
@@ -16,14 +16,14 @@ export const fixedCostsView: Resolver<"fixed_costs"> = (args, ctx): ViewResult =
 export function fixedCostsFor(args: { months?: number }, spending: SpendingInput, today: string): ViewResult {
   const meta = VIEW_META.fixed_costs, currency = spending.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
   const found = fixedByMonth(spending, today, args.months ?? 6);
-  const base = { view: "fixed_costs" as const, args: { ...args }, form: meta.form as "stacked_columns", title: "Regular costs by month", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "Your bills and card charges" };
+  const base = { view: "fixed_costs" as const, args: { ...args }, form: meta.form as "stacked_columns", title: "Regular costs by month", question: meta.question, hint: meta.hint, currency, strip: null, source: "Your bills and card charges" };
   if (found.regularCount === 0 || !found.months.some(month => month.totalMinor > 0)) {
     return { ...base, data: null, table: null, line: null, aria: "No regular costs yet.", facts: [],
-      empty: { words: "Regular costs show up once a bill repeats or a name comes back two months running.", add: "bill", addLabel: "Add a bill" } };
+      empty: { words: NO_REGULAR_COSTS, add: "bill", addLabel: "Add a bill" } };
   }
   const now = found.months.find(month => month.current)!;
   // The facts first (D79); the sentence is written from them.
-  const period = { from: monthBounds(now.month).first, to: monthBounds(now.month).last };
+  const period = monthPeriod(now.month);
   const money = (name: "regular_costs" | "month_total" | "biggest_regular_cost", value: number, about?: Fact["about"]) => engineFact(name, value, { from: "fixed_costs", currency, period, ...(about ? { about } : {}) });
   const regularFact = money("regular_costs", now.regularMinor), totalFact = money("month_total", now.totalMinor);
   const shareFact = engineFact("regular_share", now.regularShare, { from: "fixed_costs", period });

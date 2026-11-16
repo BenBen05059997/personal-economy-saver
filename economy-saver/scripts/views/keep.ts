@@ -2,9 +2,7 @@
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { fact } from "@/lib/money/facts";
-import { termOf } from "@/lib/money/terms";
 import { bufferMonths, BUFFER_GUIDE } from "@/lib/money/buffer";
 import { moneyFlow } from "@/lib/money/flow";
 import { minorMoney } from "@/lib/money/format";
@@ -19,13 +17,9 @@ import { StackedColumns } from "@/components/views/forms/StackedColumns";
 import { bufferMonthsView, moneyFlowView, savingsRateView } from "@/lib/views/v/keep";
 import { resolveView } from "@/lib/views/resolve";
 import type { ViewContext, ViewResult } from "@/lib/views/types";
+import { reads } from "../fixtures/view-reads";
 
 let passed = 0;
-const reads = (view: ViewResult, today: string) => {
-  assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
-  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, { today: today }), [], `${view.view}: every number in the line is one of its facts`);
-  for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
-};
 function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
 const f = (minor: number) => minorMoney(minor, "JPY");
 const row = (id: string, clientId: string | null, clientName: string, paidOn: string, homeMinor: number | null): IncomeRow => ({ id, clientId, clientName, paidOn, sentOn: null, homeMinor });
@@ -91,8 +85,7 @@ check("spending higher than money in draws From earlier money; flows still balan
   assert.match(view.line!, /came from earlier money/);
 });
 
-check("the table and the line say every amount (checked words)", () => {
-  assert.deepEqual(unconfirmedNumbers(flowView.line ?? "", flowView.facts, { today: benMoney.today }), []);
+check("the table says every amount", () => {
   assert.deepEqual(flowView.table!.head, ["From", "To", "Amount"]);
   assert.equal(flowView.table!.rows.length, flow.links.length);
 });
@@ -121,7 +114,6 @@ check("a month spent beyond what came in has a part below zero; the line and tab
   assert.ok(nov.parts[1] < 0, "November's 20,000 is less than its spending so far");
   const html = renderToStaticMarkup(createElement(StackedColumns, { result: kept }));
   assert.ok(html.includes("sc-seg-short"));
-  assert.deepEqual(unconfirmedNumbers(kept.line ?? "", kept.facts, { today: benMoney.today }), []);
   assert.deepEqual(kept.table!.head, ["Month", "Money in", "Spent", "Kept"]);
 });
 
@@ -148,7 +140,6 @@ check("the bar has marks at 3 and 6 months and the guide line, drawn as informat
   const html = renderToStaticMarkup(createElement(RunwayBar, { result: lasts }));
   assert.ok(html.includes("3 months") && html.includes("6 months") && html.includes("The usual guide is 3–6 months; 9–12 for a variable income."));
   assert.doesNotMatch(html, /target|goal|behind|on track/i);
-  assert.deepEqual(unconfirmedNumbers(lasts.line ?? "", lasts.facts, { today: benMoney.today }), []);
 });
 
 check("the sankey draws a node and a flow per row, with labels", () => {
@@ -177,7 +168,7 @@ check("resolveView refuses a month outside the history and an extra key", () => 
   assert.equal(fact(resolveView("money_flow", { month: "2026-09" }, ctx).facts, "paid_in")!.value, 160_000);
 });
 
-check("Ben's sample: money_flow, savings_rate and buffer_months read clean, and every fact is a term", () => {
+check("money_flow, savings_rate and buffer_months read clean on the fixture, and on an overspent month", () => {
   const overspent: ViewContext = { ...ctx, spending: { ...benMoney, charges: [...benMoney.charges, { ...extra, id: "ch-big", amount: 900_000, date: "2026-10-16" }] } };
   for (const id of ["money_flow", "savings_rate", "buffer_months"] as const) reads(resolveView(id, {}, ctx) as ViewResult, benMoney.today);
   const october2 = resolveView("money_flow", { month: "2026-10" }, overspent) as ViewResult;

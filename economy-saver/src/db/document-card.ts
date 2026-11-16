@@ -23,8 +23,7 @@ const uuid = z.string().uuid();
 
 type Stored = { proposed: unknown; confirmed?: unknown; targetId?: string };
 
-// The canvas a document card draws never asks for foreign costs, so its context loads none.
-/** The card for one document of this household. A document that is not this household's, or no longer exists, is `gone`. `draw: false` skips the money state: no checks and no canvas. */
+/** The card for one document of this household. A document that is not this household's, or no longer exists, is `gone`. `draw: false` skips the money state: no checks and no canvas. The canvas it draws never asks for foreign costs, so its context loads none. */
 export async function documentCard(db: Db, householdId: string, documentId: string, options: { draw?: boolean } = {}): Promise<DocumentCard> {
   const hid = requireHousehold(householdId);
   if (!uuid.safeParse(documentId).success) return buildCard({ documentId, doc: null, readings: [] }, null);

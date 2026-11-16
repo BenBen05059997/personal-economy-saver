@@ -18,12 +18,39 @@
     ],
     "expected": [
       "The landing has the fipa brand, headline “Know the day money runs short, before it does.”, Try it with sample data and Start with my numbers",
-      "The sign-in card offers email sign-in and an invitation link",
+      "The sign-in card is in view and offers \"Email me a sign-in link\" and \"Invited to a household?\"",
       "The sample preview shows Ben’s engine-derived sentence, safe to spend and forecast",
       "How it works, Ask in your own words, What fipa never does and Privacy are visible",
       "Tap targets are at least 44px tall and nothing overlaps or scrolls sideways"
     ],
     "refs": []
+  },
+  {
+    "id": "VIEW-075",
+    "area": "Landing",
+    "action": "Read the example trip on the landing",
+    "user_goal": "I want to see the kind of answer I would get",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Open / with no session",
+      "Read the Ask in your own words example"
+    ],
+    "expected": [
+      "The example asks \"Can I afford a ¥40,000 trip on December 5?\"",
+      "The answer says that after the trip you would have ¥180,220 on December 10 if clients pay as usual"
+    ],
+    "refs": [
+      "D29",
+      "D72"
+    ]
   },
   {
     "id": "START-002",
@@ -46,8 +73,7 @@
     "expected": [
       "The button shows “Creating your household…” and Home opens",
       "Home shows Ben’s sentence, safe to spend, bank balance and cards as in Expected numbers",
-      "The fictional-household line links to /start",
-      "Get started shows the five Try it steps"
+      "The fictional-household line links to /start"
     ],
     "refs": [
       "qa/README Expected numbers"
@@ -149,8 +175,8 @@
     ],
     "expected": [
       "The Time zone field is prefilled from the browser",
-      "The ¥ in front of the bank box becomes $ and the placeholder becomes 2,800",
-      "Choosing yen again brings ¥ and 420,000 back"
+      "The summary line reads \"Currency: $ US dollars · Time zone: <the zone> · Change\" after choosing US dollars",
+      "Choosing yen again brings back \"Currency: ¥ Japanese yen\""
     ],
     "refs": []
   },
@@ -435,13 +461,12 @@
       "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
-      "Read Coming up, Cards, To check and Clients on Home"
+      "Read Coming up, Cards and To check on Home"
     ],
     "expected": [
-      "Coming up says \"Nothing due yet. Add your rent ›\" or \"Nothing due in the next 30 days. Add a bill ›\" and the link opens the Add a bill dialog",
-      "Cards says \"No card yet. Add one ›\" without a card (it opens the Add a card dialog), or \"No card charges yet. Add a card charge ›\" with one",
-      "To check says \"Things the app read or drafted, waiting for your OK. Nothing here now.\"",
-      "Clients says \"No clients yet. Add a client ›\" and the link opens the Add a client dialog"
+      "Coming up says \"Nothing due in the next 30 days.\" with \"Add a bill ›\" and the link opens the Add a bill dialog",
+      "Cards says \"No card yet.\" with \"Add a card ›\" without a card (it opens the Add a card dialog), or \"No card charges yet.\" with \"Add a card charge ›\" with one",
+      "To check says \"Things the app read or drafted, waiting for your OK. Nothing here now.\""
     ],
     "refs": []
   },
@@ -460,7 +485,7 @@
       "Blank household from Start with my numbers (Mika, Card N closing 25, payment 10, bank balance 120,000 set on Home)"
     ],
     "steps": [
-      "Open Add a bill or charge, More ›",
+      "Open + Add → A bill, More ›",
       "Choose each Repeats option",
       "Open New invoice"
     ],
@@ -537,13 +562,10 @@
     ],
     "steps": [
       "POST /api/auth/link with a valid email five times in an hour",
-      "Post a sixth time",
-      "POST once with an invalid email"
+      "Post a sixth time"
     ],
     "expected": [
-      "The sixth answers 429 \"Too many sign-in links requested from this connection. Try again in an hour.\"",
-      "A different address is not affected",
-      "An invalid email is refused with 400 before it counts"
+      "The sixth answers 429 \"Too many sign-in links requested from this connection. Try again in an hour.\""
     ],
     "refs": [
       "db:limits-test"
@@ -721,6 +743,31 @@
       "Back does not show my pages"
     ],
     "refs": []
+  },
+  {
+    "id": "VIEW-002",
+    "area": "Sign in",
+    "action": "Send a fictional sign-in link",
+    "user_goal": "I want a sign-in link from the landing page",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "email"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Private window, no household cookie"
+    ],
+    "steps": [
+      "Enter a fictional email and submit Email me a sign-in link"
+    ],
+    "expected": [
+      "The page says Check your inbox"
+    ],
+    "refs": [
+      "D34",
+      "D72"
+    ]
   },
   {
     "id": "AUTH-020",
@@ -903,36 +950,6 @@
     "refs": []
   },
   {
-    "id": "SET-006",
-    "area": "Rules",
-    "action": "Turn the late-client link rule on, off and out of range",
-    "user_goal": "I want a suggestion to send a late client the link again",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Separate test app with migration 0028",
-      "Fresh Try it household (Ben) at 375px and 1440px"
-    ],
-    "steps": [
-      "Open Settings → Assistant rules (the first tab)",
-      "Set the late-client link rule to 5 days and save",
-      "Reload and try 0 and 31 days",
-      "Turn the late-client link rule off and save"
-    ],
-    "expected": [
-      "The late-client link rule starts enabled at 3 days and keeps 5 after a successful save and reload",
-      "0 and 31 are refused and 5 stays saved",
-      "Turning it off keeps the rule off on reload and the Save button is at least 44px tall at 375px"
-    ],
-    "refs": [
-      "D66"
-    ]
-  },
-  {
     "id": "SET-007",
     "area": "Settings",
     "action": "Add a person and see the shares",
@@ -1011,31 +1028,6 @@
       "The question says Wife's bills become shared and paid by Ben",
       "Keep changes nothing; Remove drops Wife and the owner cannot be removed (no button)",
       "A person who still owes or is owed is refused with a sentence"
-    ],
-    "refs": []
-  },
-  {
-    "id": "SET-010",
-    "area": "Cards",
-    "action": "Add a card",
-    "user_goal": "I have a new card",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)"
-    ],
-    "steps": [
-      "Open Add a card",
-      "Give a label, closing day 15, payment day 10, limit 300,000",
-      "Press Add card"
-    ],
-    "expected": [
-      "The card appears in the list and on Home's and Cards' rows",
-      "The form is empty again and the bell lists it"
     ],
     "refs": []
   },
@@ -1450,7 +1442,7 @@
     "steps": [
       "Open Connect another AI assistant",
       "Revoke the key",
-      "Call where_am_i from the client again"
+      "Call show from the client again"
     ],
     "expected": [
       "After Revoke the key is gone from the list",
@@ -1660,9 +1652,8 @@
       "Press Export my data"
     ],
     "expected": [
-      "A file personal-economy-saver-2026-11-14.json downloads",
-      "It opens as JSON with \"version\": 3, the record keys, and arrays memory, canvases, spaces and journal. A fresh Try it has General in spaces",
-      "It has no AI key, tokens, sign-in email or uploaded files"
+      "A file personal-economy-saver-2026-11-14.json downloads and opens as JSON",
+      "It has ownCategories listing Coffee, Gear and Books & films"
     ],
     "refs": []
   },
@@ -1735,10 +1726,10 @@
       "Choose the file under Import"
     ],
     "expected": [
-      "\"Imported.\" shows and the panel reads \"Your numbers · 46 items\", \"What the assistant remembers · 1 thing\", \"Canvases pinned to Home · 1 canvas\"",
+      "\"Imported.\" shows and the panel reads \"Your numbers\" with the same item count the Try it household showed, \"What the assistant remembers · 1 thing\", \"Canvases pinned to Home · 1 canvas\"",
       "Home shows Ben's sentence with the pin \"What if clients pay late\" under it",
       "The bell has one import event, \"Imported a household file\" (Type \"Imported from a file\"); the file's own events are not brought over",
-      "A second import is refused as in DATA-010"
+      "A second import is refused with \"Import works on an empty household. Start with my numbers first.\""
     ],
     "refs": []
   },

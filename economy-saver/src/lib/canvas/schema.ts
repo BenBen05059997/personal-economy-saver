@@ -1,29 +1,27 @@
 // The canvas recipe (D57): the one definition of a recipe, its queries, its blocks and the what-if changes. The code's types, the check
-// at the route, and the JSON Schema the agent is shown are all this file. Version 1. Every object is strict: a key that is not listed is
-// refused, so a block that shows money can never carry an amount of its own (the one exception is a progress block's target, which is the
-// person's own number). Amounts in a change are positive integer minor units of the household's home currency (whole yen, cents for USD).
+// at the route, and the JSON Schema of the household export are all this file. Version 1. Every object is strict: a key that is not listed is
+// refused, so a block that shows money can never carry an amount of its own (the only amounts are the person's own: a progress block's
+// target, a what-if's changes and what a view tests). Amounts are positive integer minor units of the household's home currency (whole yen, cents for USD).
 import { isCalendarDay } from "@/lib/calendar-day";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { InputError } from "@/db/input-error";
-import { viewBlockSchema } from "@/lib/views/args";
-import { liveViews } from "@/lib/views/resolve";
+import { amountMinorSchema, idSchema, monthSchema, viewBlockSchema } from "@/lib/views/args";
 
 export const RECIPE_VERSION = 1;
-const MAX_BLOCKS = 12;
+/** The most blocks one recipe holds. */
+export const MAX_BLOCKS = 12;
+const TITLE_MAX = 80;
 export const MAX_CHANGES = 10;
 const MAX_SLIDER_DAYS = 60;
-/** The engine's scenario for each way the tools spell a case (`usual` in every tool; `as_usual` only in recipes stored before the tools agreed). */
-export const CASE_KIND = { usual: "expected", as_usual: "expected", late: "worst" } as const;
 
 const day = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, "A date is YYYY-MM-DD")
   .refine(isCalendarDay, "That day is not on the calendar")
   .describe("YYYY-MM-DD.");
-const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "A month is YYYY-MM").describe("A calendar month, YYYY-MM, within the last twelve months or this one.");
-const id = z.string().min(1).max(80);
+const month = monthSchema.describe("A calendar month, YYYY-MM, within the last twelve months or this one.");
+const id = idSchema;
 const mark = id.optional().describe("Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window.");
-const minorAmount = z.number().int("An amount is a whole number of minor units").positive("An amount is more than zero").max(100_000_000, "That amount is too large")
-  .describe("Minor units.");
+const minorAmount = amountMinorSchema.max(100_000_000, "That amount is too large").describe("Minor units.");
 
 // ---------------------------------------------------------------- what-if changes
 
@@ -62,7 +60,7 @@ const MonthByPersonQuery = z.object({ q: z.literal("month_by_person"), month }).
 const CompareMonthsQuery = z.object({ q: z.literal("compare_months"), a: month.describe("The earlier month, the base."), b: month.describe("The month compared with it; the change is b minus a.") }).strict();
 const SpendingSearchQuery = z.object({ q: z.literal("spending_search"), text: z.string().max(80), months: z.number().int().min(1).max(12) }).strict();
 const RegularCostsQuery = z.object({ q: z.literal("regular_costs"), months: z.number().int().min(2).max(24).optional() }).strict();
-const BillsForMonthQuery = z.object({ q: z.literal("bills_for_month"), month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "A month is YYYY-MM").describe("The month the bills are FOR (their period), YYYY-MM; a bill for November is usually paid in December."), text: z.string().max(80).optional() }).strict();
+const BillsForMonthQuery = z.object({ q: z.literal("bills_for_month"), month: monthSchema.describe("The month the bills are FOR (their period), YYYY-MM; a bill for November is usually paid in December."), text: z.string().max(80).optional() }).strict();
 const ForeignCostsQuery = z.object({ q: z.literal("foreign_costs") }).strict();
 const GoalsQuery = z.object({ q: z.literal("goals") }).strict();
 
@@ -84,7 +82,7 @@ function isAppPath(href: string): boolean {
   return !/^\/api(\/|\?|#|$)/i.test(href);
 }
 
-export const BlockSchema = z.union([
+const BlockSchema = z.union([
   z.object({ type: z.literal("sentence"), query: SentenceQuery }).strict(),
   z.object({ type: z.literal("number"), label: z.string().min(1).max(60), query: NumberQuery, note: z.string().max(200).optional() }).strict(),
   z.object({ type: z.literal("flow_chart"), query: FlowQuery, mark }).strict(),
@@ -98,13 +96,13 @@ export const BlockSchema = z.union([
   z.object({ type: z.literal("sliders"), controls: z.array(z.object({ clientId: id, maxDays: z.number().int().min(1).max(MAX_SLIDER_DAYS) }).strict()).min(1).max(4) }).strict(),
   z.object({ type: z.literal("action"), label: z.string().min(1).max(60), href: z.string().max(200).refine(isAppPath, "A link goes to a page inside the app, never an outside address or an /api/ path") }).strict(),
   z.object({ type: z.literal("progress"), query: GoalsQuery }).strict(),
-  viewBlockSchema(liveViews()), // D77: a picture of the person's money, named by view and arguments; never an amount
+  viewBlockSchema(), // D77: a picture of the person's money, named by view and arguments; never an amount
 ]);
 export type Block = z.infer<typeof BlockSchema>;
 
 export const RecipeSchema = z.object({
   version: z.literal(RECIPE_VERSION),
-  title: z.string().min(1).max(80),
+  title: z.string().min(1).max(TITLE_MAX),
   scenario: ScenarioSchema.optional().describe("The recipe's own live scenario: any query that says `scenario: \"canvas\"` uses it, and the sliders change its client_late days."),
   blocks: z.array(BlockSchema).min(1).max(MAX_BLOCKS),
 }).strict();
@@ -137,7 +135,7 @@ export const MAX_PINS = 8;
 /** A pin's title and recipe, checked: the one place those rules live (cloud and device). */
 export const titleOf = (title: string): string => {
   const trimmed = title.trim();
-  if (trimmed.length < 1 || trimmed.length > 80) throw new InputError("A title is 1 to 80 characters.");
+  if (trimmed.length < 1 || trimmed.length > TITLE_MAX) throw new InputError(`A title is 1 to ${TITLE_MAX} characters.`);
   return trimmed;
 };
 export function recipeOf(value: unknown): Recipe {

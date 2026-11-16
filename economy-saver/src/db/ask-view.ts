@@ -31,8 +31,7 @@ function draw(key: string, recipe: Recipe, context: CanvasContext): Drawn | null
   catch (error) { if (error instanceof CanvasError) return null; throw error; }
 }
 
-/** The serializable Ask view for both the page and the panel. */
-/** `owner` chooses the words when no model is set: the owner adds a key, a member asks the owner. */
+/** The serializable Ask view for both the page and the panel. `owner` chooses the words when no model is set: the owner adds a key, a member asks the owner. */
 export async function loadAskView(db: Db, householdId: string, { spaceId, legacyId, pinId, owner = true }: {
   spaceId?: string; legacyId?: string; pinId?: string; owner?: boolean;
 } = {}) {

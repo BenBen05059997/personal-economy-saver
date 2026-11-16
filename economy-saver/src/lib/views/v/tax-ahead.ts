@@ -1,17 +1,18 @@
 // Will the pot cover the tax bills? (D77) The pot's day-by-day amount against the Government & tax bills due, from the engine's `taxAhead`. Pure; integer minor units.
 import { addDays } from "@/lib/money/dates";
 import { engineFact, type Fact } from "@/lib/money/facts";
-import { dayLabel, minorMoney } from "@/lib/money/format";
+import { dayLabel, longDay, minorMoney } from "@/lib/money/format";
 import { TAX_AHEAD_DAYS, taxAhead } from "@/lib/money/tax-ahead";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type ViewResult } from "../types";
-import { longDay, stepLine } from "./forecast";
+import { stepLine } from "../step-line";
+import { NOTHING_SCHEDULED, WAITS_IN_TO_CHECK, waitsWords } from "../words";
 
 export const taxAheadView: Resolver<"tax_ahead"> = (args, ctx): ViewResult => {
   const { state } = ctx, pot = state.pots.find(row => row.id === args.potId), days = args.days ?? TAX_AHEAD_DAYS;
   if (!pot) throw new ViewError("I couldn't find that pot.");
   const meta = VIEW_META.tax_ahead, currency = state.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
-  const base = { view: "tax_ahead" as const, args: args as Record<string, unknown>, form: meta.form as "step_line", title: `${pot.name}: tax ahead`, question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "The pot, your open invoices on their usual pay days and your Government & tax bills" };
+  const base = { view: "tax_ahead" as const, args: args as Record<string, unknown>, form: meta.form as "step_line", title: `${pot.name}: tax ahead`, question: meta.question, hint: meta.hint, currency, strip: null, source: "The pot, your open invoices on their usual pay days and your Government & tax bills" };
   const none = (words: string, add: "bill" | null, addLabel: string | null) => ({ ...base, data: null, table: null, line: null, aria: "No tax picture yet.", facts: [] as Fact[], empty: { words, add, addLabel } });
   const ahead = taxAhead(state, args.potId, days);
   if (!ahead) return none("Set a fill rule on this pot to see the tax ahead.", null, null);
@@ -21,9 +22,9 @@ export const taxAheadView: Resolver<"tax_ahead"> = (args, ctx): ViewResult => {
   const counted = ahead.taxBills.filter(bill => bill.counted), pending = ahead.taxBills.filter(bill => bill.pending);
   const words = (i: number) => [
     ...ahead.steps.filter(step => step.index === i).map(step => `${step.client}${step.number ? ` ${step.number}` : ""} pays: ${format(step.addMinor)} goes into the pot`),
-    ...ahead.taxBills.filter(bill => bill.index === i).map(bill => bill.pending ? `${bill.biller} ${format(bill.amountMinor)} waits in To check and is not counted yet` : `${bill.biller} ${format(bill.amountMinor)} is due`),
+    ...ahead.taxBills.filter(bill => bill.index === i).map(bill => bill.pending ? waitsWords(bill.biller, format(bill.amountMinor)) : `${bill.biller} ${format(bill.amountMinor)} is due`),
   ];
-  const dayWords = ahead.pot.map((_, i) => ({ date: date(i), label: longDay(date(i)), lines: words(i).length ? words(i) : ["Nothing scheduled"] }));
+  const dayWords = ahead.pot.map((_, i) => ({ date: date(i), label: longDay(date(i)), lines: words(i).length ? words(i) : [NOTHING_SCHEDULED] }));
   const { low } = ahead, lowDate = date(low.index), lowWords = longDay(lowDate);
   const lines = [
     { key: "main", label: "In the pot", tone: "main" as const, points: ahead.pot },
@@ -40,7 +41,7 @@ export const taxAheadView: Resolver<"tax_ahead"> = (args, ctx): ViewResult => {
 
   const through = counted.length ? counted[counted.length - 1].date : date(days - 1);
   const line = low.short ? `The pot is ${format(low.shortMinor)} short of the tax bills on ${dayLabel(lowDate)}.` : `The pot covers the tax bills through ${dayLabel(through)}.`;
-  const note = pending.length ? ` ${pending.map(bill => bill.biller).join(" and ")} waits in To check and is not counted yet.` : "";
+  const note = pending.length ? ` ${pending.map(bill => bill.biller).join(" and ")} ${WAITS_IN_TO_CHECK}.` : "";
   const eventDays = new Set(ahead.taxBills.map(bill => bill.index).concat(ahead.steps.map(step => step.index)));
   const rows = ahead.pot.map((_, i) => i).filter(i => i === 0 || eventDays.has(i));
   const potAbout = { type: "pot" as const, id: pot.id, name: pot.name }, billAbout = (bill: (typeof ahead.taxBills)[number]) => ({ type: "bill" as const, id: bill.id, name: bill.biller });

@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -41,7 +41,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14"
     ],
@@ -69,7 +69,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Signed-in fictional household with a verified address and configured simulated email"
     ],
@@ -97,7 +97,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Signed-in fictional household with a verified address and configured simulated email",
       "Email reminders is on"
@@ -125,17 +125,15 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Signed-in fictional household with a verified address and configured simulated email"
     ],
     "steps": [
-      "Tap Send a test email",
-      "Inspect the simulated transport request"
+      "Tap Send a test email"
     ],
     "expected": [
-      "Test reminder sent. appears",
-      "The test uses the verified sign-in address, Your test reminder arrived., and the configured Home URL"
+      "Test reminder sent. appears"
     ],
     "refs": [
       "D65"
@@ -153,7 +151,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery"
@@ -183,7 +181,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery",
@@ -213,7 +211,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery",
@@ -241,7 +239,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery",
@@ -270,7 +268,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery"
@@ -307,7 +305,7 @@
       "Open Settings → Assistant rules and find Push on this device"
     ],
     "expected": [
-      "Push on this device says \"Off. WEB_PUSH_PUBLIC_KEY is not set.\"",
+      "Push on this device says \"Off. Push reminders aren’t set up on this server.\"",
       "Turn on push is disabled"
     ],
     "refs": [
@@ -326,7 +324,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "One simulated delivery row in the household"
@@ -353,7 +351,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "A secure browser context with Web Push support and configured simulated delivery",
@@ -383,7 +381,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028 and simulated reminder transports",
+      "Separate test app with simulated reminder transports",
       "375px and 1440px widths",
       "Fresh Ben Try it on Nov 14",
       "RESEND_API_KEY and WEB_PUSH_PUBLIC_KEY are absent"
@@ -393,7 +391,7 @@
     ],
     "expected": [
       "Email and push both show off",
-      "Email names RESEND_API_KEY and push names WEB_PUSH_PUBLIC_KEY"
+      "Email says \"Email reminders aren’t set up on this server.\" and push says \"Push reminders aren’t set up on this server.\""
     ],
     "refs": [
       "D65"

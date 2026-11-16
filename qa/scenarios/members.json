@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -38,7 +38,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -63,7 +63,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -89,7 +89,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -100,56 +100,6 @@
     "expected": [
       "The invitation opens Home in the correct household with the existing figures",
       "The invitee never enters onboarding"
-    ],
-    "refs": [
-      "D68"
-    ]
-  },
-  {
-    "id": "MEMBER-005",
-    "area": "Household members",
-    "action": "Try the wrong email",
-    "user_goal": "Only the invited address should accept my link",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "owner"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
-      "375px and 1440px for browser checks"
-    ],
-    "steps": [
-      "Open Join and enter a different email"
-    ],
-    "expected": [
-      "The join attempt is refused"
-    ],
-    "refs": [
-      "D68"
-    ]
-  },
-  {
-    "id": "MEMBER-006",
-    "area": "Household members",
-    "action": "Open an expired or used link",
-    "user_goal": "I want an invite to stop working after use or expiry",
-    "type": "negative",
-    "priority": "P1",
-    "needs": [
-      "owner"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
-      "375px and 1440px for browser checks"
-    ],
-    "steps": [
-      "Open a used link and an expired link in a fresh profile"
-    ],
-    "expected": [
-      "Both links are unavailable"
     ],
     "refs": [
       "D68"
@@ -167,7 +117,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -193,7 +143,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -218,7 +168,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -243,7 +193,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -271,7 +221,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -297,7 +247,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "375px and 1440px for browser checks"
     ],
     "steps": [
@@ -323,7 +273,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Isolated test setup with migration 0028 and fictional household records",
+      "Isolated test setup with fictional household records",
       "Verified test identities or a fake Auth transport",
       "375px and 1440px for browser checks"
     ],

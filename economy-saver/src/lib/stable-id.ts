@@ -1,11 +1,27 @@
 // A UUID that code works out from what it is made of, so the same thing made twice is the same row. The one function behind a finding's id
-// (db/suggestions.ts) and a draft's id (agent/tools.ts): same household and same parts give the same id; any other part gives another.
-export async function stableId(householdId: string, ...parts: (string | number)[]): Promise<string> {
-  const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode([householdId, ...parts].join("/")))).slice(0, 16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x80;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+// (db/suggestions.ts), a draft's id (agent/tools.ts) and a document's job id (db/reader-job.ts): the same parts give the same id; any other part gives another.
+export async function stableIdOfBytes(bytes: BufferSource): Promise<string> {
+  const id = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)).slice(0, 16);
+  id[6] = (id[6] & 0x0f) | 0x80;
+  id[8] = (id[8] & 0x3f) | 0x80;
+  const hex = Array.from(id, byte => byte.toString(16).padStart(2, "0")).join("");
   return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join("-");
+}
+
+/** The id for the same household and the same parts. */
+export function stableId(householdId: string, ...parts: (string | number)[]): Promise<string> {
+  return stableIdOfBytes(new TextEncoder().encode([householdId, ...parts].join("/")));
+}
+
+/** SHA-256 of a text or of bytes, as lowercase hex. */
+export async function sha256Hex(input: string | BufferSource): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", typeof input === "string" ? new TextEncoder().encode(input) : input);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** A secret token for a link or a cookie: 32 random bytes, base64url. Only its SHA-256 is stored where it must be looked up. */
+export function newToken(): string {
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
 }
 
 /** A value as JSON with its keys in sorted order, so two inputs that say the same thing hash alike. */

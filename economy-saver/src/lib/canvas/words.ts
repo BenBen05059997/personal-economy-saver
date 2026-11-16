@@ -1,5 +1,7 @@
 // "Show the recipe": each block in plain words. Pure.
-import { plural } from "@/lib/plural";
+import { plural } from "@/lib/money/format";
+import { pluralWord } from "@/lib/plural";
+import { CASES, FACT_CASE } from "@/lib/money/terms";
 import { monthName, SEARCH_QUERY_MAX } from "@/lib/money/spending";
 import { VIEW_META } from "@/lib/views/catalogue";
 import type { Block, Query, ScenarioRef } from "./schema";
@@ -10,7 +12,7 @@ function scenarioWords(ref: ScenarioRef): string {
   if (ref === undefined) return "";
   if (ref === "canvas") return ", on this canvas's what-if";
   const n = ref.changes.length;
-  return `, ${ref.case === "usual" ? "clients paying as usual" : "clients paying late"}${n ? `, with ${n} what-if ${plural(n, "change")}` : ""}`;
+  return `, clients paying ${CASES[FACT_CASE[ref.case]].label}${n ? `, with ${n} what-if ${pluralWord(n, "change")}` : ""}`;
 }
 
 /** What a query asks the engine, as a phrase. */
@@ -51,7 +53,7 @@ export function blockWords(block: Block): string {
     case "view": return `Picture: ${VIEW_META[block.view].question}`;
     case "note": return `Note (${block.by === "you" ? "yours" : "written by the assistant"})`;
     case "letter": return "Letter written by the assistant";
-    case "sliders": return `Sliders: ${block.controls.length} ${plural(block.controls.length, "client")} that can pay later than usual`;
+    case "sliders": return `Sliders: ${plural(block.controls.length, "client")} that can pay later than usual`;
     case "action": return `Link: "${block.label}", to a page in the app`;
   }
 }

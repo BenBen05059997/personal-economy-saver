@@ -1,4 +1,5 @@
 import { logSettingProblem } from "@/lib/operator-log";
+import { stableIdOfBytes } from "@/lib/stable-id";
 import { and, eq, inArray, isNull, lt, or } from "drizzle-orm";
 import { requireHousehold, recordEvent, withHousehold, type Db } from "./household";
 import { householdClock } from "./account";
@@ -13,7 +14,7 @@ import { extractDocument } from "@/lib/reader/extract";
 import { MAX_DOCUMENT_BYTES, ReaderError } from "@/lib/reader/settings";
 
 const LEASE_MS = 90_000;
-export const staleBefore = () => new Date(Date.now() - LEASE_MS);
+const staleBefore = () => new Date(Date.now() - LEASE_MS);
 
 async function lockHousehold(tx: Db, hid: string) {
   const [row] = await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
@@ -22,11 +23,7 @@ async function lockHousehold(tx: Db, hid: string) {
 
 // The content digest includes the household and media type. A redelivered email or double upload has one job.
 async function contentId(hid: string, mime: string, bytes: ArrayBuffer) {
-  const digest = await crypto.subtle.digest("SHA-256", Buffer.concat([Buffer.from(hid + "/" + mime + "/"), Buffer.from(bytes)]));
-  const key = Buffer.from(digest);
-  key[6] = (key[6] & 15) | 0x80;
-  key[8] = (key[8] & 63) | 0x80;
-  return key.subarray(0, 16).toString("hex").replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5");
+  return stableIdOfBytes(Buffer.concat([Buffer.from(hid + "/" + mime + "/"), Buffer.from(bytes)]));
 }
 
 /** A file is refused up front, as a 503 naming the setting, when no model is set up to read it (the household's own, or the server default). */

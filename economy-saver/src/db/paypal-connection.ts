@@ -78,7 +78,7 @@ export async function startConnect(db: Db, householdId: string, call: PayPalCall
   return actionUrl;
 }
 
-export type ConfirmResult = { state: "connected" | "pending"; detail: string | null };
+type ConfirmResult = { state: "connected" | "pending"; detail: string | null };
 
 /**
  * Confirms the sign-up this household started by asking PayPal about the tracking id it stored; nothing in a return address

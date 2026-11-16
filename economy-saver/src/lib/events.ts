@@ -1,11 +1,11 @@
 import { refreshSuggestions } from "@/db/suggestions";
-import { and, desc, eq, inArray, isNotNull, isNull, lte, max, or, sql, type SQL } from "drizzle-orm";
-import { type Db, recordEvent, recordWebhookDelivery, usdRateMicro, withHousehold } from "@/db/household";
+import { and, eq, inArray, isNotNull, isNull, max, or, sql, type SQL } from "drizzle-orm";
+import { type Db, latestUsdRate, recordEvent, recordWebhookDelivery, usdRateMicro, withHousehold } from "@/db/household";
 import { beginMoneyChange, lockRunway, observeRunway } from "@/db/runway-events";
 import { convertMinor, fromMinor, fromRateMicro, parseMinor } from "@/db/money";
 import { householdMoment } from "@/db/clock";
 import { fillPots } from "@/db/pots";
-import { clients, events, fxRates, households, invoices, members, paypalConnections, webhookDeliveries } from "@/db/schema";
+import { clients, events, households, invoices, members, paypalConnections, webhookDeliveries } from "@/db/schema";
 import { settleUpInTx } from "@/db/settle";
 import { applyMerchantEvent, ownerPayPal } from "@/db/paypal-connection";
 import { InvoiceMatchError, readPaymentByCapture, settleReadPaymentInTx } from "@/db/invoice-match";
@@ -282,11 +282,9 @@ async function settle(
     if (connection.balanceCurrency !== paid.currency) {
       let rate = paid.rate;
       if (!rate) {
-        const [reference] = await tx.select({ rate: fxRates.rateMicro }).from(fxRates)
-          .where(and(eq(fxRates.householdId, owner.householdId), eq(fxRates.base, "USD"), eq(fxRates.quote, paid.currency === "USD" ? connection.balanceCurrency : paid.currency), lte(fxRates.date, paid.businessDate!)))
-          .orderBy(desc(fxRates.date)).limit(1);
+        const reference = await latestUsdRate(tx, owner.householdId, paid.currency === "USD" ? connection.balanceCurrency : paid.currency, paid.businessDate!);
         if (!reference) throw new Error("Missing FX rate for the payment date");
-        rate = reference.rate;
+        rate = reference.rateMicro;
         await tx.update(invoices).set({ fxRateMicro: rate }).where(and(eq(invoices.householdId, owner.householdId), eq(invoices.id, paid.id)));
       }
       credit = convertMinor(paid.amount, paid.currency, connection.balanceCurrency, fromRateMicro(rate));

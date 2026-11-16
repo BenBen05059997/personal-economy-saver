@@ -1,4 +1,5 @@
 import { beginMoneyChange, observeRunway } from "./runway-events";
+import { newToken } from "@/lib/stable-id";
 import { and, eq } from "drizzle-orm";
 import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { fromMinor, toRateMicro } from "./money";
@@ -8,7 +9,7 @@ import { requestIsCurrent } from "./member-request";
 import { clients, invoices, members } from "./schema";
 import { addDays } from "@/lib/money/dates";
 import { NotConnected, type CreateOrder } from "@/lib/paypal/contracts";
-import { canHavePayLink, newPayToken, payLinkUrl } from "@/lib/paypal/pay-link";
+import { canHavePayLink, payLinkUrl } from "@/lib/paypal/pay-link";
 
 export class ApprovalError extends Error {
   constructor(message: string, readonly status = 409) { super(message); }
@@ -27,7 +28,7 @@ export async function invoiceReview(db: Db, householdId: string, invoiceId: stri
   return { invoice: row.invoice, client: (row.client ?? row.member)!, isRequest: row.invoice.payerMemberId !== null, payLink: row.invoice.payToken ? payLinkUrl(row.invoice.payToken) : null };
 }
 
-export type ApprovalContext = {
+type ApprovalContext = {
   db: Db;
   householdId: string;
   approveKey: string;
@@ -58,7 +59,7 @@ export async function approvePaymentLink(ctx: ApprovalContext): Promise<string> 
     if (invoice.payerMemberId !== null && !await requestIsCurrent(tx, hid, invoice)) return { invoice: { ...invoice, status: "closed" as const }, payee: null, stale: true };
     const payee = await payeeOf(tx, hid);
     if (invoice.payToken) return { invoice, payee };
-    const [kept] = await tx.update(invoices).set({ payToken: newPayToken() })
+    const [kept] = await tx.update(invoices).set({ payToken: newToken() })
       .where(and(eq(invoices.householdId, hid), eq(invoices.id, invoice.id))).returning();
     return { invoice: kept, payee };
   });

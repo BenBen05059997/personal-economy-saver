@@ -2,6 +2,7 @@
 // and the browser always render the same characters.
 
 import type { Currency } from "@/lib/catalogue/types";
+import { pluralWord } from "@/lib/plural";
 
 /** 1234567 -> "1,234,567". */
 export function group(n: number): string {
@@ -50,10 +51,16 @@ export function convertMinor(minor: number, from: string, to: string, perUsd: nu
 }
 
 /** "3 days", "1 day": a count with its word. */
-export const plural = (n: number, one: string, many = one + "s") => `${n} ${n === 1 ? one : many}`;
+export const plural = (n: number, one: string, many = one + "s") => `${n} ${pluralWord(n, one, many)}`;
 
 /** Basis points as the percent number the screens print: 3000 -> "30", 50 -> "0.5". */
 export const percentText = (bp: number): string => String(bp / 100);
+
+/** A percentage typed as "40" or "33.33" in basis points (4000, 3333): up to `wholeDigits` digits before the point and two after; null when the text is not that shape. The caller checks its own bounds. */
+export function percentToBp(text: string, wholeDigits = 3): number | null {
+  const match = new RegExp(`^(\\d{1,${wholeDigits}})(?:\\.(\\d{1,2}))?$`).exec(text.trim());
+  return match ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) : null;
+}
 
 /** Whole minor units per unit of a currency (cents for USD, yen for JPY). */
 export const minorPerUnit = (currency: Currency) => 10 ** MINOR_PLACES[currency];
@@ -68,6 +75,13 @@ export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "
 /** "2026-11-27" -> "Nov 27" */
 export function dayLabel(iso: string): string {
   return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** "2026-11-27" -> "Fri, Nov 27". */
+export function longDay(iso: string): string {
+  return `${WEEKDAYS[new Date(`${iso}T00:00:00Z`).getUTCDay()]}, ${dayLabel(iso)}`;
 }
 
 /** 25 -> "25th", 1 -> "1st", 12 -> "12th", 22 -> "22nd". */

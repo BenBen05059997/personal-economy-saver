@@ -4,11 +4,13 @@ import { CATEGORY_KEYS } from "@/lib/money/categories";
 import { SEARCH_QUERY_MAX } from "@/lib/money/spending";
 import type { ViewId } from "./types";
 
-const id = z.string().min(1).max(80);
-const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+/** The id, month and amount rules every stored block and recipe holds to; the canvas schema and the agent's `show` read them from here. */
+export const idSchema = z.string().min(1).max(80);
+export const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "A month is YYYY-MM");
+export const amountMinorSchema = z.number().int("An amount is a whole number of minor units").positive("An amount is more than zero");
+const id = idSchema, month = monthSchema, amountMinor = amountMinorSchema;
 const months = z.number().int().min(2).max(12);
 const days = z.number().int().min(1).max(90);
-const amountMinor = z.number().int().positive();
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 /** The arguments of each view; the stored block holds ids, `show` takes names that code turns into these. */
@@ -38,10 +40,8 @@ export const VIEW_ARGS = {
 
 export type ViewArgs = { [K in ViewId]: z.infer<(typeof VIEW_ARGS)[K]> };
 
-/** The stored `{ type: "view", view, args }` block, for the views that are live. */
-export function viewBlockSchema(live: ViewId[]) {
-  const blocks = live.map(view => z.object({ type: z.literal("view"), view: z.literal(view), args: VIEW_ARGS[view] }).strict());
-  if (blocks.length === 0) return z.never();
-  if (blocks.length === 1) return blocks[0];
+/** The stored `{ type: "view", view, args }` block. */
+export function viewBlockSchema() {
+  const blocks = (Object.keys(VIEW_ARGS) as ViewId[]).map(view => z.object({ type: z.literal("view"), view: z.literal(view), args: VIEW_ARGS[view] }).strict());
   return z.union(blocks as unknown as [(typeof blocks)[number], (typeof blocks)[number], ...(typeof blocks)[number][]]);
 }

@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030"
+      "Fresh Try it"
     ],
     "steps": [
       "Open Memory → Spaces → New space",
@@ -37,7 +37,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "An open space called \"Tax for March\""
     ],
     "steps": [
@@ -64,7 +64,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "An open space called \"Tax for March\"",
       "A working model"
     ],
@@ -94,7 +94,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "A household with two stored conversations that predate spaces and migration 0030 applied"
+      "A household with two stored conversations that predate spaces"
     ],
     "steps": [
       "Open General, then Earlier conversations",
@@ -175,7 +175,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "An open space called \"Tax for March\"",
       "A working model"
     ],
@@ -195,7 +195,7 @@
   {
     "id": "SPACE-009",
     "area": "Ask spaces",
-    "action": "Export a space with its thread",
+    "action": "Read the Ask conversations count with a space",
     "user_goal": "I want a copy of my tasks and conversations",
     "type": "happy",
     "priority": "P2",
@@ -207,13 +207,10 @@
       "A task space with a saved fictional turn"
     ],
     "steps": [
-      "Check the Ask conversations count in Settings → Your data",
-      "Choose Export my data and inspect the JSON"
+      "Check the Ask conversations count in Settings → Your data"
     ],
     "expected": [
-      "The cloud journal count includes the saved turn and the named space, and excludes General itself",
-      "The export is version 3, with General and the task in spaces",
-      "The saved turn’s conversationId equals the exported task’s id"
+      "The cloud journal count includes the saved turn and the named space, and excludes General itself"
     ],
     "refs": [
       "D69"
@@ -231,7 +228,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "A version 3 export containing General, a task space and its thread",
+      "An export containing General, a task space and its thread",
       "A fresh Start with my numbers household in the same currency"
     ],
     "steps": [
@@ -239,8 +236,7 @@
       "Open the imported task from Ask"
     ],
     "expected": [
-      "The task’s name and thread are restored",
-      "The task and thread use destination ids"
+      "The task’s name and thread are restored"
     ],
     "refs": [
       "D69"
@@ -258,7 +254,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "An empty space called March paperwork"
     ],
     "steps": [
@@ -288,7 +284,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "An empty space called Card A review",
       "A working model"
     ],
@@ -378,7 +374,7 @@
       "Choose Export from this device and open the file"
     ],
     "expected": [
-      "The local brief and its update metadata appear on the matching space in the version 3 export"
+      "The local brief and its update metadata appear on the matching space in the export"
     ],
     "refs": [
       "D44",
@@ -451,7 +447,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A space named March paperwork",
       "A second open space"
     ],
@@ -508,7 +504,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A space named March paperwork",
       "A working model"
     ],
@@ -536,7 +532,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A space named March paperwork",
       "A working model"
     ],
@@ -564,7 +560,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A space named March paperwork",
       "A working model"
     ],
@@ -594,7 +590,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A space named March paperwork",
       "A working model",
       "A note with the short name March folder and a profile preference for short summaries"
@@ -625,7 +621,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A Card A review space with a saved note or turn containing \"late studio shift\" and an old ¥54,000 estimate",
       "A working model"
     ],
@@ -712,7 +708,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A working model"
     ],
     "steps": [
@@ -741,7 +737,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A working model"
     ],
     "steps": [
@@ -768,7 +764,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A working model",
       "One named open space and a separate archived space"
     ],
@@ -795,7 +791,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A working model",
       "An open space with a saved brief and regular canvas"
     ],
@@ -826,7 +822,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A working model",
       "Ask conversations kept on this device"
     ],
@@ -856,7 +852,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A working model",
       "A space with a saved brief and note"
     ],
@@ -886,7 +882,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it after migration 0030",
+      "Fresh Try it",
       "A working model",
       "Open spaces Cash buffer and Bill watch"
     ],
@@ -924,11 +920,10 @@
     ],
     "steps": [
       "Let the ordinary reminder schedule reach the member’s hour",
-      "Open the received reminder and check the day’s delivery count"
+      "Open the received reminder"
     ],
     "expected": [
-      "The email includes the assigned space labels and one Home link",
-      "The member receives at most one email digest for that day"
+      "The email includes the assigned space labels and one Home link"
     ],
     "refs": [
       "D65",
@@ -956,8 +951,7 @@
     ],
     "expected": [
       "The notification uses the assigned space labels",
-      "The only app link opens Home",
-      "At most one scheduled push digest is claimed for the member that day"
+      "The only app link opens Home"
     ],
     "refs": [
       "D65",

@@ -18,7 +18,7 @@
     ],
     "expected": [
       "The sentence matches qa/README Expected numbers: fine if Acme and Northwind pay as usual, short on the 27th if they are late",
-      "Acme and Northwind are links to their client pages and the date links to the Next 30 days panel",
+      "Acme and Northwind are links to their client pages and the date links to the Your next 30 days panel",
       "Under the sentence is the quiet line 'A fictional household that lives in this browser for seven days after your last change. Start with my numbers ›'"
     ],
     "refs": []
@@ -64,7 +64,7 @@
     ],
     "steps": [
       "Open Home",
-      "Look at the Next 30 days chart"
+      "Look at the chart in Your next 30 days"
     ],
     "expected": [
       "The chart marks the shortfall on Nov 27 as a negative amount",
@@ -88,12 +88,12 @@
     ],
     "steps": [
       "Open Home",
-      "Read the Safe to spend panel"
+      "Read the strip under the Your next 30 days chart"
     ],
     "expected": [
-      "Safe to spend shows ¥0 with the line about Card B not yet billed",
-      "The text 'The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late.' sits under it",
-      "Money in pots comes off it (see PLAN-006)"
+      "Safe to spend now shows ¥0 with \"Includes card charges not yet on a statement: ¥61,000 on Card B.\"",
+      "The text 'The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late.' sits under the strip",
+      "Money in pots comes off it"
     ],
     "refs": []
   },
@@ -167,37 +167,6 @@
       "The line 'Add a partner or housemate…' is still there"
     ],
     "refs": []
-  },
-  {
-    "id": "HOME-010",
-    "area": "Home",
-    "action": "Follow the hints panel on a blank household",
-    "user_goal": "I want to be guided through setup",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Blank household (Mika, setup skipped to Home, bank balance not set)"
-    ],
-    "steps": [
-      "Read \"What you can do here\" under the sentence",
-      "Press \"Set today’s bank balance\" and save a balance",
-      "Press \"Add a bill\" and add one",
-      "Press \"Add a client\" and add one"
-    ],
-    "expected": [
-      "The panel shows six cards: Set today’s bank balance, Add a bill, Add a client, Add a card, Upload a receipt or bill and Ask a question",
-      "Each card opens its thing: the balance form, the Add a bill dialog, the Add a client dialog",
-      "A card whose thing now exists shows a tick and \"Done\" and stays clickable",
-      "Try it (Ben) shows Get started instead; no \"First steps\" panel exists",
-      "Cards are at least 44px tall at 375px"
-    ],
-    "refs": [
-      "D47"
-    ]
   },
   {
     "id": "HOME-011",
@@ -320,8 +289,7 @@
       "POST /api/approve twice with the same approve_key and action send"
     ],
     "expected": [
-      "PayPal is asked for one order; the second answer redirects to the same invoice",
-      "Only one 'Payment link made' event exists"
+      "The second answer redirects to the same invoice"
     ],
     "refs": [
       "db:approve-test"
@@ -369,7 +337,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14), advanced to a date after Northwind's usual pay day (see 'Advancing the Try it date' in qa/README.md)",
-      "The late-client rule on at 3 days",
+      "The Overdue-client link rule on at 3 days",
       "Northwind's invoice is sent and has its payment link"
     ],
     "steps": [
@@ -377,7 +345,7 @@
       "Tap 'Copy link for Northwind' on the invoice page"
     ],
     "expected": [
-      "The finding 'Send Northwind the link again' opens Northwind's invoice, which shows its payment link, 'Awaiting payment.' and the line 'Northwind is late. To send the link again, copy it again and send it the way you did before.'",
+      "The finding 'Send Northwind the link again' opens Northwind's invoice, which shows its payment link, 'Awaiting payment.' and the line 'Northwind's payment is overdue. To send the link again, copy it again and send it the way you did before.'",
       "The field holds the same /pay/ link as before and the button says 'Copied.' (the clipboard holds the link)",
       "The bell gains 'Payment link for Northwind offered' and the finding leaves Home",
       "Nothing is sent to PayPal or to the client by fipa"
@@ -739,7 +707,7 @@
       "Tap Card A"
     ],
     "expected": [
-      "Limit left ¥413,550 shows with 'Can still go on this card and leave every bill through Dec 26 covered ¥173,770' and Recent charges each have Remove"
+      "Limit left ¥413,550 shows with 'Card room if clients pay late, every bill through Dec 26 covered' (¥173,770) and Recent charges each have Remove"
     ],
     "refs": []
   },
@@ -802,7 +770,7 @@
       "Fresh Try it household (Ben)"
     ],
     "steps": [
-      "Home → Add a card charge",
+      "Home → + Add → A card charge",
       "Merchant 'Noodle shop', ¥3,800, Card B, Food, Personal, Add charge"
     ],
     "expected": [
@@ -1020,7 +988,7 @@
     ],
     "expected": [
       "The menu lists A bill, A card charge, A card, A client who pays you, A person who shares costs, A pot, a line, then Upload a receipt or bill, Forward a bill (only when forwarding is set up) and New invoice, in that order",
-      "Each opens that thing's form in a dialog over the current screen (the same form as /add/<kind>); closing it leaves the person where they were",
+      "Each form opens in a dialog over the current screen (the same form as /add/<kind>); closing it leaves the person where they were; Upload a receipt or bill opens Upload",
       "At 1200px and wider the menu and the notifications open directly under their own top-bar buttons with the Ask panel closed, with it open (they do not cover the panel) and on the Ask page, where the top bar has no Ask button"
     ],
     "refs": []
@@ -1096,9 +1064,7 @@
       "Pressing it reads Loading… while it works, adds the next older events below and repeats none",
       "When there are no more events the button is gone"
     ],
-    "refs": [
-      "economy-saver/src/app/activity/page.tsx"
-    ]
+    "refs": []
   },
   {
     "id": "BELL-003",
@@ -1291,31 +1257,6 @@
     ],
     "refs": [
       "economy-saver/src/components/settings/OptionsView.tsx"
-    ]
-  },
-  {
-    "id": "PLAN-039",
-    "area": "Ask",
-    "action": "See what foreign payouts cost",
-    "user_goal": "I want to know PayPal's cost to me",
-    "type": "happy",
-    "priority": "P3",
-    "needs": [
-      "model"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben)",
-      "A working model (the server's or the Codex bridge)"
-    ],
-    "steps": [
-      "Ask 'What do my PayPal payouts cost me?'"
-    ],
-    "expected": [
-      "Quotes ¥111,637 over twelve months, names only PayPal, never says to leave it; the answer has no \"See it in\" button, because foreign costs show in Ask only and have no page panel"
-    ],
-    "refs": [
-      "D62"
     ]
   },
   {
@@ -1534,7 +1475,8 @@
       "Add a client opens the Add a client dialog over Home",
       "Add a card opens the Add a card dialog over Home",
       "Upload opens Upload",
-      "Ask a question opens the Ask panel (or full Ask on a narrow window)"
+      "Ask a question opens the Ask panel (or full Ask on a narrow window)",
+      "A card whose thing now exists shows a tick and \"Done\" and stays clickable"
     ],
     "refs": [
       "D47"
@@ -1571,25 +1513,151 @@
     ]
   },
   {
-    "id": "HINT-005",
+    "id": "VIEW-018",
     "area": "Home hints",
-    "action": "Try it shows Get started, not the hints",
-    "user_goal": "I want the demo to teach the demo",
-    "type": "edge",
-    "priority": "P3",
+    "action": "Hide Get started",
+    "user_goal": "I know the steps and want them gone",
+    "type": "happy",
+    "priority": "P2",
     "needs": [
       "none"
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Try it household (Ben)"
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
     ],
     "steps": [
-      "Open Home on a fresh Try it household (Ben)"
+      "Select Hide on Get started and reload"
     ],
     "expected": [
-      "Get started shows its steps",
-      "\"What you can do here\" is not on the page"
+      "The panel remains hidden on this device"
+    ],
+    "refs": [
+      "D47",
+      "D59"
+    ]
+  },
+  {
+    "id": "VIEW-019",
+    "area": "Home hints",
+    "action": "Complete the invoice step",
+    "user_goal": "I want the demo to tell me when I have done the invoice step",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "paypal_webhook"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Approve Beacon’s invoice, then pay its link as the client (PAY-041)"
+    ],
+    "expected": [
+      "The invoice step becomes complete when the paid state is recorded"
+    ],
+    "refs": [
+      "D12",
+      "D47"
+    ]
+  },
+  {
+    "id": "VIEW-020",
+    "area": "Home hints",
+    "action": "Complete the bill step",
+    "user_goal": "I want the demo to tell me when I have checked the bill",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Confirm the Hikari Denki reading in To check"
+    ],
+    "expected": [
+      "The Hikari step becomes complete and the To check count drops"
+    ],
+    "refs": [
+      "D47",
+      "D61"
+    ]
+  },
+  {
+    "id": "VIEW-021",
+    "area": "Home hints",
+    "action": "Complete the AI question step",
+    "user_goal": "I want the demo to tell me when I have asked a question",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Save a fictional test model key and ask one question"
+    ],
+    "expected": [
+      "The step is complete after a key is saved and an answer is recorded"
+    ],
+    "refs": [
+      "D47",
+      "D56"
+    ]
+  },
+  {
+    "id": "VIEW-022",
+    "area": "Home hints",
+    "action": "Complete the person step",
+    "user_goal": "I want the demo to tell me when I have added a person",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Add a fictional person who shares costs"
+    ],
+    "expected": [
+      "The person step becomes complete"
+    ],
+    "refs": [
+      "D45",
+      "D47"
+    ]
+  },
+  {
+    "id": "VIEW-042",
+    "area": "Home hints",
+    "action": "Read the Get started rows",
+    "user_goal": "I want to know what to try first on the demo",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Home and read Get started"
+    ],
+    "expected": [
+      "\"What you can do here\" is not on the page; Get started shows \"1 of 5 done\" with a short orange bar and Hide",
+      "\"Read the sentence and the forecast\" is struck through with a green check",
+      "The other four have empty rings and link to /invoices, /to-check and /canvas#ask (or /settings/ai-model on a server with no AI of its own), and the last one opens the Add a person dialog (/add/person) with the words \"Send Beacon’s payment link and watch the payment arrive\", \"Check the Hikari Denki bill in To check\", \"Ask a question\" (\"Add your AI key, then ask a question\" on a server with no AI of its own) and \"Add a person who shares costs\""
     ],
     "refs": [
       "D47"
@@ -1645,10 +1713,10 @@
       "Come back to Home"
     ],
     "expected": [
-      "Your next 30 days shows no chart, no Forecast / Categories / Trend switches, no Chart / Table switch and no Ask about this button",
+      "Your next 30 days shows no chart, no chart, no Chart / Table switch and no Ask about this button",
       "It says 'Nothing to forecast yet. Add a bill or a client and your next 30 days show here.' with Add a bill (primary) and Add a client buttons",
       "The Bank balance row with its Update stays in the panel, and the hints card Set today's bank balance still opens its form",
-      "After the bill is saved the chart and its switches are back"
+      "After the bill is saved the chart and the Chart / Table switch are back"
     ],
     "refs": [
       "D47"
@@ -1739,6 +1807,365 @@
       "D12",
       "D15",
       "D34"
+    ]
+  },
+  {
+    "id": "VIEW-024",
+    "area": "Home",
+    "action": "Read a forecast day with the keyboard",
+    "user_goal": "I want to read any day of the forecast without a mouse",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Focus a day in the forecast chart"
+    ],
+    "expected": [
+      "The date, the balances if clients pay late and if as usual, and the events for that date are shown"
+    ],
+    "refs": [
+      "D73",
+      "D78"
+    ]
+  },
+  {
+    "id": "VIEW-025",
+    "area": "Home",
+    "action": "Read the pending bill on the chart",
+    "user_goal": "I want to see that a waiting bill is not counted yet",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Focus Nov 27 on a fresh Ben forecast"
+    ],
+    "expected": [
+      "Hikari Denki waits in To check and is not counted yet; the late balance is short ¥18,780"
+    ],
+    "refs": [
+      "D55",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-032",
+    "area": "Home",
+    "action": "Ask about the forecast",
+    "user_goal": "I want to ask about the chart in front of me",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Choose Ask about this on Your next 30 days"
+    ],
+    "expected": [
+      "Ask opens and sends \"What does my cash forecast show?\" once; the thread keeps its answer"
+    ],
+    "refs": [
+      "D60",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-043",
+    "area": "Home",
+    "action": "Read the forecast chart, its legend and axes",
+    "user_goal": "I want the forecast chart to read clearly",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Home with Display on Chart (the default)"
+    ],
+    "expected": [
+      "The Display switch reads Chart and Table with Chart pressed (yellow with dark text); a zero line and the low point are marked",
+      "The legend reads \"If clients pay late (what safe to spend uses)\", \"If as usual\", \"Depends on when they pay\"",
+      "Gridlines are solid; y labels −¥100k, ¥0, ¥100k … ¥500k; x labels Today, Nov 21, Nov 28, Dec 5, Dec 12; the direct labels \"If as usual\" and \"If late\" sit at the widest gap"
+    ],
+    "refs": [
+      "D73",
+      "D78"
+    ]
+  },
+  {
+    "id": "VIEW-044",
+    "area": "Home",
+    "action": "Read the forecast low point",
+    "user_goal": "I want to see where I run short and why",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Read the red label on the chart"
+    ],
+    "expected": [
+      "It reads \"Short ¥18,780 on Fri, Nov 27\" with \"Card A ¥58,000 on the 26th, then rent ¥82,000\" under it",
+      "The label and the grey line stay inside the plot, clear of the y-axis labels, also with the Ask panel open, and the gridline does not show through the text",
+      "After confirming Hikari Denki they read \"Short ¥30,000 on Fri, Nov 27\" and \"Card A ¥58,000 on the 26th, then Hikari Denki ¥11,220, then rent ¥82,000\"",
+      "The grey line wraps at \", then\" when the chart is narrow and is left out when the wrapped lines have no room under the low point (phone width); the day's tooltip and the table still carry it"
+    ],
+    "refs": [
+      "D73",
+      "D78"
+    ]
+  },
+  {
+    "id": "VIEW-045",
+    "area": "Home",
+    "action": "Hover the forecast at Nov 27",
+    "user_goal": "I want to read one day of the forecast",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Hover the plot at Nov 27"
+    ],
+    "expected": [
+      "A crosshair and a tooltip show Fri, Nov 27, −¥18,780 if late, ¥281,220 if as usual, \"Hikari Denki ¥11,220 waits in To check and is not counted yet\" and \"Rent −¥82,000\""
+    ],
+    "refs": [
+      "D73",
+      "D78"
+    ]
+  },
+  {
+    "id": "VIEW-046",
+    "area": "Home",
+    "action": "Move the forecast tooltip with the keyboard",
+    "user_goal": "I want to read the forecast without a mouse",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Tab to the plot",
+      "Press ArrowRight, Home and End"
+    ],
+    "expected": [
+      "The tooltip moves day by day"
+    ],
+    "refs": [
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-047",
+    "area": "Home",
+    "action": "Read the forecast summary strip",
+    "user_goal": "I want the summary under the chart in words I know",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Read the strip under the chart"
+    ],
+    "expected": [
+      "Safe to spend now ¥0 with \"Includes card charges not yet on a statement: ¥61,000 on Card B.\"",
+      "Low point if clients pay late −¥18,780 in red with \"Fri, Nov 27\"",
+      "Low point if clients pay as usual ¥121,220 with \"Fri, Nov 20\"",
+      "\"The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late.\" and Bank balance ¥67,000 with Update"
+    ],
+    "refs": [
+      "D73",
+      "D78"
+    ]
+  },
+  {
+    "id": "VIEW-048",
+    "area": "Home",
+    "action": "Read the forecast table rows",
+    "user_goal": "I want the forecast as a table",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Press Table in the Display switch"
+    ],
+    "expected": [
+      "Columns: Day, What happens, If clients pay late, If as usual",
+      "Rows: Nov 14 (¥128,000), Nov 18, 20, 22, 25, 26, 27 (−¥18,780 late, ¥281,220 as usual), 29, Dec 3 and Dec 10"
+    ],
+    "refs": [
+      "D73",
+      "D78"
+    ]
+  },
+  {
+    "id": "VIEW-051",
+    "area": "Home",
+    "action": "Read the Home views in dark mode",
+    "user_goal": "I use dark mode",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Switch to dark mode and read Home's chart and table"
+    ],
+    "expected": [
+      "Everything stays readable; the late line is orange and the band is a neutral dark grey"
+    ],
+    "refs": [
+      "D72",
+      "D73"
+    ]
+  },
+  {
+    "id": "VIEW-033",
+    "area": "Home",
+    "action": "Read the top bar at 1440px",
+    "user_goal": "I want the top bar to show where I am",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Home, then Spending"
+    ],
+    "expected": [
+      "The top bar shows \"Sample household · fixed date Nov 14\", a bell with a \"1\" badge, \"+ Add\" and \"Ask\" on both pages",
+      "There is no \"Ask or say:\" field"
+    ],
+    "refs": [
+      "D25"
+    ]
+  },
+  {
+    "id": "VIEW-035",
+    "area": "Home",
+    "action": "Read the sidebar current page",
+    "user_goal": "I want to see which page I am on",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Home with the panel open, then Spending"
+    ],
+    "expected": [
+      "The current page is the only row with a grey fill, never yellow",
+      "Ask shows a small orange dot at its right edge while the panel is open"
+    ],
+    "refs": [
+      "D25",
+      "D72"
+    ]
+  },
+  {
+    "id": "VIEW-039",
+    "area": "Home",
+    "action": "Tab through the shell in dark mode",
+    "user_goal": "I use the keyboard in dark mode",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Switch to dark mode",
+      "Tab through the sidebar and the top bar"
+    ],
+    "expected": [
+      "A light focus ring shows on each control"
+    ],
+    "refs": [
+      "D72"
+    ]
+  },
+  {
+    "id": "VIEW-041",
+    "area": "Home",
+    "action": "Read the Home columns",
+    "user_goal": "I want Home's panels in two columns",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open Home at 1100px or wider with the Ask panel closed"
+    ],
+    "expected": [
+      "To check, Suggestions, Cards and Shared costs are in the left column and Coming up is in the right column"
+    ],
+    "refs": [
+      "D25"
     ]
   }
 ]

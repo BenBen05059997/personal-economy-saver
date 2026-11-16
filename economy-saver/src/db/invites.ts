@@ -1,4 +1,5 @@
 import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
+import { newToken, sha256Hex } from "@/lib/stable-id";
 import { z } from "zod";
 import { accountMembership } from "./account";
 import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
@@ -16,10 +17,6 @@ type Identity = { uid: string; email: string | null };
 
 const open = (now: Date) => and(isNull(invites.acceptedAt), gt(invites.expiresAt, now));
 const sameInvite = (hid: string, id: string) => and(eq(invites.householdId, hid), eq(invites.id, id));
-
-async function hashToken(token: string) {
-  return Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))).toString("hex");
-}
 
 async function ownerMember(db: Db, hid: string, uid: string) {
   const [owner] = await db.select({ id: members.id }).from(users)
@@ -49,8 +46,8 @@ export async function createInvite(db: Db, id: string, uid: string, input: Invit
   const data = InviteInput.safeParse(input);
   if (!data.success) throw new InputError("Enter a valid email and choose an existing person or enter a new name.");
   const { email, name, memberId } = data.data;
-  const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
-  const tokenHash = await hashToken(token);
+  const token = newToken();
+  const tokenHash = await sha256Hex(token);
   const expiresAt = new Date(now.getTime() + SEVEN_DAYS);
   return withHousehold(db, hid, async tx => {
     await lockHousehold(tx, hid);
@@ -85,7 +82,7 @@ export async function cancelInvite(db: Db, id: string, uid: string, inviteId: st
 async function findByToken(db: Db, token: string) {
   if (!INVITE_TOKEN.test(token)) return null;
   // The bearer hash is the routing key. Once found, further reads and writes use this household and row id.
-  const [found] = await db.select().from(invites).where(eq(invites.tokenHash, await hashToken(token)));
+  const [found] = await db.select().from(invites).where(eq(invites.tokenHash, await sha256Hex(token)));
   return found ?? null;
 }
 

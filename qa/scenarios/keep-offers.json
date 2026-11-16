@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Ben Try it with a configured model after migration 0028",
+      "Fresh Ben Try it with a configured model",
       "375px and 1440px widths"
     ],
     "steps": [
@@ -39,7 +39,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Ben Try it with a configured model after migration 0028",
+      "Fresh Ben Try it with a configured model",
       "375px and 1440px widths"
     ],
     "steps": [
@@ -65,7 +65,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Ben Try it with a configured model after migration 0028",
+      "Fresh Ben Try it with a configured model",
       "375px and 1440px widths"
     ],
     "steps": [
@@ -92,7 +92,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Fresh Ben Try it with a configured model after migration 0028",
+      "Fresh Ben Try it with a configured model",
       "375px and 1440px widths",
       "Memory is set to This device only"
     ],
@@ -121,7 +121,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate test app with migration 0028",
+      "Separate test app",
       "Fresh Ben Try it with a configured model",
       "375px and 1440px widths"
     ],

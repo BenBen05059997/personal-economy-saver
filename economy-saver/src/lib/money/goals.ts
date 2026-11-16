@@ -4,6 +4,11 @@ import { monthsUntil } from "./plan";
 import type { MoneyState, Pot } from "./types";
 import { addDays, daysBetween } from "./dates";
 
+/** "On pace", "¥3,000 behind pace", "¥3,000 ahead of pace": `deltaMinor` is what is saved less what the goal expects by today. */
+export function paceWords(deltaMinor: number, money: (minor: number) => string): string {
+  return deltaMinor === 0 ? "On pace" : `${money(Math.abs(deltaMinor))} ${deltaMinor < 0 ? "behind pace" : "ahead of pace"}`;
+}
+
 type GoalClock = Pick<MoneyState, "today" | "homeCurrency">;
 
 type GoalPace = {
@@ -44,7 +49,7 @@ export function goalPace(pot: Pot, state: GoalClock): GoalPace | null {
   let paceLine = "Target reached.";
   let summary = paceLine;
   if (neededMinor > 0) {
-    const pace = deltaMinor === 0 ? "On pace." : money(Math.abs(deltaMinor)) + (deltaMinor < 0 ? " behind pace." : " ahead of pace.");
+    const pace = `${paceWords(deltaMinor, money)}.`;
     const required = targetDate <= today
       ? "The target date has arrived. " + money(neededMinor) + " still to set aside."
       : money(monthlyNeededMinor) + " a month to reach " + money(targetMinor) + " by " + dayLabel(targetDate) + ".";

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, type KeyboardEvent, type PointerEvent } from "react";
-import { minorMoney, minorPerUnit } from "@/lib/money/format";
+import { longDay, minorMoney, minorPerUnit } from "@/lib/money/format";
 import type { ViewResult } from "@/lib/views/types";
-import { compact, longDay, niceStep, useWidth } from "../chart-utils";
+import { compact, niceStep, useWidth } from "../chart-utils";
 import "./step-line.css";
 
 const H = 300, M = { left: 54, right: 28, top: 14, bottom: 30 };

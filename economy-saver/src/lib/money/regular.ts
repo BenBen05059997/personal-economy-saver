@@ -35,6 +35,8 @@ export type RegularCosts = { currency: Currency; month: string; months: string[]
 
 /** How many calendar months Regular costs compares by default (D54): this month and the two before it. */
 export const REGULAR_MONTHS = 3;
+/** What Regular costs says before any cost has come back. */
+export const NO_REGULAR_COSTS = "Regular costs show up once a bill repeats or a name comes back two months running.";
 
 const DATE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 /** How a cost's change reads on a face: "up" and "down" are tinted, every other status is plain. */

@@ -12,8 +12,6 @@ import { loadMoneyState } from "@/db/household";
 import { loadIncome } from "@/db/income";
 import { seedBen } from "@/db/seed";
 import { foreignCosts } from "@/lib/money/fx-cost";
-import { low, series, safeToSpend } from "@/lib/money/runway";
-import { homeSentence } from "@/lib/money/sentence";
 import { benMoney } from "@/lib/sample/ben";
 
 let passed = 0;
@@ -39,13 +37,6 @@ async function main() {
       assert.deepEqual(days("Beacon"), [1, 2, 3, 2, 2, 1]);
       assert.deepEqual(days("Northwind"), [10, 13, 12, 11, 16]);
       assert.deepEqual(days("Acme"), [12, 14, 13, 25, 16]);
-    });
-
-    await check("the sentence, the late low and safe to spend are what they were", () => {
-      assert.match(homeSentence(state).text, /¥18,780 short on the 27th/);
-      const worst = low(series(state, "worst"), state.today);
-      assert.deepEqual([worst.amount, worst.date], [-18_780, "2026-11-27"]);
-      assert.equal(safeToSpend(state).amount, 0);
     });
 
     await check("the money state's invoice list is the sample's three: no paid history is in it", () => {

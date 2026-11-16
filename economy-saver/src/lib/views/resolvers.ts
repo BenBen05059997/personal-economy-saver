@@ -1,4 +1,4 @@
-// The views that are live (D77): each id and the pure function that draws it. A view not listed here is refused in words until it is built.
+// The views (D77): each id and the pure function that draws it.
 import type { Resolver, ViewId } from "./types";
 import { calendarView } from "./v/calendar";
 import { cardCycleView } from "./v/card-cycle";
@@ -18,7 +18,7 @@ import { whatChangedView } from "./v/what-changed";
 import { whatIfView } from "./v/what-if";
 import { whoOwesWhomView } from "./v/who-owes-whom";
 
-export const LIVE: { [K in ViewId]?: Resolver<K> } = {
+export const RESOLVERS: { [K in ViewId]: Resolver<K> } = {
   forecast: forecastView,
   what_if: whatIfView,
   position: positionView,

@@ -2,6 +2,7 @@ import { expandBills } from "@/lib/money/repeat";
 import { planWindow } from "@/lib/money/runway";
 import type { Bill, Charge, MoneyState } from "@/lib/money/types";
 import { addDays } from "@/lib/money/dates";
+import { DEMO_DATE } from "@/db/clock";
 
 // Sample persona for the demo. Fictional people and companies only.
 // Numbers match the concept artifact (cards included: Card A's closed statement and Card B's open cycle
@@ -43,7 +44,7 @@ export const benOwnCategories: { id: string; kind: Charge["category"]; name: str
 ];
 const OWN = { coffee: { id: "oc-coffee", name: "Coffee" }, gear: { id: "oc-gear", name: "Gear" }, books: { id: "oc-books", name: "Books & films" } };
 
-const benToday = "2026-11-14";
+const benToday = DEMO_DATE;
 
 export const benMoney: MoneyState = {
   today: benToday,

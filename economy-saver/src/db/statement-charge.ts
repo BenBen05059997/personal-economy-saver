@@ -1,16 +1,15 @@
-import { and, desc, eq, lte, sql } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import { closingOnOrAfter, dueDateFor } from "@/lib/money/runway";
-import { type Db, requireHousehold } from "./household";
+import { type Db, latestUsdRate, requireHousehold } from "./household";
 import { householdDate } from "./account";
-import { cards, cardStatements, charges, fxRates } from "./schema";
+import { cards, cardStatements, charges } from "./schema";
 import { convertMinor, fromRateMicro } from "./money";
 export class StatementChargeError extends Error {}
 
 /** A charge amount in the currency its statement is kept in; a USD charge on a yen statement uses the household's reference rate on the charge date. */
 async function toStatementCurrency(tx: Db, hid: string, targetCurrency: string, amount: number, currency: string, date: string) {
   if (currency === targetCurrency) return amount;
-  const [rate] = await tx.select().from(fxRates).where(and(eq(fxRates.householdId, hid), eq(fxRates.base, "USD"), eq(fxRates.quote, "JPY"), lte(fxRates.date, date)))
-    .orderBy(desc(fxRates.date)).limit(1);
+  const rate = await latestUsdRate(tx, hid, "JPY", date);
   if (!rate) throw new StatementChargeError("No household USD/JPY reference rate for this charge date");
   return convertMinor(amount, currency, targetCurrency, fromRateMicro(rate.rateMicro));
 }

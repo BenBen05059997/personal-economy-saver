@@ -203,7 +203,7 @@
       "Ask What if Northwind pays two weeks late? Show me a what-if canvas."
     ],
     "expected": [
-      "The compact canvas uses the same amounts as W5 with Northwind delayed 14 days",
+      "The compact canvas uses the same amounts as CANVAS-006 with Northwind delayed 14 days",
       "The canvas fits without sideways scrolling and offers Open full"
     ],
     "refs": []
@@ -398,12 +398,188 @@
     ],
     "steps": [
       "Switch between light and dark system appearance",
-      "Repeat AQ8 on Clients at 1280px in both appearances"
+      "Repeat on Clients at 1280px in both appearances"
     ],
     "expected": [
       "Panel controls, canvas and page text remain readable",
       "Nothing overlaps or scrolls sideways"
     ],
     "refs": []
+  },
+  {
+    "id": "VIEW-010",
+    "area": "Ask view",
+    "action": "Open the default desktop Ask panel",
+    "user_goal": "I want Ask beside my money without opening it",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open a fresh Try it at 1440px without a saved panel preference"
+    ],
+    "expected": [
+      "The Ask panel is docked on the right and the top Ask button is pressed"
+    ],
+    "refs": [
+      "D25",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-012",
+    "area": "Ask view",
+    "action": "Remember the closed Ask panel",
+    "user_goal": "I want the panel to stay the way I left it",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Close the panel and reload the page in the same tab"
+    ],
+    "expected": [
+      "The panel stays closed; opening it restores the thread"
+    ],
+    "refs": [
+      "D59",
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-013",
+    "area": "Ask view",
+    "action": "Read the Ask screen chip",
+    "user_goal": "I want to know which screen Ask is reading",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open the panel on Home and navigate to Spending"
+    ],
+    "expected": [
+      "The chip changes from Looking at Home to Looking at Spending"
+    ],
+    "refs": [
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-052",
+    "area": "Ask view",
+    "action": "Read the Ask panel header and starters",
+    "user_goal": "I want the panel to say what it is and how to start",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open the Ask panel on Home"
+    ],
+    "expected": [
+      "The header reads \"Ask\", a \"General ▾\" chooser, an expand icon (Open full) and a ✕ (Close Ask), and its bottom line lines up with the top bar's",
+      "A \"Looking at Home\" pill with an eye, then the greeting \"Hi. What can I help you with?\" with four starter buttons: \"Am I OK until the end of the month?\", \"How much can I safely spend now?\", \"Where did last month go?\" and \"What's coming up in the next two weeks?\"",
+      "The starters show only while the thread is empty"
+    ],
+    "refs": [
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-053",
+    "area": "Ask view",
+    "action": "Read the Ask panel composer",
+    "user_goal": "I want the composer in the panel to match the full page",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Read the bottom of the screen with the panel open"
+    ],
+    "expected": [
+      "The label \"Ask a question\", one box with the question field (placeholder \"What’s due this week? Can I spend ¥4,000?\"), a microphone icon named \"Use microphone\" (\"Stop listening\" while listening) and a yellow Ask button",
+      "Under it Incognito and Attach a bill",
+      "At the very bottom the model line \"A model words the answers; every number is the app's own, …\" clamped to two lines with \"More\""
+    ],
+    "refs": [
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-054",
+    "area": "Ask view",
+    "action": "Check what the Ask panel leaves out",
+    "user_goal": "I want the panel to stay small and quiet",
+    "type": "edge",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open the Ask panel on Home before any answer"
+    ],
+    "expected": [
+      "No big \"Ask\" heading, no Space brief or notes, no starter canvas chips and no \"Show the recipe\""
+    ],
+    "refs": [
+      "D60"
+    ]
+  },
+  {
+    "id": "VIEW-055",
+    "area": "Ask view",
+    "action": "Ask for last month in the panel",
+    "user_goal": "I want a compact answer that fits the panel",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Ask \"Where did last month go?\" in the panel"
+    ],
+    "expected": [
+      "The middle scrolls and the answer is a compact table \"Where October went\" with Total ¥132,060 (Housing ¥82,000, Utilities ¥10,020 …), then Open full, Show the recipe and Pin to Home",
+      "The composer stays at the bottom of the screen and the Home page behind it does not scroll"
+    ],
+    "refs": [
+      "D57",
+      "D60"
+    ]
   }
 ]

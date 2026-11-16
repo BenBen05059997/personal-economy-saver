@@ -1,7 +1,7 @@
 // A card's cycle (D77): today, when it closes, what it comes to, when it is paid and what covers it, drawn on tracks along one date line.
 // With an amount, a purchase today is drawn on the track and an arrow shows the statement it lands on. The amount is a person fact (D79): it is
 // there for the model to read, and it confirms nothing. The rooms before and after come from the engine.
-import { engineFact, personFact, type Fact } from "@/lib/money/facts";
+import { engineFact, fact, personFact, type Fact } from "@/lib/money/facts";
 import { cardCycle } from "@/lib/money/card-cycle";
 import { dayLabel, minorMoney } from "@/lib/money/format";
 import { VIEW_META } from "../catalogue";
@@ -14,7 +14,7 @@ export const cardCycleView: Resolver<"card_cycle"> = (args, ctx): ViewResult => 
   const { state } = ctx, meta = VIEW_META.card_cycle, currency = state.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
   const c = cardCycle(state, args.cardId, args.amountMinor);
   if (!c) throw new ViewError("I couldn't find that card. Pick one of your cards.");
-  const base = { view: "card_cycle" as const, args: { ...args } as Record<string, unknown>, form: "tracks" as const, title: `${c.label}'s cycle`, question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "From the card's closing and pay days, its charges and statements, and your bills and clients' usual pay days." };
+  const base = { view: "card_cycle" as const, args: { ...args } as Record<string, unknown>, form: "tracks" as const, title: `${c.label}'s cycle`, question: meta.question, hint: meta.hint, currency, strip: null, source: "From the card's closing and pay days, its charges and statements, and your bills and clients' usual pay days." };
 
   const cycleTrack: Event[] = [
     { date: c.today, label: "Building", amountLabel: format(c.openMinor), tone: "soft", kind: "span", until: c.closesOn },
@@ -63,7 +63,7 @@ export const cardCycleView: Resolver<"card_cycle"> = (args, ctx): ViewResult => 
   if (args.amountMinor !== undefined) facts.push(personFact("amount_tested", args.amountMinor, { ...money, about, period: { on: c.today } }));
   if (pb?.source === "clients") for (const a of pb.arrivals) facts.push(engineFact("covering_payment", a.amountMinor, { ...money, period: { on: a.on }, about: { type: "client", id: a.clientName, name: a.clientName } }));
   if (pb?.source === "short") facts.push(engineFact("short", pb.shortMinor, { ...money, case: "late", about }));
-  const said = (name: Fact["name"]) => facts.find(item => item.name === name)!.value;
+  const said = (name: Fact["name"]) => fact(facts, name)!.value;
   const statementOf = (open: boolean) => ({ amount: Number(said(open ? "statement_open" : "statement_closed")), dueOn: String(said(open ? "due" : "closed_statement_due")) });
   const stmt = pb ? statementOf(pb.open) : null;
   const cover = !pb ? "" : pb.source === "bank" ? ` The ${format(stmt!.amount)} statement paid ${dayLabel(stmt!.dueOn)} is covered by cash on hand.`

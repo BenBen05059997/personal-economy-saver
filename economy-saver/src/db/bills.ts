@@ -2,7 +2,7 @@ import { closeByRef, refreshSuggestions } from "./suggestions";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
+import { lockHousehold, recordEvent, requireHousehold, storedBillOf, withHousehold, type Db, type Maker } from "./household";
 import { checkAmountMinor, fromMinor, parseAmountMinor } from "./money";
 import { Currency } from "@/lib/catalogue/types";
 import { dayLabel, minorMoney, minorPerUnit, repeatWords } from "@/lib/money/format";
@@ -10,12 +10,13 @@ import { observeRunway } from "./runway-events";
 import { clockForHousehold } from "./clock";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { amountOn, lastOneWords, nextAmountOf, nextOccurrenceAfter, occurrenceDates, RepeatUnitSchema, resolveBills } from "@/lib/money/repeat";
-import type { RepeatUnit, StoredBill } from "@/lib/money/types";
+import type { RepeatUnit } from "@/lib/money/types";
 import { memberCount } from "./people";
 import { ownChoiceFields, resolveOwnCategory } from "./own-categories";
 import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { AMOUNT_NOT_KNOWN_YET, DATE_NOT_KNOWN, NOT_KNOWN, NOT_KNOWN_YET } from "@/lib/money/gaps";
 import { monthName } from "@/lib/money/spending";
+import { addDays } from "@/lib/money/dates";
 import { periodLabel, periodProblem } from "@/lib/money/period";
 import { linkPreview, occurrenceInMonth, seriesToJoin, type LinkPreview, type VariesSeries } from "@/lib/money/varies";
 import { bills, households, members, ownCategories } from "./schema";
@@ -43,7 +44,7 @@ export const billInput = z.object({
   cancelBy: z.string().date().nullable().default(null), // D48: information only; before the next occurrence
   amountVaries: z.boolean().default(false), // D54: a monthly bill forecast from its own past; needs repeat "month" and no next amount
   repeatUntil: z.string().date().nullable().default(null), // D41: the last day an occurrence may fall on (the last payment); needs a repeat
-  periodStart: z.string().date().nullable().default(null), // 27F: the first day the bill covers ("11月分"); information only; both period dates or neither; a one-off only
+  periodStart: z.string().date().nullable().default(null), // the first day the bill covers ("11月分"); information only; both period dates or neither; a one-off only
   periodEnd: z.string().date().nullable().default(null),
 });
 
@@ -58,7 +59,7 @@ export const repeatDayFor = (due: string, repeat: RepeatUnit | null) => (repeat 
  * would: an unknown amount on a bill that repeats on a fixed amount, an unknown date on a bill that repeats, has a last day to
  * cancel or is part of a series, and a date or an amount left empty without saying it is not known.
  */
-export function checkKnown(input: { amount: string; amountUnknown: boolean; due: string | null; dueUnknown: boolean }, currency: string, schedule: Pick<BillSchedule, "repeat" | "cancelBy" | "amountVaries">, series: string | null = null): { amountMinor: number | null; due: string | null } {
+function checkKnown(input: { amount: string; amountUnknown: boolean; due: string | null; dueUnknown: boolean }, currency: string, schedule: Pick<BillSchedule, "repeat" | "cancelBy" | "amountVaries">, series: string | null = null): { amountMinor: number | null; due: string | null } {
   if (input.amountUnknown && schedule.repeat !== null && !schedule.amountVaries) throw new InputError("A bill that repeats needs its amount, unless the amount changes every month");
   if (input.dueUnknown) {
     if (schedule.repeat !== null) throw new InputError("A bill that repeats needs its due date");
@@ -94,7 +95,7 @@ export function checkSchedule(due: string, today: string, schedule: BillSchedule
 }
 
 /** Activity's words for what a bill repeats and carries, "Every year · Changes to ¥12,000 from Dec 1, 2027 · Cancel by Nov 20"; empty for a plain one. */
-export function scheduleWords(schedule: BillSchedule, currency: Currency, today: string, due: string | null = null): string[] {
+function scheduleWords(schedule: BillSchedule, currency: Currency, today: string, due: string | null = null): string[] {
   const last = due === null ? null : lastOneWords({ due, repeatUnit: schedule.repeat, repeatDay: repeatDayFor(due, schedule.repeat), repeatUntil: schedule.repeatUntil }, today);
   const change = nextAmountOf(schedule);
   return [
@@ -143,9 +144,7 @@ export async function insertBill(db: Db, householdId: string, input: z.input<typ
   const hid = requireHousehold(householdId);
   const data = billInput.parse(input);
   const refresh = await withHousehold(db, hid, async tx => {
-    const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-      .from(households).where(eq(households.id, hid)).for("update");
-    if (!household) throw new InputError("Household not found");
+    const household = await lockHousehold(tx, hid);
     const schedule: BillSchedule = {
       repeat: data.repeat, nextAmountMinor: data.nextAmount === null ? null : parseAmountMinor(data.nextAmount, household.currency),
       nextAmountFrom: data.nextAmountFrom, cancelBy: data.cancelBy, amountVaries: data.amountVaries, repeatUntil: data.repeatUntil,
@@ -295,7 +294,7 @@ export const billEditInput = billInput.pick({ id: true, biller: true, amount: tr
     seriesBillId: z.string().uuid().nullable().optional(), // D54, a one-off: the amount-varies series it is part of; null = none, absent = unchanged
     cancelBy: z.string().date().nullable().optional(), // D48: the last day to cancel; null = none, absent = unchanged
     repeatUntil: z.string().date().nullable().optional(), // D41: the last payment; null = none, absent = unchanged
-    periodStart: z.string().date().nullable().optional(), // 27F, a one-off: the first day the bill covers; null = none, absent = unchanged (both period dates or neither)
+    periodStart: z.string().date().nullable().optional(), // a one-off: the first day the bill covers; null = none, absent = unchanged (both period dates or neither)
     periodEnd: z.string().date().nullable().optional(),
   });
 
@@ -320,9 +319,7 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
   const hid = requireHousehold(householdId);
   const data = billEditInput.parse(input);
   const result = await withHousehold(db, hid, async tx => {
-    const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-      .from(households).where(eq(households.id, hid)).for("update");
-    if (!household) throw new InputError("Household not found");
+    const household = await lockHousehold(tx, hid);
     const [bill] = await tx.select().from(bills).where(and(eq(bills.householdId, hid), eq(bills.id, data.id))).for("update");
     if (!bill) return "missing";
     if (bill.status !== "confirmed") throw new InputError("This bill is waiting in To check; correct it there");
@@ -359,7 +356,7 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
       base = amountMinor;
     } else {
       if (due === null || amountMinor === null || base === null) throw new Error("A repeating bill with a fixed amount has its date and its amount");
-      const from = data.amountFrom ?? nextOccurrenceAfter({ due, repeatUnit: repeat, repeatDay: repeatDay ?? undefined, ...(repeatUntil !== null && { repeatUntil }) }, bumpDay(today, -1)) ?? due;
+      const from = data.amountFrom ?? nextOccurrenceAfter({ due, repeatUnit: repeat, repeatDay: repeatDay ?? undefined, ...(repeatUntil !== null && { repeatUntil }) }, addDays(today, -1)) ?? due;
       if (from > latestDate(today)) throw new InputError(HORIZON_MESSAGE);
       const before = amountOn(base, next, from);
       if (amountMinor !== before) {
@@ -432,14 +429,7 @@ export async function updateBill(db: Db, householdId: string, input: z.infer<typ
  */
 async function estimateFor(tx: Db, hid: string, billId: string, today: string, currency: Currency): Promise<number | null> {
   const rows = await tx.select().from(bills).where(eq(bills.householdId, hid));
-  const resolved = resolveBills(rows.map((r): StoredBill => ({
-    id: r.id, biller: r.biller, amount: r.amountMinor === null ? null : fromMinor(r.amountMinor, r.currency), due: r.due, category: CategoryKeySchema.parse(r.category), businessBp: r.businessBp, status: r.status,
-    ...(r.repeatUnit !== null && { repeatUnit: RepeatUnitSchema.parse(r.repeatUnit) }),
-    ...(r.repeatDay !== null && { repeatDay: r.repeatDay }),
-    ...(r.repeatUntil !== null && { repeatUntil: r.repeatUntil }),
-    ...(r.amountVaries && { amountVaries: true as const }),
-    ...(r.seriesBillId !== null && { seriesBillId: r.seriesBillId }),
-  })), today, currency).find(bill => bill.id === billId);
+  const resolved = resolveBills(rows.map(r => storedBillOf(r, fromMinor)), today, currency).find(bill => bill.id === billId);
   return resolved?.estimated ? Math.round(resolved.amount * minorPerUnit(currency)) : null;
 }
 
@@ -456,9 +446,7 @@ export async function fillGap(db: Db, householdId: string, billId: string, fill:
   const id = z.string().uuid().parse(billId);
   const due = fill.due === undefined ? undefined : z.string().date().parse(fill.due);
   const result = await withHousehold(db, hid, async tx => {
-    const [household] = await tx.select({ id: households.id, previous: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-      .from(households).where(eq(households.id, hid)).for("update");
-    if (!household) throw new InputError("Household not found");
+    const household = await lockHousehold(tx, hid);
     const [bill] = await tx.select().from(bills).where(and(eq(bills.householdId, hid), eq(bills.id, id))).for("update");
     if (!bill) return null;
     const currency = Currency.parse(bill.currency);
@@ -526,4 +514,3 @@ async function billerOf(tx: Db, hid: string, id: string) {
   return row.biller;
 }
 
-const bumpDay = (iso: string, days: number) => new Date(Date.parse(iso + "T00:00:00Z") + days * 86_400_000).toISOString().slice(0, 10);

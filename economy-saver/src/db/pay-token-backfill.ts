@@ -1,10 +1,11 @@
 // A sent invoice has one permanent payment link (D12). This gives the sent invoices made before links existed their token.
+import { newToken } from "@/lib/stable-id";
 import { and, eq, isNull } from "drizzle-orm";
-import { newPayToken, payLinkRefusal } from "@/lib/paypal/pay-link";
+import { payLinkRefusal } from "@/lib/paypal/pay-link";
 import { requireHousehold, withHousehold, type Db } from "./household";
 import { households, invoices } from "./schema";
 
-export type BackfillCounts = { households: number; given: number; skipped: Record<"not USD" | "no positive amount", number> };
+type BackfillCounts = { households: number; given: number; skipped: Record<"not USD" | "no positive amount", number> };
 
 /** One household, one transaction. With `apply` false it only counts. Never returns a token. */
 export async function backfillHouseholdPayTokens(db: Db, id: string, apply: boolean): Promise<Omit<BackfillCounts, "households">> {
@@ -17,7 +18,7 @@ export async function backfillHouseholdPayTokens(db: Db, id: string, apply: bool
       const refusal = payLinkRefusal(row);
       if (refusal) { out.skipped[refusal]++; continue; }
       if (apply) {
-        const done = await tx.update(invoices).set({ payToken: newPayToken() })
+        const done = await tx.update(invoices).set({ payToken: newToken() })
           .where(and(eq(invoices.householdId, hid), eq(invoices.id, row.id), eq(invoices.status, "sent"), isNull(invoices.payToken)))
           .returning({ id: invoices.id });
         if (done.length === 0) continue;

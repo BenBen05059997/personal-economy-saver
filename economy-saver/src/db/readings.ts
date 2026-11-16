@@ -1,7 +1,7 @@
 import { lockRunway, observeRunway } from "./runway-events";
-import { and, desc, eq, lte, sql } from "drizzle-orm";
-import { type Db, loadMoneyState, recordEvent, requireHousehold, withHousehold } from "./household";
-import { bills, cards, charges, documents, fxRates, households, readings, rules } from "./schema";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { type Db, latestUsdRate, loadMoneyState, recordEvent, requireHousehold, withHousehold } from "./household";
+import { bills, cards, charges, documents, households, readings, rules } from "./schema";
 import { checkSchedule, checkWhose, linkToSeries, repeatDayFor } from "./bills";
 import { memberByName, memberCount } from "./people";
 import { clockForHousehold } from "./clock";
@@ -23,6 +23,11 @@ import { resolveOwnCategory, type OwnChoice } from "./own-categories";
 const ruleKey = (entry: Extracted) => entry.name ? entry.kind + ":" + nameKey(entry.name) : null;
 const patchSchema = extractSchema.pick({ name: true, kind: true, category: true, businessBp: true, cardId: true }).partial();
 
+/** What the reader proposed for a reading: the `proposed` part of its stored `extracted` data, checked. */
+export function proposedOf(extracted: unknown): Extracted {
+  return extractSchema.parse((extracted as { proposed: unknown }).proposed);
+}
+
 /** The day of the month a biller's confirmed bills usually fall due on: the latest confirmed bill with the same name key; null when there is none. */
 async function usualDueDay(db: Db, hid: string, name: string): Promise<number | null> {
   const rows = await db.select({ biller: bills.biller, due: bills.due, repeatDay: bills.repeatDay }).from(bills)
@@ -31,10 +36,10 @@ async function usualDueDay(db: Db, hid: string, name: string): Promise<number | 
   return row ? row.repeatDay ?? Number(row.due!.slice(8, 10)) : null;
 }
 
-/** Called inside the transaction which finishes a document. Nothing here changes the runway. */
 // A memory kind, not an Activity event kind: written as a constant so the doors scan for `kind: "…"` does not take it for one.
 const CORRECTION = "correction";
 
+/** Called inside the transaction which finishes a document. Nothing here changes the runway. */
 export async function proposeReadings(db: Db, id: string, documentId: string, items: Extracted[]) {
   const hid = requireHousehold(id);
   // One file's readings get distinct created_at values (the base moment plus the index in milliseconds), so every list ordered by created_at keeps the model's order.
@@ -44,7 +49,7 @@ export async function proposeReadings(db: Db, id: string, documentId: string, it
     const [rule] = key ? await db.select({ patch: rules.patch }).from(rules)
       .where(and(eq(rules.householdId, hid), eq(rules.matchBiller, key))) : [];
     let proposed = rule ? { ...original, ...patchSchema.parse(rule.patch) } : original;
-    // 27F: a bill that shows the month it covers and no due date is proposed with an estimated one, marked as such with its basis.
+    // A bill that shows the month it covers and no due date is proposed with an estimated one, marked as such with its basis.
     if (proposed.kind === "bill" && proposed.date === null && proposed.name && proposed.periodStart && proposed.periodEnd && periodProblem(proposed.periodStart, proposed.periodEnd) === null) {
       const { date, basis } = estimatedDue({ start: proposed.periodStart, end: proposed.periodEnd }, await usualDueDay(db, hid, proposed.name));
       proposed = { ...proposed, date, dateBasis: basis };
@@ -96,16 +101,15 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
     if (answered !== undefined) {
       const state = await loadMoneyState(tx, hid, today);
       const waiting = (await tx.select({ id: readings.id, data: readings.extracted }).from(readings).where(and(eq(readings.householdId, hid), eq(readings.status, "to_check"))))
-        .map(other => readingProposal({ id: other.id, value: extractSchema.parse((other.data as { proposed: unknown }).proposed) }));
-      const asked = checksFor(readingProposal({ id: readingId, value: extractSchema.parse((row.data as { proposed: unknown }).proposed) }), state, waiting).map(check => check.kind);
+        .map(other => readingProposal({ id: other.id, value: proposedOf(other.data) }));
+      const asked = checksFor(readingProposal({ id: readingId, value: proposedOf(row.data) }), state, waiting).map(check => check.kind);
       const final = { ...value, amountMinor: amountUnknown ? null : amountMinor, date: dateUnknown ? null : date };
       const open = checksFor(readingProposal({ id: readingId, value: final }), state, waiting).find(check => asked.includes(check.kind) && !answered.includes(check.kind));
       if (open) throw new ReaderError(DOCUMENT_WORDS.answerFirst(open.words));
     }
     let amount: number | null = amountMinor, fx: number | null = null;
     if (amountMinor !== null && currency !== null && currency !== row.currency) {
-      const [rate] = await tx.select().from(fxRates).where(and(eq(fxRates.householdId, hid), eq(fxRates.base, "USD"), eq(fxRates.quote, "JPY"), lte(fxRates.date, date ?? today)))
-        .orderBy(desc(fxRates.date)).limit(1);
+      const rate = await latestUsdRate(tx, hid, "JPY", date ?? today);
       if (!rate) throw new ReaderError("No household USD/JPY reference rate on or before this date.");
       fx = rate.rateMicro;
       amount = convertMinor(amountMinor, currency, row.currency, fromRateMicro(fx));
@@ -150,7 +154,7 @@ export async function reviewReading(db: Db, id: string, readingId: string, field
       linked = await linkToSeries(tx, hid, bill.id); // D54: a one-off joins its amount-varies series, as on the form
     }
     const saved = row.data as { original: Extracted; proposed: Extracted };
-    const original = extractSchema.parse(saved.original), proposed = extractSchema.parse(saved.proposed);
+    const original = extractSchema.parse(saved.original), proposed = proposedOf(saved);
     // Only stable corrections recur. A different amount or date changes this document only.
     const was = { ...proposed, businessBp: proposed.businessBp ?? 0 }, now = { ...value, businessBp: value.businessBp ?? 0 };
     const patch = Object.fromEntries((["name", "kind", "category", "businessBp", "cardId"] as const).filter(k => was[k] !== now[k]).map(k => [k, now[k]]));
@@ -188,7 +192,7 @@ export async function setReadingWhose(db: Db, id: string, input: { reading: stri
   return withHousehold(db, hid, async tx => {
     if (await memberCount(tx, hid) < 2) throw new InputError("Choosing whose needs a second person; add one in Household → People");
     const rows = await tx.select({ id: readings.id, data: readings.extracted }).from(readings).where(and(eq(readings.householdId, hid), eq(readings.status, "to_check"))).for("update");
-    const waiting = rows.map(row => ({ id: row.id, data: row.data as { original: unknown; proposed: unknown }, value: extractSchema.parse((row.data as { proposed: unknown }).proposed) }));
+    const waiting = rows.map(row => ({ id: row.id, data: row.data as { original: unknown; proposed: unknown }, value: proposedOf(row.data) }));
     const matches = waiting.filter(row => row.value.name !== null && sameName(row.value.name, input.reading));
     if (matches.length === 0) throw new InputError(`Nothing called ${input.reading.trim()} is waiting in To check`);
     if (matches.length > 1) throw new InputError(`More than one item called ${input.reading.trim()} is waiting in To check; ask the person which`);

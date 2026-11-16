@@ -20,7 +20,7 @@
       "Press Ask about this"
     ],
     "expected": [
-      "Chart and Table show the same month: Chart as one bar per category, Table as the Category list of qa/README M1",
+      "Chart and Table show the same month: Chart as one bar per category (each split into \"Spent so far\" and \"Still to come (bills and statements you know of)\", with a tick for last month), Table as the Category list of qa/README M1",
       "Business or personal splits each category's bar into business and personal, with the strip Business ¥32,830 and Personal ¥119,400; Person is offered only with two people",
       "Each look has its own hint and its own Ask about this question; Ask about this opens the Ask panel with that question typed"
     ],
@@ -118,6 +118,63 @@
     ],
     "refs": [
       "qa/README M1"
+    ]
+  },
+  {
+    "id": "VIEW-066",
+    "area": "Spending",
+    "action": "Look at the month by person",
+    "user_goal": "I want to know who spent what",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Wife added in Household → People"
+    ],
+    "steps": [
+      "Spending → This month: choose Person under Look at it by",
+      "Choose Table"
+    ],
+    "expected": [
+      "The heading reads \"Who this month's spending belongs to\" with \"Spending by person, compared with the month before\"",
+      "The table columns are Person, Spent, Still to come, November, October"
+    ],
+    "refs": [
+      "D73",
+      "D74"
+    ]
+  },
+  {
+    "id": "VIEW-068",
+    "area": "Spending",
+    "action": "Read This month's looks in dark mode and with the Ask panel closed and open",
+    "user_goal": "I use dark mode and keep the Ask panel open or closed",
+    "type": "happy",
+    "priority": "P3",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, today Nov 14) at 1440px",
+      "Spending → This month open"
+    ],
+    "steps": [
+      "Switch to dark mode",
+      "Look at Category, Business or personal and Table",
+      "Choose Business or personal, close the Ask panel, then open it again"
+    ],
+    "expected": [
+      "The orange and grey segments, the last-month tick, the strip and the pressed buttons are readable and nothing overlaps",
+      "With the panel closed the bars widen and keep their labels; with it open nothing is cut off and nothing scrolls sideways"
+    ],
+    "refs": [
+      "D72",
+      "D74"
     ]
   }
 ]

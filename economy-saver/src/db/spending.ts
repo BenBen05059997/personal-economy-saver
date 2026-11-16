@@ -1,17 +1,15 @@
 // Where did the money go (D53): the rows the spending rule reads for a date range, scoped to one household. Read only.
-import { and, eq, getTableColumns, gte, isNotNull, isNull, lte, lt, or, sql } from "drizzle-orm";
+import { and, eq, getTableColumns, gte, isNotNull, isNull, lte, lt, or } from "drizzle-orm";
 import { Currency } from "@/lib/catalogue/types";
 import { CategoryKeySchema as CategoryKey } from "@/lib/money/categories";
-import { RepeatUnitSchema, resolveBills } from "@/lib/money/repeat";
+import { resolveBills } from "@/lib/money/repeat";
 import type { StoredBill } from "@/lib/money/types";
 import { clockForHousehold } from "./clock";
 import type { PeriodBill } from "@/lib/money/period";
 import { monthBounds, type SpendingInput } from "@/lib/money/spending";
-import { requireHousehold, usdRate, withHousehold, type Db } from "./household";
+import { ownerFirst, requireDateRange, requireHousehold, storedBillOf, usdRate, withHousehold, type Db } from "./household";
 import { convertMinor, fromMinor, fromRateMicro } from "./money";
 import * as s from "./schema";
-
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Every confirmed bill that can fall in `from`..`to` (a one-off due in it; a repeating one, whole, when its series starts by `to`:
@@ -20,15 +18,14 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
  */
 export async function loadSpending(db: Db, householdId: string, range: { from: string; to: string }): Promise<SpendingInput> {
   const hid = requireHousehold(householdId);
-  const { from, to } = range;
-  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error("A spending range is two YYYY-MM-DD dates, from on or before to");
+  const { from, to } = requireDateRange(range, "A spending");
   return withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ homeCurrency: s.households.homeCurrency, isDemo: s.households.isDemo, fixedToday: s.households.fixedToday, timeZone: s.households.timeZone }).from(s.households).where(eq(s.households.id, hid));
     if (!household) throw new Error("Household not found");
     const home = Currency.parse(household.homeCurrency);
     const [members, cards, inRange, chargeRows] = await Promise.all([
       tx.select({ id: s.members.id }).from(s.members).where(eq(s.members.householdId, hid))
-        .orderBy(sql`(${s.members.role} = 'owner') desc`, s.members.createdAt, s.members.id),
+        .orderBy(...ownerFirst),
       tx.select({ id: s.cards.id, memberId: s.cards.memberId }).from(s.cards).where(eq(s.cards.householdId, hid)).orderBy(s.cards.createdAt, s.cards.label),
       // A real bill linked to an amount-varies series (D54) is read before `from` too: the series' estimate in range averages it.
       // D75: the own category by a join scoped to the household, so it costs no query of its own.
@@ -55,18 +52,7 @@ export async function loadSpending(db: Db, householdId: string, range: { from: s
       return fromMinor(convertMinor(minor, currency, home, fxPerUsd), home);
     };
     const { today } = clockForHousehold(household);
-    const stored = billRows.map((b): StoredBill & { documentId?: string } => ({
-      id: b.id, biller: b.biller, amount: b.amountMinor === null ? null : inHome(b.amountMinor, b.currency), due: b.due, category: CategoryKey.parse(b.category), businessBp: b.businessBp, status: b.status,
-      ...(b.ownCategoryId !== null && b.ownName !== null && { own: { id: b.ownCategoryId, name: b.ownName } }),
-      ...(b.repeatUnit !== null && { repeatUnit: RepeatUnitSchema.parse(b.repeatUnit) }),
-      ...(b.repeatDay !== null && { repeatDay: b.repeatDay }),
-      ...(b.nextAmountMinor !== null && b.nextAmountFrom !== null && { nextAmount: inHome(b.nextAmountMinor, b.currency), nextAmountFrom: b.nextAmountFrom }),
-      ...(b.amountVaries && { amountVaries: true as const }),
-      ...(b.seriesBillId !== null && { seriesBillId: b.seriesBillId }),
-      ...(b.periodStart !== null && b.periodEnd !== null && { periodStart: b.periodStart, periodEnd: b.periodEnd }),
-      ...(b.memberId !== null && { ownerId: b.memberId }),
-      ...(b.documentId !== null && { documentId: b.documentId }),
-    }));
+    const stored = billRows.map((b): StoredBill & { documentId?: string } => ({ ...storedBillOf(b, inHome), ...(b.documentId !== null && { documentId: b.documentId }) }));
     const resolved = resolveBills(stored, today, home).map((bill, index) => ({ ...bill, ...(stored[index].documentId !== undefined && { documentId: stored[index].documentId }) }));
     return {
       homeCurrency: home,

@@ -2,9 +2,8 @@
 // so the next balance counts only shared items dated after it, or dated that day and created after the settlement. The balance is recomputed here, under the household lock, from the stored
 // rows, so what is recorded is what is owed now, never a number the browser sent. The split moves no money in the engine.
 import { eq, sql } from "drizzle-orm";
-import { householdClock } from "./account";
-import { loadSplitState, recordEvent, requireHousehold, usdRateMicro, type Db } from "./household";
-import { convertMinor, fromMinor, fromRateMicro } from "./money";
+import { lockHousehold, recordEvent, requireHousehold, splitNow, type Db } from "./household";
+import { fromMinor } from "./money";
 import { households, settlements } from "./schema";
 import { InputError } from "./input-error";
 import { Currency } from "@/lib/catalogue/types";
@@ -15,13 +14,7 @@ type Owed = { home: Currency; today: string; fxPerUsd: number; transfers: Return
 
 /** What is owed now, from the stored rows, under the household row's lock (the caller's transaction). */
 export async function owedNow(tx: Db, hid: string): Promise<Owed> {
-  const [household] = await tx.select({ id: households.id, home: households.homeCurrency, splitSince: households.splitSince })
-    .from(households).where(eq(households.id, hid)).for("update");
-  if (!household) throw new InputError("Household not found");
-  const today = (await householdClock(tx, hid)).today;
-  const home = Currency.parse(household.home);
-  const fxPerUsd = fromRateMicro(await usdRateMicro(tx, hid, home, today));
-  const split = await loadSplitState(tx, hid, household.splitSince, today, (minor, currency) => convertMinor(minor, currency, home, fxPerUsd));
+  const { home, today, fxPerUsd, split } = await splitNow(tx, hid, await lockHousehold(tx, hid));
   if (split.members.length < 2) throw new InputError("Settling needs a second person; add one in Settings, People");
   return { home, today, fxPerUsd, transfers: splitBalance(split, today).transfers };
 }

@@ -1,4 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
+import { sha256Hex } from "@/lib/stable-id";
 import { requireHousehold, withHousehold, type Db } from "./household";
 import { ipBuckets, requestBuckets } from "./schema";
 
@@ -27,9 +28,11 @@ export async function limited(connection: Db, hid: string, purpose: Parameters<t
   return await withHousehold(connection, hid, tx => consumeRequest(tx, hid, purpose, limit)) ? null : tooMany(message);
 }
 
-/** Sliders and Ask view loads share one canvas request limit. */
+/** Sliders and Ask view loads share one canvas request limit, a minute's worth. */
+export const CANVAS_REQUEST_LIMIT = 120;
+
 export function consumeCanvasRequest(db: Db, householdId: string) {
-  return consumeRequest(db, householdId, "canvas", 120);
+  return consumeRequest(db, householdId, "canvas", CANVAS_REQUEST_LIMIT);
 }
 
 /** How many requests of one purpose this window has used, without spending one. */
@@ -39,7 +42,7 @@ export async function requestCount(db: Db, hid: string, purpose: string, per: Wi
   return row?.count ?? 0;
 }
 
-// ---------------------------------------------------------------- per-client limits before a household exists (27E)
+// ---------------------------------------------------------------- per-client limits before a household exists
 
 /** Thrown when a request cannot be counted by client address. `status` is the response to send. */
 export class ClientIpError extends Error {
@@ -60,8 +63,7 @@ export function clientIp(request: Request): string {
 
 /** SHA-256 of the address with a fixed prefix; the address itself is never stored. */
 export async function hashIp(ip: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("pes-ip-v1:" + ip));
-  return Buffer.from(digest).toString("hex");
+  return sha256Hex("pes-ip-v1:" + ip);
 }
 
 /** Spends one request of a purpose for one client address in the current window; false when the limit is reached. */

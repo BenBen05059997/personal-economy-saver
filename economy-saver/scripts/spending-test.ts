@@ -223,6 +223,17 @@ async function main() {
       await assert.rejects(loadSpending(db, a, { from: "2026-9-1", to: TODAY }), /spending range/);
     });
 
+    await check("loadSpending: a repeating bill stops after its last payment (D41)", async () => {
+      const [ended] = await db.insert(schema.bills).values({ householdId: a, biller: "Fictional gym plan", amountMinor: 6_000, currency: "JPY", due: "2026-07-05", category: "health", repeatUnit: "month", repeatDay: 5, repeatUntil: "2026-09-05" }).returning();
+      try {
+        const input = await loadSpending(db, a, { from: "2026-09-01", to: TODAY });
+        const dates = spendingItems(input, "2026-09-01", TODAY).filter(i => i.label === "Fictional gym plan").map(i => i.date);
+        assert.deepEqual(dates, ["2026-09-05"], "nothing after the last payment");
+      } finally {
+        await db.delete(schema.bills).where(eq(schema.bills.id, ended.id));
+      }
+    });
+
     await check("one rule across loaders: Ben's month from loadSpending equals the month from loadMoneyState", async () => {
       const today = await householdDate(db, b);
       const { first, last } = monthBounds(today.slice(0, 7));

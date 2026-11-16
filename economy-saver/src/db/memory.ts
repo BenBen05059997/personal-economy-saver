@@ -1,10 +1,10 @@
-// D58: what the assistant remembers. One function per job; the Memory page and (next) the agent's remember / forget
+// D58: what the assistant remembers. One function per job; the Memory page and the agent's remember / forget
 // tools call these. Delete is real (D59): the row goes, and no event ever carries a memory's text.
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, withHousehold, type Db } from "./household";
-import { households, memories } from "./schema";
+import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
+import { memories } from "./schema";
 import { requireCloud } from "./place";
 import { requireSpace } from "./spaces";
 import { householdMoment } from "./clock";
@@ -27,13 +27,6 @@ const idOf = (id: string) => z.string().uuid().safeParse(id).success;
 const record = (tx: Db, hid: string, by: MemoryMaker, title: string) =>
   recordEvent(tx, hid, { ...by, kind: "memory_changed", title }); // never a body, never the text
 
-/** Locks the household row and returns its clock, so a memory is dated on the household's clock like Activity (D34). */
-async function lock(tx: Db, hid: string) {
-  const [row] = await tx.select({ id: households.id, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone }).from(households).where(eq(households.id, hid)).for("update");
-  if (!row) throw new InputError("Household not found");
-  return row;
-}
-
 /** Everything the assistant knows, newest first within each kind (kinds in their page order). */
 export async function listMemory(db: Db, householdId: string, spaceId?: string | null): Promise<MemoryItem[]> {
   const hid = requireHousehold(householdId);
@@ -46,7 +39,7 @@ export async function addMemory(db: Db, householdId: string, input: { kind: stri
   const hid = requireHousehold(householdId);
   const kind = kindOf(input.kind), text = textOf(input.text);
   return withHousehold(db, hid, async tx => {
-    const clock = await lock(tx, hid);
+    const clock = await lockHousehold(tx, hid);
     await requireCloud(tx, hid, "memory");
     const spaceId = input.spaceId ? (await requireSpace(tx, hid, input.spaceId, true)).id : null;
     const [same] = await tx.select().from(memories).where(and(eq(memories.householdId, hid), eq(memories.kind, kind), eq(memories.text, text), scope(spaceId)));
@@ -67,7 +60,7 @@ export async function editMemory(db: Db, householdId: string, id: string, change
   const kind = changes.kind === undefined ? undefined : kindOf(changes.kind);
   const text = changes.text === undefined ? undefined : textOf(changes.text);
   return withHousehold(db, hid, async tx => {
-    const clock = await lock(tx, hid);
+    const clock = await lockHousehold(tx, hid);
     await requireCloud(tx, hid, "memory");
     const [current] = await tx.select().from(memories).where(and(eq(memories.householdId, hid), eq(memories.id, id), scope(changes.spaceId)));
     if (!current) return null;

@@ -1,17 +1,14 @@
 // What was set aside (D77): the fills of a household's pots, from their `pot_filled` events, as integer minor units. Read only.
 import { and, asc, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 import type { PotFill } from "@/lib/money/types";
-import { requireHousehold, withHousehold, type Db } from "./household";
+import { requireDateRange, requireHousehold, withHousehold, type Db } from "./household";
 import * as s from "./schema";
 import { addDays } from "@/lib/money/dates";
-
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The fills on the household's days from `from` to `to` (both included), oldest first; each with the pot, the household day and the amount set aside. */
 export async function loadPotFills(db: Db, householdId: string, range: { from: string; to: string }): Promise<PotFill[]> {
   const hid = requireHousehold(householdId);
-  const { from, to } = range;
-  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error("A fills range is two YYYY-MM-DD dates, from on or before to");
+  const { from, to } = requireDateRange(range, "A fills");
   return withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ timeZone: s.households.timeZone }).from(s.households).where(eq(s.households.id, hid));
     if (!household) throw new Error("Household not found");

@@ -9,9 +9,9 @@ import { CATEGORY_KEYS } from "@/lib/money/categories";
 import { catalogueMove } from "@/lib/catalogue/engine";
 import { forModel, type Fact } from "@/lib/money/facts";
 import { readAmount } from "@/lib/money/amount";
-import { VIEW_ARGS } from "@/lib/views/args";
+import { monthSchema, VIEW_ARGS } from "@/lib/views/args";
 import { VIEW_META } from "@/lib/views/catalogue";
-import { liveViews, resolveView } from "@/lib/views/resolve";
+import { resolveView } from "@/lib/views/resolve";
 import { loadViewContext } from "@/lib/views/load";
 import { ViewError, type ViewId, type ViewResult } from "@/lib/views/types";
 import type { ViewArgs } from "@/lib/views/args";
@@ -32,12 +32,12 @@ function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
 }
 
 // Every argument a view can take, by name. Each view takes some of them; `amount` is text as the person said it.
-const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "is YYYY-MM");
+// The month, months and days rules are the registry's (`VIEW_ARGS`): a view's own range refuses what is out of it.
 const FIELDS = {
-  month, months: z.number().int().min(2).max(12), case: z.enum(["usual", "late"]), by: z.enum(["category", "business", "person"]), open: z.enum(CATEGORY_KEYS),
+  month: monthSchema, months: VIEW_ARGS.month_trend.shape.months.unwrap(), case: z.enum(["usual", "late"]), by: z.enum(["category", "business", "person"]), open: z.enum(CATEGORY_KEYS),
   text: z.string().trim().min(1).max(80), mark: z.string().trim().min(1).max(80), client: z.string().trim().min(1).max(80), card: z.string().trim().min(1).max(80), pot: z.string().trim().min(1).max(80),
   amount: z.union([z.string().trim().min(1).max(40), z.number().positive()]), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "is YYYY-MM-DD"),
-  days: z.number().int().min(1).max(180), whose: z.literal("shared"), item: z.string().trim().min(1).max(80),
+  days: z.number().int(), whose: z.literal("shared"), item: z.string().trim().min(1).max(80),
 };
 type Field = keyof typeof FIELDS;
 
@@ -138,9 +138,8 @@ export const viewTools: Tool[] = [
     input: z.object({ view: z.string(), args: z.string().nullable() }),
     description: DESCRIPTION,
     run: async (ctx, input) => {
-      if (!Object.hasOwn(VIEW_META, input.view)) throw new InputError(`Unknown view. Views: ${liveViews().join(", ")}.`);
+      if (!Object.hasOwn(VIEW_META, input.view)) throw new InputError(`Unknown view. Views: ${Object.keys(VIEW_META).join(", ")}.`);
       const view = input.view as ViewId;
-      if (!liveViews().includes(view)) throw new InputError("That picture isn't available yet.");
       const given = parseArgs(view, input.args);
       const args = await idArgs(ctx, view, given);
       const parsed = VIEW_ARGS[view].safeParse(args);

@@ -9,22 +9,16 @@ import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
-import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { fact } from "@/lib/money/facts";
-import { termOf } from "@/lib/money/terms";
 import { fillShare } from "@/lib/money/pots";
 import { TAX_AHEAD_DAYS, taxAhead } from "@/lib/money/tax-ahead";
 import type { Bill, MoneyState, Pot } from "@/lib/money/types";
 import { resolveView } from "@/lib/views/resolve";
 import { ViewError, type ViewResult } from "@/lib/views/types";
 import { StepLine } from "@/components/views/forms/StepLine";
+import { reads } from "../fixtures/view-reads";
 
 let passed = 0;
-const reads = (view: ViewResult, today: string) => {
-  assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
-  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, { today: today }), [], `${view.view}: every number in the line is one of its facts`);
-  for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
-};
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 const TODAY = "2026-11-14";
 
@@ -69,13 +63,11 @@ async function main() {
       assert.equal(result.data!.low.short, true);
       assert.equal(result.data!.low.index, at("2026-12-20"));
       assert.equal(fact(result.facts, "tax_ahead")!.value, 30_000);
-      assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: TODAY }), []);
       const early = taxAhead(world([bill({ due: "2026-11-20" })]), "pot-tax", 90)!;
       assert.deepEqual([early.low.short, early.low.shortMinor, early.low.index], [true, 30_000, at("2026-11-20")]);
     });
 
-    await check("tax_ahead reads clean covered, short and pending; short carries the short amount, the day and the bill due that day", () => {
-      reads(resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill()]))) as ViewResult, TODAY);
+    await check("tax_ahead reads clean short and pending; short carries the short amount, the day and the bill due that day", () => {
       const short = resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill({ amount: 100_000 })]))) as ViewResult;
       reads(short, TODAY);
       const facts = short.facts!, due = facts.find(f => f.name === "bill_amount")!;

@@ -1,13 +1,13 @@
-import { type SQL, and, desc, eq, isNull, lt, lte, or } from "drizzle-orm";
+import { type SQL, and, eq, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { paypalRead } from "@/lib/paypal/client";
 import type { PayPalCall } from "@/lib/paypal/contracts";
 import { type IncomingPayment, incomingPayments } from "@/lib/paypal/transactions";
 import { clientInput, insertClient } from "./clients";
-import { type Db, recordEvent, requireHousehold, usdRateMicro, withHousehold } from "./household";
+import { type Db, latestUsdRate, recordEvent, requireHousehold, usdRateMicro, withHousehold } from "./household";
 import { paidTitle } from "@/lib/money/paid-title";
 import { convertMinor, fromMinor, fromRateMicro, toMinor } from "./money";
-import { clients, fxRates, invoices, paypalConnections } from "./schema";
+import { clients, invoices, paypalConnections } from "./schema";
 import { ownerPayPal } from "./paypal-connection";
 import { fillPots } from "./pots";
 import { beginMoneyChange, observeRunway } from "./runway-events";
@@ -47,11 +47,9 @@ async function readBalance(db: Db, hid: string, report: BalanceReport, currency:
     const amount = toMinor(Number(raw), money.currency_code);
     if (money.currency_code === currency) total += amount;
     else {
-      const [rate] = await db.select({ rate: fxRates.rateMicro }).from(fxRates)
-        .where(and(eq(fxRates.householdId, hid), eq(fxRates.base, "USD"), eq(fxRates.quote, "JPY"), lte(fxRates.date, asOf.toISOString().slice(0, 10))))
-        .orderBy(desc(fxRates.date)).limit(1);
+      const rate = await latestUsdRate(db, hid, "JPY", asOf.toISOString().slice(0, 10));
       if (!rate) throw new FreshnessError("A household USD/JPY rate is needed for the PayPal balance.");
-      fx = rate.rate;
+      fx = rate.rateMicro;
       total += convertMinor(amount, money.currency_code, currency, fromRateMicro(fx));
     }
   }

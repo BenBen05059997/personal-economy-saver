@@ -8,7 +8,7 @@ import type { FormData, RankedRow, Resolver, ViewResult } from "../types";
 export const whoOwesWhomView: Resolver<"who_owes_whom"> = (args, ctx): ViewResult<"ranked_bars"> => {
   const { state } = ctx, { split } = state, currency = state.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
   const meta = VIEW_META.who_owes_whom;
-  const base = { view: "who_owes_whom" as const, args: { ...args }, form: "ranked_bars" as const, title: "Who owes whom", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, data: null, table: null,
+  const base = { view: "who_owes_whom" as const, args: { ...args }, form: "ranked_bars" as const, title: "Who owes whom", question: meta.question, hint: meta.hint, currency, strip: null, data: null, table: null,
     source: "The household's shared bills and charges since the last settlement, split by each person's share." };
   if (split.members.length < 2) {
     return { ...base, line: null, aria: "Only one person is in this household.", facts: [], empty: { words: "Add a person in Household → People to split shared costs.", add: "person", addLabel: "Add a person" } };

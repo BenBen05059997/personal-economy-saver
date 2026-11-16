@@ -6,10 +6,11 @@
 // the file itself, so bills and charges lose their document link), the PayPal invoice ids of invoices (an id from a file must never
 // become a key that PayPal's webhooks write to), and the household's own name, time zone, currency and exchange rate (the household
 // keeps what it was set up with; a file in another currency is refused).
+import { newToken } from "@/lib/stable-id";
 import { and, eq, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { HouseholdSnapshot, SNAPSHOT_VERSION, type HouseholdSnapshot as Snapshot } from "@/lib/schema/household";
-import { MAX_PINS } from "./canvases";
+import { MAX_PINS } from "@/lib/canvas/schema";
 import { InputError } from "./input-error";
 import { recordEvent, requireHousehold, type Db } from "./household";
 import { MEMORY_LIMIT, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
@@ -20,7 +21,7 @@ import { Currency } from "@/lib/catalogue/types";
 import type { StoredSource } from "@/lib/schema/turn";
 import { BriefSchema } from "@/lib/agent/brief";
 import * as s from "./schema";
-import { canHavePayLink, newPayToken } from "@/lib/paypal/pay-link";
+import { canHavePayLink } from "@/lib/paypal/pay-link";
 
 export const NOT_EMPTY = "Import works on an empty household. Start with my numbers first.";
 export const OLD_VERSION = "This file is an older export (version 1). Import reads version 2, 3 or 4 files. Export again from the app that made it, then import that file.";
@@ -28,7 +29,7 @@ export const OLD_VERSION = "This file is an older export (version 1). Import rea
 type RestoreCounts = { members: number; cards: number; bills: number; charges: number; clients: number; invoices: number; pots: number; memory: number; canvases: number; journal: number; other: number };
 
 /** The file's text, parsed with the schema. Anything else is refused with a sentence. */
-export function readSnapshotFile(input: unknown): Snapshot {
+function readSnapshotFile(input: unknown): Snapshot {
   if (input && typeof input === "object" && (input as { version?: unknown }).version === 1) throw new InputError(OLD_VERSION);
   // Older files lack what the newer versions added (version 3: ownCategories and ownCategoryId; version 2: also spaces); those fields are optional, so only the version number differs.
   const version = input && typeof input === "object" ? (input as { version?: unknown }).version : undefined;
@@ -186,7 +187,7 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       await insertChunks(tx, s.charges, file.charges.map(c => ({ ...c, id: ref(c.id), cardId: ref(c.cardId), ...made, ownCategoryId: ownRef(c.ownCategoryId), documentId: null })));
       await insertChunks(tx, s.bills, file.bills.map(b => ({ ...b, id: ref(b.id), ...made, memberId: who(b.memberId), paidByMemberId: who(b.paidByMemberId), ownCategoryId: ownRef(b.ownCategoryId), documentId: null, seriesBillId: null })));
       for (const b of file.bills) if (b.seriesBillId) await tx.update(s.bills).set({ seriesBillId: ref(b.seriesBillId) }).where(and(eq(s.bills.householdId, hid), eq(s.bills.id, ref(b.id))));
-      await insertChunks(tx, s.invoices, file.invoices.map(i => ({ ...i, id: ref(i.id), clientId: ref(i.clientId), ...made, paypalInvoiceId: null, paypalStatus: null, payToken: i.status === "sent" && canHavePayLink(i) ? newPayToken() : null, remindedAt: i.remindedAt ? new Date(i.remindedAt) : null })));
+      await insertChunks(tx, s.invoices, file.invoices.map(i => ({ ...i, id: ref(i.id), clientId: ref(i.clientId), ...made, paypalInvoiceId: null, paypalStatus: null, payToken: i.status === "sent" && canHavePayLink(i) ? newToken() : null, remindedAt: i.remindedAt ? new Date(i.remindedAt) : null })));
       await insertChunks(tx, s.pots, file.pots.map(p => ({ ...p, id: ref(p.id), ...made, memberId: who(p.memberId) })));
       await insertChunks(tx, s.settlements, file.settlements.map(x => ({ ...x, id: ref(x.id), householdId: hid, fromMemberId: who(x.fromMemberId)!, toMemberId: who(x.toMemberId)!, settledAt: new Date(x.settledAt), createdAt: new Date(x.createdAt) })));
       await insertChunks(tx, s.balanceUpdates, file.balanceUpdates.map(u => ({ ...u, id: ref(u.id), ...made, createdAt: new Date(u.createdAt) })));

@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migration 0028",
+      "Separate test setup",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "A pending ¥2,500 Kumo Water bill due Nov 17, with no pass run since it was drafted"
@@ -40,7 +40,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migration 0028",
+      "Separate test setup",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "Regular cost increase is on at 20%",
@@ -71,7 +71,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Separate setup with migration 0028",
+      "Separate test setup",
       "375px and 1440px widths",
       "Disposable Ben Try it copy on Nov 14",
       "Regular cost increase is on at 25%",
@@ -87,37 +87,6 @@
       "The card shows the charge once"
     ],
     "refs": [
-      "D64"
-    ]
-  },
-  {
-    "id": "NOW-013",
-    "area": "Immediate suggestions",
-    "action": "Keep writes when the immediate suggestion pass fails",
-    "user_goal": "I want my payment and changes saved even if suggestions are temporarily unavailable",
-    "type": "edge",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Disposable test setup with migration 0028 and a pass-only failure fixture",
-      "Simulated verified PayPal delivery"
-    ],
-    "steps": [
-      "Open Try it and Reset it",
-      "Confirm a draft pot in To check",
-      "Simulate a verified payment and replay it",
-      "Restore the pass and rerun it"
-    ],
-    "expected": [
-      "Try it and Reset both open Ben’s Home",
-      "Saving shows the confirmed pot and the invoice is Paid once",
-      "Each failed pass writes one operator log line and a later pass resolves the stale finding"
-    ],
-    "refs": [
-      "db:suggest-test",
       "D64"
     ]
   }

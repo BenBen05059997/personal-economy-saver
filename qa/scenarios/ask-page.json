@@ -197,5 +197,30 @@
     "refs": [
       "D60"
     ]
+  },
+  {
+    "id": "VIEW-038",
+    "area": "Ask button",
+    "action": "Read the top bar on the full Ask page",
+    "user_goal": "I want the full Ask page to carry the same top bar",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px"
+    ],
+    "steps": [
+      "Open /canvas at 1440px"
+    ],
+    "expected": [
+      "The bar shows the chip, the bell, \"+ Add\" and the Ask button, which is pressed"
+    ],
+    "refs": [
+      "D25",
+      "D60"
+    ]
   }
 ]

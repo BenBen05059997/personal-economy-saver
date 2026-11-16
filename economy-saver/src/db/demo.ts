@@ -1,25 +1,21 @@
 import { and, asc, eq, isNotNull, lt, or, sql } from "drizzle-orm";
+import { newToken, sha256Hex } from "@/lib/stable-id";
 import { z } from "zod";
-import { type Db, requireHousehold, withHousehold } from "./household";
+import { removeHousehold, type Db, requireHousehold, withHousehold } from "./household";
 import { events, households } from "./schema";
 import { seedBenRows } from "./seed";
 import { refreshSuggestions, runPass } from "./suggestions";
 import { InputError } from "./input-error";
 import { deleteHouseholdKey } from "./ai-key";
-import { removeHouseholdDocuments } from "./document-cleanup";
 
 /** A Try it cookie: 32 random bytes, base64url. Only its SHA-256 is stored, so the household id is never a bearer value (D34). */
 const DEMO_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
-async function demoTokenHash(token: string): Promise<string> {
-  return Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))).toString("hex");
-}
-
 /** Gives a demo household a fresh cookie token (any earlier one stops working) and returns it; null when the id is no demo household. */
 export async function issueDemoToken(db: Db, id: string): Promise<string | null> {
   const hid = requireHousehold(id);
-  const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
-  const hash = await demoTokenHash(token);
+  const token = newToken();
+  const hash = await sha256Hex(token);
   const [issued] = await withHousehold(db, hid, tx => tx.update(households).set({ demoTokenHash: hash })
     .where(and(eq(households.id, hid), eq(households.isDemo, true))).returning({ id: households.id }));
   return issued ? token : null;
@@ -29,7 +25,7 @@ export async function issueDemoToken(db: Db, id: string): Promise<string | null>
 export async function demoHouseholdForToken(db: Db, token: string): Promise<string | null> {
   if (!DEMO_TOKEN.test(token)) return null;
   const [demo] = await db.select({ id: households.id }).from(households)
-    .where(and(eq(households.demoTokenHash, await demoTokenHash(token)), eq(households.isDemo, true)));
+    .where(and(eq(households.demoTokenHash, await sha256Hex(token)), eq(households.isDemo, true)));
   return demo?.id ?? null;
 }
 
@@ -67,20 +63,8 @@ export async function advanceTryItDate(db: Db, id: string, date: string): Promis
   });
 }
 
-// The one deletion of a demo household (Reset and the sweeper both call it): lock the row with is_demo re-checked,
-// delete its AI key and Storage documents, then the row; the schema's cascades remove everything else.
-// Call it inside a transaction. Returns false when the id is not a demo household.
-export async function deleteDemoHousehold(tx: Db, id: string): Promise<boolean> {
-  const [existing] = await tx.select({ id: households.id }).from(households)
-    .where(and(eq(households.id, requireHousehold(id)), eq(households.isDemo, true))).for("update");
-  if (!existing) return false;
-  await deleteHouseholdKey(tx, id);
-  await removeHouseholdDocuments(tx, id);
-  const [deleted] = await tx.delete(households)
-    .where(and(eq(households.id, requireHousehold(id)), eq(households.isDemo, true)))
-    .returning({ id: households.id });
-  return Boolean(deleted);
-}
+// Reset and the sweeper delete a demo household here, inside a transaction. Returns false when the id is not a demo household.
+export const deleteDemoHousehold = (tx: Db, id: string): Promise<boolean> => removeHousehold(tx, id, true);
 
 export async function resetDemoHousehold(db: Db, id: string): Promise<string | null> {
   const hid = await db.transaction(async tx => {
@@ -126,8 +110,8 @@ const noRecentEvent = (cutoff: Date) => sql`not exists (select 1 from ${events} 
 // transaction. A failing deletion is counted and does not stop the others. Non-demo households are never selected.
 // It works in batches of `limit` until a batch is short, nothing in a batch could be deleted, `maxBatches` batches
 // have run or SWEEP_BUDGET_MS has passed, so a run keeps up with creation faster than one batch a day.
-export const SWEEP_MAX_BATCHES = 10;
-export const SWEEP_BUDGET_MS = 20_000;
+const SWEEP_MAX_BATCHES = 10;
+const SWEEP_BUDGET_MS = 20_000;
 export async function sweepDemoHouseholds(db: Db, now = new Date(), limit = SWEEP_LIMIT, maxBatches = SWEEP_MAX_BATCHES): Promise<{ swept: number; failed: number }> {
   const cutoff = new Date(now.getTime() - DEMO_LIFETIME_DAYS * 86_400_000);
   const started = Date.now();

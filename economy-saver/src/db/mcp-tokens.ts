@@ -1,4 +1,5 @@
 import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { sha256Hex } from "@/lib/stable-id";
 import { z } from "zod";
 import { lockHousehold, requireHousehold, type Db } from "./household";
 import { InputError } from "./input-error";
@@ -16,10 +17,6 @@ async function cipherKey() {
   const bytes = Buffer.from(raw, "base64url");
   if (bytes.length !== 32 || bytes.toString("base64url") !== raw) throw new Error("MCP_TOKEN_KEY must be 32 bytes encoded as unpadded base64url");
   return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
-}
-
-async function digest(token: string) {
-  return Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))).toString("hex");
 }
 
 const publicColumns = { id: apiTokens.id, name: apiTokens.name, scopes: apiTokens.scopes, last4: apiTokens.last4 };
@@ -43,7 +40,7 @@ export async function issueMcpToken(db: Db, hid: string, input: z.infer<typeof t
   const [{ live }] = await db.select({ live: count() }).from(apiTokens).where(and(eq(apiTokens.householdId, householdId), isNull(apiTokens.revokedAt)));
   if (live >= MCP_TOKEN_LIMIT) throw new InputError(`This household already has ${MCP_TOKEN_LIMIT} live access tokens. Revoke one before making another.`);
   const [info] = await db.insert(apiTokens).values({
-    householdId, name: data.name, scopes: [...new Set(data.scopes)], last4: token.slice(-4), tokenHash: await digest(token),
+    householdId, name: data.name, scopes: [...new Set(data.scopes)], last4: token.slice(-4), tokenHash: await sha256Hex(token),
   }).returning(publicColumns);
   return { token, info };
 }
@@ -58,7 +55,7 @@ export async function authenticateMcpToken(db: Db, token: string) {
     hid = requireHousehold(new TextDecoder().decode(id));
   } catch { return null; }
   const [row] = await db.update(apiTokens).set({ lastUsedAt: new Date() })
-    .where(and(eq(apiTokens.householdId, hid), eq(apiTokens.tokenHash, await digest(token)), isNull(apiTokens.revokedAt)))
+    .where(and(eq(apiTokens.householdId, hid), eq(apiTokens.tokenHash, await sha256Hex(token)), isNull(apiTokens.revokedAt)))
     .returning({ householdId: apiTokens.householdId, scopes: apiTokens.scopes });
   return row ?? null;
 }

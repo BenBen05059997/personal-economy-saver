@@ -10,9 +10,7 @@ import * as schema from "@/db/schema";
 import { foreignCostInputs } from "@/db/fx-cost";
 import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
-import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { fact } from "@/lib/money/facts";
-import { termOf } from "@/lib/money/terms";
 import { foreignCosts, fxByMonth } from "@/lib/money/fx-cost";
 import { goalPace } from "@/lib/money/goals";
 import type { Pot } from "@/lib/money/types";
@@ -21,13 +19,9 @@ import { VIEW_META } from "@/lib/views/catalogue";
 import { ViewError, type ViewResult } from "@/lib/views/types";
 import { GoalLine } from "@/components/views/forms/GoalLine";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
+import { reads } from "../fixtures/view-reads";
 
 let passed = 0;
-const reads = (view: ViewResult, today: string) => {
-  assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
-  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, { today: today }), [], `${view.view}: every number in the line is one of its facts`);
-  for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
-};
 async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
 const TODAY = "2026-11-14";
 
@@ -41,7 +35,7 @@ async function main() {
     const costs = foreignCosts(await foreignCostInputs(db, ben, TODAY));
     const ctx = { state, foreignCosts: costs };
 
-    await check("fx_cost: the monthly payout costs sum to the total, ¥111,637, and the view is Ask only", () => {
+    await check("fx_cost: the monthly payout costs sum to the total, ¥111,637, and the view has no page", () => {
       assert.equal(costs.payoutTotals.costMinor, 111_637);
       const months = fxByMonth(costs, TODAY, 6);
       assert.deepEqual(months.map(m => m.month), ["2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"]);
@@ -52,9 +46,7 @@ async function main() {
       assert.equal(fact(result.facts, "foreign_cost")!.value, 111_637);
       assert.equal(result.table!.foot![3], "¥111,637");
       assert.equal(result.table!.rows.length, 6);
-      reads(result, TODAY);
-      assert.equal(VIEW_META.fx_cost.askOnly, true);
-      assert.deepEqual(VIEW_META.fx_cost.home, { path: "/clients", label: "Clients" });
+      assert.equal(VIEW_META.fx_cost.home, null, "D77: foreign costs have no page, so a reply that shows them offers no See it in");
       assert.match(renderToStaticMarkup(createElement(StackedColumns, { result })), /sc-col/);
       assert.equal(fact(resolveView("fx_cost", { months: 12 }, ctx).facts, "foreign_cost")!.value, 111_637);
       assert.throws(() => resolveView("fx_cost", { months: 1 }, ctx), ViewError);
@@ -101,8 +93,7 @@ async function main() {
       assert.equal(result.table!.rows.length, 4);
     });
 
-    await check("fx_cost on Ben and goal_pace on a behind and a reached pot read clean; goal_pace carries one signed amount and the date at this pace", () => {
-      reads(resolveView("fx_cost", {}, ctx) as ViewResult, TODAY);
+    await check("goal_pace on a behind and a reached pot reads clean; goal_pace carries one signed amount and the date at this pace", () => {
       const behind = pot({ saved: 1_000 }), goal = goalPace(behind, state)!;
       const result = resolveView("goal_pace", { potId: behind.id }, withPots(behind)) as ViewResult;
       reads(result, TODAY);

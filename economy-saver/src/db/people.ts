@@ -2,14 +2,13 @@
 // Settings → People. Shares are basis points and a household's members always total exactly 10,000; adding the second
 // member starts the split (`households.split_since` = the household's today). The split moves no money in the engine,
 // so nothing here observes the runway.
+import { percentText, percentToBp } from "@/lib/money/format";
 import { and, desc, eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { householdClock } from "./account";
 import { InputError } from "./input-error";
-import { loadSplitState, recordEvent, requireHousehold, usdRateMicro, type Db } from "./household";
-import { convertMinor, fromRateMicro } from "./money";
+import { lockHousehold, ownerFirst, recordEvent, requireHousehold, splitNow, type Db } from "./household";
 import { bills, cards, charges, households, members, pots, settlements } from "./schema";
-import { Currency } from "@/lib/catalogue/types";
 import { SHARE_TOTAL_BP, splitBalance } from "@/lib/money/split";
 
 const memberName = z.string().trim().min(1).max(80);
@@ -18,8 +17,7 @@ export const savePeopleInput = z.object({ people: z.array(z.object({ id: z.strin
 
 /** "40" or "33.33" as basis points (4000, 3333); 0 to 100 percent. */
 export function parseShareBp(text: string): number {
-  const match = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(text.trim());
-  const bp = match ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) : -1;
+  const bp = percentToBp(text) ?? -1;
   if (bp < 0 || bp > SHARE_TOTAL_BP) throw new InputError("Enter each share as a percentage from 0 to 100, such as 40");
   return bp;
 }
@@ -30,18 +28,10 @@ export function equalShares(count: number): number[] {
   return Array.from({ length: count }, (_, i) => (i === 0 ? SHARE_TOTAL_BP - each * (count - 1) : each));
 }
 
-const percent = (bp: number) => String(bp / 100);
-
-async function lockHousehold(tx: Db, hid: string) {
-  const [household] = await tx.select({ id: households.id, splitSince: households.splitSince }).from(households).where(eq(households.id, hid)).for("update");
-  if (!household) throw new InputError("Household not found");
-  return household;
-}
-
 /** The household's members, the owner first, as the split orders them. The caller holds the household lock for writes. */
 async function orderedMembers(tx: Db, hid: string) {
   return tx.select({ id: members.id, name: members.displayName, shareBp: members.shareBp }).from(members)
-    .where(eq(members.householdId, hid)).orderBy(sql`(${members.role} = 'owner') desc`, members.createdAt, members.id);
+    .where(eq(members.householdId, hid)).orderBy(...ownerFirst);
 }
 
 export async function memberCount(db: Db, householdId: string): Promise<number> {
@@ -82,7 +72,7 @@ export async function addMember(db: Db, householdId: string, input: z.infer<type
     }
     await recordEvent(tx, hid, { madeBy: "form",
       kind: "member_added", title: `${data.name} joined the household`,
-      body: "Shares: " + after.map((m, i) => `${m.name} ${percent(shares[i])}%`).join(", "), ref: { type: "member", id: added.id },
+      body: "Shares: " + after.map((m, i) => `${m.name} ${percentText(shares[i])}%`).join(", "), ref: { type: "member", id: added.id },
     });
     return added.id;
   });
@@ -111,7 +101,7 @@ export async function savePeople(db: Db, householdId: string, input: z.infer<typ
       return parseShareBp(wanted);
     });
     const total = shares.reduce((a, b) => a + b, 0);
-    if (total !== SHARE_TOTAL_BP) throw new InputError(`The shares must total 100%; these total ${percent(total)}%`);
+    if (total !== SHARE_TOTAL_BP) throw new InputError(`The shares must total 100%; these total ${percentText(total)}%`);
     for (const m of current) {
       const name = given.get(m.id)!.name;
       if (name === m.name) continue;
@@ -122,7 +112,7 @@ export async function savePeople(db: Db, householdId: string, input: z.infer<typ
     for (const [i, m] of current.entries()) await tx.update(members).set({ shareBp: shares[i] }).where(and(eq(members.householdId, hid), eq(members.id, m.id)));
     await recordEvent(tx, hid, { madeBy: "form",
       kind: "shares_updated", title: "Shared-cost shares updated",
-      body: current.map((m, i) => `${given.get(m.id)!.name} ${percent(m.shareBp)}% → ${percent(shares[i])}%`).join("; "),
+      body: current.map((m, i) => `${given.get(m.id)!.name} ${percentText(m.shareBp)}% → ${percentText(shares[i])}%`).join("; "),
     });
   });
 }
@@ -149,17 +139,13 @@ export async function removeMember(db: Db, householdId: string, input: z.infer<t
   const { id } = removeMemberInput.parse(input);
   return db.transaction(async tx => {
     const household = await lockHousehold(tx, hid);
-    const [home] = await tx.select({ currency: households.homeCurrency }).from(households).where(eq(households.id, hid));
     const [person] = await tx.select({ id: members.id, name: members.displayName, role: members.role }).from(members).where(and(eq(members.householdId, hid), eq(members.id, id)));
     if (!person) return false;
     const current = await orderedMembers(tx, hid);
     if (current.length < 2) throw new InputError("The last person in a household cannot be removed");
     if (person.role === "owner") throw new InputError("The household’s owner cannot be removed");
     const owner = current[0];
-    const today = (await householdClock(tx, hid)).today;
-    const currency = Currency.parse(home.currency);
-    const fxPerUsd = fromRateMicro(await usdRateMicro(tx, hid, currency, today));
-    const split = await loadSplitState(tx, hid, household.splitSince, today, (minor, from) => convertMinor(minor, from, currency, fxPerUsd));
+    const { today, split } = await splitNow(tx, hid, household);
     const balance = splitBalance(split, today).members.find(m => m.id === id);
     if (balance && balance.netMinor !== 0) throw new InputError(`Settle up with ${person.name} first.`);
 
@@ -193,7 +179,7 @@ export async function removeMember(db: Db, householdId: string, input: z.infer<t
       ...(billCount ? [`${billCount === 1 ? "1 bill is" : `${billCount} bills are`} now shared and paid by ${owner.name}`] : []),
       ...cardWords,
       ...(theirPots.length ? [`${theirPots.length === 1 ? "1 pot is" : `${theirPots.length} pots are`} now the household’s`] : []),
-      left.length > 1 ? "Shares: " + left.map((m, i) => `${m.name} ${percent(shares[i])}%`).join(", ") : "Nothing is split while one person is in the household",
+      left.length > 1 ? "Shares: " + left.map((m, i) => `${m.name} ${percentText(shares[i])}%`).join(", ") : "Nothing is split while one person is in the household",
     ];
     await recordEvent(tx, hid, { madeBy: "form", kind: "person_removed", title: `${person.name} left the household`, body: body.join(" · "), ref: { type: "member", id } });
     return true;

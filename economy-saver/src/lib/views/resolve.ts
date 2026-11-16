@@ -1,13 +1,9 @@
-// The one door to a view (D77): the arguments are checked against the view's own strict schema, a view that is not live is refused in words,
-// and the resolver runs on the context the caller loaded. Pure.
+// The one door to a view (D77): the arguments are checked against the view's own strict schema and the resolver runs on the context the caller loaded. Pure.
 import type { z } from "zod";
 import { VIEW_ARGS, type ViewArgs } from "./args";
 import { VIEW_META } from "./catalogue";
-import { LIVE } from "./resolvers";
+import { RESOLVERS } from "./resolvers";
 import { ViewError, type Resolver, type ViewContext, type ViewId, type ViewNeed, type ViewResult } from "./types";
-
-/** The ids that can be drawn now. */
-export const liveViews = (): ViewId[] => (Object.keys(LIVE) as ViewId[]).filter(view => LIVE[view] !== undefined);
 
 const isView = (value: unknown): value is ViewId => typeof value === "string" && Object.hasOwn(VIEW_ARGS, value);
 
@@ -19,11 +15,10 @@ function argWords(view: ViewId, error: z.ZodError): string {
   return `${view}${where}: ${issue.message}`;
 }
 
-/** Draw one view: `view` is an id, `args` its arguments (ids, minor units). Throws `ViewError` for an unknown or not-live view and for arguments the view does not take. */
+/** Draw one view: `view` is an id, `args` its arguments (ids, minor units). Throws `ViewError` for an unknown view and for arguments the view does not take. */
 export function resolveView(view: string, args: unknown, ctx: ViewContext): ViewResult {
   if (!isView(view)) throw new ViewError(`There is no picture called "${view}".`);
-  const resolver = LIVE[view] as Resolver<ViewId> | undefined;
-  if (!resolver) throw new ViewError("That picture isn't available yet.");
+  const resolver = RESOLVERS[view] as Resolver<ViewId>;
   const parsed = VIEW_ARGS[view].safeParse(args ?? {});
   if (!parsed.success) throw new ViewError(argWords(view, parsed.error));
   for (const need of VIEW_META[view].needs) {

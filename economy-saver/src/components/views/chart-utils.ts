@@ -15,13 +15,6 @@ export function compact(value: number, currency: Currency): string {
   return `${value < 0 && abs >= 0.5 ? "−" : ""}${symbol}${body}`;
 }
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-/** "2026-11-27" -> "Fri, Nov 27". */
-export function longDay(iso: string): string {
-  const day = new Date(`${iso}T00:00:00Z`).getUTCDay();
-  return `${DAYS[day]}, ${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
-}
-
 /** The width in CSS pixels of the element the ref is on; `first` until it is measured. */
 export function useWidth<T extends HTMLElement>(first = 720) {
   const ref = useRef<T>(null), [width, setWidth] = useState(first);

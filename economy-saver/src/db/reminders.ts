@@ -1,4 +1,6 @@
 import { and, eq, inArray, lt, sql, type SQL } from "drizzle-orm";
+import { sha256Hex } from "@/lib/stable-id";
+import { SUGGESTION_KINDS } from "@/lib/money/suggestion-types";
 import { reminderDigest, testReminder } from "@/lib/notify/digest";
 import { sendReminderEmail } from "@/lib/notify/email";
 import { isPushSubscription, sendReminderPush } from "@/lib/notify/push";
@@ -15,7 +17,8 @@ type Identity = { uid: string; email: string | null } | null;
 type Channel = typeof reminders.$inferInsert.channel;
 type Subscription = Pick<typeof pushSubscriptions.$inferInsert, "endpoint" | "p256dh" | "auth">;
 type Recipient = Pick<typeof reminderSettings.$inferSelect, "memberId" | "email">;
-const DIGEST_KINDS = ["statement_due", "bill_due", "invoice_nudge", "goal_behind", "safe_below", "cancel_by", "tax_short"] as const;
+/** What the digest tells about: every kind of finding except a cost that went up. */
+const DIGEST_KINDS = SUGGESTION_KINDS.filter(kind => kind !== "cost_up");
 
 async function memberFor(db: Db, hid: string, identity: Identity) {
   const [row] = identity ? await db.select({ id: users.memberId }).from(users)
@@ -44,10 +47,7 @@ export async function reminderView(db: Db, id: string, identity: Identity) {
   ]);
   const config = deliverySettings();
   const emailProblem = settingWords(config.email, hid) ?? (identity?.email ? null : "Sign in with a verified email to use email reminders.");
-  const endpointHashes = await Promise.all(subscriptions.map(async ({ endpoint }) => {
-    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint));
-    return Buffer.from(digest).toString("hex");
-  }));
+  const endpointHashes = await Promise.all(subscriptions.map(({ endpoint }) => sha256Hex(endpoint)));
   return {
     hour: rows[0]?.hour ?? 8, quietDays: rows[0]?.quietDays ?? [],
     emailOn: emailProblem === null && rows[0]?.emailOn === true, emailAvailable: emailProblem === null, emailProblem,

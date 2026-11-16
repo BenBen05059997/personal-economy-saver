@@ -7,7 +7,7 @@ import { orderRequestFor } from "./payment-link";
 import { households, invoices } from "./schema";
 import type { PayWithTestCard } from "@/lib/paypal/contracts";
 
-export type TryPayContext = {
+type TryPayContext = {
   db: Db;
   householdId: string;
   invoiceId: string;

@@ -1,5 +1,5 @@
 // Where you stand (D77): the money you hold, less what the cards will take, plus what clients owe, as a waterfall. Worked out on the server.
-import { engineFact, type Fact } from "@/lib/money/facts";
+import { engineFact, fact, type Fact } from "@/lib/money/facts";
 import { minorMoney } from "@/lib/money/format";
 import { positionSteps } from "@/lib/money/position";
 import { VIEW_META } from "../catalogue";
@@ -7,7 +7,7 @@ import type { Resolver, TableTwin, ViewResult } from "../types";
 
 export const positionView: Resolver<"position"> = (args, ctx): ViewResult => {
   const { state } = ctx, currency = state.homeCurrency, format = (minor: number) => minorMoney(minor, currency), meta = VIEW_META.position;
-  const base = { view: "position" as const, args: { ...args }, form: "waterfall" as const, title: "Where you stand", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "From your balances, card statements and the invoices you have sent." };
+  const base = { view: "position" as const, args: { ...args }, form: "waterfall" as const, title: "Where you stand", question: meta.question, hint: meta.hint, currency, strip: null, source: "From your balances, card statements and the invoices you have sent." };
   const steps = positionSteps(state);
   if (steps.length === 0) return { ...base, data: null, table: null, line: null, aria: "Nothing to show yet.", facts: [], empty: { words: "Nothing to show yet. Add a bill or a client and where you stand shows here.", add: "bill", addLabel: "Add a bill" } };
 
@@ -26,7 +26,7 @@ export const positionView: Resolver<"position"> = (args, ctx): ViewResult => {
   if (cardsOwed > 0) facts.push(engineFact("cards_owe", cardsOwed, money));
   if (clients > 0) facts.push(engineFact("clients_owe", clients, money));
   facts.push(engineFact("what_you_have", net, money));
-  const amount = (name: "cash_to_spend" | "cards_owe" | "clients_owe" | "what_you_have") => Number(facts.find(item => item.name === name)!.value);
+  const amount = (name: "cash_to_spend" | "cards_owe" | "clients_owe" | "what_you_have") => Number(fact(facts, name)!.value);
   const pieces = [`Cash to spend ${format(amount("cash_to_spend"))}`, ...(cardsOwed > 0 ? [`less ${format(amount("cards_owe"))} owed on cards`] : []), ...(clients > 0 ? [`plus about ${format(amount("clients_owe"))} from clients`] : [])];
   return {
     ...base, data: { steps }, table, empty: null, facts,

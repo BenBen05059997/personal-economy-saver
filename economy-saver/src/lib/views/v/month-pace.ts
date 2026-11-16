@@ -12,7 +12,7 @@ export const monthPaceView: Resolver<"month_pace"> = (args, ctx): ViewResult => 
   const meta = VIEW_META.month_pace, currency = spending.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
   const pace = monthPace(spending, ctx.state.today, args.month);
   const name = monthName(pace.month), last = monthName(pace.previous);
-  const base = { view: "month_pace" as const, args: { ...args }, form: "pace_lines" as const, title: "Spending day by day", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "Your bills and card charges, by the day they fall" };
+  const base = { view: "month_pace" as const, args: { ...args }, form: "pace_lines" as const, title: "Spending day by day", question: meta.question, hint: meta.hint, currency, strip: null, source: "Your bills and card charges, by the day they fall" };
   if (pace.thisPoints.length === 0 || (pace.thisPoints[pace.thisPoints.length - 1] === 0 && pace.lastTotalMinor === 0)) {
     return { ...base, data: null, table: null, line: null, aria: "No days to compare yet.", facts: [],
       empty: { words: "Nothing to compare yet. Days show here once you have bills or card charges.", add: "bill", addLabel: "Add a bill" } };

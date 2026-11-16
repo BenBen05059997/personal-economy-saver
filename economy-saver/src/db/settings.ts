@@ -1,8 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { type Db, requireHousehold, recordEvent } from "./household";
+import { type Db, ownerFirst, requireHousehold, recordEvent } from "./household";
 import { InputError } from "./input-error";
-import { minorMoney } from "@/lib/money/format";
+import { minorMoney, percentToBp } from "@/lib/money/format";
 import { Currency } from "@/lib/catalogue/types";
 import { parseMinor } from "./money";
 import { bills, cards, charges, households, members } from "./schema";
@@ -23,10 +23,9 @@ export const settingsInput = z.discriminatedUnion("kind", [
 ]);
 
 /** D62: the card's foreign transaction fee typed as a percentage ("2.2") in basis points (220); "" is null. 0 to 10 percent, up to two decimals. */
-export function foreignFeeBp(text: string): number | null {
+function foreignFeeBp(text: string): number | null {
   if (text === "") return null;
-  const match = /^(\d{1,2})(?:\.(\d{1,2}))?$/.exec(text);
-  const bp = match ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) : -1;
+  const bp = percentToBp(text, 2) ?? -1;
   if (bp < 0 || bp > 1000) throw new SettingsError("Enter the foreign transaction fee as a percentage from 0 to 10, like 2.2");
   return bp;
 }
@@ -42,7 +41,7 @@ export async function loadSettings(db: Db, householdId: string) {
   const [people, cardRows, billRows, ownCategoryRows] = await Promise.all([
     db.select({ id: members.id, name: members.displayName, role: members.role, shareBp: members.shareBp,
       signedIn: sql<boolean>`${members.authUserId} is not null` }).from(members).where(eq(members.householdId, hid))
-      .orderBy(sql`(${members.role} = 'owner') desc`, members.createdAt, members.id),
+      .orderBy(...ownerFirst),
     db.select().from(cards).where(eq(cards.householdId, hid)).orderBy(cards.createdAt),
     db.select({ id: bills.id, biller: bills.biller, amountMinor: bills.amountMinor, currency: bills.currency, due: bills.due, category: bills.category, businessBp: bills.businessBp, repeatDay: bills.repeatDay, repeatUnit: bills.repeatUnit, nextAmountMinor: bills.nextAmountMinor, nextAmountFrom: bills.nextAmountFrom, cancelBy: bills.cancelBy, repeatUntil: bills.repeatUntil, periodStart: bills.periodStart, periodEnd: bills.periodEnd, amountVaries: bills.amountVaries, seriesBillId: bills.seriesBillId, status: bills.status, memberId: bills.memberId, paidByMemberId: bills.paidByMemberId, ownCategoryId: bills.ownCategoryId }).from(bills).where(eq(bills.householdId, hid)).orderBy(bills.due),
     listOwnCategories(db, hid), // D75: for the "Your category" choice on the bill editor and the Your categories section

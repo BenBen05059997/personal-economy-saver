@@ -4,25 +4,32 @@ import { documents, households, readings } from "./schema";
 import { documentBucket } from "@/lib/reader/storage";
 import { ReaderError } from "@/lib/reader/settings";
 
+/** What a Storage bucket must offer to delete document files. Defaults to the household-documents bucket; tests pass their own. */
+export type DocumentStore = { remove(paths: string[]): PromiseLike<{ error: unknown }> };
+
+/** Removes the Storage objects at `paths`, all of which must lie under this household's folder, 100 at a time. `what` names them in the error when Storage refuses. */
+export async function removeStorageFiles(hid: string, paths: string[], what: string, store?: DocumentStore) {
+  if (paths.length === 0) return;
+  if (paths.some(path => !path.startsWith(hid + "/"))) throw new ReaderError("Document storage path does not belong to this household.");
+  const bucket = store ?? await documentBucket();
+  for (let i = 0; i < paths.length; i += 100) {
+    const { error } = await bucket.remove(paths.slice(i, i + 100));
+    if (error) throw new ReaderError(`Could not remove ${what} from Storage.`);
+  }
+}
+
 // Caller locks the household before cleanup and removal. Empty households do not need Storage settings.
 export async function removeHouseholdDocuments(db: Db, id: string) {
   const hid = requireHousehold(id);
   const rows = await db.select({ path: documents.storagePath }).from(documents).where(eq(documents.householdId, hid));
-  if (!rows.length) return;
-  const paths = rows.map(row => row.path);
-  if (paths.some(path => !path.startsWith(hid + "/"))) throw new ReaderError("Document storage path does not belong to this household.");
-  const bucket = await documentBucket();
-  for (let i = 0; i < paths.length; i += 100) {
-    const { error } = await bucket.remove(paths.slice(i, i + 100));
-    if (error) throw new ReaderError("Could not remove household documents from Storage.");
-  }
+  await removeStorageFiles(hid, rows.map(row => row.path), "household documents");
 }
 
 const MiB = 1024 * 1024;
-/** What one household may keep in private Storage: a real household 200 MiB, a Try it household 20 MiB (27E). */
+/** What one household may keep in private Storage: a real household 200 MiB, a Try it household 20 MiB. */
 export const STORAGE_CAP_BYTES = 200 * MiB;
 export const DEMO_STORAGE_CAP_BYTES = 20 * MiB;
-/** The raw file of a document is removed this many days after its last reading was confirmed or dismissed (27E). */
+/** The raw file of a document is removed this many days after its last reading was confirmed or dismissed. */
 export const RAW_FILE_RETENTION_DAYS = 30;
 
 /** Bytes this household holds in Storage now: files not yet removed. */
@@ -49,7 +56,7 @@ export async function requireStorageRoom(db: Db, id: string, incomingBytes: numb
  * more than RAW_FILE_RETENTION_DAYS ago. The document row, its readings and the bills and charges made from it stay; the row records
  * the removal. A document with no readings, or one still to check, keeps its file. Returns how many files went.
  */
-export async function removeExpiredFiles(db: Db, id: string, now = new Date(), store?: { remove(paths: string[]): PromiseLike<{ error: unknown }> }): Promise<number> {
+export async function removeExpiredFiles(db: Db, id: string, now = new Date(), store?: DocumentStore): Promise<number> {
   const hid = requireHousehold(id);
   const cutoff = new Date(now.getTime() - RAW_FILE_RETENTION_DAYS * 86_400_000);
   const rows = await withHousehold(db, hid, async tx => {
@@ -63,15 +70,8 @@ export async function removeExpiredFiles(db: Db, id: string, now = new Date(), s
         sql`exists (${settled})`, sql`not exists (${open})`, sql`not exists (${recent})`));
   });
   if (!rows.length) return 0;
-  if (rows.some(row => !row.path.startsWith(hid + "/"))) throw new ReaderError("Document storage path does not belong to this household.");
-  const bucket = store ?? await documentBucket();
-  const ids: string[] = [];
-  for (let i = 0; i < rows.length; i += 100) {
-    const chunk = rows.slice(i, i + 100);
-    const { error } = await bucket.remove(chunk.map(row => row.path));
-    if (error) throw new ReaderError("Could not remove old documents from Storage.");
-    ids.push(...chunk.map(row => row.id));
-  }
+  await removeStorageFiles(hid, rows.map(row => row.path), "old documents", store);
+  const ids = rows.map(row => row.id);
   await withHousehold(db, hid, async tx => tx.update(documents).set({ fileRemovedAt: now })
     .where(and(eq(documents.householdId, hid), inArray(documents.id, ids), isNull(documents.fileRemovedAt))));
   return ids.length;

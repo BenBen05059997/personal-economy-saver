@@ -10,7 +10,6 @@ import type { ViewArgs } from "./args";
 export type ChartForm = "step_line" | "ranked_bars" | "stacked_columns" | "waterfall" | "sankey" | "calendar" | "strip" | "runway_bar" | "pace_lines" | "goal_line" | "tracks" | "before_after";
 export type ViewId = "forecast" | "what_if" | "position" | "month_by_category" | "month_trend" | "month_pace" | "fixed_costs" | "search_months" | "money_flow" | "savings_rate" | "buffer_months" | "income_months" | "client_pace" | "fx_cost" | "goal_pace" | "bills_calendar" | "card_cycle" | "who_owes_whom" | "what_changed" | "tax_ahead";
 export type ViewNeed = "spending" | "income" | "potFills" | "fx"; // the money state is always loaded
-export type ViewHome = { path: string; label: string } | null; // "See it in <label> ›"
 export type Tone = "main" | "soft" | "deep" | "pale" | "quiet" | "ghost" | "short" | "in"; // #F7A30A, #FCCB78, deeper yellow step, palest yellow step, grey #8a857c, ghost grey dashed, red #b3261e, green #1d7a4c
 export type TableTwin = { caption: string; head: string[]; rows: { key: string; cells: string[]; tone?: "short" | "in" | "muted"; child?: boolean }[]; foot: string[] | null; /** Per column after the first: "end" (figures, the default) or "start" (words, which wrap). */ align?: ("start" | "end")[] };
 export type Empty = { words: string; add: AddKind | null; addLabel: string | null };
@@ -37,7 +36,7 @@ export type FormData = {
 };
 
 export type ViewResult<F extends ChartForm = ChartForm> = {
-  view: ViewId; args: Record<string, unknown>; form: F; title: string; question: string; hint: string; home: ViewHome; currency: Currency;
+  view: ViewId; args: Record<string, unknown>; form: F; title: string; question: string; hint: string; currency: Currency;
   data: FormData[F] | null; // null exactly when `empty` is set
   table: TableTwin | null; empty: Empty | null;
   line: string | null; // one sentence by code, under the chart and in the show result

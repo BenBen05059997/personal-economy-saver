@@ -11,7 +11,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Migration 0028 applied in the separate browser-test setup",
+      "Separate browser-test setup",
       "375px and 1440px widths",
       "Disposable Ben Try it copy, Nov 14, with pending Kumo Water ¥2,500 due Nov 17 and a completed suggestion pass"
     ],
@@ -30,7 +30,7 @@
   {
     "id": "SUG-007",
     "area": "Assistant suggestions",
-    "action": "Open a late-client finding",
+    "action": "Open an overdue-client finding",
     "user_goal": "I want to see the invoice before I send the link again",
     "type": "happy",
     "priority": "P2",
@@ -39,9 +39,9 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Migration 0028 applied in the separate browser-test setup",
+      "Separate browser-test setup",
       "1440px width",
-      "A fictional Northwind invoice, sent with its payment link, four days past its usual pay day, with the late-client rule at 4 days and a completed pass"
+      "A fictional Northwind invoice, sent with its payment link, four days past its usual pay day, with the Overdue-client link rule at 4 days and a completed pass"
     ],
     "steps": [
       "On Home select Copy link again"
@@ -67,7 +67,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "Migration 0028 applied in the separate browser-test setup",
+      "Separate browser-test setup",
       "375px and 1440px widths",
       "Nov 23 Ben fixture with a completed pass"
     ],

@@ -1,6 +1,6 @@
 import type { households } from "./schema";
 
-/** The day every Try it household is anchored at (D34). */
+/** The day every Try it household is anchored at (D34); the sample Ben's today. */
 export const DEMO_DATE = "2026-11-14";
 
 export type ClockHousehold = Pick<typeof households.$inferSelect, "isDemo" | "fixedToday" | "timeZone">;

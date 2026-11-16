@@ -20,7 +20,7 @@ export async function releaseAskReceipt(db: Db, householdId: string, askId: stri
   await db.delete(askReceipts).where(and(eq(askReceipts.householdId, hid), eq(askReceipts.askId, askId)));
 }
 
-export type AskLink = { label: string; href: string };
+type AskLink = { label: string; href: string };
 
 /** Notes what the reply carried besides its words (the To check flag and its links: fixed words and app paths, never the question or answer), so a retry can return them. Nothing is kept when the reply carried neither. */
 export async function noteAskReply(db: Db, householdId: string, askId: string, reply: { pending: boolean; links: AskLink[] }): Promise<void> {

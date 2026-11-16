@@ -39,7 +39,6 @@ import { MODEL_RULES } from "@/lib/agent/rules";
 import { THINKING_WORDS, TOOL_WORDS, toolWords } from "@/lib/agent/words";
 import { answerQuestion, askInput, assembleContext } from "@/db/ask";
 import { allTurns } from "@/db/conversation";
-import { liveViews } from "@/lib/views/resolve";
 import { askScreenForPath } from "@/lib/agent/screen";
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { whatIf } from "@/lib/money/whatif";
@@ -1248,9 +1247,8 @@ async function main() {
       assert.equal((await conversation(c, "Write a letter to Acme", good.fetch)).kind, "answer");
     });
 
-    await check("show (D77): a drawn view joins the answer's canvas and names its page; wrong arguments, a view not live and a fifth show come back in words; Incognito can show; a reload keeps the view", async () => {
+    await check("show (D77): a drawn view joins the answer's canvas and names its page; wrong arguments and a fifth show come back in words; Incognito can show; a reload keeps the view", async () => {
       const c = await seedBen(db, { isDemo: true });
-      const live = liveViews();
       const showCall = (id: string, view: string, args: unknown = null) => toolUse(id, "show", { view, args: args === null ? null : JSON.stringify(args) });
       const lineOf = (body: Body, id: string) => JSON.parse(toolResults(body).find(r => r.tool_use_id === id)!.content) as { line: string; facts: { name: string; value: unknown; by: string }[]; meanings: Record<string, string>; table: { rows: unknown[] } | null; title: string };
       const words = (body: Body, id: string) => { const r = toolResults(body).find(x => x.tool_use_id === id)!; assert.equal(r.is_error, true, id); return r.content; };
@@ -1294,14 +1292,7 @@ async function main() {
       assert.match(words(bad.bodies[1], "b"), /^months: /);
       assert.match(words(bad.bodies[1], "c"), /^Unknown view\./);
       assert.equal(words(bad.bodies[1], "e"), "args is not valid JSON.");
-      const notLive = (["position", "what_if", "client_pace", "card_cycle"] as const).find(view => !live.includes(view));
-      if (notLive) {
-        const nl = transport([() => reply("tool_use", [showCall("n", notLive)]), () => reply("end_turn", [text("Not yet.")])]);
-        await conversation(c, "Show what I have", nl.fetch);
-        assert.equal(words(nl.bodies[1], "n"), "That picture isn't available yet.");
-      }
       for (const [view, name] of [["client_pace", "Nobody"], ["what_if", "Nobody"]] as const) {
-        if (!live.includes(view)) continue;
         const args = view === "what_if" ? { client: name, days: 5 } : { client: name };
         const un = transport([() => reply("tool_use", [showCall("u", view, args)]), () => reply("end_turn", [text("No.")])]);
         await conversation(c, `Show ${view}`, un.fetch);
@@ -1335,7 +1326,7 @@ async function main() {
       assert.ok(!toolResults(secret.bodies[1])[0].is_error, "show is a read tool, so Incognito offers it");
 
       // the number check: an amount only the model passed in is never returned, so the reply cannot confirm it
-      if (live.includes("what_if")) {
+      {
         const echo = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥999,999 spend changes it.")])]);
         const coded = await conversation(c, "What if I spend something big?", echo.fetch);
         const echoed = lineOf(echo.bodies[1], "w");

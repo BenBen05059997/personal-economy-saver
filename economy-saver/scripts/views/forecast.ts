@@ -4,19 +4,16 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { HomeViews } from "@/components/home/HomeViews";
-import { unconfirmedNumbers } from "@/lib/ai/number-check";
-import { fact, type Fact } from "@/lib/money/facts";
+import { fact } from "@/lib/money/facts";
 import { low, safeToSpend, series } from "@/lib/money/runway";
-import { TERMS } from "@/lib/money/terms";
 import { benMoney } from "@/lib/sample/ben";
 import { forecastView } from "@/lib/views/v/forecast";
 import type { ViewResult } from "@/lib/views/types";
+import { reads } from "../fixtures/view-reads";
 
 let passed = 0;
 function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
-/** The facts as the number check reads them: a one-day period becomes its date. */
-const checkable = (facts: readonly Fact[]) => facts.map(item => ({ ...item, period: item.period && "on" in item.period ? item.period.on : item.period }));
 const result = forecastView({}, { state: benMoney }) as ViewResult<"step_line">;
 
 check("the low and safe to spend match the engine", () => {
@@ -101,13 +98,9 @@ check("the facts carry the Home sentence's parts and the line is built from them
   assert.ok(facts.every(item => item.by === "engine" && item.from === "forecast" && (item.unit !== "money" || item.currency === "JPY")));
 });
 
-check("every number in the line is a fact and every fact name is a term, on both cases and one", () => {
+check("the line says the late low, and the late, usual and seven-day forms read clean", () => {
   assert.equal(result.line, "If clients pay late you are ¥18,780 short on Fri, Nov 27.");
-  for (const args of [{}, { case: "late" as const }, { case: "usual" as const }, { days: 7 }]) {
-    const view = forecastView(args, { state: benMoney });
-    assert.deepEqual(unconfirmedNumbers(view.line!, checkable(view.facts!), { today: benMoney.today }), [], JSON.stringify(args));
-    assert.ok(view.facts!.every(item => TERMS.some(term => term.name === item.name)));
-  }
+  for (const args of [{ case: "late" as const }, { case: "usual" as const }, { days: 7 }]) reads(forecastView(args, { state: benMoney }), benMoney.today);
 });
 
 check("with days, safe to spend is that period's, as safe to spend for a period", () => {

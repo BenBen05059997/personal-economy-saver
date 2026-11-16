@@ -1,29 +1,30 @@
 // The canvas resolver (D57). Pure: a recipe in, one resolved block per block out. A block that shows money holds a query; every
-// number here comes from an engine function (runway, sentence, month, spending, regular) run on the state the query's scenario names,
-// and is written with the app's own money and date helpers. The only arithmetic is what a query names (the difference in
+// number here comes from an engine function (runway, sentence, month, spending, regular, goals, foreign costs, split, pace) run on the state
+// the query's scenario names, and is written with the app's own money and date helpers. The only arithmetic is what a query names (the difference in
 // compare_months). Throws `CanvasError` with words a person can read when the recipe cannot be drawn.
-import { plural } from "@/lib/plural";
 import { engineFact, type Fact } from "@/lib/money/facts";
-import { dayLabel, minorMoney, minorPerUnit, money, aboutMoney } from "@/lib/money/format";
+import { aboutMoney, dayLabel, longDay, minorMoney, money, plural, toMinor } from "@/lib/money/format";
 import { goalPaces } from "@/lib/money/goals";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "@/lib/money/gaps";
 import { CATEGORIES, categoryLabel } from "@/lib/money/categories";
 import { splitBalance, splitSummary } from "@/lib/money/split";
 import { monthByCategory, type MonthView } from "@/lib/money/month";
 import { paceLine } from "@/lib/money/pace";
-import { changeTone, changeWords, regularCosts, REGULAR_MONTHS } from "@/lib/money/regular";
+import { changeTone, changeWords, NO_REGULAR_COSTS, regularCosts, REGULAR_MONTHS } from "@/lib/money/regular";
 import { availableCash, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
 import { billsForMonth, type PeriodBill } from "@/lib/money/period";
 import { latestDate } from "@/lib/money/horizon";
 import { foreignCostWords, type FxCosts } from "@/lib/money/fx-cost";
-import { allUncounted, HISTORY_MONTHS, monthBounds, monthName, monthsBack, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
+import { allUncounted, HISTORY_MONTHS, monthBounds, monthLabel, monthName, monthPeriod, monthsBack, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import type { MoneyState } from "@/lib/money/types";
 import { stateThrough } from "@/lib/money/window";
+import { CASE_KIND, FACT_CASE } from "@/lib/money/terms";
 import { WhatIfError, whatIf } from "@/lib/money/whatif";
 import { resolveView } from "@/lib/views/resolve";
 import { VIEW_META } from "@/lib/views/catalogue";
-import { longDay, stepLine } from "@/lib/views/v/forecast";
+import { stepLine } from "@/lib/views/step-line";
+import { eventWords, ifCase, ifClientsPay, NOTHING_SCHEDULED } from "@/lib/views/words";
 import { ViewError, type FormData, type RankedRow, type TableTwin, type Tone, type ViewResult } from "@/lib/views/types";
 import type { IncomeRow, PotFill } from "@/lib/money/types";
 import { problemWords, RecipeSchema, ScenarioSchema, type Block, type Query, type Recipe, type Scenario, type ScenarioRef } from "./schema";
@@ -51,7 +52,7 @@ type FlowMark = { index: number; label: string };
 export type FlowData = {
   view: ViewResult<"step_line">; // without the mark: the canvas adds `mark` as a vertical line when it draws
   points: number[]; // the end-of-day balances in the home currency
-  lowIndex: number; lowLabel: string; short: boolean; caption: string; aria: string;
+  lowLabel: string; short: boolean; caption: string; aria: string;
   mark: FlowMark | null; // the first day the block's marked bill falls on in the window; null when there is no mark or no such bill in it
 };
 type TimelineRow = { id: string; date: string; dateLabel: string; label: string; amountLabel: string; incoming: boolean; balanceLabel: string; covered: boolean; flag: string | null; marked: boolean };
@@ -60,11 +61,10 @@ type TableRow = { cells: string[]; tone: "short" | "up" | "down" | "plain" };
 export type TableData = { title: string | null; caption: string | null; head: string[]; rows: TableRow[]; foot: string[] | null; empty: string | null };
 type CompareRow = { key: string; label: string; aLabel: string; bLabel: string; aMinor: number; bMinor: number; change: string };
 export type CompareData = { view: ViewResult<"ranked_bars">; aName: string; bName: string; aTotal: string; bTotal: string; difference: string; rows: CompareRow[]; empty: string | null };
-/** D57, D52, D45: the month by category, whose each part is (Shared, then each member), and who owes whom. `rows` draw the chart; `table` is the same figures as a table. */
+/** D57, D52, D45: the month by category, whose each part is (Shared, then each member), and who owes whom. `view` draws the chart; `table` is the same figures as a table. */
 export type ByPersonData = {
   view: ViewResult<"ranked_bars">;
   month: string;
-  rows: { label: string; parts: { name: string; minor: number; label: string }[] }[];
   table: TableData;
   owes: string | null;
   empty: string | null;
@@ -87,8 +87,7 @@ export type ResolvedBlock = Common & (
 
 // ---------------------------------------------------------------- scenarios
 
-type Kind = "expected" | "worst";
-const kindOf = (scenario: Scenario): Kind => (scenario.case === "usual" ? "expected" : "worst");
+const kindOf = (scenario: Scenario) => CASE_KIND[scenario.case];
 
 /** Home's own picture (the runway, the low point) is the late case; Coming up is the usual one. */
 const defaultCase = (query: Query): Scenario["case"] => (query.q === "events" ? "usual" : "late");
@@ -121,14 +120,14 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
   const { state, spending } = context;
   if (spending.homeCurrency !== state.homeCurrency) throw new CanvasError("The spending and the money state are in different currencies.");
   const currency = state.homeCurrency;
-  const unit = minorPerUnit(currency);
+  const home = (amount: number) => toMinor(amount, currency);
   const format = (n: number) => money(n, currency);
   const minor = (minorUnits: number) => minorMoney(minorUnits, currency);
   const current = state.today.slice(0, 7);
   const oldest = monthsBack(current, HISTORY_MONTHS);
 
   const states = new Map<string, MoneyState>();
-  // `days` is how far a block looks (27D): the bills are expanded to that day first, then the what-if changes are applied to them.
+  // `days` is how far a block looks: the bills are expanded to that day first, then the what-if changes are applied to them.
   const stateFor = (scenario: Scenario, days?: number): MoneyState => {
     const base = days === undefined ? state : stateThrough(state, addDays(state.today, days - 1));
     const key = `${base === state ? "" : days}|${JSON.stringify(scenario.changes)}`;
@@ -152,7 +151,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     if (!found) { found = monthByCategory(spending, state.today, month); views.set(month, found); }
     return found;
   };
-  const monthLabel = (month: string) => `${monthName(month)}${month.slice(0, 4) === current.slice(0, 4) ? "" : ` ${month.slice(0, 4)}`}`;
+  const monthText = (month: string) => monthLabel(month, state.today);
   const totalLabel = (view: MonthView) => (view.categories.length > 0 && view.categories.every(c => allUncounted(c.items)) ? AMOUNT_NOT_KNOWN : minor(view.totalMinor));
   const uncountedNote = (view: MonthView) => gapUncountedWords(view.categories.flatMap(c => c.items.filter(i => i.uncounted).map(i => i.label)));
 
@@ -164,31 +163,31 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
   // ------------------------------------------------ a single measure, for number and progress blocks
   type Measure = { valueMinor: number; value: string; sub: string | null; note: string | null; tone: "short" | "plain"; facts: Fact[] };
   // A measure's numbers come from the engine call that worked it out, each named as a fact (D79).
-  const fromCanvas = "canvas", span = (month: string) => ({ from: monthBounds(month).first, to: monthBounds(month).last });
-  const moneyFact = (name: Parameters<typeof engineFact>[0], minorUnits: number, options: { case?: "as_usual" | "late"; period?: ReturnType<typeof span> } = {}) => engineFact(name, minorUnits, { from: fromCanvas, currency, ...options });
+  const fromCanvas = "canvas";
+  const moneyFact = (name: Parameters<typeof engineFact>[0], minorUnits: number, options: { case?: "as_usual" | "late"; period?: ReturnType<typeof monthPeriod> } = {}) => engineFact(name, minorUnits, { from: fromCanvas, currency, ...options });
   const measure = (query: Extract<Query, { q: "safe_to_spend" | "cash" | "low_point" | "month_total" | "foreign_costs" }>): Measure => {
     switch (query.q) {
       case "cash": {
         const cash = availableCash(state);
-        const valueMinor = Math.round(cash * unit);
+        const valueMinor = home(cash);
         return { valueMinor, value: format(cash), sub: null, note: null, tone: "plain", facts: [moneyFact("cash_to_spend", valueMinor)] };
       }
       case "safe_to_spend": {
         const st = stateFor(readScenario(query.scenario, query, recipe, override));
         const safe = safeToSpend(st);
-        const valueMinor = Math.round(safe.amount * unit);
+        const valueMinor = home(safe.amount);
         return { valueMinor, value: format(safe.amount), sub: safe.shortBy > 0 ? `Short by ${format(safe.shortBy)} on ${dayLabel(safe.low.date)}` : null, note: null, tone: safe.shortBy > 0 ? "short" : "plain",
-          facts: [moneyFact("safe_to_spend", valueMinor), ...(safe.shortBy > 0 ? [moneyFact("short", Math.round(safe.shortBy * unit), { case: "late" }), engineFact("low_point_day", safe.low.date, { from: fromCanvas, case: "late" })] : [])] };
+          facts: [moneyFact("safe_to_spend", valueMinor), ...(safe.shortBy > 0 ? [moneyFact("short", home(safe.shortBy), { case: "late" }), engineFact("low_point_day", safe.low.date, { from: fromCanvas, case: "late" })] : [])] };
       }
       case "low_point": {
         const scenario = readScenario(query.scenario, query, recipe, override);
         const point = low(series(stateFor(scenario), kindOf(scenario)));
-        const valueMinor = Math.round(point.amount * unit), pointCase = scenario.case === "usual" ? "as_usual" as const : "late" as const;
+        const valueMinor = home(point.amount), pointCase = FACT_CASE[scenario.case];
         return { valueMinor, value: format(point.amount), sub: `on ${dayLabel(point.date)}`, note: null, tone: point.amount < 0 ? "short" : "plain", facts: [moneyFact("low_point", valueMinor, { case: pointCase }), engineFact("low_point_day", point.date, { from: fromCanvas, case: pointCase })] };
       }
       case "month_total": {
         const view = viewOf(query.month);
-        return { valueMinor: view.totalMinor, value: totalLabel(view), sub: monthLabel(query.month), note: uncountedNote(view), tone: "plain", facts: [moneyFact("month_total", view.totalMinor, { period: span(query.month) })] };
+        return { valueMinor: view.totalMinor, value: totalLabel(view), sub: monthText(query.month), note: uncountedNote(view), tone: "plain", facts: [moneyFact("month_total", view.totalMinor, { period: monthPeriod(query.month) })] };
       }
       case "foreign_costs": {
         const costs = foreignOf();
@@ -208,7 +207,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     const last = monthName(monthsBack(current, 2)), now = monthName(current);
     return {
       title: null, caption: result.changedLine, head: ["Cost", last, now, "Change"], foot: null,
-      empty: result.items.length === 0 ? "Regular costs show up once a bill repeats or a name comes back two months running." : null,
+      empty: result.items.length === 0 ? NO_REGULAR_COSTS : null,
       rows: result.items.map(cost => {
         const words = changeWords(cost, currency), tone = changeTone(cost.status);
         const thisCell = cost.status === "not_yet" ? "not in yet" : `${amount(cost.thisMinor, cost.months[cost.months.length - 1].estimated)}${cost.soFar ? " so far" : ""}`;
@@ -227,10 +226,10 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       return "—";
     };
     const clientRows: TableRow[] = costs.perClient.map(client => ({
-      cells: [client.clientName, minor(client.costMinor), `${client.count} ${plural(client.count, "invoice")}: ${minor(client.receiveFeeMinor)} in fees, ${minor(client.markupMinor)} in the rate, ${minor(client.landedMinor)} reached your bank`], tone: "plain",
+      cells: [client.clientName, minor(client.costMinor), `${plural(client.count, "invoice")}: ${minor(client.receiveFeeMinor)} in fees, ${minor(client.markupMinor)} in the rate, ${minor(client.landedMinor)} reached your bank`], tone: "plain",
     }));
     const cardRows: TableRow[] = costs.perCard.map(card => ({
-      cells: [card.label, cardCost(card), `${card.count} ${plural(card.count, "purchase")} in another currency, ${card.estimatedMinor > 0 ? "estimated from the card's fee" : card.unknownCount > 0 && card.exactMinor === 0 ? "no cost yet" : "statement amount known"}${card.unknownCount > 0 && (card.exactMinor > 0 || card.estimatedMinor > 0) ? `; ${card.unknownCount} with no cost yet` : ""}`], tone: "plain",
+      cells: [card.label, cardCost(card), `${plural(card.count, "purchase")} in another currency, ${card.estimatedMinor > 0 ? "estimated from the card's fee" : card.unknownCount > 0 && card.exactMinor === 0 ? "no cost yet" : "statement amount known"}${card.unknownCount > 0 && (card.exactMinor > 0 || card.estimatedMinor > 0) ? `; ${card.unknownCount} with no cost yet` : ""}`], tone: "plain",
     }));
     const total = costs.payoutTotals.costMinor + costs.chargeTotals.exactMinor + costs.chargeTotals.estimatedMinor;
     const rows = [...clientRows, ...cardRows];
@@ -255,7 +254,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     }).sort((x, y) => y.size - x.size);
     const diff = b.totalMinor - a.totalMinor;
     return {
-      aName: monthLabel(query.a), bName: monthLabel(query.b), aTotal: totalLabel(a), bTotal: totalLabel(b),
+      aName: monthText(query.a), bName: monthText(query.b), aTotal: totalLabel(a), bTotal: totalLabel(b),
       difference: diff === 0 ? "No change" : `${diff > 0 ? "+" : ""}${minor(diff)}`,
       rows: rows.map(({ key, label, aLabel, bLabel, aMinor, bMinor, change }) => ({ key, label, aLabel, bLabel, aMinor, bMinor, change })),
       empty: rows.length === 0 ? "Nothing confirmed in either month." : null,
@@ -273,7 +272,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       aria: `${row.label}: ${now} ${row.bLabel}, ${tick} ${row.aLabel}, ${row.change}.`,
     }));
     const line = `${now} ${plain.bTotal} against ${tick} ${plain.aTotal}: ${plain.difference}.`;
-    const base = { view: "month_by_category" as const, args: { a: query.a, b: query.b }, form: "ranked_bars" as const, title: `${now} against ${tick}`, question: VIEW_META.month_by_category.question, hint: VIEW_META.month_by_category.hint, home: null, currency, strip: null, source: "Worked out from your records", facts: [moneyFact("month_total", a.totalMinor, { period: span(query.a) }), moneyFact("month_total", b.totalMinor, { period: span(query.b) }), moneyFact("difference_between_months", b.totalMinor - a.totalMinor, { period: span(query.b) })] };
+    const base = { view: "month_by_category" as const, args: { a: query.a, b: query.b }, form: "ranked_bars" as const, title: `${now} against ${tick}`, question: VIEW_META.month_by_category.question, hint: VIEW_META.month_by_category.hint, currency, strip: null, source: "Worked out from your records", facts: [moneyFact("month_total", a.totalMinor, { period: monthPeriod(query.a) }), moneyFact("month_total", b.totalMinor, { period: monthPeriod(query.b) }), moneyFact("difference_between_months", b.totalMinor - a.totalMinor, { period: monthPeriod(query.b) })] };
     const view: ViewResult<"ranked_bars"> = plain.empty
       ? { ...base, data: null, table: null, line: null, facts: [], aria: plain.empty, empty: { words: plain.empty, add: null, addLabel: null } }
       : { ...base, data: { segments: [{ key: "now", legend: now, tone: "main" }], tick: { legend: tick }, rows }, table, line, aria: `${now} against ${tick}, category by category. ${line}`, empty: null };
@@ -281,10 +280,10 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
   };
 
   const byPersonOf = (query: Extract<Block, { type: "by_person" }>["query"]): ByPersonData => {
-    const view = viewOf(query.month), month = monthLabel(query.month);
+    const view = viewOf(query.month), month = monthText(query.month);
     const members = state.split.members;
-    const none = { rows: [], table: { title: null, caption: null, head: [], rows: [], foot: null, empty: null }, owes: null };
-    const baseView = { view: "month_by_category" as const, args: { month: query.month, by: "person" }, form: "ranked_bars" as const, title: `${month} by category and whose it is`, question: VIEW_META.month_by_category.question, hint: VIEW_META.month_by_category.hint, home: null, currency, strip: null, source: "Worked out from your records" };
+    const none = { table: { title: null, caption: null, head: [], rows: [], foot: null, empty: null }, owes: null };
+    const baseView = { view: "month_by_category" as const, args: { month: query.month, by: "person" }, form: "ranked_bars" as const, title: `${month} by category and whose it is`, question: VIEW_META.month_by_category.question, hint: VIEW_META.month_by_category.hint, currency, strip: null, source: "Worked out from your records" };
     const emptyOf = (words: string): ByPersonData => ({ month, ...none, empty: words, view: { ...baseView, data: null, table: null, line: null, aria: words, facts: [], empty: { words, add: null, addLabel: null } } });
     if (members.length < 2) return emptyOf(`Only ${members[0]?.name ?? "you"} in this household. Add a person in Household → People to split.`);
     if (view.categories.length === 0) return emptyOf(`Nothing confirmed in ${monthName(query.month)}.`);
@@ -293,8 +292,8 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     const rows = view.categories.map(c => ({ label: c.label, parts: parts(c), total: allUncounted(c.items) ? AMOUNT_NOT_KNOWN : minor(c.totalMinor) }));
     const balance = splitBalance(state.split, state.today), owes = splitSummary(state.split, balance, currency);
     const facts: Fact[] = [
-      moneyFact("month_total", view.totalMinor, { period: span(query.month) }),
-      ...view.categories.filter(c => !allUncounted(c.items)).map(c => engineFact("category_total", c.totalMinor, { from: fromCanvas, currency, period: span(query.month), about: { type: "category", id: c.category, name: c.label } })),
+      moneyFact("month_total", view.totalMinor, { period: monthPeriod(query.month) }),
+      ...view.categories.filter(c => !allUncounted(c.items)).map(c => engineFact("category_total", c.totalMinor, { from: fromCanvas, currency, period: monthPeriod(query.month), about: { type: "category", id: c.category, name: c.label } })),
       ...balance.transfers.flatMap(t => { const about = { type: "person" as const, id: t.fromId, name: t.fromName }; return [engineFact("who_owes_whom", t.amountMinor, { from: fromCanvas, currency, about }), engineFact("owes_to", t.toName, { from: fromCanvas, about })]; }),
     ];
     const table: TableData = {
@@ -314,8 +313,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     const tableTwin: TableTwin = { caption: `${month} by category, shared and each person`, head: table.head, foot: table.foot, rows: table.rows.map((row, i) => ({ key: view.categories[i].category, cells: row.cells })) };
     const line = owes;
     return {
-      month, owes, empty: null,
-      rows: rows.map(({ label, parts }) => ({ label, parts: parts.filter(p => p.minor > 0) })), table,
+      month, owes, empty: null, table,
       view: { ...baseView, data: { segments, tick: null, rows: ranked }, table: tableTwin, line, empty: null, aria: `${month} by category and whose it is.${owes ? ` ${owes}` : ""}`, facts },
     };
   };
@@ -350,7 +348,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       case "month_by_category": {
         const view = viewOf(query.month);
         return {
-          title, caption: uncountedNote(view), head: ["Category", monthLabel(query.month)], foot: view.categories.length ? ["Total", totalLabel(view)] : null,
+          title, caption: uncountedNote(view), head: ["Category", monthText(query.month)], foot: view.categories.length ? ["Total", totalLabel(view)] : null,
           empty: view.categories.length === 0 ? `Nothing confirmed in ${monthName(query.month)}.` : null,
           rows: view.categories.map(c => ({ cells: [c.label, allUncounted(c.items) ? AMOUNT_NOT_KNOWN : minor(c.totalMinor)], tone: "plain" as const })),
         };
@@ -378,7 +376,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
 
   const amountOf = (event: { amount: number; estimated?: true; uncounted?: true; kind: string }): string => {
     if (event.uncounted) return AMOUNT_NOT_KNOWN;
-    if (event.estimated) return aboutMoney(Math.round(Math.abs(event.amount) * unit), currency);
+    if (event.estimated) return aboutMoney(home(Math.abs(event.amount)), currency);
     return event.amount > 0 ? `+${format(event.amount)}` : format(event.amount);
   };
 
@@ -423,29 +421,28 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
         const marked = block.mark === undefined ? undefined : events.find(event => isMarked(event, block.mark!));
         const mark: FlowMark | null = marked ? {
           index: daysBetween(state.today, marked.date),
-          label: `${marked.label} ${marked.uncounted ? AMOUNT_NOT_KNOWN : marked.estimated ? aboutMoney(Math.round(-marked.amount * unit), currency) : minor(Math.round(-marked.amount * unit))} · ${dayLabel(marked.date)}`,
+          label: `${marked.label} ${marked.uncounted ? AMOUNT_NOT_KNOWN : marked.estimated ? aboutMoney(home(-marked.amount), currency) : minor(home(-marked.amount))} · ${dayLabel(marked.date)}`,
         } : null;
         // The step line (D77): the scenario's days, and under a what-if the same days as they are now as a ghost.
-        const changes = scenario.changes.length > 0, toMinor = (balance: number) => Math.round(balance * unit);
+        const changes = scenario.changes.length > 0;
         const words = caseWords(scenario);
-        const lines: FormData["step_line"]["lines"] = [{ key: "main", label: changes ? `${words}, with your changes` : words, tone: "main", points: balances.map(toMinor) }];
-        if (changes) lines.push({ key: "before", label: `${words}, as it is now`, tone: "ghost", points: series(stateFor({ case: scenario.case, changes: [] }, days), kind, days).map(toMinor) });
-        const lineFor = (event: (typeof events)[number]) => event.pending ? `${event.label} waits in To check and is not counted yet` : event.uncounted ? `${event.label}: amount not known` : `${event.label} ${event.amount < 0 ? "−" : "+"}${format(Math.abs(event.amount))}`;
-        const dayWords = balances.map((_, i) => { const date = addDays(state.today, i); const lines = events.filter(event => event.date === date).map(lineFor); return { date, label: longDay(date), lines: lines.length ? lines : ["Nothing scheduled"] }; });
-        const data = stepLine({ startDate: state.today, currency, lines, band: null, lowLine: "main", sub: [], dayWords, direct: [{ line: "main", text: kind === "worst" ? "If late" : "If as usual" }] });
+        const lines: FormData["step_line"]["lines"] = [{ key: "main", label: changes ? `${words}, with your changes` : words, tone: "main", points: balances.map(home) }];
+        if (changes) lines.push({ key: "before", label: `${words}, as it is now`, tone: "ghost", points: series(stateFor({ case: scenario.case, changes: [] }, days), kind, days).map(home) });
+        const dayWords = balances.map((_, i) => { const date = addDays(state.today, i); const lines = events.filter(event => event.date === date).map(event => eventWords(event, format)); return { date, label: longDay(date), lines: lines.length ? lines : [NOTHING_SCHEDULED] }; });
+        const data = stepLine({ startDate: state.today, currency, lines, band: null, lowLine: "main", sub: [], dayWords, direct: [{ line: "main", text: ifCase(FACT_CASE[scenario.case]) }] });
         const eventDays = new Set(events.map(event => event.date));
         const table: TableTwin = {
           caption: `${words}, day by day`, head: ["Day", "What happens", "Balance"], foot: null, align: ["end", "start", "end"],
-          rows: balances.map((_, i) => i).filter(i => i === 0 || eventDays.has(addDays(state.today, i))).map(i => ({ key: dayWords[i].date, cells: [dayWords[i].label, i === 0 && !eventDays.has(dayWords[i].date) ? "Today" : dayWords[i].lines.join("; "), minor(toMinor(balances[i]))] })),
+          rows: balances.map((_, i) => i).filter(i => i === 0 || eventDays.has(addDays(state.today, i))).map(i => ({ key: dayWords[i].date, cells: [dayWords[i].label, i === 0 && !eventDays.has(dayWords[i].date) ? "Today" : dayWords[i].lines.join("; "), minor(home(balances[i]))] })),
         };
         const meta = VIEW_META.forecast, line = `${words}. ${data.low.label}.`;
         const aria = `${days}-day cash balance. ${words}. Lowest point ${caption}.`;
         const view: ViewResult<"step_line"> = {
-          view: "forecast", args: { days }, form: "step_line", title: `Your next ${days} days`, question: meta.question, hint: meta.hint, home: null, currency, strip: null,
+          view: "forecast", args: { days }, form: "step_line", title: `Your next ${days} days`, question: meta.question, hint: meta.hint, currency, strip: null,
           data, table, empty: null, line, aria, source: "Worked out from your records",
-          facts: [moneyFact("low_point", data.low.minor, { case: kind === "worst" ? "late" : "as_usual" }), engineFact("low_point_day", point.date, { from: fromCanvas, case: kind === "worst" ? "late" : "as_usual" }), engineFact("days_shown", days, { from: fromCanvas })],
+          facts: [moneyFact("low_point", data.low.minor, { case: FACT_CASE[scenario.case] }), engineFact("low_point_day", point.date, { from: fromCanvas, case: FACT_CASE[scenario.case] }), engineFact("days_shown", days, { from: fromCanvas })],
         };
-        return { ...common("worked"), type: "flow_chart", data: { view, points: [...balances], lowIndex: point.dayIndex, lowLabel: caption, short: point.amount < 0, caption: words, aria: `${aria}${mark ? ` Marked: ${mark.label}.` : ""}`, mark } };
+        return { ...common("worked"), type: "flow_chart", data: { view, points: [...balances], lowLabel: caption, short: point.amount < 0, caption: words, aria: `${aria}${mark ? ` Marked: ${mark.label}.` : ""}`, mark } };
       }
       case "timeline": {
         const scenario = scenarioOf()!;
@@ -490,5 +487,5 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
 
 /** What a case means in words, for the line under a forecast. */
 function caseWords(scenario: Scenario): string {
-  return scenario.case === "usual" ? "If clients pay as usual" : "If clients pay late";
+  return ifClientsPay(FACT_CASE[scenario.case]);
 }

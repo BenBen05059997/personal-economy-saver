@@ -2,10 +2,11 @@
 // A kind is read from one place only. Moving is two steps in the browser (fetch, store, confirm); the server deletes its copies and sets the
 // place in one transaction, or (back to the cloud) inserts what the browser posts, checked against the schemas, and sets the place.
 // Every query is scoped by household_id.
+import { sha256Hex } from "@/lib/stable-id";
 import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
+import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import { canvases, conversationTurns, households, memories, spaces } from "./schema";
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { MEMORY_LIMIT, MemoryItem, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
@@ -43,19 +44,13 @@ const PinItem = z.object({
   id: z.string().uuid(), title: z.string().trim().min(1).max(80), recipe: RecipeSchema,
   spaceId: z.string().uuid().optional(), position: z.number().int().min(0), createdAt: z.string().datetime(),
 }).strict();
-export type PinItem = z.infer<typeof PinItem>;
+type PinItem = z.infer<typeof PinItem>;
 
 const ItemsFor = {
   memory: z.array(MemoryItem).max(MEMORY_LIMIT),
   canvases: z.array(PinItem).max(MAX_PINS),
   journal: z.array(ConversationTurn),
 } as const;
-
-const lock = async (tx: Db, hid: string) => {
-  const [row] = await tx.select().from(households).where(eq(households.id, hid)).for("update");
-  if (!row) throw new InputError("Household not found");
-  return row;
-};
 
 async function briefRows(db: Db, hid: string): Promise<DeviceBrief[]> {
   const rows = await db.select({
@@ -66,9 +61,7 @@ async function briefRows(db: Db, hid: string): Promise<DeviceBrief[]> {
 
 async function briefRevision(briefs: DeviceBrief[]): Promise<string | undefined> {
   if (!briefs.length) return undefined;
-  const bytes = new TextEncoder().encode(JSON.stringify(briefs));
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  return sha256Hex(JSON.stringify(briefs));
 }
 
 /** The items the browser takes to keep on this device: everything of the kind, in the shape the device store holds. */
@@ -113,7 +106,7 @@ export class JournalMoveChanged extends InputError {}
 export async function moveToDevice(db: Db, householdId: string, what: Movable, ids: string[], by: Maker, expectedBriefRevision?: string): Promise<number> {
   const hid = requireHousehold(householdId);
   return withHousehold(db, hid, async tx => {
-    const row = await lock(tx, hid);
+    const row = await lockHousehold(tx, hid);
     if (row[COLUMN[what]] === "device") throw new InputError("That is already kept on this device.");
     const table = what === "memory" ? memories : what === "canvases" ? canvases : conversationTurns;
     const held = (await tx.select({ id: table.id }).from(table).where(eq(table.householdId, hid))).map(r => r.id);
@@ -152,7 +145,7 @@ export async function moveToCloud(db: Db, householdId: string, what: Movable, it
     throw new InputError("The items on this device are not in a shape the cloud can keep, so nothing was moved.");
   }
   return withHousehold(db, hid, async tx => {
-    const row = await lock(tx, hid);
+    const row = await lockHousehold(tx, hid);
     if (row[COLUMN[what]] !== "device") throw new InputError("That is already kept in our cloud.");
     const own = await tx.select({ id: spaces.id }).from(spaces).where(eq(spaces.householdId, hid));
     const spaceIds = new Set(own.map(space => space.id));

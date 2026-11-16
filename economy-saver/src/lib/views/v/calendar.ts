@@ -1,11 +1,12 @@
 // The bills calendar (D77): what goes out and what comes in, day by day, with each day shaded by how much goes out. Pure; every amount integer minor units.
-import { engineFact, type Fact } from "@/lib/money/facts";
-import { dayLabel, minorMoney } from "@/lib/money/format";
+import { engineFact, fact, type Fact } from "@/lib/money/facts";
+import { dayLabel, longDay, minorMoney } from "@/lib/money/format";
 import { calendarDays, type CalendarItem } from "@/lib/money/calendar";
 import { sharedBillsComing } from "@/lib/money/family";
 import { VIEW_META } from "../catalogue";
 import type { FormData, Resolver, TableTwin, ViewResult } from "../types";
-import { longDay } from "./forecast";
+import { CASES } from "@/lib/money/terms";
+import { ifClientsPay, notKnownWords, waitsWords } from "../words";
 import { addDays } from "@/lib/money/dates";
 
 const dayOfWeek = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay();
@@ -14,7 +15,7 @@ export const calendarView: Resolver<"bills_calendar"> = (args, ctx): ViewResult 
   const { state } = ctx, days = args.days ?? 30, shared = args.whose === "shared";
   const meta = VIEW_META.bills_calendar, currency = state.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
   const base = {
-    view: "bills_calendar" as const, args: { ...args }, form: "calendar" as const, title: shared ? "When shared bills fall" : "When bills fall", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null,
+    view: "bills_calendar" as const, args: { ...args }, form: "calendar" as const, title: shared ? "When shared bills fall" : "When bills fall", question: meta.question, hint: meta.hint, currency, strip: null,
     source: shared ? "The household's shared bills." : "Your bills, card statements and your clients' usual pay days.",
   };
   const rows = calendarDays(state, days, args.whose);
@@ -23,8 +24,8 @@ export const calendarView: Resolver<"bills_calendar"> = (args, ctx): ViewResult 
       empty: { words: shared ? `No shared bills fall in the next ${days} days. Add a bill and it shows here.` : `Nothing is due in the next ${days} days. Add a bill and it shows here.`, add: "bill", addLabel: "Add a bill" } };
   }
   const words = (item: CalendarItem) => {
-    if (item.pending) return `${item.label} ${format(item.amountMinor)} waits in To check and is not counted yet`;
-    if (item.uncounted) return `${item.label}: amount not known`;
+    if (item.pending) return waitsWords(item.label, format(item.amountMinor));
+    if (item.uncounted) return notKnownWords(item.label);
     const sign = item.kind === "arrival" ? "+" : "−";
     return `${item.label} ${item.estimated ? "about " : ""}${sign}${format(item.amountMinor)}`;
   };
@@ -50,7 +51,7 @@ export const calendarView: Resolver<"bills_calendar"> = (args, ctx): ViewResult 
     align: shared ? ["start", "start", "start", "end"] : ["start", "start", "end", "end"],
     rows: rows.filter(row => row.items.length > 0 || row.short).map(row => ({
       key: row.date, ...(row.short && { tone: "short" as const }),
-      cells: [longDay(row.date), [...row.items.map(shared ? nameOf : words), ...(row.short ? ["short if clients pay late"] : [])].join("; "), ...(shared ? [paidBy(row.date, row.items)] : []), row.outMinor ? format(row.outMinor) : "–", ...(shared ? [] : [row.inMinor ? format(row.inMinor) : "–"])],
+      cells: [longDay(row.date), [...row.items.map(shared ? nameOf : words), ...(row.short ? [`short if clients pay ${CASES.late.label}`] : [])].join("; "), ...(shared ? [paidBy(row.date, row.items)] : []), row.outMinor ? format(row.outMinor) : "–", ...(shared ? [] : [row.inMinor ? format(row.inMinor) : "–"])],
     })),
   };
   // The facts first (D79); the line reads every number and date back from them.
@@ -67,16 +68,15 @@ export const calendarView: Resolver<"bills_calendar"> = (args, ctx): ViewResult 
       : item.kind === "statement" ? { type: "card" as const, id: item.cardId ?? item.id, name: item.label } : { type: "bill" as const, id: item.id, name: item.label };
     const period = { on: row.date };
     if (item.pending) { facts.push(engineFact("to_check_amount", item.amountMinor, { from, currency, about, period })); continue; }
-    if (item.pending) { facts.push(engineFact("to_check_amount", item.amountMinor, { from, currency, about, period })); continue; }
     if (item.kind !== "arrival") facts.push(engineFact("due", row.date, { from, about }));
     if (item.uncounted) { facts.push(engineFact("not_counted", 1, { from, about, period })); continue; }
     const name = item.kind === "bill" ? "bill_amount" : item.kind === "arrival" ? "client_pays" : item.open ? "statement_open" : "statement_closed";
     facts.push(engineFact(name, item.amountMinor, { from, currency, about, period, ...(name === "client_pays" ? { case: "as_usual" as const } : {}) }));
     if (item.estimated) facts.push(engineFact("about_estimate", 1, { from, about, period }));
   }
-  const said = (name: Fact["name"]) => facts.find(item => item.name === name)!.value;
-  const line = `${format(Number(said("goes_out")))} goes out in the next ${said("days_shown")} days${shared ? "" : ` and ${format(Number(said("comes_in")))} comes in as clients pay as usual`}. The heaviest day is ${longDay(String(said("heaviest_day")))} (${format(Number(said("heaviest_day_goes_out")))}).`
-    + (lastShort ? ` If clients pay late you are short from ${dayLabel(String(said("first_short_day")))} to ${dayLabel(String(said("last_short_day")))}.` : "");
+  const said = (name: Fact["name"]) => fact(facts, name)!.value;
+  const line = `${format(Number(said("goes_out")))} goes out in the next ${said("days_shown")} days${shared ? "" : ` and ${format(Number(said("comes_in")))} comes in as clients pay ${CASES.as_usual.label}`}. The heaviest day is ${longDay(String(said("heaviest_day")))} (${format(Number(said("heaviest_day_goes_out")))}).`
+    + (lastShort ? ` ${ifClientsPay("late")} you are short from ${dayLabel(String(said("first_short_day")))} to ${dayLabel(String(said("last_short_day")))}.` : "");
   return {
     ...base, empty: null, table, line, facts,
     data: { weeks, maxOutMinor: Math.max(0, ...rows.map(row => row.outMinor)) },

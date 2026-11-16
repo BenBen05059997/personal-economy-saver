@@ -3,9 +3,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { fact } from "@/lib/money/facts";
-import { termOf } from "@/lib/money/terms";
 import { splitBalance } from "@/lib/money/split";
 import type { MoneyState } from "@/lib/money/types";
 import { benMoney } from "@/lib/sample/ben";
@@ -14,13 +12,9 @@ import { RankedBars } from "@/components/views/forms/RankedBars";
 import { resolveView } from "@/lib/views/resolve";
 import { whoOwesWhomView } from "@/lib/views/v/who-owes-whom";
 import type { ViewResult } from "@/lib/views/types";
+import { reads } from "../fixtures/view-reads";
 
 let passed = 0;
-const reads = (view: ViewResult, today: string) => {
-  assert.ok(view.facts && view.facts.length > 0, `${view.view} carries facts`);
-  assert.deepEqual(unconfirmedNumbers(view.line ?? "", view.facts, { today: today }), [], `${view.view}: every number in the line is one of its facts`);
-  for (const item of view.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
-};
 function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
 const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
 const render = (element: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: router as never }, element));
@@ -56,11 +50,10 @@ check("who_owes_whom reads clean; a transfer is named from, to and amount", () =
   assert.deepEqual(owes.facts!.filter(f => f.name === "fair_share").map(f => f.value), [4_200, 4_200]);
 });
 
-check("the line, the table twin and the figures agree; every Minor figure is an integer", () => {
+check("the line, the table twin and the figures agree; every money figure is an integer", () => {
   assert.deepEqual(owes.table!.head, ["Person", "Paid", "Fair share", "Balance"]);
   assert.deepEqual(owes.table!.rows.map(row => row.cells), [["Ben", "¥8,400", "¥4,200", "is owed ¥4,200"], ["Wife", "¥0", "¥4,200", "owes ¥4,200"]]);
   assert.deepEqual(owes.table!.foot, ["Together", "¥8,400", "¥8,400", ""]);
-  reads(owes, two.today);
   for (const item of owes.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
   const html = render(createElement(RankedBars, { result: owes }));
   assert.ok(html.includes("Fair share") && html.includes("is owed ¥4,200") && html.includes("owes ¥4,200"));
@@ -75,7 +68,7 @@ check("with one member it is empty and says to add a person; two members with no
   assert.match(none.empty!.words, /Nothing has been shared/);
 });
 
-check("it takes no arguments and is live through resolveView", () => {
+check("it takes no arguments through resolveView", () => {
   assert.equal((resolveView("who_owes_whom", {}, { state: two }) as ViewResult).line, "Wife owes Ben ¥4,200.");
   assert.throws(() => resolveView("who_owes_whom", { month: "2026-11" }, { state: two }), /does not take/);
 });
@@ -85,7 +78,6 @@ const html = family(two);
 
 check("the family page draws the month by Category and Person, shared bills and who owes whom, read-only", () => {
   assert.ok(html.includes("Where this month goes"), "D74's heading");
-  assert.ok(!/<h2>Where the month goes/.test(html), "the old heading");
   assert.ok(html.includes("Category") && html.includes("Person"));
   assert.ok(html.includes("Shared bills coming up"));
   assert.ok(html.includes("Who owes whom") && html.includes("Wife owes Ben ¥4,200."));

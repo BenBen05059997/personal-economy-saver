@@ -2,12 +2,11 @@
 
 import type { ReactNode } from "react";
 import { statementItems } from "@/lib/money/runway";
-import { formatter, minorMoney } from "@/lib/money/format";
+import { formatter, longDay, minorMoney } from "@/lib/money/format";
 import { parseHomeMode } from "@/lib/money/look-by";
 import { hasNothingToForecast } from "@/lib/money/sentence";
 import { AddLink } from "@/components/add/AddLink";
 import type { MoneyState } from "@/lib/money/types";
-import { longDay } from "@/components/views/chart-utils";
 import { ViewTable } from "@/components/views/ViewTable";
 import { StepLine } from "@/components/views/forms/StepLine";
 import { fact, type FactCase } from "@/lib/money/facts";

@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
+import { lockHousehold, recordEvent, requireHousehold, type Db, type Maker } from "./household";
 import { fromMinor, parseMinor } from "./money";
 import { observeRunway } from "./runway-events";
 import { balanceUpdates, households } from "./schema";
@@ -27,13 +27,6 @@ async function applyBalance(tx: Db, hid: string, household: Locked, amountMinor:
     amount: { value: major(amountMinor), currency: household.currency }, ref: { type: "balance_update", id },
   });
   await observeRunway(tx, hid);
-}
-
-async function lockHousehold(tx: Db, hid: string): Promise<Locked> {
-  const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, bank: households.bankBalanceMinor, previous: households.runwayShort })
-    .from(households).where(eq(households.id, hid)).for("update");
-  if (!household) throw new InputError("Household not found");
-  return household;
 }
 
 /**

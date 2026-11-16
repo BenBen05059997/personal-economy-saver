@@ -2,7 +2,7 @@
 // Stored as the key on bills.category and charges.category; every input is validated with the zod enum built from this list.
 // A category and a business share move no money: the runway, safe to spend and the sentence never read them.
 import { z } from "zod";
-import { percentText } from "./format";
+import { percentText, percentToBp } from "./format";
 
 export const CATEGORIES = [
   { key: "housing", label: "Housing" },
@@ -51,7 +51,6 @@ export function businessBpFromForm(choice: FormDataEntryValue | null, percent: F
   if (choice === null || choice === "personal") return 0;
   if (choice === "business") return 10_000;
   if (choice !== "mixed") return null;
-  const match = /^(\d{1,3})(?:\.(\d{1,2}))?$/.exec(String(percent ?? "").trim());
-  const bp = match ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) : -1;
-  return bp < 0 || bp > 10_000 ? null : bp;
+  const bp = percentToBp(String(percent ?? ""));
+  return bp === null || bp > 10_000 ? null : bp;
 }

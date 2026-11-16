@@ -46,7 +46,7 @@
     ],
     "expected": [
       "The step reads Checking your goal progress and The answer ends with a See it button to Saving",
-      "The Camera block gives the saved amount, expected amount, gap and projection in AJ4"
+      "The Camera block gives the saved amount, expected amount, gap and projection of the Camera pot"
     ],
     "refs": [
       "D66"
@@ -66,7 +66,7 @@
     "preconditions": [
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
-      "A goal canvas is visible from AJ4"
+      "A goal canvas is visible from SAVING-005"
     ],
     "steps": [
       "Open Show the recipe"
@@ -92,7 +92,7 @@
     "preconditions": [
       "375px and 1440px widths",
       "Ben’s Nov 14 household with a confirmed Camera pot created Oct 15, ¥30,000 saved and a ¥120,000 target by Dec 14, 2026",
-      "A goal canvas is visible from AJ4"
+      "A goal canvas is visible from SAVING-005"
     ],
     "steps": [
       "Tap Pin to Home and open Home"

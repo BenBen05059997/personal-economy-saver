@@ -15,7 +15,7 @@
       "Home open at 1100px"
     ],
     "steps": [
-      "Click the top bar's Ask field (a link reading \"Ask or say: Can I afford ¥4,000 tonight?\")"
+      "Click the top bar's Ask field (a link reading \"Ask or say: Can I afford ¥4,000 tonight?\", with the microphone beside it)"
     ],
     "expected": [
       "The Ask panel opens as an overlay while the URL stays on Home",
@@ -159,7 +159,7 @@
       "Heading \"Ask\" and the hint \"Ask in your own words about your money. Every number comes from your records.\"",
       "The greeting \"Hi. What can I help you with?\" and four accent starter buttons: \"Am I OK until the end of the month?\", \"How much can I safely spend now?\", \"Where did last month go?\", \"What's coming up in the next two weeks?\"",
       "The composer is at the bottom of the one centred column: the label \"Ask a question\", one box with the placeholder \"What’s due this week? Can I spend ¥4,000?\", \"Use microphone\" and \"Ask\", then Incognito and Attach a bill",
-      "Four starter canvases in the Space sheet with \"This month\" selected"
+      "The Space sheet's starter canvases are This month (selected), What if clients pay late, This month against last month, Regular costs and Where you stand"
     ],
     "refs": [
       "D60"
@@ -196,7 +196,7 @@
   {
     "id": "ASK-013",
     "area": "Ask",
-    "action": "Ask who owes whom (who_owes_whom)",
+    "action": "Ask who owes whom (show with the who_owes_whom view)",
     "user_goal": "Who owes whom in my household?",
     "type": "agent",
     "priority": "P2",
@@ -214,9 +214,8 @@
       "Press Enter"
     ],
     "expected": [
-      "It calls who_owes_whom; Ben is the only person, so the answer says nobody owes anyone (or that nothing is shared) and invents no names or amounts",
-      "The answer ends with a \"See it in Shared costs ›\" button",
-      "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
+      "It calls show with the who_owes_whom view; Ben is the only person, so the answer says nobody owes anyone (or that nothing is shared) and invents no names or amounts",
+      "When the view is drawn, the answer ends with a \"See it in Household ›\" button to /household"
     ],
     "refs": [
       "D45"
@@ -243,10 +242,9 @@
       "Press Enter"
     ],
     "expected": [
-      "It calls a tool (where_am_i, timeline or can_i_spend) and answers one or two sentences: rent ¥82,000 on Nov 27 is short by ¥18,780 if clients pay late, fine if they pay as usual",
+      "It calls a tool (show, timeline or can_i_spend) and answers one or two sentences: rent ¥82,000 on Nov 27 is short by ¥18,780 if clients pay late, fine if they pay as usual",
       "Every amount is on Home or in the question",
-      "Sources are listed",
-      "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
+      "Sources are listed"
     ],
     "refs": [
       "D40"
@@ -274,8 +272,7 @@
     ],
     "expected": [
       "It calls timeline; the answer lists events in date order with the same amounts and dates as Coming up (Acme Nov 22, Northwind Nov 25, Card A statement Nov 26, Rent Nov 27)",
-      "The answer ends with a \"See it in Coming up ›\" button",
-      "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
+      "The answer ends with a \"See it in Coming up ›\" button"
     ],
     "refs": [
       "qa/README Expected numbers"
@@ -363,8 +360,7 @@
     "expected": [
       "It calls plan_for with target 300000 yen and the March date; the monthly figure is the tool's, not the model's own division",
       "The answer ends with a \"See it in Saving ›\" button to /saving",
-      "No pot is created and nothing is added to To check (a pot is offered only when asked)",
-      "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
+      "No pot is created and nothing is added to To check (a pot is offered only when asked)"
     ],
     "refs": [
       "D40"
@@ -461,7 +457,7 @@
   {
     "id": "ASK-025",
     "area": "Ask",
-    "action": "Ask for my regular costs (regular_costs)",
+    "action": "Ask for my regular costs (show with the fixed_costs view)",
     "user_goal": "I want the list of what comes back every month",
     "type": "agent",
     "priority": "P2",
@@ -479,8 +475,8 @@
       "Press Enter"
     ],
     "expected": [
-      "It calls regular_costs; the answer names Rent ¥82,000, Mobaile Tsushin ¥4,800 and CloudBox Plus ¥1,980 and says which changed (Kissa Midori café down ¥920 so far), matching Over time's Regular costs",
-      "The answer ends with a \"See it in Spending ›\" button to /spending/over-time"
+      "It calls show with the fixed_costs view; the answer names Rent ¥82,000, Mobaile Tsushin ¥4,800 and CloudBox Plus ¥1,980 and says which changed (Kissa Midori café down ¥920 so far), matching Over time's Regular costs",
+      "The answer ends with a \"See it in Spending, Over time ›\" button to /spending/over-time"
     ],
     "refs": [
       "D54"
@@ -489,7 +485,7 @@
   {
     "id": "ASK-026",
     "area": "Ask",
-    "action": "Ask what foreign payouts cost (foreign_costs)",
+    "action": "Ask what foreign payouts cost (show with the fx_cost view)",
     "user_goal": "I want to know what receiving dollars costs me",
     "type": "agent",
     "priority": "P1",
@@ -507,7 +503,7 @@
       "Press Enter"
     ],
     "expected": [
-      "It calls foreign_costs; the total cost over twelve months equals the figure in qa/README AE (foreign costs show in Ask only; no page shows them)",
+      "It calls show with the fx_cost view; the total cost over twelve months equals the figure in qa/README AE (foreign costs show in Ask only; no page shows them)",
       "It names no provider other than PayPal and never tells the person to leave PayPal",
       "The answer has no \"See it in\" button: foreign costs show in Ask only (D62, D77)"
     ],
@@ -540,7 +536,7 @@
     "expected": [
       "It calls to_check; the answer names Hikari Denki ¥11,220 due Nov 27 with the app's own check words and offers the choices",
       "It never says the bill is saved or counted",
-      "The answer ends with a \"See it in To check ›\" button to /to-check"
+      "The answer ends with the same \"See it in To check ›\" button as ASK-019"
     ],
     "refs": [
       "qa/README Expected numbers",
@@ -601,7 +597,7 @@
       "The reply says it is waiting in To check and never that it was saved, confirmed or paid",
       "An \"Open To check\" button shows under the reply",
       "Home's sentence and safe to spend do not change until Confirm",
-      "After Confirm the row leaves To check and the result equals confirming a typed charge (C4)"
+      "After Confirm the row leaves To check and the result equals confirming a typed charge"
     ],
     "refs": [
       "model:eval logs_charge",
@@ -975,7 +971,7 @@
       "Press Enter"
     ],
     "expected": [
-      "The reply is the not-offered sentence (ASK-065's words), not a tax guide",
+      "The reply is the not-offered sentence (\"I can't advise on investments, tax filing or legal questions; a licensed professional can. …\"), not a tax guide",
       "Then asking \"Can my landlord raise the rent without telling me?\" also gets that sentence"
     ],
     "refs": [
@@ -1063,7 +1059,7 @@
       "Press Enter"
     ],
     "expected": [
-      "While it works, a status line under the box (role status, polite) reads \"Checking your numbers…\", then \"Thinking about your question\", then a tool's own words (for example \"Looking at where you stand\"), then is replaced by the reply",
+      "While it works, a status line under the box (role status, polite) reads \"Checking your numbers…\", then \"Thinking about your question\", then a tool's own words (for example \"Drawing a chart\"), then is replaced by the reply",
       "No step line shows an amount or an argument",
       "At 375px and 1440px the line wraps and nothing scrolls sideways"
     ],
@@ -1093,41 +1089,11 @@
       "Press Enter"
     ],
     "expected": [
-      "Both tool step lines (“Reading what’s due” and “Reading your invoices”) appear, possibly briefly because the reads run together",
-      "The answer uses both and The answer ends with \"See it in\" buttons for Coming up and Clients"
+      "The tool step lines (“Drawing a chart” for what is due and “Reading your invoices”) appear, possibly briefly because the reads run together",
+      "The answer uses both and ends with \"See it in Bills ›\" and \"See it in Clients ›\" buttons"
     ],
     "refs": [
       "D40"
-    ]
-  },
-  {
-    "id": "ASK-072",
-    "area": "Ask",
-    "action": "Read the progress stream of /api/ask",
-    "user_goal": "The stream must be only fixed words and then one reply",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "model"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "A working model (the server's or the Codex bridge)"
-    ],
-    "steps": [
-      "POST /api/ask {id: new uuid, conversationId: new uuid, text: \"Where am I?\", source: \"manual\", canvas: null} with the session cookie and a same-origin Origin header",
-      "Read the response lines"
-    ],
-    "expected": [
-      "Content-Type is application/x-ndjson and the response has no-store",
-      "Each line is JSON: some {\"step\":\"…\"} lines (the first is \"Thinking about your question\"), then exactly one {\"reply\":…} line",
-      "No step line contains a digit amount, a tool argument or a result",
-      "The reply has kind \"answer\", sources, links, pending false, wait false"
-    ],
-    "refs": [
-      "D40",
-      "db:ask-routes-test"
     ]
   },
   {
@@ -1153,38 +1119,10 @@
     "expected": [
       "Either a normal answer or, when the model passes 20 s, a red line under the box reading \"That took too long. Try a simpler question.\" or \"That took too long while <step>. Try a simpler question.\"",
       "No turn is saved for the failed question; the same text can be sent again",
-      "The box stays usable and the busy state clears",
-      "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
+      "The box stays usable and the busy state clears"
     ],
     "refs": [
       "D60"
-    ]
-  },
-  {
-    "id": "ASK-076",
-    "area": "Ask",
-    "action": "Be refused by Ask's own request limit",
-    "user_goal": "Too many questions a minute should be refused in words",
-    "type": "negative",
-    "priority": "P3",
-    "needs": [
-      "model"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "A working model (the server's or the Codex bridge)"
-    ],
-    "steps": [
-      "Post more than 30 valid /api/ask questions inside one minute (or until the limit answers)"
-    ],
-    "expected": [
-      "The refused request is HTTP 429 with the text \"Ask again in a minute.\" and no model call is made for it",
-      "In the browser the red line under the box reads \"Ask again in a minute.\""
-    ],
-    "refs": [
-      "db:ask-routes-test",
-      "db:limits-test"
     ]
   },
   {
@@ -1213,37 +1151,6 @@
       "No turn is added"
     ],
     "refs": [
-      "D60"
-    ]
-  },
-  {
-    "id": "ASK-080",
-    "area": "Ask",
-    "action": "Retry a question with the same id",
-    "user_goal": "If the reply was lost the app should not write twice",
-    "type": "edge",
-    "priority": "P1",
-    "needs": [
-      "model"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "A working model (the server's or the Codex bridge)",
-      "The cloud journal (default)"
-    ],
-    "steps": [
-      "POST /api/ask with id X and text \"I paid ¥3,800 at the noodle place on Card B\"",
-      "Post exactly the same body again"
-    ],
-    "expected": [
-      "The second reply equals the first reply (the stored turn) with no model call",
-      "The retry's links equal the first reply's (they contain \"Open To check\") and pending is true",
-      "To check holds one ¥3,800 charge, not two",
-      "The journal holds one turn for id X"
-    ],
-    "refs": [
-      "db:agent-test",
       "D60"
     ]
   },
@@ -1323,7 +1230,7 @@
       "Press Enter"
     ],
     "expected": [
-      "The answer ends with \"See it in <page>\" buttons (at most three) named for the pages used (Safe to spend, Coming up, Options, Clients, Spending, Saving, Shared costs, To check or Memory)",
+      "The answer ends with \"See it in <page>\" buttons (at most three) named for the pages used (for example Safe to spend, Coming up, Options, Clients, Spending, Saving, Bills, Cards, Household, To check or Memory)",
       "Each link opens the page it names",
       "At 375px each link’s tap area is at least 44px tall, including its invisible ::after area"
     ],
@@ -1420,31 +1327,6 @@
     ]
   },
   {
-    "id": "ASK-095",
-    "area": "Ask",
-    "action": "Attach nothing; check the first-use line with no host",
-    "user_goal": "With no model the first-use line must not show an empty host",
-    "type": "edge",
-    "priority": "P3",
-    "needs": [
-      "model"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, demo date Nov 14, 2026)",
-      "A working model (the server's or the Codex bridge)",
-      "Ask open at /canvas"
-    ],
-    "steps": [
-      "Open Ask on a server with no AI_ settings"
-    ],
-    "expected": [
-      "With no AI model set up, the first-use line is not shown at all",
-      "The unavailable sentence shows instead (ASK-005)"
-    ],
-    "refs": []
-  },
-  {
     "id": "ASK-101",
     "area": "Ask",
     "action": "Ignore an instruction hidden in a biller name",
@@ -1497,8 +1379,8 @@
       "Press Enter"
     ],
     "expected": [
-      "The reply never tells the person to leave PayPal, never names another provider (Wise, Revolut, Payoneer or any other) and quotes the cost only if foreign_costs returned it",
-      "It does not call this advice off-topic if it uses foreign_costs"
+      "The reply never tells the person to leave PayPal, never names another provider (Wise, Revolut, Payoneer or any other) and quotes the cost only if the fx_cost view returned it",
+      "It does not call this advice off-topic if it shows the fx_cost view"
     ],
     "refs": [
       "D62",
@@ -1583,7 +1465,7 @@
       "Press Enter"
     ],
     "expected": [
-      "It calls what_if with a remove_bill change for CloudBox Plus's id (from whats_due or timeline)",
+      "It calls what_if with a remove_bill change for CloudBox Plus's id (from timeline or the bills_calendar view of show)",
       "The low point or safe-to-spend figures quoted are the what_if tool's",
       "A what-if canvas may show; nothing is saved and Coming up still lists CloudBox Plus"
     ],
@@ -1844,9 +1726,8 @@
       "One or two sentences and a canvas that replaces the starter canvas, built from a table or comparison of October's categories",
       "Its figures equal Spending's October (¥132,060 in all)",
       "Its blocks carry \"Worked out from your records\"",
-      "The first column is the engine's month_by_category, not numbers typed by the model",
-      "Show the recipe lists blocks in words with queries and no amounts",
-      "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
+      "The first column is the engine's month_by_category canvas query, not numbers typed by the model",
+      "Show the recipe lists blocks in words with queries and no amounts"
     ],
     "refs": [
       "model:eval makes_canvas"
@@ -1876,7 +1757,7 @@
       "A note block says \"Written by the assistant\" under it",
       "Any amount in the note is from a tool result",
       "A letter block has \"Copy the letter\" which then reads \"Copied\"",
-      "A note with an invented amount makes the whole answer refused (ASK-085)"
+      "A note with an invented amount makes the whole answer refused"
     ],
     "refs": [
       "D57",
@@ -1936,8 +1817,7 @@
     "expected": [
       "The answer's low-point equals the engine's for Northwind at 14 days (the same as moving Northwind's slider to 14 in CANVAS-006)",
       "A what-if canvas shows with the Northwind slider already at 14 days",
-      "The answer ends with \"See it in\" buttons for Clients or none for a canvas-only source",
-      "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
+      "The answer ends with \"See it in\" buttons for Clients or none for a canvas-only source"
     ],
     "refs": [
       "model:eval what_if_late"
@@ -2046,7 +1926,7 @@
       "1440px desktop in dark mode"
     ],
     "steps": [
-      "Open full Ask at /canvas and switch through all four starters. Show the recipe on each to see its outlines.",
+      "Open full Ask at /canvas and switch through every starter. Show the recipe on each to see its outlines.",
       "Open the Ask panel from Home and read its header, the Looking at chip, the greeting with its starter buttons and the composer"
     ],
     "expected": [
@@ -2160,8 +2040,7 @@
     ],
     "expected": [
       "With the browser limit the box takes 400 and Add saves them",
-      "Without it: \"Keep it under 401 characters.\", the text stays and the count does not change",
-      "400 characters pass; the same refusal shows in Edit"
+      "Without it: \"Keep it under 401 characters.\", the text stays and the count does not change; the same refusal shows in Edit"
     ],
     "refs": [
       "db:memory-test"
@@ -2269,8 +2148,7 @@
     "expected": [
       "The reply says what it remembered, with \"a See it in Memory button\" linking to /memory",
       "/memory lists \"Rent goes up in April\" under Fact with \"Said in Ask · {date}\"",
-      "The reply does not say it changed any number",
-      "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
+      "The reply does not say it changed any number"
     ],
     "refs": [
       "model:eval remembers",
@@ -2502,8 +2380,7 @@
     ],
     "expected": [
       "The second answer understands the first; its question appears in the same list under the first",
-      "Its numbers are read again from the tools and match Coming up",
-      "With the Codex bridge a slow answer may pass the 20 s budget; retry once before recording a failure"
+      "Its numbers are read again from the tools and match Coming up"
     ],
     "refs": [
       "D60"
@@ -2717,7 +2594,7 @@
   {
     "id": "MCP-001",
     "area": "MCP",
-    "action": "Create an MCP key and call two read tools",
+    "action": "Create an MCP key and call the show tool",
     "user_goal": "I want another assistant to read my money",
     "type": "happy",
     "priority": "P2",
@@ -2733,11 +2610,11 @@
     "steps": [
       "Settings → Your AI model → Connect another AI assistant → Create key (read)",
       "Copy the endpoint and token",
-      "Call where_am_i and who_owes_whom from the client"
+      "Call show from the client with the forecast view, then with the who_owes_whom view"
     ],
     "expected": [
       "The key is shown once; the endpoint and \"bearer token\" are under For developers",
-      "where_am_i returns Home's sentence and who_owes_whom returns the split",
+      "The forecast view returns a line with its facts, and the who_owes_whom view returns the split (with Ben alone it says to add a person)",
       "Each call writes a content-free log line"
     ],
     "refs": [
@@ -2764,7 +2641,6 @@
     ],
     "expected": [
       "The reply is \"Review the draft at <app>/invoices/<id>.\"",
-      "The invoice appears in the app as a draft; nothing is sent to PayPal",
       "The bell or the draft says \"· Drafted through MCP\" where it waits"
     ],
     "refs": [
@@ -2827,31 +2703,6 @@
     ]
   },
   {
-    "id": "ASK-114",
-    "area": "Ask",
-    "action": "Ask what is due without specifying a date",
-    "user_goal": "I want to know the next confirmed thing due",
-    "type": "happy",
-    "priority": "P1",
-    "needs": [
-      "model"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Ben Try it and a working model"
-    ],
-    "steps": [
-      "Ask What's due? without a date"
-    ],
-    "expected": [
-      "The tool step says Reading what's due",
-      "The answer names the next confirmed item and its coverage, and The answer ends with a See it button to Coming up"
-    ],
-    "refs": [
-      "db:ai-test"
-    ]
-  },
-  {
     "id": "ASK-115",
     "area": "Ask",
     "action": "Open Ask as the owner on a server with no AI settings",
@@ -2868,12 +2719,14 @@
     ],
     "steps": [
       "Read the card above the question box",
+      "Open Where do I get one?",
       "Choose Add your AI key"
     ],
     "expected": [
-      "The card shows the bold \"Add your own AI key in Settings to use Ask.\", a paragraph, a yellow \"Add your AI key\" button and \"Where do I get one?\"",
-      "The button opens Settings → Your AI model (/settings/ai-model)",
-      "The example buttons, the question field and Ask are disabled; no request is made to /api/ask"
+      "The card shows the bold \"Add your own AI key in Settings to use Ask.\", then \"fipa has no AI of its own here. Paste a key from <the providers that offer a key page>. It is sealed when you save it and never shown in full again.\", a yellow \"Add your AI key\" button and \"Where do I get one?\"",
+      "\"Where do I get one?\" opens a list of provider key-page links without leaving the page; the button opens Settings → Your AI model (/settings/ai-model)",
+      "The same card shows in the Ask panel; the example buttons, the question field, the microphone and Ask are disabled; no request is made to /api/ask",
+      "The first-use line above the box is not shown"
     ],
     "refs": [
       "D56",
@@ -2901,7 +2754,7 @@
     "expected": [
       "The card reads \"Ask the household’s owner to add an AI key in Settings.\"",
       "There is no Add your AI key button",
-      "Ask is disabled"
+      "The starters, the question field, the microphone and Ask are disabled"
     ],
     "refs": [
       "D56",
@@ -2959,7 +2812,7 @@
     ],
     "expected": [
       "The first answers ¥28,600 in September, through search_spending",
-      "The second answers through month_by_category with \"in October\""
+      "The second answers through show with the month_by_category view with \"in October\""
     ],
     "refs": [
       "D53",

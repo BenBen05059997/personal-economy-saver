@@ -2,7 +2,7 @@
 // Spending → Your categories, the bill and charge writes, Spending's File control and the agent's tools. A bill or charge has at most one,
 // of its own category's kind; the database refuses another household's or another kind's. A category, an own category and a default
 // business share move no money, so nothing here observes the runway and no Activity event is recorded.
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
 import { requireHousehold, withHousehold, type Db } from "./household";
@@ -10,8 +10,6 @@ import { bills, charges, households, ownCategories } from "./schema";
 import { BusinessBp, CATEGORIES, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { nameKey } from "@/lib/money/name-key";
 import { OWN_CATEGORY_CAP, OWN_CAP_WORDS, ownNameProblem } from "@/lib/money/own-category";
-
-export { OWN_CATEGORY_CAP, OWN_CAP_WORDS, OWN_NAME_LENGTH_WORDS, OWN_NAME_MAX, ownLabel, ownNameProblem } from "@/lib/money/own-category";
 
 /** One own category with the number of bills and charges filed under it. */
 export type OwnCategory = { id: string; kind: CategoryKey; name: string; businessBp: number | null; items: number };
@@ -57,13 +55,6 @@ async function countsOf(tx: Db, hid: string): Promise<Map<string, number>> {
 const toOwn = (r: typeof ownCategories.$inferSelect, counts: Map<string, number>): OwnCategory =>
   ({ id: r.id, kind: CategoryKeySchema.parse(r.kind), name: r.name, businessBp: r.businessBp, items: counts.get(r.id) ?? 0 });
 
-/** The household's own categories by id, as an item carries one (`{ id, name }`): the loaders attach them to bills and charges. */
-export async function ownCategoryRefs(db: Db, householdId: string): Promise<Map<string, { id: string; name: string }>> {
-  const hid = requireHousehold(householdId);
-  const rows = await db.select({ id: ownCategories.id, name: ownCategories.name }).from(ownCategories).where(eq(ownCategories.householdId, hid));
-  return new Map(rows.map(r => [r.id, { id: r.id, name: r.name }]));
-}
-
 /** This household's own categories, flat: by category in the order of the fourteen, then by name; each with how many bills and charges are filed under it. */
 export async function listOwnCategories(db: Db, householdId: string): Promise<OwnCategory[]> {
   const hid = requireHousehold(householdId);
@@ -74,7 +65,7 @@ export async function listOwnCategories(db: Db, householdId: string): Promise<Ow
 }
 
 /** The same list grouped by category; only categories that have one. */
-export function groupOwnCategories(list: readonly OwnCategory[]): OwnCategoryGroup[] {
+function groupOwnCategories(list: readonly OwnCategory[]): OwnCategoryGroup[] {
   return CATEGORIES.flatMap(c => {
     const categories = list.filter(o => o.kind === c.key);
     return categories.length === 0 ? [] : [{ kind: c.key, label: c.label, categories }];
@@ -217,21 +208,11 @@ export async function fileOwnCategory(db: Db, householdId: string, input: z.inpu
  * and that has one; null when none. Latest by creation time. Carries the default business share so a form can pre-fill it.
  */
 export async function guessOwnCategory(db: Db, householdId: string, category: CategoryKey, name: string): Promise<{ id: string; name: string; businessBp: number | null } | null> {
-  const hid = requireHousehold(householdId);
   const cat = CategoryKeySchema.parse(category);
-  const key = nameKey(name);
-  return withHousehold(db, hid, async tx => {
-    const [billRows, chargeRows] = await Promise.all([
-      tx.select({ name: bills.biller, own: bills.ownCategoryId, at: bills.createdAt }).from(bills)
-        .where(and(eq(bills.householdId, hid), eq(bills.category, cat), eq(bills.status, "confirmed"), isNotNull(bills.ownCategoryId))).orderBy(desc(bills.createdAt)),
-      tx.select({ name: charges.merchant, own: charges.ownCategoryId, at: charges.createdAt }).from(charges)
-        .where(and(eq(charges.householdId, hid), eq(charges.category, cat), eq(charges.status, "confirmed"), isNotNull(charges.ownCategoryId))).orderBy(desc(charges.createdAt)),
-    ]);
-    const latest = [...billRows, ...chargeRows].filter(r => r.own !== null && nameKey(r.name) === key).sort((a, b) => b.at.getTime() - a.at.getTime())[0];
-    if (!latest) return null;
-    const [own] = await tx.select({ id: ownCategories.id, name: ownCategories.name, businessBp: ownCategories.businessBp }).from(ownCategories).where(and(eq(ownCategories.householdId, hid), eq(ownCategories.id, latest.own!)));
-    return own ?? null;
-  });
+  const { categories, guesses } = await ownChoices(db, householdId);
+  const guessed = guesses[`${cat}|${nameKey(name)}`];
+  const own = guessed === undefined ? undefined : categories.find(c => c.id === guessed);
+  return own ? { id: own.id, name: own.name, businessBp: own.businessBp } : null;
 }
 
 /**

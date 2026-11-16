@@ -17,12 +17,11 @@ const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {},
 const render = (element: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: router as never }, element));
 
 const table: TableTwin = { caption: "Spending by group", head: ["Group", "Spent"], rows: [{ key: "a", cells: ["Food", "¥1,000"] }, { key: "b", cells: ["Eating out", "¥400"], child: true }], foot: ["Total", "¥1,000"] };
-const base: ViewResult = { view: "month_by_category", args: {}, form: "ranked_bars", title: "Where the month goes", question: "Where does the month go?", hint: "hint", home: null, currency: "JPY", data: null, table, empty: null, line: "One sentence.", strip: null, aria: "", source: "", facts: [] };
+const base: ViewResult = { view: "month_by_category", args: {}, form: "ranked_bars", title: "Where the month goes", question: "Where does the month go?", hint: "hint", currency: "JPY", data: null, table, empty: null, line: "One sentence.", strip: null, aria: "", source: "", facts: [] };
 const empty: ViewResult = { ...base, table: null, empty: { words: "Nothing spent yet.", add: "bill", addLabel: "Add a bill" } };
 
 check("every view has arguments and metadata, strict and at most three keys", () => {
   assert.deepEqual(ids.sort(), Object.keys(VIEW_META).sort());
-  assert.ok(!ids.includes("payoff_order" as ViewId));
   for (const id of ids) {
     assert.ok(Object.keys(VIEW_ARGS[id].shape).length <= 3, id);
     assert.equal(VIEW_ARGS[id].safeParse({ nonsense: 1 }).success, false, id);
@@ -30,10 +29,10 @@ check("every view has arguments and metadata, strict and at most three keys", ()
 });
 
 check("viewBlockSchema refuses an unknown view, an extra key and an amount on a view that tests none", () => {
-  const schema = viewBlockSchema(["forecast", "card_cycle"]);
+  const schema = viewBlockSchema();
   assert.ok(schema.safeParse({ type: "view", view: "forecast", args: { days: 30 } }).success);
   assert.ok(schema.safeParse({ type: "view", view: "card_cycle", args: { cardId: "card-mio", amountMinor: 3000 } }).success);
-  assert.equal(schema.safeParse({ type: "view", view: "position", args: {} }).success, false); // not live
+  assert.ok(schema.safeParse({ type: "view", view: "position", args: {} }).success);
   assert.equal(schema.safeParse({ type: "view", view: "nope", args: {} }).success, false);
   assert.equal(schema.safeParse({ type: "view", view: "forecast", args: {}, extra: 1 }).success, false);
   assert.equal(schema.safeParse({ type: "view", view: "forecast", args: { amountMinor: 100 } }).success, false);

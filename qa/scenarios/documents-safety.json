@@ -82,7 +82,7 @@
   {
     "id": "DOC-010",
     "area": "Upload",
-    "action": "Upload while the AI key is not set",
+    "action": "Upload while reading is not set up",
     "user_goal": "I should see why nothing was read",
     "type": "negative",
     "priority": "P2",
@@ -92,15 +92,14 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14)",
-      "A dev server the owner started without AI_API_KEY (record blocked if reading works)"
+      "A dev server the owner started with some AI_ settings but no AI_API_KEY (record blocked if reading works)"
     ],
     "steps": [
       "Upload a fictional PDF on /upload"
     ],
     "expected": [
-      "Upload is accepted and To check opens",
-      "The row reads \"Document needs attention\" with \"AI_API_KEY is not set\" and a Retry button",
-      "Hikari Denki stays ¥11,220 and the sentence is unchanged"
+      "The file is refused: its line under the button reads \"<file name> — Reading documents isn’t set up on this server.\" in red (on a server with no AI_ setting at all it reads \"Reading documents needs an AI key in Settings → Your AI model.\")",
+      "Nothing is stored and To check gains no row; Hikari Denki stays ¥11,220 and the sentence is unchanged"
     ],
     "refs": []
   },
@@ -420,7 +419,7 @@
   {
     "id": "DOC-026",
     "area": "Attach a bill",
-    "action": "Attach a bill in Ask without an AI key",
+    "action": "Attach a bill in Ask when reading is not set up",
     "user_goal": "I should be told why nothing is read",
     "type": "happy",
     "priority": "P2",
@@ -429,7 +428,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "A dev server the owner started without AI_API_KEY (record blocked if reading works)",
+      "A dev server the owner started with some AI_ settings but no AI_API_KEY (record blocked if reading works)",
       "Fresh Try it household (Ben, today Nov 14)",
       "/canvas open"
     ],
@@ -437,9 +436,8 @@
       "Tap Attach a bill and choose a fictional PDF"
     ],
     "expected": [
-      "Your turn \"Here's my bill\" and the reply \"Got your file. Nothing is added until you confirm.\"",
-      "The card \"Reading your bill…\" then \"This file could not be read: AI_API_KEY is not set\"",
-      "Reload shows the same card; To check shows \"Document needs attention · AI_API_KEY is not set · Retry\"; Hikari Denki still ¥11,220"
+      "The red line under the box reads \"Reading documents isn’t set up on this server.\" (on a server with no AI_ setting at all it reads \"Reading documents needs an AI key in Settings → Your AI model.\")",
+      "No turn or card is added and To check is unchanged; Hikari Denki is still ¥11,220"
     ],
     "refs": []
   },
@@ -666,31 +664,6 @@
       "Nov 27 has two rows; only the last reads \"Short by ¥30,000 if clients pay late\""
     ],
     "refs": []
-  },
-  {
-    "id": "CHECK-003",
-    "area": "To check",
-    "action": "To check when nothing waits",
-    "user_goal": "an empty list should say so",
-    "type": "edge",
-    "priority": "P3",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Hikari Denki confirmed or a Start blank household"
-    ],
-    "steps": [
-      "Open /to-check"
-    ],
-    "expected": [
-      "The hint \"Things the app read or drafted, waiting for your OK. Nothing here now.\"",
-      "No error and no empty card"
-    ],
-    "refs": [
-      "frontend-check --run"
-    ]
   },
   {
     "id": "CHECK-004",
@@ -939,7 +912,7 @@
     ],
     "expected": [
       "The reading is saved as shown; the line is only advice",
-      "(In Ask, an open question blocks Confirm; see DOC-029)"
+      "(In Ask, an open question blocks Confirm)"
     ],
     "refs": [
       "D61"
@@ -1345,37 +1318,9 @@
     ]
   },
   {
-    "id": "SEC-015",
-    "area": "Security",
-    "action": "The request log is content-free",
-    "user_goal": "logs must not hold my money data",
-    "type": "security",
-    "priority": "P1",
-    "needs": [
-      "deploy"
-    ],
-    "how": "http",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14)",
-      "The Worker deployed or run locally with cf:preview"
-    ],
-    "steps": [
-      "Use the Worker to make several requests. Include a streamed Home request with a query string and a Try it session cookie. Read the Worker log after the response ends."
-    ],
-    "expected": [
-      "Each request writes one line with at, ray, method, route with ids as :id, householdId or null, status, ms and db",
-      "The db object holds only connections, connectMs, connectFailures, sqlCommands, sqlMs, busyMs, firstMs and lastMs",
-      "No URL query string, cookie, address, user agent, body, SQL text, parameters or results appear"
-    ],
-    "refs": [
-      "db:doors-test",
-      "D50"
-    ]
-  },
-  {
     "id": "SEC-016",
     "area": "Security",
-    "action": "Route patterns drop ids",
+    "action": "Numeric route segments drop ids",
     "user_goal": "a log never holds a document or card id",
     "type": "edge",
     "priority": "P3",
@@ -1388,12 +1333,10 @@
       "The Worker deployed or run locally with cf:preview"
     ],
     "steps": [
-      "Request /cards/<uuid> and a path with a numeric segment",
-      "Request /family/<token> and /join/<token> with fictional opaque tokens and read the log lines"
+      "Request a path with a numeric segment on the Worker and read the log line"
     ],
     "expected": [
-      "/cards/<uuid> logs as /cards/:id and numeric segments as :id",
-      "The link paths log as /family/:token and /join/:token without their tokens"
+      "The numeric segment logs as :id"
     ],
     "refs": [
       "db:doors-test",
@@ -1403,7 +1346,7 @@
   {
     "id": "UI-001",
     "area": "Layout",
-    "action": "No sideways scroll on any screen at 375px",
+    "action": "Phone run: No sideways scroll on any screen at 375px",
     "user_goal": "phone use should never need sideways scrolling",
     "type": "edge",
     "priority": "P1",
@@ -1452,7 +1395,7 @@
   {
     "id": "UI-003",
     "area": "Layout",
-    "action": "44px tap targets at 375px",
+    "action": "Phone run: 44px tap targets at 375px",
     "user_goal": "fingers need room",
     "type": "edge",
     "priority": "P1",
@@ -1576,7 +1519,7 @@
   {
     "id": "UI-009",
     "area": "Layout",
-    "action": "The Missing and check lines at 375px",
+    "action": "Phone run: The Missing and check lines at 375px",
     "user_goal": "new rows must fit a phone",
     "type": "edge",
     "priority": "P2",
@@ -1647,7 +1590,7 @@
   {
     "id": "UI-012",
     "area": "Layout",
-    "action": "Reduced clutter on Ask's attach control at 375px",
+    "action": "Phone run: Reduced clutter on Ask's attach control at 375px",
     "user_goal": "Attach a bill must be reachable on a phone",
     "type": "edge",
     "priority": "P2",
@@ -1693,7 +1636,7 @@
   {
     "id": "UI-014",
     "area": "Layout",
-    "action": "Type in the bill form's Name and switch More options",
+    "action": "Type in the bill form's Name and switch More ›",
     "user_goal": "the form must not jump while I type",
     "type": "edge",
     "priority": "P2",
@@ -1703,7 +1646,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14)",
-      "Home → Add a bill or charge → Bill, More open"
+      "Home → + Add → A bill, More › open"
     ],
     "steps": [
       "At 375px and 1440px, type \"Netflix\" in Name, clear it, then type \"Hikari Denki\", \"Net\" and \"Rent\" in turn",

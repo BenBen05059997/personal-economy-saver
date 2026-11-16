@@ -21,6 +21,10 @@ export const CASES = {
   late: { label: "late", meaning: "Every client pays as slowly as they ever have, all at once, and a bill counts at the high end of its estimate. It means only this case." },
 } as const;
 
+/** The engine's series for each case a recipe or a tool names (`usual`, `late`), and the case a fact carries for it. */
+export const CASE_KIND = { usual: "expected", late: "worst" } as const;
+export const FACT_CASE = { usual: "as_usual", late: "late" } as const;
+
 function term(name: string, label: string, unit: TermUnit, caseRule: TermCase, meaning: string, decimals?: 0 | 1): Term {
   return { name, label, meaning, case: caseRule, unit, ...(decimals ? { decimals } : {}) };
 }

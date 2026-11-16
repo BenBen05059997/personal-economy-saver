@@ -9,7 +9,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import type { db as clientDb } from "@/db/client";
-import { CHARGE_LOOKBACK_DAYS, deleteHousehold, listEvents, loadMoneyState, markRead, recordEvent, recordWebhookDelivery, unreadCount, type Db } from "@/db/household";
+import { CHARGE_LOOKBACK_DAYS, deleteHousehold, listEvents, loadMoneyState, markRead, recordEvent, recordWebhookDelivery, type Db } from "@/db/household";
 import { householdMoment } from "@/db/clock";
 import { convertMinor, fromMinor, toMinor } from "@/db/money";
 import * as schema from "@/db/schema";
@@ -290,8 +290,9 @@ async function main() {
   });
 
   await check("events: list, unread count and markRead are household-scoped", async () => {
-    assert.equal(await unreadCount(db, a), 1);
-    assert.equal(await unreadCount(db, b), 1);
+    const unreadOf = async (hid: string) => (await eventFeed(db, hid)).unread;
+    assert.equal(await unreadOf(a), 1);
+    assert.equal(await unreadOf(b), 1);
     const ea = await listEvents(db, a);
     const eb = await listEvents(db, b);
     assert.equal(ea.length, 2);
@@ -299,17 +300,17 @@ async function main() {
     assert.equal((await listEvents(db, a, ea[0].occurredAt)).length, 0, "since is exclusive");
     const unreadB = eb.find((e) => e.notify)!;
     assert.equal(await markRead(db, a, [unreadB.id]), 0, "A cannot mark B's event read");
-    assert.equal(await unreadCount(db, b), 1);
+    assert.equal(await unreadOf(b), 1);
     assert.equal(await markRead(db, a), 1);
-    assert.equal(await unreadCount(db, a), 0);
-    assert.equal(await unreadCount(db, b), 1);
+    assert.equal(await unreadOf(a), 0);
+    assert.equal(await unreadOf(b), 1);
   });
 
   await check("every data-layer function throws without a household id", async () => {
     for (const bad of ["", undefined, null, "not-a-uuid"] as unknown as string[]) {
       await assert.rejects(loadMoneyState(db, bad, today), /household id is required/);
       await assert.rejects(listEvents(db, bad), /household id is required/);
-      await assert.rejects(unreadCount(db, bad), /household id is required/);
+      await assert.rejects(eventFeed(db, bad), /household id is required/);
       await assert.rejects(markRead(db, bad), /household id is required/);
       await assert.rejects(deleteHousehold(db, bad), /household id is required/);
     }

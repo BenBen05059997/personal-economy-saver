@@ -198,7 +198,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Books & films holds 4 items (OWN-012)"
+      "Books & films holds 4 items"
     ],
     "steps": [
       "Press Remove on Books & films",
@@ -630,7 +630,7 @@
     "how": "browser",
     "preconditions": [
       "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "The preview of OWN-030 is showing"
+      "The statement import preview is showing (SET-048)"
     ],
     "steps": [
       "Press Import",
@@ -751,34 +751,6 @@
     ]
   },
   {
-    "id": "OWN-041",
-    "area": "Own categories",
-    "action": "Export my data with my categories",
-    "user_goal": "My file should hold them",
-    "type": "happy",
-    "priority": "P2",
-    "needs": [
-      "none"
-    ],
-    "how": "browser",
-    "preconditions": [
-      "Fresh Try it household (Ben, today Nov 14) at 1440px",
-      "Settings → Your data"
-    ],
-    "steps": [
-      "Press Export my data and open the file"
-    ],
-    "expected": [
-      "The file has \"version\": 4",
-      "It has an ownCategories list with Coffee, Gear and Books & films and their kinds",
-      "Bills and charges filed under one carry ownCategoryId"
-    ],
-    "refs": [
-      "D44",
-      "D75"
-    ]
-  },
-  {
     "id": "OWN-042",
     "area": "Own categories",
     "action": "Import my file into an empty household",
@@ -790,7 +762,7 @@
     ],
     "how": "browser",
     "preconditions": [
-      "A file exported in OWN-041",
+      "A file exported from a Try it household with Export my data (DATA-007)",
       "A household made with Start with my numbers (Mika, bank balance ¥120,000 set on Home)"
     ],
     "steps": [

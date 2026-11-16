@@ -3,23 +3,25 @@
 // because the change is "later than usual". The amount the person asked about is a person fact (D79): it confirms nothing.
 import { engineFact, fact, personFact, type Fact } from "@/lib/money/facts";
 import { WhatIfError, whatIf } from "@/lib/money/whatif";
-import { formatter, minorMoney, minorPerUnit } from "@/lib/money/format";
+import { formatter, longDay, minorMoney, plural, toMinor } from "@/lib/money/format";
 import { arrivals, low, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { hasNothingToForecast } from "@/lib/money/sentence";
+import { CASE_KIND, FACT_CASE } from "@/lib/money/terms";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type TableTwin, type ViewResult } from "../types";
-import { longDay, stepLine } from "./forecast";
+import { stepLine } from "../step-line";
+import { eventWords, NOTHING_SCHEDULED } from "../words";
 import { addDays, daysBetween } from "@/lib/money/dates";
 
 export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
-  const { state } = ctx, currency = state.homeCurrency, per = minorPerUnit(currency), format = formatter(currency), money = (minor: number) => minorMoney(minor, currency), toMinor = (v: number) => Math.round(v * per);
+  const { state } = ctx, currency = state.homeCurrency, format = formatter(currency), money = (minor: number) => minorMoney(minor, currency), home = (v: number) => toMinor(v, currency);
   const meta = VIEW_META.what_if, { amountMinor, late } = args;
   if ((amountMinor === undefined) === (late === undefined)) throw new ViewError("what_if takes an amount to spend, or one client paying late, not both and not neither.");
   if (amountMinor !== undefined && args.date !== undefined && late !== undefined) throw new ViewError("A date goes with an amount.");
   const client = late ? state.clients.find(c => c.id === late.clientId) : undefined;
   if (late && !client) throw new ViewError("That client is not in your records, so they cannot pay later than usual in a what-if.");
-  const spendDate = args.date ?? state.today, kind = late ? "expected" as const : "worst" as const;
-  const base = { view: "what_if" as const, args: { ...args }, form: "step_line" as const, title: late ? `What if ${client!.name.split(" ")[0]} pays later than usual` : "What if you spend it", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "Your next days, worked out again with the change. Nothing is saved." };
+  const spendDate = args.date ?? state.today, which = late ? "usual" as const : "late" as const, kind = CASE_KIND[which];
+  const base = { view: "what_if" as const, args: { ...args }, form: "step_line" as const, title: late ? `What if ${client!.name.split(" ")[0]} pays later than usual` : "What if you spend it", question: meta.question, hint: meta.hint, currency, strip: null, source: "Your next days, worked out again with the change. Nothing is saved." };
   if (hasNothingToForecast(state)) return { ...base, data: null, table: null, line: null, aria: "Nothing to forecast yet.", facts: [], empty: { words: "Nothing to forecast yet. Add a bill or a client and a what-if shows here.", add: "bill", addLabel: "Add a bill" } };
 
   let changed;
@@ -28,36 +30,35 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
 
   const days = WINDOW_DAYS, now = series(state, kind, days), next = series(changed, kind, days);
   const date = (i: number) => addDays(state.today, i), events = timeline(changed, kind, days);
-  const lineFor = (event: (typeof events)[number]) => event.pending ? `${event.label} waits in To check and is not counted yet` : event.uncounted ? `${event.label}: amount not known` : `${event.label} ${event.amount < 0 ? "−" : "+"}${format(Math.abs(event.amount))}`;
-  const wordsOn = (i: number) => events.filter(event => event.date === date(i)).map(lineFor);
-  const dayWords = next.map((_, i) => ({ date: date(i), label: longDay(date(i)), lines: wordsOn(i).length ? wordsOn(i) : ["Nothing scheduled"] }));
-  const withLabel = late ? `If ${client!.name.split(" ")[0]} pays ${late.days} ${late.days === 1 ? "day" : "days"} later` : "With this spend", nowLabel = "As things are now";
+  const wordsOn = (i: number) => events.filter(event => event.date === date(i)).map(event => eventWords(event, format));
+  const dayWords = next.map((_, i) => ({ date: date(i), label: longDay(date(i)), lines: wordsOn(i).length ? wordsOn(i) : [NOTHING_SCHEDULED] }));
+  const withLabel = late ? `If ${client!.name.split(" ")[0]} pays ${plural(late.days, "day")} later` : "With this spend", nowLabel = "As things are now";
   const markIndex = late ? -1 : daysBetween(state.today, spendDate);
   const data = stepLine({
     startDate: state.today, currency, lowLine: "main", sub: [], dayWords, band: null,
-    lines: [{ key: "main", label: withLabel, tone: "main", points: next.map(toMinor) }, { key: "ghost", label: nowLabel, tone: "ghost", points: now.map(toMinor) }],
+    lines: [{ key: "main", label: withLabel, tone: "main", points: next.map(home) }, { key: "ghost", label: nowLabel, tone: "ghost", points: now.map(home) }],
     marks: markIndex > 0 && markIndex < days ? [{ index: markIndex, label: "Your spend" }] : [],
     direct: [{ line: "main", text: withLabel }, { line: "ghost", text: nowLabel }],
   });
 
   const loWith = low(next, state.today), loNow = low(now, state.today);
   // The facts first (D79), in the case the change moves: a spend moves the late case, a client N days later moves as usual. The line reads them back.
-  const c = kind === "worst" ? "late" as const : "as_usual" as const, from = "what_if", money_ = { from, currency, case: c };
+  const c = FACT_CASE[which], from = "what_if", money_ = { from, currency, case: c };
   const facts: Fact[] = [
-    engineFact("low_point_after_change", toMinor(loWith.amount), money_), engineFact("low_point_day_after_change", loWith.date, { from, case: c }),
-    engineFact("low_point_before_change", toMinor(loNow.amount), money_), engineFact("low_point_day_before_change", loNow.date, { from, case: c }),
+    engineFact("low_point_after_change", home(loWith.amount), money_), engineFact("low_point_day_after_change", loWith.date, { from, case: c }),
+    engineFact("low_point_before_change", home(loNow.amount), money_), engineFact("low_point_day_before_change", loNow.date, { from, case: c }),
   ];
-  facts.push(engineFact("low_point_change", toMinor(loWith.amount) - toMinor(loNow.amount), money_));
-  if (loWith.amount < 0) facts.push(engineFact("short", toMinor(-loWith.amount), money_));
-  if (loNow.amount < 0) facts.push(engineFact("short", toMinor(-loNow.amount), money_));
+  facts.push(engineFact("low_point_change", home(loWith.amount) - home(loNow.amount), money_));
+  if (loWith.amount < 0) facts.push(engineFact("short", home(-loWith.amount), money_));
+  if (loNow.amount < 0) facts.push(engineFact("short", home(-loNow.amount), money_));
   if (late) facts.push(personFact("days_later_than_usual", late.days, { from, case: "as_usual", about: { type: "client", id: client!.id, name: client!.name } }));
   if (late) {
     // The payment the change moves, from the engine's own arrivals: the day as usual, and the day the change puts it on.
     const moved = new Map(arrivals(changed).map(arrival => [arrival.invoiceId, arrival]));
     for (const arrival of arrivals(state).filter(item => item.clientId === late.clientId)) {
       const about = { type: "client" as const, id: client!.id, name: client!.name }, after = moved.get(arrival.invoiceId)!;
-      facts.push(engineFact("client_pays", toMinor(arrival.amountHome), { from, currency, case: "as_usual", about, period: { on: arrival.expectedOn } }),
-        engineFact("client_pays_after_change", toMinor(after.amountHome), { from, currency, case: "as_usual", about, period: { on: after.expectedOn } }));
+      facts.push(engineFact("client_pays", home(arrival.amountHome), { from, currency, case: "as_usual", about, period: { on: arrival.expectedOn } }),
+        engineFact("client_pays_after_change", home(after.amountHome), { from, currency, case: "as_usual", about, period: { on: after.expectedOn } }));
     }
   } else facts.push(personFact("amount_tested", amountMinor!, { from, currency, period: { on: spendDate } }));
   const read = (name: "low_point_after_change" | "low_point_day_after_change" | "low_point_before_change" | "low_point_day_before_change") => fact(facts, name, c)!.value;
@@ -71,7 +72,7 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
   return {
     ...base, data, table, empty: null,
     facts,
-    line: `${late ? `If ${client!.name} pays ${late.days} ${late.days === 1 ? "day" : "days"} later than usual` : `If you spend ${money(amountMinor!)}${args.date === undefined ? " today" : ` on ${longDay(spendDate)}`}`}: ${phrase(withMinor, withDay)}. Now: ${phrase(nowMinor, nowDay)}.`,
+    line: `${late ? `If ${client!.name} pays ${plural(late.days, "day")} later than usual` : `If you spend ${money(amountMinor!)}${args.date === undefined ? " today" : ` on ${longDay(spendDate)}`}`}: ${phrase(withMinor, withDay)}. Now: ${phrase(nowMinor, nowDay)}.`,
     aria: `Cash for the next ${days} days with the change, against as things are now. With it you are ${phrase(withMinor, withDay)}; now you are ${phrase(nowMinor, nowDay)}. Use the left and right arrow keys to look at each day.`,
   };
 };

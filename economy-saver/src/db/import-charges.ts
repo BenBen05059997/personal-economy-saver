@@ -1,7 +1,7 @@
 import { and, between, eq } from "drizzle-orm";
 import { z } from "zod";
 import { InputError } from "./input-error";
-import { recordEvent, requireHousehold, type Db, type Maker } from "./household";
+import { lockHousehold, recordEvent, requireHousehold, type Db, type Maker } from "./household";
 import { fromMinor } from "./money";
 import { observeRunway } from "./runway-events";
 import { clockForHousehold } from "./clock";
@@ -10,7 +10,7 @@ import { CategoryKeySchema } from "@/lib/money/categories";
 import { ownChoiceFields, resolveOwnCategory } from "./own-categories";
 import { minorPerUnit } from "@/lib/money/format";
 import { IMPORT_BATCH, MERCHANT_MAX } from "@/lib/import/csv";
-import { cards, charges, households } from "./schema";
+import { cards, charges } from "./schema";
 import { normalise } from "@/lib/money/name-key";
 
 const importRow = z.object({
@@ -45,9 +45,7 @@ export async function importCharges(
   const hid = requireHousehold(householdId);
   const data = importInput.parse({ cardId, rows });
   return db.transaction(async tx => {
-    const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, runwayShort: households.runwayShort, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone })
-      .from(households).where(eq(households.id, hid)).for("update");
-    if (!household) throw new InputError("Household not found");
+    const household = await lockHousehold(tx, hid);
     const [card] = await tx.select().from(cards).where(and(eq(cards.householdId, hid), eq(cards.id, data.cardId)));
     if (!card) throw new InputError("Choose a card of this household");
     if (card.currency !== household.currency) throw new InputError("This card is billed in another currency than the household's");
@@ -70,7 +68,7 @@ export async function importCharges(
     const skipped = data.rows.length - fresh.length;
     if (!fresh.length) return { added: 0, skipped };
 
-    if (household.runwayShort === null) await observeRunway(tx, hid, undefined, household);
+    if (household.previous === null) await observeRunway(tx, hid, undefined, { id: household.id, runwayShort: household.previous });
     const ids = fresh.map(() => crypto.randomUUID());
     const owns: (string | null)[] = [];
     for (const r of fresh) owns.push((await resolveOwnCategory(tx, hid, r.category, r)) ?? null);

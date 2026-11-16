@@ -3,8 +3,7 @@
 // Every query is scoped by household_id.
 import { and, asc, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
-import { documentBucket } from "@/lib/reader/storage";
-import { ReaderError } from "@/lib/reader/settings";
+import { removeStorageFiles, type DocumentStore } from "./document-cleanup";
 import { deleteMemory, forgetEverything } from "./memory";
 import { unpinCanvas } from "./canvases";
 import { InputError } from "./input-error";
@@ -13,10 +12,6 @@ import * as s from "./schema";
 
 export const DATA_KINDS = ["record", "memory", "canvases", "journal", "documents", "reminders", "push_subscriptions"] as const;
 export type DataKind = (typeof DATA_KINDS)[number];
-export const isDataKind = (value: unknown): value is DataKind => (DATA_KINDS as readonly unknown[]).includes(value);
-
-/** What a Storage bucket must offer to delete document files. Defaults to the household-documents bucket; tests pass their own. */
-export type DocumentStore = { remove(paths: string[]): PromiseLike<{ error: unknown }> };
 
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const count = async (db: Db, table: PgTable & { householdId: AnyPgColumn }, hid: string): Promise<number> => {
@@ -84,27 +79,12 @@ export async function listDocuments(db: Db, householdId: string) {
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 
-/** Removes the Storage objects of the given document rows (all of this household's), then returns. Throws when Storage refuses. */
-async function removeObjects(hid: string, paths: string[], store?: DocumentStore) {
-  if (paths.length === 0) return;
-  if (paths.some(path => !path.startsWith(hid + "/"))) throw new ReaderError("Document storage path does not belong to this household.");
-  const bucket = store ?? await documentBucket();
-  for (let i = 0; i < paths.length; i += 100) {
-    const { error } = await bucket.remove(paths.slice(i, i + 100));
-    if (error) throw new ReaderError("Could not remove the documents from Storage.");
-  }
-}
-
-async function lock(tx: Db, hid: string) {
-  await lockHousehold(tx, hid);
-}
-
 /** Deletes one uploaded or forwarded document: its Storage object, its readings (waiting or done) and the row. Bills and charges made from it stay in the record and lose the link. False when it is not this household's. */
 export async function deleteDocument(db: Db, householdId: string, id: string, by: Maker, store?: DocumentStore): Promise<boolean> {
   const hid = requireHousehold(householdId);
   if (!uuid(id)) return false;
   return db.transaction(async tx => {
-    await lock(tx, hid);
+    await lockHousehold(tx, hid);
     const [doc] = await tx.select({ path: s.documents.storagePath }).from(s.documents).where(and(eq(s.documents.householdId, hid), eq(s.documents.id, id)));
     if (!doc) return false;
     await tx.update(s.bills).set({ documentId: null }).where(and(eq(s.bills.householdId, hid), eq(s.bills.documentId, id)));
@@ -112,7 +92,7 @@ export async function deleteDocument(db: Db, householdId: string, id: string, by
     await tx.delete(s.documents).where(and(eq(s.documents.householdId, hid), eq(s.documents.id, id))); // the readings go with it
     await recordEvent(tx, hid, { ...by, kind: "data_deleted", title: "Deleted an uploaded document" });
     // Last, so a failing row or event leaves the file alone, and a Storage failure rolls the rows back.
-    await removeObjects(hid, [doc.path], store);
+    await removeStorageFiles(hid, [doc.path], "the documents", store);
     return true;
   });
 }
@@ -162,7 +142,7 @@ export async function deleteKind(db: Db, householdId: string, kind: DataKind, by
     }
     case "journal":
       return withHousehold(db, hid, async tx => {
-        await lock(tx, hid);
+        await lockHousehold(tx, hid);
         const scope = eq(s.spaces.householdId, hid);
         const named = await tx.select({ id: s.spaces.id }).from(s.spaces)
           .where(and(scope, eq(s.spaces.isGeneral, false))).for("update");
@@ -182,14 +162,14 @@ export async function deleteKind(db: Db, householdId: string, kind: DataKind, by
       return deleteReminderRows(db, hid, kind, by);
     case "documents":
       return db.transaction(async tx => {
-        await lock(tx, hid);
+        await lockHousehold(tx, hid);
         const rows = await tx.select({ id: s.documents.id, path: s.documents.storagePath }).from(s.documents).where(eq(s.documents.householdId, hid));
         if (rows.length === 0) return 0;
         await tx.update(s.bills).set({ documentId: null }).where(eq(s.bills.householdId, hid));
         await tx.update(s.charges).set({ documentId: null }).where(eq(s.charges.householdId, hid));
         await tx.delete(s.documents).where(eq(s.documents.householdId, hid));
         await recordEvent(tx, hid, { ...by, kind: "data_deleted", title: `Deleted ${rows.length} uploaded document${rows.length === 1 ? "" : "s"}` });
-        await removeObjects(hid, rows.map(r => r.path), store); // last, as in deleteDocument
+        await removeStorageFiles(hid, rows.map(r => r.path), "the documents", store); // last, as in deleteDocument
         return rows.length;
       });
   }

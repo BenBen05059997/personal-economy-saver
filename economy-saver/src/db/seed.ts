@@ -1,4 +1,5 @@
 import { seedGeneralSpace } from "./spaces";
+import { newToken } from "@/lib/stable-id";
 import { seedRules } from "./rules";
 import { refreshSuggestions } from "./suggestions";
 // Seeds a household with Ben's data: the demo household and every "Try it" copy (D34). Each call makes a fresh one.
@@ -8,7 +9,6 @@ import { benMoney, benOwnCategories, benStoredBills } from "@/lib/sample/ben";
 import { nameKey } from "@/lib/money/name-key";
 import type { Db } from "./household";
 import { DEMO_DATE } from "./clock";
-import { newPayToken } from "@/lib/paypal/pay-link";
 import { toMinor, toRateMicro } from "./money";
 import * as s from "./schema";
 import { addDays } from "@/lib/money/dates";
@@ -21,6 +21,9 @@ type SeedOptions = {
 // Past paid invoices give each client their days-to-pay history: paid_on - sent_on reproduces benMoney's arrays.
 // Fictional work, spread over June to early November (every payment more than a week before the demo date, so none is a recent invoice) so the months of income have something to show.
 // Each client has its own cadence, so the months differ: Acme's slow fourth payment crosses from August into September (July gets two Acme payments, August none).
+/** The event Try it starts with: the electricity bill waiting to be checked. Home's get-started steps look for it. */
+export const HIKARI_RISE_TITLE = "Hikari Denki bill is higher than last month";
+
 const HISTORY_SENT_ON: Record<string, string[]> = {
   "c-beacon": ["2026-06-09", "2026-07-13", "2026-08-03", "2026-08-27", "2026-10-10", "2026-11-02"],
   "c-northwind": ["2026-06-04", "2026-07-07", "2026-08-13", "2026-09-13", "2026-10-19"],
@@ -123,7 +126,7 @@ export async function seedBenRows(tx: Db, opts: SeedOptions): Promise<string> {
           {
             householdId: hid, madeBy: "form" as const,
             kind: "to_check",
-            title: "Hikari Denki bill is higher than last month",
+            title: HIKARI_RISE_TITLE,
             amountMinor: pending.amountMinor,
             currency: home,
             refType: "bill",
@@ -169,7 +172,7 @@ export async function seedBenRows(tx: Db, opts: SeedOptions): Promise<string> {
         currency: "USD",
         sentOn: i.sentOn ?? null,
         dueOn: i.dueOn ?? null,
-        payToken: i.status === "sent" ? newPayToken() : null, // a sent invoice has its payment link; the PayPal order is made when Pay is tapped
+        payToken: i.status === "sent" ? newToken() : null, // a sent invoice has its payment link; the PayPal order is made when Pay is tapped
       })),
     ]),
     eventInsert,

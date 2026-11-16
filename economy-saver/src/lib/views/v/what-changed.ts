@@ -1,7 +1,7 @@
 // What did this change (D77): the picture without an item and with it. The two sides are worked out by `whatChanged`; this draws them in words.
 import { engineFact, type Fact, type FactAbout } from "@/lib/money/facts";
 import { WhatChangedError, whatChanged } from "@/lib/money/what-changed";
-import { minorPerUnit } from "@/lib/money/format";
+import { toMinor } from "@/lib/money/format";
 import { WINDOW_DAYS } from "@/lib/money/runway";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type TableTwin, type ViewResult } from "../types";
@@ -35,7 +35,7 @@ export const whatChangedView: Resolver<"what_changed"> = (args, ctx): ViewResult
   ];
   // The item itself waits for the person's yes, so its own amount is a fact that counts for nothing.
   if (pending) {
-    const per = minorPerUnit(currency), minor = (value: number) => Math.round(value * per), id = storedId(args.itemId), from = "what_changed";
+    const minor = (value: number) => toMinor(value, currency), id = storedId(args.itemId), from = "what_changed";
     const bill = state.bills.find(item => storedId(item.id) === id && item.status === "pending" && item.amount !== null);
     const charge = state.charges.find(item => item.id === id && item.status === "pending");
     const pot = state.pendingPots.find(item => item.id === id), update = state.balanceUpdates.find(item => item.id === id);
@@ -46,7 +46,7 @@ export const whatChangedView: Resolver<"what_changed"> = (args, ctx): ViewResult
     if (waiting) facts.push(engineFact("to_check_amount", minor(waiting.amount), { from, currency, about: waiting.about, ...(waiting.on && { period: { on: waiting.on } }) }));
   }
   return {
-    view: "what_changed", args: { ...args }, form: "before_after", title: pending ? `If you confirm ${result.name}` : `What ${result.name} changed`, question: meta.question, hint: meta.hint, home: meta.home, currency,
+    view: "what_changed", args: { ...args }, form: "before_after", title: pending ? `If you confirm ${result.name}` : `What ${result.name} changed`, question: meta.question, hint: meta.hint, currency,
     data: { pending, rows: result.rows }, table, empty: null, line, strip: null, facts,
     aria: `${pending ? `What ${result.name} changes if you confirm it` : `What ${result.name} changed`}: ${result.rows.filter(row => row.key !== "sentence").map(row => `${row.label} ${row.before}, then ${row.after}`).join("; ")}. ${line}`,
     source: pending ? "Your money now, against the same money with it confirmed. Nothing is added until you confirm." : "Your money without it, against your money now.",

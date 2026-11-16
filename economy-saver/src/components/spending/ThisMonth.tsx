@@ -10,6 +10,7 @@ import { ViewPanel, type PanelQuestion } from "@/components/views/ViewPanel";
 import { RankedBars } from "@/components/views/forms/RankedBars";
 import { monthByCategoryView } from "@/lib/views/v/month-by-category";
 import type { ViewResult } from "@/lib/views/types";
+import { waitsWords } from "@/lib/views/words";
 import type { OwnChoices } from "@/lib/reader/own-choices";
 import { MonthList } from "./MonthSplit";
 import { SpendingResults } from "./SpendingSearch";
@@ -54,7 +55,7 @@ export function ThisMonth({ state, spending, ask, own, device }: { state: MoneyS
     return { key: by, label: LOOK_LABELS[by], heading: headings[by], result: resolved, figure: <RankedBars result={resolved as ViewResult<"ranked_bars">} />, ...(by === "category" ? { tableSlot: split } : {}) };
   });
   const waiting = state.bills.filter(bill => bill.status === "pending" && bill.due.slice(0, 7) === month);
-  const notes = waiting.map(bill => `${bill.biller} ${minorMoney(bill.amount, state.homeCurrency)} waits in To check and is not counted yet.`);
+  const notes = waiting.map(bill => `${waitsWords(bill.biller, minorMoney(bill.amount, state.homeCurrency))}.`);
   if (fact(questions[0].result.facts, "not_counted") !== null) notes.unshift("Some amounts are not known and are not included in these totals.");
   return <>
     {queryRefusal && <p className="spending-line" role="alert">{queryRefusal}</p>}

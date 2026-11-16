@@ -3,7 +3,7 @@ import { engineFact, type Fact } from "@/lib/money/facts";
 import { minorMoney, plural } from "@/lib/money/format";
 import { incomeByMonth } from "@/lib/money/income";
 import { invoiceAbout, paceDots } from "@/lib/money/pace";
-import { monthBounds } from "@/lib/money/spending";
+import { monthPeriod } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Empty, type FormData, type Resolver, type Tone, type ViewResult } from "../types";
 
@@ -16,7 +16,7 @@ export const incomeMonthsView: Resolver<"income_months"> = (args, ctx): ViewResu
   if (!income) throw new ViewError("Money in is not loaded for this view.");
   const meta = VIEW_META.income_months, currency = ctx.state.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
   const months = args.months ?? 6, found = incomeByMonth(income, ctx.state.today, months);
-  const base = { view: "income_months" as const, args: { ...args }, form: meta.form as "stacked_columns", title: "Money in", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: `Payments your clients made, in ${currency} at the rate on each invoice.` };
+  const base = { view: "income_months" as const, args: { ...args }, form: meta.form as "stacked_columns", title: "Money in", question: meta.question, hint: meta.hint, currency, strip: null, source: `Payments your clients made, in ${currency} at the rate on each invoice.` };
   const none = (empty: Empty, aria: string): ViewResult => ({ ...base, data: null, table: null, line: null, aria, empty, facts: [] });
   if (ctx.state.clients.length === 0) return none(NO_CLIENT, "No clients yet.");
   if (!income.some(row => row.paidOn.slice(0, 7) >= found.months[0].month && row.paidOn.slice(0, 7) <= ctx.state.today.slice(0, 7))) return none(NO_PAYMENT, "No payments yet.");
@@ -31,7 +31,6 @@ export const incomeMonthsView: Resolver<"income_months"> = (args, ctx): ViewResu
   // Two lines at the same height would print over each other, so one line then carries both names.
   const refs = found.averageMinor === null ? [] : found.lowest && found.lowest.minor === found.averageMinor ? [{ label: "Average and lowest month", minor: found.averageMinor }]
     : [{ label: "Average", minor: found.averageMinor }, ...(found.lowest ? [{ label: "Lowest month", minor: found.lowest.minor }] : [])];
-  const monthPeriod = (month: string) => { const { first, last } = monthBounds(month); return { from: first, to: last }; };
   const facts: Fact[] = [
     ...found.months.map(month => engineFact("paid_in", month.total, { from: "income_months", currency, period: monthPeriod(month.month) })),
     ...(found.averageMinor === null ? [] : [engineFact("income_a_month", found.averageMinor, { from: "income_months", currency })]),
@@ -54,21 +53,20 @@ const niceMax = (days: number) => Math.max(10, Math.ceil(days / 5) * 5);
 
 export const clientPaceView: Resolver<"client_pace"> = (args, ctx): ViewResult => {
   const { state } = ctx, meta = VIEW_META.client_pace, currency = state.homeCurrency;
-  const base = { view: "client_pace" as const, args: { ...args }, form: meta.form as "strip", title: "How fast clients pay", question: meta.question, hint: meta.hint, home: meta.home, currency, strip: null, source: "The days each paid invoice took from sent to paid." };
+  const base = { view: "client_pace" as const, args: { ...args }, form: meta.form as "strip", title: "How fast clients pay", question: meta.question, hint: meta.hint, currency, strip: null, source: "The days each paid invoice took from sent to paid." };
   const none = (empty: Empty, aria: string): ViewResult => ({ ...base, data: null, table: null, line: null, aria, empty, facts: [] });
   if (args.clientId !== undefined && !state.clients.some(client => client.id === args.clientId)) throw new ViewError("I couldn't find that client.");
   if (state.clients.length === 0) return none(NO_CLIENT, "No clients yet.");
   const found = paceDots(state, args.clientId);
   if (found.length === 0) return none(NO_PAYMENT, "No paid invoices yet.");
 
-  const days = (n: number) => plural(n, "day"), list = (xs: number[]) => xs.length === 1 ? String(xs[0]) : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+  const days = (n: number) => plural(n, "day"), invoiceName = (o: { number: string | null }) => o.number ? `Invoice ${o.number}` : "An invoice", list = (xs: number[]) => xs.length === 1 ? String(xs[0]) : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
   const rows = found.map(row => ({
     key: row.clientId, label: row.name, dots: row.dots, usual: row.usual, slowest: row.slowest,
-    open: row.open.map(o => ({ days: o.days, label: `${o.number ? `Invoice ${o.number}` : "An invoice"}: ${days(o.days)} so far`, overdue: o.overdue })),
-    aria: `${row.name}: paid in ${list(row.dots)} days. Usual ${days(row.usual)}, slowest ${row.slowest}.${row.open.map(o => ` ${o.number ? `Invoice ${o.number}` : "An invoice"} has been open ${days(o.days)}${o.overdue ? `, ${days(o.daysOverdue)} overdue` : ""}.`).join("")}`,
+    open: row.open.map(o => ({ days: o.days, label: `${invoiceName(o)}: ${days(o.days)} so far`, overdue: o.overdue })),
+    aria: `${row.name}: paid in ${list(row.dots)} days. Usual ${days(row.usual)}, slowest ${row.slowest}.${row.open.map(o => ` ${invoiceName(o)} has been open ${days(o.days)}${o.overdue ? `, ${days(o.daysOverdue)} overdue` : ""}.`).join("")}`,
   }));
   const slow = [...found].sort((a, b) => b.usual - a.usual || b.slowest - a.slowest)[0], lateOpen = found.flatMap(row => row.open.filter(o => o.overdue).map(o => ({ name: row.name, ...o })));
-  const open = (o: { number: string | null }) => o.number ? `Invoice ${o.number}` : "An invoice";
   const facts: Fact[] = found.flatMap(row => {
     const client = { type: "client" as const, id: row.clientId, name: row.name };
     return [
@@ -81,7 +79,7 @@ export const clientPaceView: Resolver<"client_pace"> = (args, ctx): ViewResult =
     ];
   });
   const line = (found.length === 1 ? `${slow.name} usually pays in ${days(slow.usual)}, ${slow.slowest} at most.` : `${slow.name} is the slowest to pay: ${days(slow.usual)} usual, ${slow.slowest} at most.`)
-    + lateOpen.map(o => ` ${open(o)} from ${o.name} has been open ${days(o.days)} and is ${days(o.daysOverdue)} overdue.`).join("");
+    + lateOpen.map(o => ` ${invoiceName(o)} from ${o.name} has been open ${days(o.days)} and is ${days(o.daysOverdue)} overdue.`).join("");
   return {
     ...base, empty: null, line, facts,
     data: { maxDays: niceMax(Math.max(...found.flatMap(row => [...row.dots, row.slowest, ...row.open.map(o => o.days)]))), rows },

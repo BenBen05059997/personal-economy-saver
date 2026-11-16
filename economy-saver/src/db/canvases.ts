@@ -7,7 +7,6 @@ import { generalSpace, requireSpace } from "./spaces";
 import { canvases } from "./schema";
 import { MAX_PINS, recipeOf, titleOf, type Recipe } from "@/lib/canvas/schema";
 
-export { MAX_PINS };
 export type PinnedCanvas = { id: string; spaceId: string | null; title: string; recipe: Recipe; position: number; madeBy: string; createdAt: string; updatedAt: string };
 type Row = typeof canvases.$inferSelect;
 

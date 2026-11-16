@@ -19,14 +19,15 @@
       "Press Save with the required field empty or an unreadable value, then type a valid value",
       "Fill the form: Biller Fictional noodle stand, amount 1,200, due Nov 20, and press Save",
       "Reopen the dialog from + Add and press Escape",
-      "Open /add/bill?back=%2Fplan in a window with JavaScript off and press Save"
+      "Open /add/bill?back=%2Fspending in a window with JavaScript off and press Save"
     ],
     "expected": [
       "The dialog titled \"Add a bill\" opens over Spending with the same fields as /add/bill; the address stays /spending and Spending is not scrolled or reloaded",
       "A refused save shows the sentence in the dialog and keeps everything typed in it",
       "A good save closes the dialog, returns focus to + Add and the screen behind shows the change without a reload: Coming up shows Fictional noodle stand ¥1,200 on Nov 20 and Bills lists it",
       "Escape closes the dialog, leaves nothing saved and returns focus to + Add; the Ask panel stays as it was",
-      "Without JavaScript /add/bill is a page holding the form; Save posts to /api/bills and returns to Spending (the back address), Cancel goes to Spending"
+      "Without JavaScript /add/bill is a page holding the form; Save posts to /api/bills and returns to Spending (the back address), Cancel goes to Spending",
+      "These dialog behaviours (refused save, Escape, focus, the address staying put) hold for every kind of Add dialog"
     ],
     "refs": [
       "D25",
@@ -49,18 +50,11 @@
     ],
     "steps": [
       "On Spending open + Add and choose A card charge",
-      "Check the address bar and the page behind the dialog",
-      "Press Save with the required field empty or an unreadable value, then type a valid value",
-      "Fill the form: What or where Fictional lunch, amount 980, Card A, and press Save",
-      "Reopen the dialog from + Add and press Escape",
-      "Open /add/charge?back=%2Fplan in a window with JavaScript off and press Save"
+      "Fill the form: What or where Fictional lunch, amount 980, Card A, and press Save"
     ],
     "expected": [
-      "The dialog titled \"Add a card charge\" opens over Spending with the same fields as /add/charge; the address stays /spending and Spending is not scrolled or reloaded",
-      "A refused save shows the sentence in the dialog and keeps everything typed in it",
-      "A good save closes the dialog, returns focus to + Add and the screen behind shows the change without a reload: Card A shows the charge and the bell lists it",
-      "Escape closes the dialog, leaves nothing saved and returns focus to + Add; the Ask panel stays as it was",
-      "Without JavaScript /add/charge is a page holding the form; Save posts to /api/charges and returns to Spending (the back address), Cancel goes to Spending"
+      "The dialog titled \"Add a card charge\" opens over Spending with the same fields as /add/charge",
+      "A good save closes the dialog and the screen behind shows the change without a reload: Card A shows the charge and the bell lists it"
     ],
     "refs": [
       "D25",
@@ -83,18 +77,11 @@
     ],
     "steps": [
       "On Spending open + Add and choose A card",
-      "Check the address bar and the page behind the dialog",
-      "Press Save with the required field empty or an unreadable value, then type a valid value",
-      "Fill the form: Card label Card N, closing day 25, payment day 10, no limit, and press Save",
-      "Reopen the dialog from + Add and press Escape",
-      "Open /add/card?back=%2Fplan in a window with JavaScript off and press Save"
+      "Fill the form: Card label Card N, closing day 25, payment day 10, no limit, and press Save"
     ],
     "expected": [
-      "The dialog titled \"Add a card\" opens over Spending with the same fields as /add/card; the address stays /spending and Spending is not scrolled or reloaded",
-      "A refused save shows the sentence in the dialog and keeps everything typed in it",
-      "A good save closes the dialog, returns focus to + Add and the screen behind shows the change without a reload: Cards lists Card N with ¥0 owed now",
-      "Escape closes the dialog, leaves nothing saved and returns focus to + Add; the Ask panel stays as it was",
-      "Without JavaScript /add/card is a page holding the form; Save posts to /api/settings and returns to Spending (the back address), Cancel goes to Spending"
+      "The dialog titled \"Add a card\" opens over Spending with the same fields as /add/card",
+      "A good save closes the dialog and the screen behind shows the change without a reload: Cards lists Card N with ¥0 owed now and the bell lists it"
     ],
     "refs": [
       "D25",
@@ -117,18 +104,11 @@
     ],
     "steps": [
       "On Spending open + Add and choose A client who pays you",
-      "Check the address bar and the page behind the dialog",
-      "Press Save with the required field empty or an unreadable value, then type a valid value",
-      "Fill the form: Name Fictional Studio, email, days to pay 14, and press Save",
-      "Reopen the dialog from + Add and press Escape",
-      "Open /add/client?back=%2Fplan in a window with JavaScript off and press Save"
+      "Fill the form: Name Fictional Studio, email, days to pay 14, and press Save"
     ],
     "expected": [
-      "The dialog titled \"Add a client\" opens over Spending with the same fields as /add/client; the address stays /spending and Spending is not scrolled or reloaded",
-      "A refused save shows the sentence in the dialog and keeps everything typed in it",
-      "A good save closes the dialog, returns focus to + Add and the screen behind shows the change without a reload: Clients lists Fictional Studio",
-      "Escape closes the dialog, leaves nothing saved and returns focus to + Add; the Ask panel stays as it was",
-      "Without JavaScript /add/client is a page holding the form; Save posts to /api/clients and returns to Spending (the back address), Cancel goes to Spending"
+      "The dialog titled \"Add a client\" opens over Spending with the same fields as /add/client",
+      "A good save closes the dialog and the screen behind shows the change without a reload: Clients lists Fictional Studio"
     ],
     "refs": [
       "D25",
@@ -151,18 +131,11 @@
     ],
     "steps": [
       "On Spending open + Add and choose A person who shares costs",
-      "Check the address bar and the page behind the dialog",
-      "Press Save with the required field empty or an unreadable value, then type a valid value",
-      "Fill the form: Name Wife, and press Save",
-      "Reopen the dialog from + Add and press Escape",
-      "Open /add/person?back=%2Fplan in a window with JavaScript off and press Save"
+      "Fill the form: Name Wife, and press Save"
     ],
     "expected": [
-      "The dialog titled \"Add a person\" opens over Spending with the same fields as /add/person; the address stays /spending and Spending is not scrolled or reloaded",
-      "A refused save shows the sentence in the dialog and keeps everything typed in it",
-      "A good save closes the dialog, returns focus to + Add and the screen behind shows the change without a reload: Household → People lists Wife with two equal shares",
-      "Escape closes the dialog, leaves nothing saved and returns focus to + Add; the Ask panel stays as it was",
-      "Without JavaScript /add/person is a page holding the form; Save posts to /api/people and returns to Spending (the back address), Cancel goes to Spending"
+      "The dialog titled \"Add a person\" opens over Spending with the same fields as /add/person",
+      "A good save closes the dialog and the screen behind shows the change without a reload: Household → People lists Wife with two equal shares"
     ],
     "refs": [
       "D25",

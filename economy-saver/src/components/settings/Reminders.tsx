@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { sha256Hex } from "@/lib/stable-id";
 import { useRouter } from "next/navigation";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
 import type { reminderView } from "@/db/reminders";
@@ -21,10 +22,7 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => ({
 
 async function identify(value: PushSubscription | null): Promise<Subscription | null> {
   if (!value) return null;
-  const bytes = new TextEncoder().encode(value.endpoint);
-  const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))
-    .map(byte => byte.toString(16).padStart(2, "0")).join("");
-  return { value, hash };
+  return { value, hash: await sha256Hex(value.endpoint) };
 }
 
 function applicationServerKey(encoded: string) {
