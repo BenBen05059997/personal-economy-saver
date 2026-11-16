@@ -1,13 +1,14 @@
-import { z } from "zod";
 import { db } from "@/db/client";
 import { readingForm, readingUnknown } from "@/lib/reader/form";
 import { ReaderError } from "@/lib/reader/settings";
 import { CHECK_ORDER, type CheckKind } from "@/lib/money/checks";
 import { reviewReading } from "@/db/readings";
 import { confirmPending } from "@/db/confirm";
-import { householdForm, redirectTo, returnPath, text } from "@/lib/door";
+import { householdForm, returnPath, text } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 import { ownChoiceFromForm } from "@/lib/reader/own-choices";
 import { StatementChargeError } from "@/db/statement-charge";
+import { Uuid } from "@/lib/stable-id";
 
 const isCheckKind = (value: FormDataEntryValue): value is CheckKind => typeof value === "string" && (CHECK_ORDER as readonly string[]).includes(value);
 
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   if (ctx instanceof Response) return ctx;
   const { hid, form } = ctx;
   const kind = form.get("kind");
-  const id = z.string().uuid().safeParse(form.get("id"));
+  const id = Uuid.safeParse(form.get("id"));
   if (!id.success) return text("Invalid item", 400);
   if (kind === "reading") {
     const decision = form.get("decision");

@@ -2,8 +2,10 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
 import { InputError } from "@/db/input-error";
-import { failure, formOf, limited, redirectTo, text } from "@/lib/door";
+import { failure, formOf, limited, text } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 import { householdRequest } from "@/lib/session";
+import { hrefFor } from "@/lib/links";
 
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
@@ -16,7 +18,7 @@ export async function POST(request: Request) {
   if (!data.success) return text("Enter a client, item and positive USD amount.", 400);
   try {
     const id = await withHousehold(db(), hid, tx => saveInvoiceDraft(tx, hid, data.data, { madeBy: "form" }));
-    return redirectTo(`/invoices/${id}`, request);
+    return redirectTo(hrefFor({ type: "invoice", id }), request);
   } catch (error) {
     return error instanceof InputError ? failure(error) : text("Could not save this draft. Check the client and try again.", 409);
   }

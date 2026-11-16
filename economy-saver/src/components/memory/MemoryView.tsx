@@ -2,6 +2,7 @@ import { ApiForm } from "@/components/ui/ApiForm";
 import { Fragment, type ReactNode } from "react";
 import { MEMORY_KIND_KEYS, MEMORY_KINDS, MEMORY_LIMIT, MEMORY_TEXT_MAX, type MemoryItem, type MemoryKind } from "@/lib/schema/memory";
 import "./memory.css";
+import { pluralWord } from "@/lib/plural";
 
 // Dates are the household's: a Try it household's rows carry its fixed date (D34), shown in its time zone.
 const dayIn = (timeZone: string) => (iso: string) => {
@@ -96,7 +97,7 @@ export function MemoryLayout({ items, timeZone, forms, note, spaceId = null, rea
       <details className="memory-edit">
         <summary>{spaceId ? "Forget space notes" : "Forget everything"}</summary>
         {form("forget_all", "forget", <>
-          <p>Delete all {items.length} {items.length === 1 ? (spaceId ? "note" : "thing") : (spaceId ? "notes" : "things")} for good? This cannot be undone.
+          <p>Delete all {items.length} {pluralWord(items.length, spaceId ? "note" : "thing")} for good? This cannot be undone.
             {!spaceId && totalCount > items.length && " Space notes stay."}</p>
           <button className="ui-button" disabled={busy}>{spaceId ? "Yes, forget these notes" : "Yes, forget everything"}</button>
           {status("forget")}

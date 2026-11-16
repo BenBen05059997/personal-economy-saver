@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { statementItems } from "@/lib/money/runway";
+import { cardChargesNotOnStatement } from "@/lib/money/card-summary";
 import { formatter, longDay, minorMoney } from "@/lib/money/format";
 import { parseHomeMode } from "@/lib/money/look-by";
 import { hasNothingToForecast } from "@/lib/money/sentence";
@@ -14,7 +14,6 @@ import { CASES, labelOf, termOf, type TermName } from "@/lib/money/terms";
 import type { ViewResult } from "@/lib/views/types";
 import { DISPLAY_OPTIONS, PanelHeader, Segmented, useDevicePreference } from "./hv-parts";
 import "./home-views.css";
-import { daysBetween } from "@/lib/money/dates";
 
 type Mode = "chart" | "table";
 
@@ -24,7 +23,8 @@ function Forecast({ state, result, mode, bankBalance }: { state: MoneyState; res
   const need = (name: TermName, factCase?: FactCase) => { const found = fact(result.facts, name, factCase); if (!found) throw new Error(`The forecast has no ${name} fact`); return found.value; };
   const safe = Number(need("safe_to_spend")), lowLate = Number(need("low_point", "late")), lowUsual = Number(need("low_point", "as_usual"));
   const lowLateDay = String(need("low_point_day", "late")), lowUsualDay = String(need("low_point_day", "as_usual"));
-  const open = statementItems(state).filter(item => item.open && item.dueOn >= state.today && daysBetween(state.today, item.dueOn) < (result.data?.days ?? 30));
+  if (!result.data) throw new Error("The forecast has no data");
+  const open = cardChargesNotOnStatement(state, result.data.days);
   const format = formatter(state.homeCurrency);
   return <>
     {mode === "chart" ? <StepLine result={result} /> : table && <ViewTable table={table} />}

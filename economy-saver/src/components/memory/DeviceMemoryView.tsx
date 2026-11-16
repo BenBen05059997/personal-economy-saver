@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useAskPanel } from "@/components/shell/AskWorkspace";
+import { wordsOf } from "@/components/ui/words";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { addDeviceMemory, deviceMemory, editDeviceMemory, forgetDeviceMemory, forgetDeviceMemoryScope, householdMomentSince } from "@/lib/store/device";
 import { MemoryHeader, MemoryLayout, type MemoryForms } from "./MemoryView";
 
-const wordsOf = (error: unknown) => error instanceof Error ? error.message : "Something went wrong. Try again.";
+const FAILED = "Something went wrong. Try again.";
 
 /** /memory when the household keeps its memory on this device only (D59): the items are read in the browser, and every change goes to the device store, never to /api/memory. */
 export function DeviceMemoryView({ householdId, timeZone, momentNow, spaceId = null, readOnly = false, refreshKey = 0, onItems, anchorPrefix = "" }: {
@@ -29,12 +30,12 @@ export function DeviceMemoryView({ householdId, timeZone, momentNow, spaceId = n
   }, [onItems]);
   const load = useCallback(async () => {
     try { show(await deviceMemory(householdId)); }
-    catch (error) { setItems(null); setUnreadable(wordsOf(error)); }
+    catch (error) { setItems(null); setUnreadable(wordsOf(error, FAILED)); }
   }, [householdId, show]);
   useEffect(() => { openedAt.current = Date.now(); }, [householdId, momentNow]);
   useEffect(() => {
     let cancelled = false;
-    deviceMemory(householdId).then(list => { if (!cancelled) show(list); }, error => { if (!cancelled) setUnreadable(wordsOf(error)); });
+    deviceMemory(householdId).then(list => { if (!cancelled) show(list); }, error => { if (!cancelled) setUnreadable(wordsOf(error, FAILED)); });
     return () => { cancelled = true; };
   }, [askRevision, householdId, refreshKey, show]);
   useEffect(() => {
@@ -48,7 +49,7 @@ export function DeviceMemoryView({ householdId, timeZone, momentNow, spaceId = n
     if (busy) return;
     setBusy(true); setMessage(null);
     try { await work(); await load(); }
-    catch (error) { setMessage({ id, text: wordsOf(error) }); }
+    catch (error) { setMessage({ id, text: wordsOf(error, FAILED) }); }
     finally { setBusy(false); }
   }
   const fields = (event: FormEvent<HTMLFormElement>) => {

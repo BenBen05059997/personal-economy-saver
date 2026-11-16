@@ -1,7 +1,7 @@
-import { logSettingProblem } from "@/lib/operator-log";
-// The in-app agent (D40): Claude chooses tools over the engine and phrases their results. Plain manual loop on the
+// The in-app agent (D40): a model chooses tools over the engine and phrases their results. Plain manual loop on the
 // provider-neutral model call (lib/ai). It logs one content-free line per Ask (log.ts) and nothing else: never the key, the question, a tool
 // argument or result, or the answer.
+import { logSettingProblem } from "@/lib/operator-log";
 import { modelFailureWords } from "@/lib/ai/provider-failure";
 import { householdDate } from "@/db/account";
 import { loadMoneyState, requireHousehold, withHousehold, type Db } from "@/db/household";
@@ -19,7 +19,10 @@ import type { MoneyState } from "@/lib/money/types";
 import { logCall, type BriefDropReason, type ToolLog } from "./log";
 import type { Recipe } from "@/lib/canvas/schema";
 import { VIEW_META } from "@/lib/views/catalogue";
-import { MAX_SHOWN, type Reading, type ViewBlock } from "./view-tools";
+import { SHOW_TOOL, type Reading, type ViewBlock } from "./view-tools";
+import { MAKE_CANVAS_TOOL } from "./canvas-tools";
+import { UPDATE_BRIEF_TOOL } from "./brief-tools";
+import { MAX_KEEP_OFFERS, MAX_SHOWN } from "./limits";
 import { nextSteps } from "./see-it";
 import { canvasWords, chooseReply, type OutOfScopeReason, type ReplyKind, type Source, type Wording } from "./reply";
 import { briefWords, type Brief } from "./brief";
@@ -28,7 +31,7 @@ import type { ContextTurn } from "./context";
 import type { MemoryItem } from "@/lib/schema/memory";
 import { memoryBlock } from "./memory-prompt";
 import type { KeepOffer } from "./keep-offer";
-import { MAX_KEEP_OFFERS, offerValue } from "./offer-tools";
+import { offerValue } from "./offer-tools";
 import type { DeviceMemory } from "@/lib/store/memory-ops";
 import { ASK_RULES, MODEL_RULES } from "./rules";
 import { outlookFacts } from "@/lib/money/ask";
@@ -45,8 +48,7 @@ export class AgentError extends Error {
   saved?: { pending: boolean; links: { label: string; href: string }[] };
 }
 
-/** Tools whose result repeats text the model wrote. */
-const NOT_SOURCES = new Set(["remember", "forget", "make_canvas", "offer_keep", "update_brief", "search_history", "open_space"]);
+const toolNamed = (name: string) => tools.find(tool => tool.name === name);
 
 const MAX_TOOL_TURNS = 4;
 let cachedBudgetMs: number | undefined;
@@ -71,7 +73,7 @@ function systemPrompt(today: string, currency: string, memory: string) {
   const stable = `You are the money assistant inside Personal Economy Saver, for one household.
 
 ${MODEL_RULES.split("\n")[0]}
-Answer in one or two plain sentences, in the language of the person's latest message.
+Answer in one or two plain sentences.
 ${MODEL_RULES.split("\n").slice(1).join("\n")}
 ${ASK_RULES}`;
   return { stable, full: `${stable}\n\nToday is ${today} and the household's home currency is ${currency}.${memory ? `\n\n${memory}` : ""}` };
@@ -180,6 +182,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   let clarify: { question: string; choices: string[] } | null = null;
   let outOfScope: OutOfScopeReason | null = null;
   const used: string[] = [];
+  const sourcesUsed = () => used.flatMap(name => toolNamed(name)?.source ?? []);
   let called = false;
   let wrote = false, wroteToServer = false, wroteMemory = false;
   // The household's state is read once per tool turn, so tools in one turn agree with each other.
@@ -197,7 +200,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
     addLink: link => { if (!links.some(known => known.href === link.href)) links.push(link); },
     onCanvas: next => { recipe = next; drawn.push(next); },
     onView: reading => {
-      if (shown.length >= MAX_SHOWN) throw new InputError("Show at most four views in one answer.");
+      if (shown.length >= MAX_SHOWN) throw new InputError(`Show at most ${MAX_SHOWN} views in one answer.`);
       shown.push(reading.block);
       readings.push(reading);
     },
@@ -261,7 +264,7 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
           return "";
         }).trim();
         if (!answer) throw failure("empty");
-        return await finish(chooseReply({ clarify, outOfScope, text: answer, tools: used, called, recipe: answerRecipe(), facts: toolFacts, person, today, readings, rejected }));
+        return await finish(chooseReply({ clarify, outOfScope, text: answer, toolSources: sourcesUsed(), called, recipe: answerRecipe(), facts: toolFacts, person, today, readings, rejected }));
       }
       if (reply.stop === "refusal") throw failure("refusal");
       if (reply.stop === "length") throw failure("cutOff");
@@ -277,11 +280,11 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
       const results: ToolResult[] = [];
       // clarify and out_of_scope end the question: when one is asked for and valid, it is the only call that runs, and there is no further model call.
       // One that fails its schema is an ordinary tool error: the other calls run and the loop goes on.
-      const ending = reply.calls.find(call => call.name === "clarify" || call.name === "out_of_scope");
+      const ending = reply.calls.find(call => toolNamed(call.name)?.endsQuestion);
       if (ending) {
         const { result, log } = await callTool(ctx, ending, now);
         trace.tools.push(log);
-        if (clarify !== null || outOfScope !== null) return await finish(chooseReply({ clarify, outOfScope, text: "", tools: used, called, recipe: answerRecipe(), facts: toolFacts, person, today, readings, rejected }));
+        if (clarify !== null || outOfScope !== null) return await finish(chooseReply({ clarify, outOfScope, text: "", toolSources: sourcesUsed(), called, recipe: answerRecipe(), facts: toolFacts, person, today, readings, rejected }));
         results.push(result);
         await recordResult(result);
       }
@@ -300,21 +303,20 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   async function recordResult(result: ToolResult) {
     // What the model wrote (a canvas it drew, a memory it kept) comes back echoed: it is not a source, or the model could confirm its own number.
     // `show`'s facts came with its reading; every other tool's are in its result.
-    if (!result.isError && !NOT_SOURCES.has(result.name) && result.name !== "show") keep(factsIn(result.content));
-    if (!result.isError && result.name === "make_canvas") {
+    const tool = toolNamed(result.name);
+    if (!result.isError && !tool?.echoes && result.name !== SHOW_TOOL) keep(factsIn(result.content));
+    if (!result.isError && result.name === MAKE_CANVAS_TOOL) {
       const engineFilled = withoutModelWords(result.content, drawn);
       if (engineFilled !== null) keep(factsIn(engineFilled));
     }
-    if (!result.isError && result.name === "show") keep(readings.flatMap(reading => reading.facts).filter(known => !toolFacts.includes(known)));
-    const tool = tools.find(candidate => candidate.name === result.name);
-    if (tool && toolAvailable(ctx, tool) && result.name !== "update_brief" && result.name !== "clarify" && result.name !== "out_of_scope") called = true;
+    if (!result.isError && result.name === SHOW_TOOL) keep(readings.flatMap(reading => reading.facts).filter(known => !toolFacts.includes(known)));
+    if (tool && toolAvailable(ctx, tool) && tool.name !== UPDATE_BRIEF_TOOL && !tool.endsQuestion) called = true;
     if (result.isError) return;
     used.push(result.name);
     if (tool?.scope !== "draft") return;
-    const memoryTool = result.name === "remember" || result.name === "forget";
-    const onDevice = opts.deviceMemory !== undefined && memoryTool;
+    const onDevice = opts.deviceMemory !== undefined && tool.memory === true;
     wrote = true;
-    if (memoryTool) wroteMemory = true;
+    if (tool.memory) wroteMemory = true;
     // A tool's transaction committed before this point. Note its write before starting the next tool.
     if (!wroteToServer && !onDevice) {
       await opts.onWrote?.();
@@ -464,13 +466,13 @@ async function callTool(ctx: ScopedToolContext, call: Call, now: () => number): 
 }
 
 function toolAvailable(ctx: ScopedToolContext, tool: (typeof tools)[number]): boolean {
-  if (ctx.incognito && tool.scope !== "read" && tool.name !== "clarify" && tool.name !== "out_of_scope") return false;
-  return tool.name !== "update_brief" || ctx.onBrief !== undefined;
+  if (ctx.incognito && tool.scope !== "read" && !tool.endsQuestion) return false;
+  return tool.name !== UPDATE_BRIEF_TOOL || ctx.onBrief !== undefined;
 }
 
 async function executeTool(ctx: ScopedToolContext, call: Call): Promise<ToolResult> {
   const error = (message: string): ToolResult => ({ id: call.id, name: call.name, content: message, isError: true });
-  const tool = tools.find(candidate => candidate.name === call.name);
+  const tool = toolNamed(call.name);
   if (!tool) return error("Unknown tool.");
   if (!toolAvailable(ctx, tool)) return error(ctx.incognito ? "This tool is unavailable in Incognito." : "Unknown tool.");
   const input = tool.input.safeParse(call.input);
@@ -494,14 +496,10 @@ async function executeTool(ctx: ScopedToolContext, call: Call): Promise<ToolResu
   }
 }
 
-/** The facts a tool result carries: every `facts` list in it, at any depth (a canvas summary has one per block), when the result is JSON; else the JSON after "Facts:" that a text result ends with. */
+/** The facts a tool result carries: every `facts` list in it, at any depth (a canvas summary has one per block); none when the result is not JSON. */
 function factsIn(content: string): CheckFact[] {
   let json: unknown;
-  try { json = JSON.parse(content); } catch {
-    const at = content.lastIndexOf("\n\nFacts: ");
-    if (at < 0) return [];
-    try { json = JSON.parse(content.slice(at + "\n\nFacts: ".length)); } catch { return []; }
-  }
+  try { json = JSON.parse(content); } catch { return []; }
   const found: CheckFact[] = [];
   const walk = (value: unknown) => {
     if (Array.isArray(value)) { for (const item of value) walk(item); return; }

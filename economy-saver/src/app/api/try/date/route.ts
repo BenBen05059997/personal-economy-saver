@@ -1,6 +1,7 @@
 import { db } from "@/db/client";
 import { advanceTryItDate } from "@/db/demo";
-import { badFields, failure, householdForm, NO_STORE, text } from "@/lib/door";
+import { badFields, failure, householdForm, text } from "@/lib/door";
+import { NO_STORE } from "@/lib/form-fetch";
 
 export async function POST(request: Request) {
   if (process.env.NEXT_PUBLIC_QA_TOOLS !== "1") return text("Not found", 404);

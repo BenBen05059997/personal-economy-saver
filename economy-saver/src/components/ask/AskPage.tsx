@@ -8,6 +8,8 @@ import { DeviceMemoryView } from "@/components/memory/DeviceMemoryView";
 import { MemoryView } from "@/components/memory/MemoryView";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
+import { drawRecipe } from "@/components/ui/draw-recipe";
+import { COULDNT_REACH_HOUSEHOLD, UPLOAD_FAILED, wordsOf } from "@/components/ui/words";
 import { AskComposer } from "./AskComposer";
 import { AskHeader } from "./AskHeader";
 import { AskThread } from "./AskThread";
@@ -21,9 +23,7 @@ import type { AskView } from "@/db/ask-view";
 import { SESSION_ENDED } from "@/lib/session-ended";
 import { NEEDS_KEY_OWNER, NEEDS_KEY_MEMBER } from "@/lib/agent/availability";
 import { KEY_TEXT_WORDS, looksLikeApiKey } from "@/lib/ai/key-text";
-import { drawCanvas } from "@/lib/canvas/draw";
 import { type DocumentCard as Card } from "@/lib/reader/document-card";
-import type { ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Drawn, TurnView } from "@/lib/agent/view";
 import type { Recipe } from "@/lib/canvas/schema";
 import type { MemoryItem } from "@/lib/schema/memory";
@@ -32,7 +32,7 @@ import {
   applyDeviceMemoryChanges, deleteDeviceConversation, deleteDeviceTurn, deviceMemory, devicePins, listDevice, pinOnDevice, readDeviceBrief, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin, writeDeviceBrief,
 } from "@/lib/store/device";
 import { legacyOf, removeTurn, threadOf } from "@/lib/store/journal-ops";
-import { DRAFT_EVENT, takeStoredDraft } from "./draft";
+import { ASK_SUBMIT_KEY, DRAFT_EVENT, takeStoredDraft } from "./draft";
 import { useSpeech } from "../voice/use-speech";
 import "./ask.css";
 
@@ -43,13 +43,8 @@ type MemoryLinks = { notes: ReadonlyMap<string, string>; profile: ReadonlyMap<st
 const viewOf = (turn: ConversationTurn): TurnView => ({
   id: turn.id, question: turn.question, kind: turn.kind, text: turn.reply, choices: turn.choices, ...splitSources(turn.sources), thumb: turn.thumb, documentId: turn.documentId ?? null,
 });
-const wordsOf = (error: unknown) => (error instanceof Error ? error.message : "Couldn’t use this device’s storage.");
-/** Draws a recipe through the engine; the route reads the household's records and keeps nothing. */
-async function drawOnServer(recipe: Recipe): Promise<ResolvedBlock[] | string> {
-  try {
-    return await drawCanvas(recipe);
-  } catch { return "Couldn’t reach your household. Try again."; }
-}
+const STORAGE_FAILED = "Couldn’t use this device’s storage.";
+const TRY_AGAIN = "Try again.";
 
 const MAX_FILE_BYTES = 6 * 1024 * 1024;
 const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
@@ -119,9 +114,9 @@ export function AskPage({
     if (panel) return;
     const frame = requestAnimationFrame(() => {
       try {
-        const value = window.sessionStorage.getItem("pes-ask-submit");
+        const value = window.sessionStorage.getItem(ASK_SUBMIT_KEY);
         if (!value) return;
-        window.sessionStorage.removeItem("pes-ask-submit");
+        window.sessionStorage.removeItem(ASK_SUBMIT_KEY);
         const item: unknown = JSON.parse(value);
         if (item && typeof item === "object" && "id" in item && typeof item.id === "string" && "question" in item && typeof item.question === "string") setFullHandoff({ id: item.id, question: item.question });
       } catch { /* The page still opens if storage is unavailable. */ }
@@ -167,13 +162,13 @@ export function AskPage({
         const key = pinned ? `pin-${pinned.id}` : last?.id;
         if (recipe && key) {
           if (pinned) canvasChosen.current = true;
-          const blocks = await drawOnServer(recipe);
+          const blocks = await drawRecipe(recipe, TRY_AGAIN);
           if (cancelled) return;
           if (typeof blocks === "string") setProblem(blocks);
           else if (pinned || !canvasChosen.current) setCanvas({ key, title: recipe.title, recipe, blocks });
         }
         if (!cancelled) deviceLoaded.current = true;
-      } catch (error) { if (!cancelled) setProblem(wordsOf(error)); }
+      } catch (error) { if (!cancelled) setProblem(wordsOf(error, STORAGE_FAILED)); }
     })();
     return () => { cancelled = true; };
   // The keyed page gets a new mount on selection, but a refresh on the same page keeps its unsent draft.
@@ -235,7 +230,7 @@ export function AskPage({
       const body = new FormData();
       body.set("document", file); body.set("id", attached.current.id); body.set("conversationId", conversationId); body.set("spaceId", space.id); body.set("text", note);
       const response = await fetch("/api/ask/document", { method: "POST", body });
-      if (!response.ok) { if (response.status === 429) setDocuments(0); return response.status === 401 ? SESSION_ENDED : (await response.text()) || "Upload failed."; }
+      if (!response.ok) { if (response.status === 429) setDocuments(0); return response.status === 401 ? SESSION_ENDED : (await response.text()) || UPLOAD_FAILED; }
       const { turn, card, left } = await response.json() as { turn: ConversationTurn; card: Card; left: number | null };
       setDocuments(left);
       attached.current = null;
@@ -243,10 +238,10 @@ export function AskPage({
       setCards(current => ({ ...current, [card.documentId]: card }));
       setTurns(current => [...current.filter(item => item.id !== turn.id), viewOf(turn)]);
       if (onDevice.journal) {
-        try { await saveDeviceTurn(householdId, { ...turn, spaceId: space.id }); } catch (error) { return wordsOf(error); }
+        try { await saveDeviceTurn(householdId, { ...turn, spaceId: space.id }); } catch (error) { return wordsOf(error, STORAGE_FAILED); }
       }
       return null;
-    } catch { return "Couldn’t reach your household. Try again."; }
+    } catch { return `${COULDNT_REACH_HOUSEHOLD} ${TRY_AGAIN}`; }
   }
 
   /** Several files go one after another, each its own turn and card; the typed note goes with the first, and a refused file does not stop the others. */
@@ -286,7 +281,7 @@ export function AskPage({
         onDevice.memory ? deviceMemory(householdId) : undefined,
         onDevice.journal ? listDevice(householdId, "journal") : undefined,
         onDevice.journal ? readDeviceBrief(householdId, space.id) : undefined,
-      ]).catch(error => { setProblem(wordsOf(error)); return null; });
+      ]).catch(error => { setProblem(wordsOf(error, STORAGE_FAILED)); return null; });
       if (!local) return;
       const [memory, journal, storedBrief] = local;
       const tail = journal ? contextTail(threadOf(journal, conversationId)) : null;
@@ -332,11 +327,11 @@ export function AskPage({
             recipe: reply.canvas?.recipe ?? null, sources: storeSources(reply.sources, reply.links), thumb: null, createdAt: new Date().toISOString(),
           }, reply.brief ? { id: space.id, ...reply.brief } : undefined);
           if (reply.brief) setLatestBrief(reply.brief);
-        } catch (error) { setProblem(wordsOf(error)); }
+        } catch (error) { setProblem(wordsOf(error, STORAGE_FAILED)); }
       } else if (reply.brief) setLatestBrief(reply.brief);
       if (onDevice.memory && reply.memoryChanges.length > 0) {
         try { await applyDeviceMemoryChanges(householdId, reply.memoryChanges); notesChanged(); }
-        catch (error) { setProblem(wordsOf(error)); }
+        catch (error) { setProblem(wordsOf(error, STORAGE_FAILED)); }
       }
       if (drawn) {
         canvasChosen.current = true;
@@ -350,7 +345,7 @@ export function AskPage({
       } else if (reply.pending || (!onDevice.memory && reply.memoryChanged)) {
         router.refresh();
       }
-    } catch { setProblem("Couldn’t reach your household. Try again."); }
+    } catch { setProblem(`${COULDNT_REACH_HOUSEHOLD} ${TRY_AGAIN}`); }
     finally { setBusy(false); setStep(""); }
   }
 
@@ -376,7 +371,7 @@ export function AskPage({
     const next = turn.thumb === which ? null : which;
     // On this device the thumb is kept here; the server only writes its content-free log line.
     if (onDevice.journal) {
-      try { if (!await setDeviceThumb(householdId, turn.id, next)) return; } catch (error) { setProblem(wordsOf(error)); return; }
+      try { if (!await setDeviceThumb(householdId, turn.id, next)) return; } catch (error) { setProblem(wordsOf(error, STORAGE_FAILED)); return; }
     }
     const response = await fetch("/api/ask/thumb", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: turn.id, thumb: next === 1 ? "up" : next === -1 ? "down" : null, ...(onDevice.journal && { device: true }) }) }).catch(() => null);
@@ -392,7 +387,7 @@ export function AskPage({
       await deleteDeviceTurn(householdId, id);
       removeFromThread(id);
     } catch (error) {
-      setProblem(wordsOf(error));
+      setProblem(wordsOf(error, STORAGE_FAILED));
     }
   }
 
@@ -420,7 +415,7 @@ export function AskPage({
         else router.push("/");
       }
       else setLocalPins((await devicePins(householdId)).filter(item => item.spaceId === space.id));
-    } catch (error) { setProblem(wordsOf(error)); }
+    } catch (error) { setProblem(wordsOf(error, STORAGE_FAILED)); }
   }
   async function unpinHere(id: string) {
     try {
@@ -428,7 +423,7 @@ export function AskPage({
       if (devicePin?.id === id) setDevicePin(null);
       setLocalPins(current => current.filter(item => item.id !== id));
       if (pinId === id) router.push(spaceHref);
-    } catch (error) { setProblem(wordsOf(error)); }
+    } catch (error) { setProblem(wordsOf(error, STORAGE_FAILED)); }
   }
   const pinFields = (recipe: Recipe) => <>
     <input type="hidden" name="recipe" value={JSON.stringify(recipe)} />
@@ -500,7 +495,7 @@ export function AskPage({
           <div className="ui-remove-buttons">
             <button type="button" className="ui-button" onClick={() => setConfirmDelete(false)}>Keep</button>
             <button type="button" className="ui-button" onClick={() => void (async () => {
-              try { await deleteDeviceConversation(householdId, conversationId); setConfirmDelete(false); clearThread(); } catch (error) { setProblem(wordsOf(error)); }
+              try { await deleteDeviceConversation(householdId, conversationId); setConfirmDelete(false); clearThread(); } catch (error) { setProblem(wordsOf(error, STORAGE_FAILED)); }
             })()}>Delete</button>
           </div>
         </details>}

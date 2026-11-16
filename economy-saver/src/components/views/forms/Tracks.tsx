@@ -1,20 +1,20 @@
 "use client";
 
+import { daysBetween } from "@/lib/money/dates";
 import { dayLabel } from "@/lib/money/format";
 import type { FormData, ViewResult } from "@/lib/views/types";
 import { useWidth } from "../chart-utils";
 import "./tracks.css";
 
 const M = { left: 14, right: 14, top: 30 }, LINE = 28, LABEL = 52, LEVEL = 30, GAP = 14, CHAR = 6.4;
-const days = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
 
 type Event = FormData["tracks"]["tracks"][number]["events"][number];
 
 /** The tracks form: one row per track along a single date line (today at the left). Dots, ticks, due diamonds and spans carry their words under them; words that would touch step down a line. An arrow joins a purchase to the statement it lands on. Built to fit a 420px panel. */
 export function Tracks({ result }: { result: ViewResult<"tracks"> }) {
   const [ref, width] = useWidth<HTMLDivElement>(380);
-  const data = result.data!, plotW = Math.max(160, width - M.left - M.right), span = Math.max(1, days(data.from, data.to));
-  const x = (iso: string) => M.left + (days(data.from, iso) / span) * plotW;
+  const data = result.data!, plotW = Math.max(160, width - M.left - M.right), span = Math.max(1, daysBetween(data.from, data.to));
+  const x = (iso: string) => M.left + (daysBetween(data.from, iso) / span) * plotW;
   const sized = data.tracks.map(track => {
     const placed: { l: number; r: number; level: number }[] = [];
     const items = [...track.events].sort((a, b) => (a.date < b.date ? -1 : 1)).map(event => {

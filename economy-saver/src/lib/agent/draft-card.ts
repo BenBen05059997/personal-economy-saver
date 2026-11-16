@@ -2,7 +2,7 @@
 // Every word and number is written here from the rows and the engine, never by the model (D40). The state of a draft is read from the rows now:
 // still pending = waiting for the person's OK, confirmed = confirmed, gone = not added.
 import { categoryLabel } from "@/lib/money/categories";
-import { dayLabel, minorMoney, minorPerUnit } from "@/lib/money/format";
+import { dayLabel, minorMoney, toMinor } from "@/lib/money/format";
 import { goalPace } from "@/lib/money/goals";
 import { allocate } from "@/lib/money/split";
 import type { SpendingInput } from "@/lib/money/spending";
@@ -20,7 +20,7 @@ const KIND_LABEL: Record<DraftKind, string> = { bill: "Bill", charge: "Card char
 const EVENT_SUFFIX = / (bill|charge|pot) to check$/;
 
 /** "Sat Nov 14". */
-export function dayWithWeekday(iso: string): string {
+function dayWithWeekday(iso: string): string {
   const day = new Date(`${iso}T00:00:00Z`).getUTCDay();
   return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]} ${dayLabel(iso)}`;
 }
@@ -42,11 +42,10 @@ function whatChangedOf(ctx: Context, itemId: string): ViewResult | null {
 type Built = Omit<DraftView, "id" | "kind" | "state" | "kindLabel" | "result" | "title"> & { label: string; name: string };
 
 const members = (state: MoneyState) => state.split.members;
-const whole = (state: MoneyState, value: number) => Math.round(value * minorPerUnit(state.homeCurrency));
 const fieldIf = (label: string, value: string | null | undefined) => value ? [{ label, value }] : [];
 
 function billWords(bill: StoredBill, state: MoneyState) {
-  const money = (value: number | null) => value === null ? null : minorMoney(whole(state, value), state.homeCurrency);
+  const money = (value: number | null) => value === null ? null : minorMoney(toMinor(value, state.homeCurrency), state.homeCurrency);
   const amount = money(bill.amount);
   const names = members(state), many = names.length >= 2;
   const owner = bill.ownerId ? names.find(member => member.id === bill.ownerId)?.name : undefined;
@@ -67,7 +66,7 @@ function billWords(bill: StoredBill, state: MoneyState) {
 }
 
 function chargeWords(charge: Charge, state: MoneyState) {
-  const per = minorPerUnit(state.homeCurrency), minor = Math.round(charge.amount * per);
+  const minor = toMinor(charge.amount, state.homeCurrency);
   const amount = minorMoney(minor, state.homeCurrency);
   const card = state.cards.find(item => item.id === charge.cardId);
   const names = members(state);
@@ -86,7 +85,7 @@ function chargeWords(charge: Charge, state: MoneyState) {
 }
 
 function potWords(pot: Pot, state: MoneyState) {
-  const money = (value: number) => minorMoney(whole(state, value), state.homeCurrency);
+  const money = (value: number) => minorMoney(toMinor(value, state.homeCurrency), state.homeCurrency);
   const target = pot.target === undefined ? null : `${money(pot.target)}${pot.targetDate ? ` by ${dayLabel(pot.targetDate)}` : ""}`;
   const fill = pot.fillPct === undefined || pot.fillPct <= 0 ? null : `${pot.fillPct}% of each client payment`;
   return {
@@ -101,7 +100,7 @@ function balanceWords(amountMinor: number, state: MoneyState) {
   const money = (minor: number) => minorMoney(minor, state.homeCurrency);
   return {
     name: `Bank balance ${money(amountMinor)}`, label: `Bank balance ${money(amountMinor)}`, day: null as string | null,
-    fields: [{ label: "New balance", value: money(amountMinor) }, { label: "Now", value: money(whole(state, state.bank)) }],
+    fields: [{ label: "New balance", value: money(amountMinor) }, { label: "Now", value: money(toMinor(state.bank, state.homeCurrency)) }],
     summary: `Bank balance ${money(amountMinor)}`,
   };
 }

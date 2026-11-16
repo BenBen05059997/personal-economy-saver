@@ -1,6 +1,6 @@
 // D59, D60: the operations on the conversation turns and the pinned canvases, as pure functions over a list, for the device store.
 // The same rules as src/db/conversation.ts (all turns stay; context is assembled with a character budget)
-// and src/db/canvases.ts (at most 8, position 0 first).
+// and src/db/canvases.ts (at most MAX_PINS pins, position 0 first).
 import type { ConversationTurn } from "@/lib/schema/turn";
 import { MAX_PINS, recipeOf, titleOf, type Recipe } from "@/lib/canvas/schema";
 import { InputError } from "@/db/input-error";

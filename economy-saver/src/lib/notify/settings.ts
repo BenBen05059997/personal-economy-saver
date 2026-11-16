@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { setting } from "@/lib/env";
 
 /** How long one outgoing email or push request may take. */
 export const NOTIFY_TIMEOUT_MS = 10_000;
@@ -10,7 +11,7 @@ type PushSettings = { publicKey: string; privateKey: string; subject: string };
 type Setting<T> = { value: T; problem: null; words: null } | { value: null; problem: string; words: string };
 
 function readSetting<T>(names: readonly string[], parse: (values: string[]) => T, words: string): Setting<T> {
-  const values = names.map(name => process.env[name]?.trim() ?? "");
+  const values = names.map(name => setting(name) ?? "");
   const missing = values.findIndex(value => value === "");
   return missing === -1 ? { value: parse(values), problem: null, words: null } : { value: null, problem: names[missing] + " is not set.", words };
 }

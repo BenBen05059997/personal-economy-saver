@@ -1,13 +1,14 @@
 // OpenNext supports Edge middleware. Run refresh before rendering so a rotated refresh
 // token reaches both the server component and its browser in the same response.
 import { NextResponse, type NextRequest } from "next/server";
+import { NO_STORE } from "@/lib/form-fetch";
 import { RAY_COOKIE } from "@/lib/ray";
 import { authCookieOptions, hasAuthCookie, supabaseAuth } from "@/lib/supabase-auth";
 
 /** The error pages quote the request's Cloudflare ray: a client boundary can't read headers, so a page request leaves it in a cookie it can (src/components/shell/ErrorReference.tsx). */
 function pageHeaders(request: NextRequest, response: NextResponse) {
   if (/^\/(?:join|signing-in)(?:\/|$)/i.test(request.nextUrl.pathname)) {
-    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
     response.headers.set("Referrer-Policy", "no-referrer");
   }
   const ray = request.headers.get("cf-ray");
@@ -28,7 +29,7 @@ export async function middleware(request: NextRequest) {
     },
   });
   await supabase.auth.getClaims();
-  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
   return pageHeaders(request, response);
 }
 export const config = {

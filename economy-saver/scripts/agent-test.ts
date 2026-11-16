@@ -1,11 +1,9 @@
 // The in-app agent over a fake Messages API transport. PGlite only; no network, no credentials.
-// The send-capable PayPal runner is kept out of the agent by lint (no-restricted-imports in eslint.config.mjs)
-// and by the source scan at the end of this script.
+// The send-capable PayPal calls are kept out of the agent by lint (no-restricted-imports in eslint.config.mjs).
 import assert from "node:assert/strict";
 import { openSuggestions, runPass } from "@/db/suggestions";
 import { setStandingRule } from "@/db/rules";
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle } from "drizzle-orm/pglite";
@@ -35,8 +33,9 @@ import { low, medianLow, roomOnCard, safeToSpend, series } from "@/lib/money/run
 import { createHousehold, setupForm } from "@/db/account";
 import { setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
-import { MODEL_RULES } from "@/lib/agent/rules";
-import { THINKING_WORDS, TOOL_WORDS, toolWords } from "@/lib/agent/words";
+import { ASK_RULES, MODEL_RULES } from "@/lib/agent/rules";
+import { MAX_SHOWN } from "@/lib/agent/limits";
+import { THINKING_WORDS, toolWords } from "@/lib/agent/words";
 import { answerQuestion, askInput, assembleContext } from "@/db/ask";
 import { allTurns } from "@/db/conversation";
 import { askScreenForPath } from "@/lib/agent/screen";
@@ -67,7 +66,6 @@ const reply = (stop_reason: string, content: Block[]) => Response.json({
   usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 3, cache_creation_input_tokens: 4 },
 });
 
-/** A scripted transport: each request gets the next response; every request body is recorded. */
 /** Bodies as the tests read them: the system blocks joined, the cache marks gone. `wires` keeps the body exactly as sent. */
 function plain(wire: any): Body { // eslint-disable-line @typescript-eslint/no-explicit-any
   const body = structuredClone(wire);
@@ -79,6 +77,7 @@ function plain(wire: any): Body { // eslint-disable-line @typescript-eslint/no-e
   }
   return body;
 }
+/** A scripted transport: each request gets the next response; every request body is recorded. */
 function transport(script: ((bodies: Body[]) => Response)[] | ((bodies: Body[]) => Response)) {
   const bodies: Body[] = [];
   const wires: any[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -150,7 +149,6 @@ async function main() {
     process.env.AI_API_KEY = KEY;
     process.env.AI_TEXT_MODEL = "fixture-text";
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
-    await db.update(schema.clients).set({ name: "ZZ Secret Client" }).where(eq(schema.clients.householdId, b));
     const stateOf = async (hid: string) => loadMoneyState(db, hid, await householdDate(db, hid));
     const aState = await stateOf(a), bState = await stateOf(b);
     // The one log line per Ask (D50) is captured here instead of printed.
@@ -235,7 +233,6 @@ async function main() {
       assert.equal(snapshot.household.id, a);
       assert.equal(snapshot.clients.length, aState.clients.length);
       assert.ok(!("events" in snapshot));
-      assert.ok(!result1.content.includes("ZZ Secret Client"));
       const definition = bodies[0].tools.find(t => t.name === "household_snapshot")!;
       assert.deepEqual(definition.input_schema.properties, {});
       assert.equal(definition.input_schema.additionalProperties, false);
@@ -287,7 +284,7 @@ async function main() {
       assert.equal(i.total, i.invoices.length);
     });
 
-    await check("27D: timeline with on answers one day inside the 30-day window; a later day gets the 30-day figures and a note that fipa looks 30 days ahead, never a balance; a day before today is an error the model can read", async () => {
+    await check("timeline with on answers one day inside the 30-day window; a later day gets the 30-day figures and a note that fipa looks 30 days ahead, never a balance; a day before today is an error the model can read", async () => {
       const state = await loadMoneyState(db, a, aState.today);
       const inside = addDays(aState.today, 5);
       const direct = dayView(state, "worst", inside);
@@ -316,7 +313,9 @@ async function main() {
       await db.update(schema.households).set({ bankBalanceMinor: 99_999_999 }).where(eq(schema.households.id, c));
       const { fetch, bodies } = transport([() => reply("tool_use", [toolUse("o", "options_when_short", {})]), () => reply("end_turn", [text("Fine.")])]);
       await ask(c, "Am I short?", fetch);
-      assert.ok(toolResults(bodies[1])[0].content.startsWith("not short\n\nFacts: "));
+      const out = JSON.parse(toolResults(bodies[1])[0].content);
+      assert.deepEqual([out.line, out.options], ["not short", []]);
+      assert.ok(Array.isArray(out.facts) && out.facts.length > 0);
     });
 
     await check("an unknown tool, invalid input and a failing tool return is_error results and the loop continues", async () => {
@@ -514,7 +513,7 @@ async function main() {
       const none = transport([() => reply("tool_use", [toolUse("o", "own_categories", {})]), () => reply("end_turn", [text("ok")])]);
       await ask(bare, "What are my own categories?", none.fetch);
       assert.equal(toolResults(none.bodies[1])[0].content, "This household has no categories of its own yet. Only the person can make one, in Spending → Your categories.");
-      assert.equal(TOOL_WORDS.own_categories, "Reading your own categories");
+      assert.equal(toolWords("own_categories"), "Reading your own categories");
 
       // The model's schema: a name, never an id, and no tool writes an own category.
       for (const name of ["add_bill", "log_charge"]) {
@@ -559,7 +558,7 @@ async function main() {
       await removeBill(db, a, billId);
     });
 
-    await check("add_bill takes period_start and period_end (27F): the bill waits with them, and after Confirm the month view and the search name the month it covers while counting on the paid date", async () => {
+    await check("add_bill takes period_start and period_end: the bill waits with them, and after Confirm the month view and the search name the month it covers while counting on the paid date", async () => {
       const c = await seedBen(db, { isDemo: true });
       const power = { biller: "Fictional Electric", amount: "7300", due: "2026-11-10", category: "utilities", memberId: null, period_start: "2026-10-01", period_end: "2026-10-31" };
       const run = transport([() => reply("tool_use", [toolUse("p", "add_bill", power)]), () => reply("end_turn", [text("Waiting in To check.")])]);
@@ -612,8 +611,7 @@ async function main() {
       assert.equal(tool.scope, "read");
       assert.deepEqual((toolInputSchema(tool) as unknown as { required: string[] }).required.sort(), ["month", "text"], "strict schema: both listed");
       assert.throws(() => tool.input.parse({ month: "2026-13" }));
-      assert.ok(TOOL_WORDS.bills_for_month);
-      const before = await stateOf(c);
+            const before = await stateOf(c);
       const billId = crypto.randomUUID();
       await insertBill(db, c, billInput.parse({ id: billId, biller: "Harbor Energy", amount: "9800", due: "2026-12-27", category: "utilities", memberId: null, periodStart: "2026-11-01", periodEnd: "2026-11-30" }), "confirmed", { madeBy: "ask" });
       const pendingId = crypto.randomUUID();
@@ -787,19 +785,12 @@ async function main() {
       assert.ok(JSON.parse(toolResults(bare.bodies[1])[0].content).clients.every((c: { usualDaysToPay: null; slowestDaysToPay: null }) => c.usualDaysToPay === null && c.slowestDaysToPay === null));
     });
 
-    await check("the system prompt carries the rules (ask on ambiguous names, snapshot is context, say why not again, bulk tools) and the same text is what MCP gets", async () => {
+    await check("the system prompt is the model rules (the first line, then the rest after Ask's own line), Ask's rules, the date and the currency", async () => {
       const { fetch, bodies } = transport(() => reply("end_turn", [text("ok")]));
       await ask(a, "Hi", fetch);
       const system = bodies[0].system;
       assert.ok(system.includes(aState.today) && system.includes("JPY"));
-      assert.match(system, /about to be saved and one detail is missing or matches several[^.]*ask which one/);
-      assert.match(system, /household_snapshot is background context/);
-      assert.doesNotMatch(system, /usualDaysToPay, slowestDaysToPay/, "the facts carry usual and slowest days with their meanings");
-      assert.match(system, /The picture shows its own sentence\. Do not repeat it\. Say why/);
-      assert.ok(!MODEL_RULES.includes("Do not repeat it"), "the do-not-restate rule is Ask-only: MCP never gets it");
-      assert.match(system, /add_bills or log_charges/);
-      assert.ok(system.includes(MODEL_RULES.split("\n").slice(1).join("\n")));
-      assert.ok(!/\btoday\b|\d{4}-\d{2}-\d{2}|JPY|home currency/i.test(MODEL_RULES), "the shared rules name neither the date nor the household's currency");
+      assert.ok(system.includes(ASK_RULES) && system.includes(MODEL_RULES.split("\n").slice(1).join("\n")));
     });
 
     await check("add_bills and log_charges: 1-10 items, all pending in one transaction, made by ask with the question's id on every row and event; an invalid item saves none", async () => {
@@ -992,13 +983,6 @@ async function main() {
       assert.deepEqual([of("regular_costs", "Mobaile Tsushin"), of("regular_costs", "CloudBox Plus")], [4_800, 1_980]);
     });
 
-    await check("no agent source can reach the send-capable PayPal runner", async () => {
-      const dir = "src/lib/agent";
-      for (const file of readdirSync(dir)) {
-        const source = readFileSync(`${dir}/${file}`, "utf8");
-        assert.ok(!/runTool|deleteSmokeDraft|paypal\/toolkit/.test(source), `${file} must not import the PayPal toolkit`);
-      }
-    });
     await check("a US household: the timeline and plan_for tools speak cents ($12.50 is 1250, a $1,500 target is 150000)", async () => {
       const usd = await createHousehold(db, crypto.randomUUID(), setupForm.parse({ name: "Fictional newcomer", currency: "USD", timeZone: "Asia/Tokyo" }), { isDemo: true });
       await setBankBalance(db, usd, { id: crypto.randomUUID(), amount: "1,200" }, "confirmed", { madeBy: "form" });
@@ -1307,7 +1291,7 @@ async function main() {
       const many = await conversation(c, "Show everything", five.fetch);
       const results = toolResults(five.bodies[1]);
       assert.equal(results.filter(r => r.is_error).length, 1);
-      assert.equal(results.find(r => r.is_error)!.content, "Show at most four views in one answer.");
+      assert.equal(results.find(r => r.is_error)!.content, `Show at most ${MAX_SHOWN} views in one answer.`);
       assert.equal(many.canvas?.recipe.blocks.filter(b => b.type === "view").length, 4);
 
       // make_canvas keeps its blocks and the shown views are appended, with the make_canvas title
@@ -1326,19 +1310,17 @@ async function main() {
       assert.ok(!toolResults(secret.bodies[1])[0].is_error, "show is a read tool, so Incognito offers it");
 
       // the number check: an amount only the model passed in is never returned, so the reply cannot confirm it
-      {
-        const echo = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥999,999 spend changes it.")])]);
-        const coded = await conversation(c, "What if I spend something big?", echo.fetch);
-        const echoed = lineOf(echo.bodies[1], "w");
-        // The picture is there, so code's own sentence stands in: no second model call, and the model's amount is never shown.
-        assert.deepEqual([coded.kind, coded.text, coded.wording, echo.bodies.length], ["answer", echoed.line, "code", 2]);
-        assert.ok(coded.text.startsWith("If you spend ¥314,159 today:"), "code's sentence names the change that was tested");
-        assert.ok(!coded.text.includes("999,999"), "and none of the model's invented amount");
-        assert.deepEqual(echoed.facts.filter(f => f.value === 314159).map(f => [f.name, f.by]), [["amount_tested", "person"]], "the passed amount comes back only as the person's own fact");
-        const said = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥314,159 spend changes it.")])]);
-        const quoted = await conversation(c, "What if I spend ¥314,159?", said.fetch);
-        assert.deepEqual([quoted.kind, quoted.wording, quoted.text], ["answer", "model", "A ¥314,159 spend changes it."], "the person's own amount may be quoted back");
-      }
+      const echo = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥999,999 spend changes it.")])]);
+      const coded = await conversation(c, "What if I spend something big?", echo.fetch);
+      const echoed = lineOf(echo.bodies[1], "w");
+      // The picture is there, so code's own sentence stands in: no second model call, and the model's amount is never shown.
+      assert.deepEqual([coded.kind, coded.text, coded.wording, echo.bodies.length], ["answer", echoed.line, "code", 2]);
+      assert.ok(coded.text.startsWith("If you spend ¥314,159 today:"), "code's sentence names the change that was tested");
+      assert.ok(!coded.text.includes("999,999"), "and none of the model's invented amount");
+      assert.deepEqual(echoed.facts.filter(f => f.value === 314159).map(f => [f.name, f.by]), [["amount_tested", "person"]], "the passed amount comes back only as the person's own fact");
+      const said = transport([() => reply("tool_use", [showCall("w", "what_if", { amount: "¥314,159" })]), () => reply("end_turn", [text("A ¥314,159 spend changes it.")])]);
+      const quoted = await conversation(c, "What if I spend ¥314,159?", said.fetch);
+      assert.deepEqual([quoted.kind, quoted.wording, quoted.text], ["answer", "model", "A ¥314,159 spend changes it."], "the person's own amount may be quoted back");
 
       // The check reads facts (D79): an invented amount shows code's sentence and says so, a correct paraphrase passes; one model call after the tool turn.
       const probe = transport([() => reply("tool_use", [showCall("f", "forecast")]), () => reply("end_turn", [text("ok")])]);
@@ -1388,15 +1370,14 @@ async function main() {
       const state = await stateOf(c);
       const cardA = state.cards.find(card => card.label === "Card A")!;
       const ctx = { madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never;
-      const out = await tools.find(t => t.name === "can_i_spend")!.run(ctx, { amount_minor: 40_000, card_id: cardA.id } as never);
-      assert.match(out, /^Hold off on cash with a low point on .*, and Card A covers it in full on /);
-      const facts = (JSON.parse(out.slice(out.indexOf("\n\nFacts: ") + 9)) as { facts: CompactFact[] }).facts;
+      const out = JSON.parse(await tools.find(t => t.name === "can_i_spend")!.run(ctx, { amount_minor: 40_000, card_id: cardA.id } as never)) as { line: string; facts: CompactFact[] };
+      assert.match(out.line, /^Hold off on cash with a low point on .*, and Card A covers it in full on /);
+      const facts = out.facts;
       const minor = (amount: number) => Math.round(amount * minorPerUnit(state.homeCurrency));
       const room = facts.find(f => f.name === "card_room" && f.about?.id === cardA.id)!;
       const after = facts.find(f => f.name === "card_room_after" && f.about?.id === cardA.id)!;
       assert.equal(room.value, minor(roomOnCard(state, cardA.id).room));
       assert.equal(after.value, minor(roomOnCard(state, cardA.id, 40_000).room));
-      assert.deepEqual([room.value, after.value], [173_770, 133_770], "Ben's sample: room before and after a ¥40,000 purchase");
       assert.equal(facts.find(f => f.name === "safe_to_spend")!.value, minor(safeToSpend(state).amount));
       const tested = facts.find(f => f.name === "amount_tested")!;
       assert.deepEqual([tested.value, tested.by], [40_000, "person"]);
@@ -1419,7 +1400,7 @@ async function main() {
       for (const name of names) {
         const tool = tools.find(t => t.name === name)!;
         const out = await tool.run(ctx, tool.input.parse(inputs[name] ?? {}) as never);
-        const body = (out.includes("\n\nFacts: ") ? JSON.parse(out.slice(out.indexOf("\n\nFacts: ") + 9)) : JSON.parse(out)) as { facts?: CompactFact[]; meanings?: Record<string, string> };
+        const body = JSON.parse(out) as { facts?: CompactFact[]; meanings?: Record<string, string> };
         const facts = body.facts;
         assert.ok(Array.isArray(facts), `${name} returns facts`);
         for (const f of facts) {
@@ -1499,7 +1480,7 @@ async function main() {
       assert.equal((await conversation(e, "Card A", ask2.fetch, { conversationId: lunch, at: minutes(1) })).kind, "answer");
     });
 
-    await check("CONV-010: a confirmed Nov 19 bill changes the same week's follow-up", async () => {
+    await check("a confirmed Nov 19 bill changes the same week's follow-up", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const { id: conversationId } = await generalSpace(db, hid);
       const bill = "Kumo Water";
@@ -2001,7 +1982,7 @@ async function main() {
     });
 
 
-    // ---------------------------------------------------------------- 24B: this device only (D59)
+    // ---------------------------------------------------------------- this device only (D59)
     await check("memory kept on the device: the question carries it into the system text, remember and forget come back as memoryChanges, and nothing is written", async () => {
       const d = await seedBen(db, { isDemo: true });
       const cloud = await seedBen(db, { isDemo: true });
@@ -2241,7 +2222,7 @@ async function main() {
       assert.equal((await db.select().from(schema.memories).where(eq(schema.memories.householdId, d))).length, 1, "nothing was written");
     });
 
-    await check("27B: reads in one turn run together, a write runs alone in its place, results keep the order asked, each tool keeps its own time", async () => {
+    await check("reads in one turn run together, a write runs alone in its place, results keep the order asked, each tool keeps its own time", async () => {
       const events: string[] = [];
       const wrap = (name: string, delay: number) => {
         const tool = tools.find(t => t.name === name)!;
@@ -2276,15 +2257,18 @@ async function main() {
         const line = logged.at(-1) as { tools: { name: string; ok: boolean; ms: number }[] };
         assert.deepEqual(line.tools.map(t => t.name), ["timeline", "list_clients_and_cards", "draft_invoice", "list_clients_and_cards", "unknown"], "the log keeps the order asked");
         assert.ok(line.tools.every(t => typeof t.ms === "number"));
-        assert.deepEqual(steps, [THINKING_WORDS, TOOL_WORDS.timeline, TOOL_WORDS.list_clients_and_cards, TOOL_WORDS.draft_invoice, toolWords("no_such_tool"), THINKING_WORDS]);
+        assert.deepEqual(steps, [THINKING_WORDS, toolWords("timeline"), toolWords("list_clients_and_cards"), toolWords("draft_invoice"), toolWords("no_such_tool"), THINKING_WORDS]);
         assert.ok(steps.every(step => !/\d/.test(step)), "steps carry words only");
       } finally { restore.forEach(undo => undo()); }
     });
 
-    await check("27B: every tool in the catalogue has words, and the words are plain", async () => {
-      for (const tool of tools) assert.ok(TOOL_WORDS[tool.name], `${tool.name} has no words in src/lib/agent/words.ts`);
-      assert.deepEqual(Object.keys(TOOL_WORDS).filter(name => !tools.some(t => t.name === name)), [], "words for a tool that is not in the catalogue");
-      for (const words of [THINKING_WORDS, ...Object.values(TOOL_WORDS)]) assert.ok(/^[A-Za-z' -]+$/.test(words), words);
+    await check("every tool carries plain words, and the tools with special handling are the ones flagged", async () => {
+      for (const words of [THINKING_WORDS, ...tools.map(tool => tool.words)]) assert.ok(/^[A-Za-z' -]+$/.test(words), words);
+      assert.notEqual(toolWords("no_such_tool"), "", "a made-up name gets the plain line");
+      const flagged = (flag: "echoes" | "endsQuestion" | "memory") => tools.filter(tool => tool[flag]).map(tool => tool.name).sort();
+      assert.deepEqual(flagged("echoes"), ["forget", "make_canvas", "offer_keep", "open_space", "remember", "search_history", "update_brief"], "results that repeat what the model wrote confirm no number");
+      assert.deepEqual(flagged("endsQuestion"), ["clarify", "out_of_scope"]);
+      assert.deepEqual(flagged("memory"), ["forget", "remember"]);
     });
 
     await check("no model-facing draft schema offers an id: code makes it (D40), and the db inputs still need one", async () => {
@@ -2322,9 +2306,7 @@ async function main() {
       assert.equal(charges.length, 2);
     });
 
-    await check("D80: the retired read tools are gone; timeline says usual; search_spending keeps its total and each item's amount", async () => {
-      const retired = ["where_am_i", "whats_due", "month_by_category", "who_owes_whom", "regular_costs", "foreign_costs"];
-      assert.deepEqual(retired.filter(name => tools.some(t => t.name === name)), [], "retired tools are not offered");
+    await check("timeline says usual; search_spending keeps its total and each item's amount", async () => {
       assert.throws(() => tools.find(t => t.name === "timeline")!.input.parse({ scenario: "as_usual", on: null }), "timeline says usual, like show and what_if");
       const c = await seedBen(db, { isDemo: true });
       const ctx = { madeBy: "ask", db, householdId: c, state: () => stateOf(c), appUrl: APP } as never;

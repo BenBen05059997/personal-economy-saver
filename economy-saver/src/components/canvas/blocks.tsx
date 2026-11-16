@@ -5,7 +5,7 @@ import { useState } from "react";
 import { hrefFor } from "@/lib/links";
 import type { ActionData, GoalsProgressData, LetterData, NoteData, NumberData, ProgressData, SentenceData, TableData, TimelineData } from "@/lib/canvas/resolve";
 
-// One component per block type that shows resolved data. None does any arithmetic on money beyond drawing a bar's length.
+// One component per block type that shows resolved data. None does any arithmetic on money; the progress bar turns its value and target into a percent only to draw its length.
 
 export function SentenceBlock({ data }: { data: SentenceData }) {
   const lead = data.leadParts.map((part, index) => (typeof part === "string" ? part : <Link key={index} prefetch={false} href={hrefFor({ type: "client", id: part.id })}>{part.name}</Link>));

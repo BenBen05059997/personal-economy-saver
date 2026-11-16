@@ -1,6 +1,7 @@
 import { MonthList } from "@/components/spending/MonthSplit";
 import { homeDateLabel } from "@/components/ui/dates";
 import { PanelHint } from "@/components/ui/PanelHint";
+import { NOBODY_OWES } from "@/components/ui/words";
 import { Sentence } from "@/components/home/Sentence";
 import { RankedBars } from "@/components/views/forms/RankedBars";
 import { ViewPanel, type PanelQuestion } from "@/components/views/ViewPanel";
@@ -26,10 +27,10 @@ export function FamilyView({ name, context }: { name: string; context: ViewConte
   const people = state.split.members.map(({ id, name }) => ({ id, name }));
   const month = monthByCategory(context.spending!, state.today);
   const look = (by: "category" | "person") => resolveView("month_by_category", { by }, context) as ViewResult<"ranked_bars">;
-  const headings = { category: <>Where this month goes <small className="spending-month-name">· {month.name}</small></>, person: "Who this month's spending belongs to" };
+  const personHeading = "Who this month's spending belongs to";
   const questions: PanelQuestion[] = (together ? LOOKS : LOOKS.slice(0, 1)).map(([by, label]) => {
     const result = look(by);
-    return { key: by, label, result, heading: headings[by], figure: <RankedBars result={result} />, ...(by === "category" ? { tableSlot: <MonthList view={month} people={people} /> } : {}) };
+    return { key: by, label, result, heading: by === "category" ? <>{result.title} <small className="spending-month-name">· {month.name}</small></> : personHeading, figure: <RankedBars result={result} />, ...(by === "category" ? { tableSlot: <MonthList view={month} people={people} /> } : {}) };
   });
   const owes = resolveView("who_owes_whom", {}, context) as ViewResult<"ranked_bars">;
   const bills = resolveView("bills_calendar", { whose: "shared" }, context) as ViewResult<"calendar">;
@@ -41,11 +42,11 @@ export function FamilyView({ name, context }: { name: string; context: ViewConte
     <div className="home-panels">
       <div className="home-column">
         {questions[0].result.empty
-          ? <section id="family-month" className="home-panel"><h2>{headings.category}</h2><PanelHint className="home-empty">{questions[0].result.empty.words}</PanelHint></section>
+          ? <section id="family-month" className="home-panel"><h2>{questions[0].heading}</h2><PanelHint className="home-empty">{questions[0].result.empty.words}</PanelHint></section>
           : <ViewPanel id="family-month" questions={questions} readOnly switchLabel="Look at it by" />}
         {together && (owes.empty
-          ? <section id="shared-costs" className="home-panel"><h2>{owes.title}</h2><PanelHint className="home-empty">Nobody owes anyone anything.</PanelHint></section>
-          : <ViewPanel id="family-owes" questions={[{ key: "owes", label: "Who owes whom", result: owes, figure: <RankedBars result={owes} /> }]} readOnly />)}
+          ? <section id="shared-costs" className="home-panel"><h2>{owes.title}</h2><PanelHint className="home-empty">{NOBODY_OWES}</PanelHint></section>
+          : <ViewPanel id="family-owes" questions={[{ key: "owes", label: owes.title, result: owes, figure: <RankedBars result={owes} /> }]} readOnly />)}
       </div>
       <div className="home-column">
         <section id="shared-bills" className="home-panel">

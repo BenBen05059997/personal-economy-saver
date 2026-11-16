@@ -1,4 +1,4 @@
-// Voice fill (28B): the model reads, the code checks (D61). Pure. Nothing here invents a value: a proposal is kept as it is, or dropped.
+// Voice fill: the model reads, the code checks (D61). Pure. Nothing here invents a value: a proposal is kept as it is, or dropped.
 import { isCalendarDay } from "@/lib/calendar-day";
 import { numbersSaid } from "@/lib/ai/number-check";
 import { latestDate } from "@/lib/money/horizon";

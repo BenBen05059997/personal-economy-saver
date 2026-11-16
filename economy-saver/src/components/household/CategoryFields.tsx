@@ -7,6 +7,7 @@ import { guessCategory } from "@/lib/money/categorise";
 import { guessedOwn, NEW_OWN, type OwnChoices } from "@/lib/reader/own-choices";
 import { OWN_NAME_MAX } from "@/lib/money/own-category";
 import { LABELS } from "./labels";
+import { percentText } from "@/lib/money/format";
 import "./add-entry.css";
 
 type Share = "personal" | "business" | "mixed";
@@ -67,7 +68,7 @@ export function CategoryFields({ name, own, defaultCategory = null, defaultBp = 
         </label>)}
       </div>
       {share === "mixed" && <label key={bp} className="ui-field">{LABELS.workPercent}<PercentInput name="businessPercent" maxLength={6} required placeholder="e.g. 30"
-        defaultValue={bp > 0 && bp < 10_000 ? String(bp / 100) : ""} /></label>}
+        defaultValue={bp > 0 && bp < 10_000 ? percentText(bp) : ""} /></label>}
     </fieldset>
   </>;
 }

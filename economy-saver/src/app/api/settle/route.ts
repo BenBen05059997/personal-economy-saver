@@ -1,7 +1,8 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { settleUp } from "@/db/settle";
-import { failure, householdForm, limited, redirectTo, returnPath } from "@/lib/door";
+import { failure, householdForm, limited, returnPath } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 
 /** Mark settled (D45): records what is owed now as paid, from the stored rows; the browser sends no amounts. */
 export async function POST(request: Request) {

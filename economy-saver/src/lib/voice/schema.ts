@@ -1,4 +1,4 @@
-// Voice fill (28B): the one schema every form shares. A form is described by its own fields at the moment of the tap
+// Voice fill: the one schema every form shares. A form is described by its own fields at the moment of the tap
 // (the browser reads them), so no form is registered anywhere. The model only proposes; check.ts decides what is kept.
 import { z } from "zod";
 

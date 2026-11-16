@@ -3,14 +3,16 @@ import { InputError } from "@/db/input-error";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { issueMcpToken, revokeMcpToken, tokenInput } from "@/db/mcp-tokens";
-import { limited, NO_STORE, text } from "@/lib/door";
+import { limited, text } from "@/lib/door";
+import { NO_STORE } from "@/lib/form-fetch";
 import { ownerRequest } from "@/lib/session";
+import { Uuid } from "@/lib/stable-id";
 
 export async function POST(request: Request) {
   const hid = await ownerRequest(request);
   if (hid instanceof Response) return hid;
   const body = await request.json().catch(() => null);
-  const revoke = z.object({ revoke: z.string().uuid() }).safeParse(body);
+  const revoke = z.object({ revoke: Uuid }).safeParse(body);
   if (revoke.success) {
     return await withHousehold(db(), hid, tx => revokeMcpToken(tx, hid, revoke.data.revoke))
       ? new Response(null, { status: 204 }) : text("Token not found", 404);

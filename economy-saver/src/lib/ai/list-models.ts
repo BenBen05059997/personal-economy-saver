@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { checkBaseUrl, localAllowed } from "./endpoint";
+import { checkBaseUrl, localCallsAllowed } from "./endpoint";
 import { providerById } from "./providers";
 import { providerFailureKind } from "./provider-failure";
 import { TESTED } from "./tested";
@@ -30,9 +30,7 @@ export function markListedModels(provider: string, models: ListedModel[], tested
 export async function listModels(connection: ModelListConnection, opts: { fetch?: typeof globalThis.fetch; appUrl?: URL } = {}): Promise<ListedModel[]> {
   const provider = providerById(connection.provider);
   if (!provider) throw new ModelError("Choose a provider.");
-  const raw = process.env.APP_URL?.trim();
-  const appUrl = opts.appUrl ?? (raw ? new URL(raw) : undefined);
-  const base = checkBaseUrl(provider.baseUrl ?? connection.baseUrl, { allowLocal: appUrl ? localAllowed(appUrl) : false });
+  const base = checkBaseUrl(provider.baseUrl ?? connection.baseUrl, { allowLocal: localCallsAllowed(opts.appUrl) });
   const anthropic = provider.protocol === "anthropic";
   const endpoint = new URL(base + (anthropic ? "/v1/models" : "/models"));
   const headers = new Headers({ Accept: "application/json" });

@@ -1,7 +1,7 @@
 import type { AskReply } from "@/db/ask";
 
 /** What /api/ask streams after its checks: step lines, then one `{ reply }` or `{ error }` line (newline-delimited JSON). */
-export type AskLine = { step: string } | { reply: AskReply; left: number | null } | { error: string; left: number | null };
+type AskLine = { step: string } | { reply: AskReply; left: number | null } | { error: string; left: number | null };
 
 /** Reads the stream line by line; `onStep` hears each step's words. Returns the final line, or null when the stream ended without one. */
 export async function readAskStream(response: Response, onStep: (step: string) => void): Promise<{ reply: AskReply; left: number | null } | { error: string; left: number | null } | null> {

@@ -1,3 +1,8 @@
+import { z } from "zod";
+
+/** A UUID in the text form every id of a household takes (zod's own check: any hex digits in the 8-4-4-4-12 shape). */
+export const Uuid = z.string().uuid();
+
 // A UUID that code works out from what it is made of, so the same thing made twice is the same row. The one function behind a finding's id
 // (db/suggestions.ts), a draft's id (agent/tools.ts) and a document's job id (db/reader-job.ts): the same parts give the same id; any other part gives another.
 export async function stableIdOfBytes(bytes: BufferSource): Promise<string> {

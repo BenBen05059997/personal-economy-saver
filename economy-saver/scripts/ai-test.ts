@@ -23,7 +23,8 @@ import { CONNECTION_BILL } from "@/lib/ai/connection-bill";
 import { isTested, TESTED } from "@/lib/ai/tested";
 import { fakeModel, type FakeMode } from "./ai-fake";
 import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
-import { unconfirmedAmounts, unconfirmedNumbers } from "@/lib/ai/number-check";
+import type { Fact } from "@/lib/money/facts";
+import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { PROVIDERS, providerFromKey, tokenParamFor } from "@/lib/ai/providers";
 import { modelFailureWords } from "@/lib/ai/provider-failure";
 import { ModelError, type Connection, type ModelRequest } from "@/lib/ai/types";
@@ -119,86 +120,49 @@ async function main() {
     assert.equal(localAllowed(new URL("https://app.example")), false);
   });
 
-  await check("unconfirmedAmounts: amounts in the question or a tool result pass; an invented one is named", () => {
-    assert.deepEqual(unconfirmedAmounts("You are fine.", []), [], "no amount, nothing to confirm");
-    assert.deepEqual(unconfirmedAmounts("¥18,780 short.", ["short by 18780"]), []);
-    assert.deepEqual(unconfirmedAmounts("¥18,780 short.", ["short by 18,780"]), []);
-    assert.deepEqual(unconfirmedAmounts("About 18,780円.", ['{"amountMinor":18780}']), []);
-    assert.deepEqual(unconfirmedAmounts("$1,200 in rent.", ['{"amountMinor":120000,"currency":"USD"}']), [], "USD cents confirm dollars");
-    assert.deepEqual(unconfirmedAmounts("$1,200.50 due.", ["120050"]), []);
-    assert.deepEqual(unconfirmedAmounts("¥4,000 is fine.", ["Can I spend ¥4,000?"]), [], "the question counts");
-    assert.deepEqual(unconfirmedAmounts("¥123,457 left.", ["short by 18,780"]), ["¥123,457"]);
-    assert.deepEqual(unconfirmedAmounts("¥1 and ¥2 and ¥1.", ["1"]), ["¥2"], "each invented amount once");
-    assert.deepEqual(unconfirmedAmounts("¥0 left.", []), [], "zero is never invented");
-    assert.deepEqual(unconfirmedAmounts("USD 50 and 700 yen and 9 dollars.", ["50"]), ["700 yen", "9 dollars"]);
-    assert.deepEqual(unconfirmedAmounts("It is 5 days late, due on the 27th, 3 invoices.", []), [], "numbers without a currency mark are not amounts");
-    assert.deepEqual(unconfirmedAmounts("¥18,780 and ¥780.", ["total 18,780"]), ["¥780"], "a part of a grouped number is not a number");
-    assert.deepEqual(unconfirmedAmounts("¥4,000", ["[1,2,4000]"]), ["¥4,000"], "bare numbers in a JSON array with no money key are not amounts");
-    assert.deepEqual(unconfirmedAmounts("¥4,000", ["items 1, 2, 4000"]), [], "plain text: every number counts");
-    assert.deepEqual(unconfirmedAmounts("¥4,000", ['{"valuesMinor":[1,2,4000]}']), [], "numbers inside a JSON array under a money key are read");
-    assert.deepEqual(unconfirmedAmounts("¥50,000 left.", ["short by 18,780"]), ["¥50,000"], "a made-up amount is still refused");
-    // A tool result confirms only amounts: dates, ids, day counts, percentages, basis points and times no longer do
-    const tool = JSON.stringify({ date: "2026-11-27", due: "11/27", label: "Nov 27", id: "3f2a9c1e-4b6d-4e8a-9c3d-123456789abc", lateDays: 14, note: "in 14 days at 9:30", rate: 15, businessBp: 4500, lowIndex: 30, count: 3000, amountMinor: 18780, currency: "JPY" });
-    for (const invented of ["¥27", "¥2,026", "¥11", "¥14", "¥15", "¥4,500", "¥30", "¥3,000", "¥9", "¥123", "¥3,456,789"]) {
-      assert.deepEqual(unconfirmedAmounts(`${invented} short.`, [tool]), [invented], `${invented} is not confirmed by a date, id, day count, percentage or basis point`);
-    }
-    assert.deepEqual(unconfirmedAmounts("¥18,780 short.", [tool]), [], "the money field still confirms");
-    assert.deepEqual(unconfirmedAmounts("$18.52 due.", ['{"amountMinor":1852,"currency":"USD","date":"2026-11-27"}']), [], "USD cents confirm dollars");
-    for (const key of ["lowMinor", "safeToSpendMinor", "costMinor", "billedMinor", "balanceAfterMinor", "gapMinor", "minor", "amount", "total", "cash", "low", "balance", "limit", "original", "cost", "fee", "gross", "landed", "billed", "safeToSpend"]) {
-      assert.deepEqual(unconfirmedAmounts("¥18,780.", [JSON.stringify({ [key]: 18780 })]), [], `${key} is a money field`);
-    }
-    assert.deepEqual(unconfirmedAmounts("¥18,780.", [JSON.stringify({ lowPoint: { date: "2026-11-27", amountMinor: 18780 } })]), [], "a nested money field");
-    assert.deepEqual(unconfirmedAmounts("¥18,780.", [JSON.stringify({ amount: "18,780" })]), [], "a money field written as a string");
-    assert.deepEqual(unconfirmedAmounts("¥18,780 short.", [JSON.stringify({ lowLabel: "¥18,780 short on Nov 27" })]), [], "a currency-marked amount inside a text field");
-    assert.deepEqual(unconfirmedAmounts("¥27 short.", [JSON.stringify({ lowLabel: "¥18,780 short on Nov 27" })]), ["¥27"], "a day in that text is not an amount");
-    assert.deepEqual(unconfirmedAmounts("¥27.", ["Pay on 2026-11-27"]), [], "plain text from the person keeps counting every number");
-    // 万, k, million and full-width forms are read to one value and compared with the sources read the same way
+  await check("unconfirmedNumbers: every way an amount is written is read to one value and confirmed only by that exact money fact", () => {
+    const money = (value: number, currency: "JPY" | "USD" = "JPY") => ({ unit: "money" as const, value, currency, by: "engine" as const });
+    const un = (text: string, ...facts: ReturnType<typeof money>[]) => unconfirmedNumbers(text, facts);
+    // Scales, words and marks: each written form needs a fact, and the fact of that value confirms it.
     for (const written of ["1万円", "1.5万円", "12万円", "12万 円", "¥1.2万", "18k yen", "$1.2k", "¥18K", "1.2 million yen", "$1 million", "¥1.2M"]) {
-      assert.deepEqual(unconfirmedAmounts(`About ${written}.`, []), [written], `${written} is an amount that needs confirming`);
+      assert.deepEqual(un(`About ${written}.`), [written], `${written} is an amount that needs confirming`);
     }
-    assert.deepEqual(unconfirmedAmounts("1万円", ["balance 10000"]), []);
-    assert.deepEqual(unconfirmedAmounts("1.5万円", ["15,000"]), []);
-    assert.deepEqual(unconfirmedAmounts("¥1.2万", ["12000"]), []);
-    assert.deepEqual(unconfirmedAmounts("18k yen", ["18,000"]), []);
-    assert.deepEqual(unconfirmedAmounts("¥18K", ["18000"]), []);
-    assert.deepEqual(unconfirmedAmounts("$1.2k", ['{"amountMinor":120000,"currency":"USD"}']), [], "USD cents confirm $1.2k");
-    assert.deepEqual(unconfirmedAmounts("1.2 million yen", ["1,200,000"]), []);
-    assert.deepEqual(unconfirmedAmounts("$1 million", ["1000000"]), []);
-    assert.deepEqual(unconfirmedAmounts("¥1.2M", ["1200000"]), []);
-    assert.deepEqual(unconfirmedAmounts("１８，７８０円 short", ["short by 18,780"]), [], "full-width digits");
-    assert.deepEqual(unconfirmedAmounts("￥18,780", ["18780"]), [], "full-width yen mark");
-    assert.deepEqual(unconfirmedAmounts("1.878万円", ["short by ¥18,780"]), [], "a scaled answer is confirmed by a plain source");
-    assert.deepEqual(unconfirmedAmounts("18,780円", ["short by 1.878万円"]), [], "a plain answer is confirmed by a scaled source");
-    assert.deepEqual(unconfirmedAmounts("２万円", ["short by 18,780"]), ["2万円"], "a full-width invented amount is refused");
-    assert.deepEqual(unconfirmedAmounts("¥3 months of rent", ["3"]), [], "m is not a scale inside a word");
-    // spellings that used to slip through, and one that was wrongly refused
+    for (const [written, fact] of [
+      ["1万円", money(10_000)], ["1.5万円", money(15_000)], ["¥1.2万", money(12_000)], ["18k yen", money(18_000)], ["¥18K", money(18_000)], ["1.878万円", money(18_780)],
+      ["$1.2k", money(120_000, "USD")], ["1.2 million yen", money(1_200_000)], ["$1 million", money(100_000_000, "USD")], ["¥1.2M", money(1_200_000)],
+      ["１８，７８０円 short", money(18_780)], ["￥18,780", money(18_780)], ["¥3 months of rent", money(3)],
+    ] as const) assert.deepEqual(un(written, fact), [], `${written} is confirmed`);
+    assert.deepEqual(un("２万円", money(18_780)), ["2万円"], "a full-width invented amount is refused");
+    // Signs, currency words and spacing.
     for (const written of ["¥-50,000", "$-1,200", "¥−50,000", "1,850 US dollars", "1,200ドル", "18,780 Japanese yen", "¥  18,780", "$ 1,200"]) {
-      assert.equal(unconfirmedAmounts(`About ${written}.`, []).length, 1, `${written} is an amount that needs confirming`);
+      assert.equal(un(`About ${written}.`).length, 1, `${written} is an amount that needs confirming`);
     }
-    assert.deepEqual(unconfirmedAmounts("¥-50,000", ["50000"]), [], "the sign is ignored");
-    assert.deepEqual(unconfirmedAmounts("¥−50,000", ["50,000"]), [], "a true minus sign too");
-    assert.deepEqual(unconfirmedAmounts("$-1,200", ['{"amountMinor":120000}']), []);
-    assert.deepEqual(unconfirmedAmounts("1,850 US dollars", ["185000"]), []);
-    assert.deepEqual(unconfirmedAmounts("1,200ドル", ["120000"]), []);
-    assert.deepEqual(unconfirmedAmounts("18,780 Japanese yen", ["18780"]), []);
-    assert.deepEqual(unconfirmedAmounts("¥  18,780", ["18780"]), []);
-    assert.deepEqual(unconfirmedAmounts("1万8780円", ["short by 18,780"]), [], "1万8780 is 18,780, not 8,780");
-    assert.deepEqual(unconfirmedAmounts("1万8780円", ["8780"]), ["1万8780円"], "8,780 does not confirm it");
-    assert.deepEqual(unconfirmedAmounts("¥1万8780", ["18780"]), []);
-    assert.deepEqual(unconfirmedAmounts("short by 18780", ["1万8780円"]), [], "a compound source is read too");
-    assert.deepEqual(unconfirmedAmounts("1万円", ["10000"]), [], "1万円 stays 10,000");
-    assert.deepEqual(unconfirmedAmounts("カードAの明細は5万8,000円です", ["58000"]), [], "5万8,000円 is 58,000, not 8,000");
-    assert.deepEqual(unconfirmedAmounts("5万8千円", ["58000"]), [], "5万8千円 is 58,000");
-    assert.deepEqual(unconfirmedAmounts("5万8千円", ["8000"]), ["5万8千円"], "8,000 does not confirm 5万8千円");
-    assert.deepEqual(unconfirmedAmounts("3千円", ["12000"]), ["3千円"], "an invented 千 amount is refused");
-    assert.deepEqual(unconfirmedAmounts("58,000円", ["58000"]), [], "58,000円 is confirmed by ¥58,000's 58000");
-    assert.deepEqual(unconfirmedAmounts("¥58,000円", ["58000"]), []);
-  });
-
-  await check("the unsigned statement amount is backed by a signed timeline outflow", () => {
-    const sources = [JSON.stringify({ events: [{ amountMinor: -58000, date: "2026-11-26" }] })];
-    assert.deepEqual(unconfirmedAmounts("The full statement is ¥58,000 due Nov 26.", sources), []);
-    assert.deepEqual(unconfirmedAmounts("The statement is ¥58,001.", sources), ["¥58,001"]);
+    assert.deepEqual(un("¥-50,000", money(50_000)), [], "the sign is ignored");
+    assert.deepEqual(un("¥−50,000", money(50_000)), [], "a true minus sign too");
+    assert.deepEqual(un("$-1,200", money(120_000, "USD")), []);
+    assert.deepEqual(un("1,850 US dollars", money(185_000, "USD")), []);
+    assert.deepEqual(un("1,200ドル", money(120_000, "USD")), []);
+    assert.deepEqual(un("18,780 Japanese yen", money(18_780)), []);
+    assert.deepEqual(un("¥  18,780", money(18_780)), []);
+    assert.deepEqual(un("$1,200.50 due.", money(120_050, "USD")), [], "USD cents confirm dollars");
+    // 万 followed by the rest of the number.
+    assert.deepEqual(un("1万8780円", money(18_780)), [], "1万8780 is 18,780, not 8,780");
+    assert.deepEqual(un("1万8780円", money(8_780)), ["1万8780円"], "8,780 does not confirm it");
+    assert.deepEqual(un("¥1万8780", money(18_780)), []);
+    assert.deepEqual(un("カードAの明細は5万8,000円です", money(58_000)), [], "5万8,000円 is 58,000, not 8,000");
+    assert.deepEqual(un("5万8千円", money(58_000)), []);
+    assert.deepEqual(un("5万8千円", money(8_000)), ["5万8千円"]);
+    assert.deepEqual(un("3千円", money(12_000)), ["3千円"], "an invented 千 amount is refused");
+    assert.deepEqual(un("58,000円", money(58_000)), []);
+    assert.deepEqual(un("¥58,000円", money(58_000)), []);
+    // Each invented amount once; zero is never invented; a part of a grouped number is not a number.
+    assert.deepEqual(un("¥1 and ¥2 and ¥1.", money(1)), ["¥2"], "each invented amount once");
+    assert.deepEqual(un("¥0 left."), [], "zero is never invented");
+    assert.deepEqual(un("USD 50 and 700 yen and 9 dollars.", money(5_000, "USD")), ["700 yen", "9 dollars"]);
+    assert.deepEqual(un("¥18,780 and ¥780.", money(18_780)), ["¥780"]);
+    // An unsigned statement amount is backed by a signed outflow.
+    assert.deepEqual(un("The full statement is ¥58,000.", money(-58_000)), []);
+    assert.deepEqual(un("The statement is ¥58,001.", money(-58_000)), ["¥58,001"]);
   });
 
   await check("providers: the listed addresses pass the address rule, and the cap field follows the provider", () => {
@@ -607,7 +571,7 @@ async function main() {
     try {
       const db = drizzle(pg, { schema });
       await migrate(db, { migrationsFolder: "./drizzle" });
-      assert.equal(CASE_NAMES.length, 20);
+      assert.equal(CASE_NAMES.length, 19);
       for (const connection of [anthropic, openai]) {
         const seen: string[] = [];
         const results = await runEval({ db, connection, fetch: scriptedModel().fetch, appUrl: APP, onResult: r => seen.push(r.name) });
@@ -731,16 +695,8 @@ async function main() {
     }
   });
 
-  await check("unconfirmedAmounts: a fact-shaped money object confirms, a person-given one does not", () => {
-    const fact = (value: number, by = "engine") => JSON.stringify({ name: "short", value, unit: "money", currency: "JPY", case: "late", period: null, by });
-    assert.deepEqual(unconfirmedAmounts("¥18,780 short.", [fact(18780)]), []);
-    assert.deepEqual(unconfirmedAmounts("¥18,780 short.", [fact(18780, "person")]), ["¥18,780"]);
-    assert.deepEqual(unconfirmedAmounts("You have $1,200.", [JSON.stringify({ unit: "money", value: 120000, currency: "USD", by: "engine" })]), []);
-    assert.deepEqual(unconfirmedAmounts("14 days.", [JSON.stringify({ unit: "days", value: 14 })]), []);
-  });
-
   await check("unconfirmedNumbers: each unit is confirmed only by a fact of the same unit", () => {
-    const f = (unit: string, value: number | string, extra: object = {}) => ({ unit, value, by: "engine", period: null, ...extra });
+    const f = (unit: Fact["unit"], value: number | string, extra: Partial<Fact> = {}): Fact => ({ name: "short", unit, value, by: "engine", period: null, case: "none", meaning: "", from: "test", ...extra });
     const facts = [f("money", 18780, { currency: "JPY" }), f("days", 14), f("percent", 12.2), f("date", "2026-11-27")];
     const today = "2026-11-14";
     const un = (text: string, fs = facts, person: string[] = []) => unconfirmedNumbers(text, fs, { today, person });
@@ -770,7 +726,7 @@ async function main() {
   });
 
   await check("unconfirmedNumbers: units, date forms and percentages", () => {
-    const f = (unit: string, value: number | string, extra: object = {}) => ({ unit, value, by: "engine", period: null, ...extra });
+    const f = (unit: Fact["unit"], value: number | string, extra: Partial<Fact> = {}): Fact => ({ name: "short", unit, value, by: "engine", period: null, case: "none", meaning: "", from: "test", ...extra });
     const today = "2026-11-14";
     const un = (text: string, fs: ReturnType<typeof f>[]) => unconfirmedNumbers(text, fs, { today });
     assert.deepEqual(un("14 days", [f("money", 14, { currency: "JPY" })]), ["14 days"], "a ¥14 fact does not confirm 14 days");
@@ -796,7 +752,7 @@ async function main() {
   });
 
   await check("unconfirmedNumbers: what the person said may be quoted back and confirms nothing else", () => {
-    const f = (unit: string, value: number | string, extra: object = {}) => ({ unit, value, by: "engine", period: null, ...extra });
+    const f = (unit: Fact["unit"], value: number | string, extra: Partial<Fact> = {}): Fact => ({ name: "short", unit, value, by: "engine", period: null, case: "none", meaning: "", from: "test", ...extra });
     const today = "2026-11-14";
     const engine = [f("money", 133770, { currency: "JPY" })];
     const person = ["Can I put ¥40,000 on Card A?", "remember I get paid 25% on the 5th, 20日後 maybe"];
@@ -814,14 +770,12 @@ async function main() {
     assert.deepEqual(un("You have ¥40,000 left."), [], "documented limit: a quoted value can be said as a claim");
   });
 
-  await check("unconfirmedNumbers: a household snapshot's text confirms nothing; unconfirmedAmounts still reads plain text", () => {
-    const snapshot = "Safe to spend ¥123,456. Short ¥18,780 on Nov 27 in 13 days, up 4.5%.";
-    assert.deepEqual(unconfirmedAmounts("¥123,456 safe.", [snapshot]), [], "the old check trusts any plain text source");
-    assert.deepEqual(unconfirmedNumbers("¥123,456 safe, 13 days, 4.5%, Nov 27", [], { today: "2026-11-14", person: [] }), ["Nov 27", "¥123,456", "4.5%", "13 days"], "the new check reads facts only");
+  await check("unconfirmedNumbers: a household snapshot's text confirms nothing", () => {
+    assert.deepEqual(unconfirmedNumbers("¥123,456 safe, 13 days, 4.5%, Nov 27", [], { today: "2026-11-14", person: [] }), ["Nov 27", "¥123,456", "4.5%", "13 days"]);
   });
 
   await check("unconfirmedNumbers: model-style paraphrases of the engine's lines", () => {
-    const f = (unit: string, value: number | string, extra: object = {}) => ({ unit, value, by: "engine", period: null, ...extra });
+    const f = (unit: Fact["unit"], value: number | string, extra: Partial<Fact> = {}): Fact => ({ name: "short", unit, value, by: "engine", period: null, case: "none", meaning: "", from: "test", ...extra });
     const facts = [f("money", 18780, { currency: "JPY", period: { on: "2026-11-27" } }), f("days", 13), f("percent", 12.2)];
     const un = (text: string) => unconfirmedNumbers(text, facts, { today: "2026-11-14" });
     assert.deepEqual(un("You're about ¥18,780 short on Friday, November 27."), []);
@@ -835,9 +789,9 @@ async function main() {
     assert.deepEqual(un("a market 5 days off"), ["5 days"], "a word starting with a month's letters is not a date");
   });
 
-  await check("the tested list is empty until the evaluation fills it, and isTested matches provider and model", () => {
-    assert.deepEqual(TESTED, []);
-    assert.equal(isTested("openai", "m-text"), false);
+  await check("isTested is true for every listed provider and model pair and false for any other; the providers offered", () => {
+    assert.ok(TESTED.every(({ provider, model }) => isTested(provider, model)));
+    assert.equal(isTested("no-such-provider", "no-such-model"), false);
     assert.deepEqual(PROVIDERS.map(p => p.id), ["anthropic", "openai", "gemini", "openrouter", "groq", "mistral", "custom"]);
   });
 

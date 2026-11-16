@@ -1,8 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
 import { accountMembership, deleteOwnedHousehold } from "@/db/account";
 import type { Db } from "@/db/household";
 import { leaveHousehold } from "@/db/invites";
-import { MissingAuthSetting } from "./supabase-auth";
+import { setting } from "./env";
+import { MissingAuthSetting, supabaseService } from "./supabase-auth";
 
 /** Removes one sign-in email at Supabase Auth. Passed into `deleteAccount` so tests use a fake. */
 export type RemoveLogin = (uid: string) => Promise<void>;
@@ -11,11 +11,11 @@ export class LoginRemovalError extends Error {}
 
 /** The service-role call that deletes a login. Reads its settings when built, so a missing one stops the request before any data is touched. */
 export function authLoginRemover(): RemoveLogin {
-  const url = process.env.SUPABASE_URL?.trim();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const url = setting("SUPABASE_URL");
+  const key = setting("SUPABASE_SERVICE_ROLE_KEY");
   if (!url) throw new MissingAuthSetting("SUPABASE_URL is not set");
   if (!key) throw new MissingAuthSetting("SUPABASE_SERVICE_ROLE_KEY is not set");
-  const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }).auth.admin;
+  const admin = supabaseService(url, key).auth.admin;
   return async uid => {
     const { error } = await admin.deleteUser(uid);
     // A login that is already gone is what a retry wants.

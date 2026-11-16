@@ -5,19 +5,18 @@ import { readerInbox } from "@/db/reader-inbox";
 import { setReadingWhose } from "@/db/readings";
 import { checksFor, pendingProposals, readingProposal, type Check, type Proposal } from "@/lib/money/checks";
 import { engineFact, forModel, type Fact } from "@/lib/money/facts";
-import { minorPerUnit } from "@/lib/money/format";
+import { toMinor } from "@/lib/money/format";
 import type { Tool, ToolContext } from "./tools";
 
 const checkOut = (checks: Check[]) => checks.map(({ kind, words, choices }) => ({ kind, words, choices: choices.map(choice => choice.label) }));
 
 export const checkTools: Tool[] = [
   {
-    name: "to_check",
+    name: "to_check", words: "Reading what needs checking", source: { label: "To check", href: "/to-check" },
     description: "Pending drafts, document readings and in-flight files. Quote the app’s checks and choices.",
     input: z.object({}), scope: "read",
     run: async (ctx: ToolContext) => {
       const [state, inbox] = await Promise.all([ctx.state(), readerInbox(ctx.db, ctx.householdId)]);
-      const unit = minorPerUnit(state.homeCurrency);
       const readingProposals = inbox.readings.map(readingProposal);
       const drafts = pendingProposals(state);
       const fromOf = new Map<string, string>([
@@ -32,8 +31,8 @@ export const checkTools: Tool[] = [
       const items = [
           ...inbox.readings.map((reading, index) => item(readingProposals[index], reading.from, reading.documentId)),
           ...drafts.map(p => item(p, fromOf.get(p.id) ?? "form")),
-          ...state.balanceUpdates.map(update => ({ source: "balance", id: update.id, what: "bank_balance", name: null, amountMinor: Math.round(update.amount * unit), currency: state.homeCurrency, date: null, repeat: null, from: update.madeBy ?? "form", checks: [] })),
-          ...state.pendingPots.map(pot => ({ source: "pot", id: pot.id, what: "pot", name: pot.name, amountMinor: Math.round(pot.saved * unit), currency: state.homeCurrency, date: null, repeat: null, from: pot.madeBy ?? "form", checks: [] })),
+          ...state.balanceUpdates.map(update => ({ source: "balance", id: update.id, what: "bank_balance", name: null, amountMinor: toMinor(update.amount, state.homeCurrency), currency: state.homeCurrency, date: null, repeat: null, from: update.madeBy ?? "form", checks: [] })),
+          ...state.pendingPots.map(pot => ({ source: "pot", id: pot.id, what: "pot", name: pot.name, amountMinor: toMinor(pot.saved, state.homeCurrency), currency: state.homeCurrency, date: null, repeat: null, from: pot.madeBy ?? "form", checks: [] })),
       ];
       // Every amount here waits for the person's yes: a fact the check accepts, and one that counts for nothing.
       const facts: Fact[] = items.flatMap(entry => entry.amountMinor === null || entry.currency === null ? [] : [engineFact("to_check_amount", entry.amountMinor, {
@@ -50,7 +49,7 @@ export const checkTools: Tool[] = [
     },
   },
   {
-    name: "set_whose",
+    name: "set_whose", words: "Marking whose it is",
     description: "Set whose a waiting To check item is, by name. shared: person pays (null: nobody); else person owns it. Charges take no person.",
     input: z.object({ reading: z.string().trim().min(1).max(160), shared: z.boolean(), person: z.string().trim().min(1).max(80).nullable().default(null) }),
     scope: "draft",

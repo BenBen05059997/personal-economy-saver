@@ -7,8 +7,10 @@ import type { Protocol } from "./types";
  */
 type Provider = { id: string; label: string; protocol: Protocol; baseUrl: string | null; getKeyUrl: string | null; keyPrefixes?: readonly string[]; tokenParam?: "max_tokens" | "max_completion_tokens" };
 
+export const ANTHROPIC_BASE_URL = "https://api.anthropic.com";
+
 export const PROVIDERS: readonly Provider[] = [
-  { id: "anthropic", label: "Anthropic", protocol: "anthropic", baseUrl: "https://api.anthropic.com", getKeyUrl: "https://platform.claude.com/settings/keys", keyPrefixes: ["sk-ant-"] },
+  { id: "anthropic", label: "Anthropic", protocol: "anthropic", baseUrl: ANTHROPIC_BASE_URL, getKeyUrl: "https://platform.claude.com/settings/keys", keyPrefixes: ["sk-ant-"] },
   { id: "openai", label: "OpenAI", protocol: "openai", baseUrl: "https://api.openai.com/v1", tokenParam: "max_completion_tokens", getKeyUrl: "https://platform.openai.com/api-keys", keyPrefixes: ["sk-proj-", "sk-svcacct-"] },
   { id: "gemini", label: "Google Gemini", protocol: "openai", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", getKeyUrl: "https://aistudio.google.com/apikey", keyPrefixes: ["AIza"] },
   { id: "openrouter", label: "OpenRouter", protocol: "openai", baseUrl: "https://openrouter.ai/api/v1", getKeyUrl: "https://openrouter.ai/settings/keys", keyPrefixes: ["sk-or-"] },

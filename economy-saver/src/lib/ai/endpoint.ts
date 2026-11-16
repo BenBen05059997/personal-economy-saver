@@ -12,6 +12,13 @@ export const localAllowed = (appUrl: URL) => {
   return LOCAL_NAMES.has(host) || host.endsWith(".localhost");
 };
 
+/** Whether a model on this machine may be called: the app's own address (the one given, else the APP_URL setting) is local. With neither, no. */
+export function localCallsAllowed(appUrl?: URL): boolean {
+  const raw = process.env.APP_URL?.trim();
+  const own = appUrl ?? (raw ? new URL(raw) : undefined);
+  return own ? localAllowed(own) : false;
+}
+
 function privateV4(a: number, b: number, c = 1): boolean {
   return (a === 192 && b === 0 && c <= 2) // 192.0.0.0/24 and 192.0.2.0/24
     || (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113) // documentation ranges

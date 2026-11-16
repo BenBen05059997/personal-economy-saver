@@ -1,9 +1,10 @@
 import { db } from "@/db/client";
 import { billEditInput, billInput, fillGapFromText, insertBill, updateBill } from "@/db/bills";
-import { badFields, categoryFieldsFromForm, failure, householdForm, redirectTo, returnPath, text } from "@/lib/door";
+import { badFields, categoryFieldsFromForm, failure, householdForm, returnPath, text } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 
 /**
- * Adds a bill (no `kind`, or `kind=add`), or edits one from Settings → Bills (`kind=edit`: name, amount, due date, category, business
+ * Adds a bill (no `kind`, or `kind=add`), or edits one from its page under Bills (`kind=edit`: name, amount, due date, category, business
  * share, whose, who pays and, for a repeating bill, `amountFrom`; `cancelBy`, empty to remove it). D54: `amountVaries=on` marks a monthly bill whose amount changes
  * every month (the edit form says it shows the box with `variesShown`, so an unticked box turns it off); `seriesBillId` ("" = none)
  * is the edit form's "Part of" select for a one-off, sent only when the form shows it. D55: `amountUnknown=on` and `dueUnknown=on` save a
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
     });
     if (!data.success) return badFields();
     await insertBill(db(), hid, data.data, "confirmed", { madeBy: "form" });
-    // Home names what was saved at the top of Coming up (D51): only the id travels in the address; the page looks it up.
+    // Home names what was saved at the top of Coming up: only the id travels in the address; the page looks it up.
     const back = returnPath(form.get("returnTo"));
     return redirectTo(back === "/" ? `/?added=${data.data.id}#coming-up` : back, request);
   } catch (error) {

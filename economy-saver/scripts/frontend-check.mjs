@@ -1,5 +1,6 @@
 // Opt-in HTTP checks against a running local app. Creates fictional Try-it data only.
-// node scripts/frontend-check.mjs --run http://127.0.0.1:3123
+// node scripts/frontend-check.mjs --run|--guards|--extra http://127.0.0.1:3123
+// --guards checks only that each door refuses a request with no session or from another origin.
 // --extra checks Home reload and reader pages, and saves/retries a fictional draft without sending.
 // Timings include the complete response body; redirects are measured separately.
 import { randomUUID } from "node:crypto";
@@ -222,6 +223,10 @@ if (args[0] === "--guards") {
     ["settle-request-cross-origin", "/api/settle/request", { method: "POST", session: "", form: { fromMemberId: "00000000-0000-4000-8000-000000000000" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["canvas-resolve-without-household", "/api/canvas/resolve", { method: "POST", session: "", json: { recipe: { version: 1, title: "Probe", blocks: [] } } }, 401],
     ["canvas-resolve-cross-origin", "/api/canvas/resolve", { method: "POST", session: "", json: { recipe: { version: 1, title: "Probe", blocks: [] } }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["voice-fill-without-household", "/api/voice-fill", { method: "POST", session: "", json: { text: "x", fields: [] } }, 401],
+    ["voice-fill-cross-origin", "/api/voice-fill", { method: "POST", session: "", json: { text: "x", fields: [] }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["rules-without-household", "/api/rules", { method: "POST", session: "", form: { kind: "set", ruleKind: "safe_below", enabled: "on" } }, 401],
+    ["rules-cross-origin", "/api/rules", { method: "POST", session: "", form: { kind: "set", ruleKind: "safe_below", enabled: "on" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["memory-without-household", "/api/memory", { method: "POST", session: "", form: { kind: "forget_all", returnTo: "/memory" } }, 401],
     ["memory-cross-origin", "/api/memory", { method: "POST", session: "", form: { kind: "forget_all", returnTo: "/memory" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["remove-without-household", "/api/remove", { method: "POST" }, 401],
@@ -908,9 +913,9 @@ await step("read", "confirm-single-event", async () => {
   const data = await events();
   expect(data.events.filter(event => event.kind === "bill_confirmed" && event.refId === bill).length === 1, "confirm-event-count");
 });
-// The Ask page (D60): without the owner's AI settings it shows the missing setting's name; with them, the box. Pins (D57): pin a canvas, Home draws it, unpin.
+// The Ask page (D60): without the owner's AI settings it says Ask isn’t set up; with them, the box. Pins (D57): pin a canvas, Home draws it, unpin.
 await step("page", "ask-page-opens-with-the-box-or-the-missing-setting", async () => {
-  const html = await page("/canvas", /Ask a question|Ask isn(’|&#x27;|')t available on this server yet \(AI_[A-Z_]+\)/);
+  const html = await page("/canvas", /Ask a question|Ask isn(’|&#x27;|')t set up on this server yet/);
   expect(/New conversation|Am I OK until the end of the month/.test(pageContent(html)) || /Ask isn/.test(pageContent(html)), "ask-page-content");
   expect(/This month|Safe to spend/.test(pageContent(html)), "ask-page-starters");
 });

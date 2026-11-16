@@ -4,7 +4,8 @@ import { requireDocumentBudget, requireReaderModel, storeDocument } from "@/db/r
 import { readDocumentInBackground } from "@/db/reader-background";
 import { readUpload } from "@/lib/reader/accept";
 import { ReaderError } from "@/lib/reader/settings";
-import { redirectTo, text } from "@/lib/door";
+import { text } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 import { householdRequest } from "@/lib/session";
 
 export async function POST(request: Request) {

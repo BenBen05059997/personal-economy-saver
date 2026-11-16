@@ -1,7 +1,8 @@
 // The one way an uploaded file is read from a request (D61): /api/upload and /api/ask/document both use it, so a file is checked the same way
 // wherever it comes from. Throws `ReaderError` with the words the person sees.
 import { matchesFileType, mediaTypes, uploadMime } from "./extract";
-import { limitedBody, MAX_DOCUMENT_BYTES, ReaderError } from "./settings";
+import { MAX_DOCUMENT_BYTES } from "@/lib/document-limit";
+import { limitedBody, ReaderError } from "./settings";
 
 export async function readUpload(request: Request): Promise<{ mime: (typeof mediaTypes)[number]; bytes: ArrayBuffer; form: FormData }> {
   const body = await limitedBody(request, MAX_DOCUMENT_BYTES + 8192);

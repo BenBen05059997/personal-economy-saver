@@ -8,14 +8,14 @@ const proposal = z.object({ name: z.string().trim().min(1).max(60) }).strict();
 
 export const spaceTools: Tool[] = [
   {
-    name: "list_spaces",
+    name: "list_spaces", words: "Looking at your spaces", source: { label: "Spaces", href: "/memory?tab=spaces" },
     scope: "read",
     input: z.object({}).strict(),
     description: "The household's task spaces by id, name and status.",
     run: async ctx => JSON.stringify((await listSpaces(ctx.db, ctx.householdId)).map(({ id, name, status }) => ({ id, name, status }))),
   },
   {
-    name: "open_space",
+    name: "open_space", words: "Thinking about a new space", echoes: true,
     scope: "ask",
     input: proposal,
     description: "Offer a new space for a distinct money task, with a short name.",

@@ -1,10 +1,10 @@
-import { db, MissingDatabaseUrl } from "@/db/client";
+import { db } from "@/db/client";
 import { openPaymentLink } from "@/db/payment-link";
-import { ClientIpError, clientIp, consumeIpRequest } from "@/db/rate-limit";
-import { formOf, text, tooMany } from "@/lib/door";
+import { formOf, ipLimited, text } from "@/lib/door";
+import { NO_STORE } from "@/lib/form-fetch";
 import { paypalRead } from "@/lib/paypal/client";
 import { createOrder } from "@/lib/paypal/send";
-import { sameOrigin } from "@/lib/session";
+import { SAME_ORIGIN_REQUIRED, sameOrigin } from "@/lib/session";
 
 /** Taps of Pay one client address may make in an hour, counted before anything is read or asked of PayPal. */
 const PAYS_PER_HOUR = 30;
@@ -15,18 +15,14 @@ function fromOurPage(request: Request): boolean {
 }
 
 const go = (location: string) => new Response(null, { status: 303, headers: {
-  Location: location, "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
+  Location: location, ...NO_STORE, "Referrer-Policy": "no-referrer",
 } });
 
 /** The client tapped Pay on a payment link: no household session, only the token. Sends them to PayPal to pay. */
 export async function POST(request: Request) {
-  if (!fromOurPage(request)) return text("Same-origin request required", 403);
-  try {
-    if (!await consumeIpRequest(db(), clientIp(request), "pay", PAYS_PER_HOUR, "hour")) return tooMany("Too many requests. Try again later.");
-  } catch (error) {
-    if (error instanceof ClientIpError || error instanceof MissingDatabaseUrl) return text(error.message, error instanceof ClientIpError ? error.status : 503);
-    throw error;
-  }
+  if (!fromOurPage(request)) return text(SAME_ORIGIN_REQUIRED, 403);
+  const busy = await ipLimited(request, "pay", PAYS_PER_HOUR, "hour", "Too many requests. Try again later.");
+  if (busy) return busy;
   const form = await formOf(request);
   if (form instanceof Response) return form;
   const token = form.get("token");

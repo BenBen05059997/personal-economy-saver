@@ -3,8 +3,10 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { itemsToMove, JournalMoveChanged, MOVABLE, moveToCloud, moveToDevice } from "@/db/place";
-import { limited, NO_STORE, text } from "@/lib/door";
+import { boundedText, limited, text, TOO_MANY_REQUESTS } from "@/lib/door";
+import { NO_STORE } from "@/lib/form-fetch";
 import { householdRequest } from "@/lib/session";
+import { Uuid } from "@/lib/stable-id";
 
 // Memory, canvases or conversations with a year of use stay well under this; a body over it is not a move.
 const MAX_BODY = 2 * 1024 * 1024;
@@ -13,7 +15,7 @@ const Body = z.discriminatedUnion("step", [
   /** To this device, step 1: the browser takes the items. Nothing changes here. */
   z.object({ step: z.literal("read"), what: What }).strict(),
   /** To this device, step 2: the browser has stored the items with these ids and confirms; the server deletes its copies and sets the place. */
-  z.object({ step: z.literal("to_device"), what: What, ids: z.array(z.string().uuid()), briefRevision: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict(),
+  z.object({ step: z.literal("to_device"), what: What, ids: z.array(Uuid), briefRevision: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict(),
   /** Back to the cloud: the browser posts the items; the server checks each against its schema, inserts them and sets the place. */
   z.object({ step: z.literal("to_cloud"), what: What, items: z.array(z.unknown()), briefs: z.array(z.unknown()).optional() }).strict(),
 ]);
@@ -22,14 +24,14 @@ const Body = z.discriminatedUnion("step", [
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  const raw = await request.text();
-  if (new TextEncoder().encode(raw).length > MAX_BODY) return text("That is more than can be moved in one go.", 413);
+  const raw = await boundedText(request, MAX_BODY);
+  if (raw === null) return text("That is more than can be moved in one go.", 413);
   let json: unknown = null;
   try { json = JSON.parse(raw); } catch { /* refused below */ }
   const body = Body.safeParse(json);
   if (!body.success) return text("Choose what to move and where.", 400);
   try {
-    const busy = await limited(hid, "move", 10, "Too many requests. Try again in a minute.");
+    const busy = await limited(hid, "move", 10, TOO_MANY_REQUESTS);
     if (busy) return busy;
     const by = { madeBy: "form" } as const;
     const data = body.data;

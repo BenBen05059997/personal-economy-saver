@@ -2,15 +2,17 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { changeStandingRule } from "@/db/rules";
-import { badFields, failure, formOf, limited, redirectTo, returnPath } from "@/lib/door";
+import { badFields, failure, formOf, limited, returnPath } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 import { RULE_KINDS } from "@/lib/money/suggestion-types";
 import { householdRequest } from "@/lib/session";
+import { Uuid } from "@/lib/stable-id";
 
 const fields = z.object({
   kind: z.literal("set"), ruleKind: z.enum(RULE_KINDS),
   enabled: z.literal("on").optional().transform(value => value === "on"),
   value: z.string().max(30).optional().transform(value => value ?? null),
-  spaceId: z.string().uuid().optional(),
+  spaceId: Uuid.optional(),
 });
 
 export async function POST(request: Request) {

@@ -1,7 +1,9 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
-import { NO_STORE, failure, limited } from "@/lib/door";
+import { exportFilename } from "@/lib/app-info";
+import { failure, limited } from "@/lib/door";
+import { NO_STORE } from "@/lib/form-fetch";
 import { householdRequest } from "@/lib/session";
 
 // Export my data (D44): the household's snapshot with its events, as a download. A POST form, so nothing is in a URL.
@@ -17,7 +19,7 @@ export async function POST(request: Request) {
       headers: {
         ...NO_STORE,
         "Content-Type": "application/json",
-        "Content-Disposition": `attachment; filename="personal-economy-saver-${snapshot.household.today}.json"`,
+        "Content-Disposition": `attachment; filename="${exportFilename(snapshot.household.today)}"`,
         "X-Content-Type-Options": "nosniff",
       },
     });

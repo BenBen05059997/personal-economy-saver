@@ -3,13 +3,14 @@ import { db } from "@/db/client";
 import { listModels, markListedModels } from "@/lib/ai/list-models";
 import { providerFailureOf, providerFailureWords } from "@/lib/ai/provider-failure";
 import { providerById } from "@/lib/ai/providers";
-import { boundedForm, formText, limited, NO_STORE, text } from "@/lib/door";
+import { boundedForm, formText, limited, text } from "@/lib/door";
+import { NO_STORE, noStore } from "@/lib/form-fetch";
 import { ownerRequest } from "@/lib/session";
 
 export async function POST(request: Request) {
   const hid = await ownerRequest(request);
   if (hid instanceof Response) {
-    hid.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
+    noStore(hid);
     return hid;
   }
   const connection = db();

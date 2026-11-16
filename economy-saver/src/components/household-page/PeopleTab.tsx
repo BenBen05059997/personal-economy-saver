@@ -18,6 +18,7 @@ import { loadViewContext } from "@/lib/views/load";
 import { whoOwesWhomView } from "@/lib/views/v/who-owes-whom";
 import type { ViewResult } from "@/lib/views/types";
 import { InvitePeople, type InviteRow } from "@/components/settings/InvitePeople";
+import { percentText } from "@/lib/money/format";
 
 type SettingsData = Awaited<ReturnType<typeof loadSettings>>;
 
@@ -36,7 +37,7 @@ async function WhoOwesWhom() {
   if (!hid) return null;
   const [{ state }, places] = await Promise.all([loadViewContext(db(), hid, []), withHousehold(db(), hid, tx => readPlaces(tx, hid), { isolationLevel: "repeatable read", accessMode: "read only" })]);
   const result = whoOwesWhomView({}, { state }) as ViewResult<"ranked_bars">;
-  return <ViewPanel id="who_owes_whom" questions={[{ key: "owes", label: "Who owes whom", result, figure: <RankedBars result={result} /> }]} device={places.canvases === "device" ? { householdId: hid } : undefined} />;
+  return <ViewPanel id="who_owes_whom" questions={[{ key: "owes", label: result.title, result, figure: <RankedBars result={result} /> }]} device={places.canvases === "device" ? { householdId: hid } : undefined} />;
 }
 
 /** Household → People: names and shares, add and remove, invitations, family links and who has access. */
@@ -56,7 +57,7 @@ export function PeopleTab({ data, familyLinks, canManage, access }: {
         {people.length > 1 && <p className="ui-hint">Each person’s share of the shared bills and charges. The shares must total 100%.</p>}
         <div key={people.map(person => `${person.id}:${person.name}:${person.shareBp}`).join("|")}>{people.map(person => <div key={person.id} className="settings-person">
           <label className="ui-field">{person.role === "owner" ? "Owner’s name" : "Member’s name"}<input name={`name:${person.id}`} defaultValue={person.name} maxLength={80} required /></label>
-          {people.length > 1 && <label className="ui-field">Share (%)<PercentInput name={`share:${person.id}`} defaultValue={String(person.shareBp / 100)} maxLength={6} required /></label>}
+          {people.length > 1 && <label className="ui-field">Share (%)<PercentInput name={`share:${person.id}`} defaultValue={percentText(person.shareBp)} maxLength={6} required /></label>}
         </div>)}</div>
         <button className="ui-button">Save names</button></ApiForm>
       {canManage && people.length > 1 && <div className="settings-remove-people"><p className="ui-hint">A person can be removed once they owe nobody and nobody owes them.</p>

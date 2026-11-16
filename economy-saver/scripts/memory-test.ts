@@ -172,7 +172,7 @@ async function main() {
       assert.equal((await db.select().from(schema.memories).where(eq(schema.memories.householdId, f))).length, 0);
     });
 
-    // ---- the agent's side (23B): tools, the secret rule, the system text block ----
+    // ---- the agent's side: tools, the secret rule, the system text block ----
     const tool = (name: string) => memoryTools.find(t => t.name === name)!;
     const askId = randomUUID();
     const ctxOf = (hid: string, madeBy: "ask" | "mcp" = "ask"): ToolContext => ({

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ApiForm } from "@/components/ui/ApiForm";
+import { CloseIcon } from "@/components/ui/icons";
 import type { AskView } from "@/db/ask-view";
 import type { Drawn } from "@/lib/agent/view";
 
@@ -37,7 +38,7 @@ export function SpaceDrawer({
     <div className="ask-drawer-head">
       <h2 className="ask-drawer-title">{space.name}</h2>
       <button type="button" className="ask-icon-button" aria-label="Close Space" onClick={onClose}>
-        <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        <CloseIcon />
       </button>
     </div>
     <div className="ask-drawer-body">

@@ -7,6 +7,7 @@ import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
 import { PercentInput } from "@/components/ui/CheckedInput";
 import { LABELS } from "@/components/household/labels";
 import { CATEGORIES, categoryLabel } from "@/lib/money/categories";
+import { percentText, plural } from "@/lib/money/format";
 import { OWN_NAME_MAX } from "@/lib/money/own-category";
 import type { OwnCategoryGroup } from "@/db/own-categories";
 
@@ -15,9 +16,9 @@ const choiceOf = (bp: number | null): Choice => bp === null ? "none" : bp === 0 
 /** "Work", "Personal", "30% work": a default share in words; null when there is none. */
 function shareWords(bp: number | null): string | null {
   const choice = choiceOf(bp);
-  return choice === "none" ? null : choice === "mixed" ? `${(bp! / 100).toString()}% work` : LABELS.work[choice];
+  return choice === "none" ? null : choice === "mixed" ? `${percentText(bp!)}% work` : LABELS.work[choice];
 }
-const items = (n: number) => `${n} ${n === 1 ? "item" : "items"}`;
+const items = (n: number) => plural(n, "item");
 
 /** The default business share of an own category: No default, Personal, Work or Part work (with its percentage). It only pre-fills a form; saved items keep their own share. */
 function DefaultShare({ bp }: { bp: number | null }) {
@@ -29,7 +30,7 @@ function DefaultShare({ bp }: { bp: number | null }) {
       <option value="business">{LABELS.work.business}</option>
       <option value="mixed">{LABELS.work.mixed}</option>
     </select></label>
-    {choice === "mixed" && <label className="ui-field">{LABELS.workPercent}<PercentInput name="businessPercent" maxLength={6} required placeholder="e.g. 30" defaultValue={bp !== null && bp > 0 && bp < 10_000 ? String(bp / 100) : ""} /></label>}
+    {choice === "mixed" && <label className="ui-field">{LABELS.workPercent}<PercentInput name="businessPercent" maxLength={6} required placeholder="e.g. 30" defaultValue={bp !== null && bp > 0 && bp < 10_000 ? percentText(bp) : ""} /></label>}
   </>;
 }
 

@@ -1,4 +1,4 @@
-import { fromMinor } from "@/lib/money/format";
+import { fromMinor, percentText } from "@/lib/money/format";
 import { AmountInput } from "@/components/ui/CheckedInput";
 
 export function Person({ people, selected, shared = false }: { people: { id: string; name: string }[]; selected: string | null; shared?: boolean }) {
@@ -16,7 +16,7 @@ export function CardFields({ data, card, returnTo }: { returnTo?: string; data: 
       <label className="ui-field">Card bill payment day<input name="dueDay" type="number" min="1" max="31" defaultValue={card?.dueDay} required /></label></div>
     <p className="ui-hint">Day of the month, 1 to 31.</p>
     <label className="ui-field">Credit limit ({data.household.currency}, optional)<AmountInput name="limit" currency={data.household.currency} defaultValue={card?.limitMinor == null ? "" : fromMinor(card.limitMinor, card.currency)} /></label>
-    <label className="ui-field">Foreign transaction fee, optional (%)<input name="foreignFee" inputMode="decimal" maxLength={5} placeholder="2.2" defaultValue={card?.foreignFeeBp == null ? "" : String(card.foreignFeeBp / 100)} pattern="(10(\.0{1,2})?|[0-9](\.[0-9]{1,2})?)" title="Enter a percentage from 0 to 10, like 2.2" /></label>
+    <label className="ui-field">Foreign transaction fee, optional (%)<input name="foreignFee" inputMode="decimal" maxLength={5} placeholder="2.2" defaultValue={card?.foreignFeeBp == null ? "" : percentText(card.foreignFeeBp)} pattern="(10(\.0{1,2})?|[0-9](\.[0-9]{1,2})?)" title="Enter a percentage from 0 to 10, like 2.2" /></label>
     <p className="ui-hint">From your card’s terms: the fee the issuer adds to purchases in another currency. The app uses it only to estimate what a foreign purchase cost.</p>
     <button className="ui-button">{card ? "Save card" : "Add card"}</button></>;
 }

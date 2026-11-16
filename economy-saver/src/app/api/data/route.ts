@@ -3,7 +3,9 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { DATA_KINDS, deleteConversation, deleteKind, deleteOne } from "@/db/data-kinds";
 import { isMovable, requireCloud } from "@/db/place";
-import { badFields, failure, householdForm, limited, redirectTo, returnPath, text } from "@/lib/door";
+import { badFields, failure, householdForm, limited, returnPath, text, TOO_MANY_REQUESTS } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
+import { Uuid } from "@/lib/stable-id";
 
 const What = z.enum(DATA_KINDS);
 
@@ -17,14 +19,14 @@ export async function POST(request: Request) {
   const { hid, form } = ctx;
   const kind = form.get("kind");
   const what = What.safeParse(form.get("what"));
-  const id = z.string().uuid().safeParse(form.get("id"));
+  const id = Uuid.safeParse(form.get("id"));
   if (kind !== "delete_kind" && kind !== "delete_one" && kind !== "delete_conversation") return badFields();
   if (kind === "delete_kind" && !what.success) return badFields();
   if (kind === "delete_one" && (!what.success || !id.success)) return badFields();
   if (kind === "delete_conversation" && !id.success) return badFields();
   const by = { madeBy: "form" } as const;
   try {
-    const busy = await limited(hid, "data", 10, "Too many requests. Try again in a minute.");
+    const busy = await limited(hid, "data", 10, TOO_MANY_REQUESTS);
     if (busy) return busy;
     return await withHousehold(db(), hid, async tx => {
       // A kind kept on the device is deleted in the browser; the server has none of it.

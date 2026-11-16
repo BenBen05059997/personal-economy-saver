@@ -1,3 +1,4 @@
+import { Uuid } from "@/lib/stable-id";
 import { refreshSuggestions } from "@/db/suggestions";
 import { and, eq, inArray, isNotNull, isNull, max, or, sql, type SQL } from "drizzle-orm";
 import { type Db, latestUsdRate, recordEvent, recordWebhookDelivery, usdRateMicro, withHousehold } from "@/db/household";
@@ -14,7 +15,7 @@ import { PayPalError, paypalRead } from "@/lib/paypal/client";
 import type { CaptureOrder } from "@/lib/paypal/contracts";
 import type { PayPalWebhookEvent } from "@/lib/paypal/webhook";
 
-/** What a delivery keeps of PayPal's event: the resource id and the time, the only fields this app reads back. Never the whole event (27E). */
+/** What a delivery keeps of PayPal's event: the resource id and the time, the only fields this app reads back. Never the whole event. */
 export const storedPayload = (event: PayPalWebhookEvent, resourceId: string | undefined) => ({ resourceId, createdAt: event.create_time });
 
 type Money = { currency_code?: string; value?: string };
@@ -51,8 +52,6 @@ function minorOf(amount: Money | undefined): number | null {
   return parseMinor(amount.value, "USD");
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** The ids that let a payment be found by hand from the log: PayPal's event, its type and the order. No amounts, no people. */
 const trace = (event: PayPalWebhookEvent, orderId: string | undefined) => `event ${event.id} ${event.event_type} order ${orderId ?? "none"}`;
 
@@ -86,7 +85,7 @@ async function invoiceForOrder(db: Db, event: PayPalWebhookEvent, orderId: strin
   const columns = { hid: invoices.householdId, id: invoices.id, amount: invoices.amountMinor, currency: invoices.currency, payee: invoices.paypalPayeeId };
   const [held] = await db.select(columns).from(invoices).where(eq(invoices.paypalOrderId, orderId));
   if (held) return { ...held, current: true };
-  if (!claim.customId || !UUID.test(claim.customId)) return undefined;
+  if (!claim.customId || !Uuid.safeParse(claim.customId).success) return undefined;
   const [named] = await db.select(columns).from(invoices).where(and(eq(invoices.id, claim.customId), isNotNull(invoices.payToken)));
   if (!named) return undefined;
   if (claim.minor === null || claim.minor !== named.amount || named.currency !== "USD" || !claim.payee || claim.payee !== named.payee) {

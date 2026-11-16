@@ -5,22 +5,19 @@ import { dueHouseholds, logDailyError, runDaily } from "@/db/daily";
 import { pruneIpBuckets } from "@/db/rate-limit";
 import { dropIdleDemoKeys, sweepDemoHouseholds } from "@/db/demo";
 import { sweepOrphanKeys } from "@/db/ai-key";
+import { bearerMatches } from "@/lib/door";
 import { CRON_HOUSEHOLD_ID } from "@/lib/cron";
+import { NO_STORE } from "@/lib/form-fetch";
 import { jobError } from "@/lib/job-error";
 
 function authorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false; // No secret configured: refuse everything.
-  const header = request.headers.get("authorization") ?? "";
-  const expected = `Bearer ${secret}`;
-  if (header.length !== expected.length) return false;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) diff |= header.charCodeAt(i) ^ expected.charCodeAt(i);
-  return diff === 0;
+  return bearerMatches(request.headers.get("authorization") ?? "", secret);
 }
 
 function reply(body: unknown, status = 200) {
-  return Response.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
+  return Response.json(body, { status, headers: NO_STORE });
 }
 
 export async function GET(request: Request) {

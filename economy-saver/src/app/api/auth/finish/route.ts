@@ -1,6 +1,8 @@
+import { HOUSEHOLD_COOKIE, UPGRADE_DEMO_COOKIE } from "@/lib/supabase-auth";
 import { cookies } from "next/headers";
 import { accountHousehold } from "@/db/account";
-import { NO_REFERRER, redirectTo } from "@/lib/door";
+import { NO_REFERRER } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 import { db } from "@/db/client";
 import { InputError } from "@/db/input-error";
 import { INVITE_TOKEN, acceptInvite } from "@/db/invites";
@@ -28,7 +30,7 @@ export async function GET(request: Request) {
   }
 
   if (invite) {
-    response.cookies.delete("upgrade-demo");
+    response.cookies.delete(UPGRADE_DEMO_COOKIE);
     const user = data.user;
     if (!user.email_confirmed_at || !user.email) return response;
     try {
@@ -42,7 +44,7 @@ export async function GET(request: Request) {
   }
 
   response.headers.set("Location", "/");
-  response.cookies.delete("household");
-  response.cookies.delete("upgrade-demo");
+  response.cookies.delete(HOUSEHOLD_COOKIE);
+  response.cookies.delete(UPGRADE_DEMO_COOKIE);
   return response;
 }

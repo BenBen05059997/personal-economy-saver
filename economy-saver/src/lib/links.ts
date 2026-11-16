@@ -1,6 +1,9 @@
 import type { AddKind } from "@/components/add/context";
 /** Where a thing lives in the app. Pure: every link to an invoice, bill, card, client, pot or setting is built here. */
 export const HOUSEHOLD_PEOPLE = "/household/people";
+export const SETTINGS_ACCOUNT = "/settings/account";
+export const SETTINGS_PAYPAL = "/settings/paypal";
+export const MEMORY_SPACES = "/memory?tab=spaces";
 
 /** The Add page for one kind of thing, the no-JS twin of the Add dialog; `back` is the page to return to. */
 export function addHref(kind: AddKind, back: string): string {

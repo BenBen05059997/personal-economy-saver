@@ -3,11 +3,14 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { archiveSpace, createSpace, deleteSpace, renameSpace, saveBrief } from "@/db/spaces";
 import { briefFromForm } from "@/lib/agent/brief-form";
-import { NO_STORE, badFields, failure, householdForm, limited, redirectTo } from "@/lib/door";
+import { badFields, failure, householdForm, limited } from "@/lib/door";
+import { NO_STORE, redirectTo } from "@/lib/form-fetch";
 import { FORM_REDIRECT_HEADER, postedByForm } from "@/lib/form-fetch";
+import { Uuid } from "@/lib/stable-id";
+import { MEMORY_SPACES } from "@/lib/links";
 
 const name = z.string().trim().min(1).max(60);
-const id = z.string().uuid();
+const id = Uuid;
 const fields = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("create"), name }),
   z.object({ kind: z.literal("rename"), id, name }),
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
           await deleteSpace(tx, hid, action.id);
           break;
       }
-      return redirectTo("/memory?tab=spaces", request);
+      return redirectTo(MEMORY_SPACES, request);
     });
   } catch (error) {
     return failure(error);

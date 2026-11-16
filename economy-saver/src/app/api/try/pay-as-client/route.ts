@@ -2,9 +2,12 @@ import { z } from "zod";
 import { ApprovalError } from "@/db/approval";
 import { db } from "@/db/client";
 import { payInvoiceAsTestClient } from "@/db/try-pay";
-import { formOf, limited, redirectTo, text } from "@/lib/door";
+import { formOf, limited, text } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 import { payWithSandboxTestCard } from "@/lib/paypal/send";
 import { ownerRequest } from "@/lib/session";
+import { Uuid } from "@/lib/stable-id";
+import { hrefFor } from "@/lib/links";
 
 /** A Try it household's judge plays the client: pays the sent invoice with PayPal's sandbox test card. Never for any other household. */
 export async function POST(request: Request) {
@@ -15,11 +18,11 @@ export async function POST(request: Request) {
   if (busy) return busy;
   const form = await formOf(request);
   if (form instanceof Response) return form;
-  const input = z.object({ id: z.string().uuid() }).safeParse(Object.fromEntries(form));
+  const input = z.object({ id: Uuid }).safeParse(Object.fromEntries(form));
   if (!input.success) return text("Invalid invoice", 400);
   try {
     const id = await payInvoiceAsTestClient({ db: connection, householdId, invoiceId: input.data.id, pay: payWithSandboxTestCard });
-    return redirectTo(`/invoices/${id}`, request);
+    return redirectTo(hrefFor({ type: "invoice", id }), request);
   } catch (error) {
     if (error instanceof ApprovalError) return text(error.message, error.status);
     return text("PayPal did not confirm the test-card payment. Open the invoice again to check its status or retry.", 502);

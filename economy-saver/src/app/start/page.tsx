@@ -8,9 +8,10 @@ import { currentHouseholdId } from "@/lib/session";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { tryItKind } from "@/db/demo";
+import { SETTINGS_ACCOUNT } from "@/lib/links";
 
 async function Start() {
-  if (await verifiedUid()) redirect("/settings/account");
+  if (await verifiedUid()) redirect(SETTINGS_ACCOUNT);
   const demo = await currentHouseholdId(); // not signed in, so a household here is a Try it or blank demo
   const kind = demo ? await withHousehold(db(), demo, tx => tryItKind(tx, demo)) : null;
   const notice = kind === "try-it" ? "This replaces the Try it household in this browser. Reset at the top of every page brings Ben's numbers back."

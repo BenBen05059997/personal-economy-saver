@@ -1,5 +1,5 @@
 import { logSettingProblem } from "@/lib/operator-log";
-import { PROVIDERS } from "@/lib/ai/providers";
+import { ANTHROPIC_BASE_URL, PROVIDERS } from "@/lib/ai/providers";
 const ASK_NOT_SET_UP = "Ask isn’t set up on this server yet.";
 
 /** The sentence for a missing Ask setting, in words a person can read; the setting's name goes to the operator log (never a value). */
@@ -41,14 +41,14 @@ export function missingAskSetting(hasOwnConnection: boolean): string | null {
 /** The host the server default sends questions and documents to, or null when the server has no AI model set up. */
 export function serverDefaultHost(): string | null {
   const protocol = process.env.AI_PROTOCOL?.trim();
-  if (protocol === "anthropic") return "api.anthropic.com";
+  if (protocol === "anthropic") return new URL(ANTHROPIC_BASE_URL).host;
   const base = process.env.AI_BASE_URL?.trim();
   if (protocol !== "openai" || !base || !URL.canParse(base)) return null;
   return new URL(base).host;
 }
 
 /** A model id in words where the code knows the pattern (claude-sonnet-5-5 is Claude Sonnet 5.5); any other id as it is. */
-export function friendlyModel(id: string): string {
+function friendlyModel(id: string): string {
   const match = /^claude-(opus|sonnet|haiku)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/.exec(id);
   return match ? `Claude ${match[1][0].toUpperCase()}${match[1].slice(1)} ${match[2]}${match[3] ? `.${match[3]}` : ""}` : id;
 }

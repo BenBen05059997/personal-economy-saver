@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { storeSubmit } from "@/components/ask/draft";
 import { useAskPanel } from "@/components/shell/AskWorkspace";
 import "./home-views.css";
 
@@ -31,7 +32,7 @@ export function PanelHeader({ title, hint, question }: { title: ReactNode; hint:
   function ask(button: HTMLElement) {
     if (question === undefined) return;
     if (panel) { panel.ask(question, button); return; }
-    try { sessionStorage.setItem("pes-ask-submit", JSON.stringify({ id: crypto.randomUUID(), question })); } catch { /* The person can still type the question. */ }
+    try { storeSubmit(question); } catch { /* The person can still type the question. */ }
     router.push("/canvas#ask");
   }
   return <header><div><h2>{title}</h2><p>{hint}</p></div>{question !== undefined && <button type="button" onClick={event => ask(event.currentTarget)}>Ask about this</button>}</header>;

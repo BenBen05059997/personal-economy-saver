@@ -3,8 +3,9 @@ import {
   addOwnCategory, addOwnCategoryInput, fileOwnCategory, fileOwnCategoryInput, mergeOwnCategories, mergeOwnCategoryInput,
   removeOwnCategory, removeOwnCategoryInput, saveOwnCategory, saveOwnCategoryInput,
 } from "@/db/own-categories";
-import { badFields, failure, householdForm, limited, text } from "@/lib/door";
+import { badFields, failure, householdForm, limited, text, TOO_MANY_CHANGES } from "@/lib/door";
 import { businessBpFromForm } from "@/lib/money/categories";
+import { pluralWord } from "@/lib/plural";
 
 const NOT_YOURS = "Choose one of your categories.";
 
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
   const kind = form.get("kind");
   try {
     if (kind !== "add" && kind !== "save" && kind !== "merge" && kind !== "remove" && kind !== "file") return badFields();
-    const busy = await limited(hid, "own-categories", 20, "Too many changes. Try again in a minute.");
+    const busy = await limited(hid, "own-categories", 20, TOO_MANY_CHANGES);
     if (busy) return busy;
     if (kind === "add") {
       const share = defaultShare(form);
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
       const data = mergeOwnCategoryInput.safeParse({ id: form.get("id"), into: form.get("into") });
       if (!data.success) return badFields();
       const { moved } = await mergeOwnCategories(db(), hid, data.data);
-      return text(`Merged. ${moved === 1 ? "1 item" : `${moved} items`} moved.`, 200);
+      return text(`Merged. ${moved} ${pluralWord(moved, "item")} moved.`, 200);
     }
     if (kind === "remove") {
       const data = removeOwnCategoryInput.safeParse({ id: form.get("id") });

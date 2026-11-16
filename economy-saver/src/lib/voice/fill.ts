@@ -1,5 +1,5 @@
 import { logSettingProblem } from "@/lib/operator-log";
-// Voice fill (28B), server side: the words a person said and the form's fields in, checked values out. One model call, forced to one
+// Voice fill, server side: the words a person said and the form's fields in, checked values out. One model call, forced to one
 // tool whose input is built from the fields; the model only proposes, `checkFill` decides. Nothing is written to any table: the
 // form's own route saves after the person's tap.
 import { modelFailureWords } from "@/lib/ai/provider-failure";

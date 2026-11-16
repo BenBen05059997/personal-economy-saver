@@ -2,12 +2,13 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { MOVABLE, requireCloud } from "@/db/place";
 import { restoreHousehold } from "@/db/restore";
-import { boundedText, NO_STORE, failure, limited, text } from "@/lib/door";
+import { boundedText, failure, limited, text } from "@/lib/door";
+import { NO_STORE } from "@/lib/form-fetch";
 import { householdRequest } from "@/lib/session";
 
 const MAX_BYTES = 1_000_000;
 
-/** Import (D59): a version 2 or 3 household file as the JSON body, at most 1 MB, into a household that has nothing in it yet. The answer is JSON `{ imported: counts }`, or a sentence on a refusal. */
+/** Import (D44): a household file of an earlier or the current version as the JSON body, at most 1 MB, into a household that has nothing in it yet. The answer is JSON `{ imported: counts }`, or a sentence on a refusal. */
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;

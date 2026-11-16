@@ -1,10 +1,11 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { addMember, addMemberInput, removeMember, removeMemberInput, savePeople, savePeopleInput } from "@/db/people";
-import { badFields, failure, householdForm, limited, redirectTo, returnPath, text } from "@/lib/door";
-import { hasHouseholdOwnerAccess } from "@/lib/session";
+import { badFields, failure, householdForm, limited, returnPath, text, TOO_MANY_CHANGES } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
+import { hasHouseholdOwnerAccess, HOUSEHOLD_OWNER_REQUIRED } from "@/lib/session";
 
-/** Settings, People (D45): `kind=add` adds a person (equal shares again) and returns to `returnTo`; `kind=people` saves every name and share in one go, fields named `name:<member id>` and, with two or more people, `share:<member id>` in percent; `kind=remove` removes the person `id` (the rule is on `removeMember`). */
+/** Household → People (D45): `kind=add` adds a person (equal shares again) and returns to `returnTo`; `kind=people` saves every name and share in one go, fields named `name:<member id>` and, with two or more people, `share:<member id>` in percent; `kind=remove` removes the person `id` (the rule is on `removeMember`). */
 export async function POST(request: Request) {
   const ctx = await householdForm(request);
   if (ctx instanceof Response) return ctx;
@@ -12,8 +13,8 @@ export async function POST(request: Request) {
   const kind = form.get("kind");
   try {
     if (kind !== "add" && kind !== "people" && kind !== "remove") return badFields();
-    if (kind === "remove" && !await hasHouseholdOwnerAccess(hid)) return text("Household owner required", 403);
-    const busy = await limited(hid, "people", 20, "Too many changes. Try again in a minute.");
+    if (kind === "remove" && !await hasHouseholdOwnerAccess(hid)) return text(HOUSEHOLD_OWNER_REQUIRED, 403);
+    const busy = await limited(hid, "people", 20, TOO_MANY_CHANGES);
     if (busy) return busy;
     if (kind === "add") {
       const data = addMemberInput.safeParse({ name: form.get("name") });

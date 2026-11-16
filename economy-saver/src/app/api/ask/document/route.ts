@@ -7,15 +7,18 @@ import { attachDocument, documentCard } from "@/db/document-card";
 import { documentsLeft } from "@/db/ai-cap";
 import { requireDocumentBudget, requireReaderModel } from "@/db/reader-job";
 import { readDocumentInBackground } from "@/db/reader-background";
-import { BAD_FIELDS, NO_STORE, text } from "@/lib/door";
+import { BAD_FIELDS, text } from "@/lib/door";
+import { NO_STORE } from "@/lib/form-fetch";
 import { readUpload } from "@/lib/reader/accept";
+import { QUESTION_MAX } from "@/lib/schema/turn";
 import { ReaderError } from "@/lib/reader/settings";
-import { currentHouseholdId, householdRequest } from "@/lib/session";
+import { currentHouseholdId, HOUSEHOLD_SESSION_REQUIRED, householdRequest } from "@/lib/session";
+import { Uuid } from "@/lib/stable-id";
 
 const fields = z.object({
-  id: z.string().uuid(), conversationId: z.string().uuid(),
-  spaceId: z.string().uuid().optional(),
-  text: z.string().trim().max(320).optional(),
+  id: Uuid, conversationId: Uuid,
+  spaceId: Uuid.optional(),
+  text: z.string().trim().max(QUESTION_MAX).optional(),
 });
 
 /** D61: attach a file in Ask. The file goes through Upload's storage and reader; the answer is the turn and its card, and the model reads after the response. */
@@ -40,8 +43,8 @@ export async function POST(request: Request) {
 /** The card again, for the page's poll and after a Confirm. A document that is not this household's, or is gone, is `gone`. */
 export async function GET(request: Request) {
   const hid = await currentHouseholdId();
-  if (!hid) return text("Household session required", 401);
+  if (!hid) return text(HOUSEHOLD_SESSION_REQUIRED, 401);
   const id = new URL(request.url).searchParams.get("id");
-  if (!z.string().uuid().safeParse(id).success) return text("Invalid item", 400);
+  if (!Uuid.safeParse(id).success) return text("Invalid item", 400);
   return Response.json({ card: await withHousehold(db(), hid, tx => documentCard(tx, hid, id!)) }, { headers: NO_STORE });
 }

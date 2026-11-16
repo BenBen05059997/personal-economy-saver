@@ -5,7 +5,7 @@ import type { TurnKind, TurnSource } from "@/lib/schema/turn";
 import type { ViewResult } from "@/lib/views/types";
 
 /** What a turn's drafts are now, read from the rows (D60): waiting in To check, confirmed, or removed (not added). */
-export type DraftState = "waiting" | "confirmed" | "not_added";
+type DraftState = "waiting" | "confirmed" | "not_added";
 export type DraftKind = "bill" | "charge" | "pot" | "balance";
 /** One thing the turn drafted, as the thread draws it. Every word is written by code from the rows and the engine (D40); `result` is the what_changed view, drawn through ViewCard. */
 export type DraftView = {

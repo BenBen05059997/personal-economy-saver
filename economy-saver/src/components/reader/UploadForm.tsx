@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { UPLOAD_FAILED } from "@/components/ui/words";
 import { FORM_FETCH_HEADER } from "@/lib/form-fetch";
 
 type Line = { name: string; result: string; refused?: boolean };
@@ -34,7 +35,7 @@ export function UploadForm() {
         body.set("document", file);
         const response = await fetch("/api/upload", { method: "POST", body, headers: { [FORM_FETCH_HEADER]: "1" } });
         if (response.ok) { sent += 1; result = "sent"; refused = false; }
-        else result = (await response.text()) || "Upload failed.";
+        else result = (await response.text()) || UPLOAD_FAILED;
       } catch { result = "Couldn’t upload. Check your connection and try again."; }
       setLines(current => current.map((line, at) => at === index ? { ...line, result, refused } : line));
     }

@@ -2,7 +2,7 @@ import { HistoryInput, searchHistory } from "@/db/history";
 import type { Tool } from "./tools";
 
 export const historyTools: Tool[] = [{
-  name: "search_history",
+  name: "search_history", words: "Searching your Ask history", source: { label: "Ask history", href: "/canvas" }, echoes: true,
   description: "The ten newest matching history lines in a space or across spaces. Recheck past amounts with tools.",
   input: HistoryInput,
   scope: "read",

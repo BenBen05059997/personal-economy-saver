@@ -3,7 +3,7 @@
 import type { ComponentProps } from "react";
 import { AmountInput } from "@/components/ui/CheckedInput";
 
-const SIGNS: Record<string, string> = { JPY: "¥", USD: "$", EUR: "€", GBP: "£" };
+const SIGNS: Record<string, string> = { JPY: "¥", USD: "$" };
 
 /** An amount input with the currency sign inside the field, so the label does not have to say which currency. */
 export function AmountField({ currency, ...props }: ComponentProps<typeof AmountInput>) {

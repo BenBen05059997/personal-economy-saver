@@ -9,8 +9,8 @@ import "./views.css";
 
 export type ViewMode = "chart" | "table";
 
-/** One resolved view: the small figures above, the chart (the element the caller passes, so this never imports a form) or the table twin, then the one sentence. An empty view says what to add. Without `onMode` the card draws its own Chart | Table switch. */
-export function ViewCard({ result, figure, tableSlot, mode, onMode }: { result: ViewResult; figure: ReactNode; tableSlot?: ReactNode; mode?: ViewMode; onMode?: (mode: ViewMode) => void }) {
+/** One resolved view: the small figures above, the chart (the element the caller passes, so this never imports a form) or the table twin, then the one sentence. An empty view says what to add. Without `mode` the card draws its own Chart | Table switch and remembers the choice on the device. */
+export function ViewCard({ result, figure, tableSlot, mode }: { result: ViewResult; figure: ReactNode; tableSlot?: ReactNode; mode?: ViewMode }) {
   const [own, setOwn] = useDevicePreference(`fipa-view-card:${result.view}`, "chart");
   const shown: ViewMode = mode ?? (own === "table" ? "table" : "chart");
   if (result.empty) return <div className="view-card">
@@ -19,7 +19,7 @@ export function ViewCard({ result, figure, tableSlot, mode, onMode }: { result: 
   </div>;
   return <div className="view-card">
     {result.strip && <dl className="view-strip">{result.strip.map(item => <div key={item.label}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>}
-    {!onMode && result.table && <div className="hv-controls"><Segmented label="Display" value={shown} options={DISPLAY_OPTIONS} onPick={setOwn} /></div>}
+    {mode === undefined && result.table && <div className="hv-controls"><Segmented label="Display" value={shown} options={DISPLAY_OPTIONS} onPick={setOwn} /></div>}
     {shown === "table" && result.table ? tableSlot ?? <ViewTable table={result.table} /> : figure}
     {result.line && <p className="view-line">{result.line}</p>}
   </div>;

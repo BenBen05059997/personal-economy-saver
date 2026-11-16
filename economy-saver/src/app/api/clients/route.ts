@@ -1,7 +1,8 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { clientInput, insertClient } from "@/db/clients";
-import { badFields, failure, householdForm, redirectTo, returnPath } from "@/lib/door";
+import { badFields, failure, householdForm, returnPath } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 
 export async function POST(request: Request) {
   const ctx = await householdForm(request);

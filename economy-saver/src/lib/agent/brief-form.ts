@@ -1,13 +1,14 @@
 import { InputError } from "@/db/input-error";
-import { BriefSchema } from "./brief";
+import { BRIEF_REF_KINDS, BriefSchema } from "./brief";
 
 export const BRIEF_LIST_FIELDS = [
   ["decisions", "Decisions"], ["open_questions", "Open questions"], ["check_next", "Check next"],
 ] as const;
 
-export const BRIEF_REF_FIELDS = [
-  ["bills", "Bill", "Bills"], ["clients", "Client", "Clients"], ["pots", "Pot", "Pots"], ["documents", "Document", "Documents"],
-] as const;
+const REF_LABELS: Record<(typeof BRIEF_REF_KINDS)[number], readonly [string, string]> = {
+  bills: ["Bill", "Bills"], clients: ["Client", "Clients"], pots: ["Pot", "Pots"], documents: ["Document", "Documents"],
+};
+export const BRIEF_REF_FIELDS = BRIEF_REF_KINDS.map(kind => [kind, ...REF_LABELS[kind]] as const);
 
 /** The same structured brief editor is used in the browser and by the space route. */
 export function briefFromForm(form: FormData) {

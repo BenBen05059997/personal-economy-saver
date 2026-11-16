@@ -1,6 +1,7 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
-import { householdForm, redirectTo, returnPath, text } from "@/lib/door";
+import { householdForm, returnPath, text } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 import { InputError } from "@/db/input-error";
 import { settingsInput, updateSettings } from "@/db/settings";
 

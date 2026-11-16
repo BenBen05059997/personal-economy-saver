@@ -15,14 +15,14 @@ const NOT_HERE = "Not available for this bill as it is set up";
  * chooses the currency next to it). `offered` false keeps the box in place, disabled and unticked, so nothing posts (the database refuses an unknown amount there). `onUnknown` tells
  * the parent whether the amount is now not known.
  */
-export function AmountWithUnknown({ currency, label = LABELS.amount, defaultValue = "", defaultUnknown = false, offered = true, onUnknown }: {
-  currency?: string; label?: string; defaultValue?: string; defaultUnknown?: boolean; offered?: boolean; onUnknown?: (unknown: boolean) => void;
+export function AmountWithUnknown({ currency, defaultValue = "", defaultUnknown = false, offered = true, onUnknown }: {
+  currency?: string; defaultValue?: string; defaultUnknown?: boolean; offered?: boolean; onUnknown?: (unknown: boolean) => void;
 }) {
   const [box, setBox] = useState(defaultUnknown);
   const [text, setText] = useState(defaultValue);
   const unknown = box && offered;
   return <>
-    <label className="ui-field">{label}
+    <label className="ui-field">{LABELS.amount}
       {currency ? <AmountField name="amount" currency={currency} required={!unknown} disabled={unknown} value={unknown ? "" : text} onChange={event => setText(event.target.value)} />
         : <input name="amount" inputMode="decimal" maxLength={17} required={!unknown} disabled={unknown} value={unknown ? "" : text} onChange={event => setText(event.target.value)} />}</label>
     <label className="add-entry-repeat" title={offered ? undefined : NOT_HERE}><input name="amountUnknown" type="checkbox" checked={box && offered} disabled={!offered}

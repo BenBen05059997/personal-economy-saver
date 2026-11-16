@@ -1,14 +1,19 @@
 import { cache } from "react";
 import { accountHousehold, accountMembership } from "@/db/account";
 import { verifiedUid } from "./auth-request";
-import { FORM_REDIRECT_HEADER, postedByForm } from "./form-fetch";
-import { hasAuthCookie } from "./supabase-auth";
+import { NO_STORE, redirectTo } from "./form-fetch";
+import { COOKIE_AGE, cookiePolicy, hasAuthCookie, HOUSEHOLD_COOKIE } from "./supabase-auth";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { demoHouseholdForToken, issueDemoToken } from "@/db/demo";
 import { noteHousehold } from "./request-log";
+
+export const SAME_ORIGIN_REQUIRED = "Same-origin request required";
+export const HOUSEHOLD_SESSION_REQUIRED = "Household session required";
+export const DEMO_SESSION_EXPIRED = "Demo session has expired";
+export const HOUSEHOLD_OWNER_REQUIRED = "Household owner required";
 
 // The household cookie holds a Try it token (a bearer credential for that anonymous household only); the id is never in it.
 export async function currentHouseholdId(): Promise<string | null> {
@@ -23,7 +28,7 @@ async function resolveHouseholdId(): Promise<string | null> {
     const uid = await verifiedUid();
     return uid ? accountHousehold(db(), uid) : null;
   }
-  const token = store.get("household")?.value;
+  const token = store.get(HOUSEHOLD_COOKIE)?.value;
   if (!token) return null;
   return demoHouseholdForToken(db(), token);
 }
@@ -32,8 +37,8 @@ const householdForRender = cache(resolveHouseholdId);
 
 /** The guard for household-scoped mutating routes: the household id, or the 403/401 response to return as is. */
 export async function householdRequest(request: Request): Promise<string | Response> {
-  if (!sameOrigin(request)) return new Response("Same-origin request required", { status: 403 });
-  return await currentHouseholdId() ?? new Response("Household session required", { status: 401 });
+  if (!sameOrigin(request)) return new Response(SAME_ORIGIN_REQUIRED, { status: 403 });
+  return await currentHouseholdId() ?? new Response(HOUSEHOLD_SESSION_REQUIRED, { status: 401 });
 }
 
 /** An authenticated owner or the anonymous owner of the current Try it household. */
@@ -47,7 +52,7 @@ export async function hasHouseholdOwnerAccess(hid: string): Promise<boolean> {
 export async function ownerRequest(request: Request): Promise<string | Response> {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  return await hasHouseholdOwnerAccess(hid) ? hid : new Response("Household owner required", { status: 403 });
+  return await hasHouseholdOwnerAccess(hid) ? hid : new Response(HOUSEHOLD_OWNER_REQUIRED, { status: 403 });
 }
 
 /**
@@ -56,18 +61,9 @@ export async function ownerRequest(request: Request): Promise<string | Response>
  */
 export async function demoResponse(id: string, request?: Request, to = "/") {
   const token = await issueDemoToken(db(), id);
-  if (!token) return new NextResponse("Demo session has expired", { status: 409, headers: { "Cache-Control": "private, no-store" } });
-  const response = request && postedByForm(request)
-    ? new NextResponse(null, { status: 204, headers: { [FORM_REDIRECT_HEADER]: to } })
-    : new NextResponse(null, { status: 303, headers: { Location: to } });
-  response.headers.set("Cache-Control", "private, no-store");
-  response.cookies.set("household", token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 30 * 86400,
-    path: "/",
-  });
+  if (!token) return new NextResponse(DEMO_SESSION_EXPIRED, { status: 409, headers: NO_STORE });
+  const response = redirectTo(to, request);
+  response.cookies.set(HOUSEHOLD_COOKIE, token, { ...cookiePolicy, maxAge: COOKIE_AGE });
   return response;
 }
 

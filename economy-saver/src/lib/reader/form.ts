@@ -34,7 +34,7 @@ export function readingForm(form: FormData) {
   }
   const businessBp = businessBpFromForm(form.get("businessShare"), form.get("businessPercent"));
   if (businessBp === null) throw new ReaderError("Enter the business share as a percentage from 0 to 100.");
-  // D48: a bill's repeat, its new amount from a date and its cancel-by date; ignored for a card charge.
+  // D41: a bill's repeat, its new amount from a date and its cancel-by date; ignored for a card charge.
   const isBill = form.get("target") === "bill";
   const nextText = String(form.get("nextAmount") ?? "").trim();
   let nextAmountMinor: number | null = null;

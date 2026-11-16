@@ -31,7 +31,8 @@ export function PaceLines({ result }: { result: ViewResult<"pace_lines"> }) {
   const valueOn = (key: string, i: number) => lines.find(l => l.key === key)?.points[i];
   const tipLeft = selected === null ? 0 : x(selected) > width / 2 ? Math.max(8, x(selected) - 14 - 210) : Math.min(width - 218, x(selected) + 14);
   const readout = (i: number) => `Day ${i + 1}: ${lines.map(l => `${l.label} ${l.points[i] === undefined ? "not yet" : format(l.points[i])}`).join("; ")}.`;
-  const thisLine = lines[0], lastLine = lines[1];
+  const named = (key: "this" | "last") => { const found = lines.find(l => l.key === key); if (!found) throw new Error(`The pace lines have no ${key} line`); return found; };
+  const thisLine = named("this"), lastLine = named("last");
   return <div className="pl-chart" ref={ref}>
     <div className="pl-legend">{lines.map(l => <span key={l.key}><i className={`pl-t-${l.tone}`} />{l.label}</span>)}{todayIndex !== null && <span><i className="pl-key-today" />Today</span>}</div>
     <div className="pl-plot" tabIndex={0} role="group" aria-label={result.aria} onPointerMove={onPointer} onPointerLeave={() => { if (!focused) setSelected(null); }} onKeyDown={onKey} onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); setSelected(null); }}>

@@ -3,9 +3,10 @@
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Activity, createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { storeDraft } from "@/components/ask/draft";
+import { storeDraft, storeSubmit } from "@/components/ask/draft";
 import { readPanelChoice, writePanelChoice, type PanelChoice } from "@/components/ask/panel-preferences";
 import { ApiFormNavigation } from "@/components/ui/ApiForm";
+import { CloseIcon } from "@/components/ui/icons";
 import { LoadingIndicator } from "@/components/ui/LoadingState";
 import { SessionEnded } from "@/components/ui/SessionEnded";
 import { askScreenForPath } from "@/lib/agent/screen";
@@ -139,7 +140,7 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
   function ask(question: string, trigger: HTMLElement) {
     if (!question.trim()) return;
     if (!available) {
-      try { window.sessionStorage.setItem("pes-ask-submit", JSON.stringify({ id: crypto.randomUUID(), question })); } catch { storeDraft({ text: question, source: "manual" }); }
+      try { storeSubmit(question); } catch { storeDraft({ text: question, source: "manual" }); }
       router.push("/canvas#ask");
       return;
     }
@@ -224,7 +225,7 @@ export function AskWorkspace({ householdId, children }: { householdId: string; c
           {!view && <header className="ask-panel-head">
             <h2 className="ask-panel-title">Ask</h2>
             <button type="button" className="ask-icon-button ask-panel-close" aria-label="Close Ask" onClick={close}>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+              <CloseIcon />
             </button>
           </header>}
           {loading && <LoadingIndicator label="Opening Ask…" />}

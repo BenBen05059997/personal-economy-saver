@@ -1,39 +1,52 @@
 // Shared by the route handlers under src/app/api: the no-store header, redirects and plain-text answers,
 // the return-target check and the typed-in-data failure and bad-fields responses.
-import { NextResponse } from "next/server";
-import { db } from "@/db/client";
+import { timingSafeEqual } from "node:crypto";
+import { AiKeyError } from "@/db/ai-key";
+import { db, MissingDatabaseUrl } from "@/db/client";
 import { type Db } from "@/db/household";
 import { InputError } from "@/db/input-error";
-import { limited as rateLimited } from "@/db/rate-limit";
+import { clientIp, ClientIpError, consumeIpRequest, limited as rateLimited, tooMany } from "@/db/rate-limit";
 import { StatementChargeError } from "@/db/statement-charge";
 import { businessBpFromForm, CategoryKeySchema } from "@/lib/money/categories";
 import { ownChoiceFromForm } from "@/lib/reader/own-choices";
-import { FORM_REDIRECT_HEADER, postedByForm } from "./form-fetch";
-import { householdRequest, ownerRequest, sameOrigin } from "./session";
+import { ReaderError } from "@/lib/reader/settings";
+import { NO_STORE, readBounded } from "./form-fetch";
+import { householdRequest, ownerRequest, SAME_ORIGIN_REQUIRED, sameOrigin } from "./session";
 
 export const NO_REFERRER = { noReferrer: true } as const;
 
-export const NO_STORE = { "Cache-Control": "private, no-store" };
+export const SIGN_IN_TO_CONTINUE = "Sign in to continue.";
+export const DEMO_SESSION_REQUIRED = "Demo session required";
+export const TOO_MANY_REQUESTS = "Too many requests. Try again in a minute.";
+export const TOO_MANY_CHANGES = "Too many changes. Try again in a minute.";
+export const TOO_MANY_TRIES = "Too many tries. Try again in a minute.";
+export const TOO_MANY_CANVAS_REQUESTS = "Too many canvas requests. Try again in a minute.";
 
 export const BAD_FIELDS = "Check the required fields and try again.";
-
-/**
- * Where a successful post goes next. A native post gets the 303 redirect. A post made by `ApiForm` (pass the request) gets
- * 204 with the destination in a header, so the page can navigate without fetching the destination twice. `noReferrer`
- * (the sign-in and account doors) adds `Referrer-Policy: no-referrer`.
- */
-export function redirectTo(location: string, request?: Request, options: { noReferrer?: boolean } = {}) {
-  const headers: Record<string, string> = { ...NO_STORE, ...(options.noReferrer ? { "Referrer-Policy": "no-referrer" } : {}) };
-  if (request && postedByForm(request)) return new NextResponse(null, { status: 204, headers: { ...headers, [FORM_REDIRECT_HEADER]: location } });
-  return new NextResponse(null, { status: 303, headers: { ...headers, Location: location } });
-}
 
 /** A plain-text answer that is never cached; `headers` adds to the no-store header (for example Retry-After). */
 export function text(message: string, status: number, headers: Record<string, string> = {}) {
   return new Response(message, { status, headers: { ...NO_STORE, ...headers } });
 }
 
-export { tooMany } from "@/db/rate-limit";
+export { tooMany };
+
+/** The 503 for a server with no database setting (its message names the variable), or null for any other error. */
+export function missingDatabase(error: unknown): Response | null {
+  return error instanceof MissingDatabaseUrl ? text(error.message, 503) : null;
+}
+
+/** The per-address limit of a door with no household (the sign-in link, the pay page, the webhook): null when there is room, else the 429 to return; an address that can't be counted or a missing database is answered as such. `connection` is for the caller that already holds the handle. */
+export async function ipLimited(request: Request, purpose: Parameters<typeof consumeIpRequest>[2], limit: number, per: Parameters<typeof consumeIpRequest>[4], message: string, connection?: Db): Promise<Response | null> {
+  try {
+    return await consumeIpRequest(connection ?? db(), clientIp(request), purpose, limit, per) ? null : tooMany(message);
+  } catch (error) {
+    if (error instanceof ClientIpError) return text(error.message, error.status);
+    const missing = missingDatabase(error);
+    if (missing) return missing;
+    throw error;
+  }
+}
 
 const RETURN_PAGES = new Set(["/", "/to-check", "/bills", "/cards", "/clients", "/spending", "/spending/over-time", "/spending/categories", "/saving", "/memory", "/canvas", "/household", "/household/people", "/settings", "/settings/ai-model", "/settings/paypal", "/settings/data", "/settings/account", "/options", "/upload"]);
 const RETURN_PATTERNS = [/^\/(?:bills|cards|clients|saving)\/[0-9a-f-]{36}$/, /^\/canvas\?space=[0-9a-f-]{36}$/, /^\/setup\?step=(?:bank|income|bills|card)$/, /^\/to-check\?saved=(?:bill|charge):[0-9a-f-]{36}$/];
@@ -49,12 +62,24 @@ export function failure(error: unknown) {
   return text("This could not be saved. Try again.", 503);
 }
 
+/** True when `header` is exactly `Bearer <secret>`, compared in constant time. */
+export function bearerMatches(header: string, secret: string): boolean {
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const supplied = Buffer.from(header);
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+}
+
+/** The 503 for a failed write that may be the household's AI key or the reader's setting (their messages are for the person) and otherwise says `fallback`. */
+export function settingFailure(error: unknown, fallback: string) {
+  return text(error instanceof AiKeyError || error instanceof ReaderError ? error.message : fallback, 503);
+}
+
 export function badFields() {
   return text(BAD_FIELDS, 400);
 }
 
 /** The guard for routes with no household yet (sign-in, setup): null when the request is same-origin, else the 403 to return. */
-export function sameOriginOnly(request: Request, message = "Same-origin request required"): Response | null {
+export function sameOriginOnly(request: Request, message = SAME_ORIGIN_REQUIRED): Response | null {
   return sameOrigin(request) ? null : text(message, 403);
 }
 
@@ -66,7 +91,7 @@ export function limited(hid: string, purpose: Parameters<typeof rateLimited>[2],
 /** The most any form post may carry. The largest real form (a bill with its notes) is a few KB; a CSV statement import is JSON, not a form. */
 export const MAX_FORM_BYTES = 256 * 1024;
 
-/** The posted form, or the bad-fields answer when the body is not a form (JSON, broken multipart, nothing): `formData()` throws there, which used to surface as an empty 500. A body over `MAX_FORM_BYTES` is a 413 whatever Content-Length says. */
+/** The posted form, or the bad-fields answer when the body is not a form (JSON, broken multipart, nothing): `formData()` throws there. A body over `MAX_FORM_BYTES` is a 413 whatever Content-Length says. */
 export async function formOf(request: Request): Promise<FormData | Response> {
   const declared = Number(request.headers.get("content-length") ?? 0);
   if (declared > MAX_FORM_BYTES) return text("That form is too large.", 413);
@@ -107,30 +132,6 @@ export function categoryFieldsFromForm(form: FormData) {
 export function formText(form: FormData, name: string) {
   const value = form.get(name);
   return typeof value === "string" ? value : "";
-}
-
-// Reads at most `limit` bytes whatever Content-Length says (a chunked body has none); null when the body is longer.
-async function readBounded(request: Request, limit: number): Promise<Uint8Array | null> {
-  const reader = request.body?.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  while (reader) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > limit) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  const body = new Uint8Array(size);
-  let at = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, at);
-    at += chunk.byteLength;
-  }
-  return body;
 }
 
 /** The body as text, or null when it is longer than `limit` bytes (a chunked body has no Content-Length to check). */

@@ -1,12 +1,13 @@
 import { cookies } from "next/headers";
-import { formOf, NO_REFERRER, redirectTo, sameOriginOnly, text, tooMany } from "@/lib/door";
-import { db, MissingDatabaseUrl } from "@/db/client";
+import { formOf, ipLimited, missingDatabase, NO_REFERRER, sameOriginOnly, text, tooMany } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
+import { db } from "@/db/client";
 import { INVITE_TOKEN, inviteMatchesEmail } from "@/db/invites";
-import { clientIp, ClientIpError, consumeIpRequest } from "@/db/rate-limit";
 import { z } from "zod";
 import { routeAuth, verifiedUid } from "@/lib/auth-request";
 import { INVITE_COOKIE, INVITE_COOKIE_AGE, inviteCookiePolicy } from "@/lib/invite-auth";
-import { appUrl, cookiePolicy, MissingAuthSetting } from "@/lib/supabase-auth";
+import { appUrl, cookiePolicy, HOUSEHOLD_COOKIE, MissingAuthSetting, UPGRADE_DEMO_COOKIE } from "@/lib/supabase-auth";
+import { SETTINGS_ACCOUNT } from "@/lib/links";
 
 /** Sign-in links one client address may ask for in an hour. */
 const LINKS_PER_HOUR = 5;
@@ -26,11 +27,12 @@ export async function POST(request: Request) {
   const join = invite === null ? null : "/join/" + invite;
   const jar = await cookies();
   if (!join) jar.set(INVITE_COOKIE, "", { ...inviteCookiePolicy, maxAge: 0 });
-  if (await verifiedUid()) return redirectTo(join ?? "/settings/account", request, NO_REFERRER);
+  if (await verifiedUid()) return redirectTo(join ?? SETTINGS_ACCOUNT, request, NO_REFERRER);
   const response = redirectTo(join ? join + "?sent=1" : "/login?sent=1", request, NO_REFERRER);
   try {
     const store = db();
-    if (!await consumeIpRequest(store, clientIp(request), "magic-link", LINKS_PER_HOUR)) return tooMany("Too many sign-in links requested from this connection. Try again in an hour.");
+    const busy = await ipLimited(request, "magic-link", LINKS_PER_HOUR, "hour", "Too many sign-in links requested from this connection. Try again in an hour.", store);
+    if (busy) return busy;
     if (invite !== null && !await inviteMatchesEmail(store, invite, email.data)) {
       return text("This invitation does not match that email, or has expired.", 400);
     }
@@ -42,16 +44,16 @@ export async function POST(request: Request) {
     if (error) return text("Unable to send a sign-in link. Please try again later.", 502);
     if (invite !== null) {
       response.cookies.set(INVITE_COOKIE, invite, { ...inviteCookiePolicy, maxAge: INVITE_COOKIE_AGE });
-      response.cookies.delete("upgrade-demo");
+      response.cookies.delete(UPGRADE_DEMO_COOKIE);
     } else {
-      const demo = jar.get("household");
-      if (demo) response.cookies.set("upgrade-demo", demo.value, { ...cookiePolicy, maxAge: 3600 });
-      else response.cookies.delete("upgrade-demo");
+      const demo = jar.get(HOUSEHOLD_COOKIE);
+      if (demo) response.cookies.set(UPGRADE_DEMO_COOKIE, demo.value, { ...cookiePolicy, maxAge: INVITE_COOKIE_AGE });
+      else response.cookies.delete(UPGRADE_DEMO_COOKIE);
     }
     return response;
   } catch (error) {
-    if (error instanceof ClientIpError) return text(error.message, error.status);
-    if (error instanceof MissingDatabaseUrl) return text(error.message, 503);
+    const missing = missingDatabase(error);
+    if (missing) return missing;
     if (error instanceof MissingAuthSetting) return text(error.message, 503);
     throw error;
   }

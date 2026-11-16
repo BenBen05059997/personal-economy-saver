@@ -17,6 +17,7 @@ import { splitBalance, transferLine } from "@/lib/money/split";
 import { datesIn, lastOneWords, storedId } from "@/lib/money/repeat";
 import { HOUSEHOLD_PEOPLE, hrefFor } from "@/lib/links";
 import { PanelHint } from "@/components/ui/PanelHint";
+import { firstName, NOBODY_OWES } from "@/components/ui/words";
 import { BankBalance } from "./BankBalance";
 import { HomeViews } from "./HomeViews";
 import { resolveView } from "@/lib/views/resolve";
@@ -24,7 +25,8 @@ import { CASES } from "@/lib/money/terms";
 import { homeSentence } from "@/lib/money/sentence";
 import { Suspense, type ReactNode } from "react";
 import { Sentence } from "./Sentence";
-import { cardSummary, DAY_COVERED, STATEMENT_COVERED } from "@/lib/money/card-summary";
+import { cardSummary, DAY_COVERED } from "@/lib/money/card-summary";
+import { CardStatus, statementWords } from "@/components/household/CardStatus";
 import { ConfirmButton } from "@/components/household/ConfirmButton";
 import { Suggestions } from "./Suggestions";
 import type { openSuggestions } from "@/db/suggestions";
@@ -45,7 +47,7 @@ function Actions({ state, forwarding }: Props & { forwarding: boolean }) {
   const invoiceFix = pick?.id === "invoice" && unbilled && client;
   return <div id="actions">
     <div className="home-actions">
-      {invoiceFix ? <Link className="home-button home-primary" prefetch={false} href={`/invoices/${unbilled.id}`}>Invoice {client.name.split(" ")[0]} {usd(unbilled.amountUsd)}</Link>
+      {invoiceFix ? <Link className="home-button home-primary" prefetch={false} href={`/invoices/${unbilled.id}`}>Invoice {firstName(client.name)} {usd(unbilled.amountUsd)}</Link>
         : pick && <Link className="home-button home-primary" prefetch={false} href={pick.href ?? "/options"}>{pick.title}</Link>}
       {forwarding && <Link className="home-button home-secondary" prefetch={false} href="/bills#forwarding">Forward a bill</Link>}
       <Link className="home-button home-secondary" prefetch={false} href="/upload">Upload a receipt</Link>
@@ -108,15 +110,14 @@ function Cards({ state }: Props) {
       return <div key={card.id} className="home-row home-card-row">
         <Link prefetch={false} className="home-link-target" href={hrefFor({ type: "card", id: card.id })}>{card.label}</Link>
         <div className="home-number">{format(owed)}<small>owed now</small></div>
-        {limitLeft !== undefined && <small className="home-card-limit">{format(Math.max(0, limitLeft))} limit left</small>}
-        <small className="home-card-next">{next ? `${next.open ? "So far" : "Statement"} ${format(next.amount)} · due ${dayLabel(next.dueOn)}` : "No statement due"}</small>
-        {next && <small className="home-card-status">{shortBy > 0 ? <span className="home-short">Short {format(shortBy)}</span> : <span className="home-covered" title={STATEMENT_COVERED} aria-label={STATEMENT_COVERED}>Covered ✓</span>}</small>}
+        {limitLeft !== undefined && <small className="home-card-limit">{format(limitLeft)} limit left</small>}
+        <small className="home-card-next">{statementWords(next, format)}</small>
+        {next && <small className="home-card-status"><CardStatus shortBy={shortBy} format={format} shortClass="home-short" coveredClass="home-covered" /></small>}
       </div>;
     })}
   </section>;
 }
 
-/** D45: who owes whom, one line per transfer, only for a household of two or more. Mark settled records them all; the sentence does not move. */
 /** The next shared bill that falls due after today, by date, for the hint that says when the split starts. */
 function nextSharedBill(state: MoneyState) {
   const horizon = addDays(state.today, 62);
@@ -128,6 +129,7 @@ function nextSharedBill(state: MoneyState) {
   return dates.sort((a, b) => (a.date < b.date ? -1 : 1))[0];
 }
 
+/** D45: who owes whom, one line per transfer, only for a household of two or more. Mark settled records them all; the sentence does not move. */
 function SharedCosts({ state, requests, canRequest }: Props & { requests: MemberRequests; canRequest: boolean }) {
   if (state.split.members.length < 2) return null;
   const { transfers } = splitBalance(state.split, state.today);
@@ -136,7 +138,7 @@ function SharedCosts({ state, requests, canRequest }: Props & { requests: Member
   return <section id="shared-costs" className="home-panel home-split">
     <h2>Shared costs</h2>
     {transfers.length === 0 && (next
-      ? <PanelHint className="home-empty">{state.split.settledThrough !== null && "Nobody owes anyone anything. "}{next.biller} on {dayLabel(next.date)} splits {shares} once it is paid.</PanelHint>
+      ? <PanelHint className="home-empty">{state.split.settledThrough !== null && `${NOBODY_OWES} `}{next.biller} on {dayLabel(next.date)} splits {shares} once it is paid.</PanelHint>
       : state.split.bills.length > 0 || state.split.charges.length > 0
         ? <PanelHint className="home-empty">All settled. New shared items split from here.</PanelHint>
         : <PanelHint className="home-empty" add="bill" label="Add a bill">Choose Shared on a bill or charge to split it by shares.</PanelHint>)}
@@ -210,7 +212,7 @@ function ComingUp({ state, added, addedId }: Props & { added: string | null; add
           : event.kind === "bill" ? <Link prefetch={false} className="home-link-target" href={event.pending ? "/to-check" : hrefFor({ type: "bill", id: storedId(event.id) })}>{event.label}</Link> : event.label}
           {payment ? <small>Usual date · if clients pay {CASES.late.label}, {dayLabel(payment.worstOn)}</small>
             : event.pending ? <small>Awaiting confirmation</small>
-            : carries[index] && <small className="home-short">Short by {format(-(lateBalance.get(event.id) ?? 0))} if clients pay late</small>}
+            : carries[index] && <small className="home-short">Short by {format(-(lateBalance.get(event.id) ?? 0))} if clients pay {CASES.late.label}</small>}
           {repeats.has(event.id) && <small>{repeats.get(event.id)}</small>}
           {gapRow?.missing.includes("amount") && <small>{gapAmountWords(gapRow)}</small>}
           {gapRow?.missing.includes("date") && <small>{gapDateWords(gapRow)}</small>}

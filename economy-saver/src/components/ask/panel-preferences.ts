@@ -1,4 +1,4 @@
-export type PanelPreferences = { open: boolean; spaceId: string | null };
+type PanelPreferences = { open: boolean; spaceId: string | null };
 export type PanelChoice = { open: boolean | null; spaceId: string | null };
 export const CLOSED_PANEL: PanelPreferences = { open: false, spaceId: null };
 

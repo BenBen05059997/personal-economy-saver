@@ -12,6 +12,7 @@ import { hrefForRef } from "@/lib/links";
 import { DataPlace } from "./DataPlace";
 import { ExportData } from "./ExportData";
 import { ImportFile } from "./ImportFile";
+import { plural } from "@/lib/money/format";
 
 const ROWS: { kind: DataKind; name: string; unit: [string, string]; what: string; all?: string; href?: { to: string; label: string } }[] = [
   { kind: "record", name: "Your numbers", unit: ["item", "items"], what: "Bills, charges, statements, clients, invoices, pots and settlements. The forecast is built from them." },
@@ -49,7 +50,7 @@ export async function YourData({ canDeleteHousehold = true }: { canDeleteHouseho
         return <DataPlace key={row.kind} householdId={hid} kind={row.kind} place={places[row.kind]} cloudCount={n} name={row.name} unit={row.unit} what={row.what} all={row.all} journalSpaceCount={row.kind === "journal" ? spaces.filter(space => !space.isGeneral).length : undefined} href={row.href}>{remove}</DataPlace>;
       }
       return <div key={row.kind} className="settings-bill" data-kind={row.kind}>
-        <p>{row.name} · {n} {row.unit[n === 1 ? 0 : 1]}</p>
+        <p>{row.name} · {plural(n, row.unit[0], row.unit[1])}</p>
         <p className="ui-hint">In our cloud, Tokyo. {row.what}</p>
         {row.kind === "documents" && clock && <>
           <p className="ui-hint">{fileSize(storageBytes)} of {fileSize(clock.isDemo ? DEMO_STORAGE_CAP_BYTES : STORAGE_CAP_BYTES)} used</p>

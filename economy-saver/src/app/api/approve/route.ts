@@ -5,8 +5,11 @@ import { db } from "@/db/client";
 import { usdRate, withHousehold } from "@/db/household";
 import { fromRateMicro } from "@/db/money";
 import { createOrder } from "@/lib/paypal/send";
-import { formOf, limited, redirectTo, text } from "@/lib/door";
+import { formOf, limited, text } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 import { ownerRequest } from "@/lib/session";
+import { Uuid } from "@/lib/stable-id";
+import { hrefFor } from "@/lib/links";
 
 export async function POST(request: Request) {
   const householdId = await ownerRequest(request);
@@ -16,7 +19,7 @@ export async function POST(request: Request) {
   if (busy) return busy;
   const form = await formOf(request);
   if (form instanceof Response) return form;
-  const input = z.object({ approve_key: z.string().uuid(), action: z.literal("send") }).safeParse(Object.fromEntries(form));
+  const input = z.object({ approve_key: Uuid, action: z.literal("send") }).safeParse(Object.fromEntries(form));
   if (!input.success) return text("Invalid approval", 400);
   const { today, rateMicro } = await withHousehold(connection, householdId, async tx => {
     const { today, currency } = await householdClock(tx, householdId);
@@ -25,7 +28,7 @@ export async function POST(request: Request) {
   try {
     const id = await approvePaymentLink({ db: connection, householdId, today, usdRate: fromRateMicro(rateMicro),
       approveKey: input.data.approve_key, createOrder });
-    return redirectTo(`/invoices/${id}`, request);
+    return redirectTo(hrefFor({ type: "invoice", id }), request);
   } catch (error) {
     if (error instanceof ApprovalError) return text(error.message, error.status);
     return text("PayPal did not confirm the payment link. Open the invoice again to check its status or retry.", 502);

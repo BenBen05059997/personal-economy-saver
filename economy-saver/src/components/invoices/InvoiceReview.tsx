@@ -10,6 +10,7 @@ import { overdue } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
 import type { ReadPaymentCandidate } from "@/db/invoice-match";
 import type { ConnectionView } from "@/lib/paypal/contracts";
+import { firstName } from "@/components/ui/words";
 import { ConfirmingRefresh } from "./ConfirmingRefresh";
 import { CopyLink } from "./CopyLink";
 import "./invoice.css";
@@ -34,7 +35,7 @@ export function InvoiceReview({ review, state, canApprove, connection, candidate
   const paidOutside = !isRequest && (draft || sent) && invoice.paypalCaptureId === null; // a request is settled by Mark settled on Home
   const clientRow = state.clients.find(c => c.id === invoice.clientId);
   const pace = clientRow ? clientPace(clientRow) : null;
-  const first = client.split(" ")[0];
+  const first = firstName(client);
   const amount = minorMoney(invoice.amountMinor, currency);
   const into = connection.state === "connected" ? `your PayPal${connection.email ? ` (${connection.email})` : ""}` : "fipa’s sandbox account";
   const paidOutsideForm = <form method="post" action="/api/invoices/paid">

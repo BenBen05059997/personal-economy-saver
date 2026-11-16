@@ -1,13 +1,14 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { createFamilyLink, loadFamilyView, stopFamilyLink } from "@/db/family-links";
-import { badFields, failure, limited, NO_STORE, ownerForm, text } from "@/lib/door";
+import { badFields, failure, limited, ownerForm, text, TOO_MANY_CHANGES } from "@/lib/door";
+import { NO_STORE } from "@/lib/form-fetch";
 import { homeSentence } from "@/lib/money/sentence";
 import { appUrl, MissingAuthSetting } from "@/lib/supabase-auth";
-import { z } from "zod";
+import { Uuid } from "@/lib/stable-id";
 
 /**
- * Settings → People → Share a family view (D52). `kind=create` makes a link and answers with JSON: the full link, once (only its
+ * Household → People → Share a family view (D52). `kind=create` makes a link and answers with JSON: the full link, once (only its
  * hash is stored), and the message for LINE (the sentence, then the link and its last day). `kind=stop` (with `id`) stops one.
  */
 export async function POST(request: Request) {
@@ -17,10 +18,10 @@ export async function POST(request: Request) {
   const kind = form.get("kind");
   try {
     if (kind !== "create" && kind !== "stop") return badFields();
-    const busy = await limited(hid, "family-links", 20, "Too many changes. Try again in a minute.");
+    const busy = await limited(hid, "family-links", 20, TOO_MANY_CHANGES);
     if (busy) return busy;
     if (kind === "stop") {
-      const id = z.string().uuid().safeParse(form.get("id"));
+      const id = Uuid.safeParse(form.get("id"));
       if (!id.success) return badFields();
       const stopped = await withHousehold(db(), hid, tx => stopFamilyLink(tx, hid, id.data));
       return stopped ? text("Sharing stopped. That link no longer opens.", 200) : text("That link has already ended.", 200);

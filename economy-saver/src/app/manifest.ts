@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { APP_DESCRIPTION } from "@/lib/app-info";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "fipa",
     short_name: "fipa",
-    description: "See what you can spend, what’s due, and who can pay you through PayPal.",
+    description: APP_DESCRIPTION,
     start_url: "/",
     display: "standalone",
     background_color: "#FFF8EC",

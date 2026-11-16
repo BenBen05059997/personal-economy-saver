@@ -1,6 +1,7 @@
 import { db } from "@/db/client";
 import { chargeInput, insertCharge } from "@/db/charges";
-import { badFields, categoryFieldsFromForm, failure, householdForm, redirectTo, returnPath } from "@/lib/door";
+import { badFields, categoryFieldsFromForm, failure, householdForm, returnPath } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 
 export async function POST(request: Request) {
   const ctx = await householdForm(request);
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   if (!data.success) return badFields();
   try {
     await insertCharge(db(), hid, data.data, "confirmed", "manual", { madeBy: "form" });
-    // Home names what was saved at the top of Coming up (D51): only the id travels in the address; the page looks it up.
+    // Home names what was saved at the top of Coming up: only the id travels in the address; the page looks it up.
     const back = returnPath(form.get("returnTo"));
     return redirectTo(back === "/" ? `/?added=${data.data.id}#coming-up` : back, request);
   } catch (error) {

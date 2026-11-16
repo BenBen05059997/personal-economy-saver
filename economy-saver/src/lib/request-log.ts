@@ -1,4 +1,4 @@
-// The one content-free log line per request (D50): `at: "request"`, the Cloudflare ray id (null off Cloudflare), the method,
+// The one content-free log line per request (D38): `at: "request"`, the Cloudflare ray id (null off Cloudflare), the method,
 // the route pattern (ids replaced, no query), the household id when the request resolved one from its session, the HTTP
 // status, duration and aggregate database timings. Never a body, query text, parameters, results, cookie or address.
 // `worker.ts` wraps the app's fetch in `logged`, the one place that sees the real status and duration; the session helper

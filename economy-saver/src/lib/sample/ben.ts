@@ -5,8 +5,7 @@ import { addDays } from "@/lib/money/dates";
 import { DEMO_DATE } from "@/db/clock";
 
 // Sample persona for the demo. Fictional people and companies only.
-// Numbers match the concept artifact (cards included: Card A's closed statement and Card B's open cycle
-// stand where the two card bills used to): worst case ¥18,780 short on Nov 27 before the
+// Worst case ¥18,780 short on Nov 27 (with Card A's closed statement and Card B's open cycle) before the
 // Hikari Denki bill, ¥30,000 short after it, covered once Beacon pays $400.
 // Expected arrival = sentOn + median(daysToPay); worst = sentOn + max(daysToPay):
 // Acme Nov 22 / Dec 3, Northwind Nov 25 / Nov 29, Beacon (once sent today) Nov 16 / Nov 17.

@@ -1,6 +1,7 @@
 import { db } from "@/db/client";
 import { potInput, savePot } from "@/db/pots";
-import { badFields, failure, householdForm, redirectTo, returnPath } from "@/lib/door";
+import { badFields, failure, householdForm, returnPath } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 
 /** Add a pot, or edit one by its id (D43). A field left empty is not set. */
 export async function POST(request: Request) {

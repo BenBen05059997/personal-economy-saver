@@ -17,6 +17,12 @@ export class PayPalError extends Error {
   }
 }
 
+/** PayPal answered with an error, or did not answer within `PAYPAL_TIMEOUT_MS`. */
+export const didNotAnswer = (error: unknown) => error instanceof PayPalError || (error instanceof Error && error.name === "TimeoutError");
+
+/** What a person is told when PayPal did not answer. */
+export const PAYPAL_DID_NOT_ANSWER = "PayPal did not answer. Try again in a moment.";
+
 let token: { value: string; expiresAt: number } | undefined;
 
 /** PayPal refused this token (401): forget it, unless another call has already replaced it. */

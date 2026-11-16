@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { chooseReply } from "@/lib/agent/reply";
 import { nextSteps, seeItButtons, SEE_IT_MAX } from "@/lib/agent/see-it";
 import { MODEL_RULES, ASK_RULES } from "@/lib/agent/rules";
+import { MAX_BULK_ITEMS, MAX_KEEP_OFFERS, MAX_SHOWN } from "@/lib/agent/limits";
 
 const APP = "http://127.0.0.1:3123";
 const clients = { label: "Clients", href: "/clients" };
@@ -21,10 +22,16 @@ const many = seeItButtons([], [clients, due, { label: "Saving", href: "/saving" 
 assert.equal(many.buttons.length, SEE_IT_MAX);
 
 // A turn that showed a view whose page is Spending offers "See it in Spending ›" (the source comes from chooseReply).
-const shownView = chooseReply({ clarify: null, outOfScope: null, text: "Groceries lead.", tools: ["show"], called: true, facts: [], person: [], today: "2026-11-14", readings: [],
+const shownView = chooseReply({ clarify: null, outOfScope: null, text: "Groceries lead.", toolSources: [], called: true, facts: [], person: [], today: "2026-11-14", readings: [],
   recipe: { version: 1, title: "Where does the month go?", blocks: [{ type: "view", view: "month_by_category", args: {} }] } as never });
 assert.deepEqual(shownView?.sources, [{ label: "Spending", href: "/spending" }]);
 assert.deepEqual(seeItButtons([], shownView!.sources, APP).buttons, [{ href: "/spending", label: "See it in Spending ›" }]);
+
+// A reply that shows what foreign money cost has no page of its own: no "See it in" button (D77).
+const shownForeign = chooseReply({ clarify: null, outOfScope: null, text: "Fees were high.", toolSources: [], called: true, facts: [], person: [], today: "2026-11-14", readings: [],
+  recipe: { version: 1, title: "What foreign money cost", blocks: [{ type: "view", view: "fx_cost", args: {} }] } as never });
+assert.deepEqual(shownForeign?.sources, []);
+assert.deepEqual(seeItButtons([], shownForeign!.sources, APP).buttons, []);
 
 const memory = { label: "Rent goes up", href: "#ask-memory-1" };
 const unlinked = { label: "Memory on this device" };
@@ -37,8 +44,8 @@ assert.deepEqual(absolute.buttons.map(button => button.href), ["/bills?x=1#bill-
 assert.deepEqual(seeItButtons([{ href: `${APP}/clients`, label: "Open Clients" }], [clients], APP).buttons.map(button => button.href), ["/clients"], "the absolute link and the relative source dedupe");
 assert.deepEqual(seeItButtons([{ href: `${APP}/clients`, label: "x" }], [], "").buttons, [], "no known origin: absolute links are dropped");
 // A failed check with a picture: code's sentence, the recipe kept, no model words. Without a picture it stays refused.
-const base = { clarify: null, outOfScope: null, tools: ["show"], called: true, today: "2026-11-14", recipe: null };
-const fact = { value: 18780, unit: "money", currency: "JPY", by: "engine" };
+const base = { clarify: null, outOfScope: null, toolSources: [], called: true, today: "2026-11-14", recipe: null };
+const fact = { value: 18780, unit: "money" as const, currency: "JPY" as const, by: "engine" as const };
 const invented = chooseReply({ ...base, text: "You are ¥99,999 short.", facts: [fact], person: [], readings: [{ sentence: "You're ¥18,780 short." }] });
 assert.deepEqual([invented?.kind, invented?.text, invented?.wording], ["answer", "You're ¥18,780 short.", "code"]);
 assert.equal(chooseReply({ ...base, text: "You are ¥99,999 short.", facts: [fact], person: [], readings: [] }), null, "no picture, no stand-in");
@@ -64,8 +71,16 @@ assert.deepEqual(nextSteps({ facts: [pace], suggestions: [nudge], options: { row
 assert.deepEqual(nextSteps({ facts: [{ name: "short", value: 0, case: "late" }], suggestions: [], options: { rows } }), [], "a picture with none of these offers nothing");
 assert.ok(nextSteps({ facts: [short], suggestions: [], options: { rows } }).every(step => !/loan|credit|advance/i.test(step.label)), "no product is named");
 
-// The rules: the do-not-restate rule is Ask's alone.
+// The rules. Ask's alone: the do-not-restate rule and the explicit-request memory rule; the shared rules say neither.
 assert.ok(ASK_RULES.includes("Do not repeat it. Say why") && ASK_RULES.includes("Never offer an action"));
 assert.ok(!MODEL_RULES.includes("Do not repeat") && !MODEL_RULES.includes("Never offer an action"), "MCP never gets the Ask-only rule");
-assert.ok(MODEL_RULES.includes("sentence is the answer's base") && !MODEL_RULES.includes("usualDaysToPay"));
+assert.ok(MODEL_RULES.includes("answer from the show result's facts and sentence"), "the shared rule does not say to build the answer on the sentence the picture already shows");
+assert.ok(MODEL_RULES.includes("Call remember only when the person asks you to remember something.") && !MODEL_RULES.includes("lasting fact"), "remember is for an explicit request, as the tool enforces");
+assert.ok(ASK_RULES.includes("call remember only on an explicit request") && ASK_RULES.includes("Otherwise use offer_keep for a lasting fact"));
+assert.match(MODEL_RULES, /about to be saved and one detail is missing or matches several[^.]*ask which one/);
+assert.match(MODEL_RULES, /household_snapshot is background context/);
+assert.match(MODEL_RULES, /add_bills or log_charges/);
+assert.ok(!/\btoday\b|\d{4}-\d{2}-\d{2}|JPY|home currency/i.test(MODEL_RULES), "the shared rules name neither the date nor the household's currency: the MCP server cannot know them");
+// The limits the rules name are the limits the code enforces.
+assert.ok(ASK_RULES.includes(`call show (up to ${MAX_SHOWN} per answer)`) && ASK_RULES.includes(`Offer at most ${MAX_KEEP_OFFERS} things`) && MODEL_RULES.includes(`up to ${MAX_BULK_ITEMS} in one call`));
 console.log("see-it: ok");

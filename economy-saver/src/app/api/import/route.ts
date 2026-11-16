@@ -1,11 +1,12 @@
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { importCharges, importInput } from "@/db/import-charges";
-import { badFields, failure, limited, NO_STORE } from "@/lib/door";
+import { badFields, failure, limited } from "@/lib/door";
+import { NO_STORE } from "@/lib/form-fetch";
 import { householdRequest } from "@/lib/session";
 
 /**
- * Settings → Import a statement (D53): one batch of up to 500 rows the browser read from a card or bank CSV, for one card.
+ * Cards → Import a statement (D53): one batch of rows the browser read from a card or bank CSV, for one card.
  * JSON in, JSON out ({ added, skipped }); a refusal is plain text, as from the form routes.
  */
 export async function POST(request: Request) {

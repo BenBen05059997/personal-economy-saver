@@ -24,7 +24,7 @@ export function ViewPanel({ id, questions, nav, notes, readOnly, device, switchL
       {questions.length > 1 ? <div className="hv-look">{switchLabel && <span aria-hidden="true">{switchLabel}</span>}<Segmented label={switchLabel ?? "Question"} value={current.key} options={questions.map(item => [item.key, item.label] as const)} onPick={next => save(`${next}|${mode}`)} /></div> : <span />}
       {result.table && <Segmented label="Display" value={mode} options={DISPLAY_OPTIONS} onPick={next => save(`${current.key}|${next}`)} />}
     </div>}
-    <ViewCard result={result} figure={current.figure} tableSlot={current.tableSlot} mode={mode} onMode={next => save(`${current.key}|${next}`)} />
+    <ViewCard result={result} figure={current.figure} tableSlot={current.tableSlot} mode={mode} />
     {notes?.map(note => <p className="hv-note" key={note}>{note}</p>)}
     {!readOnly && !result.empty && <PinView view={result.view} args={result.args} title={result.title} device={device} />}
   </section>;

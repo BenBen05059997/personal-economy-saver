@@ -2,11 +2,11 @@ import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import { notFound } from "next/navigation";
 import type { loadSettings } from "@/db/settings";
-import { fromMinor } from "@/db/money";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { PanelHint } from "@/components/ui/PanelHint";
 import { Currency } from "@/lib/catalogue/types";
-import { aboutMoney, minorMoney, repeatWords } from "@/lib/money/format";
+import { addDays } from "@/lib/money/dates";
+import { aboutMoney, fromMinor, minorMoney, repeatWords } from "@/lib/money/format";
 import { AMOUNT_NOT_KNOWN, DATE_NOT_KNOWN } from "@/lib/money/gaps";
 import { amountOn, lastOneWords, nextAmountOf, nextOccurrenceAfter } from "@/lib/money/repeat";
 import { CategoryFields } from "@/components/household/CategoryFields";
@@ -67,7 +67,7 @@ function EditBill({ bill, bills, people, today, own }: { bill: Bill; bills: Sett
   const repeat = bill.repeatUnit === "month" || bill.repeatUnit === "year" ? bill.repeatUnit : null;
   const series = repeat !== null ? [] : bills.filter(b => b.amountVaries && b.status === "confirmed" && (b.category === bill.category || b.id === bill.seriesBillId));
   const next = nextAmountOf(bill);
-  const yesterday = new Date(Date.parse(today + "T00:00:00Z") - 86_400_000).toISOString().slice(0, 10);
+  const yesterday = addDays(today, -1);
   const from = repeat === null || bill.due === null ? null : nextOccurrenceAfter({ due: bill.due, repeatUnit: repeat, repeatDay: bill.repeatDay ?? undefined, ...(bill.repeatUntil !== null && { repeatUntil: bill.repeatUntil }) }, yesterday) ?? bill.due;
   const amount = bill.amountMinor === null ? null : from === null || bill.amountVaries ? bill.amountMinor : amountOn(bill.amountMinor, next, from);
   const fromHint = `Repeats ${repeatWords(repeat).toLowerCase()}: a new amount starts on this due date. Choose the first due date${bill.due === null ? "" : `, ${dueLabel(bill.due, today)},`} to correct every one.${next ? ` It changes to ${minorMoney(next.amount, currency)} from ${dueLabel(next.from, today)}.` : ""}`;
@@ -98,7 +98,7 @@ function lastOne(bill: Bill, today: string) {
 /** When a bill is next due: a repeating bill's next occurrence from today (its stored date is the first one), else its date. */
 function nextDue(bill: Bill, today: string) {
   if (bill.due === null || (bill.repeatUnit !== "month" && bill.repeatUnit !== "year")) return bill.due;
-  const yesterday = new Date(Date.parse(today + "T00:00:00Z") - 86_400_000).toISOString().slice(0, 10);
+  const yesterday = addDays(today, -1);
   return nextOccurrenceAfter({ due: bill.due, repeatUnit: bill.repeatUnit, repeatDay: bill.repeatDay ?? undefined, ...(bill.repeatUntil !== null && { repeatUntil: bill.repeatUntil }) }, yesterday) ?? bill.due;
 }
 /** One bill in the list: its biller and summary, its amount and due date. A click opens its panel. */

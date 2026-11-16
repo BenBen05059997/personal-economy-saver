@@ -3,7 +3,15 @@ const DRAFT_KEY = "pes-ask-draft";
 export const DRAFT_EVENT = "pes-ask-draft";
 
 // What waits there: a typed character as a plain string, spoken words as JSON with their source. Both forms are read.
-export type Draft = { text: string; source: "manual" | "voice" };
+type Draft = { text: string; source: "manual" | "voice" };
+
+/** The key under which a question asked from a panel waits for the full Ask page to take it, with an id so it is asked once. */
+export const ASK_SUBMIT_KEY = "pes-ask-submit";
+
+/** Leaves a question for the Ask page to ask; throws when the browser blocks session storage. */
+export function storeSubmit(question: string): void {
+  window.sessionStorage.setItem(ASK_SUBMIT_KEY, JSON.stringify({ id: crypto.randomUUID(), question }));
+}
 
 export function storeDraft(draft: Draft): void {
   try { window.sessionStorage.setItem(DRAFT_KEY, draft.source === "voice" ? JSON.stringify(draft) : draft.text); } catch { /* storage can be blocked: the page opens with an empty box */ }

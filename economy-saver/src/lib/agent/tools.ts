@@ -5,7 +5,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import { strictJsonSchema } from "@/lib/ai/schema";
 import { z } from "zod";
 import { householdDate } from "@/db/account";
-import { requireHousehold, type Db, type Maker } from "@/db/household";
+import { requireHousehold, type Db } from "@/db/household";
 import { bankBalanceInput, setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
 import { readerInbox } from "@/db/reader-inbox";
@@ -20,12 +20,11 @@ import { memberByName, memberCount } from "@/db/people";
 import { potInput, savePot } from "@/db/pots";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { loadPeriodBills, loadSpending } from "@/db/spending";
-import { toMinor } from "@/db/money";
 import { clients, invoices } from "@/db/schema";
-import { minorPerUnit } from "@/lib/money/format";
+import { fromMinor, toMinor } from "@/lib/money/format";
 import { dayView } from "@/lib/money/window";
 import { gapAmountWords, gapDateWords, gapQuestion, openGaps } from "@/lib/money/gaps";
-import { outlookFacts, spendReading, withFacts } from "@/lib/money/ask";
+import { lowFacts, outlookFacts, spendReading } from "@/lib/money/ask";
 import { engineFact, forModel, type Fact } from "@/lib/money/facts";
 import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { ownLabel } from "@/lib/money/own-category";
@@ -41,9 +40,11 @@ import { planFor, planLine } from "@/lib/money/plan";
 import { clientsOwe, low, overdue, series, timeline as engineTimeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { directionOf } from "@/lib/schema/cash-flow";
 import { canvasTools } from "./canvas-tools";
+import { by, defineTool } from "./define-tool";
 import { viewTools, type Reading } from "./view-tools";
 import { memoryTools } from "./memory-tools";
 import type { OutOfScopeReason } from "./reply";
+import type { LinkSource } from "@/lib/schema/turn";
 import type { ContextTurn } from "./context";
 import { spaceTools } from "./space-tools";
 import { historyTools } from "./history-tools";
@@ -52,7 +53,8 @@ import type { Brief } from "./brief";
 import { offerTools } from "./offer-tools";
 import type { KeepOffer } from "./keep-offer";
 import { checkTools } from "./check-tools";
-import { CASE_KIND } from "@/lib/money/terms";
+import { CASE_KIND, FACT_CASE } from "@/lib/money/terms";
+import { MAX_BULK_ITEMS } from "./limits";
 import type { Recipe } from "@/lib/canvas/schema";
 import type { DeviceMemory } from "@/lib/store/memory-ops";
 import type { MoneyState } from "@/lib/money/types";
@@ -94,23 +96,24 @@ export type ToolContext = {
   onBrief?: (brief: Brief) => void;
 };
 
-const by = (ctx: ToolContext): Maker => ({ madeBy: ctx.madeBy, ...(ctx.askId && { askId: ctx.askId }) });
-
 export type Tool = {
   name: string;
   description: string;
+  /** The line a person reads while Ask runs this tool: words only, never an amount, an argument or a result. */
+  words: string;
+  /** The page this tool's answer came from, shown as "Based on"; none when the tool adds no page. */
+  source?: LinkSource;
+  /** The result repeats text the model wrote, so its facts confirm nothing. */
+  echoes?: true;
+  /** A valid call ends the question: the reply kind is chosen by code, with no further model call. */
+  endsQuestion?: true;
+  /** Writes or removes the person's memory. */
+  memory?: true;
   input: z.ZodObject<z.ZodRawShape>;
   scope: "read" | "draft" | "ask";
   /** `input` is already validated against `input`. */
   run: (ctx: ToolContext, input: never) => Promise<string>;
 };
-
-function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
-  name: string; description: string; input: S; scope: "read" | "draft" | "ask";
-  run: (ctx: ToolContext, input: z.infer<S>) => Promise<string>;
-}): Tool {
-  return tool as unknown as Tool;
-}
 
 const none = z.object({});
 // D45: the agent names people, not ids. `shared` and `paidBy` replace the form's member ids.
@@ -266,19 +269,9 @@ function eventFacts(state: MoneyState, events: ReturnType<typeof engineTimeline>
   });
 }
 
-/** The lowest point of a timeline and any shortfall, in the case tested. */
-function lowFacts(state: MoneyState, lowest: { date: string; amount: number }, scenario: "as_usual" | "late", from: string): Fact[] {
-  const currency = state.homeCurrency, period = { on: lowest.date };
-  return [
-    engineFact("low_point", toMinor(lowest.amount, currency), { from, currency, case: scenario, period }),
-    engineFact("low_point_day", lowest.date, { from, case: scenario }),
-    ...(lowest.amount < 0 ? [engineFact("short", toMinor(-lowest.amount, currency), { from, currency, case: scenario, period })] : []),
-  ];
-}
-
 export const tools: Tool[] = [
   defineTool({
-    name: "open_gaps", scope: "read", input: none,
+    name: "open_gaps", words: "Checking what's still unknown", source: { label: "To check", href: "/to-check" }, scope: "read", input: none,
     description: "Bills and readings missing a date or amount, urgent first. Quote the gap words and question. Unknown dates count today.",
     run: async ctx => {
       const [state, inbox] = await Promise.all([ctx.state(), readerInbox(ctx.db, ctx.householdId)]);
@@ -291,18 +284,18 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "can_i_spend", scope: "read",
+    name: "can_i_spend", words: "Checking what you can spend", source: { label: "Safe to spend", href: "/" }, scope: "read",
     input: z.object({ amount_minor: z.number().int().positive().safe(), card_id: z.string().uuid().nullish() }),
     description: "Check a purchase in minor units. Card ID from list_clients_and_cards; null: all cards.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       if (input.card_id && !state.cards.some(card => card.id === input.card_id)) throw new Error("Unknown card");
       const reading = spendReading(state, input.amount_minor, input.card_id ?? undefined);
-      return withFacts(reading.text, reading.facts);
+      return JSON.stringify({ line: reading.text, ...forModel(reading.facts) });
     },
   }),
   defineTool({
-    name: "list_clients_and_cards", scope: "read", input: none,
+    name: "list_clients_and_cards", words: "Checking your clients and cards", source: { label: "Clients", href: "/clients" }, scope: "read", input: none,
     description: "Client and card IDs and names, with each client’s usual and slowest days to pay.",
     run: async ctx => {
       const state = await ctx.state();
@@ -315,14 +308,13 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "timeline", scope: "read",
+    name: "timeline", words: "Lining up the dates", source: { label: "Coming up", href: "/#coming-up" }, scope: "read",
     input: z.object({ scenario: z.enum(["usual", "late"]), on: z.string().date().nullish().describe("One day (end-of-day balance) or null for all 30.") }),
     description: "Cash flow for a day or next 30: balances and lowest point. usual = usual days, late = slowest. None past 30 days.",
     run: async (ctx, input) => {
       const state = await ctx.state();
       const kind = CASE_KIND[input.scenario];
-      // The tool says `usual`, like show and what_if; a fact says `as_usual`, the term for that case.
-      const factCase = input.scenario === "usual" ? "as_usual" as const : "late" as const;
+      const factCase = FACT_CASE[input.scenario];
       const minor = (amount: number) => toMinor(amount, state.homeCurrency);
       const eventOut = (event: ReturnType<typeof engineTimeline>[number]) => ({
         date: event.date, label: event.label, kind: event.kind, amountMinor: minor(event.amount),
@@ -346,12 +338,12 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "options_when_short", scope: "read", input: none,
+    name: "options_when_short", words: "Looking at your options", source: { label: "Options", href: "/options" }, scope: "read", input: none,
     description: "Ways to close a shortfall if clients pay late, cheapest first, with cost and status.",
     run: async ctx => {
       const state = await ctx.state();
       const plan = fundingOptions(state);
-      if (!plan.gap) return withFacts("not short", outlookFacts(state, "options_when_short"));
+      if (!plan.gap) return JSON.stringify({ line: "not short", ...forModel(outlookFacts(state, "options_when_short")), currency: state.homeCurrency, options: [] });
       const minor = (amount: number) => toMinor(amount, state.homeCurrency);
       const from = "options_when_short", currency = state.homeCurrency;
       const facts = [
@@ -369,7 +361,7 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "list_invoices", scope: "read", input: none,
+    name: "list_invoices", words: "Reading your invoices", source: { label: "Clients", href: "/clients" }, scope: "read", input: none,
     description: "Invoice counts by status (quote them) and the 50 latest invoices: status, USD cents, dates, each client’s usual and slowest days to pay.",
     run: async ctx => {
       const hid = requireHousehold(ctx.householdId);
@@ -400,12 +392,12 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "household_snapshot", scope: "read", input: z.object({}).strict(),
+    name: "household_snapshot", words: "Reading your household", scope: "read", input: z.object({}).strict(),
     description: `Household record for context and IDs: the ${SNAPSHOT_TOOL_WINDOW} latest rows per long list. Check truncated. Pending rows don’t count.`,
     run: async ctx => JSON.stringify(await loadHouseholdSnapshot(ctx.db, ctx.householdId, { events: false, recent: SNAPSHOT_TOOL_WINDOW })),
   }),
   defineTool({
-    name: "goals", scope: "read", input: none,
+    name: "goals", words: "Checking your goal progress", source: { label: "Saving", href: "/saving" }, scope: "read", input: none,
     description: "Dated pots: pace, gaps, monthly saving needed. Quote summary.",
     run: async ctx => {
       const state = await ctx.state();
@@ -424,7 +416,7 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "plan_for", scope: "read",
+    name: "plan_for", words: "Working out the plan", source: { label: "Saving", href: "/saving" }, scope: "read",
     input: z.object({
       target_minor: z.number().int().positive().safe().nullish(),
       target_date: z.string().date().nullish(),
@@ -437,7 +429,7 @@ export const tools: Tool[] = [
       const pot = input.pot_id ? state.pots.find(p => p.id === input.pot_id) : undefined;
       if (input.pot_id && !pot) throw new Error("Unknown pot");
       const minor = (amount: number) => toMinor(amount, state.homeCurrency);
-      const unit = (n: number) => n / minorPerUnit(state.homeCurrency);
+      const unit = (n: number) => fromMinor(n, state.homeCurrency);
       const target = input.target_minor != null ? unit(input.target_minor) : pot?.target;
       if (target === undefined) throw new Error("A target amount is required");
       const targetDate = input.target_date ?? pot?.targetDate;
@@ -462,7 +454,7 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "own_categories", scope: "read", input: none,
+    name: "own_categories", words: "Reading your own categories", source: { label: "Your categories", href: "/spending/categories" }, scope: "read", input: none,
     description: "Own categories with business share and use; the only own_category names.",
     run: async ctx => {
       const groups = await listOwnCategoriesGrouped(ctx.db, ctx.householdId);
@@ -472,7 +464,7 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "search_spending", scope: "read",
+    name: "search_spending", words: "Searching your spending", source: { label: "Spending", href: "/spending" }, scope: "read",
     input: z.object({
       query: z.string().max(SEARCH_QUERY_MAX).default("").describe("All words must match; empty: all."),
       months: z.number().int().min(1).max(HISTORY_MONTHS).nullable().default(null).describe(`Months back, 1 to ${HISTORY_MONTHS}, this one included; null = 3.`),
@@ -496,7 +488,7 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "bills_for_month", scope: "read",
+    name: "bills_for_month", words: "Finding the bills for that month", source: { label: "Spending", href: "/spending" }, scope: "read",
     input: z.object({
       month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month is YYYY-MM").describe("Service month, YYYY-MM."),
       text: z.string().max(SEARCH_QUERY_MAX).default("").describe("Name or category; empty lists all."),
@@ -520,12 +512,12 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "suggestions", scope: "read", input: none,
+    name: "suggestions", words: "Checking what needs your attention", source: { label: "From your assistant", href: "/#assistant-suggestions" }, scope: "read", input: none,
     description: "Open Home findings, most urgent first. Quote title and reason; name the space if spaceName is set.",
     run: async ctx => JSON.stringify(await openSuggestions(ctx.db, ctx.householdId)),
   }),
   defineTool({
-    name: "draft_invoice", scope: "draft", input: draftInput.omit({ id: true }),
+    name: "draft_invoice", words: "Drafting the invoice", scope: "draft", input: draftInput.omit({ id: true }),
     description: "Draft a USD invoice for review. amount in dollars. client_id from list_clients_and_cards.",
     run: async (ctx, input) => {
       const id = await saveInvoiceDraft(ctx.db, ctx.householdId, { ...input, id: await draftId(ctx, "draft_invoice", input) }, by(ctx));
@@ -535,7 +527,7 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "add_bill", scope: "draft", input: addBillInput,
+    name: "add_bill", words: "Adding the bill", scope: "draft", input: addBillInput,
     description: "Draft a bill for To check. Shared: memberId null, paidBy a display name.",
     run: async (ctx, input) => {
       const { biller, note } = await draftOne(ctx, "add_bill", input, prepareBill, insertPreparedBill(ctx));
@@ -543,15 +535,15 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "add_bills", scope: "draft", input: z.object({ items: z.array(addBillInput).min(1).max(10) }),
-    description: "1–10 bills atomically, as add_bill. An error names the item.",
+    name: "add_bills", words: "Adding the bills", scope: "draft", input: z.object({ items: z.array(addBillInput).min(1).max(MAX_BULK_ITEMS) }),
+    description: `1–${MAX_BULK_ITEMS} bills atomically, as add_bill. An error names the item.`,
     run: async (ctx, input) => {
       const prepared = await draftMany(ctx, "add_bills", input.items, prepareBill, insertPreparedBill(ctx));
       return `${prepared.length} bills are waiting in To check for the user to confirm: ${prepared.map(p => `${p.biller} (${p.note})`).join(" ")}`;
     },
   }),
   defineTool({
-    name: "log_charge", scope: "draft", input: logChargeInput,
+    name: "log_charge", words: "Logging the charge", scope: "draft", input: logChargeInput,
     description: "Draft a card purchase for To check. amount is billed, home currency. cardId from list_clients_and_cards. Shared needs a member’s card.",
     run: async (ctx, input) => {
       const { merchant, note } = await draftOne(ctx, "log_charge", input, prepareCharge, insertPreparedCharge(ctx));
@@ -559,15 +551,15 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "log_charges", scope: "draft", input: z.object({ items: z.array(logChargeInput).min(1).max(10) }),
-    description: "1–10 card purchases atomically, as log_charge. An error names the item.",
+    name: "log_charges", words: "Logging the charges", scope: "draft", input: z.object({ items: z.array(logChargeInput).min(1).max(MAX_BULK_ITEMS) }),
+    description: `1–${MAX_BULK_ITEMS} card purchases atomically, as log_charge. An error names the item.`,
     run: async (ctx, input) => {
       const prepared = await draftMany(ctx, "log_charges", input.items, prepareCharge, insertPreparedCharge(ctx));
       return `${prepared.length} charges are waiting in To check for the user to confirm: ${prepared.map(p => `${p.merchant} (${p.note})`).join(" ")}`;
     },
   }),
   defineTool({
-    name: "add_pot", scope: "draft", input: potInput.pick({ name: true, target: true, targetDate: true, fillPct: true }),
+    name: "add_pot", words: "Setting up the pot", scope: "draft", input: potInput.pick({ name: true, target: true, targetDate: true, fillPct: true }),
     description: "Draft a savings pot for To check. target in home currency; fillPct: % of each client payment.",
     run: async (ctx, input) => {
       await savePot(ctx.db, ctx.householdId, { ...input, id: await draftId(ctx, "add_pot", input), saved: "0", memberId: null }, "pending", by(ctx));
@@ -576,7 +568,7 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "update_bank_balance", scope: "draft", input: bankBalanceInput.omit({ id: true }),
+    name: "update_bank_balance", words: "Updating the bank balance", scope: "draft", input: bankBalanceInput.omit({ id: true }),
     description: "Draft a bank balance for To check. amount in home currency, may be negative.",
     run: async (ctx, input) => {
       await setBankBalance(ctx.db, ctx.householdId, { ...input, id: await draftId(ctx, "update_bank_balance", input) }, "pending", by(ctx));

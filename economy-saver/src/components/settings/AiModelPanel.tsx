@@ -14,12 +14,11 @@ import { AiModelForm } from "./AiModelForm";
 const CHECK_WORDS: Record<(typeof CHECK_NAMES)[number], string> = {
   uses_tools: "Uses the app’s tools", ignores_injection: "Ignores instructions hidden in bills", stays_on_money: "Stays on money questions", reads_images: "Reads images",
 };
-const dateOf = (iso: string) => mediumDate(iso);
 
 function CheckLine({ tested, check }: { tested: boolean; check: ConnectionCheck | null }) {
   const label = tested ? "Tested" : "Custom, untested";
   if (!check) return <p className="ui-hint">{label}</p>;
-  return <><p className="ui-hint">{label} · passed {check.passed.length} of {check.passed.length + check.failed.length} checks on {dateOf(check.at)}</p>
+  return <><p className="ui-hint">{label} · passed {check.passed.length} of {check.passed.length + check.failed.length} checks on {mediumDate(check.at)}</p>
     {check.passed.includes("reads_images") && <p className="ui-hint">Reads images: passed.</p>}
     {check.failed.length > 0 && <ul className="ui-hint">{check.failed.map(f => <li key={f.name}>{CHECK_WORDS[f.name]}: {f.why}</li>)}</ul>}</>;
 }

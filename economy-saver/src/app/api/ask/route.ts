@@ -5,7 +5,9 @@ import { db } from "@/db/client";
 import { InputError } from "@/db/input-error";
 import { AgentError } from "@/lib/agent/run";
 import { QUESTIONS_USED_UP, questionsLeft, spendAiBudget } from "@/db/ai-cap";
-import { NO_STORE, limited, text, tooMany } from "@/lib/door";
+import { limited, text, tooMany } from "@/lib/door";
+import { NO_STORE, readBounded } from "@/lib/form-fetch";
+import { QUESTION_MAX } from "@/lib/schema/turn";
 import { householdRequest } from "@/lib/session";
 
 import { MissingAuthSetting } from "@/lib/supabase-auth";
@@ -19,14 +21,15 @@ const tooLarge = () => text("That is more than one question can carry. Delete so
 export async function POST(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) return hid;
-  const raw = await request.text();
-  const bytes = new TextEncoder().encode(raw).length;
-  if (bytes > MAX_DEVICE_BODY) return tooLarge();
-  let body: unknown = null;
-  try { body = JSON.parse(raw); } catch { /* answered below */ }
-  const data = askInput.safeParse(body);
+  const body = await readBounded(request, MAX_DEVICE_BODY);
+  if (!body) return tooLarge();
+  const raw = new TextDecoder().decode(body);
+  const bytes = body.byteLength;
+  let json: unknown = null;
+  try { json = JSON.parse(raw); } catch { /* answered below */ }
+  const data = askInput.safeParse(json);
   if (bytes > MAX_BODY && (!data.success || (data.data.memory === undefined && data.data.recent === undefined))) return tooLarge();
-  if (!data.success) return text("Enter a question of up to 320 characters.", 400);
+  if (!data.success) return text(`Enter a question of up to ${QUESTION_MAX} characters.`, 400);
   const connection = db();
   const busy = await limited(hid, "ask", undefined, "Ask again in a minute.", connection);
   if (busy) return busy;

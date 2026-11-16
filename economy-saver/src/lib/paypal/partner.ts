@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import { appUrl } from "@/lib/supabase-auth";
 import { PayPalError } from "@/lib/paypal/client";
 import type { PayPalCall } from "@/lib/paypal/contracts";
+import { isPayPalApproveUrl } from "@/lib/paypal/send";
 
 /** What fipa asks the person to allow: take payments for them, see their account details, search their transactions. */
 export const REFERRAL_FEATURES = ["PAYMENT", "ACCESS_MERCHANT_INFORMATION", "ADVANCED_TRANSACTIONS_SEARCH"] as const;
@@ -37,7 +38,7 @@ export async function createReferral(call: PayPalCall, trackingId: string): Prom
   const href = parsed.success ? parsed.data.links.find(link => link.rel === "action_url")?.href : undefined;
   if (!href) throw new PayPalError("PayPal did not return a sign-up link");
   const url = new URL(href);
-  if (url.protocol !== "https:" || !(url.hostname === "paypal.com" || url.hostname.endsWith(".paypal.com"))) throw new PayPalError("PayPal returned an unexpected sign-up link");
+  if (!isPayPalApproveUrl(url.href)) throw new PayPalError("PayPal returned an unexpected sign-up link");
   return url.toString();
 }
 

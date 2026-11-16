@@ -2,27 +2,19 @@
 
 import Link from "next/link";
 import { AddLink } from "@/components/add/AddLink";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import type { AddKind } from "@/components/add/context";
 import { useAskPanel } from "@/components/shell/AskWorkspace";
 import { listDevice } from "@/lib/store/device";
+import { useHidePanel } from "./use-hide-panel";
 import "./get-started.css";
 
 export type GetStartedProgress = { invoicePaid: boolean; billConfirmed: boolean; hasKey: boolean; serverHasModel: boolean; answered: boolean; journalOnDevice: boolean };
-const subscribe = (callback: () => void) => {
-  window.addEventListener("storage", callback);
-  window.addEventListener("pes-get-started-hidden", callback);
-  return () => { window.removeEventListener("storage", callback); window.removeEventListener("pes-get-started-hidden", callback); };
-};
 
 export function GetStarted({ householdId, progress, peopleCount, invoiceHref }: { householdId: string; progress: GetStartedProgress; peopleCount: number; invoiceHref: string }) {
   const panel = useAskPanel();
-  const [locallyHidden, setLocallyHidden] = useState(false);
+  const [hidden, hide] = useHidePanel("pes-get-started-hidden", householdId, false);
   const [deviceAnswered, setDeviceAnswered] = useState(false);
-  const key = `pes-get-started-hidden:${householdId}`;
-  const hidden = useSyncExternalStore(subscribe, () => {
-    try { return localStorage.getItem(key) === "yes"; } catch { return false; }
-  }, () => false);
   useEffect(() => {
     if (!progress.journalOnDevice) return;
     let active = true;
@@ -31,7 +23,7 @@ export function GetStarted({ householdId, progress, peopleCount, invoiceHref }: 
     }).catch(() => { if (active) setDeviceAnswered(false); });
     return () => { active = false; };
   }, [householdId, progress.journalOnDevice, panel?.revision]);
-  if (hidden || locallyHidden) return null;
+  if (hidden) return null;
   const steps = [
     { done: true, label: "Read the sentence and the forecast", href: "#next-30-days" },
     { done: progress.invoicePaid, label: "Send Beacon’s payment link and watch the payment arrive", hint: "Approve it, then press Pay as the client on the invoice; in about 20 seconds the payment lands.", href: invoiceHref },
@@ -41,15 +33,11 @@ export function GetStarted({ householdId, progress, peopleCount, invoiceHref }: 
     { done: peopleCount > 1, label: "Add a person who shares costs", add: "person" as const },
   ];
   const done = steps.filter(step => step.done).length;
-  function hide() {
-    setLocallyHidden(true);
-    try { localStorage.setItem(key, "yes"); window.dispatchEvent(new Event("pes-get-started-hidden")); } catch { /* Device storage may be unavailable. */ }
-  }
-  return <StepsPanel id="get-started-title" title="Get started" meta={`${done} of 5 done`} progress={{ done, of: 5 }} onHide={hide}
+  return <StepsPanel id="get-started-title" title="Get started" meta={`${done} of ${steps.length} done`} progress={{ done, of: steps.length }} onHide={hide}
     rows={steps} />;
 }
 
-export type StepRow = { done: boolean; label: string; hint?: string; href?: string; add?: AddKind };
+type StepRow = { done: boolean; label: string; hint?: string; href?: string; add?: AddKind };
 
 /** The panel Get started draws: a header, an optional progress bar and one row per step. */
 function StepsPanel({ id, title, meta, progress, onHide, rows, }: { id: string; title: string; meta?: string; progress?: { done: number; of: number }; onHide?: () => void; rows: StepRow[] }) {

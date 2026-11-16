@@ -32,7 +32,7 @@ export function whoseName(id: string | null, people: MonthPerson[]): string {
 }
 
 /** D75: what the File control needs: the month's items as the engine listed them (`spendingItems` over the same month, so each category's items line up with the view's) and the household's own categories. */
-export type Filing = { entries: SpendItem[]; own: OwnChoices };
+type Filing = { entries: SpendItem[]; own: OwnChoices };
 
 /**
  * The month's confirmed bills and card charges by category (D46, D52), split business and personal, and, for two or more people,

@@ -15,21 +15,16 @@ import { resolveView } from "@/lib/views/resolve";
 import { loadViewContext } from "@/lib/views/load";
 import { ViewError, type ViewId, type ViewResult } from "@/lib/views/types";
 import type { ViewArgs } from "@/lib/views/args";
+import { defineTool } from "./define-tool";
 import type { Tool } from "./tools";
 import { storedId } from "@/lib/money/repeat";
 
+/** The name of the tool that draws a picture; the run treats its facts apart from other tools'. */
+export const SHOW_TOOL = "show";
 /** The block `show` hands the run: a view and its ids, the shape a canvas recipe stores. */
 export type ViewBlock = { [K in ViewId]: { type: "view"; view: K; args: ViewArgs[K] } }[ViewId];
-export const MAX_SHOWN = 4;
 /** What one `show` leaves with the run: the block to draw, the picture's own sentence and the facts that sentence was written from. */
 export type Reading = { block: ViewBlock; sentence: string | null; facts: Fact[] };
-
-function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
-  name: string; description: string; input: S; scope: Tool["scope"];
-  run: (ctx: Parameters<Tool["run"]>[0], input: z.infer<S>) => Promise<string>;
-}): Tool {
-  return tool as unknown as Tool;
-}
 
 // Every argument a view can take, by name. Each view takes some of them; `amount` is text as the person said it.
 // The month, months and days rules are the registry's (`VIEW_ARGS`): a view's own range refuses what is out of it.
@@ -134,7 +129,7 @@ function parseArgs(view: ViewId, text: string | null): Record<string, unknown> {
 
 export const viewTools: Tool[] = [
   defineTool({
-    name: "show", scope: "read",
+    name: SHOW_TOOL, words: "Drawing a chart", scope: "read",
     input: z.object({ view: z.string(), args: z.string().nullable() }),
     description: DESCRIPTION,
     run: async (ctx, input) => {

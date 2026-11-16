@@ -31,13 +31,16 @@ export function splitSources(stored: readonly StoredSource[]): { sources: TurnSo
 export const TurnKind = z.enum(["answer", "clarify", "declined", "document"]);
 export type TurnKind = z.infer<typeof TurnKind>;
 
+/** The longest question a person can ask, in characters. */
+export const QUESTION_MAX = 320;
+
 export const ConversationTurn = z.object({
   version: z.literal(TURN_VERSION),
   id: z.string().uuid(),
   conversationId: z.string().uuid(),
   /** A device turn in a space carries its scope so a later deletion cannot turn it into a legacy conversation. */
   spaceId: z.string().uuid().optional(),
-  question: z.string().min(1).max(320),
+  question: z.string().min(1).max(QUESTION_MAX),
   kind: TurnKind,
   reply: z.string().min(1),
   choices: z.array(z.string().min(1).max(60)).min(2).max(4).nullable(),

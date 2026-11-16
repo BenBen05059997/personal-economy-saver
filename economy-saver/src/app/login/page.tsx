@@ -3,9 +3,10 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { AccountFrame } from "@/components/auth/AccountFrame";
 import { verifiedUid } from "@/lib/auth-request";
+import { SETTINGS_ACCOUNT } from "@/lib/links";
 
 async function Login({ searchParams }: PageProps<"/login">) {
-  if (await verifiedUid()) redirect("/settings/account");
+  if (await verifiedUid()) redirect(SETTINGS_ACCOUNT);
   const params = await searchParams;
   return <AccountFrame title={params.sent ? "Check your email" : "Sign in with email"}>
     {params.sent ? <p>Open the sign-in link in this browser to finish.</p> : <>

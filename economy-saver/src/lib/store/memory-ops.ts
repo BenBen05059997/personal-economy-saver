@@ -1,6 +1,6 @@
 // D59: the operations on what the assistant remembers, as pure functions over a list. The browser's device store (src/lib/store/device.ts) runs them on its
 // own copy; the server runs them on the list that came with a question (the household keeps its memory on one device) and sends the change
-// back in the reply. The same rules as src/db/memory.ts: 400 characters, no run of 12 digits, 200 items, the same text under the same kind and scope is one item.
+// back in the reply. The same rules as src/db/memory.ts (the limits are in schema/memory.ts): the same text under the same kind and scope is one item.
 import { z } from "zod";
 import { InputError } from "@/db/input-error";
 import { KEY_TEXT_WORDS, looksLikeApiKey } from "@/lib/ai/key-text";

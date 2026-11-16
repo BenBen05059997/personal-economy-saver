@@ -5,7 +5,8 @@ import { withHousehold } from "@/db/household";
 import { missingAskSetting, serverHasNoModel } from "@/lib/agent/availability";
 import { logVoice } from "@/lib/agent/log";
 import { QUESTIONS_USED_UP, spendAiBudget } from "@/db/ai-cap";
-import { boundedText, NO_STORE, text, tooMany } from "@/lib/door";
+import { boundedText, text, tooMany } from "@/lib/door";
+import { NO_STORE } from "@/lib/form-fetch";
 import { householdRequest } from "@/lib/session";
 import { fillByVoice, VoiceFillError } from "@/lib/voice/fill";
 import { VoiceFillRequest } from "@/lib/voice/schema";
@@ -13,7 +14,7 @@ import { VoiceFillRequest } from "@/lib/voice/schema";
 const MAX_BODY = 16 * 1024;
 
 /**
- * Voice fill (28B): `{ text, fields }` in (`VoiceFillRequest`), `{ values, heard, notes }` out. It only proposes values the code has
+ * Voice fill: `{ text, fields }` in (`VoiceFillRequest`), `{ values, heard, notes }` out. It only proposes values the code has
  * checked; nothing is written. On the owner's connection it spends the household's daily question budget (D33).
  */
 export async function POST(request: Request) {

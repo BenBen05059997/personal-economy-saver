@@ -1,4 +1,4 @@
-// Optional Next dev preload for the Stage 34 browser checks. No app module imports it.
+// Optional Next dev preload for the browser checks of the model settings. No app module imports it.
 import { fakeModel, type FakeMode } from "./ai-fake";
 
 const PREFIX = "sk-ant-fictional-stage34-";

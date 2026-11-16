@@ -1,4 +1,5 @@
 import { minorMoney } from "@/lib/money/format";
+import { pluralWord } from "@/lib/plural";
 import type { Fact } from "@/lib/money/facts";
 
 export type ReminderDigest = { title: string; body: string; url: string };
@@ -46,7 +47,7 @@ export function reminderDigest(findings: readonly { kind: string; facts?: readon
   });
   const more = eligible.length - lines.length;
   if (more) {
-    lines.push(more === 1 ? "1 more finding on Home." : more + " more findings on Home.");
+    lines.push(`${more} more ${pluralWord(more, "finding")} on Home.`);
     const shown = new Set(names.slice(0, MAX_LINES));
     const others = [...new Set(names.slice(MAX_LINES).filter(name => name && !shown.has(name)))];
     if (others.length) lines.push("More findings in these spaces: " + others.join(", ") + ".");

@@ -11,7 +11,8 @@ import { requireStorageRoom } from "./document-cleanup";
 import { proposeReadings } from "./readings";
 import { documentBucket } from "@/lib/reader/storage";
 import { extractDocument } from "@/lib/reader/extract";
-import { MAX_DOCUMENT_BYTES, ReaderError } from "@/lib/reader/settings";
+import { MAX_DOCUMENT_BYTES } from "@/lib/document-limit";
+import { ReaderError } from "@/lib/reader/settings";
 
 const LEASE_MS = 90_000;
 const staleBefore = () => new Date(Date.now() - LEASE_MS);

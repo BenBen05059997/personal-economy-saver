@@ -1,4 +1,5 @@
 import { CHIP_WORDS, chipOf } from "@/lib/agent/draft-card";
+import { CheckIcon } from "@/components/ui/icons";
 import type { DraftView } from "@/lib/agent/view";
 import "./draft-card.css";
 
@@ -7,7 +8,7 @@ export function ReplyChip({ drafts }: { drafts: readonly DraftView[] }) {
   const state = chipOf(drafts);
   if (state === null) return null;
   return <p className="ask-chip-line"><span className={`ask-chip is-${state}`} role="status">
-    {state === "confirmed" && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>}
+    {state === "confirmed" && <CheckIcon size={12} />}
     {CHIP_WORDS[state]}
   </span></p>;
 }

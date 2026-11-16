@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Currency } from "@/lib/catalogue/types";
 
 // PayPal's Transaction Search response, read defensively. The field names are from PayPal's reporting schema and are
 // not yet confirmed against a real seller's response, so every field is optional and an unreadable row is skipped.
@@ -23,7 +24,7 @@ const page = z.object({
 }).passthrough();
 
 export type IncomingPayment = {
-  transactionId: string; at: Date; currency: "USD" | "JPY"; amountMinor: number; payerEmail: string; payerName: string;
+  transactionId: string; at: Date; currency: Currency; amountMinor: number; payerEmail: string; payerName: string;
 };
 
 /**

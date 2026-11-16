@@ -1,3 +1,4 @@
+import { daysBetween } from "@/lib/money/dates";
 import { cycle, paybackFor, roomOnCard, statementItems, type Payback } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
 
@@ -8,7 +9,7 @@ export const DAY_COVERED = "Covered: your balance stays above zero on this day, 
 
 type CardSummary = {
   owed: number; // unbilled charges in the open cycle plus any closed statement not yet paid
-  limitLeft?: number; // only when the card has a limit
+  limitLeft?: number; // only when the card has a limit; never below zero
   next?: Payback; // the soonest statement: amount, due date and where it is paid from
   shortBy: number; // 0 when the next statement is covered by expected money
 };
@@ -17,10 +18,16 @@ type CardSummary = {
 export function cardSummary(state: MoneyState, cardId: string): CardSummary {
   const closedUnpaid = statementItems(state).filter((st) => st.cardId === cardId && !st.open).reduce((sum, st) => sum + st.amount, 0);
   const next = paybackFor(state, cardId);
+  const limitLeft = roomOnCard(state, cardId).limitLeft;
   return {
     owed: cycle(state, cardId).openTotal + closedUnpaid,
-    limitLeft: roomOnCard(state, cardId).limitLeft,
+    limitLeft: limitLeft === undefined ? undefined : Math.max(0, limitLeft),
     next,
     shortBy: next?.source === "short" ? Math.max(0, -next.worstBalance) : 0,
   };
+}
+
+/** The statements still building (cards with charges in an open cycle) that fall due within `days` days: the card charges not yet on a statement that safe to spend already counts. */
+export function cardChargesNotOnStatement(state: MoneyState, days: number) {
+  return statementItems(state).filter((item) => item.open && item.dueOn >= state.today && daysBetween(state.today, item.dueOn) < days);
 }

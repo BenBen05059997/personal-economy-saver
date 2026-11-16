@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { ApiForm } from "@/components/ui/ApiForm";
+import { CheckIcon } from "@/components/ui/icons";
 import { ViewCard } from "@/components/views/ViewCard";
 import { ViewFigure } from "@/components/views/ViewFigure";
 import { PinView } from "@/components/views/PinView";
 import type { DraftView } from "@/lib/agent/view";
 import "./draft-card.css";
-
-const check = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden="true"><path d="M5 12l5 5 9-10" /></svg>;
 
 /**
  * D60, D61: the card under a draft in the thread. Every word is written by code (src/lib/agent/draft-card.ts); the model words only the reply above it.
@@ -19,12 +18,12 @@ export function DraftCard({ draft, returnTo, canWrite, device, onChanged }: { dr
   if (draft.state === "not_added") return <div className="ask-draft is-quiet"><p className="ask-draft-line">Not added: {draft.name}.</p></div>;
   if (draft.state === "confirmed") return <>
     <div className="ask-draft ask-draft-saved">
-      <p className="ask-draft-saved-head">{check}Saved{draft.saved?.day && <span> {draft.saved.day}</span>}</p>
+      <p className="ask-draft-saved-head"><CheckIcon size={14} />Saved{draft.saved?.day && <span> {draft.saved.day}</span>}</p>
       <p className="ask-draft-line">{draft.saved?.line}</p>
     </div>
     {draft.result && <section className="ask-draft ask-draft-changed" aria-label={draft.title}>
       <h3 className="ask-draft-title">{draft.title}</h3>
-      <ViewCard result={draft.result} figure={<ViewFigure result={draft.result} />} mode="chart" onMode={() => {}} />
+      <ViewCard result={draft.result} figure={<ViewFigure result={draft.result} />} mode="chart" />
       <div className="ask-draft-places">
         {draft.places.map(place => <Link key={place.href + place.label} className="ui-button" href={place.href} prefetch={false}>{place.label}</Link>)}
         {canWrite && <PinView view={draft.result.view} args={draft.result.args} title={draft.title} device={device} />}
@@ -38,7 +37,7 @@ export function DraftCard({ draft, returnTo, canWrite, device, onChanged }: { dr
     <dl className="ask-draft-fields">{draft.fields.map(field => <div key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></div>)}</dl>
     {draft.result && <div className="ask-draft-change">
       <p className="ask-draft-change-head">If you confirm</p>
-      <ViewCard result={{ ...draft.result, line: null }} figure={<ViewFigure result={draft.result} />} mode="chart" onMode={() => {}} />
+      <ViewCard result={{ ...draft.result, line: null }} figure={<ViewFigure result={draft.result} />} mode="chart" />
     </div>}
     {canWrite && <div className="ask-draft-actions">
       <ApiForm action="/api/confirm" onDone={onChanged}>

@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { KeyboardEvent } from "react";
 import { DRAFT_EVENT, storeDraft } from "@/components/ask/draft";
+import { iconPaths } from "@/components/ui/icons";
 import { useAskPanel } from "./AskWorkspace";
 
 function AskIcon() {
-  return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" /></svg>;
+  return <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths.ask} /></svg>;
 }
 
 /** The one Ask button, at the top right of every screen of a household. It opens and closes the side panel; on the full Ask page it shows pressed and takes the person back. Below 900px, where there is no panel, it is a link to the full page. */

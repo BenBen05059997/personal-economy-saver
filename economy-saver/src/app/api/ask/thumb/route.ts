@@ -4,10 +4,11 @@ import { withHousehold } from "@/db/household";
 import { setThumb } from "@/db/conversation";
 import { readPlaces } from "@/db/place";
 import { logThumb } from "@/lib/agent/log";
-import { limited, text } from "@/lib/door";
+import { limited, text, TOO_MANY_REQUESTS } from "@/lib/door";
 import { householdRequest } from "@/lib/session";
+import { Uuid } from "@/lib/stable-id";
 
-const Thumb = z.object({ id: z.string().uuid(), thumb: z.enum(["up", "down"]).nullable(), device: z.literal(true).optional() }).strict();
+const Thumb = z.object({ id: Uuid, thumb: z.enum(["up", "down"]).nullable(), device: z.literal(true).optional() }).strict();
 
 /** A thumb on one reply (D60): `{ id, thumb: "up" | "down" | null, device? }`; `device` (conversations kept on this device, D59) only writes the log line. One log line with the ids and the thumb, never the question or the answer. */
 export async function POST(request: Request) {
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
   if (hid instanceof Response) return hid;
   const data = Thumb.safeParse(await request.json().catch(() => null));
   if (!data.success) return text("Choose Helpful or Not helpful.", 400);
-  const busy = await limited(hid, "thumb", 30, "Too many requests. Try again in a minute.");
+  const busy = await limited(hid, "thumb", 30, TOO_MANY_REQUESTS);
   if (busy) return busy;
   const { id, thumb, device } = data.data;
   const status = await withHousehold(db(), hid, async tx => {

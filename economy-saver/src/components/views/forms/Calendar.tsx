@@ -4,6 +4,7 @@ import { useState } from "react";
 import { dayLabel, longDay } from "@/lib/money/format";
 import type { ViewResult } from "@/lib/views/types";
 import { WAITS_IN_TO_CHECK } from "@/lib/views/words";
+import { CASES } from "@/lib/money/terms";
 import "./calendar.css";
 
 /** A pending line in a cell, in short words ("Hikari Denki ¥11,220 · to check"); the readout and the table keep the full sentence. */
@@ -19,12 +20,12 @@ export function Calendar({ result }: { result: ViewResult<"calendar"> }) {
   if (!data) return null;
   const cells = data.weeks.flat(), chosen = cells.find(cell => cell.date === selected && cell.inRange) ?? null;
   const hasIn = cells.some(cell => cell.inMinor > 0), hasShort = cells.some(cell => cell.short);
-  const readout = chosen === null ? "Hover or focus a day to read what falls on it." : `${longDay(chosen.date)}: ${chosen.items.length ? chosen.items.join("; ") : "nothing scheduled"}${chosen.short ? ". Short if clients pay late" : ""}.`;
+  const readout = chosen === null ? "Hover or focus a day to read what falls on it." : `${longDay(chosen.date)}: ${chosen.items.length ? chosen.items.join("; ") : "nothing scheduled"}${chosen.short ? `. Short if clients pay ${CASES.late.label}` : ""}.`;
   return <div className="cal-chart">
     <div className="cal-legend">
       <span><i className="cal-sw cal-sw-low" />Goes out, a little</span><span><i className="cal-sw cal-sw-high" />Goes out, the most</span>
       {hasIn && <span><i className="cal-dot cal-dot-in" />Money coming in</span>}
-      {hasShort && <span><i className="cal-dot cal-dot-short" />Short if clients pay late</span>}
+      {hasShort && <span><i className="cal-dot cal-dot-short" />Short if clients pay {CASES.late.label}</span>}
     </div>
     <div className="cal-grid" role="group" aria-label={result.aria}>
       {WEEKDAYS.map(day => <div key={day} className="cal-head" aria-hidden="true">{day}</div>)}
@@ -36,7 +37,7 @@ export function Calendar({ result }: { result: ViewResult<"calendar"> }) {
         const shown = cell.items.slice(0, 2), more = cell.items.length - shown.length;
         const cls = ["cal-cell", cell.today && "cal-today", cell.short && "cal-short", selected === cell.date && "cal-on", level >= 55 && "cal-heavy"].filter(Boolean).join(" ");
         return <div key={cell.date} className={cls} style={style} tabIndex={0} role="img"
-          aria-label={`${longDay(cell.date)}${cell.today ? ", today" : ""}: ${cell.items.length ? cell.items.join("; ") : "nothing scheduled"}${cell.short ? ". Short if clients pay late" : ""}`}
+          aria-label={`${longDay(cell.date)}${cell.today ? ", today" : ""}: ${cell.items.length ? cell.items.join("; ") : "nothing scheduled"}${cell.short ? `. Short if clients pay ${CASES.late.label}` : ""}`}
           onPointerEnter={() => setSelected(cell.date)} onPointerLeave={() => setSelected(null)} onFocus={() => setSelected(cell.date)} onBlur={() => setSelected(null)}>
           <span className="cal-num">{first ? dayLabel(cell.date) : Number(cell.date.slice(8, 10))}{cell.today && <b> · Today</b>}</span>
           {shown.map(item => <span key={item} className="cal-item">{cellWords(item)}</span>)}

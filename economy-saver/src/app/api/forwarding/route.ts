@@ -1,5 +1,6 @@
 import { db } from "@/db/client";
-import { redirectTo, text } from "@/lib/door";
+import { text } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 import { forwardingAddress } from "@/lib/reader/forwarding";
 import { ReaderError } from "@/lib/reader/settings";
 import { householdRequest } from "@/lib/session";

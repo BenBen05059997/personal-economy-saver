@@ -66,18 +66,18 @@ export function CancelByField({ today, defaultValue, onChange }: { today: string
 }
 
 /** D41: the "Last payment" date and its hint, shared by the add form and the review card (through ScheduleFields) and Settings → Edit. Posts `repeatUntil` (empty = it goes on); `disabled` (the add form and the review card, while the bill does not repeat) keeps it in place but posts nothing. */
-export function RepeatUntilField({ today, defaultValue, onChange, disabled = false }: { today: string; defaultValue?: string; onChange?: (date: string) => void; disabled?: boolean }) {
+export function RepeatUntilField({ today, defaultValue, disabled = false }: { today: string; defaultValue?: string; disabled?: boolean }) {
   return <>
-    <label className="ui-field">{LABELS.lastPayment}<CheckedInput name="repeatUntil" type="date" defaultValue={defaultValue} onChange={event => onChange?.(event.target.value)} max={latestDate(today)} message={HORIZON_MESSAGE} disabled={disabled} /></label>
+    <label className="ui-field">{LABELS.lastPayment}<CheckedInput name="repeatUntil" type="date" defaultValue={defaultValue} max={latestDate(today)} message={HORIZON_MESSAGE} disabled={disabled} /></label>
     <small className="ui-hint add-entry-hint">The last time it is charged. Nothing after it is counted.</small>
   </>;
 }
 
 /** D54: the "amount changes every month" box, shared by the add form (through ScheduleFields) and Settings → Edit. Posts `amountVaries=on`. */
-export function VariesField({ id, checked, defaultChecked, onChange, disabled = false }: { id: string; checked?: boolean; defaultChecked?: boolean; onChange?: (varies: boolean) => void; disabled?: boolean }) {
+export function VariesField({ id, checked, onChange, disabled = false }: { id: string; checked: boolean; onChange: (varies: boolean) => void; disabled?: boolean }) {
   return <>
     <label className="add-entry-repeat"><input name="amountVaries" type="checkbox" disabled={disabled} aria-describedby={`${id}-varies`}
-      {...(onChange ? { checked: checked ?? false, onChange: event => onChange(event.target.checked) } : { defaultChecked })} /> {LABELS.amountVaries}</label>
+      checked={checked} onChange={event => onChange(event.target.checked)} /> {LABELS.amountVaries}</label>
     <small id={`${id}-varies`} className="ui-hint add-entry-hint">{LABELS.amountVariesHint}</small>
   </>;
 }

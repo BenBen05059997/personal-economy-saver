@@ -7,9 +7,8 @@ import { InputError } from "@/db/input-error";
 import { DEVICE_MEMORY_WORDS, readPlaces } from "@/db/place";
 import { addMemoryItem, forgetMemoryItem, inMemoryScope, MAX_MEMORY_CHANGES } from "@/lib/store/memory-ops";
 import { MEMORY_KINDS, MemoryKind, MemoryText } from "@/lib/schema/memory";
+import { by } from "./define-tool";
 import type { Tool, ToolContext } from "./tools";
-
-const by = (ctx: ToolContext) => ({ madeBy: ctx.madeBy, ...(ctx.askId && { askId: ctx.askId }) });
 
 const remember = z.object({
   kind: MemoryKind,
@@ -28,7 +27,7 @@ const forget = z.object({ id: z.string().uuid().describe("The id of the remember
 
 export const memoryTools: Tool[] = [
   {
-    name: "remember",
+    name: "remember", words: "Noting that down", source: { label: "Memory", href: "/memory" }, echoes: true, memory: true,
     description: "Keep what the person explicitly asks you to remember.",
     input: remember, scope: "draft",
     run: async (ctx: ToolContext, input: z.infer<typeof remember>) => {
@@ -48,7 +47,7 @@ export const memoryTools: Tool[] = [
     },
   },
   {
-    name: "forget",
+    name: "forget", words: "Forgetting that", source: { label: "Memory", href: "/memory" }, echoes: true, memory: true,
     description: "Forget one remembered item by id.",
     input: forget, scope: "draft",
     run: async (ctx: ToolContext, input: z.infer<typeof forget>) => {
@@ -64,7 +63,7 @@ export const memoryTools: Tool[] = [
     },
   },
   {
-    name: "recall",
+    name: "recall", words: "Looking at what I remember", source: { label: "Memory", href: "/memory" },
     description: "Read Profile and current Ask notes. An explicit space selects only its notes.",
     input: recall, scope: "read",
     run: async (ctx: ToolContext, { space }: z.infer<typeof recall>) => {

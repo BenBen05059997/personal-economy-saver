@@ -30,33 +30,11 @@ export const OWN_MODEL_HINT = "Ask runs on your household’s own AI key, set in
 /** The line above the question box until the household has an answer. */
 export const firstUse = (host: string, ownOnly = serverHasNoModel()) => `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to ${host}. ${ownOnly ? OWN_MODEL_HINT : MODEL_HINT}`;
 
-/** The page each tool's answer came from. `make_canvas`, `what_if`, `show` (its views name their own page) and `household_snapshot` add none. */
-const TOOL_SOURCES: Record<string, LinkSource> = {
-  suggestions: { label: "From your assistant", href: "/#assistant-suggestions" },
-  timeline: { label: "Coming up", href: "/#coming-up" },
-  can_i_spend: { label: "Safe to spend", href: "/" },
-  options_when_short: { label: "Options", href: "/options" },
-  list_invoices: { label: "Clients", href: "/clients" },
-  list_clients_and_cards: { label: "Clients", href: "/clients" },
-  goals: { label: "Saving", href: "/saving" },
-  plan_for: { label: "Saving", href: "/saving" },
-  own_categories: { label: "Your categories", href: "/spending/categories" },
-  search_spending: { label: "Spending", href: "/spending" },
-  bills_for_month: { label: "Spending", href: "/spending" },
-  open_gaps: { label: "To check", href: "/to-check" },
-  to_check: { label: "To check", href: "/to-check" },
-  remember: { label: "Memory", href: "/memory" },
-  forget: { label: "Memory", href: "/memory" },
-  list_spaces: { label: "Spaces", href: "/memory?tab=spaces" },
-  search_history: { label: "Ask history", href: "/canvas" },
-  recall: { label: "Memory", href: "/memory" },
-};
-
-/** The distinct sources of the tools an answer used, in the order first used. */
-function sourcesFor(toolNames: readonly string[], recipe: Recipe | null): LinkSource[] {
+/** The distinct pages the tools an answer used came from (each tool's `source`), then the page of each view it showed, in the order first used. */
+function sourcesFor(toolSources: readonly LinkSource[], recipe: Recipe | null): LinkSource[] {
   const found: LinkSource[] = [];
   const add = (source: LinkSource | undefined) => { if (source && !found.some(known => known.href === source.href && known.label === source.label)) found.push(source); };
-  for (const name of toolNames) add(Object.hasOwn(TOOL_SOURCES, name) ? TOOL_SOURCES[name] : undefined);
+  for (const source of toolSources) add(source);
   // Each view the agent shows names the page it lives on (D77); a view with no page adds none.
   for (const block of recipe?.blocks ?? []) {
     const kind: string = block.type;
@@ -87,7 +65,7 @@ type Finished = {
   clarify: { question: string; choices: string[] } | null;
   outOfScope: OutOfScopeReason | null;
   text: string; // what the model ended with (empty when it ended on a terminal tool)
-  tools: string[]; // the names of the tools this question ran successfully (the "Based on" sources)
+  toolSources: readonly LinkSource[]; // the page of each tool this question ran successfully, in the order used (the "Based on" sources)
   /** Whether the model called any catalogue tool, successful or not; a reply with none at all is declined. */
   called: boolean;
   recipe: Recipe | null;
@@ -114,7 +92,7 @@ export function chooseReply(done: Finished): Chosen | null {
   }
   if (done.outOfScope) return { kind: "declined", text: FIXED[done.outOfScope], choices: null, recipe: null, sources: [] };
   if (!done.called) return { kind: "declined", text: FIXED.off_topic, choices: null, recipe: null, sources: [] };
-  const sources = sourcesFor(done.tools, done.recipe);
+  const sources = sourcesFor(done.toolSources, done.recipe);
   const rejected = unconfirmedNumbers([done.text, ...canvasWords(done.recipe)].join("\n"), done.facts, { today: done.today, person: done.person });
   if (rejected.length) {
     done.rejected?.(rejected);

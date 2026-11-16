@@ -16,10 +16,11 @@ import { WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
 import { LinkTabs } from "@/components/ui/LinkTabs";
 import { ScrollToHash } from "@/components/ui/ScrollToHash";
 import "@/components/settings/settings.css";
+import { HOUSEHOLD_PEOPLE } from "@/lib/links";
 
 const TABS = [
   { id: "details", label: "Details", href: "/household" },
-  { id: "people", label: "People", href: "/household/people" },
+  { id: "people", label: "People", href: HOUSEHOLD_PEOPLE },
 ];
 
 async function Household({ params }: { params: Promise<{ tab?: string[] }> }) {

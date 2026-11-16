@@ -340,7 +340,7 @@ async function main() {
     await check("the timeline tool's items parse against CashFlowEvent (version 1), in and out follow the sign", async () => {
       const tool = tools.find(t => t.name === "timeline")!;
       const ctx = { madeBy: "mcp" as const, db, householdId: a, appUrl: new URL("http://127.0.0.1:3123"), state: () => loadMoneyState(db, a, DEMO_DATE) };
-      for (const scenario of ["as_usual", "late"] as const) {
+      for (const scenario of ["usual", "late"] as const) {
         const out = JSON.parse(await tool.run(ctx, { scenario } as never));
         assert.ok(out.events.length > 3);
         for (const event of out.events) {

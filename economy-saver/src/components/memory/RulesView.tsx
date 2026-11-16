@@ -1,8 +1,8 @@
 import "./memory.css";
 import { ApiForm, ApiFormGroup } from "@/components/ui/ApiForm";
 import { AmountInput } from "@/components/ui/CheckedInput";
-import { fromMinor } from "@/db/money";
 import type { Currency } from "@/lib/catalogue/types";
+import { fromMinor } from "@/lib/money/format";
 import { RULE_NAMES, ruleNumberLimit, ruleWords } from "@/lib/money/rules";
 import { RULE_KINDS, type RuleKind, type StandingRule, type StandingRules } from "@/lib/money/suggestion-types";
 

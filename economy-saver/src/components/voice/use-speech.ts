@@ -14,7 +14,7 @@ type Recognition = {
 };
 type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
 
-export type SpeechState = { listening: boolean; problem: string; supported: boolean };
+type SpeechState = { listening: boolean; problem: string; supported: boolean };
 
 function recognitionOf(): (new () => Recognition) | undefined {
   const browser = window as SpeechWindow;

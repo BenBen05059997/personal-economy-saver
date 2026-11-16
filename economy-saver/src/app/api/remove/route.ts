@@ -3,9 +3,11 @@ import { db } from "@/db/client";
 import { removeBill } from "@/db/bills";
 import { removeCharge } from "@/db/charges";
 import { removeCard } from "@/db/settings";
-import { badFields, failure, householdForm, limited, redirectTo, returnPath, text } from "@/lib/door";
+import { badFields, failure, householdForm, limited, returnPath, text } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
+import { Uuid } from "@/lib/stable-id";
 
-const input = z.object({ kind: z.enum(["bill", "charge", "card"]), id: z.string().uuid() });
+const input = z.object({ kind: z.enum(["bill", "charge", "card"]), id: Uuid });
 
 /** Remove a bill (a monthly bill goes as a whole series), a card charge or a card (its charges and statements go with it). A missing row gets the same refusal whether the id is unused, removed, or belongs elsewhere. */
 export async function POST(request: Request) {

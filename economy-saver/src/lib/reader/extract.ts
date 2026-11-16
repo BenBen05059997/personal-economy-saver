@@ -23,16 +23,16 @@ export const extractSchema = z.object({
   category: CategoryKeySchema.nullable(),
   businessBp: BusinessBp.nullable().default(null), // the reader never proposes a share; the user or a stored rule sets it
   cardId: z.string().uuid().nullable(),
-  // D48, bills only: the reader never proposes these; the user sets them on the review card.
+  // D41, bills only: the reader never proposes these; the user sets them on the review card.
   repeat: RepeatUnitSchema.nullable().default(null),
   nextAmountMinor: z.number().int().positive().safe().nullable().default(null), // in the reading's currency, from nextAmountFrom on
   nextAmountFrom: z.string().date().nullable().default(null),
   cancelBy: z.string().date().nullable().default(null),
   repeatUntil: z.string().date().nullable().default(null), // D41: the last payment; the reader never proposes it (D61 asks), the user sets it on the review card
-  // 27F, bills only: the period the bill covers, when the document prints it. Both or neither (`periodProblem`); the money never counts by it.
+  // Bills only: the period the bill covers, when the document prints it. Both or neither (`periodProblem`); the money never counts by it.
   periodStart: z.string().date().nullable().optional(),
   periodEnd: z.string().date().nullable().optional(),
-  // 27F: set by code, never by the model: on a bill whose due date is an estimate (the document showed a period and no due date), the words that say so. The person confirms the date or types the day.
+  // Set by code, never by the model: on a bill whose due date is an estimate (the document showed a period and no due date), the words that say so. The person confirms the date or types the day.
   dateBasis: z.string().max(200).nullable().optional(),
   whose: whoseSchema.nullable().optional(), // set by the person (the card's Whose choice, or Ask), only in a household of two or more
 }).strict();

@@ -23,6 +23,9 @@ const schema = z.object({
   PAYPAL_WEBHOOK_ID: blankIsUnset(z.string().min(1).optional()),
 });
 
+/** A server setting, trimmed; undefined when it is missing or blank. Each caller says what stopping means for it. */
+export const setting = (name: string): string | undefined => process.env[name]?.trim() || undefined;
+
 type Env = z.infer<typeof schema>;
 
 let cached: Env | undefined;

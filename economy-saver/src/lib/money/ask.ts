@@ -1,12 +1,7 @@
 import { dayLabel, toMinor } from "./format";
 import { low, roomOnCard, safeToSpend, series } from "./runway";
-import { engineFact, fact, forModel, personFact, type Fact } from "./facts";
+import { engineFact, fact, personFact, type Fact } from "./facts";
 import type { MoneyState } from "./types";
-
-/** Facts appended to a tool's text, so the model reads the figures the words came from. */
-export function withFacts(text: string, facts: readonly Fact[]): string {
-  return `${text}\n\nFacts: ${JSON.stringify(forModel(facts))}`;
-}
 
 /** Can I spend this? The facts first (the amount tested is the person's, the rest are the engine's); the words are written from them. */
 export function spendReading(state: MoneyState, amountMinor: number, cardId?: string, from = "can_i_spend"): { text: string; facts: Fact[] } {
@@ -35,16 +30,23 @@ export function spendReading(state: MoneyState, amountMinor: number, cardId?: st
   return { text: cash + ", and " + detail + ".", facts };
 }
 
+/** The lowest point of a timeline, the day it falls on and any shortfall, in the case tested. */
+export function lowFacts(state: MoneyState, lowest: { date: string; amount: number }, scenario: "as_usual" | "late", from: string): Fact[] {
+  const currency = state.homeCurrency, period = { on: lowest.date };
+  return [
+    engineFact("low_point", toMinor(lowest.amount, currency), { from, currency, case: scenario, period }),
+    engineFact("low_point_day", lowest.date, { from, case: scenario }),
+    ...(lowest.amount < 0 ? [engineFact("short", toMinor(-lowest.amount, currency), { from, currency, case: scenario, period })] : []),
+  ];
+}
+
 /** Today's outlook as facts: safe to spend, and the low point and any shortfall in each case, with the day. */
 export function outlookFacts(state: MoneyState, from: string): Fact[] {
-  const currency = state.homeCurrency;
   const safe = safeToSpend(state);
   const usual = low(series(state, "expected"), state.today);
-  const facts: Fact[] = [engineFact("safe_to_spend", toMinor(safe.amount, state.homeCurrency), { from, currency })];
-  for (const [kind, point] of [["late", safe.low], ["as_usual", usual]] as const) {
-    const period = { on: point.date };
-    facts.push(engineFact("low_point", toMinor(point.amount, state.homeCurrency), { from, currency, case: kind, period }), engineFact("low_point_day", point.date, { from, case: kind }));
-    if (point.amount < 0) facts.push(engineFact("short", toMinor(-point.amount, state.homeCurrency), { from, currency, case: kind, period }));
-  }
-  return facts;
+  return [
+    engineFact("safe_to_spend", toMinor(safe.amount, state.homeCurrency), { from, currency: state.homeCurrency }),
+    ...lowFacts(state, safe.low, "late", from),
+    ...lowFacts(state, usual, "as_usual", from),
+  ];
 }

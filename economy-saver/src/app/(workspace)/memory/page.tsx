@@ -1,11 +1,9 @@
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { householdMoment } from "@/db/clock";
-import { withHousehold, type Db } from "@/db/household";
-import { households } from "@/db/schema";
+import { householdClockRow, withHousehold, type Db } from "@/db/household";
 import { listMemory } from "@/db/memory";
 import { readPlaces } from "@/db/place";
 import { listSpaces } from "@/db/spaces";
@@ -17,12 +15,13 @@ import { WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
 import { LinkTabs } from "@/components/ui/LinkTabs";
 import "@/components/memory/memory.css";
 import { currentHouseholdId } from "@/lib/session";
+import { MEMORY_SPACES } from "@/lib/links";
 
 type Search = Promise<{ tab?: string | string[] }>;
 
 const TABS = [
   { id: "memory", label: "Profile", href: "/memory" },
-  { id: "spaces", label: "Spaces", href: "/memory?tab=spaces" },
+  { id: "spaces", label: "Spaces", href: MEMORY_SPACES },
 ] as const;
 type MemoryTab = typeof TABS[number]["id"];
 
@@ -34,10 +33,8 @@ async function tabContent(tx: Db, hid: string, tab: MemoryTab) {
     }));
     return <SpacesView spaces={summaries} householdId={hid} places={places} />;
   }
-  const [places, [household]] = await Promise.all([
-    readPlaces(tx, hid),
-    tx.select({ isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone }).from(households).where(eq(households.id, hid)),
-  ]);
+  const [places, household] = await Promise.all([readPlaces(tx, hid), householdClockRow(tx, hid)]);
+  if (!household) throw new Error("This household could not be found");
   // Memory kept on this device comes from the browser. Stamp its changes with the household's clock (D34, D59).
   if (places.memory === "device") {
     return <DeviceMemoryView householdId={hid} timeZone={household.timeZone} momentNow={householdMoment(household).toISOString()} />;

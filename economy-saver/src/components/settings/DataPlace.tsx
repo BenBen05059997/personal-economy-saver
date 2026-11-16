@@ -4,8 +4,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAskPanel } from "@/components/shell/AskWorkspace";
+import { wordsOf } from "@/components/ui/words";
 import type { Movable, Place } from "@/db/place";
 import { clearDevice, clearMovedDeviceJournal, countDevice, listDevice, readDeviceJournal, replaceDevice, replaceDeviceJournal, type DeviceJournal } from "@/lib/store/device";
+import { plural } from "@/lib/money/format";
+import { pluralWord } from "@/lib/plural";
 
 type Props = {
   householdId: string; kind: Movable; place: Place; cloudCount: number; name: string; unit: [string, string]; what: string; all: string;
@@ -18,7 +21,7 @@ type Props = {
 class MoveResponseError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
-const wordsOf = (error: unknown) => (error instanceof Error ? error.message : "Something went wrong. Nothing was changed.");
+const FAILED = "Something went wrong. Nothing was changed.";
 async function post(body: unknown): Promise<unknown> {
   const response = await fetch("/api/data/move", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (!response.ok) throw new MoveResponseError(await response.text(), response.status);
@@ -42,7 +45,7 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
   useEffect(() => {
     if (!onDevice) return;
     let cancelled = false;
-    countDevice(householdId, kind).then(n => { if (!cancelled) setDeviceCount(n); }, error => { if (!cancelled) setMessage(wordsOf(error)); });
+    countDevice(householdId, kind).then(n => { if (!cancelled) setDeviceCount(n); }, error => { if (!cancelled) setMessage(wordsOf(error, FAILED)); });
     return () => { cancelled = true; };
   }, [householdId, kind, onDevice]);
 
@@ -86,7 +89,7 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
       setPanel(null);
       askPanel?.invalidate();
       router.refresh();
-    } catch (error) { setMessage(wordsOf(error)); }
+    } catch (error) { setMessage(wordsOf(error, FAILED)); }
     finally { setBusy(false); }
   }
 
@@ -97,7 +100,7 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
       setDeviceCount(0);
       setPanel(null);
       askPanel?.invalidate();
-    } catch (error) { setMessage(wordsOf(error)); }
+    } catch (error) { setMessage(wordsOf(error, FAILED)); }
     finally { setBusy(false); }
   }
 
@@ -105,10 +108,10 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
   const deleteLabel = onDevice && kind === "journal" ? "all conversations and briefs" : all;
   const description = onDevice && kind === "journal" ? "Your conversation turns and briefs." : what;
   return <div className="settings-bill" data-kind={kind} data-place={place}>
-    <p>{name} · {n === null ? "…" : `${n} ${unit[n === 1 ? 0 : 1]}`}</p>
+    <p>{name} · {n === null ? "…" : plural(n, unit[0], unit[1])}</p>
     <p className="ui-hint">{onDevice ? "On this device only." : "In our cloud, Tokyo."} {description}</p>
     {kind === "journal" && !onDevice && <p className="ui-hint">Deleting Ask conversations removes each named space with its notes and pins kept in our cloud.</p>}
-    {onDevice && journalSpaceCount !== undefined && <p className="ui-hint">{journalSpaceCount} named {journalSpaceCount === 1 ? "space" : "spaces"} in our cloud. Delete spaces one at a time in <Link href="/memory?tab=spaces">Memory → Spaces</Link>.</p>}
+    {onDevice && journalSpaceCount !== undefined && <p className="ui-hint">{journalSpaceCount} named {pluralWord(journalSpaceCount, "space")} in our cloud. Delete spaces one at a time in <Link href="/memory?tab=spaces">Memory → Spaces</Link>.</p>}
     {onDevice
       ? <p className="ui-hint">Other devices and connected assistants (MCP) see none of it. Clearing this browser’s data deletes it. The export file holds only what our cloud has, so Export from this device adds this to the file.</p>
       : <p className="ui-hint">You can keep this on this device only instead.</p>}

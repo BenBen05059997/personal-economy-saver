@@ -13,8 +13,9 @@ import { answerCheck, type CheckAnswers } from "@/components/reader/check-answer
 import { majorText, ReadingForm } from "@/components/reader/ReadingForm";
 import { LoadingIndicator } from "@/components/ui/LoadingState";
 import { WhoseFields, type WhosePerson } from "@/components/reader/WhoseFields";
+import { percentText } from "@/lib/money/format";
 
-export type CardForm = { today: string; homeCurrency: Currency; cards: { id: string; label: string }[]; own: OwnChoices; people: WhosePerson[] };
+type CardForm = { today: string; homeCurrency: Currency; cards: { id: string; label: string }[]; own: OwnChoices; people: WhosePerson[] };
 
 const POLL_MS = 2000, GIVE_UP_MS = 60_000;
 
@@ -148,7 +149,7 @@ function ConfirmRow({ item, own, people, answers, hidden, onEdit, onDone }: { it
   return <ApiForm action="/api/confirm" onDone={onDone} className="ask-document-confirm">
     {field("kind", "reading")}{field("id", item.readingId)}{field("target", value.kind)}{field("name", value.name ?? "")}
     {field("amount", amountUnknown ? "" : majorText(value))}{field("currency", value.currency ?? "")}{field("date", dueUnknown ? "" : answers.date ?? value.date ?? "")}
-    {field("category", value.category ?? "")}{field("businessShare", share)}{share === "mixed" && field("businessPercent", String(bp / 100))}
+    {field("category", value.category ?? "")}{field("businessShare", share)}{share === "mixed" && field("businessPercent", percentText(bp))}
     {field("ownCategory", guessedOwn(own, value.category ?? "", value.name ?? "")?.id ?? "")}{field("cardId", value.cardId ?? "")}{field("repeat", answers.repeat ?? value.repeat ?? "")}
     {amountUnknown && field("amountUnknown", "on")}{dueUnknown && field("dueUnknown", "on")}
     {hidden}

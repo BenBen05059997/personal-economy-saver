@@ -1,12 +1,13 @@
-import { z } from "zod";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { requireCloud } from "@/db/place";
 import { moveCanvas, pinCanvas, unpinCanvas, updateCanvas } from "@/db/canvases";
-import { badFields, failure, householdForm, limited, redirectTo, returnPath, text } from "@/lib/door";
+import { badFields, failure, householdForm, limited, returnPath, text, TOO_MANY_CHANGES } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
+import { Uuid } from "@/lib/stable-id";
 
 const MAX_RECIPE = 40_000;
-const idOf = (value: FormDataEntryValue | null) => z.string().uuid().safeParse(value);
+const idOf = (value: FormDataEntryValue | null) => Uuid.safeParse(value);
 
 /** Pins on Home (D57): `kind` pin (title, recipe), update (id, recipe), move (id, direction up or down) or unpin (id). The recipe is hidden JSON text in the form. */
 export async function POST(request: Request) {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   const by = { madeBy: "form" } as const;
   const kind = form.get("kind");
   if (kind !== "pin" && kind !== "update" && kind !== "move" && kind !== "unpin") return badFields();
-  const busy = await limited(hid, "pins", 20, "Too many changes. Try again in a minute.");
+  const busy = await limited(hid, "pins", 20, TOO_MANY_CHANGES);
   if (busy) return busy;
   const recipeText = String(form.get("recipe") ?? "");
   if (recipeText.length > MAX_RECIPE) return text("This canvas is too large.", 413);

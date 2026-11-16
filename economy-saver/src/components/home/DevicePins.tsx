@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { drawCanvas } from "@/lib/canvas/draw";
+import { drawRecipe } from "@/components/ui/draw-recipe";
+import { wordsOf } from "@/components/ui/words";
 import { useAskPanel } from "@/components/shell/AskWorkspace";
 import { PinCard } from "./PinCard";
 import type { ResolvedBlock } from "@/lib/canvas/resolve";
@@ -10,12 +11,10 @@ import type { DevicePin } from "@/lib/store/journal-ops";
 
 type Drawn = { pin: DevicePin; blocks: ResolvedBlock[] | null; words: string };
 
-/** Asks the engine to draw one recipe. The route reads the household's records and keeps nothing (D57, D59). */
+/** Draws one pin's recipe through the engine, which reads the household's records and keeps nothing (D57, D59). */
 async function draw(pin: DevicePin): Promise<Drawn> {
-  try {
-    const drawn = await drawCanvas(pin.recipe);
-    return typeof drawn === "string" ? { pin, blocks: null, words: drawn } : { pin, blocks: drawn, words: "" };
-  } catch { return { pin, blocks: null, words: "Couldn’t reach your household. Reload to try again." }; }
+  const drawn = await drawRecipe(pin.recipe, "Reload to try again.");
+  return typeof drawn === "string" ? { pin, blocks: null, words: drawn } : { pin, blocks: drawn, words: "" };
 }
 
 /**
@@ -31,14 +30,14 @@ export function DevicePins({ householdId, generalId }: { householdId: string; ge
     let cancelled = false;
     devicePins(householdId).then(pins => Promise.all(pins.filter(pin => pin.spaceId == null || pin.spaceId === generalId).map(draw))).then(
       result => { if (!cancelled) { setDrawn(result); setProblem(""); } },
-      error => { if (!cancelled) { setProblem(error instanceof Error ? error.message : "Couldn’t read the canvases on this device."); setDrawn([]); } },
+      error => { if (!cancelled) { setProblem(wordsOf(error, "Couldn’t read the canvases on this device.")); setDrawn([]); } },
     );
     return () => { cancelled = true; };
   }, [askRevision, generalId, householdId, version]);
 
   async function change(work: () => Promise<boolean>) {
     try { if (!await work()) setProblem("That canvas is no longer pinned on this device."); setVersion(v => v + 1); }
-    catch (error) { setProblem(error instanceof Error ? error.message : "Couldn’t change that."); }
+    catch (error) { setProblem(wordsOf(error, "Couldn’t change that.")); }
   }
   if (!drawn) return null;
   if (drawn.length === 0 && !problem) return null;

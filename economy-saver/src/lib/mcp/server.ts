@@ -44,7 +44,7 @@ export async function mcpRequest(request: Request, connection: () => Db) {
   if (busy) return busy;
   const server = new McpServer({ name: "personal-economy-saver", version: "1.0.0" }, { instructions: MODEL_RULES });
   for (const tool of tools) {
-    // Ask-only tools (clarify, out_of_scope) end an Ask turn and mean nothing to another client: never offered, whatever the token holds.
+    // A tool with scope "ask" belongs to the in-app conversation and means nothing to another client: never offered, whatever the token holds.
     if (tool.scope === "ask" || !scopes.includes(tool.scope)) continue;
     server.registerTool(tool.name, { description: tool.description, inputSchema: tool.input.shape },
       (params, extra) => answer(hid, tool.name, () => withHousehold(db, hid, tx => {

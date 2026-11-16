@@ -5,9 +5,8 @@ import { readRule } from "@/lib/money/rules";
 import { readAmount } from "@/lib/money/amount";
 import { SECRET_REFUSAL } from "@/lib/schema/memory";
 import { keepOffer, offerHasLongNumber, type KeepOffer } from "./keep-offer";
+import { MAX_KEEP_OFFERS } from "./limits";
 import type { Tool, ToolContext } from "./tools";
-
-export const MAX_KEEP_OFFERS = 3;
 
 const input = z.object({ offer: keepOffer }).strict();
 
@@ -29,8 +28,8 @@ function positiveAmount(text: string, currency: string): number {
 }
 
 export const offerTools: Tool[] = [{
-  name: "offer_keep", scope: "ask", input,
-  description: "Offer up to three memory items, goals or standing rules, in the person’s words. A rule value is days, percent or an amount.",
+  name: "offer_keep", words: "Thinking about what to keep", echoes: true, scope: "ask", input,
+  description: `Offer up to ${MAX_KEEP_OFFERS} memory items, goals or standing rules, in the person’s words. A rule value is days, percent or an amount.`,
   run: async (ctx: ToolContext, { offer }: z.infer<typeof input>) => {
     if (!ctx.onOffer) throw new InputError("Keep offers are available in Ask.");
     ctx.onOffer(offer);

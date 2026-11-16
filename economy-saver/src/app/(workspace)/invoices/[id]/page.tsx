@@ -1,7 +1,6 @@
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
-import { z } from "zod";
 import { InvoiceReview } from "@/components/invoices/InvoiceReview";
 import { loadWorkspace, WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
 import { invoiceReview } from "@/db/approval";
@@ -10,12 +9,13 @@ import { readPaymentCandidates } from "@/db/invoice-match";
 import { withHousehold } from "@/db/household";
 import { verifiedIdentity } from "@/lib/auth-request";
 import { currentHouseholdId } from "@/lib/session";
+import { Uuid } from "@/lib/stable-id";
 
 async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const hid = await currentHouseholdId();
   if (!hid) redirect("/");
   const { id } = await params;
-  if (!z.string().uuid().safeParse(id).success) notFound();
+  if (!Uuid.safeParse(id).success) notFound();
   const [review, workspace, candidates] = await Promise.all([
     withHousehold(db(), hid, tx => invoiceReview(tx, hid, id)), verifiedIdentity().then(viewer => loadWorkspace(hid, false, false, viewer)), readPaymentCandidates(db(), hid, id),
   ]);

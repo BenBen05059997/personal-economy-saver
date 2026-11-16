@@ -1,25 +1,25 @@
 import { db } from "@/db/client";
 import { ConnectError, confirmConnection } from "@/db/paypal-connection";
-import { limited, redirectTo, text } from "@/lib/door";
-import { PayPalError, paypalRead } from "@/lib/paypal/client";
+import { limited, text, TOO_MANY_TRIES } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
+import { didNotAnswer, PAYPAL_DID_NOT_ANSWER, paypalRead } from "@/lib/paypal/client";
 import { currentHouseholdId, hasHouseholdOwnerAccess, ownerRequest } from "@/lib/session";
-
-const TAB = "/settings/paypal";
+import { SETTINGS_PAYPAL } from "@/lib/links";
 
 /** Where PayPal sends the person back (a cross-site GET). Nothing in the address is believed: PayPal is asked about the tracking id this household stored. */
 export async function GET() {
   const householdId = await currentHouseholdId();
   if (!householdId) return redirectTo("/");
-  if (!await hasHouseholdOwnerAccess(householdId)) return redirectTo(TAB);
-  const busy = await limited(householdId, "paypal-connect", 20, "Too many tries. Try again in a minute.");
+  if (!await hasHouseholdOwnerAccess(householdId)) return redirectTo(SETTINGS_PAYPAL);
+  const busy = await limited(householdId, "paypal-connect", 20, TOO_MANY_TRIES);
   if (busy) return busy;
   try {
     await confirmConnection(db(), householdId, paypalRead);
   } catch (error) {
     // The tab shows where the connection stands; a refused or failed confirmation just leaves it as it was.
-    if (!(error instanceof ConnectError || error instanceof PayPalError || (error instanceof Error && error.name === "TimeoutError"))) throw error;
+    if (!(error instanceof ConnectError || didNotAnswer(error))) throw error;
   }
-  return redirectTo(TAB);
+  return redirectTo(SETTINGS_PAYPAL);
 }
 
 /** "Check again" on the pending tab: confirms the tracking id this household stored. */
@@ -27,14 +27,14 @@ export async function POST(request: Request) {
   const householdId = await ownerRequest(request);
   if (householdId instanceof Response) return householdId;
   const connection = db();
-  const busy = await limited(householdId, "paypal-connect", 20, "Too many tries. Try again in a minute.", connection);
+  const busy = await limited(householdId, "paypal-connect", 20, TOO_MANY_TRIES, connection);
   if (busy) return busy;
   try {
     await confirmConnection(connection, householdId, paypalRead);
   } catch (error) {
     if (error instanceof ConnectError) return text(error.message, error.status);
-    if (error instanceof PayPalError || (error instanceof Error && error.name === "TimeoutError")) return text("PayPal did not answer. Try again in a moment.", 502);
+    if (didNotAnswer(error)) return text(PAYPAL_DID_NOT_ANSWER, 502);
     throw error;
   }
-  return redirectTo(TAB, request);
+  return redirectTo(SETTINGS_PAYPAL, request);
 }

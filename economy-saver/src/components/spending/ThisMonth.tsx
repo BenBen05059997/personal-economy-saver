@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { MoneyState } from "@/lib/money/types";
+import { addMonths } from "@/lib/money/dates";
 import { fact } from "@/lib/money/facts";
 import { minorMoney } from "@/lib/money/format";
 import type { LookBy } from "@/lib/money/look-by";
 import { monthByCategory } from "@/lib/money/month";
-import { monthBounds, monthLabel, monthsBack, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
+import { monthBounds, monthLabel, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { ViewPanel, type PanelQuestion } from "@/components/views/ViewPanel";
 import { RankedBars } from "@/components/views/forms/RankedBars";
 import { monthByCategoryView } from "@/lib/views/v/month-by-category";
@@ -35,8 +36,9 @@ export function ThisMonth({ state, spending, ask, own, device }: { state: MoneyS
   const past = month === ask.current ? undefined : monthLabel(month, ask.today);
   const result = query ? searchSpending(spendingItems(spending, `${ask.oldest}-01`, monthBounds(ask.current).last), query, spending.homeCurrency, { from: `${ask.oldest}-01`, to: ask.today, uncountedTo: monthBounds(ask.current).last }) : null;
   const view = monthByCategory(spending, ask.today, month);
-  const previous = month > ask.oldest ? monthsBack(month, 2) : null;
-  const next = month < ask.current ? monthsBack(month, 0) : null; // monthsBack(m, 0) is the month after m
+  const shifted = (by: number) => addMonths(`${month}-01`, by).slice(0, 7);
+  const previous = month > ask.oldest ? shifted(-1) : null;
+  const next = month < ask.current ? shifted(1) : null;
   const label = (m: string) => monthLabel(m, ask.today);
   const nav = <nav className="spending-month-nav" aria-label="Months">
     {previous && <Link href={monthHref(previous, ask.current, query)} aria-label={`Previous month, ${label(previous)}`}>‹ {label(previous)}</Link>}
@@ -45,14 +47,13 @@ export function ThisMonth({ state, spending, ask, own, device }: { state: MoneyS
   // Each look is one view of the same month; the current month is left out of the arguments so a pin follows the calendar.
   const choices: LookBy[] = people.length >= 2 ? ["category", "business", "person"] : ["category", "business"];
   const split = <MonthList view={view} people={people} past={past} filing={{ entries: spendingItems(spending, monthBounds(month).first, monthBounds(month).last), own }} />;
-  const headings: Record<LookBy, ReactNode> = {
-    category: past === undefined ? <>Where this month goes <small className="spending-month-name">· {view.name}</small></> : `Where ${past} went`,
+  const headings: Record<Exclude<LookBy, "category">, ReactNode> = {
     business: past === undefined ? "Business and personal this month" : `Business and personal in ${past}`,
     person: past === undefined ? "Who this month's spending belongs to" : `Who ${past}'s spending belongs to`,
   };
   const questions: PanelQuestion[] = choices.map(by => {
     const resolved = monthByCategoryView({ ...(past === undefined ? {} : { month }), by }, { state, spending });
-    return { key: by, label: LOOK_LABELS[by], heading: headings[by], result: resolved, figure: <RankedBars result={resolved as ViewResult<"ranked_bars">} />, ...(by === "category" ? { tableSlot: split } : {}) };
+    return { key: by, label: LOOK_LABELS[by], heading: by === "category" ? (past === undefined ? <>{resolved.title} <small className="spending-month-name">· {view.name}</small></> : resolved.title) : headings[by], result: resolved, figure: <RankedBars result={resolved as ViewResult<"ranked_bars">} />, ...(by === "category" ? { tableSlot: split } : {}) };
   });
   const waiting = state.bills.filter(bill => bill.status === "pending" && bill.due.slice(0, 7) === month);
   const notes = waiting.map(bill => `${waitsWords(bill.biller, minorMoney(bill.amount, state.homeCurrency))}.`);

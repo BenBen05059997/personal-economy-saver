@@ -2,10 +2,12 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { dismiss, notNow } from "@/db/suggestions";
-import { badFields, formOf, limited, redirectTo, text } from "@/lib/door";
+import { badFields, formOf, limited, text } from "@/lib/door";
+import { redirectTo } from "@/lib/form-fetch";
 import { householdRequest } from "@/lib/session";
+import { Uuid } from "@/lib/stable-id";
 
-const input = z.object({ id: z.string().uuid(), kind: z.enum(["dismiss", "not_now"]) });
+const input = z.object({ id: Uuid, kind: z.enum(["dismiss", "not_now"]) });
 
 export async function POST(request: Request) {
   const hid = await householdRequest(request);

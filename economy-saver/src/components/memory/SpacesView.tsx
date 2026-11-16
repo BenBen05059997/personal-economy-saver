@@ -13,7 +13,7 @@ function SpaceName({ value }: { value?: string }) {
   return <label className="ui-field">Space name<input name="name" defaultValue={value} maxLength={60} required /></label>;
 }
 
-export type SpaceOverview = Pick<Space, "id" | "name" | "status" | "isGeneral"> & { about: string | null };
+type SpaceOverview = Pick<Space, "id" | "name" | "status" | "isGeneral"> & { about: string | null };
 
 export function SpacesView({ spaces, householdId, places }: { spaces: SpaceOverview[]; householdId: string; places: Places }) {
   const [localAbout, setLocalAbout] = useState<Record<string, string>>({});

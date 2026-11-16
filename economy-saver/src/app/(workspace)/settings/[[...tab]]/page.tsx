@@ -23,13 +23,14 @@ import { WorkspaceFrame } from "@/components/shell/WorkspaceFrame";
 import { LinkTabs } from "@/components/ui/LinkTabs";
 import { ScrollToHash } from "@/components/ui/ScrollToHash";
 import "@/components/settings/settings.css";
+import { SETTINGS_PAYPAL, SETTINGS_ACCOUNT } from "@/lib/links";
 
 const TABS = [
   { id: "rules", slug: "", label: "Assistant rules", href: "/settings" },
   { id: "ai-model", slug: "ai-model", label: "Your AI model", href: "/settings/ai-model" },
-  { id: "paypal", slug: "paypal", label: "PayPal", href: "/settings/paypal" },
+  { id: "paypal", slug: "paypal", label: "PayPal", href: SETTINGS_PAYPAL },
   { id: "data", slug: "data", label: "Your data", href: "/settings/data" },
-  { id: "account", slug: "account", label: "Account", href: "/settings/account" },
+  { id: "account", slug: "account", label: "Account", href: SETTINGS_ACCOUNT },
 ] as const;
 
 type Params = Promise<{ tab?: string[] }>;

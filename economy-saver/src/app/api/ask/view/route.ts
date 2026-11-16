@@ -1,16 +1,18 @@
 import { askSpaceId, loadAskView } from "@/db/ask-view";
 import { db } from "@/db/client";
-import { limited, NO_STORE, text } from "@/lib/door";
+import { CANVAS_REQUEST_LIMIT } from "@/db/rate-limit";
+import { limited, text, TOO_MANY_CANVAS_REQUESTS } from "@/lib/door";
+import { NO_STORE, noStore } from "@/lib/form-fetch";
 import { hasHouseholdOwnerAccess, householdRequest } from "@/lib/session";
 
 export async function GET(request: Request) {
   const hid = await householdRequest(request);
   if (hid instanceof Response) {
-    hid.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
+    noStore(hid);
     return hid;
   }
   const connection = db();
-  const busy = await limited(hid, "canvas", 120, "Too many canvas requests. Try again in a minute.", connection);
+  const busy = await limited(hid, "canvas", CANVAS_REQUEST_LIMIT, TOO_MANY_CANVAS_REQUESTS, connection);
   if (busy) return busy;
   const param = new URL(request.url).searchParams.get("space");
   const space = askSpaceId.optional().safeParse(param ?? undefined);
