@@ -142,6 +142,7 @@ export const TERMS = [
   term("difference_between_months", "difference between the months", "money", "none", "The second month's total less the first's, for the two months compared."),
   term("cancel_by", "cancel by", "date", "none", "The last day to cancel a regular cost before it renews."),
   term("low_point_change", "change in the low point", "money", "named", "How much the change moves the low point: after less before."),
+  term("to_check_amount", "to check", "money", "none", "The amount of an item that waits for your yes; it counts for nothing until you confirm it."),
 ] as const satisfies readonly Term[];
 
 export type TermName = (typeof TERMS)[number]["name"];

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { readerInbox } from "@/db/reader-inbox";
 import { setReadingWhose } from "@/db/readings";
 import { checksFor, pendingProposals, readingProposal, type Check, type Proposal } from "@/lib/money/checks";
+import { engineFact, forModel, type Fact } from "@/lib/money/facts";
 import { minorPerUnit } from "@/lib/money/format";
 import type { Tool, ToolContext } from "./tools";
 
@@ -28,14 +29,22 @@ export const checkTools: Tool[] = [
         from, ...(documentId && { documentId }),
         checks: checkOut(checksFor(p, state, readingProposals)),
       });
-      return JSON.stringify({
-        currency: state.homeCurrency,
-        items: [
+      const items = [
           ...inbox.readings.map((reading, index) => item(readingProposals[index], reading.from, reading.documentId)),
           ...drafts.map(p => item(p, fromOf.get(p.id) ?? "form")),
           ...state.balanceUpdates.map(update => ({ source: "balance", id: update.id, what: "bank_balance", name: null, amountMinor: Math.round(update.amount * unit), currency: state.homeCurrency, date: null, repeat: null, from: update.madeBy ?? "form", checks: [] })),
           ...state.pendingPots.map(pot => ({ source: "pot", id: pot.id, what: "pot", name: pot.name, amountMinor: Math.round(pot.saved * unit), currency: state.homeCurrency, date: null, repeat: null, from: pot.madeBy ?? "form", checks: [] })),
-        ],
+      ];
+      // Every amount here waits for the person's yes: a fact the check accepts, and one that counts for nothing.
+      const facts: Fact[] = items.flatMap(entry => entry.amountMinor === null || entry.currency === null ? [] : [engineFact("to_check_amount", entry.amountMinor, {
+        from: "to_check", currency: entry.currency,
+        about: { type: entry.what === "charge" ? "charge" : entry.what === "pot" ? "pot" : "bill", id: entry.id, name: entry.name ?? "Bank balance" },
+        ...(entry.date && { period: { on: entry.date } }),
+      })]);
+      return JSON.stringify({
+        ...forModel(facts),
+        currency: state.homeCurrency,
+        items,
         reading: inbox.jobs.map(job => ({ documentId: job.id, status: job.status, error: job.error })),
       });
     },

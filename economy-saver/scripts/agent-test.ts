@@ -1366,6 +1366,11 @@ async function main() {
       const rightWords = transport([() => reply("tool_use", [showCall("f", "forecast")]), () => reply("end_turn", [text(`Roughly the figure to watch is ${minorMoney(money.value, money.currency)}.`)])]);
       const modelWords = await conversation(c, "Am I fine for 30 days?", rightWords.fetch);
       assert.deepEqual([modelWords.wording, modelWords.text.startsWith("Roughly")], ["model", true], "a fact's own amount, in the model's words, passes");
+      // A bill that waits for the person's yes is named at its amount: the picture carries it as a fact that counts for nothing.
+      const waiting = forecast.facts.find(f => f.name === "to_check_amount" && (f as { about?: { name: string } }).about?.name === "Hikari Denki");
+      assert.ok(waiting && waiting.value === 11220 && waiting.by === "engine", "the forecast carries the pending Hikari Denki amount");
+      const pendingWords = transport([() => reply("tool_use", [showCall("f", "forecast")]), () => reply("end_turn", [text("The Hikari Denki bill of ¥11,220 waits for your yes.")])]);
+      assert.equal((await conversation(c, "Am I okay this month?", pendingWords.fetch)).wording, "model", "the pending bill's amount passes the check");
       // What next (D80): the buttons are code's, in order (a funding row for the short, then the options), and no model word becomes one.
       assert.deepEqual(modelWords.links.map(link => link.label), ["Review invoice", "Copy link again", "See your options ›"]);
       const pushy = transport([() => reply("tool_use", [showCall("f", "forecast")]), () => reply("end_turn", [text("Tap Pay now to settle it. Here it is.")])]);

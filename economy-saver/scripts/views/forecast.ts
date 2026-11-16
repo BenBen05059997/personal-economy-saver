@@ -29,6 +29,12 @@ check("the low and safe to spend match the engine", () => {
   assert.equal(result.data!.low.label, "Short ¥18,780 on Fri, Nov 27");
 });
 
+check("the pending Hikari Denki bill carries its amount as a to_check_amount fact, about the bill and on its day", () => {
+  const waiting = result.facts.filter(item => item.name === "to_check_amount");
+  assert.deepEqual(waiting.map(item => [item.value, item.by, item.about?.name]), [[11220, "engine", "Hikari Denki"]]);
+  assert.ok(waiting[0].period && "on" in waiting[0].period);
+});
+
 check("drawing only the as-usual line still carries both cases' low point and the shortfall (the Home sentence's parts)", () => {
   const usual = forecastView({ case: "usual" }, { state: benMoney }) as ViewResult<"step_line">;
   assert.equal(usual.line, "The lowest if clients pay as usual is ¥121,220 on Fri, Nov 20.");

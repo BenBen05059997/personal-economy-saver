@@ -105,6 +105,11 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
     if (first !== null) facts.push(engineFact("days_until_short", first, { from, case: c }));
     for (const event of forecastCosts(events, point.date)) facts.push(engineFact("cost_before_low", minor(-event.amount), { ...money, case: c, period: { on: event.date }, about: costAbout(event) }));
   };
+  // A bill that waits for the person's yes is shown at the amount it would be and counted nowhere (the same on both lines).
+  for (const bill of pending.values()) {
+    const due = [...lateEvents, ...usualEvents].find(event => event.pending && event.id === bill.id);
+    if (due) facts.push(engineFact("to_check_amount", minor(bill.amount), { ...money, period: { on: due.date }, about: { type: "bill", id: bill.id, name: bill.biller } }));
+  }
   if (showLate) addCase("late", lo, lateEvents, late);
   if (showUsual) addCase("as_usual", hi, usualEvents, usual);
   const spare = (c: "late" | "as_usual", point: ReturnType<typeof low>) => {

@@ -63,10 +63,11 @@ export const calendarView: Resolver<"bills_calendar"> = (args, ctx): ViewResult 
   if (pendingCount > 0) facts.push(engineFact("to_check", pendingCount, { from }));
   // Each counted item on its day, so a figure the person asks about by name is a fact: a bill or statement with its due day and amount, a client with the amount they bring in as usual.
   for (const row of rows) for (const item of row.items) {
-    if (item.pending) continue;
     const about = item.kind === "arrival" ? { type: "client" as const, id: item.clientId ?? item.id, name: item.label }
       : item.kind === "statement" ? { type: "card" as const, id: item.cardId ?? item.id, name: item.label } : { type: "bill" as const, id: item.id, name: item.label };
     const period = { on: row.date };
+    if (item.pending) { facts.push(engineFact("to_check_amount", item.amountMinor, { from, currency, about, period })); continue; }
+    if (item.pending) { facts.push(engineFact("to_check_amount", item.amountMinor, { from, currency, about, period })); continue; }
     if (item.kind !== "arrival") facts.push(engineFact("due", row.date, { from, about }));
     if (item.uncounted) { facts.push(engineFact("not_counted", 1, { from, about, period })); continue; }
     const name = item.kind === "bill" ? "bill_amount" : item.kind === "arrival" ? "client_pays" : item.open ? "statement_open" : "statement_closed";

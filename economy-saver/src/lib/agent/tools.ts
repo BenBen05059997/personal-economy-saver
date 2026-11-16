@@ -256,6 +256,7 @@ function eventFacts(state: MoneyState, events: ReturnType<typeof engineTimeline>
       : { type: "client" as const, id: event.clientId ?? event.id, name: event.label };
     if (event.uncounted) return [engineFact("not_counted", 1, { from, about, period: period(event.date) })];
     const minor = Math.abs(toMinor(event.amount, currency));
+    if (event.pending) return [engineFact("to_check_amount", minor, { from, currency, about, period: period(event.date) })];
     const name = event.kind === "bill" ? "bill_counted" : event.kind === "arrival" ? "client_pays" : event.open ? "statement_open" : "statement_closed";
     const named = name === "bill_counted" || name === "client_pays";
     const money = engineFact(name, minor, { from, currency, about, period: period(event.date), ...(named ? { case: scenario } : {}) });
